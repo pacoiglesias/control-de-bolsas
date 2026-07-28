@@ -1,4 +1,4 @@
-# Manual de Uso: Control Bolsas ERP (v6.0)
+# Manual de Uso: Control Bolsas ERP (v6.4)
 
 Bienvenido al sistema de Control Bolsas. Este manual rápido te explicará los flujos operativos principales.
 
@@ -10,7 +10,8 @@ Bienvenido al sistema de Control Bolsas. Este manual rápido te explicará los f
    - Cliente
    - Kilos Totales
    - **(NUEVO v6)**: Partidas detalladas de artículos (Cantidad, Unidad, Descripción, P.U., Importe).
-4. Un indicador sonoro y visual te avisará cuando el proceso termine.
+4. **Instalación como App (PWA):** En Google Chrome o Safari, puedes hacer clic en el ícono de instalar en la barra de direcciones para tener el sistema como una aplicación de escritorio o móvil independiente.
+5. Un indicador sonoro y visual te avisará cuando el proceso de la IA termine.
 5. Los expedientes se irán a "Órdenes / Ventas".
 
 ## 2. Gestión de Expedientes y Detalle de Artículos
@@ -22,13 +23,15 @@ Bienvenido al sistema de Control Bolsas. Este manual rápido te explicará los f
 
 ## 3. Entregas y Facturación
 - **Entregas:** Ve a la pestaña "Entregas" dentro del expediente. Agrega las notas de remisión. El sistema comparará los Kilos Pedidos vs Entregados.
-- **Facturas:** Ve a la pestaña "Facturas". Sube el XML de la factura. El sistema calculará vencimientos y programará la cobranza.
+- **Facturas:** Ve a la pestaña "Facturas". Sube el PDF o el **XML (Complemento de Pago)**. Si es un XML, el sistema leerá los UUIDs y buscará inmediatamente qué facturas fueron pagadas.
+- **Remisiones:** Puedes generar un PDF de remisión de entrega haciendo clic en el botón "Generar Remisión" dentro del expediente.
 
 ## 4. Cobranza Ágil
 1. Ve a **Cobranza**. Aquí verás todas las facturas pendientes.
 2. Si un cliente ya te pagó, simplemente haz clic en el botón **"💰 Marcar Cobrada"**. 
 3. El sistema registrará el pago automáticamente por el total de la factura con la fecha de hoy, ahorrándote 5 clics.
 4. Si necesitas hacer un pago parcial, usa el botón "Pagar" tradicional para ingresar el monto exacto.
+5. **Alertas de Atraso:** Las facturas vencidas se marcan en rojo y muestran explícitamente los días de atraso (ej. "⚠️ 3 días de atraso") para que sepas a quién cobrar primero.
 
 ## 5. Búsqueda Global Rápida
 - ¡Nuevo! Presiona **`Ctrl + K`** en tu teclado en cualquier pantalla.
