@@ -70,8 +70,44 @@ if exist ".git" (
 
 echo.
 echo  [5/5] Desplegando a Firebase (hosting + functions + reglas^)...
-call firebase deploy --only hosting,functions,firestore,storage
-if errorlevel 1 goto :fallodeploy
+set FALLOS=0
+
+echo.
+echo    -- Reglas e indices de Firestore --
+call firebase deploy --only firestore
+if errorlevel 1 (
+  set /a FALLOS+=1
+  echo    [X] Firestore fallo. Probablemente falta crear la base de datos.
+  set "URLFIRESTORE=1"
+) else ( echo    [OK] Firestore )
+
+echo.
+echo    -- Reglas de Storage --
+call firebase deploy --only storage
+if errorlevel 1 (
+  set /a FALLOS+=1
+  echo    [X] Storage fallo. Falta darle "Comenzar" en la consola.
+  set "URLSTORAGE=1"
+) else ( echo    [OK] Storage )
+
+echo.
+echo    -- Cloud Functions --
+call firebase deploy --only functions
+if errorlevel 1 (
+  set /a FALLOS+=1
+  echo    [X] Functions fallo. Revisa plan Blaze y la clave de Gemini.
+  set "URLBLAZE=1"
+) else ( echo    [OK] Functions )
+
+echo.
+echo    -- Hosting ^(la pagina web^) --
+call firebase deploy --only hosting
+if errorlevel 1 (
+  set /a FALLOS+=1
+  echo    [X] Hosting fallo.
+) else ( echo    [OK] Hosting - tu sistema ya esta en linea )
+
+if !FALLOS! GTR 0 goto :fallodeploy
 
 echo.
 color 0A
@@ -87,7 +123,26 @@ exit /b 0
 color 0C
 echo.
 echo  ============================================================
-echo    FALLO EL DESPLIEGUE. Busca tu error en esta lista:
+echo    !FALLOS! de 4 partes no se pudieron desplegar.
+echo    Lo que si subio ya esta funcionando; falta lo marcado con [X].
+echo.
+if defined URLSTORAGE (
+  echo    STORAGE: entra a la consola y dale "Comenzar" una vez.
+  echo             Es un boton, no se puede automatizar.
+)
+if defined URLFIRESTORE echo    FIRESTORE: falta crear la base de datos ^(modo produccion^).
+if defined URLBLAZE (
+  echo    FUNCTIONS: revisa que el proyecto este en plan Blaze
+  echo               y que la clave de Gemini este cargada.
+)
+echo.
+set /p ABRIRC="  Te abro la guia paso a paso de la consola? (s/n): "
+if /i "!ABRIRC!"=="s" (
+  call PREPARAR_CONSOLA.bat
+  exit /b 1
+)
+echo.
+echo    Referencia rapida:
 echo.
 echo    "Authentication Error / credentials no longer valid"
 echo       --^>  corre CONECTAR_FIREBASE.bat y vuelve a intentar
@@ -102,9 +157,11 @@ echo.
 echo    "Secret GOOGLE_GENAI_API_KEY does not exist"
 echo       --^>  corre CONFIGURAR_CLAVE_GEMINI.bat
 echo.
+echo    "Firebase Storage has not been set up"
+echo       --^>  corre PREPARAR_CONSOLA.bat, paso 3
+echo.
 echo    "Site not found" o "no site name"
-echo       --^>  falta crear Hosting: entra a la consola, menu Hosting,
-echo            dale Comenzar una vez, y vuelve a correr esto
+echo       --^>  falta crear Hosting: consola, menu Hosting, "Comenzar" 
 echo  ============================================================
 echo.
 echo    Duda general: corre DIAGNOSTICO.bat
