@@ -3,8 +3,9 @@
 Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio.
 
 ## Arquitectura Base
-*   **Frontend:** React (Vite) + TypeScript. Interfaz modular, con estado global manejado a través de Contextos (AuthContext, ToastContext).
+*   **Frontend:** React (Vite) + TypeScript. Aplicación web progresiva (PWA) instalable. Interfaz modular, con estado global manejado a través de Contextos (AuthContext, ToastContext).
 *   **Backend:** Firebase (Firestore para base de datos, Storage para PDFs/XMLs, Authentication para usuarios, Hosting para la web).
+*   **Administración Local:** Orquestación y despliegue a través de `CONTROL_MAESTRO.bat` para evitar errores humanos.
 *   **Cloud Functions (Node.js):** 
     *   `parseUploadedPDF`: Lee los archivos subidos al Storage, envía el PDF a **Google Gemini 2.0 Flash** y determina si es una Orden de Compra o una Factura. 
         * Si es OC: Extrae folio, kilos, cliente y detalle de artículos. Crea el expediente en Firestore.
@@ -73,9 +74,10 @@ Tu tarea es realizar una "Auditoría de Automejora Continua" sobre este sistema 
 
 PASOS A SEGUIR:
 1. Revisa los archivos principales (como src/lib/finance.ts, src/pages/OrderModal.tsx y functions/src/index.ts).
-2. Identifica cuellos de botella de rendimiento (renders innecesarios, loops ineficientes).
-3. Identifica deuda técnica, código muerto o funciones repetidas.
-4. Identifica vulnerabilidades de seguridad en las Reglas de Firestore o Storage.
-5. NO implementes nuevas funcionalidades. Tu único objetivo es optimizar, limpiar, refactorizar y proponer mejoras de estabilidad.
-6. Entrégame un Plan de Refactorización antes de tocar el código.
+2. Identifica cuellos de botella de rendimiento (renders masivos por pulsación de tecla, loops O(N) ineficientes en `reduce` o dependencias de `useMemo` mal diseñadas).
+3. Identifica "Full Table Scans" en Firestore (búsquedas no indexadas u O(N) masivas en las Cloud Functions). Recomienda estrategias de indexación inversa o agregación.
+4. Identifica deuda técnica, código muerto o funciones ejecutadas dos veces.
+5. Identifica vulnerabilidades de seguridad y DESAJUSTES en las Reglas de Firestore y Storage (ej. ¿Se activó una funcionalidad en Cloud Functions que las Storage Rules bloquean en el cliente?). Asegúrate de que `email_verified == true` esté presente.
+6. NO implementes nuevas funcionalidades. Tu único objetivo es optimizar, limpiar, refactorizar y proponer mejoras de estabilidad.
+7. Entrégame un Plan de Refactorización antes de tocar el código.
 ```
