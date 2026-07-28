@@ -93,22 +93,43 @@ export function getOrderSummary(o: PurchaseOrder) {
   }
 
   const kilosDelivered = round2(deliveries.reduce((a, d) => a + d.kilos, 0));
-  const kilosInvoiced = round2(invoices.reduce((a, i) => a + i.kilos, 0));
-  const invoiceTotal = round2(invoices.reduce((a, i) => a + (i.financials?.invoiceTotal || 0), 0));
-  const saleTotal = round2(invoices.reduce((a, i) => a + (i.financials?.saleTotal || 0), 0));
-  const commission = round2(invoices.reduce((a, i) => a + (i.financials?.commission || 0), 0));
-  const netCashFlow = round2(invoices.reduce((a, i) => a + (i.financials?.netCashFlow || 0), 0));
-  const paidAmount = round2(invoices.reduce((a, i) => a + (i.collection?.paidAmount || 0), 0));
+  
+  let kilosInvoiced = 0, invoiceTotal = 0, saleTotal = 0, commission = 0, netCashFlow = 0, paidAmount = 0;
+  let hasOverdue = false, hasManual = false, hasPending = false, hasFacturado = false, allPaid = true, allPedido = true;
+
+  for (const i of invoices) {
+    kilosInvoiced += i.kilos;
+    invoiceTotal += i.financials?.invoiceTotal || 0;
+    saleTotal += i.financials?.saleTotal || 0;
+    commission += i.financials?.commission || 0;
+    netCashFlow += i.financials?.netCashFlow || 0;
+    paidAmount += i.collection?.paidAmount || 0;
+
+    const s = i.creditCycle.status;
+    if (s === 'overdue') hasOverdue = true;
+    if (s === 'manual_review') hasManual = true;
+    if (s === 'pending') hasPending = true;
+    if (s === 'facturado') hasFacturado = true;
+    if (s !== 'paid') allPaid = false;
+    if (s !== 'pedido') allPedido = false;
+  }
+
+  kilosInvoiced = round2(kilosInvoiced);
+  invoiceTotal = round2(invoiceTotal);
+  saleTotal = round2(saleTotal);
+  commission = round2(commission);
+  netCashFlow = round2(netCashFlow);
+  paidAmount = round2(paidAmount);
 
   let status: OrderStatus = o.creditCycle?.status ?? 'pedido';
   if (invoices.length > 0) {
-    if (invoices.some(i => i.creditCycle.status === 'overdue')) status = 'overdue';
-    else if (invoices.some(i => i.creditCycle.status === 'manual_review')) status = 'manual_review';
-    else if (invoices.some(i => i.creditCycle.status === 'pending')) status = 'pending';
-    else if (invoices.some(i => i.creditCycle.status === 'facturado')) status = 'facturado';
-    else if (invoices.every(i => i.creditCycle.status === 'paid')) {
+    if (hasOverdue) status = 'overdue';
+    else if (hasManual) status = 'manual_review';
+    else if (hasPending) status = 'pending';
+    else if (hasFacturado) status = 'facturado';
+    else if (allPaid) {
       status = kilosInvoiced >= (o.totalKilograms || 0) ? 'paid' : 'pending';
-    } else if (invoices.every(i => i.creditCycle.status === 'pedido')) {
+    } else if (allPedido) {
       status = 'pedido';
     }
   }

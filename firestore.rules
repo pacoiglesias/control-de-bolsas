@@ -7,6 +7,7 @@ service cloud.firestore {
     // de Firebase Auth y queda con control total de los datos.
     function isAllowedOwnerEmail() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && (
           request.auth.token.email == "paco.iglesias@gmail.com"

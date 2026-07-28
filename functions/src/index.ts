@@ -155,8 +155,16 @@ export const parseUploadedPDF = onObjectFinalized(
           
           if (uuids.length > 0) {
             logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
-            // Busqueda ineficiente pero segura para la escala actual
-            const ordersSnapshot = await db.collection(COL_ORDERS).get();
+            
+            // 1. Búsqueda Optimizada O(1) usando invoiceUuids
+            let ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', uuids).get();
+            
+            // 2. Fallback para expedientes antiguos sin indexar
+            if (ordersSnapshot.empty) {
+              logger.info(`Fallback: Escaneo total para buscar UUIDs antiguos.`);
+              ordersSnapshot = await db.collection(COL_ORDERS).get();
+            }
+            
             let encontradas = 0;
             for (const doc of ordersSnapshot.docs) {
               const oData = doc.data();
@@ -239,14 +247,15 @@ export const parseUploadedPDF = onObjectFinalized(
         if (exists) {
           logger.info(`Factura ${data.folio} ya existe en OC ${ocData.folio}. Se ignora.`);
         } else {
+          const fin = computeFinancials(data.totalKilograms, cfg);
           const newInvoice = {
             id: docIdFor(filePath),
             folio: data.folio,
             uuid: data.uuid ?? "",
             kilos: data.totalKilograms,
             financials: {
-              ...computeFinancials(data.totalKilograms, cfg),
-              invoiceTotal: data.totalAmount ?? computeFinancials(data.totalKilograms, cfg).invoiceTotal
+              ...fin,
+              invoiceTotal: data.totalAmount ?? fin.invoiceTotal
             },
             creditCycle: {
               issueDate: Timestamp.fromDate(issueDate),
@@ -256,6 +265,7 @@ export const parseUploadedPDF = onObjectFinalized(
           };
           await ocDoc.ref.update({
             invoices: FieldValue.arrayUnion(newInvoice),
+            ...(data.uuid ? { invoiceUuids: FieldValue.arrayUnion(data.uuid.toUpperCase()) } : {}),
             updatedAt: FieldValue.serverTimestamp()
           });
           logger.info(`Factura ${data.folio} agregada a OC ${ocData.folio}`);

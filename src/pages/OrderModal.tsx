@@ -56,7 +56,7 @@ export default function OrderModal({
       invoices: form.invoices,
     };
     return getOrderSummary(tempOrder);
-  }, [order, form, kilosNum]);
+  }, [order, form.folio, kilosNum, form.deliveries, form.invoices]);
 
   async function save() {
     if (kilosNum <= 0) {
