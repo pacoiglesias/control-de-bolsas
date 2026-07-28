@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
 
@@ -27,6 +27,8 @@ export default function Layout() {
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
+  const nav = useNavigate();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -34,6 +36,28 @@ export default function Layout() {
   }, [theme]);
 
   useEffect(() => setNavOpen(false), [location.pathname]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const term = window.prompt('Buscar expediente, folio o cliente:');
+        if (term) nav(`/ordenes?q=${encodeURIComponent(term)}`);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [nav]);
 
   const overdue = orders.filter((o) => o.creditCycle?.status === 'overdue').length;
   const review = orders.filter((o) => o.creditCycle?.status === 'manual_review').length;
@@ -48,10 +72,15 @@ export default function Layout() {
         </button>
         <span className="t-title">Control Bolsas</span>
         <span className="spacer" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
+          {isOnline ? 'Sistema OK' : 'Sin conexión'}
+        </div>
         <button
           className="icon-btn"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           aria-label="Cambiar tema"
+          title="Ctrl+K para Buscar"
         >
           ◐
         </button>

@@ -7,7 +7,7 @@ import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials, addDays, getOrderSummary } from '../lib/finance';
 import { fromInputDate, money, toInputDate, kilos } from '../lib/format';
-import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery } from '../lib/types';
+import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 
 export default function OrderModal({
   order,
@@ -38,6 +38,7 @@ export default function OrderModal({
     estimatedDeliveryDate: order.estimatedDeliveryDate ?? null,
     deliveries: initialSummary.deliveries,
     invoices: initialSummary.invoices,
+    items: order.items ?? [],
   });
 
   const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
@@ -81,6 +82,7 @@ export default function OrderModal({
         estimatedDeliveryDate: form.estimatedDeliveryDate,
         deliveries: form.deliveries,
         invoices: updatedInvoices,
+        items: form.items,
         updatedAt: serverTimestamp(),
         processedAt: order.processedAt ?? serverTimestamp(),
       }, { merge: true });
@@ -185,6 +187,29 @@ export default function OrderModal({
     }
   }
 
+  // --- Handlers for Items ---
+  const addItem = () => {
+    set('items', [
+      ...form.items,
+      { id: Date.now().toString(), quantity: 0, unit: 'Kilos', description: '', unitPrice: config.salePricePerKg, amount: 0 }
+    ]);
+  };
+  const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
+    const next = [...form.items];
+    next[index] = { ...next[index], [field]: value };
+    if (field === 'quantity' || field === 'unitPrice') {
+      next[index].amount = Number((next[index].quantity * next[index].unitPrice).toFixed(2));
+    }
+    set('items', next);
+  };
+  const removeItem = (index: number) => {
+    if (window.confirm('¿Eliminar este artículo?')) {
+      const next = [...form.items];
+      next.splice(index, 1);
+      set('items', next);
+    }
+  };
+
   // --- Handlers for Deliveries ---
   const addDelivery = () => {
     set('deliveries', [
@@ -281,6 +306,66 @@ export default function OrderModal({
                 <button className="btn" onClick={emailClient} style={{ background: 'var(--info)', color: '#fff', borderColor: 'var(--info)' }}>✉️ Notificar al cliente</button>
               </div>
             </div>
+
+            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h4>Detalle de Artículos (Partidas)</h4>
+              {!readOnly && <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>}
+            </div>
+            {form.items.length === 0 ? (
+              <p className="hint">No hay artículos detallados. Agrega uno o espera a la IA.</p>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table" style={{ width: '100%', marginBottom: 12 }}>
+                  <thead>
+                    <tr>
+                      <th className="num">Cantidad</th>
+                      <th>Unidad</th>
+                      <th>Descripción</th>
+                      <th className="num">P. Unitario</th>
+                      <th className="num">Importe</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.items.map((it, i) => (
+                      <tr key={it.id}>
+                        <td className="num">
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
+                            value={it.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
+                        </td>
+                        <td>
+                          <input className="input boxed" type="text" style={{ width: 80 }}
+                            value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
+                        </td>
+                        <td>
+                          <input className="input boxed" type="text" style={{ minWidth: 200 }}
+                            value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
+                        </td>
+                        <td className="num">
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
+                            value={it.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
+                        </td>
+                        <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
+                          {money(it.amount)}
+                        </td>
+                        <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
+                          {!readOnly && <button className="btn btn-danger" onClick={() => removeItem(i)}>X</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
+                      <td className="num mono" style={{ fontWeight: 700 }}>
+                        {money(form.items.reduce((acc, it) => acc + it.amount, 0))}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
 
             <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
             <div className="calc-box">

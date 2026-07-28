@@ -66,6 +66,15 @@ export interface Invoice {
   collection?: CollectionInfo;
 }
 
+export interface PurchaseOrderItem {
+  id: string;
+  quantity: number;
+  unit: string;
+  description: string;
+  unitPrice: number;
+  amount: number;
+}
+
 export interface PurchaseOrder {
   id: string;
   fileName?: string;
@@ -83,6 +92,7 @@ export interface PurchaseOrder {
 
   deliveries?: Delivery[];
   invoices?: Invoice[];
+  items?: PurchaseOrderItem[];
 
   processedAt?: Timestamp | null;
   updatedAt?: Timestamp | null;

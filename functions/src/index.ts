@@ -42,6 +42,13 @@ const PurchaseOrderSchema = z.object({
   folio: z.string().describe("Número de folio u orden de compra"),
   totalKilograms: z.number().describe("Kilogramos totales del pedido"),
   client: z.string().optional().describe("Nombre o clave del cliente si aparece"),
+  items: z.array(z.object({
+    quantity: z.number().describe("Cantidad numérica"),
+    unit: z.string().describe("Unidad de medida (ej. Kilos, Bulto, Millar, Pza)"),
+    description: z.string().describe("Descripción del artículo o concepto"),
+    unitPrice: z.number().describe("Precio unitario"),
+    amount: z.number().describe("Importe total de esta partida")
+  })).optional().describe("Lista detallada de artículos (partidas) de la orden"),
 });
 
 /** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
@@ -113,9 +120,11 @@ export const parseUploadedPDF = onObjectFinalized(
         prompt: [
           {
             text:
-              "Eres un capturista. De esta orden de compra extrae el folio " +
-              "(o número de orden), el total de kilogramos y el cliente si aparece. " +
-              "Los kilos van como número, sin unidades ni comas.",
+              "Eres un capturista experto. De esta orden de compra extrae el folio " +
+              "(o número de orden), el cliente, el total de kilogramos y muy importante: " +
+              "extrae el detalle de todos los artículos (partidas) en la tabla central " +
+              "con su cantidad, unidad de medida (Kilos, Bultos, etc), descripción, precio unitario e importe total. " +
+              "Todos los números deben ir sin comas.",
           },
           {
             media: {
@@ -143,6 +152,14 @@ export const parseUploadedPDF = onObjectFinalized(
           folio: data.folio,
           client: data.client ?? "",
           totalKilograms: data.totalKilograms,
+          items: (data.items || []).map((it, i) => ({
+            id: Date.now().toString() + "-" + i,
+            quantity: it.quantity,
+            unit: it.unit,
+            description: it.description,
+            unitPrice: it.unitPrice,
+            amount: it.amount
+          })),
           financials: computeFinancials(data.totalKilograms, cfg),
           creditCycle: {
             issueDate: Timestamp.fromDate(issueDate),

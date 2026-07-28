@@ -26,8 +26,13 @@ export default function Orders() {
   const { role } = useAuth();
   const { config } = useConfig();
   const [params, setParams] = useSearchParams();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+
+  useEffect(() => {
+    const q = params.get('q');
+    if (q !== null && q !== search) setSearch(q);
+  }, [params, search]);
 
   const filter = (params.get('filtro') as 'all' | OrderStatus) ?? 'all';
 
