@@ -173,6 +173,7 @@ export default function Cobranza() {
           order={orders.find((o) => o.id === selected.id) ?? selected}
           config={config}
           onClose={() => setSelected(null)}
+          initialTab="facturas"
         />
       )}
     </>

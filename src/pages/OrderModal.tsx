@@ -14,16 +14,18 @@ export default function OrderModal({
   config,
   onClose,
   readOnly = false,
+  initialTab = 'resumen',
 }: {
   order: PurchaseOrder;
   config: FinancialConfig;
   onClose: () => void;
   readOnly?: boolean;
+  initialTab?: 'resumen' | 'entregas' | 'facturas';
 }) {
   const toast = useToast();
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'resumen' | 'entregas' | 'facturas'>('resumen');
+  const [tab, setTab] = useState<'resumen' | 'entregas' | 'facturas'>(initialTab);
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
 
@@ -399,7 +401,22 @@ export default function OrderModal({
                     <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
-                        {!readOnly && <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>}
+                        {!readOnly && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 8px', fontSize: 13 }}
+                              onClick={() => {
+                                updateInvoice(i, x => ({
+                                  ...x, 
+                                  creditCycle: { ...x.creditCycle, status: 'paid' },
+                                  collection: { ...x.collection, paidAmount: fin.saleTotal, paidAt: Timestamp.now() }
+                                }));
+                                toast('Factura marcada como cobrada al 100%', 'ok');
+                              }}>
+                              💰 Marcar Cobrada
+                            </button>
+                            <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
+                          </div>
+                        )}
                       </div>
                       <div className="form-grid">
                         <Field label="Folio">
