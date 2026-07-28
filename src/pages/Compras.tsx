@@ -35,20 +35,24 @@ export default function Compras() {
 
       <Card
         actions={
-          <button className="btn btn-primary" onClick={() => setSelected({
-            id: doc(collection(db, PATHS.purchases)).id,
-            date: Timestamp.fromDate(new Date()),
-            provider: 'Andres',
-            expectedKilos: 0,
-            receivedKilos: 0,
-            pricePerKg: 42,
-            totalAmount: 0,
-            paidAmount: 0,
-            status: 'pedido',
-            createdAt: null,
-          } as Purchase)}>
-            + Nuevo Pedido al Fabricante
-          </button>
+          <>
+            <button className="btn btn-primary no-print" onClick={() => setSelected({
+              id: doc(collection(db, PATHS.purchases)).id,
+              date: Timestamp.fromDate(new Date()),
+              provider: 'Andres',
+              expectedKilos: 0,
+              receivedKilos: 0,
+              pricePerKg: 42,
+              totalAmount: 0,
+              paidAmount: 0,
+              status: 'pedido',
+              createdAt: null,
+            } as Purchase)}>
+              + Nuevo Pedido al Fabricante
+            </button>
+            <span className="spacer" />
+            <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
+          </>
         }
         title="Historial de Compras"
       >

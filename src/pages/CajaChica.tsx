@@ -27,16 +27,20 @@ export default function CajaChica() {
 
       <Card
         actions={
-          <button className="btn btn-primary" onClick={() => setSelected({
-            id: doc(collection(db, PATHS.expenses)).id,
-            date: Timestamp.fromDate(new Date()),
-            concept: '',
-            amount: 0,
-            type: 'egreso',
-            createdAt: null,
-          } as Expense)}>
-            + Registrar Gasto / Ingreso
-          </button>
+          <>
+            <button className="btn btn-primary no-print" onClick={() => setSelected({
+              id: doc(collection(db, PATHS.expenses)).id,
+              date: Timestamp.fromDate(new Date()),
+              concept: '',
+              amount: 0,
+              type: 'egreso',
+              createdAt: null,
+            } as Expense)}>
+              + Registrar Gasto / Ingreso
+            </button>
+            <span className="spacer" />
+            <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
+          </>
         }
         title="Movimientos"
         hint={`Saldo actual: ${money(saldo)}`}

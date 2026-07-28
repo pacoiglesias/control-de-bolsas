@@ -456,17 +456,6 @@ const STORAGE_KEY = 'control-bolsas-v4';
 const LEGACY_KEYS = ['sistema-control-bolsas-v3','sistema-control-bolsas-v1'];
 const hasCloud = () => (typeof window.storage === 'object' && window.storage && typeof window.storage.get === 'function');
 
-/* Algunos navegadores bloquean localStorage cuando el archivo se abre con
-   file:// o en ventana privada. Si es el caso hay que avisarlo fuerte: el
-   trabajo del día se perdería al cerrar la pestaña. */
-let almacenamientoOK = true;
-(function probarAlmacenamiento(){
-  try{
-    localStorage.setItem('__cb_test__','1');
-    localStorage.removeItem('__cb_test__');
-  }catch(e){ almacenamientoOK = false; }
-})();
-
 const DB = {
   async get(key){
     if(hasCloud()){
@@ -525,7 +514,6 @@ function seedData(){
       iva: 0.16, refCosto: 42, refPrecio: 47, diasAvisoPrevio: 5,
       porcentajeComision: 0.069, comisionBase: 'cobrado', comisionConIVA: false,
       comisionModo: 'descuenta',   // 'descuenta' = te la restan del depósito · 'aparte' = te la cobran por separado
-      comisionBaseIVA: 'con',      // 'con' = sobre el importe con IVA · 'sin' = sobre el subtotal
       diasPlazoContrarecibo: 30,
       tema: 'auto'
     },
@@ -615,7 +603,6 @@ function logPedido(p, texto){
 let state = null;
 let saveTimer = null;
 let importState = null;
-let restoreState = null;
 let modal = null;              // {tipo, id, draft}
 let undoStack = [];            // snapshots para "Deshacer"
 let renderDebounceTimer = null;
@@ -657,7 +644,7 @@ async function attemptSave(retry){
     flashSave('Guardado ✓','');
   }catch(e){
     if(retry < 2) setTimeout(()=> attemptSave(retry+1), 600*(retry+1));
-    else { almacenamientoOK = false; flashSave('⚠ No se pudo guardar — descarga un respaldo','var(--bad)', 7000); }
+    else flashSave('⚠ No se pudo guardar — descarga un respaldo','var(--bad)', 7000);
   }
 }
 function flashSave(txt, color, ms){
@@ -725,10 +712,7 @@ const DOC = {
 
 /* Comisión: automática salvo que la hayas forzado a mano en la ficha */
 function comisionAuto(f){
-  let base = state.params.comisionBase === 'total' ? num(f.montoTotal) : num(f.montoCobrado);
-  // Los montos de las facturas llevan IVA. Si contabilidad cobra su comisión
-  // sobre el subtotal, hay que quitárselo antes de aplicar el porcentaje.
-  if(state.params.comisionBaseIVA === 'sin') base = base / (1 + num(state.params.iva));
+  const base = state.params.comisionBase === 'total' ? num(f.montoTotal) : num(f.montoCobrado);
   let c = base * num(state.params.porcentajeComision);
   if(state.params.comisionConIVA) c = c * (1 + num(state.params.iva));
   return r2(c);
@@ -1088,12 +1072,6 @@ function renderNav(){
 function renderRibbon(){
   const k = computeKPIs();
   let html = '';
-  if(!almacenamientoOK && !hasCloud()){
-    html += `<div class="ribbon">🔒 <strong>Este navegador no deja guardar cambios en un archivo local.</strong>
-      Puedes trabajar normal, pero al cerrar la pestaña se pierde todo lo que captures.
-      Antes de cerrar usa <strong>Descargar respaldo (.json)</strong>.
-      <button data-action="ayuda-storage">¿Cómo lo arreglo?</button></div>`;
-  }
   if(k.vencidas.length){
     html += `<div class="ribbon">⚠ Tienes <strong>${k.vencidas.length} contrarecibo${k.vencidas.length>1?'s':''} vencido${k.vencidas.length>1?'s':''}</strong> sin cobrar por <strong>${money(k.montoVencido)}</strong>
       <button data-jump="VENCIDO">Ver vencidos</button></div>`;
@@ -1134,12 +1112,6 @@ function renderDashboard(){
       </select>
     </label>
     <label style="gap:5px"><input type="checkbox" id="param-comisionIVA" style="width:auto" ${p.comisionConIVA?'checked':''}> Comisión + IVA</label>
-    <label>Comisión sobre importe
-      <select id="param-comisionBaseIVA">
-        <option value="con" ${p.comisionBaseIVA!=='sin'?'selected':''}>con IVA</option>
-        <option value="sin" ${p.comisionBaseIVA==='sin'?'selected':''}>sin IVA (subtotal)</option>
-      </select>
-    </label>
     <label>La comisión
       <select id="param-comisionModo">
         <option value="descuenta" ${p.comisionModo==='descuenta'?'selected':''}>se descuenta del depósito</option>
@@ -1210,8 +1182,6 @@ function renderDashboard(){
     </div>
   </div>
 
-  ${renderSyncBanner()}
-
   ${renderCascada()}
 
   ${renderAccionesSugeridas()}
@@ -1230,18 +1200,6 @@ function renderDashboard(){
 
 /* La ruta completa del dinero, de la compra al banco. Cada renglón sale de un
    módulo distinto, así se ve dónde está parado cada peso y por qué. */
-/* De dónde vienen estos datos y qué tan frescos están. */
-function renderSyncBanner(){
-  const s = state.sync;
-  if(!s) return '';
-  return `
-  <div class="config-row" style="border-color:var(--info);background:var(--info-bg);color:var(--info)">
-    <span>☁ Datos sincronizados desde <strong>${escHtml(s.fuente||'la app')}</strong>${s.proyecto?` · proyecto ${escHtml(s.proyecto)}`:''} el <strong>${escHtml(s.fecha||'—')}</strong>${s.conteos?` · ${escHtml(s.conteos)}`:''}</span>
-    <div class="spacer"></div>
-    <span class="hint" style="color:inherit;opacity:.8">Lo que edites aquí se queda en este dispositivo hasta que vuelvas a exportar.</span>
-  </div>`;
-}
-
 function renderCascada(){
   const k = computeKPIs();
   const deudaProv = k.compraTotal - k.abonosProveedor;
@@ -2122,7 +2080,6 @@ function renderReportes(){
 function getFactura(id){ return state.facturas.find(f=>f.id===id); }
 
 function renderModal(){
-  if(restoreState) return modalRestaurar();
   if(importState) return renderImportModal();
   if(!modal) return '';
   if(modal.tipo==='abono')          return modalAbono();
@@ -3059,8 +3016,7 @@ document.getElementById('scrim').addEventListener('click', ()=> document.body.cl
 
 document.addEventListener('keydown',(e)=>{
   if(e.key==='Escape'){
-    if(restoreState){ restoreState=null; render(); }
-    else if(importState){ importState=null; render(); }
+    if(importState){ importState=null; render(); }
     else if(modal){ modal=null; render(); }
     else document.body.classList.remove('nav-open');
   }
@@ -3237,41 +3193,7 @@ document.addEventListener('click', (e)=>{
     return;
   }
 
-  /* ---------- RESTAURAR / FUSIONAR ---------- */
-  const closeRest = t.closest('[data-action="close-restore"]');
-  if(closeRest){ restoreState=null; render(); return; }
-  const ovlRest = t.closest('[data-close-restore]');
-  if(ovlRest && t===ovlRest){ restoreState=null; render(); return; }
-  const rMerge = t.closest('[data-action="restore-merge"]');
-  if(rMerge){
-    snapshot();
-    const r = restoreState.resumen;
-    fusionarDatos(restoreState.data);
-    restoreState = null; scheduleSave(); aplicarTema(); render();
-    toast(`Fusionado · ${r.nuevas} nuevas, ${r.actualizadas} actualizadas, ${r.locales} tuyas intactas`, {undo:true, tone:'ok', ms:9000});
-    return;
-  }
-  const rRepl = t.closest('[data-action="restore-replace"]');
-  if(rRepl){
-    if(!confirm('Esto borra todo lo que hay en este navegador y lo reemplaza por el archivo. ¿Continuar?')) return;
-    snapshot();
-    state = prepararEstado(restoreState.data);
-    restoreState = null; scheduleSave(); aplicarTema(); render();
-    toast('Datos reemplazados', {undo:true, tone:'ok'});
-    return;
-  }
-
   /* ---------- PEDIDOS ---------- */
-  const ayudaSt = t.closest('[data-action="ayuda-storage"]');
-  if(ayudaSt){
-    alert('Tres formas de resolverlo, de más fácil a más completa:\n\n' +
-      '1) Abre este archivo en Chrome o Edge: ahí sí permiten guardar en archivos locales.\n\n' +
-      '2) Sal del modo incógnito o ventana privada, que bloquea el guardado.\n\n' +
-      '3) Súbelo a Firebase Hosting junto con la app: al abrirse por https todo funciona sin restricciones.\n\n' +
-      'Mientras tanto puedes usar el sistema con normalidad: solo acuérdate de bajar el respaldo .json antes de cerrar.');
-    return;
-  }
-
   const chipP = t.closest('[data-action="filter-pedidos"]');
   if(chipP){ state.pedidoFilter = chipP.dataset.filter; scheduleSave(); render(); return; }
 
@@ -3574,7 +3496,6 @@ document.addEventListener('change', (e)=>{
   if(el.id==='param-comisionBase'){ state.params.comisionBase = el.value; scheduleSave(); render(); return; }
   if(el.id==='param-comisionIVA'){ state.params.comisionConIVA = el.checked; scheduleSave(); render(); return; }
   if(el.id==='param-comisionModo'){ state.params.comisionModo = el.value; scheduleSave(); render(); return; }
-  if(el.id==='param-comisionBaseIVA'){ state.params.comisionBaseIVA = el.value; scheduleSave(); render(); return; }
 });
 
 /* --- escritura en celdas y campos --- */
@@ -3696,111 +3617,15 @@ document.getElementById('file-import').addEventListener('change', (e)=>{
   reader.onload = () => {
     try{
       const data = JSON.parse(reader.result);
-      if(!data.facturas && !data.pedidos) throw new Error('formato');
-      abrirRestaurar(data, file.name);
+      if(!data.facturas || !data.caja) throw new Error('formato');
+      state = prepararEstado(data);
+      scheduleSave(); aplicarTema(); render();
+      toast('Respaldo restaurado', {tone:'ok'});
     }catch(err){ toast('Ese archivo no es un respaldo válido de este sistema', {tone:'bad', ms:6000}); }
   };
   reader.readAsText(file);
   e.target.value = '';
 });
-
-/* =========================================================================
-   RESTAURAR / FUSIONAR — acepta respaldos del propio HTML y exportaciones
-   de la app en la nube (Control Bolsas v5).
-========================================================================= */
-
-function claveFactura(f){
-  return (String(f.numContrarecibo||'').trim().toUpperCase())
-      || (String(f.folio||'').trim().toUpperCase())
-      || ('id:'+f.id);
-}
-function analizarRestauracion(data){
-  const entrantes = (data.facturas||[]).map(normalizeFactura);
-  const actuales = new Map(state.facturas.map(f=>[claveFactura(f), f]));
-  let nuevas=0, actualizadas=0;
-  entrantes.forEach(f=>{ if(actuales.has(claveFactura(f))) actualizadas++; else nuevas++; });
-  return {
-    nuevas, actualizadas,
-    locales: state.facturas.length - actualizadas,
-    totalEntrante: entrantes.length,
-    pedidos: (data.pedidos||[]).length,
-    compras: (data.proveedores||[]).length,
-    entregas: (data.entregas||[]).length,
-    caja: (data.caja||[]).length,
-    fuente: (data.sync && data.sync.fuente) || 'respaldo del HTML',
-    fecha: (data.sync && data.sync.fecha) || null,
-  };
-}
-/* Fusionar: lo que viene de la app manda en sus campos, lo que solo existe
-   aquí se conserva intacto. Nunca se borra nada de lo local. */
-function fusionarDatos(data){
-  const entrantes = (data.facturas||[]).map(f=>normalizeFactura({...f}));
-  const porClave = new Map(state.facturas.map(f=>[claveFactura(f), f]));
-  entrantes.forEach(inc=>{
-    const local = porClave.get(claveFactura(inc));
-    if(local){
-      const conservar = {id: local.id, seq: local.seq, pedidoId: local.pedidoId || inc.pedidoId,
-        cajaMovIds: local.cajaMovIds, historial: local.historial};
-      Object.assign(local, inc, conservar);
-      logFactura(local, 'Actualizada desde la app en la nube.');
-    } else {
-      inc.id = inc.id || uid();
-      inc.seq = seqCounter++;
-      logFactura(inc, 'Importada desde la app en la nube.');
-      state.facturas.push(inc);
-    }
-  });
-  ['pedidos','proveedores','entregas'].forEach(col=>{
-    (data[col]||[]).forEach(row=>{
-      if(!state[col].some(x=>x.id===row.id)){ state[col].push({...row, seq:seqCounter++}); }
-    });
-  });
-  (data.caja||[]).forEach(m=>{ if(!state.caja.some(x=>x.id===m.id)) state.caja.push({...m, seq:seqCounter++}); });
-  if(data.params) state.params = Object.assign({}, state.params, data.params);
-  if(data.catalogos){
-    ['proveedores','clientes'].forEach(k=>{
-      (data.catalogos[k]||[]).forEach(v=>{ if(v && !state.catalogos[k].includes(v)) state.catalogos[k].push(v); });
-    });
-  }
-  state.sync = data.sync || {fuente:'respaldo', fecha:nowStamp()};
-  state = prepararEstado(state);
-}
-
-function abrirRestaurar(data, nombre){
-  restoreState = {data, nombre, resumen: analizarRestauracion(data)};
-  render();
-}
-function modalRestaurar(){
-  const {nombre, resumen:r} = restoreState;
-  return `
-  <div class="modal-overlay" data-close-restore>
-    <div class="modal">
-      <div class="modal-head"><h3>Restaurar datos</h3>
-        <button class="btn-icon" data-action="close-restore" aria-label="Cerrar">✕</button></div>
-      <div class="modal-body">
-        <p class="hint" style="margin:0 0 12px">Archivo <strong>${escHtml(nombre)}</strong> · origen: ${escHtml(r.fuente)}${r.fecha?` · generado ${escHtml(r.fecha)}`:''}</p>
-        <div class="calc-box" style="margin-top:0">
-          <div class="calc-line"><span>Facturas en el archivo</span><span class="mono">${r.totalEntrante}</span></div>
-          <div class="calc-line"><span>De esas, ya existen aquí (se actualizarían)</span><span class="mono">${r.actualizadas}</span></div>
-          <div class="calc-line"><span>Nuevas que se agregarían</span><span class="mono">${r.nuevas}</span></div>
-          <div class="calc-line"><span>Tuyas que solo viven aquí</span><span class="mono">${r.locales}</span></div>
-          <div class="calc-line"><span>Pedidos · compras · entregas · caja</span><span class="mono">${r.pedidos} · ${r.compras} · ${r.entregas} · ${r.caja}</span></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
-          <button class="btn btn-primary" data-action="restore-merge" style="text-align:left;padding:12px 14px">
-            <strong>Fusionar (recomendado)</strong><br>
-            <span style="font-weight:400;font-size:11.5px">Actualiza lo que coincide y agrega lo nuevo. Nada de lo que capturaste aquí se borra.</span>
-          </button>
-          <button class="btn btn-danger" data-action="restore-replace" style="text-align:left;padding:12px 14px">
-            <strong>Reemplazar todo</strong><br>
-            <span style="font-weight:400;font-size:11.5px">Borra lo que hay en este navegador y deja exactamente el contenido del archivo.</span>
-          </button>
-        </div>
-        <div class="modal-actions"><button class="btn" data-action="close-restore">Cancelar</button></div>
-      </div>
-    </div>
-  </div>`;
-}
 document.getElementById('btn-reset').addEventListener('click', ()=>{
   if(confirm('Esto reemplaza TODOS tus datos actuales por los datos originales migrados del Excel. ¿Continuar?')){
     state = prepararEstado(seedData());
@@ -3839,7 +3664,6 @@ function prepararEstado(data){
   data.facturaSort = data.facturaSort || {key:'fechaFactura', dir:-1};
   data.reporteRango = data.reporteRango || {desde:'', hasta:'', cliente:''};
   data.version = 4;
-  data.sync = data.sync || null;   // {fuente, fecha, proyecto, conteos}
   seqCounter = Math.max(1000, ...['pedidos','proveedores','entregas','caja','facturas']
     .flatMap(k=>(data[k]||[]).map(r=>num(r.seq)))) + 1;
   return data;
@@ -3851,21 +3675,6 @@ function prepararEstado(data){
     const raw = await DB.get(STORAGE_KEY);
     if(raw) cargado = JSON.parse(raw);
   }catch(e){}
-
-  /* Si este archivo lo generó la app en la nube, trae los datos adentro.
-     La primera vez se cargan solos; después mandan tus cambios locales, y
-     si el archivo es más reciente te ofrece fusionarlo sin perder nada. */
-  const incrustado = window.__CB_SEED__ || null;
-  if(incrustado && !cargado){
-    cargado = incrustado;
-    setTimeout(()=> toast(`Datos cargados del respaldo generado ${(incrustado.sync&&incrustado.sync.fecha)||'por la app'}`, {ms:7000, tone:'ok'}), 800);
-  } else if(incrustado && cargado){
-    const fNueva = (incrustado.sync||{}).fecha || '';
-    const fVieja = (cargado.sync||{}).fecha || '';
-    if(fNueva && fNueva !== fVieja){
-      setTimeout(()=>{ abrirRestaurar(incrustado, 'datos incrustados en este archivo'); }, 900);
-    }
-  }
   if(!cargado){
     for(const k of LEGACY_KEYS){
       try{

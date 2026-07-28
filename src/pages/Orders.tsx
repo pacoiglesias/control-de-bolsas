@@ -104,8 +104,8 @@ export default function Orders() {
               + Nuevo Pedido
             </button>
             <span className="spacer" />
-            <button className="btn" onClick={exportCSV}>⭳ CSV</button>
-            <button className="btn" onClick={() => window.print()}>🖨 Imprimir</button>
+            <button className="btn no-print" onClick={exportCSV}>⭳ CSV</button>
+            <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
           </>
         }
         title="Listado"
