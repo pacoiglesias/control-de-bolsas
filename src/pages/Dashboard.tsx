@@ -61,7 +61,7 @@ export default function Dashboard() {
       });
     });
 
-    const meses: Record<string, { venta: number; cobrado: number }> = {};
+    const meses: Record<string, { venta: number; cobrado: number; ganancia: number }> = {};
     live.forEach(o => {
       const s = getOrderSummary(o);
       s.invoices.forEach(inv => {
@@ -69,8 +69,11 @@ export default function Dashboard() {
         if (!d) return;
         const key = monthKey(d);
         const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-        meses[key] = meses[key] ?? { venta: 0, cobrado: 0 };
+        const ganancia = inv.financials?.netCashFlow ?? 0;
+        
+        meses[key] = meses[key] ?? { venta: 0, cobrado: 0, ganancia: 0 };
         meses[key].venta += invTotal;
+        meses[key].ganancia += ganancia;
         if (inv.creditCycle.status === 'paid') meses[key].cobrado += invTotal;
       });
     });
@@ -207,11 +210,37 @@ export default function Dashboard() {
       </div>
 
       {k.mesesKeys.length > 0 && (
-        <Card title="Vendido contra cobrado, mes a mes">
-          <div style={{ width: '100%', height: 320, padding: '16px 20px' }}>
+        <Card title="Ganancias Estimadas por Fecha de Factura">
+          <div className="table-scroll">
+            <table className="data-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Mes de Emisión</th>
+                  <th className="num">Venta Facturada</th>
+                  <th className="num">Ganancia Neta Estimada</th>
+                  <th className="num">Margen de Utilidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {k.mesesKeys.map(m => {
+                  const data = k.meses[m];
+                  const margen = data.venta > 0 ? (data.ganancia / data.venta) * 100 : 0;
+                  return (
+                    <tr key={m}>
+                      <td style={{ fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel(m)}</td>
+                      <td className="num mono">{money(data.venta)}</td>
+                      <td className="num mono" style={{ color: 'var(--ok)', fontWeight: 700 }}>{money(data.ganancia)}</td>
+                      <td className="num mono">{margen.toFixed(1)}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ width: '100%', height: 320, padding: '16px 20px', marginTop: '16px' }}>
             <ResponsiveContainer>
               <BarChart
-                data={k.mesesKeys.map(m => ({ name: monthLabel(m), vendido: k.meses[m].venta, cobrado: k.meses[m].cobrado }))}
+                data={k.mesesKeys.map(m => ({ name: monthLabel(m), vendido: k.meses[m].venta, ganancia: k.meses[m].ganancia, cobrado: k.meses[m].cobrado }))}
                 margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line-soft)" />
@@ -229,7 +258,7 @@ export default function Dashboard() {
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
                 <Bar dataKey="vendido" name="Total Vendido" fill="var(--accent)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="cobrado" name="Cobrado" fill="var(--ok)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="ganancia" name="Utilidad Neta" fill="var(--ok)" radius={[4, 4, 0, 0]} maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </div>
