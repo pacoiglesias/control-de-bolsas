@@ -108,6 +108,8 @@ export function getOrderSummary(o: PurchaseOrder) {
     else if (invoices.some(i => i.creditCycle.status === 'facturado')) status = 'facturado';
     else if (invoices.every(i => i.creditCycle.status === 'paid')) {
       status = kilosInvoiced >= (o.totalKilograms || 0) ? 'paid' : 'pending';
+    } else if (invoices.every(i => i.creditCycle.status === 'pedido')) {
+      status = 'pedido';
     }
   }
 

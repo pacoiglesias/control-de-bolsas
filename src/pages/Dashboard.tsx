@@ -39,17 +39,20 @@ export default function Dashboard() {
       s.invoices.forEach(inv => {
         const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
         const invNet = inv.financials?.netCashFlow ?? 0;
+        const paid = inv.collection?.paidAmount ?? 0;
+        const saldo = Math.max(invTotal - paid, 0);
         
         totalVendido += invTotal;
         netoTotal += invNet;
         
         if (inv.creditCycle.status === 'paid') {
-          cobrado += invTotal;
+          cobrado += paid > 0 ? paid : invTotal;
           netoCobrado += invNet;
-        } else {
-          porCobrar += invTotal;
+        } else if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
+          // Solo se suma a "por cobrar" lo que está en ciclo activo de cobro
+          porCobrar += saldo;
           if (inv.creditCycle.status === 'overdue') {
-            vencido += invTotal;
+            vencido += saldo;
           }
         }
       });
@@ -75,7 +78,7 @@ export default function Dashboard() {
       .flatMap(o => {
         const s = getOrderSummary(o);
         return s.invoices
-          .filter(inv => inv.creditCycle.status === 'pending')
+          .filter(inv => inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue')
           .map(inv => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)) }));
       })
       .filter(x => x.d !== null && x.d > -8)
@@ -236,16 +239,20 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {k.proximos.slice(0, 8).map(({ o, d }) => (
-                  <tr key={o.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}>
-                    <td className="mono">{o.folio ?? '—'}</td>
+                {k.proximos.slice(0, 8).map(({ o, inv, d }) => {
+                  const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+                  const saldo = Math.max(invTotal - (inv.collection?.paidAmount ?? 0), 0);
+                  return (
+                  <tr key={inv.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}>
+                    <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
                     <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>
-                    <td className="mono">{fmtDate(o.creditCycle?.dueDate)}</td>
+                    <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
-                    <td className="num mono">{money(o.financials?.saleTotal)}</td>
-                    <td><StatusBadge status={o.creditCycle?.status ?? 'pending'} /></td>
+                    <td className="num mono">{money(saldo)}</td>
+                    <td><StatusBadge status={inv.creditCycle.status} /></td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

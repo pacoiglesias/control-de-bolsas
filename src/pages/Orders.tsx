@@ -69,6 +69,7 @@ export default function Orders() {
     () => ({
       kilos: rows.reduce((a, o) => a + (o.totalKilograms ?? 0), 0),
       kilosEntregados: rows.reduce((a, o) => a + getOrderSummary(o).kilosDelivered, 0),
+      kilosPendientes: rows.reduce((a, o) => a + Math.max(0, (o.totalKilograms ?? 0) - getOrderSummary(o).kilosDelivered), 0),
       kilosFacturados: rows.reduce((a, o) => a + getOrderSummary(o).kilosInvoiced, 0),
       venta: rows.reduce((a, o) => a + getOrderSummary(o).saleTotal, 0),
       cobrado: rows.reduce((a, o) => a + getOrderSummary(o).paidAmount, 0),
@@ -167,7 +168,7 @@ export default function Orders() {
               <thead>
                 <tr>
                   <th>Expediente</th><th>Cliente</th><th>Prov.</th>
-                  <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Facturados</th>
+                  <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
                   <th className="num">Venta Acum.</th><th className="num">Cobrado</th>
                   <th className="num">Deuda Restante</th>
                   <th>Estado</th>
@@ -190,6 +191,9 @@ export default function Orders() {
                       <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
                       <td className="num mono">{summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}</td>
+                      <td className="num mono" style={{ color: (o.totalKilograms ?? 0) - summary.kilosDelivered > 0 ? 'var(--bad)' : 'inherit' }}>
+                        {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? kilos((o.totalKilograms ?? 0) - summary.kilosDelivered) : '—'}
+                      </td>
                       <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
                       <td className="num mono">{money(summary.saleTotal)}</td>
                       <td className="num mono">{money(summary.paidAmount)}</td>
@@ -206,6 +210,7 @@ export default function Orders() {
                   <td colSpan={3}>Totales de la vista</td>
                   <td className="num">{kilos(totals.kilos)}</td>
                   <td className="num">{kilos(totals.kilosEntregados)}</td>
+                  <td className="num">{kilos(totals.kilosPendientes)}</td>
                   <td className="num">{kilos(totals.kilosFacturados)}</td>
                   <td className="num">{money(totals.venta)}</td>
                   <td className="num">{money(totals.cobrado)}</td>

@@ -73,6 +73,7 @@ export interface PurchaseOrder {
   department?: string;
   provider?: string;
   totalKilograms?: number;
+  estimatedDeliveryDate?: Timestamp | null;
   
   // Legacy fields (will be migrated to invoices[0])
   folio?: string;

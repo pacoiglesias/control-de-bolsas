@@ -17,11 +17,8 @@ export default function Logs() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  if (role !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
-
   useEffect(() => {
+    if (role !== 'admin') return;
     async function fetchLogs() {
       try {
         const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(100));
@@ -44,7 +41,11 @@ export default function Logs() {
       }
     }
     fetchLogs();
-  }, []);
+  }, [role]);
+
+  if (role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="card">

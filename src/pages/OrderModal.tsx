@@ -30,6 +30,7 @@ export default function OrderModal({
     department: order.department ?? '',
     provider: order.provider ?? '',
     totalKilograms: String(order.totalKilograms ?? ''),
+    estimatedDeliveryDate: order.estimatedDeliveryDate ?? null,
     deliveries: initialSummary.deliveries,
     invoices: initialSummary.invoices,
   });
@@ -72,6 +73,7 @@ export default function OrderModal({
         department: form.department.trim(),
         provider: form.provider.trim(),
         totalKilograms: kilosNum,
+        estimatedDeliveryDate: form.estimatedDeliveryDate,
         deliveries: form.deliveries,
         invoices: updatedInvoices,
         updatedAt: serverTimestamp(),
@@ -84,6 +86,70 @@ export default function OrderModal({
     } finally {
       setBusy(false);
     }
+  }
+
+  function emailClient() {
+    const dateStr = form.estimatedDeliveryDate ? form.estimatedDeliveryDate.toDate().toLocaleDateString() : '(por definir)';
+    const subject = encodeURIComponent(`Confirmación de Entrega - Pedido #${form.folio || 'S/N'}`);
+    const body = encodeURIComponent(`Estimado cliente,\n\nLe informamos que su pedido #${form.folio || 'S/N'} por la cantidad de ${kilosNum} kg tiene una fecha estimada de entrega para el ${dateStr}.\n\nSaludos,\nProvidencia`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
+  function printRemision() {
+    const html = `
+      <html>
+        <head>
+          <title>Remisión de Entrega - ${form.folio}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #111; }
+            h1 { border-bottom: 2px solid #000; padding-bottom: 10px; }
+            .meta { margin-bottom: 40px; display: grid; grid-template-columns: 1fr 1fr; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ccc; padding: 12px; text-align: left; }
+            th { background: #eee; }
+            .signature { margin-top: 80px; text-align: center; width: 300px; }
+            .signature div { border-top: 1px solid #000; padding-top: 8px; }
+          </style>
+        </head>
+        <body>
+          <h1>REMISIÓN DE ENTREGA</h1>
+          <div class="meta">
+            <div>
+              <strong>Folio:</strong> ${form.folio || '(Sin folio)'}<br>
+              <strong>Cliente:</strong> ${form.client}<br>
+              <strong>Departamento:</strong> ${form.department || '—'}<br>
+            </div>
+            <div style="text-align: right;">
+              <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString()}<br>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Concepto</th>
+                <th style="text-align: right;">Cantidad (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Bolsa Plástica - Pedido Completo</td>
+                <td style="text-align: right;">${kilosNum}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="signature">
+            <br><br><br>
+            <div>Nombre y Firma de Recibido</div>
+          </div>
+          <script>
+            window.onload = () => { window.print(); window.setTimeout(() => window.close(), 500); }
+          </script>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   }
 
   async function remove() {
@@ -183,6 +249,19 @@ export default function OrderModal({
                 <input className="input boxed mono" type="number" step="0.01" value={form.totalKilograms}
                   onChange={(e) => set('totalKilograms', e.target.value)} disabled={readOnly} />
               </Field>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Field label="Fecha Promesa de Entrega">
+                  <input className="input boxed mono" type="date" 
+                    value={toInputDate(form.estimatedDeliveryDate) || ''}
+                    onChange={(e) => {
+                      const d = fromInputDate(e.target.value);
+                      set('estimatedDeliveryDate', d ? Timestamp.fromDate(d) : null);
+                    }} 
+                    disabled={readOnly} 
+                  />
+                </Field>
+                <button className="btn" onClick={emailClient} style={{ background: '#0066cc', color: 'white', borderColor: '#0066cc' }}>✉️ Notificar al Cliente</button>
+              </div>
             </div>
 
             <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
@@ -195,6 +274,12 @@ export default function OrderModal({
                 <span>Kilos Entregados</span>
                 <span className="mono" style={{ color: liveSummary.kilosDelivered < kilosNum ? 'var(--warn)' : 'var(--ok)' }}>
                   {kilos(liveSummary.kilosDelivered)}
+                </span>
+              </div>
+              <div className="calc-line">
+                <span>Kilos Pendientes</span>
+                <span className="mono" style={{ color: kilosNum - liveSummary.kilosDelivered > 0 ? 'var(--bad)' : 'inherit' }}>
+                  {kilosNum - liveSummary.kilosDelivered > 0 ? kilos(kilosNum - liveSummary.kilosDelivered) : '0'}
                 </span>
               </div>
               <div className="calc-line">
@@ -419,6 +504,7 @@ export default function OrderModal({
             Eliminar Expediente
           </button>
         )}
+        <button className="btn" onClick={printRemision} style={{ marginLeft: 12 }}>📄 Generar Remisión (PDF)</button>
         <span className="spacer" />
         <button className="btn" onClick={onClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
         {!readOnly && (
