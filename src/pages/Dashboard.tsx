@@ -49,11 +49,12 @@ export default function Dashboard() {
   }, [role]);
 
   const k = useMemo(() => {
-    const live = orders.filter((o) => o.creditCycle?.status !== 'manual_review');
-    const pending = orders.filter((o) => o.creditCycle?.status === 'pending');
-    const overdue = orders.filter((o) => o.creditCycle?.status === 'overdue');
-    const paid = orders.filter((o) => o.creditCycle?.status === 'paid');
-    const review = orders.filter((o) => o.creditCycle?.status === 'manual_review');
+    const live: any[] = [];
+    const pending: any[] = [];
+    const overdue: any[] = [];
+    const paid: any[] = [];
+    const review: any[] = [];
+
     let totalKilos = 0;
     let totalVendido = 0;
     let netoTotal = 0;
@@ -61,61 +62,61 @@ export default function Dashboard() {
     let vencido = 0;
     let cobrado = 0;
     let netoCobrado = 0;
-
-    live.forEach(o => {
-      const s = getOrderSummary(o);
-      totalKilos += o.totalKilograms ?? 0;
-      
-      s.invoices.forEach(inv => {
-        const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-        const invNet = inv.financials?.netCashFlow ?? 0;
-        const paid = inv.collection?.paidAmount ?? 0;
-        const saldo = Math.max(invTotal - paid, 0);
-        
-        totalVendido += invTotal;
-        netoTotal += invNet;
-        
-        if (inv.creditCycle.status === 'paid') {
-          cobrado += paid > 0 ? paid : invTotal;
-          netoCobrado += invNet;
-        } else if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
-          // Solo se suma a "por cobrar" lo que está en ciclo activo de cobro
-          porCobrar += saldo;
-          if (inv.creditCycle.status === 'overdue') {
-            vencido += saldo;
-          }
-        }
-      });
-    });
-
     const meses: Record<string, { venta: number; cobrado: number; ganancia: number }> = {};
-    live.forEach(o => {
-      const s = getOrderSummary(o);
-      s.invoices.forEach(inv => {
-        const d = toDate(inv.creditCycle.issueDate) ?? toDate(o.processedAt);
-        if (!d) return;
-        const key = monthKey(d);
-        const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-        const ganancia = inv.financials?.netCashFlow ?? 0;
-        
-        meses[key] = meses[key] ?? { venta: 0, cobrado: 0, ganancia: 0 };
-        meses[key].venta += invTotal;
-        meses[key].ganancia += ganancia;
-        if (inv.creditCycle.status === 'paid') meses[key].cobrado += invTotal;
-      });
-    });
-    const mesesKeys = Object.keys(meses).sort().slice(-6);
-    const maxMes = Math.max(1, ...mesesKeys.map((m) => meses[m].venta));
+    const proximos: any[] = [];
 
-    const proximos = live
-      .flatMap(o => {
+    orders.forEach(o => {
+      const status = o.creditCycle?.status;
+      if (status === 'manual_review') review.push(o);
+      else live.push(o);
+
+      if (status === 'pending') pending.push(o);
+      if (status === 'overdue') overdue.push(o);
+      if (status === 'paid') paid.push(o);
+
+      if (status !== 'manual_review') {
         const s = getOrderSummary(o);
-        return s.invoices
-          .filter(inv => inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue')
-          .map(inv => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)) }));
-      })
-      .filter(x => x.d !== null && x.d > -8)
-      .sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
+        totalKilos += o.totalKilograms ?? 0;
+        
+        s.invoices.forEach(inv => {
+          const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+          const invNet = inv.financials?.netCashFlow ?? 0;
+          const paidAmt = inv.collection?.paidAmount ?? 0;
+          const saldo = Math.max(invTotal - paidAmt, 0);
+          
+          totalVendido += invTotal;
+          netoTotal += invNet;
+          
+          if (inv.creditCycle.status === 'paid') {
+            cobrado += paidAmt > 0 ? paidAmt : invTotal;
+            netoCobrado += invNet;
+          } else if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
+            porCobrar += saldo;
+            if (inv.creditCycle.status === 'overdue') {
+              vencido += saldo;
+            }
+          }
+
+          const d = toDate(inv.creditCycle.issueDate) ?? toDate(o.processedAt);
+          if (d) {
+            const key = monthKey(d);
+            meses[key] = meses[key] ?? { venta: 0, cobrado: 0, ganancia: 0 };
+            meses[key].venta += invTotal;
+            meses[key].ganancia += invNet;
+            if (inv.creditCycle.status === 'paid') meses[key].cobrado += invTotal;
+          }
+
+          if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
+            const late = daysLate(toDate(inv.creditCycle.dueDate));
+            if (late !== null && late > -8) proximos.push({ o, inv, d: late });
+          }
+        });
+      }
+    });
+
+    const mesesKeys = Object.keys(meses).sort().slice(-6);
+    const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => meses[m].venta)) : 1;
+    proximos.sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
 
     return {
       totalKilos, totalVendido, netoTotal, porCobrar, vencido, cobrado, netoCobrado,

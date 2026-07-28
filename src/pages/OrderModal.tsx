@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { deleteDoc, doc, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
-import { db, PATHS } from '../lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { db, PATHS, app } from '../lib/firebase';
 import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
@@ -100,6 +101,7 @@ export default function OrderModal({
         estimatedDeliveryDate: form.estimatedDeliveryDate,
         deliveries: form.deliveries,
         invoices: updatedInvoices,
+        invoiceStatuses: updatedInvoices.map(i => i.creditCycle.status),
         items: form.items,
         updatedAt: serverTimestamp(),
         processedAt: order.processedAt ?? serverTimestamp(),
@@ -207,6 +209,20 @@ export default function OrderModal({
     }
   }
 
+  async function retryAI() {
+    setBusy(true);
+    try {
+      const functions = getFunctions(app);
+      const reprocess = httpsCallable(functions, 'reprocessOrder');
+      await reprocess({ orderId: order.id });
+      toast('Archivo reenviado a la IA exitosamente.', 'ok');
+      onClose();
+    } catch (e) {
+      toast(`Error al reintentar: ${(e as Error).message}`, 'bad');
+      setBusy(false);
+    }
+  }
+
   // --- Handlers for Items ---
   const addItem = () => {
     set('items', [
@@ -300,17 +316,17 @@ export default function OrderModal({
           <>
             <div className="form-grid">
               <Field label="Folio Interno del Pedido">
-                <input className="input boxed mono" value={form.folio} onChange={(e) => set('folio', e.target.value)} disabled={readOnly} />
+                <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Cliente">
-                <input className="input boxed" value={form.client} onChange={(e) => set('client', e.target.value)} disabled={readOnly} />
+                <input className="input boxed" defaultValue={form.client} onBlur={(e) => set('client', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Proveedor">
-                <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} disabled={readOnly} />
+                <input className="input boxed" defaultValue={form.provider} onBlur={(e) => set('provider', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Kilos Pedidos (Total)">
-                <input className="input boxed mono" type="number" step="0.01" value={form.totalKilograms}
-                  onChange={(e) => set('totalKilograms', e.target.value)} disabled={readOnly} />
+                <input className="input boxed mono" type="number" step="0.01" defaultValue={form.totalKilograms}
+                  onBlur={(e) => set('totalKilograms', e.target.value)} disabled={readOnly} />
               </Field>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <Field label="Fecha Promesa de Entrega">
@@ -641,9 +657,16 @@ export default function OrderModal({
         )}
       </div>
 
-      <p className="hint" style={{ marginTop: 12 }}>
-        Archivo original: <code>{order.fileName ?? '—'}</code>
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+        <p className="hint" style={{ margin: 0 }}>
+          Archivo original: <code>{order.fileName ?? '—'}</code>
+        </p>
+        {order.aiError && !readOnly && (
+          <button className="btn btn-primary" style={{ background: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => void retryAI()} disabled={busy}>
+            🤖 Reintentar IA
+          </button>
+        )}
+      </div>
 
       <div className="modal-actions" style={{ marginTop: 16 }}>
         {!readOnly && (

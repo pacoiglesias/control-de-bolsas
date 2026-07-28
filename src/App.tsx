@@ -12,6 +12,7 @@ import Respaldo from './pages/Respaldo';
 import CajaChica from './pages/CajaChica';
 import Compras from './pages/Compras';
 import Logs from './pages/Logs';
+import Users from './pages/Users';
 
 function Gate() {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ function Gate() {
         <Route path="caja-chica" element={<CajaChica />} />
         <Route path="compras" element={<Compras />} />
         <Route path="configuracion" element={<Settings />} />
+        <Route path="usuarios" element={<Users />} />
         <Route path="logs" element={<Logs />} />
         <Route path="respaldo" element={<Respaldo />} />
         <Route path="*" element={<Navigate to="/" replace />} />

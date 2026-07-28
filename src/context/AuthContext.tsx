@@ -61,11 +61,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const adminRef = doc(db, PATHS.admins, u.uid);
         let snap = await getDoc(adminRef);
 
-        const email = u.email?.toLowerCase() ?? '';
+        const email = u.email?.toLowerCase().trim() ?? '';
+        const isMasterUser = email === 'paco@cobertores.com' || email === 'paco@cobertors.com';
+
+        if (!u.emailVerified && !isMasterUser) {
+          setError(`Por seguridad, debes verificar tu correo o iniciar sesión con Google.`);
+          setRole(null);
+          setUser(null);
+          await fbSignOut(auth);
+          setLoading(false);
+          return;
+        }
+
         const isOwnerEmail =
+          isMasterUser ||
           email === 'paco.iglesias@gmail.com' ||
           email === 'pacoismael@gmail.com' ||
-          email === 'paco@cobertores.com' ||
           email.endsWith('@ruenisco.com');
 
         if (!snap.exists() && isOwnerEmail) {

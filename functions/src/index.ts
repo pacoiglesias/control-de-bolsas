@@ -94,6 +94,205 @@ function computeFinancials(kilos: number, cfg: typeof DEFAULTS) {
   };
 }
 
+
+async function processStorageFile(filePath: string, bucketName?: string) {
+  const db = getFirestore();
+  const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
+  
+  const isXML = filePath.toLowerCase().endsWith(".xml");
+  
+  try {
+    const bucket = bucketName ? getStorage().bucket(bucketName) : getStorage().bucket();
+    const [fileBuffer] = await bucket.file(filePath).download();
+
+    // Módulo XML: Procesamiento directo sin IA
+    if (isXML) {
+      const xmlStr = fileBuffer.toString("utf-8");
+      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+      const parsed = parser.parse(xmlStr);
+      
+      const comprobante = parsed["cfdi:Comprobante"];
+      if (!comprobante) throw new Error("No es un CFDI válido (falta cfdi:Comprobante)");
+      
+      const tipo = comprobante.TipoDeComprobante;
+      
+      if (tipo === "P") {
+        // Es Complemento de Pago
+        const complemento = comprobante["cfdi:Complemento"];
+        const pagos = complemento ? (complemento["pago20:Pagos"] || complemento["pago10:Pagos"]) : null;
+        let pago = pagos ? (pagos["pago20:Pago"] || pagos["pago10:Pago"]) : null;
+        
+        if (!pago) throw new Error("Complemento de Pago sin nodo de Pago");
+        if (!Array.isArray(pago)) pago = [pago]; // Puede haber multiples nodos de pago
+        
+        let uuids: string[] = [];
+        for (const p of pago) {
+          let doctosRelacionados = p["pago20:DoctoRelacionado"] || p["pago10:DoctoRelacionado"] || [];
+          if (!Array.isArray(doctosRelacionados)) doctosRelacionados = [doctosRelacionados];
+          
+          for (const d of doctosRelacionados) {
+            if (d.IdDocumento) uuids.push(d.IdDocumento.toUpperCase());
+          }
+        }
+        
+        if (uuids.length > 0) {
+          logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
+          
+          let ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', uuids).get();
+          
+          let encontradas = 0;
+          for (const doc of ordersSnapshot.docs) {
+            const oData = doc.data();
+            const invoices = oData.invoices || [];
+            let modified = false;
+            
+            for (const inv of invoices) {
+              if (inv.uuid && uuids.includes(inv.uuid.toUpperCase())) {
+                if (!inv.collection) inv.collection = {};
+                inv.collection.complementStatus = 'issued';
+                modified = true;
+                encontradas++;
+              }
+            }
+            
+            if (modified) {
+              await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+            }
+          }
+          logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
+        }
+      } else {
+        logger.info(`XML ignorado por ahora. Tipo de comprobante: ${tipo}`);
+      }
+      return;
+    }
+
+    // Módulo PDF: Inteligencia Artificial
+    const pdfBuffer = fileBuffer;
+    const ai = genkit({ plugins: [googleAI({ apiKey: apiKeySecret.value() })] });
+    const aiResponse = await ai.generate({
+      model: MODEL,
+      prompt: [
+        {
+          text:
+            "Eres un auditor contable experto. Clasifica este documento como 'orden_compra' o 'factura'. " +
+            "Extrae el folio, cliente, y el total de kilogramos. " +
+            "Si es una factura, extrae también el UUID (Folio Fiscal), el monto total con IVA, y el número de la OC a la que hace referencia. " +
+            "MUY IMPORTANTE: extrae el detalle de todos los artículos (partidas) en la tabla central " +
+            "con su cantidad, unidad de medida (Kilos, Bultos, etc), descripción, precio unitario e importe total. " +
+            "Todos los números deben ir sin comas.",
+        },
+        {
+          media: {
+            contentType: "application/pdf",
+            url: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
+          },
+        },
+      ],
+      output: { schema: DocumentSchema },
+    });
+
+    const data = aiResponse.output;
+    if (!data || !Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0) {
+      throw new Error("La IA no devolvió kilos válidos");
+    }
+
+    const cfg = await readConfig();
+    const issueDate = new Date();
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + cfg.creditDays);
+
+    if (data.docType === 'factura') {
+      const ocRefMatch = String(data.ocReference).replace(/\D/g, '');
+      let ocQuery = await db.collection(COL_ORDERS).where('folio', '==', data.ocReference).limit(1).get();
+      if (ocQuery.empty && ocRefMatch) {
+        // Fallback searching just by the digits
+        ocQuery = await db.collection(COL_ORDERS).where('folio', '==', ocRefMatch).limit(1).get();
+      }
+
+      if (ocQuery.empty) {
+        throw new Error(`Es factura pero no se encontró la OC original: ${data.ocReference}`);
+      }
+
+      const ocDoc = ocQuery.docs[0];
+      const ocData = ocDoc.data();
+      const invoices: any[] = Array.isArray(ocData.invoices) ? ocData.invoices : [];
+      const exists = invoices.some(inv => inv.folio === data.folio || (data.uuid && inv.uuid === data.uuid));
+
+      if (exists) {
+        logger.info(`Factura ${data.folio} ya existe en OC ${ocData.folio}. Se ignora.`);
+      } else {
+        const fin = computeFinancials(data.totalKilograms, cfg);
+        const newInvoice = {
+          id: docIdFor(filePath),
+          folio: data.folio,
+          uuid: data.uuid ?? "",
+          kilos: data.totalKilograms,
+          financials: {
+            ...fin,
+            invoiceTotal: data.totalAmount ?? fin.invoiceTotal
+          },
+          creditCycle: {
+            issueDate: Timestamp.fromDate(issueDate),
+            dueDate: Timestamp.fromDate(dueDate),
+            status: "pending",
+          }
+        };
+        await ocDoc.ref.update({
+          invoices: FieldValue.arrayUnion(newInvoice),
+          invoiceStatuses: FieldValue.arrayUnion("pending"),
+          ...(data.uuid ? { invoiceUuids: FieldValue.arrayUnion(data.uuid.toUpperCase()) } : {}),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        logger.info(`Factura ${data.folio} agregada a OC ${ocData.folio}`);
+      }
+    } else {
+      // Es Orden de Compra
+      await ref.set(
+        {
+          fileName: filePath,
+          folio: data.folio,
+          client: data.client ?? "",
+          totalKilograms: data.totalKilograms,
+          items: (data.items || []).map((it: any, i: number) => ({
+            id: Date.now().toString() + "-" + i,
+            quantity: it.quantity,
+            unit: it.unit,
+            description: it.description,
+            unitPrice: it.unitPrice,
+            amount: it.amount
+          })),
+          financials: computeFinancials(data.totalKilograms, cfg),
+          creditCycle: {
+            issueDate: Timestamp.fromDate(issueDate),
+            dueDate: Timestamp.fromDate(dueDate),
+            status: "pending",
+          },
+          invoiceStatuses: ["pending"],
+          processedAt: FieldValue.serverTimestamp(),
+          aiError: FieldValue.delete(),
+        },
+        { merge: true },
+      );
+      logger.info(`OK ${filePath} → OC folio ${data.folio}, ${data.totalKilograms} kg`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`Fallo de lectura en ${filePath}: ${message}`);
+    await ref.set(
+      {
+        fileName: filePath,
+        creditCycle: { status: "manual_review" },
+        aiError: message.slice(0, 500),
+        processedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    throw error;
+  }
+}
+
+
 export const parseUploadedPDF = onObjectFinalized(
   { secrets: [apiKeySecret], memory: "1GiB", timeoutSeconds: 300 },
   async (event) => {
@@ -120,199 +319,7 @@ export const parseUploadedPDF = onObjectFinalized(
       return;
     }
 
-    try {
-      const [fileBuffer] = await getStorage().bucket(event.data.bucket).file(filePath).download();
-
-      // Módulo XML: Procesamiento directo sin IA
-      if (isXML) {
-        const xmlStr = fileBuffer.toString("utf-8");
-        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
-        const parsed = parser.parse(xmlStr);
-        
-        const comprobante = parsed["cfdi:Comprobante"];
-        if (!comprobante) throw new Error("No es un CFDI válido (falta cfdi:Comprobante)");
-        
-        const tipo = comprobante.TipoDeComprobante;
-        
-        if (tipo === "P") {
-          // Es Complemento de Pago
-          const complemento = comprobante["cfdi:Complemento"];
-          const pagos = complemento ? (complemento["pago20:Pagos"] || complemento["pago10:Pagos"]) : null;
-          let pago = pagos ? (pagos["pago20:Pago"] || pagos["pago10:Pago"]) : null;
-          
-          if (!pago) throw new Error("Complemento de Pago sin nodo de Pago");
-          if (!Array.isArray(pago)) pago = [pago]; // Puede haber multiples nodos de pago
-          
-          let uuids: string[] = [];
-          for (const p of pago) {
-            let doctosRelacionados = p["pago20:DoctoRelacionado"] || p["pago10:DoctoRelacionado"] || [];
-            if (!Array.isArray(doctosRelacionados)) doctosRelacionados = [doctosRelacionados];
-            
-            for (const d of doctosRelacionados) {
-              if (d.IdDocumento) uuids.push(d.IdDocumento.toUpperCase());
-            }
-          }
-          
-          if (uuids.length > 0) {
-            logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
-            
-            // 1. Búsqueda Optimizada O(1) usando invoiceUuids
-            let ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', uuids).get();
-            
-            // 2. Fallback para expedientes antiguos sin indexar
-            if (ordersSnapshot.empty) {
-              logger.info(`Fallback: Escaneo total para buscar UUIDs antiguos.`);
-              ordersSnapshot = await db.collection(COL_ORDERS).get();
-            }
-            
-            let encontradas = 0;
-            for (const doc of ordersSnapshot.docs) {
-              const oData = doc.data();
-              const invoices = oData.invoices || [];
-              let modified = false;
-              
-              for (const inv of invoices) {
-                if (inv.uuid && uuids.includes(inv.uuid.toUpperCase())) {
-                  if (!inv.collection) inv.collection = {};
-                  inv.collection.complementStatus = 'issued';
-                  modified = true;
-                  encontradas++;
-                }
-              }
-              
-              if (modified) {
-                await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
-              }
-            }
-            logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
-          }
-        } else {
-          logger.info(`XML ignorado por ahora. Tipo de comprobante: ${tipo}`);
-        }
-        return;
-      }
-
-      // Módulo PDF: Inteligencia Artificial
-      const pdfBuffer = fileBuffer;
-      const ai = genkit({ plugins: [googleAI({ apiKey: apiKeySecret.value() })] });
-      const aiResponse = await ai.generate({
-        model: MODEL,
-        prompt: [
-          {
-            text:
-              "Eres un auditor contable experto. Clasifica este documento como 'orden_compra' o 'factura'. " +
-              "Extrae el folio, cliente, y el total de kilogramos. " +
-              "Si es una factura, extrae también el UUID (Folio Fiscal), el monto total con IVA, y el número de la OC a la que hace referencia. " +
-              "MUY IMPORTANTE: extrae el detalle de todos los artículos (partidas) en la tabla central " +
-              "con su cantidad, unidad de medida (Kilos, Bultos, etc), descripción, precio unitario e importe total. " +
-              "Todos los números deben ir sin comas.",
-          },
-          {
-            media: {
-              contentType: "application/pdf",
-              url: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
-            },
-          },
-        ],
-        output: { schema: DocumentSchema },
-      });
-
-      const data = aiResponse.output;
-      if (!data || !Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0) {
-        throw new Error("La IA no devolvió kilos válidos");
-      }
-
-      const cfg = await readConfig();
-      const issueDate = new Date();
-      const dueDate = new Date(issueDate);
-      dueDate.setDate(dueDate.getDate() + cfg.creditDays);
-
-      if (data.docType === 'factura') {
-        const ocRefMatch = String(data.ocReference).replace(/\D/g, '');
-        let ocQuery = await db.collection(COL_ORDERS).where('folio', '==', data.ocReference).limit(1).get();
-        if (ocQuery.empty && ocRefMatch) {
-          // Fallback searching just by the digits
-          ocQuery = await db.collection(COL_ORDERS).where('folio', '==', ocRefMatch).limit(1).get();
-        }
-
-        if (ocQuery.empty) {
-          throw new Error(`Es factura pero no se encontró la OC original: ${data.ocReference}`);
-        }
-
-        const ocDoc = ocQuery.docs[0];
-        const ocData = ocDoc.data();
-        const invoices: any[] = Array.isArray(ocData.invoices) ? ocData.invoices : [];
-        const exists = invoices.some(inv => inv.folio === data.folio || (data.uuid && inv.uuid === data.uuid));
-
-        if (exists) {
-          logger.info(`Factura ${data.folio} ya existe en OC ${ocData.folio}. Se ignora.`);
-        } else {
-          const fin = computeFinancials(data.totalKilograms, cfg);
-          const newInvoice = {
-            id: docIdFor(filePath),
-            folio: data.folio,
-            uuid: data.uuid ?? "",
-            kilos: data.totalKilograms,
-            financials: {
-              ...fin,
-              invoiceTotal: data.totalAmount ?? fin.invoiceTotal
-            },
-            creditCycle: {
-              issueDate: Timestamp.fromDate(issueDate),
-              dueDate: Timestamp.fromDate(dueDate),
-              status: "pending",
-            }
-          };
-          await ocDoc.ref.update({
-            invoices: FieldValue.arrayUnion(newInvoice),
-            ...(data.uuid ? { invoiceUuids: FieldValue.arrayUnion(data.uuid.toUpperCase()) } : {}),
-            updatedAt: FieldValue.serverTimestamp()
-          });
-          logger.info(`Factura ${data.folio} agregada a OC ${ocData.folio}`);
-        }
-      } else {
-        // Es Orden de Compra
-        await ref.set(
-          {
-            fileName: filePath,
-            folio: data.folio,
-            client: data.client ?? "",
-            totalKilograms: data.totalKilograms,
-            items: (data.items || []).map((it, i) => ({
-              id: Date.now().toString() + "-" + i,
-              quantity: it.quantity,
-              unit: it.unit,
-              description: it.description,
-              unitPrice: it.unitPrice,
-              amount: it.amount
-            })),
-            financials: computeFinancials(data.totalKilograms, cfg),
-            creditCycle: {
-              issueDate: Timestamp.fromDate(issueDate),
-              dueDate: Timestamp.fromDate(dueDate),
-              status: "pending",
-            },
-            processedAt: FieldValue.serverTimestamp(),
-            aiError: FieldValue.delete(),
-          },
-          { merge: true },
-        );
-        logger.info(`OK ${filePath} → OC folio ${data.folio}, ${data.totalKilograms} kg`);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error(`Fallo de lectura en ${filePath}: ${message}`);
-      // El archivo no se pierde: queda listo para captura manual con su motivo.
-      await ref.set(
-        {
-          fileName: filePath,
-          creditCycle: { status: "manual_review" },
-          aiError: message.slice(0, 500),
-          processedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
-    }
+    await processStorageFile(filePath, event.data.bucket);
   },
 );
 
@@ -322,12 +329,11 @@ export const checkOverdueInvoices = onSchedule(
     const db = getFirestore();
     const ahora = Timestamp.now();
 
-    // OJO: no sirve .where("invoices.creditCycle.status", ...). Firestore no
-    // consulta subcampos dentro de un arreglo de objetos, asi que una consulta
-    // filtrada deja ciego el aviso justo para los expedientes del modelo nuevo
-    // (invoices[]). Se leen todos y se filtra en memoria: son decenas de
-    // documentos, no millones.
-    const snapshot = await db.collection(COL_ORDERS).get();
+    // Ya usamos un índice para no hacer un Full Table Scan O(N) de toda la base
+    const snapshot = await db.collection(COL_ORDERS)
+      .where("invoiceStatuses", "array-contains-any", ["pending", "overdue"])
+      .get();
+      
     if (snapshot.empty) {
       logger.info("No hay expedientes que revisar.");
       return;
@@ -396,28 +402,16 @@ export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) =>
   const snap = await db.collection(COL_ORDERS).doc(orderId).get();
   if (!snap.exists) throw new HttpsError("not-found", "La orden no existe.");
 
-  const kilos = Number(req.data?.totalKilograms ?? snap.data()?.totalKilograms ?? 0);
-  if (!(kilos > 0)) throw new HttpsError("invalid-argument", "Kilos inválidos.");
+  const fileName = snap.data()?.fileName;
+  if (!fileName) throw new HttpsError("failed-precondition", "La orden no tiene archivo asociado.");
 
-  const cfg = await readConfig();
-  const issueDate = new Date();
-  const dueDate = new Date(issueDate);
-  dueDate.setDate(dueDate.getDate() + cfg.creditDays);
-
-  await snap.ref.set(
-    {
-      totalKilograms: kilos,
-      financials: computeFinancials(kilos, cfg),
-      creditCycle: {
-        issueDate: Timestamp.fromDate(issueDate),
-        dueDate: Timestamp.fromDate(dueDate),
-        status: "pending",
-      },
-      updatedAt: FieldValue.serverTimestamp(),
-      aiError: FieldValue.delete(),
-    },
-    { merge: true },
-  );
-  return { ok: true, kilos };
+  try {
+    await processStorageFile(fileName);
+    return { ok: true };
+  } catch (err: any) {
+    throw new HttpsError("internal", "Error al reprocesar: " + err.message);
+  }
 });
+
+
 

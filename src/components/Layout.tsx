@@ -11,6 +11,7 @@ const NAV = [
   { to: '/cobranza', icon: '💰', label: 'Cobranza', roles: ['admin', 'manager'] },
   { to: '/caja-chica', icon: '💵', label: 'Caja Chica', roles: ['admin'] },
   { to: '/respaldo', icon: '💾', label: 'Respaldo Local', roles: ['admin'] },
+  { to: '/usuarios', icon: '👥', label: 'Usuarios', roles: ['admin'] },
   { to: '/logs', icon: '📝', label: 'Bitácora', roles: ['admin'] },
   { to: '/configuracion', icon: '⚙️', label: 'Configuración', roles: ['admin'] },
 ];
