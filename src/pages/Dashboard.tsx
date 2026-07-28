@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
+import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
@@ -13,6 +14,7 @@ import { logAction } from '../lib/logger';
 
 export default function Dashboard() {
   const { orders, loading, error } = useOrders();
+  const { expenses, loading: loadingExp } = useExpenses();
   const { role, user } = useAuth();
   const { config } = useConfig();
   const nav = useNavigate();
@@ -91,7 +93,9 @@ export default function Dashboard() {
     };
   }, [orders]);
 
-  if (loading) return <Spinner label="Conectando con Firestore…" />;
+  const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
+
+  if (loading || loadingExp) return <Spinner label="Conectando con Firestore…" />;
   if (error) return <div className="alert bad">{error}</div>;
 
   return (
@@ -193,6 +197,10 @@ export default function Dashboard() {
           onClick={() => nav('/cobranza')} />
         <KpiCard tone="cash" label="Cobrado" value={money(k.cobrado)}
           sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />
+        {role === 'admin' && (
+          <KpiCard tone={saldoCaja < 0 ? "bad" : "ok"} label="Caja Chica" value={money(saldoCaja)}
+            sub="flujo líquido" onClick={() => nav('/caja-chica')} />
+        )}
         <KpiCard tone={k.review.length ? 'warn' : undefined} label="Esperan captura manual"
           value={k.review.length} sub="la IA no pudo leer el PDF"
           onClick={() => nav('/ordenes?filtro=manual_review')} />
