@@ -5,7 +5,7 @@
  * facturas. La app guarda `purchaseOrders`. Aquí se traduce en ambos sentidos,
  * sin inventar datos: lo que no existe de un lado viaja vacío, no falseado.
  */
-import type { FinancialConfig, PurchaseOrder } from './types';
+import type { FinancialConfig, PurchaseOrder, Purchase, Expense } from './types';
 import { toDate } from './format';
 
 export const HTML_TEMPLATE_PATH = '/respaldo/control-bolsas-offline.html';
@@ -53,6 +53,8 @@ const iso = (d: Date | null): string =>
 /** app → HTML */
 export function ordersToHtmlState(
   orders: PurchaseOrder[],
+  purchases: Purchase[],
+  expenses: Expense[],
   config: FinancialConfig,
   projectId: string,
 ): HtmlState {
@@ -107,13 +109,42 @@ export function ordersToHtmlState(
     new Set(orders.map((o) => o.client?.trim()).filter((c): c is string => !!c)),
   );
 
+  let cajaSeq = 1;
+  const caja = expenses.map((e) => ({
+    id: `app-exp-${e.id}`,
+    seq: cajaSeq++,
+    fecha: iso(toDate(e.date)),
+    concepto: e.concept || '',
+    entrada: e.type === 'ingreso' ? e.amount : 0,
+    salida: e.type === 'egreso' ? e.amount : 0,
+    tipo: 'Efectivo/Transferencia',
+    facturaId: null,
+  }));
+
+  let provSeq = 1;
+  const proveedores = purchases.map((p) => ({
+    id: `app-pur-${p.id}`,
+    seq: provSeq++,
+    pedidoId: null,
+    proveedor: p.provider || '',
+    fecha: iso(toDate(p.date)),
+    concepto: p.notes || `Compra desde app`,
+    kilos: p.expectedKilos || 0,
+    kilosRecibidos: p.receivedKilos || 0,
+    fechaPrometida: '',
+    fechaRecepcion: '',
+    costoKilo: p.pricePerKg || 0,
+    abono: p.paidAmount || 0,
+    estado: p.status === 'pedido' ? 'Pendiente' : (p.status === 'parcial' ? 'Parcial' : 'Entregado'),
+  }));
+
   return {
     version: 4,
     sync: {
       fuente: 'Control Bolsas v5 (Firebase)',
       fecha: new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }),
       proyecto: projectId,
-      conteos: `${facturas.length} facturas`,
+      conteos: `${facturas.length} facturas, ${proveedores.length} compras, ${caja.length} movs caja`,
     },
     params: {
       iva: config.ivaRate,
@@ -126,9 +157,9 @@ export function ordersToHtmlState(
     },
     catalogos: { proveedores: ['Andres'], clientes: clientes.length ? clientes : ['GT', 'TH'] },
     pedidos: [],
-    proveedores: [],
+    proveedores,
     entregas: [],
-    caja: [],
+    caja,
     facturas,
   };
 }

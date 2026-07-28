@@ -3,6 +3,8 @@ import { collection, doc, getDocs, query, serverTimestamp, setDoc, Timestamp, wh
 import { db, PATHS } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useExpenses } from '../hooks/useExpenses';
+import { usePurchases } from '../hooks/usePurchases';
 import { Card, Empty, KpiCard, Spinner } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { money } from '../lib/format';
@@ -26,8 +28,11 @@ function descargar(nombre: string, contenido: string, mime: string) {
 }
 
 export default function Respaldo() {
-  const { orders, loading } = useOrders();
   const { config } = useConfig();
+  const { orders, loading: loadingOrders } = useOrders();
+  const { expenses, loading: loadingExpenses } = useExpenses();
+  const { purchases, loading: loadingPurchases } = usePurchases();
+  const loading = loadingOrders || loadingExpenses || loadingPurchases;
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [entrante, setEntrante] = useState<{ data: Partial<HtmlState>; resumen: HtmlImportSummary; nombre: string } | null>(null);
@@ -37,7 +42,7 @@ export default function Respaldo() {
 
   /* ---------- app → HTML ---------- */
   function exportarJSON() {
-    const estado = ordersToHtmlState(orders, config, PROJECT_ID);
+    const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
     descargar(`control-bolsas-datos-${hoy}.json`, JSON.stringify(estado, null, 2), 'application/json');
     toast('JSON descargado. Ábrelo en el HTML con “Restaurar respaldo”.', 'ok');
   }
@@ -48,7 +53,7 @@ export default function Respaldo() {
       const res = await fetch(HTML_TEMPLATE_PATH);
       if (!res.ok) throw new Error(`No encontré la plantilla en ${HTML_TEMPLATE_PATH}`);
       const template = await res.text();
-      const estado = ordersToHtmlState(orders, config, PROJECT_ID);
+      const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
       descargar(`control-bolsas-respaldo-${hoy}.html`, embedIntoHtml(template, estado), 'text/html');
       toast('Respaldo HTML descargado. Funciona sin internet.', 'ok');
     } catch (e) {
@@ -61,7 +66,7 @@ export default function Respaldo() {
   async function guardarSnapshotEnLaNube() {
     setBusy('snap');
     try {
-      const estado = ordersToHtmlState(orders, config, PROJECT_ID);
+      const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
       await setDoc(doc(db, 'snapshots', 'latest'), {
         payload: JSON.stringify(estado),
         createdAt: serverTimestamp(),
@@ -182,7 +187,7 @@ export default function Respaldo() {
 
   if (loading) return <Spinner />;
 
-  const estimado = ordersToHtmlState(orders, config, PROJECT_ID);
+  const estimado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
 
   return (
     <>
