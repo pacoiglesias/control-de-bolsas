@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { computeFinancials, addDays, getOrderSummary, daysLate } from '../lib/finance';
 import { fromInputDate, money, toInputDate, kilos, toDate } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
+import { sound } from '../lib/sounds';
 
 export default function OrderModal({
   order,
@@ -60,6 +61,7 @@ export default function OrderModal({
 
   async function save() {
     if (kilosNum <= 0) {
+      sound.playError();
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
       return;
     }
@@ -109,9 +111,11 @@ export default function OrderModal({
         facturas: updatedInvoices.length,
         cobrado: liveSummary.paidAmount,
       });
+      sound.playSuccess();
       toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {
+      sound.playError();
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
     } finally {
       setBusy(false);
@@ -509,6 +513,7 @@ export default function OrderModal({
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 8px', fontSize: 13 }}
                               onClick={() => {
+                                sound.playCash();
                                 updateInvoice(i, x => ({
                                   ...x, 
                                   creditCycle: { ...x.creditCycle, status: 'paid' },

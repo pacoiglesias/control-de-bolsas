@@ -18,6 +18,7 @@ export default function Cobranza() {
   const { config } = useConfig();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [hoveredCr, setHoveredCr] = useState<string | null>(null);
 
   async function toggleComplementStatus(orderId: string, invoiceId: string) {
     const o = orders.find(x => x.id === orderId);
@@ -228,26 +229,35 @@ export default function Cobranza() {
                 </tr>
               </thead>
               <tbody>
-                {data.lista.map(({ o, inv, d, saldo }) => (
-                  <tr key={inv.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}
+                {data.lista.map(({ o, inv, d, saldo }) => {
+                  const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
+                  const isHovered = hoveredCr && hoveredCr === currentCr;
+                  return (
+                  <tr key={inv.id} className={`${(d ?? 0) > 0 ? 'row-bad' : ''} ${isHovered ? 'row-hovered-cr' : ''}`}
                     onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
                     <td className="mono">
                       {inv.folio ?? o.folio ?? '—'}
                       {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
                     </td>
                     <td>{o.client ?? '—'}</td>
-                    <td className="mono">
-                      {inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '—'}
-                      {(inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) && 
-                       data.crCounts[inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || ''] > 1 && (
+                    <td className="mono"
+                        onMouseEnter={() => currentCr ? setHoveredCr(currentCr) : null}
+                        onMouseLeave={() => setHoveredCr(null)}>
+                      {currentCr ? (
+                        <div className={`cr-chip ${data.crCounts[currentCr] > 1 ? 'shared' : ''}`}>
+                          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-3.31-2.69-6-6-6S3 1.69 3 5v12.5c0 3.86 3.14 7 7 7s7-3.14 7-7V6h-1.5z"/></svg>
+                          {currentCr}
+                        </div>
+                      ) : '—'}
+                      {currentCr && 
+                       data.crCounts[currentCr] > 1 && (
                         <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', marginLeft: 6 }}>
-                          <span className="badge" style={{ background: 'var(--info)' }}>Compartido</span>
                           <button 
                             className="btn-small btn-ok" 
                             style={{ padding: '2px 6px', fontSize: '10px' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              payContrareciboBlock(inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '');
+                              payContrareciboBlock(currentCr);
                             }}
                           >
                             Pagar Lote
@@ -279,7 +289,8 @@ export default function Cobranza() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

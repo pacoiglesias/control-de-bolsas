@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
@@ -20,6 +22,31 @@ export default function Dashboard() {
   const nav = useNavigate();
   const toast = useToast();
   const [seeding, setSeeding] = useState(false);
+  const [health, setHealth] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({ snapshotDate: null, recentLogs: 0, dbStatus: '...' });
+
+  useEffect(() => {
+    if (role !== 'admin') return;
+    const fetchHealth = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'snapshots', 'latest'));
+        const snapDate = snap.exists() ? snap.data().createdAt?.toDate() : null;
+        
+        const logsQ = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(50));
+        const logsSnap = await getDocs(logsQ);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        let logsToday = 0;
+        logsSnap.forEach(d => {
+          if (d.data().timestamp?.toDate() >= today) logsToday++;
+        });
+        
+        setHealth({ snapshotDate: snapDate, recentLogs: logsToday, dbStatus: 'OK' });
+      } catch(e) {
+        setHealth({ snapshotDate: null, recentLogs: 0, dbStatus: 'Sin conexión' });
+      }
+    };
+    fetchHealth();
+  }, [role]);
 
   const k = useMemo(() => {
     const live = orders.filter((o) => o.creditCycle?.status !== 'manual_review');
@@ -107,6 +134,29 @@ export default function Dashboard() {
         <h1>Panel Principal</h1>
         <p>Centro de mando operativo y financiero. {role !== 'viewer' && `Precio de venta ${money(config.salePricePerKg)}/kg, costo ${money(config.costPricePerKg)}/kg, comisión ${percent(config.commissionRate)}.`}</p>
       </div>
+
+      {role === 'admin' && (
+        <div style={{ display: 'flex', gap: 16, marginBottom: 24, padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', alignItems: 'center' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 20, background: health.dbStatus === 'OK' ? 'var(--ok-bg)' : 'var(--warn-bg)', color: health.dbStatus === 'OK' ? 'var(--ok)' : 'var(--warn)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+              {health.dbStatus === 'OK' ? '🛡️' : '⚠️'}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Salud del Sistema</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Conexión a base de datos: {health.dbStatus}</div>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Último Respaldo (Nube)</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}</div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Auditoría Activa</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{health.recentLogs} movimientos hoy</div>
+          </div>
+          <button className="btn" onClick={() => nav('/logs')} style={{ fontSize: 12 }}>Ver Bitácora</button>
+        </div>
+      )}
 
       {/* ALERTAS URGENTES */}
       {(k.overdue.length > 0 || k.review.length > 0) && (

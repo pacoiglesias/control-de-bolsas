@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { ref, uploadBytesResumable } from 'firebase/storage';
 import { storage, PATHS } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
@@ -8,13 +8,14 @@ import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDateTime, kilos, money } from '../lib/format';
+import { sound } from '../lib/sounds';
 
 interface Job {
   id: string;
   name: string;
   path: string;
   progress: number;
-  state: 'subiendo' | 'procesando' | 'error';
+  state: 'subiendo' | 'procesando' | 'error' | 'completado';
   error?: string;
 }
 
@@ -80,7 +81,22 @@ export default function Upload() {
   );
 
   /** Cruza cada archivo subido con la orden que creó la Cloud Function. */
-  const matched = (path: string) => orders.find((o) => o.fileName === path);
+  const matched = useCallback((path: string) => orders.find((o) => o.fileName === path), [orders]);
+
+  // Si la IA ya procesó el archivo, notificamos.
+  useEffect(() => {
+    let played = false;
+    jobs.forEach(j => {
+      if (j.state === 'procesando' && matched(j.path)) {
+        if (!played) {
+          sound.playNotify();
+          played = true; // Solo sonar una vez si procesó en bloque
+        }
+        setJobs(prev => prev.map(x => x.id === j.id ? { ...x, state: 'completado' } : x));
+        toast(`La IA ha terminado de procesar ${j.name}`, 'ok');
+      }
+    });
+  }, [orders, jobs, matched, toast]);
 
   if (role === 'viewer') return <Navigate to="/" replace />;
 
