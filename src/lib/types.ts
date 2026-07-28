@@ -48,6 +48,7 @@ export interface CollectionInfo {
   paidAmount?: number;
   paidAt?: Timestamp | null;
   notes?: string;
+  complementStatus?: 'pending' | 'issued' | 'na';
 }
 
 export interface Delivery {

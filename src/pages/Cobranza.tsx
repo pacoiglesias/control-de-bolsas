@@ -7,13 +7,85 @@ import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } 
 import { fmtDate, money, toDate } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
+import { useToast } from '../context/ToastContext';
 import type { PurchaseOrder } from '../lib/types';
 
 export default function Cobranza() {
   const { orders, loading, error } = useOrders();
   const { role } = useAuth();
   const { config } = useConfig();
+  const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+
+  async function toggleComplementStatus(orderId: string, invoiceId: string) {
+    const o = orders.find(x => x.id === orderId);
+    if (!o) return;
+    const invIndex = o.invoices?.findIndex(i => i.id === invoiceId);
+    if (invIndex === undefined || invIndex < 0) return;
+    
+    const inv = o.invoices![invIndex];
+    const current = inv.collection?.complementStatus;
+    const nextStatus = current === 'issued' ? 'pending' : 'issued';
+    
+    try {
+      const ref = doc(db, PATHS.orders, orderId);
+      const newInvoices = [...o.invoices!];
+      newInvoices[invIndex] = {
+        ...inv,
+        collection: {
+          ...inv.collection,
+          complementStatus: nextStatus
+        }
+      };
+      await updateDoc(ref, { invoices: newInvoices });
+      toast(`Complemento marcado como ${nextStatus === 'issued' ? 'Emitido' : 'Pendiente'}`, 'ok');
+    } catch (e) {
+      toast('Error al actualizar complemento', 'bad');
+    }
+  }
+
+  async function payContrareciboBlock(crNumber: string) {
+    if (!crNumber) return;
+    if (!window.confirm(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`)) return;
+    
+    const invoicesToPay = data.open.filter(({ o, inv }) => 
+      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
+    );
+    
+    const updatesByOrder: Record<string, typeof invoicesToPay[0]['o']['invoices']> = {};
+    for (const { o, inv } of invoicesToPay) {
+      if (!updatesByOrder[o.id]) {
+        updatesByOrder[o.id] = [...(o.invoices || [])];
+      }
+      
+      const invIndex = updatesByOrder[o.id]!.findIndex(i => i.id === inv.id);
+      if (invIndex >= 0) {
+        updatesByOrder[o.id]![invIndex] = {
+          ...inv,
+          creditCycle: {
+            ...inv.creditCycle,
+            status: 'paid'
+          },
+          collection: {
+            ...inv.collection,
+            paidAmount: inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0,
+            paidAt: Timestamp.now()
+          }
+        };
+      }
+    }
+    
+    try {
+      await Promise.all(Object.entries(updatesByOrder).map(([orderId, newInvoices]) => 
+        updateDoc(doc(db, PATHS.orders, orderId), { invoices: newInvoices })
+      ));
+      toast(`Contrarecibo ${crNumber} cobrado exitosamente`, 'ok');
+    } catch (e) {
+      toast('Error al procesar el cobro en bloque', 'bad');
+    }
+  }
 
   const data = useMemo(() => {
     // Extraer todas las facturas de todos los expedientes
@@ -168,15 +240,38 @@ export default function Cobranza() {
                       {inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '—'}
                       {(inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) && 
                        data.crCounts[inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || ''] > 1 && (
-                        <span className="badge" style={{ marginLeft: 6, background: 'var(--info)' }}>
-                          Compartido
-                        </span>
+                        <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', marginLeft: 6 }}>
+                          <span className="badge" style={{ background: 'var(--info)' }}>Compartido</span>
+                          <button 
+                            className="btn-small btn-ok" 
+                            style={{ padding: '2px 6px', fontSize: '10px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              payContrareciboBlock(inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '');
+                            }}
+                          >
+                            Pagar Lote
+                          </button>
+                        </div>
                       )}
                     </td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{money(saldo)}</td>
-                    <td><StatusBadge status={inv.creditCycle.status} /></td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <StatusBadge status={inv.creditCycle.status} />
+                        {inv.creditCycle.status === 'paid' && (
+                          <button 
+                            className={`btn-small ${inv.collection?.complementStatus === 'issued' ? 'btn-ok' : 'btn-warn'}`}
+                            onClick={(e) => { e.stopPropagation(); toggleComplementStatus(o.id, inv.id); }}
+                            style={{ padding: '2px 6px', fontSize: '10px' }}
+                          >
+                            REP: {inv.collection?.complementStatus === 'issued' ? 'Emitido' : 'Pendiente'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

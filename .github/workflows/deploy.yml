@@ -1,0 +1,38 @@
+name: Deploy to Firebase Hosting and Functions
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Dependencies (Root)
+        run: npm ci
+
+      - name: Install Dependencies (Functions)
+        run: cd functions && npm ci
+
+      - name: Build Frontend
+        run: npm run build
+
+      - name: Build Functions
+        run: cd functions && npm run build
+
+      - name: Deploy Firebase
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy
+        env:
+          GCP_SA_KEY: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          PROJECT_ID: control-de-bolsas-89c88

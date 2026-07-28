@@ -14,6 +14,7 @@ import {
 import { genkit, z } from "genkit";
 import { googleAI } from "@genkit-ai/googleai";
 import { defineSecret } from "firebase-functions/params";
+import { XMLParser } from "fast-xml-parser";
 import { createHash } from "crypto";
 
 initializeApp();
@@ -100,8 +101,12 @@ export const parseUploadedPDF = onObjectFinalized(
     const contentType = event.data.contentType ?? "";
 
     if (!filePath?.startsWith(UPLOAD_PREFIX)) return;
-    if (!contentType.startsWith("application/pdf")) {
-      logger.info(`Ignorado (no es PDF): ${filePath}`);
+    
+    const isPDF = contentType.startsWith("application/pdf");
+    const isXML = contentType.startsWith("application/xml") || contentType.startsWith("text/xml") || filePath.toLowerCase().endsWith(".xml");
+
+    if (!isPDF && !isXML) {
+      logger.info(`Ignorado (no es PDF ni XML): ${filePath}`);
       return;
     }
 
@@ -116,8 +121,71 @@ export const parseUploadedPDF = onObjectFinalized(
     }
 
     try {
-      const [pdfBuffer] = await getStorage().bucket(event.data.bucket).file(filePath).download();
+      const [fileBuffer] = await getStorage().bucket(event.data.bucket).file(filePath).download();
 
+      // Módulo XML: Procesamiento directo sin IA
+      if (isXML) {
+        const xmlStr = fileBuffer.toString("utf-8");
+        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+        const parsed = parser.parse(xmlStr);
+        
+        const comprobante = parsed["cfdi:Comprobante"];
+        if (!comprobante) throw new Error("No es un CFDI válido (falta cfdi:Comprobante)");
+        
+        const tipo = comprobante.TipoDeComprobante;
+        
+        if (tipo === "P") {
+          // Es Complemento de Pago
+          const complemento = comprobante["cfdi:Complemento"];
+          const pagos = complemento ? (complemento["pago20:Pagos"] || complemento["pago10:Pagos"]) : null;
+          let pago = pagos ? (pagos["pago20:Pago"] || pagos["pago10:Pago"]) : null;
+          
+          if (!pago) throw new Error("Complemento de Pago sin nodo de Pago");
+          if (!Array.isArray(pago)) pago = [pago]; // Puede haber multiples nodos de pago
+          
+          let uuids: string[] = [];
+          for (const p of pago) {
+            let doctosRelacionados = p["pago20:DoctoRelacionado"] || p["pago10:DoctoRelacionado"] || [];
+            if (!Array.isArray(doctosRelacionados)) doctosRelacionados = [doctosRelacionados];
+            
+            for (const d of doctosRelacionados) {
+              if (d.IdDocumento) uuids.push(d.IdDocumento.toUpperCase());
+            }
+          }
+          
+          if (uuids.length > 0) {
+            logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
+            // Busqueda ineficiente pero segura para la escala actual
+            const ordersSnapshot = await db.collection(COL_ORDERS).get();
+            let encontradas = 0;
+            for (const doc of ordersSnapshot.docs) {
+              const oData = doc.data();
+              const invoices = oData.invoices || [];
+              let modified = false;
+              
+              for (const inv of invoices) {
+                if (inv.uuid && uuids.includes(inv.uuid.toUpperCase())) {
+                  if (!inv.collection) inv.collection = {};
+                  inv.collection.complementStatus = 'issued';
+                  modified = true;
+                  encontradas++;
+                }
+              }
+              
+              if (modified) {
+                await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+              }
+            }
+            logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
+          }
+        } else {
+          logger.info(`XML ignorado por ahora. Tipo de comprobante: ${tipo}`);
+        }
+        return;
+      }
+
+      // Módulo PDF: Inteligencia Artificial
+      const pdfBuffer = fileBuffer;
       const ai = genkit({ plugins: [googleAI({ apiKey: apiKeySecret.value() })] });
       const aiResponse = await ai.generate({
         model: MODEL,

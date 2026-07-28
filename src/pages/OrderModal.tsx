@@ -68,10 +68,22 @@ export default function OrderModal({
       const ref = doc(db, PATHS.orders, order.id);
       
       // Compute financials for all invoices just in case
-      const updatedInvoices = form.invoices.map(inv => ({
-        ...inv,
-        financials: computeFinancials(inv.kilos, config)
-      }));
+      // Recalculate financials using historical snapshot if available to prevent history tampering
+      const updatedInvoices = form.invoices.map(inv => {
+        const snapshotCfg = inv.financials ? {
+          salePricePerKg: inv.financials.salePricePerKg || config.salePricePerKg,
+          costPricePerKg: inv.financials.costPricePerKg || config.costPricePerKg,
+          commissionRate: inv.financials.commissionRate ?? config.commissionRate,
+          ivaRate: config.ivaRate,
+          commissionBase: config.commissionBase,
+          creditDays: config.creditDays
+        } : config;
+
+        return {
+          ...inv,
+          financials: computeFinancials(inv.kilos, snapshotCfg)
+        };
+      });
 
       await setDoc(ref, {
         folio: form.folio.trim(),

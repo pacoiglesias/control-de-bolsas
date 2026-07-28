@@ -62,3 +62,20 @@ REGLAS ESTRICTAS:
 OBJETIVO: 
 [ESCRIBE AQUÍ LO QUE QUIERES LOGRAR. EJEMPLO: "Quiero añadir un módulo de Inventario Físico para cruzar las Compras con las Ventas."]
 ```
+
+# 🔄 PROMPT DE AUTOMEJORA CONTINUA (AUTO-AUDITORÍA)
+
+*Usa este prompt periódicamente para pedirle a la IA que evalúe y limpie el código del sistema:*
+
+```text
+Actúa como un Ingeniero de Software Staff experto en React, Firebase y Arquitecturas Cloud.
+Tu tarea es realizar una "Auditoría de Automejora Continua" sobre este sistema (Control Bolsas ERP).
+
+PASOS A SEGUIR:
+1. Revisa los archivos principales (como src/lib/finance.ts, src/pages/OrderModal.tsx y functions/src/index.ts).
+2. Identifica cuellos de botella de rendimiento (renders innecesarios, loops ineficientes).
+3. Identifica deuda técnica, código muerto o funciones repetidas.
+4. Identifica vulnerabilidades de seguridad en las Reglas de Firestore o Storage.
+5. NO implementes nuevas funcionalidades. Tu único objetivo es optimizar, limpiar, refactorizar y proponer mejoras de estabilidad.
+6. Entrégame un Plan de Refactorización antes de tocar el código.
+```
