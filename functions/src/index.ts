@@ -1,22 +1,7 @@
-/**
- * Control Bolsas — backend (Cloud Functions 2nd gen)
- *
- * Diferencias contra la versión original, todas por bugs reales:
- *  1. genkit se inicializa DENTRO del handler. `defineSecret().value()` en el
- *     ámbito del módulo se evalúa durante el análisis de despliegue, cuando el
- *     secreto todavía no está montado, y truena o se queda vacío.
- *  2. Solo se procesan archivos bajo `uploads/`. Sin ese filtro, cualquier
- *     objeto que caiga al bucket dispara la función y gasta cuota.
- *  3. Idempotencia: el ID del documento se deriva de la ruta del archivo, así
- *     que un reintento de la función no duplica la orden.
- *  4. El fallback a revisión manual guarda el motivo del error.
- *  5. Fechas con Timestamp del servidor y no `new Date()` del contenedor.
- *  6. Se guardan venta, costo y comisión desglosados, no solo el neto.
- */
+﻿import { setGlobalOptions } from "firebase-functions/v2";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { setGlobalOptions } from "firebase-functions/v2";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getStorage } from "firebase-admin/storage";
@@ -32,11 +17,13 @@ import { defineSecret } from "firebase-functions/params";
 import { createHash } from "crypto";
 
 initializeApp();
-setGlobalOptions({ region: "us-central1", maxInstances: 10 });
+
+// Configuración global apuntando a us-east1 para que coincida con tu Storage
+setGlobalOptions({ region: "us-east1", maxInstances: 10 });
 
 const apiKeySecret = defineSecret("GOOGLE_GENAI_API_KEY");
 
-/** Cámbialo si Google retira el modelo; el resto del código no se toca. */
+/** CÃ¡mbialo si Google retira el modelo; el resto del cÃ³digo no se toca. */
 const MODEL = "googleai/gemini-2.0-flash";
 
 const UPLOAD_PREFIX = "uploads/";
@@ -52,12 +39,12 @@ const DEFAULTS = {
 };
 
 const PurchaseOrderSchema = z.object({
-  folio: z.string().describe("Número de folio u orden de compra"),
+  folio: z.string().describe("NÃºmero de folio u orden de compra"),
   totalKilograms: z.number().describe("Kilogramos totales del pedido"),
   client: z.string().optional().describe("Nombre o clave del cliente si aparece"),
 });
 
-/** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
+/** Un ID estable por archivo: reintentos y reprocesos no duplican Ã³rdenes. */
 const docIdFor = (filePath: string) =>
   createHash("sha1").update(filePath).digest("hex").slice(0, 20);
 
@@ -76,7 +63,7 @@ async function readConfig() {
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Idéntica a src/lib/finance.ts en el frontend. Si cambias una, cambia la otra. */
+/** IdÃ©ntica a src/lib/finance.ts en el frontend. Si cambias una, cambia la otra. */
 function computeFinancials(kilos: number, cfg: typeof DEFAULTS) {
   const saleTotal = round2(kilos * cfg.salePricePerKg);
   const invoiceTotal = round2(saleTotal * (1 + cfg.ivaRate));
@@ -110,7 +97,7 @@ export const parseUploadedPDF = onObjectFinalized(
     const db = getFirestore();
     const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
 
-    // Si ya se procesó este archivo, no lo volvemos a cobrar a la cuota de IA.
+    // Si ya se procesÃ³ este archivo, no lo volvemos a cobrar a la cuota de IA.
     const existing = await ref.get();
     if (existing.exists && existing.data()?.creditCycle?.status !== "manual_review") {
       logger.info(`Ya procesado, se omite: ${filePath}`);
@@ -127,8 +114,8 @@ export const parseUploadedPDF = onObjectFinalized(
           {
             text:
               "Eres un capturista. De esta orden de compra extrae el folio " +
-              "(o número de orden), el total de kilogramos y el cliente si aparece. " +
-              "Los kilos van como número, sin unidades ni comas.",
+              "(o nÃºmero de orden), el total de kilogramos y el cliente si aparece. " +
+              "Los kilos van como nÃºmero, sin unidades ni comas.",
           },
           {
             media: {
@@ -142,7 +129,7 @@ export const parseUploadedPDF = onObjectFinalized(
 
       const data = aiResponse.output;
       if (!data || !Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0) {
-        throw new Error("La IA no devolvió kilos válidos");
+        throw new Error("La IA no devolviÃ³ kilos vÃ¡lidos");
       }
 
       const cfg = await readConfig();
@@ -168,7 +155,7 @@ export const parseUploadedPDF = onObjectFinalized(
         { merge: true },
       );
 
-      logger.info(`OK ${filePath} → folio ${data.folio}, ${data.totalKilograms} kg`);
+      logger.info(`OK ${filePath} â†’ folio ${data.folio}, ${data.totalKilograms} kg`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Fallo de lectura en ${filePath}: ${message}`);
@@ -216,10 +203,10 @@ export const checkOverdueInvoices = onSchedule(
   },
 );
 
-/** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
+/** Reprocesa a mano un PDF que quedÃ³ en revisiÃ³n manual, desde la interfaz. */
 export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) => {
   const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
+  if (!uid) throw new HttpsError("unauthenticated", "Inicia sesiÃ³n.");
   const db = getFirestore();
   const admin = await db.collection("admins").doc(uid).get();
   if (!admin.exists) throw new HttpsError("permission-denied", "Cuenta no autorizada.");
@@ -231,7 +218,7 @@ export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) =>
   if (!snap.exists) throw new HttpsError("not-found", "La orden no existe.");
 
   const kilos = Number(req.data?.totalKilograms ?? snap.data()?.totalKilograms ?? 0);
-  if (!(kilos > 0)) throw new HttpsError("invalid-argument", "Kilos inválidos.");
+  if (!(kilos > 0)) throw new HttpsError("invalid-argument", "Kilos invÃ¡lidos.");
 
   const cfg = await readConfig();
   const issueDate = new Date();
@@ -254,3 +241,4 @@ export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) =>
   );
   return { ok: true, kilos };
 });
+

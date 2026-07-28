@@ -92,12 +92,29 @@ if errorlevel 1 (
 
 echo.
 echo    -- Cloud Functions --
+echo    [..] Probando que las funciones carguen antes de subirlas...
+set FIREBASE_CONFIG={"projectId":"control-de-bolsas-89c88","storageBucket":"control-de-bolsas-89c88.firebasestorage.app"}
+set GCLOUD_PROJECT=control-de-bolsas-89c88
+pushd functions
+node -e "const k=Object.keys(require('./lib/index.js')); if(!k.length) process.exit(1); console.log('    [OK] '+k.length+' funciones: '+k.join(', '));" 2>nul
+set PRUEBACARGA=%ERRORLEVEL%
+popd
+set FIREBASE_CONFIG=
+set GCLOUD_PROJECT=
+if not "!PRUEBACARGA!"=="0" (
+  echo    [X] Las funciones no cargan. No tiene caso subirlas asi.
+  echo        Corre REPARAR_FUNCTIONS.bat
+  set /a FALLOS+=1
+  set "URLREPARAR=1"
+  goto :saltarfunctions
+)
 call firebase deploy --only functions
 if errorlevel 1 (
   set /a FALLOS+=1
   echo    [X] Functions fallo. Revisa plan Blaze y la clave de Gemini.
   set "URLBLAZE=1"
 ) else ( echo    [OK] Functions )
+:saltarfunctions
 
 echo.
 echo    -- Hosting ^(la pagina web^) --
@@ -131,6 +148,10 @@ if defined URLSTORAGE (
   echo             Es un boton, no se puede automatizar.
 )
 if defined URLFIRESTORE echo    FIRESTORE: falta crear la base de datos ^(modo produccion^).
+if defined URLREPARAR (
+  echo    FUNCTIONS: la carpeta functions\node_modules quedo incompleta.
+  echo               Corre REPARAR_FUNCTIONS.bat ^(no toca tu codigo^).
+)
 if defined URLBLAZE (
   echo    FUNCTIONS: revisa que el proyecto este en plan Blaze
   echo               y que la clave de Gemini este cargada.
