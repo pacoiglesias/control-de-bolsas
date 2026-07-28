@@ -4,6 +4,8 @@ import { db, PATHS } from '../lib/firebase';
 import { saveConfig, useConfig } from '../hooks/useConfig';
 import { useOrders } from '../hooks/useOrders';
 import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { logAction } from '../lib/logger';
 import { Card, Field, Spinner } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials } from '../lib/finance';
@@ -13,7 +15,7 @@ import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 export default function Settings() {
   const { config, loading, exists } = useConfig();
   const { orders } = useOrders();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState<FinancialConfig>(config);
   const [busy, setBusy] = useState(false);
@@ -35,6 +37,10 @@ export default function Settings() {
     setBusy(true);
     try {
       await saveConfig(form);
+      await logAction(user?.email, 'Configuración Financiera Modificada', {
+        oldConfig: config,
+        newConfig: form
+      });
       toast('Configuración guardada. Las próximas órdenes usarán estos valores.', 'ok');
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
@@ -68,6 +74,10 @@ export default function Settings() {
         });
         await batch.commit();
       }
+      await logAction(user?.email, 'Recálculo Masivo Ejecutado', { 
+        count: target.length,
+        configUsed: config
+      });
       toast(`${target.length} órdenes recalculadas`, 'ok');
     } catch (e) {
       toast(`Falló el recálculo: ${(e as Error).message}`, 'bad');
@@ -85,6 +95,7 @@ export default function Settings() {
   }
 
   if (loading) return <Spinner />;
+  if (role !== 'admin') return <Navigate to="/" replace />;
 
   return (
     <>
@@ -174,7 +185,7 @@ export default function Settings() {
           <div className="li"><span className="lg">UID</span><span className="lv mono">{user?.uid}</span></div>
           <div className="li">
             <span className="lg">Autorización</span>
-            <span className="lv mono">admins/{user?.uid}</span>
+            <span className="lv mono">admins/{user?.uid} (Rol: {role})</span>
           </div>
         </div>
       </Card>

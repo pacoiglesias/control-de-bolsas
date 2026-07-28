@@ -4,14 +4,15 @@ import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
 
 const NAV = [
-  { to: '/', num: '00', label: 'Panel de control', end: true },
-  { to: '/subir', num: '01', label: 'Subir órdenes' },
-  { to: '/ordenes', num: '02', label: 'Órdenes / Ventas' },
-  { to: '/compras', num: '03', label: 'Compras / Fabricante' },
-  { to: '/cobranza', num: '04', label: 'Cobranza' },
-  { to: '/caja-chica', num: '05', label: 'Caja Chica' },
-  { to: '/respaldo', num: '06', label: 'Respaldo local' },
-  { to: '/configuracion', num: '07', label: 'Configuración' },
+  { to: '/', icon: '📊', label: 'Panel Principal', end: true, roles: ['admin', 'manager', 'viewer'] },
+  { to: '/subir', icon: '📥', label: 'Subir Órdenes', roles: ['admin', 'manager'] },
+  { to: '/ordenes', icon: '📋', label: 'Órdenes / Ventas', roles: ['admin', 'manager', 'viewer'] },
+  { to: '/compras', icon: '🏭', label: 'Compras', roles: ['admin'] },
+  { to: '/cobranza', icon: '💰', label: 'Cobranza', roles: ['admin', 'manager'] },
+  { to: '/caja-chica', icon: '💵', label: 'Caja Chica', roles: ['admin'] },
+  { to: '/respaldo', icon: '💾', label: 'Respaldo Local', roles: ['admin'] },
+  { to: '/logs', icon: '📝', label: 'Bitácora', roles: ['admin'] },
+  { to: '/configuracion', icon: '⚙️', label: 'Configuración', roles: ['admin'] },
 ];
 
 function initTheme(): 'light' | 'dark' {
@@ -21,7 +22,7 @@ function initTheme(): 'light' | 'dark' {
 }
 
 export default function Layout() {
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
@@ -60,17 +61,17 @@ export default function Layout() {
         <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
           <div className="brand">
             <div className="brand-mark">CONTROL BOLSAS</div>
-            <div className="brand-sub">Master Track · v5.0</div>
+            <div className="brand-sub">Master Track · v5.2</div>
           </div>
           <nav className="nav">
-            {NAV.map((it) => (
+            {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => (
               <NavLink
                 key={it.to}
                 to={it.to}
                 end={it.end}
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               >
-                <span className="nav-num">{it.num}</span>
+                <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
                 <span>{it.label}</span>
                 {it.to === '/cobranza' && overdue > 0 ? (
                   <span className="nav-badge">{overdue}</span>
@@ -94,6 +95,9 @@ export default function Layout() {
           <div className="content">
             <Outlet />
           </div>
+          <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center' }}>
+            Control Bolsas v5.2 · Paco Iglesias 2026
+          </footer>
         </main>
       </div>
     </>

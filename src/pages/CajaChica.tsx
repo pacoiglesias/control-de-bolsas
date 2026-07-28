@@ -3,11 +3,15 @@ import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp } from '
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate } from '../lib/format';
 import type { Expense } from '../lib/types';
 
 export default function CajaChica() {
+  const { role } = useAuth();
   const { expenses, loading, error } = useExpenses();
   const [selected, setSelected] = useState<Expense | null>(null);
 
@@ -16,6 +20,7 @@ export default function CajaChica() {
   }, 0);
 
   if (loading) return <Spinner />;
+  if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 
   return (
@@ -87,6 +92,7 @@ export default function CajaChica() {
 }
 
 function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => void }) {
+  const { user } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
@@ -114,6 +120,11 @@ function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => v
         notes: form.notes.trim(),
         createdAt: expense.createdAt ?? serverTimestamp(),
       }, { merge: true });
+      await logAction(user?.email, expense.createdAt ? 'Gasto Editado' : 'Gasto Creado', {
+        id: expense.id,
+        concept: form.concept.trim(),
+        amount: Number(form.amount)
+      });
       toast('Guardado', 'ok');
       onClose();
     } catch (e) {
@@ -128,6 +139,11 @@ function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => v
     setBusy(true);
     try {
       await deleteDoc(doc(db, PATHS.expenses, expense.id));
+      await logAction(user?.email, 'Gasto Eliminado', {
+        id: expense.id,
+        concept: expense.concept,
+        amount: expense.amount
+      });
       toast('Borrado', 'ok');
       onClose();
     } catch (e) {

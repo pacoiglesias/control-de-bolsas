@@ -11,10 +11,12 @@ export default function OrderModal({
   order,
   config,
   onClose,
+  readOnly = false,
 }: {
   order: PurchaseOrder;
   config: FinancialConfig;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -169,17 +171,17 @@ export default function OrderModal({
           <>
             <div className="form-grid">
               <Field label="Folio Interno del Pedido">
-                <input className="input boxed mono" value={form.folio} onChange={(e) => set('folio', e.target.value)} />
+                <input className="input boxed mono" value={form.folio} onChange={(e) => set('folio', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Cliente">
-                <input className="input boxed" value={form.client} onChange={(e) => set('client', e.target.value)} />
+                <input className="input boxed" value={form.client} onChange={(e) => set('client', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Proveedor">
-                <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} />
+                <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Kilos Pedidos (Total)">
                 <input className="input boxed mono" type="number" step="0.01" value={form.totalKilograms}
-                  onChange={(e) => set('totalKilograms', e.target.value)} />
+                  onChange={(e) => set('totalKilograms', e.target.value)} disabled={readOnly} />
               </Field>
             </div>
 
@@ -227,7 +229,7 @@ export default function OrderModal({
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h4>Registro de Entregas Parciales</h4>
-              <button className="btn btn-primary" onClick={addDelivery}>+ Agregar Entrega</button>
+              {!readOnly && <button className="btn btn-primary" onClick={addDelivery}>+ Agregar Entrega</button>}
             </div>
             {form.deliveries.length === 0 ? (
               <p className="hint">No hay entregas registradas.</p>
@@ -250,23 +252,26 @@ export default function OrderModal({
                           onChange={e => {
                             const date = fromInputDate(e.target.value);
                             updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
-                          }} 
+                          }}
+                          disabled={readOnly}
                         />
                       </td>
                       <td className="num">
                         <input className="input boxed mono" type="number" step="0.01" 
                           value={d.kilos} 
-                          onChange={e => updateDelivery(i, 'kilos', Number(e.target.value))} 
+                          onChange={e => updateDelivery(i, 'kilos', Number(e.target.value))}
+                          disabled={readOnly}
                         />
                       </td>
                       <td>
                         <input className="input boxed" type="text" 
                           value={d.notes || ''} 
-                          onChange={e => updateDelivery(i, 'notes', e.target.value)} 
+                          onChange={e => updateDelivery(i, 'notes', e.target.value)}
+                          disabled={readOnly}
                         />
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-danger" onClick={() => removeDelivery(i)}>X</button>
+                        {!readOnly && <button className="btn btn-danger" onClick={() => removeDelivery(i)}>X</button>}
                       </td>
                     </tr>
                   ))}
@@ -281,7 +286,7 @@ export default function OrderModal({
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h4>Facturas y Cobranza Parcial</h4>
-              <button className="btn btn-primary" onClick={addInvoice}>+ Agregar Factura</button>
+              {!readOnly && <button className="btn btn-primary" onClick={addInvoice}>+ Agregar Factura</button>}
             </div>
             {form.invoices.length === 0 ? (
               <p className="hint">No hay facturas registradas.</p>
@@ -293,19 +298,20 @@ export default function OrderModal({
                     <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--border)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
-                        <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
+                        {!readOnly && <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>}
                       </div>
                       <div className="form-grid">
                         <Field label="Folio">
                           <input className="input boxed mono" value={inv.folio || ''} 
-                            onChange={e => updateInvoice(i, x => ({...x, folio: e.target.value}))} />
+                            onChange={e => updateInvoice(i, x => ({...x, folio: e.target.value}))} disabled={readOnly} />
                         </Field>
                         <Field label="Kilos Facturados">
                           <input className="input boxed mono" type="number" step="0.01" value={inv.kilos} 
-                            onChange={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} />
+                            onChange={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
                         </Field>
                         <Field label="Estado">
                           <select className="input boxed" value={inv.creditCycle.status}
+                            disabled={readOnly}
                             onChange={(e) => updateInvoice(i, x => ({
                               ...x, 
                               creditCycle: { ...x.creditCycle, status: e.target.value as OrderStatus }
@@ -318,6 +324,7 @@ export default function OrderModal({
                         </Field>
                         <Field label="Emisión">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.issueDate) || ''}
+                            disabled={readOnly}
                             onChange={(e) => {
                               const issue = fromInputDate(e.target.value);
                               if (issue) {
@@ -335,6 +342,7 @@ export default function OrderModal({
                         </Field>
                         <Field label="Vence">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.dueDate) || ''}
+                            disabled={readOnly}
                             onChange={(e) => {
                               const due = fromInputDate(e.target.value);
                               if (due) {
@@ -347,12 +355,14 @@ export default function OrderModal({
                         </Field>
                         <Field label="Contrarecibo">
                           <input className="input boxed mono" value={inv.collection?.contrareciboNumber || ''}
+                            disabled={readOnly}
                             onChange={e => updateInvoice(i, x => ({
                               ...x, collection: { ...x.collection, contrareciboNumber: e.target.value }
                             }))} />
                         </Field>
                         <Field label="Fecha Contrarecibo">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.contrareciboDate) || ''}
+                            disabled={readOnly}
                             onChange={e => {
                               const cd = fromInputDate(e.target.value);
                               updateInvoice(i, x => ({
@@ -362,12 +372,14 @@ export default function OrderModal({
                         </Field>
                         <Field label="Monto Cobrado">
                           <input className="input boxed mono" type="number" step="0.01" value={inv.collection?.paidAmount || 0}
+                            disabled={readOnly}
                             onChange={e => updateInvoice(i, x => ({
                               ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
                             }))} />
                         </Field>
                         <Field label="Fecha de Cobro">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.paidAt) || ''}
+                            disabled={readOnly}
                             onChange={e => {
                               const pa = fromInputDate(e.target.value);
                               updateInvoice(i, x => ({
@@ -402,14 +414,18 @@ export default function OrderModal({
       </p>
 
       <div className="modal-actions" style={{ marginTop: 16 }}>
-        <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
-          Eliminar Expediente
-        </button>
+        {!readOnly && (
+          <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
+            Eliminar Expediente
+          </button>
+        )}
         <span className="spacer" />
-        <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
-        <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
-          {busy ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+        <button className="btn" onClick={onClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
+        {!readOnly && (
+          <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
+            {busy ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        )}
       </div>
     </Modal>
   );

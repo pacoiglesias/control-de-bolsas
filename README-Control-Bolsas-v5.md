@@ -114,16 +114,13 @@ sin ese desglose, la pantalla de cobranza no puede saber cuánto te deben.
 proceso de retiro para proyectos nuevos. Es una constante `MODEL` al inicio del archivo;
 verifica en la documentación de Google cuál está vigente y cámbiala ahí.
 
-## 7. Lo que este sistema todavía no modela
+## 7. Modelado Completo (Novedad v5.2)
 
-El backend trabaja con una orden = un PDF = un monto. Del flujo real de tu operación quedan fuera:
+En las versiones anteriores, el sistema backend solo modelaba facturas y PDFs. A partir de la versión 5.2, la arquitectura en Firestore cubre todo el flujo operativo real:
 
-- **El fabricante.** No hay compras, anticipos ni recepciones parciales, así que
-  *"pedí 1,000 kg y me entregaron 900"* no se puede registrar todavía.
-- **Contrarecibos como paso propio.** El campo existe en la ficha, pero el plazo de crédito
-  arranca desde la emisión de la factura, no desde que el cliente acepta el contrarecibo.
-- **Caja.** No hay flujo de efectivo ni saldo bancario.
-
-Todo eso ya está resuelto en el sistema HTML v4.2. El siguiente paso natural es subir ese
-modelo a Firestore: colección `pedidos` como columna vertebral y `purchaseOrders` colgando
-de ella. La base de datos y las reglas ya están preparadas para crecer así.
+- **Compras al Fabricante:** Registro de anticipos (saldos a favor), entregas parciales y deuda global con el proveedor.
+- **Caja Chica:** Control de gastos internos y reposiciones.
+- **Roles y Seguridad (RBAC):** Roles de `admin`, `manager` y `viewer`. Las rutas y botones se habilitan o bloquean según el rol.
+- **Respaldo Offline para Ayudantes:** Al descargar el sistema local para los operadores (`viewer`), el sistema omite costos, utilidades y ganancias.
+- **Bitácora de Auditoría:** Registro de todos los movimientos importantes en `system_logs`.
+- **Panel Intuitivo:** Centro de operaciones con atajos rápidos para subir órdenes, cobrar, y comprar.

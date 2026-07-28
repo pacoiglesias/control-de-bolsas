@@ -58,6 +58,7 @@ export function ordersToHtmlState(
   expenses: Expense[],
   config: FinancialConfig,
   projectId: string,
+  forHelpers: boolean = false
 ): HtmlState {
   let seq = 1;
   const facturas: HtmlFactura[] = orders
@@ -91,7 +92,7 @@ export function ordersToHtmlState(
           fechaVencimiento: iso(toDate(inv.creditCycle.dueDate)),
           cobranza,
           montoCobrado: st === 'paid' ? (inv.collection?.paidAmount || total) : (inv.collection?.paidAmount ?? 0),
-          comision: inv.financials?.commission ?? 0,
+          comision: forHelpers ? 0 : (inv.financials?.commission ?? 0),
           comisionManual: true,
           montoDepositado: 0,
           fechaCobro: iso(toDate(inv.collection?.paidAt)),
@@ -146,9 +147,9 @@ export function ordersToHtmlState(
     },
     params: {
       iva: config.ivaRate,
-      refCosto: config.costPricePerKg,
+      refCosto: forHelpers ? 0 : config.costPricePerKg,
       refPrecio: config.salePricePerKg,
-      porcentajeComision: config.commissionRate,
+      porcentajeComision: forHelpers ? 0 : config.commissionRate,
       comisionBase: 'total',
       comisionBaseIVA: config.commissionBase === 'subtotal' ? 'sin' : 'con',
       diasPlazoContrarecibo: config.creditDays,

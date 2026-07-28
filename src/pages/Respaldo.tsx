@@ -4,6 +4,9 @@ import { db, PATHS } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useExpenses } from '../hooks/useExpenses';
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { logAction } from '../lib/logger';
 import { usePurchases } from '../hooks/usePurchases';
 import { Card, Empty, KpiCard, Spinner } from '../components/ui';
 import { useToast } from '../context/ToastContext';
@@ -33,6 +36,7 @@ export default function Respaldo() {
   const { expenses, loading: loadingExpenses } = useExpenses();
   const { purchases, loading: loadingPurchases } = usePurchases();
   const loading = loadingOrders || loadingExpenses || loadingPurchases;
+  const { user, role } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [entrante, setEntrante] = useState<{ data: Partial<HtmlState>; resumen: HtmlImportSummary; nombre: string } | null>(null);
@@ -41,21 +45,24 @@ export default function Respaldo() {
   const hoy = new Date().toISOString().slice(0, 10);
 
   /* ---------- app → HTML ---------- */
-  function exportarJSON() {
-    const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
+  function exportarJSON(forHelpers = false) {
+    const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID, forHelpers);
     descargar(`control-bolsas-datos-${hoy}.json`, JSON.stringify(estado, null, 2), 'application/json');
+    logAction(user?.email, 'Exportación JSON', { records: estado.facturas?.length || 0, helpers: forHelpers });
     toast('JSON descargado. Ábrelo en el HTML con “Restaurar respaldo”.', 'ok');
   }
 
-  async function exportarHTML() {
+  async function exportarHTML(forHelpers = false) {
     setBusy('html');
     try {
       const res = await fetch(HTML_TEMPLATE_PATH);
       if (!res.ok) throw new Error(`No encontré la plantilla en ${HTML_TEMPLATE_PATH}`);
       const template = await res.text();
-      const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
-      descargar(`control-bolsas-respaldo-${hoy}.html`, embedIntoHtml(template, estado), 'text/html');
-      toast('Respaldo HTML descargado. Funciona sin internet.', 'ok');
+      const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID, forHelpers);
+      const name = forHelpers ? `bolsas-ayudantes-${hoy}.html` : `bolsas-completo-${hoy}.html`;
+      descargar(name, embedIntoHtml(template, estado), 'text/html');
+      await logAction(user?.email, 'Exportación HTML Offline', { records: estado.facturas?.length || 0, helpers: forHelpers });
+      toast(`Respaldo HTML ${forHelpers ? '(Ayudantes)' : '(Completo)'} descargado.`, 'ok');
     } catch (e) {
       toast((e as Error).message, 'bad');
     } finally {
@@ -72,6 +79,7 @@ export default function Respaldo() {
         createdAt: serverTimestamp(),
         facturas: estado.facturas.length,
       });
+      await logAction(user?.email, 'Snapshot en la nube (Firestore)', { records: estado.facturas?.length || 0 });
       toast('Snapshot guardado en Firestore (snapshots/latest)', 'ok');
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
@@ -176,6 +184,12 @@ export default function Respaldo() {
         archivo: entrante.nombre,
       });
 
+      await logAction(user?.email, 'Importación HTML', {
+        archivo: entrante.nombre,
+        creadas,
+        actualizadas
+      });
+
       toast(`${creadas} creadas, ${actualizadas} actualizadas. El resto quedó en snapshots/fromHtml.`, 'ok');
       setEntrante(null);
     } catch (e) {
@@ -186,6 +200,7 @@ export default function Respaldo() {
   }
 
   if (loading) return <Spinner />;
+  if (role !== 'admin') return <Navigate to="/" replace />;
 
   const estimado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
 
@@ -216,14 +231,17 @@ export default function Respaldo() {
                 <strong>Respaldo HTML autocontenido</strong>
                 <br />
                 <span className="hint">
-                  Un solo archivo con tus datos adentro. Lo abres con doble clic, sin servidor y sin
-                  internet, y trae el sistema completo: pedidos, compras, entregas, caja, cobranza y
-                  reportes imprimibles.
+                  El sistema completo en un archivo sin internet.
                 </span>
               </span>
-              <button className="btn btn-primary" onClick={() => void exportarHTML()} disabled={busy !== null}>
-                {busy === 'html' ? 'Preparando…' : '⭳ Descargar HTML'}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" onClick={() => void exportarHTML(false)} disabled={busy !== null}>
+                  {busy === 'html' ? 'Preparando…' : '⭳ HTML Admin (con dinero)'}
+                </button>
+                <button className="btn" onClick={() => void exportarHTML(true)} disabled={busy !== null}>
+                  {busy === 'html' ? '...' : '⭳ HTML Ayudantes (sin ganancias)'}
+                </button>
+              </div>
             </div>
             <div className="li">
               <span className="lg">
@@ -234,7 +252,10 @@ export default function Respaldo() {
                   <em> fusionar</em>: se actualiza lo que coincide y lo tuyo se queda intacto.
                 </span>
               </span>
-              <button className="btn" onClick={exportarJSON} disabled={busy !== null}>⭳ Descargar JSON</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" onClick={() => exportarJSON(false)} disabled={busy !== null}>⭳ JSON Admin</button>
+                <button className="btn" onClick={() => exportarJSON(true)} disabled={busy !== null}>⭳ JSON Ayudantes</button>
+              </div>
             </div>
             <div className="li">
               <span className="lg">

@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
@@ -11,6 +12,7 @@ import { seedInitialDatabase } from '../lib/seedData';
 
 export default function Dashboard() {
   const { orders, loading, error } = useOrders();
+  const { role } = useAuth();
   const { config } = useConfig();
   const nav = useNavigate();
   const toast = useToast();
@@ -91,13 +93,57 @@ export default function Dashboard() {
   return (
     <>
       <div className="page-head">
-        <h1>Panel de control</h1>
-        <p>
-          Todo se calcula en vivo desde <code>purchaseOrders</code>. Precio de venta{' '}
-          {money(config.salePricePerKg)}/kg, costo {money(config.costPricePerKg)}/kg, comisión{' '}
-          {percent(config.commissionRate)}, crédito a {config.creditDays} días.
-        </p>
+        <h1>Panel Principal</h1>
+        <p>Centro de mando operativo y financiero. {role !== 'viewer' && `Precio de venta ${money(config.salePricePerKg)}/kg, costo ${money(config.costPricePerKg)}/kg, comisión ${percent(config.commissionRate)}.`}</p>
       </div>
+
+      {/* ALERTAS URGENTES */}
+      {(k.overdue.length > 0 || k.review.length > 0) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
+          {k.overdue.length > 0 && (
+            <div className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <strong>Atención:</strong> Tienes {k.overdue.length} factura{k.overdue.length > 1 ? 's' : ''} vencida{k.overdue.length > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
+              </div>
+              <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
+            </div>
+          )}
+          {k.review.length > 0 && (
+            <div className="alert warn" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 20 }}>🔍</span>
+              <div style={{ flex: 1 }}>
+                <strong>Revisión manual:</strong> {k.review.length} PDF{k.review.length > 1 ? 's' : ''} no pudieron ser leídos por la IA y esperan captura.
+              </div>
+              <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar Ahora</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ACCIONES RÁPIDAS */}
+      {role !== 'viewer' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+          <button className="btn" onClick={() => nav('/subir')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
+            <span style={{ fontSize: 24 }}>📥</span>
+            <span style={{ fontWeight: 600 }}>Subir PDF</span>
+          </button>
+          <button className="btn" onClick={() => nav('/ordenes?nueva=1')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
+            <span style={{ fontSize: 24 }}>🛒</span>
+            <span style={{ fontWeight: 600 }}>Nueva Venta Manual</span>
+          </button>
+          {role === 'admin' && (
+            <button className="btn" onClick={() => nav('/compras')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
+              <span style={{ fontSize: 24 }}>🏭</span>
+              <span style={{ fontWeight: 600 }}>Comprar al Fabricante</span>
+            </button>
+          )}
+          <button className="btn" onClick={() => nav('/cobranza')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
+            <span style={{ fontSize: 24 }}>💰</span>
+            <span style={{ fontWeight: 600 }}>Registrar Cobro</span>
+          </button>
+        </div>
+      )}
 
       {orders.length === 0 && (
         <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
@@ -130,8 +176,10 @@ export default function Dashboard() {
       <div className="kpi-grid">
         <KpiCard hero label="TOTAL VENDIDO" value={money(k.totalVendido)}
           sub={`${kilos(k.totalKilos)} procesados en ${orders.length} órdenes`} />
-        <KpiCard tone="ok" label="Ganancia neta (flujo)" value={money(k.netoTotal)}
-          sub="venta − costo − comisión" />
+        {role !== 'viewer' && (
+          <KpiCard tone="ok" label="Ganancia neta (flujo)" value={money(k.netoTotal)}
+            sub="venta − costo − comisión" />
+        )}
         <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={money(k.porCobrar)}
           sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}
           onClick={() => nav('/cobranza')} />
@@ -139,7 +187,7 @@ export default function Dashboard() {
           sub={`${k.overdue.length} factura${k.overdue.length === 1 ? '' : 's'} pasada${k.overdue.length === 1 ? '' : 's'} de fecha`}
           onClick={() => nav('/cobranza')} />
         <KpiCard tone="cash" label="Cobrado" value={money(k.cobrado)}
-          sub={`neto ${money(k.netoCobrado)}`} />
+          sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />
         <KpiCard tone={k.review.length ? 'warn' : undefined} label="Esperan captura manual"
           value={k.review.length} sub="la IA no pudo leer el PDF"
           onClick={() => nav('/ordenes?filtro=manual_review')} />

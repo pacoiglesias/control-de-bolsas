@@ -3,15 +3,20 @@ import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp } from '
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from '../hooks/usePurchases';
 import { Card, Empty, Field, Modal, Spinner, StatusBadge } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, kilos, money, toInputDate, fromInputDate } from '../lib/format';
 import type { Purchase, PurchaseStatus } from '../lib/types';
 
 export default function Compras() {
+  const { role } = useAuth();
   const { purchases, loading, error } = usePurchases();
   const [selected, setSelected] = useState<Purchase | null>(null);
 
   if (loading) return <Spinner />;
+  if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 
   const pendientesKilos = purchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
@@ -28,8 +33,10 @@ export default function Compras() {
         <Card title="Kilos pendientes de entrega">
           <div className="num" style={{ fontSize: 24 }}>{kilos(pendientesKilos)}</div>
         </Card>
-        <Card title="Saldo pendiente por pagar">
-          <div className="num" style={{ fontSize: 24, color: 'var(--bad)' }}>{money(deuda)}</div>
+        <Card title={deuda < 0 ? 'Saldo a Favor (Anticipos)' : 'Deuda Global al Fabricante'}>
+          <div className="num" style={{ fontSize: 24, color: deuda < 0 ? 'var(--info)' : 'var(--bad)' }}>
+            {deuda < 0 ? `+ ${money(Math.abs(deuda))}` : money(deuda)}
+          </div>
         </Card>
       </div>
 
@@ -84,8 +91,8 @@ export default function Compras() {
                       <td className="num mono">{kilos(p.receivedKilos)}</td>
                       <td className="num mono">{money(p.totalAmount)}</td>
                       <td className="num mono">{money(p.paidAmount)}</td>
-                      <td className="num mono" style={{ color: d > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                        {money(d)}
+                      <td className="num mono" style={{ color: d > 0 ? 'var(--bad)' : (d < 0 ? 'var(--info)' : 'var(--ok)') }}>
+                        {d < 0 ? `+ ${money(Math.abs(d))}` : money(d)}
                       </td>
                       <td>
                         <StatusBadge status={p.status === 'pedido' ? 'pending' : p.status === 'parcial' ? 'manual_review' : 'paid'} />
@@ -107,6 +114,7 @@ export default function Compras() {
 }
 
 function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () => void }) {
+  const { user } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
@@ -144,6 +152,11 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
         notes: form.notes.trim(),
         createdAt: purchase.createdAt ?? serverTimestamp(),
       }, { merge: true });
+      await logAction(user?.email, purchase.createdAt ? 'Compra Editada' : 'Compra Creada', {
+        id: purchase.id,
+        provider: form.provider.trim(),
+        totalAmount
+      });
       toast('Guardado', 'ok');
       onClose();
     } catch (e) {
@@ -158,6 +171,11 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
     setBusy(true);
     try {
       await deleteDoc(doc(db, PATHS.purchases, purchase.id));
+      await logAction(user?.email, 'Compra Eliminada', {
+        id: purchase.id,
+        provider: purchase.provider,
+        totalAmount: purchase.totalAmount
+      });
       toast('Borrado', 'ok');
       onClose();
     } catch (e) {

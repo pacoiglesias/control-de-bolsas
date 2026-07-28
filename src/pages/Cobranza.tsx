@@ -5,10 +5,13 @@ import { Card, Empty, KpiCard, Spinner, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } from '../lib/finance';
 import { fmtDate, money, toDate } from '../lib/format';
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
 import type { PurchaseOrder } from '../lib/types';
 
 export default function Cobranza() {
   const { orders, loading, error } = useOrders();
+  const { role } = useAuth();
   const { config } = useConfig();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
 
@@ -66,6 +69,7 @@ export default function Cobranza() {
   }, [orders]);
 
   if (loading) return <Spinner />;
+  if (role === 'viewer') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 
   return (

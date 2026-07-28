@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useAuth } from '../context/AuthContext';
 import { db, PATHS } from '../lib/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, Spinner, StatusBadge } from '../components/ui';
@@ -22,12 +23,25 @@ const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
 
 export default function Orders() {
   const { orders, loading, error } = useOrders();
+  const { role } = useAuth();
   const { config } = useConfig();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
 
   const filter = (params.get('filtro') as 'all' | OrderStatus) ?? 'all';
+
+  useEffect(() => {
+    if (params.get('nueva') === '1') {
+      setSelected({
+        id: doc(collection(db, PATHS.orders)).id,
+        creditCycle: { status: 'pedido' }
+      } as PurchaseOrder);
+      const newParams = new URLSearchParams(params);
+      newParams.delete('nueva');
+      setParams(newParams, { replace: true });
+    }
+  }, [params, setParams]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -104,14 +118,19 @@ export default function Orders() {
       <Card
         actions={
           <>
-            <button className="btn btn-primary" onClick={() => setSelected({
-              id: doc(collection(db, PATHS.orders)).id,
-              creditCycle: { status: 'pedido' }
-            } as PurchaseOrder)}>
-              + Nuevo Pedido
-            </button>
-            <span className="spacer" />
-            <button className="btn no-print" onClick={exportCSV}>⭳ CSV</button>
+            {role !== 'viewer' && (
+              <>
+                <button className="btn btn-primary" onClick={() => setSelected({
+                  id: doc(collection(db, PATHS.orders)).id,
+                  creditCycle: { status: 'pedido' }
+                } as PurchaseOrder)}>
+                  + Nuevo Pedido
+                </button>
+                <span className="spacer" />
+                <button className="btn no-print" onClick={exportCSV}>⭳ CSV</button>
+              </>
+            )}
+            {role === 'viewer' && <span className="spacer" />}
             <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
           </>
         }
@@ -204,6 +223,7 @@ export default function Orders() {
           order={orders.find((o) => o.id === selected.id) ?? selected}
           config={config}
           onClose={() => setSelected(null)}
+          readOnly={role === 'viewer'}
         />
       )}
     </>

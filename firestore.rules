@@ -14,12 +14,27 @@ service cloud.firestore {
         );
     }
 
-    function isAdmin() {
+    // Un usuario existe en la plataforma si es owner o tiene documento.
+    function isAuthenticatedUser() {
       return request.auth != null
         && (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid))
           || isAllowedOwnerEmail()
         );
+    }
+
+    function getRole() {
+      return isAllowedOwnerEmail() 
+        ? 'admin' 
+        : get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticatedUser() && getRole() == 'admin';
+    }
+
+    function isManagerOrAdmin() {
+      return isAuthenticatedUser() && (getRole() == 'admin' || getRole() == 'manager');
     }
 
     match /admins/{uid} {
@@ -31,28 +46,37 @@ service cloud.firestore {
     }
 
     match /purchaseOrders/{orderId} {
-      allow read: if isAdmin();
-      // El backend escribe con Admin SDK y se salta estas reglas;
-      // esto habilita la edición manual desde la interfaz.
-      allow create, update, delete: if isAdmin();
+      // Todos los usuarios pueden leer expedientes (para empaquetar, checar estatus)
+      allow read: if isAuthenticatedUser();
+      // Solo admins y managers pueden crear/modificar/borrar expedientes
+      allow create, update, delete: if isManagerOrAdmin();
     }
 
     // Copias completas del estado del respaldo HTML (un solo documento grande).
     match /snapshots/{snapId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     match /config/{docId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read: if isAuthenticatedUser();
+      allow write: if isSuperAdmin();
     }
 
     match /expenses/{expenseId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     match /purchases/{purchaseId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isSuperAdmin();
+    }
+
+    // Log de auditoría
+    match /system_logs/{logId} {
+      // Solo super admin lee los logs
+      allow read: if isSuperAdmin();
+      // Cualquier usuario puede escribir logs (el backend los genera o el cliente)
+      allow create: if isAuthenticatedUser();
+      allow update, delete: if false; // Logs inmutables
     }
 
     // Todo lo demás queda cerrado.

@@ -12,13 +12,16 @@ flujo neto, el ciclo de crédito y la cobranza.
 
 | Módulo | Qué hace |
 |---|---|
-| **Login** | Correo y contraseña. Solo entra quien tenga documento en `admins/{uid}`. |
-| **Panel** | Total vendido, ganancia neta, te deben, vencido, cobrado, pendientes de captura. Gráfica de vendido contra cobrado por mes (interactiva con Recharts). |
+| **Login y Roles** | Correo y contraseña. Control de acceso mediante `admins/{uid}`. Roles: admin, manager, viewer. |
+| **Panel (Launchpad)** | Acciones rápidas, Alertas urgentes, total vendido, ganancia neta, deudas, gráfica interactiva de ventas vs cobros por mes. |
 | **Subir órdenes** | Drag & drop de PDFs a Storage con barra de progreso. Cada archivo se cruza en vivo con la orden que creó la IA. |
-| **Órdenes (Expedientes)** | Tabla en tiempo real con colores, filtros, totales y CSV. Clic en un renglón abre la ficha del Expediente con pestañas (Resumen, Entregas Parciales, Facturas Parciales). |
-| **Cobranza** | Antigüedad de saldos por cliente (aún no vence / 1-30 / 31-60 / 61-90 / +90) y lista priorizada de qué cobrar primero. |
-| **Respaldo local** | Baja tus datos metidos dentro del HTML offline, o súbelos de regreso desde el HTML. Puente en los dos sentidos. |
-| **Configuración** | Edita precio de venta, costo, comisión, IVA y días de crédito en `config/financials`. Incluye recálculo masivo de órdenes abiertas. |
+| **Órdenes (Expedientes)** | Tabla en tiempo real con colores, filtros, totales y CSV. Clic en un renglón abre la ficha del Expediente. |
+| **Compras al Fabricante** | Registro de pedidos a proveedores, entregas parciales y control de anticipos (Saldos a favor vs Deuda). |
+| **Cobranza** | Antigüedad de saldos por cliente y lista priorizada de qué cobrar primero. |
+| **Caja Chica** | Control de gastos e ingresos menores de la empresa. |
+| **Respaldo Local** | Exporta/Importa desde `control-bolsas-offline.html`. (Soporta exportación segura para Ayudantes ocultando utilidades). |
+| **Bitácora (Logs)** | Auditoría de las acciones realizadas por cada usuario en el sistema. |
+| **Configuración** | Edita precio de venta, costo, comisión, IVA y días de crédito. Recálculo masivo automático. |
 
 ## 2. Reglas financieras
 

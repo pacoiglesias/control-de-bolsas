@@ -11,7 +11,7 @@ import { auth, db, PATHS } from '../lib/firebase';
 
 interface AuthState {
   user: User | null;
-  isAdmin: boolean;
+  role: 'admin' | 'manager' | 'viewer' | null;
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
@@ -41,7 +41,7 @@ function authMessage(code: string): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<'admin' | 'manager' | 'viewer' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (u) => {
       if (!u) {
         setUser(null);
-        setIsAdmin(false);
+        setRole(null);
         setLoading(false);
         return;
       }
@@ -85,20 +85,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (snap.exists() || isOwnerEmail) {
           setUser(u);
-          setIsAdmin(true);
+          const userRole = snap.exists() ? (snap.data().role || 'viewer') : 'admin';
+          setRole(isOwnerEmail ? 'admin' : userRole);
           setError(null);
         } else {
           setError(
             `La cuenta ${u.email} no está autorizada. Crea el documento admins/${u.uid} en Firestore.`,
           );
-          setIsAdmin(false);
+          setRole(null);
           setUser(null);
           await fbSignOut(auth);
         }
       } catch {
         setError('No se pudo verificar el permiso de administrador.');
         setUser(null);
-        setIsAdmin(false);
+        setRole(null);
       }
       setLoading(false);
     });
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(
     () => ({
       user,
-      isAdmin,
+      role,
       loading,
       error,
       signIn: async (email, password) => {
@@ -129,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
       },
     }),
-    [user, isAdmin, loading, error],
+    [user, role, loading, error],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

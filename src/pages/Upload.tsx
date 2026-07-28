@@ -3,6 +3,9 @@ import { ref, uploadBytesResumable } from 'firebase/storage';
 import { storage, PATHS } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, StatusBadge } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDateTime, kilos, money } from '../lib/format';
 
@@ -30,6 +33,7 @@ export default function Upload() {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { orders } = useOrders();
+  const { role, user } = useAuth();
   const toast = useToast();
 
   const upload = useCallback(
@@ -66,6 +70,7 @@ export default function Upload() {
             setJobs((j) =>
               j.map((x) => (x.id === id ? { ...x, progress: 100, state: 'procesando' } : x)),
             );
+            logAction(user?.email, 'Subida de Orden (PDF)', { filename: file.name });
             toast(`${file.name} subido. La IA lo está leyendo…`, 'ok');
           },
         );
@@ -76,6 +81,8 @@ export default function Upload() {
 
   /** Cruza cada archivo subido con la orden que creó la Cloud Function. */
   const matched = (path: string) => orders.find((o) => o.fileName === path);
+
+  if (role === 'viewer') return <Navigate to="/" replace />;
 
   return (
     <>
