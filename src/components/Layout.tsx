@@ -6,10 +6,12 @@ import { useOrders } from '../hooks/useOrders';
 const NAV = [
   { to: '/', num: '00', label: 'Panel de control', end: true },
   { to: '/subir', num: '01', label: 'Subir órdenes' },
-  { to: '/ordenes', num: '02', label: 'Órdenes' },
-  { to: '/cobranza', num: '03', label: 'Cobranza' },
-  { to: '/respaldo', num: '04', label: 'Respaldo local' },
-  { to: '/configuracion', num: '05', label: 'Configuración' },
+  { to: '/ordenes', num: '02', label: 'Órdenes / Ventas' },
+  { to: '/compras', num: '03', label: 'Compras / Fabricante' },
+  { to: '/cobranza', num: '04', label: 'Cobranza' },
+  { to: '/caja-chica', num: '05', label: 'Caja Chica' },
+  { to: '/respaldo', num: '06', label: 'Respaldo local' },
+  { to: '/configuracion', num: '07', label: 'Configuración' },
 ];
 
 function initTheme(): 'light' | 'dark' {

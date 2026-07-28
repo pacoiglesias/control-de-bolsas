@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type OrderStatus = 'pending' | 'paid' | 'overdue' | 'manual_review';
+export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'paid' | 'overdue' | 'manual_review';
 
 export interface FinancialConfig {
   salePricePerKg: number;
@@ -55,6 +55,8 @@ export interface PurchaseOrder {
   fileName?: string;
   folio?: string;
   client?: string;
+  department?: string;
+  provider?: string;
   totalKilograms?: number;
   financials?: OrderFinancials;
   creditCycle: CreditCycle;
@@ -64,14 +66,44 @@ export interface PurchaseOrder {
   aiError?: string;
 }
 
+export interface Expense {
+  id: string;
+  date: Timestamp | null;
+  concept: string;
+  amount: number;
+  type: 'ingreso' | 'egreso';
+  notes?: string;
+  createdAt: Timestamp | null;
+}
+
+export type PurchaseStatus = 'pedido' | 'parcial' | 'entregado';
+
+export interface Purchase {
+  id: string;
+  date: Timestamp | null;
+  provider: string;
+  expectedKilos: number;
+  receivedKilos: number;
+  pricePerKg: number;
+  totalAmount: number;
+  paidAmount: number;
+  status: PurchaseStatus;
+  notes?: string;
+  createdAt: Timestamp | null;
+}
+
 export const STATUS_LABEL: Record<OrderStatus, string> = {
-  pending: 'Por cobrar',
+  pedido: 'Pedido',
+  facturado: 'Facturado',
+  pending: 'Con Contrarecibo',
   paid: 'Cobrada',
   overdue: 'Vencida',
   manual_review: 'Revisión manual',
 };
 
 export const STATUS_TONE: Record<OrderStatus, string> = {
+  pedido: 'b-info',
+  facturado: 'b-warn',
   pending: 'b-info',
   paid: 'b-ok',
   overdue: 'b-bad',

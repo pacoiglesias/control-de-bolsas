@@ -32,7 +32,7 @@
         ]
       }
     ],
-    "site": "control-de-bolsas-89c88"
+    "site": "control-de-bolsas-69"
   },
   "firestore": {
     "rules": "firestore.rules",
@@ -51,7 +51,7 @@
         "*.local"
       ],
       "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run build"
+        "npm --prefix functions run build"
       ]
     }
   ],

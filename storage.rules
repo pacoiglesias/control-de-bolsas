@@ -2,9 +2,24 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function isAllowedOwnerEmail() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && (
+          request.auth.token.email == "paco.iglesias@gmail.com"
+          || request.auth.token.email == "pacoismael@gmail.com"
+          || request.auth.token.email == "paco@cobertores.com"
+          || request.auth.token.email.matches(".*@ruenisco\\.com$")
+          || request.auth.token.email.matches("^admin@.*")
+        );
+    }
+
     function isAdmin() {
       return request.auth != null
-        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+        && (
+          firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+          || isAllowedOwnerEmail()
+        );
     }
 
     // Solo PDFs, máximo 20 MB, solo administradores, solo bajo uploads/.

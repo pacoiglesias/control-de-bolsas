@@ -92,7 +92,8 @@ if errorlevel 1 (
 
 echo.
 echo    -- Cloud Functions --
-echo    [..] Probando que las funciones carguen antes de subirlas...
+echo    [..] Compilando y probando que las funciones carguen antes de subirlas...
+call npm --prefix functions run build
 set FIREBASE_CONFIG={"projectId":"control-de-bolsas-89c88","storageBucket":"control-de-bolsas-89c88.firebasestorage.app"}
 set GCLOUD_PROJECT=control-de-bolsas-89c88
 pushd functions

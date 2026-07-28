@@ -6,7 +6,7 @@
   "description": "ERP Control Bolsas — Master Track. React + Vite + Firebase.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm --prefix functions run build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "deploy": "npm run build && firebase deploy"

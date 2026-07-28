@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteDoc, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { Field, Modal } from '../components/ui';
 import { useToast } from '../context/ToastContext';
@@ -21,6 +21,8 @@ export default function OrderModal({
   const [form, setForm] = useState({
     folio: order.folio ?? '',
     client: order.client ?? '',
+    department: order.department ?? '',
+    provider: order.provider ?? '',
     totalKilograms: String(order.totalKilograms ?? ''),
     status: (order.creditCycle?.status ?? 'pending') as OrderStatus,
     issueDate: toInputDate(order.creditCycle?.issueDate) || toInputDate(order.processedAt),
@@ -56,14 +58,19 @@ export default function OrderModal({
     try {
       const issue = fromInputDate(form.issueDate) ?? new Date();
       const due = fromInputDate(form.dueDate) ?? addDays(issue, config.creditDays);
-      await updateDoc(doc(db, PATHS.orders, order.id), {
+      const ref = doc(db, PATHS.orders, order.id);
+      await setDoc(ref, {
         folio: form.folio.trim(),
         client: form.client.trim(),
+        department: form.department.trim(),
+        provider: form.provider.trim(),
         totalKilograms: kilosNum,
         financials: preview,
-        'creditCycle.status': form.status,
-        'creditCycle.issueDate': Timestamp.fromDate(issue),
-        'creditCycle.dueDate': Timestamp.fromDate(due),
+        creditCycle: {
+          status: form.status,
+          issueDate: Timestamp.fromDate(issue),
+          dueDate: Timestamp.fromDate(due),
+        },
         collection: {
           contrareciboNumber: form.contrareciboNumber.trim(),
           contrareciboDate: form.contrareciboDate
@@ -74,7 +81,8 @@ export default function OrderModal({
           notes: form.notes.trim(),
         },
         updatedAt: serverTimestamp(),
-      });
+        processedAt: order.processedAt ?? serverTimestamp(),
+      }, { merge: true });
       toast('Orden actualizada', 'ok');
       onClose();
     } catch (e) {
@@ -87,12 +95,18 @@ export default function OrderModal({
   async function markPaid() {
     setBusy(true);
     try {
-      await updateDoc(doc(db, PATHS.orders, order.id), {
-        'creditCycle.status': 'paid',
-        'collection.paidAmount': order.financials?.saleTotal ?? preview.saleTotal,
-        'collection.paidAt': Timestamp.fromDate(new Date()),
+      await setDoc(doc(db, PATHS.orders, order.id), {
+        creditCycle: {
+          ...order.creditCycle,
+          status: 'paid',
+        },
+        collection: {
+          ...order.collection,
+          paidAmount: order.financials?.saleTotal ?? preview.saleTotal,
+          paidAt: Timestamp.fromDate(new Date()),
+        },
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
       toast('Marcada como cobrada', 'ok');
       onClose();
     } catch (e) {
@@ -134,6 +148,12 @@ export default function OrderModal({
         </Field>
         <Field label="Cliente">
           <input className="input boxed" value={form.client} onChange={(e) => set('client', e.target.value)} />
+        </Field>
+        <Field label="Departamento">
+          <input className="input boxed" value={form.department} onChange={(e) => set('department', e.target.value)} />
+        </Field>
+        <Field label="Proveedor">
+          <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} />
         </Field>
         <Field label="Kilos totales">
           <input className="input boxed mono" type="number" step="0.01" value={form.totalKilograms}

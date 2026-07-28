@@ -24,6 +24,8 @@ export const storage = getStorage(app);
 
 export const PATHS = {
   orders: 'purchaseOrders',
+  expenses: 'expenses',
+  purchases: 'purchases',
   config: 'config',
   configFinancials: 'financials',
   admins: 'admins',

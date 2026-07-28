@@ -200,20 +200,16 @@ Ya quedó explícito y configurable en los dos lados:
 Por omisión ambos quedaron en *subtotal*. Si contabilidad te la cobra sobre el total facturado,
 cámbialo en Configuración y presiona *Recalcular órdenes abiertas*.
 
-## 9. Lo que este sistema todavía no modela
+## 9. Flujo ERP Completo Integrado
 
-El backend trabaja con una orden = un PDF = un monto. Del flujo real de tu operación quedan fuera:
+El sistema ha evolucionado de un simple control de PDFs a un flujo ERP completo integrado nativamente:
 
-- **El fabricante.** No hay compras, anticipos ni recepciones parciales, así que
-  *"pedí 1,000 kg y me entregaron 900"* no se puede registrar todavía.
-- **Contrarecibos como paso propio.** El campo existe en la ficha, pero el plazo de crédito
-  arranca desde la emisión de la factura, no desde que el cliente acepta el contrarecibo.
-- **Caja.** No hay flujo de efectivo ni saldo bancario.
+- **Pedidos y Ventas sin PDF:** Ya puedes registrar pedidos y facturas de forma 100% manual. El ciclo viaja por: `Pedido` → `Facturado` → `Con Contrarecibo` → `Cobrado`.
+- **Control del Fabricante (Compras):** El sistema cuenta con el módulo de Compras para gestionar a tu proveedor. Permite llevar el control de los kilos pedidos vs. entregados y los anticipos monetarios, calculando el saldo pendiente.
+- **Caja Chica:** Se implementó la gestión de caja chica (`expenses`) para llevar el control directo del flujo de efectivo, registrando ingresos (reposiciones) y egresos (gastos) con saldos en tiempo real.
+- **Departamentos y Proveedores:** El control está segmentado, por lo que las tablas diferencian el saldo según "Cliente - Departamento" (ej. Providencia - TH vs GT).
 
-Todo eso sí está resuelto en el HTML offline que viene incluido, y por eso el puente existe:
-mientras la nube no modele el pedido completo, el HTML es donde llevas ese control. El
-siguiente paso natural es subir ese modelo a Firestore: colección `pedidos` como columna
-vertebral y `purchaseOrders` colgando de ella. Las reglas ya están preparadas para crecer así.
+El HTML offline sigue existiendo como un buen respaldo desconectado, pero la nube ya es totalmente capaz de modelar el día a día.
 
 **Proyecto:** `control-de-bolsas-89c88` · **Repo:** `github.com/pacoiglesias/control-de-bolsas`
 Ambos ya vienen configurados en `.firebaserc` y `PUSH_TO_GIT.bat`.

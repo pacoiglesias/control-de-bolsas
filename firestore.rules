@@ -2,17 +2,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Un usuario es administrador si existe admins/{uid}.
-    // Ese documento NO se puede crear desde la app: se crea a mano en la
-    // consola de Firebase. Es la puerta de entrada de todo el sistema.
+    function isAllowedOwnerEmail() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && (
+          request.auth.token.email == "paco.iglesias@gmail.com"
+          || request.auth.token.email == "pacoismael@gmail.com"
+          || request.auth.token.email == "paco@cobertores.com"
+          || request.auth.token.email.matches(".*@ruenisco\\.com$")
+          || request.auth.token.email.matches("^admin@.*")
+        );
+    }
+
     function isAdmin() {
       return request.auth != null
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        && (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+          || isAllowedOwnerEmail()
+        );
     }
 
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false; // solo desde la consola o Admin SDK
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && isAllowedOwnerEmail();
+      allow delete: if false;
     }
 
     match /purchaseOrders/{orderId} {
@@ -30,6 +45,14 @@ service cloud.firestore {
     match /config/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /purchases/{purchaseId} {
+      allow read, write: if isAdmin();
     }
 
     // Todo lo demás queda cerrado.

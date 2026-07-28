@@ -21,7 +21,7 @@ export default function Cobranza() {
 
     const porCliente: Record<string, Record<AgingKey, number> & { total: number }> = {};
     open.forEach((o) => {
-      const c = o.client?.trim() || '(sin cliente)';
+      const c = `${o.client?.trim() || '(sin cliente)'}${o.department ? ` - ${o.department}` : ''}`;
       porCliente[c] = porCliente[c] ?? { current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, total: 0 };
       const b = agingBucket(toDate(o.creditCycle?.dueDate));
       porCliente[c][b] += saldo(o);

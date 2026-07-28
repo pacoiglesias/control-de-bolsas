@@ -1,15 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
 import { daysLate } from '../lib/finance';
+import { seedInitialDatabase } from '../lib/seedData';
 
 export default function Dashboard() {
   const { orders, loading, error } = useOrders();
   const { config } = useConfig();
   const nav = useNavigate();
+  const toast = useToast();
+  const [seeding, setSeeding] = useState(false);
 
   const k = useMemo(() => {
     const live = orders.filter((o) => o.creditCycle?.status !== 'manual_review');
@@ -65,6 +69,34 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {orders.length === 0 && (
+        <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
+          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
+            El sistema no tiene órdenes registradas aún
+          </div>
+          <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+            Puedes cargar de inmediato la base inicial con los <strong>11 contrarecibos</strong> y las <strong>3 facturas pendientes de contrarecibo</strong>.
+          </div>
+          <button
+            className="btn btn-primary"
+            disabled={seeding}
+            onClick={async () => {
+              setSeeding(true);
+              try {
+                await seedInitialDatabase();
+                toast('¡Base inicial cargada con éxito en Firestore! (14 registros)', 'ok');
+              } catch (e) {
+                toast(`Error al cargar datos: ${(e as Error).message}`, 'bad');
+              } finally {
+                setSeeding(false);
+              }
+            }}
+          >
+            {seeding ? 'Cargando datos…' : '📥 Cargar Base Inicial (14 registros)'}
+          </button>
+        </div>
+      )}
+
       <div className="kpi-grid">
         <KpiCard hero label="TOTAL VENDIDO" value={money(k.totalVendido)}
           sub={`${kilos(k.totalKilos)} procesados en ${orders.length} órdenes`} />
@@ -119,7 +151,7 @@ export default function Dashboard() {
                 {k.proximos.slice(0, 8).map(({ o, d }) => (
                   <tr key={o.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}>
                     <td className="mono">{o.folio ?? '—'}</td>
-                    <td>{o.client ?? '—'}</td>
+                    <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>
                     <td className="mono">{fmtDate(o.creditCycle?.dueDate)}</td>
                     <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
                     <td className="num mono">{money(o.financials?.saleTotal)}</td>

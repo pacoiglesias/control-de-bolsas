@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { db, PATHS } from '../lib/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
 import { fmtDate, kilos, money, toDate } from '../lib/format';
@@ -10,10 +12,12 @@ import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
 const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
   { key: 'all', label: 'Todas' },
-  { key: 'pending', label: 'Por cobrar' },
+  { key: 'pedido', label: 'Pedidos' },
+  { key: 'facturado', label: 'Facturado' },
+  { key: 'pending', label: 'Con CR' },
   { key: 'overdue', label: 'Vencidas' },
   { key: 'paid', label: 'Cobradas' },
-  { key: 'manual_review', label: 'Revisión manual' },
+  { key: 'manual_review', label: 'Revisión' },
 ];
 
 export default function Orders() {
@@ -93,6 +97,13 @@ export default function Orders() {
       <Card
         actions={
           <>
+            <button className="btn btn-primary" onClick={() => setSelected({
+              id: doc(collection(db, PATHS.orders)).id,
+              creditCycle: { status: 'pedido' }
+            } as PurchaseOrder)}>
+              + Nuevo Pedido
+            </button>
+            <span className="spacer" />
             <button className="btn" onClick={exportCSV}>⭳ CSV</button>
             <button className="btn" onClick={() => window.print()}>🖨 Imprimir</button>
           </>
@@ -129,7 +140,7 @@ export default function Orders() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Folio</th><th>Cliente</th><th className="num">Kilos</th>
+                  <th>Folio</th><th>Cliente</th><th>Depto.</th><th>Prov.</th><th className="num">Kilos</th>
                   <th className="num">Venta</th><th className="num">Comisión</th>
                   <th className="num">Neto</th><th>Emisión</th><th>Vence</th>
                   <th className="num">Días</th><th>Estado</th>
@@ -148,6 +159,8 @@ export default function Orders() {
                     >
                       <td className="mono">{o.folio ?? <span className="hint">sin folio</span>}</td>
                       <td>{o.client ?? '—'}</td>
+                      <td>{o.department ?? '—'}</td>
+                      <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
                       <td className="num mono">{money(o.financials?.saleTotal)}</td>
                       <td className="num mono">{money(o.financials?.commission)}</td>
