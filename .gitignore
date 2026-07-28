@@ -1,9 +1,22 @@
+# Dependencias y compilados
 node_modules
 dist
+functions/node_modules
+functions/lib
+*.tsbuildinfo
+
+# Secretos y configuración local
 .env
 .env.local
 .firebase
-functions/node_modules
-functions/lib
+
+# Respaldos que crea INSTALAR_ACTUALIZACION.bat
+_respaldo_*/
+
+# Paquetes de actualización: no tienen por qué vivir en el repositorio
+*.zip
+
+# Sistema
 *.log
 .DS_Store
+Thumbs.db
