@@ -11,7 +11,7 @@ Cada vez que haces un push a la rama `main`, los servidores de GitHub compilan a
 ## 📖 Arquitectura y Reglas del Sistema
 Para entender cómo están estructuradas las bases de datos de Firebase, cómo funciona la **Inmutabilidad de los Snapshots Financieros**, y cómo la **Inteligencia Artificial (Google Gemini)** procesa los PDFs y los XML del SAT de forma bi-funcional, consulta el documento principal:
 
-👉 **[SISTEMA_ACTUAL.md](./SISTEMA_ACTUAL.md)**
+👉 **[SISTEMA_ACTUAL.md](./docs/SISTEMA_ACTUAL.md)**
 
 Allí también encontrarás el **Prompt de Auto-Auditoría** para solicitar a cualquier IA que optimice este código en el futuro.
 
