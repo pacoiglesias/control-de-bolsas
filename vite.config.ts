@@ -1,8 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      manifest: {
+        name: 'Control Bolsas ERP',
+        short_name: 'ERP Providencia',
+        description: 'ERP de Control de Bolsas y Facturación',
+        theme_color: '#000000',
+        background_color: '#ffffff',
+        display: 'standalone'
+      }
+    })
+  ],
   build: {
     outDir: 'dist',
     sourcemap: false,

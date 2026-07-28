@@ -90,7 +90,7 @@ export default function Layout() {
         <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
           <div className="brand">
             <div className="brand-mark">CONTROL BOLSAS</div>
-            <div className="brand-sub">Master Track · v5.2</div>
+            <div className="brand-sub">Master Track · v6.2</div>
           </div>
           <nav className="nav">
             {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => (
@@ -125,7 +125,7 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center' }}>
-            Control Bolsas v5.2 · Paco Iglesias 2026
+            Control Bolsas v6.2 · Desarrollado por Paco Iglesias &copy; 2026
           </footer>
         </main>
       </div>
