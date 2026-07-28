@@ -20,7 +20,12 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getStorage } from "firebase-admin/storage";
-import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import {
+  FieldValue,
+  Timestamp,
+  getFirestore,
+  type QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import { genkit, z } from "genkit";
 import { googleAI } from "@genkit-ai/googleai";
 import { defineSecret } from "firebase-functions/params";
@@ -196,10 +201,10 @@ export const checkOverdueInvoices = onSchedule(
       return;
     }
     // Firestore permite 500 escrituras por lote.
-    const docs = snapshot.docs;
+    const docs: QueryDocumentSnapshot[] = snapshot.docs;
     for (let i = 0; i < docs.length; i += 400) {
       const batch = db.batch();
-      docs.slice(i, i + 400).forEach((d) =>
+      docs.slice(i, i + 400).forEach((d: QueryDocumentSnapshot) =>
         batch.update(d.ref, {
           "creditCycle.status": "overdue",
           updatedAt: FieldValue.serverTimestamp(),

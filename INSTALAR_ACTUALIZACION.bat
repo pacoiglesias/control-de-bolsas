@@ -102,6 +102,19 @@ REM ---------- 5. RESPALDO antes de tocar nada ----------
 for /f "tokens=1-6 delims=/: " %%a in ("%DATE% %TIME%") do set "SELLO=%%c%%b%%a_%%d%%e"
 set "SELLO=!SELLO: =0!"
 set "BACKUP=!PROYECTO!\_respaldo_!SELLO!"
+REM el respaldo no debe acabar en GitHub
+if exist "!PROYECTO!\.gitignore" (
+  findstr /c:"_respaldo_" "!PROYECTO!\.gitignore" >nul 2>nul
+  if errorlevel 1 (
+    echo.>> "!PROYECTO!\.gitignore"
+    echo # Respaldos del instalador>> "!PROYECTO!\.gitignore"
+    echo _respaldo_*/>> "!PROYECTO!\.gitignore"
+    echo *.zip>> "!PROYECTO!\.gitignore"
+    echo *.tsbuildinfo>> "!PROYECTO!\.gitignore"
+    echo  [+] .gitignore actualizado para no subir respaldos ni zips
+  )
+)
+
 echo  [..] Respaldando tu version actual en:
 echo       _respaldo_!SELLO!
 robocopy "!PROYECTO!" "!BACKUP!" /E /XD node_modules dist .git .firebase _respaldo_* lib /NFL /NDL /NJH /NJS /NC /NS >nul
