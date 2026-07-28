@@ -4,6 +4,8 @@ import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithPopup,
   type User,
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -16,6 +18,7 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -124,6 +127,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // autenticado para escribir (isAuthenticatedUser() en las reglas).
           // Registrarlo aqui fallaria en silencio siempre, asi que no se
           // intenta: solo queda constancia de los inicios que si entraron.
+          const code = (e as { code?: string }).code ?? '';
+          setError(authMessage(code));
+          throw e;
+        }
+      },
+      signInWithGoogle: async () => {
+        setError(null);
+        try {
+          const provider = new GoogleAuthProvider();
+          const result = await signInWithPopup(auth, provider);
+          void logAction(result.user.email ?? 'google', 'Inicio de Sesión (Google)', { ok: true });
+        } catch (e) {
           const code = (e as { code?: string }).code ?? '';
           setError(authMessage(code));
           throw e;

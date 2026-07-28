@@ -89,7 +89,7 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .kpi-card.clickable{cursor:pointer}
 .kpi-card.clickable:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .kpi-label{font-size:11.5px;color:var(--ink-soft);line-height:1.35;margin-bottom:7px;min-height:30px}
-.kpi-value{font-family:'IBM Plex Mono';font-size:21px;font-weight:600;letter-spacing:-.01em}
+.kpi-value{font-family:'IBM Plex Mono';font-size:21px;font-weight:600;letter-spacing:-.01em;word-break:break-word;line-height:1.1}
 .kpi-sub{font-size:11px;color:var(--ink-faint);margin-top:4px;line-height:1.4}
 .kpi-card.hero .kpi-value{font-size:30px}
 .kpi-card.bad{background:var(--bad-bg);border-color:var(--bad)}
