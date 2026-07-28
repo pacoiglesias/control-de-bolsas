@@ -1601,7 +1601,7 @@ function renderFacturas(){
     <div class="card-head no-print">
       <input type="search" class="search-input" id="factura-search" placeholder="Buscar folio, cliente, contrarecibo, O.C., monto…" value="${escAttr(state.facturaSearch||'')}">
       <div class="spacer"></div>
-      <button class="btn" data-action="print" data-what="facturas">🖨 Imprimir listado</button>
+      <button class="btn no-print" data-action="print" data-what="facturas">🖨 Imprimir listado</button>
       <button class="btn" data-action="export-csv" data-table="facturas">⭳ CSV</button>
       <button class="btn" data-action="open-import">⭱ Importar contrarecibos</button>
       <button class="btn btn-primary" data-action="add-row" data-table="facturas">+ Agregar factura</button>
@@ -1740,7 +1740,7 @@ function renderPedidos(){
     <div class="card-head no-print">
       <div class="chip-row">${FILTROS_PEDIDO.map(c=>`<button class="chip ${filtro===c.k?'active':''}" data-action="filter-pedidos" data-filter="${c.k}">${c.label} (${counts[c.k]})</button>`).join('')}</div>
       <div class="spacer"></div>
-      <button class="btn" data-action="print" data-what="pedidos">🖨 Imprimir</button>
+      <button class="btn no-print" data-action="print" data-what="pedidos">🖨 Imprimir</button>
       <button class="btn btn-primary" data-action="nuevo-pedido">+ Nuevo pedido</button>
     </div>
     <div class="table-scroll hide-mobile">
@@ -1935,7 +1935,7 @@ function renderReportes(){
     <button class="btn" data-action="rango" data-rango="anio">Este año</button>
     <button class="btn" data-action="rango" data-rango="todo">Todo</button>
     <div class="spacer"></div>
-    <button class="btn btn-primary" data-action="print" data-what="reporte">🖨 Imprimir reporte</button>
+    <button class="btn btn-primary no-print" data-action="print" data-what="reporte">🖨 Imprimir reporte</button>
   </div>
 
   <div class="kpi-grid">

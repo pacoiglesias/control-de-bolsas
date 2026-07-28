@@ -1,4 +1,4 @@
-# Control Bolsas v5.0 — Master Track
+# Control Bolsas v5.1 — Master Track
 
 ERP web para el control de compra, venta y cobranza de bolsa. Las órdenes de compra
 se suben en PDF, una Cloud Function las lee con Gemini y el sistema calcula solo el
@@ -15,7 +15,7 @@ flujo neto, el ciclo de crédito y la cobranza.
 | **Login** | Correo y contraseña. Solo entra quien tenga documento en `admins/{uid}`. |
 | **Panel** | Total vendido, ganancia neta, te deben, vencido, cobrado, pendientes de captura. Gráfica de vendido contra cobrado por mes. |
 | **Subir órdenes** | Drag & drop de PDFs a Storage con barra de progreso. Cada archivo se cruza en vivo con la orden que creó la IA. |
-| **Órdenes** | Tabla en tiempo real con colores por estado, filtros, buscador, totales y exportación a CSV. Clic en un renglón abre la ficha editable. |
+| **Órdenes (Expedientes)** | Tabla en tiempo real con colores, filtros, totales y CSV. Clic en un renglón abre la ficha del Expediente con pestañas (Resumen, Entregas Parciales, Facturas Parciales). |
 | **Cobranza** | Antigüedad de saldos por cliente (aún no vence / 1-30 / 31-60 / 61-90 / +90) y lista priorizada de qué cobrar primero. |
 | **Configuración** | Edita precio de venta, costo, comisión y días de crédito en `config/financials`. Incluye recálculo masivo de órdenes abiertas. |
 
