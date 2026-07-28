@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
-import { daysLate } from '../lib/finance';
+import { daysLate, getOrderSummary } from '../lib/finance';
 import { seedInitialDatabase } from '../lib/seedData';
 
 export default function Dashboard() {
@@ -21,32 +22,61 @@ export default function Dashboard() {
     const overdue = orders.filter((o) => o.creditCycle?.status === 'overdue');
     const paid = orders.filter((o) => o.creditCycle?.status === 'paid');
     const review = orders.filter((o) => o.creditCycle?.status === 'manual_review');
-    const sale = (o: (typeof orders)[number]) =>
-      o.financials?.saleTotal ?? (o.totalKilograms ?? 0) * (o.financials?.salePricePerKg ?? 0);
+    let totalKilos = 0;
+    let totalVendido = 0;
+    let netoTotal = 0;
+    let porCobrar = 0;
+    let vencido = 0;
+    let cobrado = 0;
+    let netoCobrado = 0;
 
-    const totalKilos = live.reduce((a, o) => a + (o.totalKilograms ?? 0), 0);
-    const totalVendido = live.reduce((a, o) => a + sale(o), 0);
-    const netoTotal = live.reduce((a, o) => a + (o.financials?.netCashFlow ?? 0), 0);
-    const porCobrar = [...pending, ...overdue].reduce((a, o) => a + sale(o), 0);
-    const vencido = overdue.reduce((a, o) => a + sale(o), 0);
-    const cobrado = paid.reduce((a, o) => a + sale(o), 0);
-    const netoCobrado = paid.reduce((a, o) => a + (o.financials?.netCashFlow ?? 0), 0);
+    live.forEach(o => {
+      const s = getOrderSummary(o);
+      totalKilos += o.totalKilograms ?? 0;
+      
+      s.invoices.forEach(inv => {
+        const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        const invNet = inv.financials?.netCashFlow ?? 0;
+        
+        totalVendido += invTotal;
+        netoTotal += invNet;
+        
+        if (inv.creditCycle.status === 'paid') {
+          cobrado += invTotal;
+          netoCobrado += invNet;
+        } else {
+          porCobrar += invTotal;
+          if (inv.creditCycle.status === 'overdue') {
+            vencido += invTotal;
+          }
+        }
+      });
+    });
 
     const meses: Record<string, { venta: number; cobrado: number }> = {};
-    live.forEach((o) => {
-      const d = toDate(o.creditCycle?.issueDate) ?? toDate(o.processedAt);
-      if (!d) return;
-      const key = monthKey(d);
-      meses[key] = meses[key] ?? { venta: 0, cobrado: 0 };
-      meses[key].venta += sale(o);
-      if (o.creditCycle?.status === 'paid') meses[key].cobrado += sale(o);
+    live.forEach(o => {
+      const s = getOrderSummary(o);
+      s.invoices.forEach(inv => {
+        const d = toDate(inv.creditCycle.issueDate) ?? toDate(o.processedAt);
+        if (!d) return;
+        const key = monthKey(d);
+        const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        meses[key] = meses[key] ?? { venta: 0, cobrado: 0 };
+        meses[key].venta += invTotal;
+        if (inv.creditCycle.status === 'paid') meses[key].cobrado += invTotal;
+      });
     });
     const mesesKeys = Object.keys(meses).sort().slice(-6);
     const maxMes = Math.max(1, ...mesesKeys.map((m) => meses[m].venta));
 
-    const proximos = pending
-      .map((o) => ({ o, d: daysLate(toDate(o.creditCycle?.dueDate)) }))
-      .filter((x) => x.d !== null && x.d > -8)
+    const proximos = live
+      .flatMap(o => {
+        const s = getOrderSummary(o);
+        return s.invoices
+          .filter(inv => inv.creditCycle.status === 'pending')
+          .map(inv => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)) }));
+      })
+      .filter(x => x.d !== null && x.d > -8)
       .sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
 
     return {
@@ -117,20 +147,30 @@ export default function Dashboard() {
 
       {k.mesesKeys.length > 0 && (
         <Card title="Vendido contra cobrado, mes a mes">
-          <div style={{ padding: '12px 16px 16px' }}>
-            <div className="bar-legend">
-              <span>▬ Vendido</span>
-              <span style={{ color: 'var(--ok)' }}>▬ Cobrado</span>
-            </div>
-            {k.mesesKeys.map((m) => (
-              <div className="bar-row" key={m}>
-                <span className="mono">{monthLabel(m)}</span>
-                <div className="bar-track" title={`Vendido ${money(k.meses[m].venta)} · Cobrado ${money(k.meses[m].cobrado)}`}>
-                  <div className="bar-fill fact" style={{ width: `${(k.meses[m].venta / k.maxMes) * 100}%` }} />
-                  <div className="bar-fill cob" style={{ width: `${(k.meses[m].cobrado / k.maxMes) * 100}%` }} />
-                </div>
-              </div>
-            ))}
+          <div style={{ width: '100%', height: 320, padding: '16px 20px' }}>
+            <ResponsiveContainer>
+              <BarChart
+                data={k.mesesKeys.map(m => ({ name: monthLabel(m), vendido: k.meses[m].venta, cobrado: k.meses[m].cobrado }))}
+                margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line-soft)" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--ink-soft)' }} dy={10} />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 12, fill: 'var(--ink-soft)' }}
+                  tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  cursor={{ fill: 'var(--paper-sunk)' }}
+                  contentStyle={{ backgroundColor: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow)' }}
+                  formatter={(value: any) => money(Number(value))}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                <Bar dataKey="vendido" name="Total Vendido" fill="var(--accent)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="cobrado" name="Cobrado" fill="var(--ok)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </Card>
       )}

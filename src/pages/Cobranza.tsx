@@ -3,7 +3,7 @@ import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { Card, Empty, KpiCard, Spinner, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
-import { AGING_BUCKETS, agingBucket, daysLate, type AgingKey } from '../lib/finance';
+import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } from '../lib/finance';
 import { fmtDate, money, toDate } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
 
@@ -13,19 +13,27 @@ export default function Cobranza() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
 
   const data = useMemo(() => {
-    const open = orders.filter(
-      (o) => o.creditCycle?.status === 'pending' || o.creditCycle?.status === 'overdue',
+    // Extraer todas las facturas de todos los expedientes
+    const allInvoices = orders.flatMap((o) => {
+      const s = getOrderSummary(o);
+      return s.invoices.map((inv) => ({ o, inv }));
+    });
+
+    const open = allInvoices.filter(
+      (x) => x.inv.creditCycle.status === 'pending' || x.inv.creditCycle.status === 'overdue',
     );
-    const saldo = (o: PurchaseOrder) =>
-      Math.max((o.financials?.saleTotal ?? 0) - (o.collection?.paidAmount ?? 0), 0);
+
+    const saldo = (inv: (typeof allInvoices)[number]['inv']) =>
+      Math.max((inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0) - (inv.collection?.paidAmount ?? 0), 0);
 
     const porCliente: Record<string, Record<AgingKey, number> & { total: number }> = {};
-    open.forEach((o) => {
+    open.forEach(({ o, inv }) => {
       const c = `${o.client?.trim() || '(sin cliente)'}${o.department ? ` - ${o.department}` : ''}`;
       porCliente[c] = porCliente[c] ?? { current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, total: 0 };
-      const b = agingBucket(toDate(o.creditCycle?.dueDate));
-      porCliente[c][b] += saldo(o);
-      porCliente[c].total += saldo(o);
+      const b = agingBucket(toDate(inv.creditCycle.dueDate));
+      const s = saldo(inv);
+      porCliente[c][b] += s;
+      porCliente[c].total += s;
     });
     const clientes = Object.keys(porCliente).sort((a, b) => porCliente[b].total - porCliente[a].total);
 
@@ -35,7 +43,7 @@ export default function Cobranza() {
     );
 
     const lista = open
-      .map((o) => ({ o, d: daysLate(toDate(o.creditCycle?.dueDate)), saldo: saldo(o) }))
+      .map(({ o, inv }) => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)), saldo: saldo(inv) }))
       .sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
 
     return {
@@ -44,16 +52,16 @@ export default function Cobranza() {
       clientes,
       porCliente,
       totalPorBucket,
-      meDeben: open.reduce((a, o) => a + saldo(o), 0),
+      meDeben: open.reduce((a, x) => a + saldo(x.inv), 0),
       vencido: open
-        .filter((o) => o.creditCycle?.status === 'overdue')
-        .reduce((a, o) => a + saldo(o), 0),
-      cobrado: orders
-        .filter((o) => o.creditCycle?.status === 'paid')
-        .reduce((a, o) => a + (o.collection?.paidAmount ?? o.financials?.saleTotal ?? 0), 0),
-      comisiones: orders
-        .filter((o) => o.creditCycle?.status === 'paid')
-        .reduce((a, o) => a + (o.financials?.commission ?? 0), 0),
+        .filter((x) => x.inv.creditCycle.status === 'overdue')
+        .reduce((a, x) => a + saldo(x.inv), 0),
+      cobrado: allInvoices
+        .filter((x) => x.inv.creditCycle.status === 'paid')
+        .reduce((a, x) => a + (x.inv.collection?.paidAmount ?? x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0),
+      comisiones: allInvoices
+        .filter((x) => x.inv.creditCycle.status === 'paid')
+        .reduce((a, x) => a + (x.inv.financials?.commission ?? 0), 0),
     };
   }, [orders]);
 
@@ -135,16 +143,19 @@ export default function Cobranza() {
                 </tr>
               </thead>
               <tbody>
-                {data.lista.map(({ o, d, saldo }) => (
-                  <tr key={o.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}
+                {data.lista.map(({ o, inv, d, saldo }) => (
+                  <tr key={inv.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}
                     onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
-                    <td className="mono">{o.folio ?? '—'}</td>
+                    <td className="mono">
+                      {inv.folio ?? o.folio ?? '—'}
+                      {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
+                    </td>
                     <td>{o.client ?? '—'}</td>
-                    <td className="mono">{o.collection?.contrareciboNumber || '—'}</td>
-                    <td className="mono">{fmtDate(o.creditCycle?.dueDate)}</td>
+                    <td className="mono">{inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '—'}</td>
+                    <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{money(saldo)}</td>
-                    <td><StatusBadge status={o.creditCycle?.status ?? 'pending'} /></td>
+                    <td><StatusBadge status={inv.creditCycle.status} /></td>
                   </tr>
                 ))}
               </tbody>
