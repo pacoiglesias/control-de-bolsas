@@ -1,4 +1,4 @@
-# Control Bolsas v5.1 — Master Track
+# Control Bolsas v5.2 — Master Track
 
 ERP web para el control de compra, venta y cobranza de bolsa. Las órdenes de compra
 se suben en PDF, una Cloud Function las lee con Gemini y el sistema calcula solo el
@@ -13,7 +13,7 @@ flujo neto, el ciclo de crédito y la cobranza.
 | Módulo | Qué hace |
 |---|---|
 | **Login** | Correo y contraseña. Solo entra quien tenga documento en `admins/{uid}`. |
-| **Panel** | Total vendido, ganancia neta, te deben, vencido, cobrado, pendientes de captura. Gráfica de vendido contra cobrado por mes. |
+| **Panel** | Total vendido, ganancia neta, te deben, vencido, cobrado, pendientes de captura. Gráfica de vendido contra cobrado por mes (interactiva con Recharts). |
 | **Subir órdenes** | Drag & drop de PDFs a Storage con barra de progreso. Cada archivo se cruza en vivo con la orden que creó la IA. |
 | **Órdenes (Expedientes)** | Tabla en tiempo real con colores, filtros, totales y CSV. Clic en un renglón abre la ficha del Expediente con pestañas (Resumen, Entregas Parciales, Facturas Parciales). |
 | **Cobranza** | Antigüedad de saldos por cliente (aún no vence / 1-30 / 31-60 / 61-90 / +90) y lista priorizada de qué cobrar primero. |
@@ -49,9 +49,7 @@ Instala Node, Firebase CLI y dependencias, y te abre `.env` y `.firebaserc` para
 pegues los datos de tu proyecto.
 
 ### Paso 3 — Cargar la llave de Gemini
-```bat
-firebase functions:secrets:set GOOGLE_GENAI_API_KEY
-```
+Abre `PANEL_DE_CONTROL.bat` y elige la opción `6. Configurar Clave de Gemini AI`.
 La llave se saca de <https://aistudio.google.com/apikey>.
 
 ### Paso 4 — Crear tu usuario administrador
