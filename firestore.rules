@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Un usuario es administrador si existe admins/{uid}.
+    // Ese documento NO se puede crear desde la app: se crea a mano en la
+    // consola de Firebase. Es la puerta de entrada de todo el sistema.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // solo desde la consola o Admin SDK
+    }
+
+    match /purchaseOrders/{orderId} {
+      allow read: if isAdmin();
+      // El backend escribe con Admin SDK y se salta estas reglas;
+      // esto habilita la edición manual desde la interfaz.
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Copias completas del estado del respaldo HTML (un solo documento grande).
+    match /snapshots/{snapId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /config/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Todo lo demás queda cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

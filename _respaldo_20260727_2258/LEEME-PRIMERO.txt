@@ -1,0 +1,36 @@
+PARCHE PARA UNA INSTALACION QUE YA TIENES ANDANDO
+=================================================
+
+Copia TODO el contenido de esta carpeta encima de tu carpeta del proyecto,
+respetando la subcarpeta "functions". Windows te va a preguntar si reemplazas:
+di que si.
+
+Tu archivo .env NO se toca: no viene en el parche, asi que no pierdes tus
+credenciales de Firebase.
+
+Que cambia
+----------
+  firebase.json            se fija el sitio de Hosting (control-de-bolsas-89c88)
+                           para que no vuelva el "Assertion failed"
+  functions/package.json   runtime Node 22 en vez de 20
+  .npmrc                   evita que npm se queje por tu Node 24 local
+  CONECTAR_FIREBASE.bat    NUEVO - renueva la sesion cuando caduca
+  INSTALL_AND_DEPLOY.bat   revisa la sesion antes de empezar, ofrece conectar
+                           git solo, y traduce los errores del despliegue
+  CONFIGURAR_CLAVE_GEMINI.bat / DIAGNOSTICO.bat / SETUP.bat / PUSH_TO_GIT.bat
+
+Novedad en CONFIGURAR_CLAVE_GEMINI.bat
+--------------------------------------
+La consola clasica de Windows no acepta Ctrl+V en un prompt oculto, por eso
+no te dejaba pegar. Ahora el script te abre el Bloc de notas: ahi pegas
+normal con Ctrl+V, guardas con Ctrl+S, cierras, y el script toma la clave,
+le quita espacios, la guarda cifrada y borra el archivo temporal.
+
+
+Orden para arrancar
+-------------------
+  1. CONECTAR_FIREBASE.bat        <- empieza por aqui, es tu error de ahora
+  2. CONFIGURAR_CLAVE_GEMINI.bat
+  3. INSTALL_AND_DEPLOY.bat
+
+Si algo no cuadra:  DIAGNOSTICO.bat

@@ -1,0 +1,63 @@
+INSTALAR ESTE PAQUETE SIN PERDER NADA
+=====================================
+
+NO descomprimas el ZIP a mano encima de tu carpeta. Usa el instalador:
+
+  1. Deja juntos, en la MISMA carpeta:
+       - parche-v5.1.zip
+       - INSTALAR_ACTUALIZACION.bat
+     Lo mas comodo es dejarlos dentro de la carpeta del proyecto,
+     la que tiene firebase.json.
+
+  2. Doble clic en INSTALAR_ACTUALIZACION.bat
+
+Que hace el instalador
+----------------------
+  1. Verifica que este parado en la carpeta correcta. Si no, te la pide.
+  2. Encuentra el ZIP solo. Si hay varios, te deja elegir.
+  3. RESPALDA tu version actual completa en _respaldo_AAAAMMDD_HHMM
+     antes de tocar un solo archivo.
+  4. Copia encima solo lo que trae el paquete.
+  5. NUNCA borra nada. Lo que no viene en el ZIP se queda como esta.
+
+Lo que jamas se toca
+--------------------
+  .env              tus credenciales de Firebase
+  .firebaserc       tu proyecto seleccionado
+  package-lock.json tus versiones exactas
+  node_modules      dependencias instaladas
+  dist              la compilacion
+  .git              tu historial
+  y cualquier archivo tuyo que no venga en el paquete
+
+Si el .env no existe todavia, lo crea desde la plantilla y te lo abre
+para que lo llenes. Si ya existe, ni lo mira.
+
+Que trae este parche
+--------------------
+  INSTALAR_ACTUALIZACION.bat  NUEVO - este mismo instalador seguro
+  CONECTAR_FIREBASE.bat       NUEVO - renueva la sesion cuando caduca
+  CONFIGURAR_CLAVE_GEMINI.bat te abre el Bloc de notas para PEGAR la clave
+                              con Ctrl+V, porque la consola no lo permite
+  DIAGNOSTICO.bat             revisa 12 puntos y te dice que falta
+  INSTALL_AND_DEPLOY.bat      valida la sesion antes de empezar y traduce
+                              los errores del despliegue
+  SETUP.bat / PUSH_TO_GIT.bat
+  firebase.json               sitio de Hosting fijo: se acabo el
+                              "Assertion failed: resolving hosting target"
+  functions/package.json      runtime Node 22
+  .npmrc                      npm deja de quejarse por tu Node 24 local
+
+Orden para arrancar
+-------------------
+  1. CONECTAR_FIREBASE.bat        <- si ves "Authentication Error"
+  2. CONFIGURAR_CLAVE_GEMINI.bat  <- si falta la clave
+  3. INSTALL_AND_DEPLOY.bat
+
+  DIAGNOSTICO.bat te dice cual de los tres necesitas.
+
+Si algo sale mal
+----------------
+Todo lo anterior esta intacto en la carpeta _respaldo_AAAAMMDD_HHMM.
+De ahi copias de regreso lo que necesites. Puedes borrar esas carpetas
+de respaldo cuando compruebes que la actualizacion quedo bien.
