@@ -8,11 +8,12 @@ import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
 import { daysLate, getOrderSummary } from '../lib/finance';
-import { seedInitialDatabase } from '../lib/seedData';
+import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
+import { logAction } from '../lib/logger';
 
 export default function Dashboard() {
   const { orders, loading, error } = useOrders();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { config } = useConfig();
   const nav = useNavigate();
   const toast = useToast();
@@ -148,13 +149,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {orders.length === 0 && (
+      {orders.length === 0 && INITIAL_SEED_DATA.length > 0 && (
         <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
             El sistema no tiene órdenes registradas aún
           </div>
           <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-            Puedes cargar de inmediato la base inicial con los <strong>11 contrarecibos</strong> y las <strong>3 facturas pendientes de contrarecibo</strong>.
+            Puedes cargar la base inicial con {INITIAL_SEED_DATA.length} registro{INITIAL_SEED_DATA.length === 1 ? '' : 's'} de ejemplo.
           </div>
           <button
             className="btn btn-primary"
@@ -163,7 +164,8 @@ export default function Dashboard() {
               setSeeding(true);
               try {
                 await seedInitialDatabase();
-                toast('¡Base inicial cargada con éxito en Firestore! (14 registros)', 'ok');
+                logAction(user?.email, 'Base Inicial Cargada', { registros: INITIAL_SEED_DATA.length });
+                toast(`Base inicial cargada: ${INITIAL_SEED_DATA.length} registros`, 'ok');
               } catch (e) {
                 toast(`Error al cargar datos: ${(e as Error).message}`, 'bad');
               } finally {
@@ -171,7 +173,7 @@ export default function Dashboard() {
               }
             }}
           >
-            {seeding ? 'Cargando datos…' : '📥 Cargar Base Inicial (14 registros)'}
+            {seeding ? 'Cargando datos…' : `📥 Cargar base inicial (${INITIAL_SEED_DATA.length} registros)`}
           </button>
         </div>
       )}

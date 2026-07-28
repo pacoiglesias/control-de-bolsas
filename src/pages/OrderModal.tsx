@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { deleteDoc, doc, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
+import { logAction } from '../lib/logger';
+import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials, addDays, getOrderSummary } from '../lib/finance';
@@ -19,6 +21,7 @@ export default function OrderModal({
   readOnly?: boolean;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'resumen' | 'entregas' | 'facturas'>('resumen');
 
@@ -79,6 +82,13 @@ export default function OrderModal({
         updatedAt: serverTimestamp(),
         processedAt: order.processedAt ?? serverTimestamp(),
       }, { merge: true });
+      logAction(user?.email, 'Expediente Guardado', {
+        orderId: order.id,
+        folio: form.folio,
+        kilos: kilosNum,
+        facturas: updatedInvoices.length,
+        cobrado: liveSummary.paidAmount,
+      });
       toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {
@@ -158,6 +168,12 @@ export default function OrderModal({
     setBusy(true);
     try {
       await deleteDoc(doc(db, PATHS.orders, order.id));
+      logAction(user?.email, 'Expediente Eliminado', {
+        orderId: order.id,
+        folio: order.folio ?? '',
+        saleTotal: initialSummary.saleTotal,
+        paidAmount: initialSummary.paidAmount,
+      });
       toast('Expediente eliminado', 'ok');
       onClose();
     } catch (e) {
@@ -219,7 +235,7 @@ export default function OrderModal({
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
       
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
         <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => setTab('resumen')}>Resumen</button>
         <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => setTab('entregas')}>
           Entregas <span className="badge">{form.deliveries.length}</span>
@@ -260,7 +276,7 @@ export default function OrderModal({
                     disabled={readOnly} 
                   />
                 </Field>
-                <button className="btn" onClick={emailClient} style={{ background: '#0066cc', color: 'white', borderColor: '#0066cc' }}>✉️ Notificar al Cliente</button>
+                <button className="btn" onClick={emailClient} style={{ background: 'var(--info)', color: '#fff', borderColor: 'var(--info)' }}>✉️ Notificar al cliente</button>
               </div>
             </div>
 
@@ -286,7 +302,7 @@ export default function OrderModal({
                 <span>Kilos Facturados</span>
                 <span className="mono">{kilos(liveSummary.kilosInvoiced)}</span>
               </div>
-              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
               <div className="calc-line">
                 <span>Venta Total Acumulada</span>
                 <span className="mono">{money(liveSummary.saleTotal)}</span>
@@ -380,7 +396,7 @@ export default function OrderModal({
                 {form.invoices.map((inv, i) => {
                   const fin = computeFinancials(inv.kilos, config);
                   return (
-                    <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--border)' }}>
+                    <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
                         {!readOnly && <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>}

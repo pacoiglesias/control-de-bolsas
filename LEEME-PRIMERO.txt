@@ -1,0 +1,103 @@
+PARCHE v5.3 - AUDITORIA COMPLETA + MEJORAS
+===========================================
+
+COMO INSTALAR
+-------------
+  1. Deja juntos en la carpeta del proyecto:
+       parche-v5.3.zip  +  INSTALAR_ACTUALIZACION.bat
+  2. Doble clic en INSTALAR_ACTUALIZACION.bat
+       (respalda todo antes de tocar nada, no borra nada tuyo)
+  3. Doble clic en VERIFICAR_TODO.bat
+       (confirma los 5 puntos criticos antes de publicar)
+  4. INSTALL_AND_DEPLOY.bat
+
+
+LO MAS IMPORTANTE DE ESTE PARCHE
+---------------------------------
+Se encontro un TERCER canal de fuga de tu cartera, mas escondido que
+los dos anteriores:
+
+  src/lib/seedData.ts traia tus 11 contrarecibos y 3 facturas reales,
+  con montos completos. Ese archivo se compila DENTRO del JavaScript
+  de la aplicacion, y como el proyecto no separa el codigo por rutas,
+  se descarga a CUALQUIERA que abra la pantalla de login, incluso sin
+  meter usuario ni contrasena.
+
+  Se comprobo con un grep sobre el JS ya compilado (dist/assets/*.js):
+  ahi aparecian "GT-742" y "196482.30" en texto plano.
+
+  Ya esta vaciado. El boton "Cargar base inicial" del Dashboard sigue
+  funcionando igual, solo que ya no trae numeros reales incrustados.
+
+
+TODO LO QUE SE CORRIGIO
+------------------------
+
+SEGURIDAD (reaplicado - el parche anterior no llego a instalarse)
+  - Patron abierto "^admin@.*" eliminado de firestore.rules,
+    storage.rules y AuthContext.tsx. Sin esto, cualquiera podia
+    registrarse con admin@loquesea.com y quedar con control total.
+  - Datos de cartera borrados de public/*.json y de la raiz.
+  - La plantilla del HTML offline (public/respaldo/...) ya no trae
+    los 25 registros reales incrustados.
+  - NUEVO: seedData.ts vaciado (ver arriba).
+
+VISUAL
+  - Bitacora (Logs.tsx) reescrita por completo. Usaba clases CSS que
+    no existen en el sistema (table-wrap, table, subtitle): se veia
+    sin ningun estilo, fuera de linea con el resto de la app. Ahora
+    usa los mismos componentes que Ordenes y Cobranza, con filtros
+    por tipo de accion, buscador, exportar CSV y paginacion.
+  - OrderModal.tsx usaba var(--border), una variable de CSS que
+    nunca se definio: los bordes de pestañas y tarjetas de factura
+    no se veian bien. Corregido a var(--line).
+  - Boton de notificar al cliente tenia un azul #0066cc fuera de la
+    paleta del sistema. Alineado a var(--info).
+
+OPERATIVO / AUDITORIA
+  - Guardar o eliminar un expediente (OrderModal) no dejaba NINGUN
+    rastro en la bitacora, siendo la accion mas sensible de todas.
+    Ahora se registra folio, kilos, facturas y monto cobrado al
+    guardar; folio y montos al eliminar.
+  - Inicio y cierre de sesion ahora quedan en la bitacora.
+  - useExpenses y usePurchases tenian el mismo bug que ya se habia
+    corregido en useOrders: un gasto o compra sin campo de fecha
+    desaparecia de la lista sin dar ningun error. Mismo blindaje
+    aplicado a los tres hooks.
+
+BACKEND
+  - checkOverdueInvoices seguia consultando creditCycle.status en la
+    raiz del documento, pero el modelo nuevo mete el ciclo dentro del
+    arreglo invoices[]. Firestore no consulta subcampos dentro de
+    arreglos: ningun expediente nuevo se marcaba vencido, sin dar
+    error. Reescrito para leer todo y filtrar en memoria.
+  - reprocessOrder solo verificaba que existiera el documento en
+    admins, no el rol: un viewer podia reprocesar. Ahora exige
+    admin o manager.
+  - zod ^4.0.0 chocaba con genkit 1.8 (trabaja con zod 3). Fijado a
+    ^3.24.1.
+  - Acentos rotos en index.ts (se habia guardado en Latin-1).
+
+
+VERIFICADO ANTES DE ENTREGAR
+----------------------------
+  tsc --noEmit frontend .......... limpio
+  vite build ...................... OK
+  tsc --noEmit functions ......... limpio
+  prueba de carga de functions ... OK, 3 funciones detectadas
+  zod resuelto .................... 3.25.76
+  grep de datos reales en dist/, src/, public/ ... limpio
+
+
+LO QUE NO PUEDO HACER YO
+-------------------------
+1. TU REPOSITORIO SIGUE PUBLICO. Confirmaste que lo pasas a privado
+   despues de que todo funcione: es el paso que cierra el ultimo
+   canal, porque Control_Bolsas_v4.2.html y el historial de commits
+   siguen teniendo tus numeros reales aunque el codigo actual ya no.
+   -> Settings > General > Danger Zone > Change visibility > Private
+
+2. Funciones huerfanas en us-central1 tras cambiar a us-east1.
+
+3. Confirmar con contabilidad si el 6.9% va sobre subtotal o sobre
+   el total con IVA. Hoy esta configurada en subtotal.

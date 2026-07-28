@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Expense } from '../lib/types';
 
@@ -9,11 +9,13 @@ export function useExpenses() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, PATHS.expenses), orderBy('date', 'desc'));
+    const q = query(collection(db, PATHS.expenses));
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setExpenses(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense));
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense);
+        rows.sort((a, b) => (b.date?.toMillis() ?? 0) - (a.date?.toMillis() ?? 0));
+        setExpenses(rows);
         setLoading(false);
         setError(null);
       },

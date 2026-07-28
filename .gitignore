@@ -20,3 +20,10 @@ _respaldo_*/
 *.log
 .DS_Store
 Thumbs.db
+
+# Datos de negocio: nunca en el repositorio, y menos en public/
+# (todo lo que vive en public/ se publica en Hosting sin pedir contrasena)
+public/*.json
+!public/manifest.json
+contrarecibos.json
+facturas_pendientes_contrarecibo.json

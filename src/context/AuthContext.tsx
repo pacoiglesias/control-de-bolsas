@@ -7,6 +7,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { logAction } from '../lib/logger';
 import { auth, db, PATHS } from '../lib/firebase';
 
 interface AuthState {
@@ -62,8 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email === 'paco.iglesias@gmail.com' ||
           email === 'pacoismael@gmail.com' ||
           email === 'paco@cobertores.com' ||
-          email.endsWith('@ruenisco.com') ||
-          email.startsWith('admin@');
+          email.endsWith('@ruenisco.com');
 
         if (!snap.exists() && isOwnerEmail) {
           try {
@@ -115,7 +115,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
         try {
           await signInWithEmailAndPassword(auth, email.trim(), password);
+          // No se guarda la contraseña ni el resultado detallado: solo que
+          // alguien entro, con que correo y cuando. Es rastro de seguridad,
+          // no un registro de credenciales.
+          void logAction(email.trim(), 'Inicio de Sesión', { ok: true });
         } catch (e) {
+          // Un intento fallido ocurre SIN sesion, y system_logs exige estar
+          // autenticado para escribir (isAuthenticatedUser() en las reglas).
+          // Registrarlo aqui fallaria en silencio siempre, asi que no se
+          // intenta: solo queda constancia de los inicios que si entraron.
           const code = (e as { code?: string }).code ?? '';
           setError(authMessage(code));
           throw e;
@@ -126,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await sendPasswordResetEmail(auth, email.trim());
       },
       signOut: async () => {
+        void logAction(user?.email, 'Cierre de Sesión', {});
         await fbSignOut(auth);
         setError(null);
       },

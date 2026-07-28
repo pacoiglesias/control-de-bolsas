@@ -476,32 +476,10 @@ const DB = {
    DATOS SEMILLA (migrados del Excel original)
 ========================================================================= */
 const SEED_FACTURAS = [
-  // folio, cliente, receptor, oc, fechaFactura, montoTotal, CR, numCR, fechaCR, vence, notas
-  ['6098','GT','GTP930115PU1','120267113902','2026-07-27',27260,'NO','','','','Pendiente generar contrarecibo.'],
-  ['6097','TH','GTP930115PU1','120267113870','2026-07-27',109040,'SI','TH-739','2026-07-06','2026-08-05','Contrarecibo TH-739 confirmado (factura reexpedida v4.0).'],
-  ['6084','GT','GTP930115PU1','120267113870','2026-07-20',106720.17,'NO','','','','Pendiente generar contrarecibo.'],
-  ['6073','GT','GTP930115PU1','12026439648','2026-07-15',54520,'SI','GT-742','2026-07-20','2026-08-19','Contrarecibo GT-742 confirmado. La misma factura aparecía como folios 5935 y 5932 en el portal — ya consolidados aquí para no duplicar el monto.'],
-  ['6054','TH','GTP930115PU1','120267113870','2026-07-13',136300,'SI','TH-804','2026-07-20','2026-08-19','Contrarecibo TH-804 confirmado.'],
-  ['6053','GT','GTP930115PU1','12026439648','2026-07-08',69001.6,'SI','GT-713','2026-07-13','2026-08-12','Contrarecibo GT-713 confirmado.'],
-  ['(sin folio portal)','TH','','','',125254.25,'SI','TH-768','2026-07-13','2026-08-12','Contrarecibo TH-768 confirmado por monto y fechas. No aparece en el reporte del portal — falta confirmar el folio de factura.'],
-  ['6034','','GTP930115PU1','120267113870','2026-07-06',27118.25,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5996','','GTP930115PU1','120267113780','2026-06-29',109040,'NO','','','','Sin contrarecibo hace casi un mes. Mismo monto que el contrarecibo TH-739 ($109,040) — verificar si es coincidencia o si ya quedó cubierta.'],
-  ['5971','GT','GTP930115PU1','12026439627','2026-06-22',106477.56,'SI','GT-651','2026-06-29','2026-07-29','Contrarecibo GT-651 confirmado.'],
-  ['5970','TH','GTP930115PU1','120267113780','2026-06-22',108647.46,'SI','TH-713','2026-06-29','2026-07-29','Contrarecibo TH-713 confirmado.'],
-  ['5955','GT','GTP930115PU1','12026439621','2026-06-19',98136,'SI','GT-624','2026-06-22','2026-07-22','Contrarecibo GT-624 confirmado. También aparecía como folio 6033 en el portal — ya consolidado.'],
-  ['5950','TH','GTP930115PU1','120267113780','2026-06-16',80970.38,'SI','TH-680','2026-06-22','2026-07-22','Contrarecibo TH-680 confirmado.'],
-  ['5936','','GTP930115PU1','12026439591','2026-06-08',52900.76,'NO','','','','Sin contrarecibo — más de 7 semanas sin gestionar.'],
-  ['5931','','GTP930115PU1','120267113804','2026-06-05',27260,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5928','','GTP930115PU1','12026439591','2026-06-02',89958,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5927','','GTP930115PU1','12026439592','2026-06-02',92292.55,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5877','','GTP930115PU1','12026439550','2026-05-26',87180.26,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5876','','GTP930115PU1','12026439550','2026-05-26',109302.04,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5839','','GTP930115PU1','12026439550','2026-05-18',74820,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5831','','GTP930115PU1','12026439531','2026-05-12',80861.28,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5830','','GTP930115PU1','120267113600','2026-05-12',216090.14,'NO','','','','Pendiente generar contrarecibo.'],
-  ['5807','','GTP930115PU1','120267113600','2026-05-04',153381,'NO','','','','Pendiente generar contrarecibo.'],
-  ['(sin folio portal)','GT','','','',107420.76,'SI','GT-597','2026-06-15','2026-07-15','Contrarecibo GT-597 confirmado por monto y fechas. Falta confirmar el folio de factura.'],
-  ['(sin folio portal)','GT','','','',196482.30,'SI','GT-535','2026-06-01','2026-07-01','Contrarecibo GT-535 confirmado por monto y fechas. Falta confirmar el folio de factura.'],
+  // Plantilla vacia a proposito: este archivo se publica en Hosting y lo
+  // puede abrir cualquiera. Los datos reales los inyecta la app al
+  // descargar el respaldo, via window.__CB_SEED__.
+
 ];
 
 function seedData(){
@@ -518,21 +496,10 @@ function seedData(){
       tema: 'auto'
     },
     catalogos: { proveedores:['Andres'], clientes:['GT','TH'] },
-    pedidos: [
-      { id:PED1, seq:S(), folio:'PED-001', cliente:'', oc:'', fechaPedido:'2026-07-27', fechaPrometida:'2026-07-28',
-        kilos:3000, precioKilo:47, costoKilo:42, proveedor:'Andres', estado:'Abierto',
-        notas:'Pedido en curso migrado del control anterior. Confirma el cliente y la orden de compra.', historial:[] },
-    ],
-    proveedores: [
-      { id:uid(), seq:S(), pedidoId:PED1, proveedor:'Andres', fecha:'2026-07-27', concepto:'Pedido 3,000 kg — entrega programada 28/07/2026',
-        kilos:3000, kilosRecibidos:3000, fechaPrometida:'2026-07-28', fechaRecepcion:'2026-07-27', costoKilo:42, abono:0, estado:'Pendiente' },
-    ],
-    entregas: [
-      { id:uid(), seq:S(), pedidoId:PED1, fecha:'2026-07-28', cliente:'', kilos:3000, precioKilo:47, facturado:'NO', folio:'', facturaId:null },
-    ],
-    caja: [
-      { id:uid(), seq:S(), fecha:'2026-07-01', concepto:'Fondo disponible antes del anticipo', entrada:97190, salida:0, tipo:'Transferencia', facturaId:null },
-    ],
+    pedidos: [],
+    proveedores: [],
+    entregas: [],
+    caja: [],
     facturas: SEED_FACTURAS.map(t => normalizeFactura({
       id:uid(), seq:S(), folio:t[0], cliente:t[1], receptor:t[2], oc:t[3],
       fechaFactura:t[4], montoTotal:t[5], contrarecibo:t[6], numContrarecibo:t[7],

@@ -23,7 +23,7 @@ setGlobalOptions({ region: "us-east1", maxInstances: 10 });
 
 const apiKeySecret = defineSecret("GOOGLE_GENAI_API_KEY");
 
-/** CÃ¡mbialo si Google retira el modelo; el resto del cÃ³digo no se toca. */
+/** Cámbialo si Google retira el modelo; el resto del código no se toca. */
 const MODEL = "googleai/gemini-2.0-flash";
 
 const UPLOAD_PREFIX = "uploads/";
@@ -39,12 +39,12 @@ const DEFAULTS = {
 };
 
 const PurchaseOrderSchema = z.object({
-  folio: z.string().describe("NÃºmero de folio u orden de compra"),
+  folio: z.string().describe("Número de folio u orden de compra"),
   totalKilograms: z.number().describe("Kilogramos totales del pedido"),
   client: z.string().optional().describe("Nombre o clave del cliente si aparece"),
 });
 
-/** Un ID estable por archivo: reintentos y reprocesos no duplican Ã³rdenes. */
+/** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
 const docIdFor = (filePath: string) =>
   createHash("sha1").update(filePath).digest("hex").slice(0, 20);
 
@@ -63,7 +63,7 @@ async function readConfig() {
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** IdÃ©ntica a src/lib/finance.ts en el frontend. Si cambias una, cambia la otra. */
+/** Idéntica a src/lib/finance.ts en el frontend. Si cambias una, cambia la otra. */
 function computeFinancials(kilos: number, cfg: typeof DEFAULTS) {
   const saleTotal = round2(kilos * cfg.salePricePerKg);
   const invoiceTotal = round2(saleTotal * (1 + cfg.ivaRate));
@@ -97,7 +97,7 @@ export const parseUploadedPDF = onObjectFinalized(
     const db = getFirestore();
     const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
 
-    // Si ya se procesÃ³ este archivo, no lo volvemos a cobrar a la cuota de IA.
+    // Si ya se procesó este archivo, no lo volvemos a cobrar a la cuota de IA.
     const existing = await ref.get();
     if (existing.exists && existing.data()?.creditCycle?.status !== "manual_review") {
       logger.info(`Ya procesado, se omite: ${filePath}`);
@@ -114,8 +114,8 @@ export const parseUploadedPDF = onObjectFinalized(
           {
             text:
               "Eres un capturista. De esta orden de compra extrae el folio " +
-              "(o nÃºmero de orden), el total de kilogramos y el cliente si aparece. " +
-              "Los kilos van como nÃºmero, sin unidades ni comas.",
+              "(o número de orden), el total de kilogramos y el cliente si aparece. " +
+              "Los kilos van como número, sin unidades ni comas.",
           },
           {
             media: {
@@ -129,7 +129,7 @@ export const parseUploadedPDF = onObjectFinalized(
 
       const data = aiResponse.output;
       if (!data || !Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0) {
-        throw new Error("La IA no devolviÃ³ kilos vÃ¡lidos");
+        throw new Error("La IA no devolvió kilos válidos");
       }
 
       const cfg = await readConfig();
@@ -155,7 +155,7 @@ export const parseUploadedPDF = onObjectFinalized(
         { merge: true },
       );
 
-      logger.info(`OK ${filePath} â†’ folio ${data.folio}, ${data.totalKilograms} kg`);
+      logger.info(`OK ${filePath} → folio ${data.folio}, ${data.totalKilograms} kg`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Fallo de lectura en ${filePath}: ${message}`);
@@ -177,39 +177,75 @@ export const checkOverdueInvoices = onSchedule(
   { schedule: "every day 00:00", timeZone: "America/Mexico_City" },
   async () => {
     const db = getFirestore();
-    const snapshot = await db
-      .collection(COL_ORDERS)
-      .where("creditCycle.status", "==", "pending")
-      .where("creditCycle.dueDate", "<", Timestamp.now())
-      .get();
+    const ahora = Timestamp.now();
 
+    // OJO: no sirve .where("invoices.creditCycle.status", ...). Firestore no
+    // consulta subcampos dentro de un arreglo de objetos, asi que una consulta
+    // filtrada deja ciego el aviso justo para los expedientes del modelo nuevo
+    // (invoices[]). Se leen todos y se filtra en memoria: son decenas de
+    // documentos, no millones.
+    const snapshot = await db.collection(COL_ORDERS).get();
     if (snapshot.empty) {
-      logger.info("Sin facturas por vencer hoy.");
+      logger.info("No hay expedientes que revisar.");
       return;
     }
-    // Firestore permite 500 escrituras por lote.
-    const docs: QueryDocumentSnapshot[] = snapshot.docs;
-    for (let i = 0; i < docs.length; i += 400) {
+
+    const yaVencio = (cc?: { status?: string; dueDate?: Timestamp | null }) =>
+      !!cc && cc.status === "pending" && !!cc.dueDate &&
+      cc.dueDate.toMillis() < ahora.toMillis();
+
+    const cambios: { ref: FirebaseFirestore.DocumentReference; datos: Record<string, unknown> }[] = [];
+
+    snapshot.docs.forEach((d: QueryDocumentSnapshot) => {
+      const data = d.data();
+      const datos: Record<string, unknown> = {};
+
+      // a) Expedientes viejos: el ciclo vive en la raiz del documento.
+      if (yaVencio(data.creditCycle)) datos["creditCycle.status"] = "overdue";
+
+      // b) Modelo nuevo: cada factura trae su ciclo dentro del arreglo.
+      const invoices: Record<string, unknown>[] = Array.isArray(data.invoices) ? data.invoices : [];
+      let tocado = false;
+      const actualizadas = invoices.map((inv) => {
+        const cc = inv.creditCycle as { status?: string; dueDate?: Timestamp | null } | undefined;
+        if (yaVencio(cc)) {
+          tocado = true;
+          return { ...inv, creditCycle: { ...cc, status: "overdue" } };
+        }
+        return inv;
+      });
+      if (tocado) datos.invoices = actualizadas;
+
+      if (Object.keys(datos).length > 0) {
+        datos.updatedAt = FieldValue.serverTimestamp();
+        cambios.push({ ref: d.ref, datos });
+      }
+    });
+
+    if (cambios.length === 0) {
+      logger.info("Sin facturas vencidas hoy.");
+      return;
+    }
+    for (let i = 0; i < cambios.length; i += 400) {
       const batch = db.batch();
-      docs.slice(i, i + 400).forEach((d: QueryDocumentSnapshot) =>
-        batch.update(d.ref, {
-          "creditCycle.status": "overdue",
-          updatedAt: FieldValue.serverTimestamp(),
-        }),
-      );
+      cambios.slice(i, i + 400).forEach((c) => batch.update(c.ref, c.datos));
       await batch.commit();
     }
-    logger.info(`${docs.length} facturas marcadas como vencidas.`);
+    logger.info(`${cambios.length} expedientes con facturas vencidas actualizados.`);
   },
 );
 
-/** Reprocesa a mano un PDF que quedÃ³ en revisiÃ³n manual, desde la interfaz. */
+/** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
 export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) => {
   const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Inicia sesiÃ³n.");
+  if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
   const db = getFirestore();
   const admin = await db.collection("admins").doc(uid).get();
   if (!admin.exists) throw new HttpsError("permission-denied", "Cuenta no autorizada.");
+  const rol = admin.data()?.role;
+  if (rol !== "admin" && rol !== "manager") {
+    throw new HttpsError("permission-denied", "Tu rol no permite reprocesar ordenes.");
+  }
 
   const orderId = String(req.data?.orderId ?? "");
   if (!orderId) throw new HttpsError("invalid-argument", "Falta orderId.");
@@ -218,7 +254,7 @@ export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) =>
   if (!snap.exists) throw new HttpsError("not-found", "La orden no existe.");
 
   const kilos = Number(req.data?.totalKilograms ?? snap.data()?.totalKilograms ?? 0);
-  if (!(kilos > 0)) throw new HttpsError("invalid-argument", "Kilos invÃ¡lidos.");
+  if (!(kilos > 0)) throw new HttpsError("invalid-argument", "Kilos inválidos.");
 
   const cfg = await readConfig();
   const issueDate = new Date();
