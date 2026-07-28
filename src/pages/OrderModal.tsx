@@ -5,8 +5,8 @@ import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-import { computeFinancials, addDays, getOrderSummary } from '../lib/finance';
-import { fromInputDate, money, toInputDate, kilos } from '../lib/format';
+import { computeFinancials, addDays, getOrderSummary, daysLate } from '../lib/finance';
+import { fromInputDate, money, toInputDate, kilos, toDate } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 
 export default function OrderModal({
@@ -494,6 +494,9 @@ export default function OrderModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {form.invoices.map((inv, i) => {
                   const fin = computeFinancials(inv.kilos, config);
+                  const d = daysLate(toDate(inv.creditCycle.dueDate));
+                  const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
+                  
                   return (
                     <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -536,6 +539,11 @@ export default function OrderModal({
                             <option value="overdue">Vencida</option>
                             <option value="manual_review">Revisión manual</option>
                           </select>
+                          {isLate && (
+                            <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4 }}>
+                              ⚠️ {d} días de atraso
+                            </div>
+                          )}
                         </Field>
                         <Field label="Emisión">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.issueDate) || ''}

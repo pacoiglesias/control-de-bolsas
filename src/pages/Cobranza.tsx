@@ -256,7 +256,13 @@ export default function Cobranza() {
                       )}
                     </td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
-                    <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
+                    <td className="num mono">
+                      {d === null ? '—' : d > 0 ? (
+                        <span className="badge" style={{ background: 'var(--bad)' }}>{d} días de atraso</span>
+                      ) : (
+                        d
+                      )}
+                    </td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{money(saldo)}</td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
