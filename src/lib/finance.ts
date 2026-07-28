@@ -9,10 +9,9 @@ import type { FinancialConfig, OrderFinancials, PurchaseOrder, Invoice, Delivery
  *   factura  = subtotal + IVA        <- esto es lo que le cobras al cliente
  *   costo    = kilos x costo
  *   comision = (subtotal o factura) x tasa, segun commissionBase
- *   neto     = subtotal - costo - comision
+ *   neto     = factura - costo - comision
  *
- * El neto se calcula sobre el subtotal a proposito: el IVA no es tuyo, lo
- * cobras y lo enteras. Meterlo en la ganancia infla el resultado.
+ * El neto se calcula sobre la factura (con IVA) porque el usuario indicó que el IVA es parte íntegra de su ganancia.
  */
 export function computeFinancials(kilos: number, cfg: FinancialConfig): Required<OrderFinancials> {
   const k = Number.isFinite(kilos) ? kilos : 0;
@@ -29,7 +28,7 @@ export function computeFinancials(kilos: number, cfg: FinancialConfig): Required
     invoiceTotal,
     costTotal,
     commission,
-    netCashFlow: round2(saleTotal - costTotal - commission),
+    netCashFlow: round2(invoiceTotal - costTotal - commission),
   };
 }
 

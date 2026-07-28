@@ -1,4 +1,4 @@
-﻿import { setGlobalOptions } from "firebase-functions/v2";
+import { setGlobalOptions } from "firebase-functions/v2";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
@@ -78,7 +78,7 @@ function computeFinancials(kilos: number, cfg: typeof DEFAULTS) {
     invoiceTotal,
     costTotal,
     commission,
-    netCashFlow: round2(saleTotal - costTotal - commission),
+    netCashFlow: round2(invoiceTotal - costTotal - commission),
   };
 }
 
