@@ -81,7 +81,11 @@ export default function OrderModal({
 
         return {
           ...inv,
-          financials: computeFinancials(inv.kilos, snapshotCfg)
+          financials: computeFinancials(inv.kilos, snapshotCfg),
+          collection: inv.collection ? {
+            ...inv.collection,
+            contrareciboNumber: inv.collection.contrareciboNumber?.trim() || ''
+          } : undefined
         };
       });
 
