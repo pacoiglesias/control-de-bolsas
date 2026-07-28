@@ -7,6 +7,7 @@
  */
 import type { FinancialConfig, PurchaseOrder, Purchase, Expense } from './types';
 import { toDate } from './format';
+import { getOrderSummary } from './finance';
 
 export const HTML_TEMPLATE_PATH = '/respaldo/control-bolsas-offline.html';
 
@@ -61,48 +62,45 @@ export function ordersToHtmlState(
   let seq = 1;
   const facturas: HtmlFactura[] = orders
     .filter((o) => o.creditCycle?.status !== 'manual_review' || o.folio)
-    .map((o) => {
-      const st = o.creditCycle?.status ?? 'pending';
-      // La app maneja tres estados; el HTML deriva "vencido" de las fechas,
-      // así que overdue y pending viajan igual: por cobrar.
-      const cobranza: HtmlFactura['cobranza'] = st === 'paid' ? 'COBRADO' : 'PENDIENTE';
-      const total = o.financials?.invoiceTotal ?? o.financials?.saleTotal ?? 0;
-      const cr = o.collection?.contrareciboNumber?.trim() ?? '';
-      const notas = [
-        o.fileName ? `Archivo ${o.fileName}` : '',
-        o.totalKilograms ? `${o.totalKilograms.toLocaleString('es-MX')} kg` : '',
-        o.aiError ? `La IA no pudo leer el PDF: ${o.aiError}` : '',
-        o.collection?.notes ?? '',
-      ]
-        .filter(Boolean)
-        .join(' · ');
+    .flatMap((o) => {
+      const summary = getOrderSummary(o);
+      return summary.invoices.map((inv) => {
+        const st = inv.creditCycle.status;
+        const cobranza: HtmlFactura['cobranza'] = st === 'paid' ? 'COBRADO' : 'PENDIENTE';
+        const total = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        const cr = inv.collection?.contrareciboNumber?.trim() ?? '';
+        const notas = [
+          o.fileName ? `Archivo ${o.fileName}` : '',
+          inv.kilos ? `${inv.kilos.toLocaleString('es-MX')} kg facturados` : '',
+          o.aiError ? `La IA no pudo leer el PDF: ${o.aiError}` : '',
+          inv.collection?.notes ?? '',
+        ].filter(Boolean).join(' · ');
 
-      return {
-        id: `app-${o.id}`,
-        seq: seq++,
-        folio: o.folio ?? '',
-        cliente: o.client ?? '',
-        receptor: '',
-        oc: '',
-        fechaFactura: iso(toDate(o.creditCycle?.issueDate) ?? toDate(o.processedAt)),
-        montoTotal: total,
-        contrarecibo: cr ? 'SI' : 'NO',
-        numContrarecibo: cr,
-        fechaContrarecibo: iso(toDate(o.collection?.contrareciboDate)),
-        fechaVencimiento: iso(toDate(o.creditCycle?.dueDate)),
-        cobranza,
-        montoCobrado: st === 'paid' ? (o.collection?.paidAmount || total) : (o.collection?.paidAmount ?? 0),
-        // La comisión viaja ya calculada y marcada como manual: así el HTML
-        // respeta el número exacto de la app en vez de recalcularlo con otra base.
-        comision: o.financials?.commission ?? 0,
-        comisionManual: true,
-        montoDepositado: 0,
-        fechaCobro: iso(toDate(o.collection?.paidAt)),
-        fechaDeposito: '',
-        pedidoId: null,
-        notas,
-        historial: [{ ts: new Date().toLocaleString('es-MX'), texto: 'Importada desde la app en la nube.' }],
-      };
+        return {
+          id: `app-${inv.id}`,
+          seq: seq++,
+          folio: inv.folio ?? '',
+          cliente: o.client ?? '',
+          receptor: '',
+          oc: '',
+          fechaFactura: iso(toDate(inv.creditCycle.issueDate) ?? toDate(o.processedAt)),
+          montoTotal: total,
+          contrarecibo: cr ? 'SI' : 'NO',
+          numContrarecibo: cr,
+          fechaContrarecibo: iso(toDate(inv.collection?.contrareciboDate)),
+          fechaVencimiento: iso(toDate(inv.creditCycle.dueDate)),
+          cobranza,
+          montoCobrado: st === 'paid' ? (inv.collection?.paidAmount || total) : (inv.collection?.paidAmount ?? 0),
+          comision: inv.financials?.commission ?? 0,
+          comisionManual: true,
+          montoDepositado: 0,
+          fechaCobro: iso(toDate(inv.collection?.paidAt)),
+          fechaDeposito: '',
+          pedidoId: null,
+          notas,
+          historial: [{ ts: new Date().toLocaleString('es-MX'), texto: 'Importada desde la app en la nube.' }],
+        };
+      });
     });
 
   const clientes = Array.from(

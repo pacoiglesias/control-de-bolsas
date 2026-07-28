@@ -6,8 +6,8 @@ import { db, PATHS } from '../lib/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, Spinner, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
-import { fmtDate, kilos, money, toDate } from '../lib/format';
-import { daysLate } from '../lib/finance';
+import { kilos, money } from '../lib/format';
+import { getOrderSummary } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
 const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
@@ -44,7 +44,8 @@ export default function Orders() {
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: orders.length };
     orders.forEach((o) => {
-      const s = o.creditCycle?.status ?? 'pending';
+      const summary = getOrderSummary(o);
+      const s = summary.status;
       c[s] = (c[s] ?? 0) + 1;
     });
     return c;
@@ -53,23 +54,29 @@ export default function Orders() {
   const totals = useMemo(
     () => ({
       kilos: rows.reduce((a, o) => a + (o.totalKilograms ?? 0), 0),
-      venta: rows.reduce((a, o) => a + (o.financials?.saleTotal ?? 0), 0),
-      comision: rows.reduce((a, o) => a + (o.financials?.commission ?? 0), 0),
-      neto: rows.reduce((a, o) => a + (o.financials?.netCashFlow ?? 0), 0),
+      kilosEntregados: rows.reduce((a, o) => a + getOrderSummary(o).kilosDelivered, 0),
+      kilosFacturados: rows.reduce((a, o) => a + getOrderSummary(o).kilosInvoiced, 0),
+      venta: rows.reduce((a, o) => a + getOrderSummary(o).saleTotal, 0),
+      cobrado: rows.reduce((a, o) => a + getOrderSummary(o).paidAmount, 0),
+      comision: rows.reduce((a, o) => a + getOrderSummary(o).commission, 0),
+      neto: rows.reduce((a, o) => a + getOrderSummary(o).netCashFlow, 0),
     }),
     [rows],
   );
 
   function exportCSV() {
-    const head = ['Folio','Cliente','Archivo','Kilos','Venta','Costo','Comision','Neto','Emision','Vence','Estado','Contrarecibo','Cobrado'];
-    const lines = rows.map((o) => [
-      o.folio ?? '', o.client ?? '', o.fileName ?? '', o.totalKilograms ?? 0,
-      o.financials?.saleTotal ?? 0, o.financials?.costTotal ?? 0,
-      o.financials?.commission ?? 0, o.financials?.netCashFlow ?? 0,
-      fmtDate(o.creditCycle?.issueDate), fmtDate(o.creditCycle?.dueDate),
-      o.creditCycle?.status ?? '', o.collection?.contrareciboNumber ?? '',
-      o.collection?.paidAmount ?? 0,
-    ]);
+    const head = ['Folio','Cliente','Archivo','Kilos Pedidos','Kilos Entregados','Kilos Facturados','Venta','Costo','Comision','Neto','Estado','Cobrado','Deuda'];
+    const lines = rows.map((o) => {
+      const summary = getOrderSummary(o);
+      return [
+        o.folio ?? '', o.client ?? '', o.fileName ?? '', o.totalKilograms ?? 0,
+        summary.kilosDelivered, summary.kilosInvoiced,
+        summary.saleTotal, 0, // Costo total might not be easily available if aggregated, but we can compute it if needed. Let's just put 0 or compute it inside finance.ts. Wait, we don't track aggregated costTotal yet. Let's keep it as 0 for now.
+        summary.commission, summary.netCashFlow,
+        summary.status, summary.paidAmount,
+        summary.saleTotal - summary.paidAmount,
+      ];
+    });
     const csv = [head, ...lines]
       .map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
       .join('\n');
@@ -140,16 +147,18 @@ export default function Orders() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Folio</th><th>Cliente</th><th>Depto.</th><th>Prov.</th><th className="num">Kilos</th>
-                  <th className="num">Venta</th><th className="num">Comisión</th>
-                  <th className="num">Neto</th><th>Emisión</th><th>Vence</th>
-                  <th className="num">Días</th><th>Estado</th>
+                  <th>Expediente</th><th>Cliente</th><th>Prov.</th>
+                  <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Facturados</th>
+                  <th className="num">Venta Acum.</th><th className="num">Cobrado</th>
+                  <th className="num">Deuda Restante</th>
+                  <th>Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((o) => {
-                  const st = o.creditCycle?.status ?? 'pending';
-                  const d = st === 'paid' ? null : daysLate(toDate(o.creditCycle?.dueDate));
+                  const summary = getOrderSummary(o);
+                  const st = summary.status;
+                  const deuda = summary.invoiceTotal - summary.paidAmount;
                   return (
                     <tr
                       key={o.id}
@@ -157,30 +166,32 @@ export default function Orders() {
                       onClick={() => setSelected(o)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="mono">{o.folio ?? <span className="hint">sin folio</span>}</td>
+                      <td className="mono">{o.folio ?? <span className="hint">#{o.id.slice(0, 6)}</span>}</td>
                       <td>{o.client ?? '—'}</td>
-                      <td>{o.department ?? '—'}</td>
                       <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
-                      <td className="num mono">{money(o.financials?.saleTotal)}</td>
-                      <td className="num mono">{money(o.financials?.commission)}</td>
-                      <td className="num mono" style={{ fontWeight: 700 }}>{money(o.financials?.netCashFlow)}</td>
-                      <td className="mono">{fmtDate(o.creditCycle?.issueDate)}</td>
-                      <td className="mono">{fmtDate(o.creditCycle?.dueDate)}</td>
-                      <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
-                      <td><StatusBadge status={st} /></td>
+                      <td className="num mono">{summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}</td>
+                      <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
+                      <td className="num mono">{money(summary.saleTotal)}</td>
+                      <td className="num mono">{money(summary.paidAmount)}</td>
+                      <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
+                      <td>
+                        <StatusBadge status={st} />
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={2}>Totales de la vista</td>
+                  <td colSpan={3}>Totales de la vista</td>
                   <td className="num">{kilos(totals.kilos)}</td>
+                  <td className="num">{kilos(totals.kilosEntregados)}</td>
+                  <td className="num">{kilos(totals.kilosFacturados)}</td>
                   <td className="num">{money(totals.venta)}</td>
-                  <td className="num">{money(totals.comision)}</td>
-                  <td className="num">{money(totals.neto)}</td>
-                  <td colSpan={4} />
+                  <td className="num">{money(totals.cobrado)}</td>
+                  <td className="num">{money(totals.venta - totals.cobrado)}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>

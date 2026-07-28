@@ -1,4 +1,4 @@
-import type { FinancialConfig, OrderFinancials } from './types';
+import type { FinancialConfig, OrderFinancials, PurchaseOrder, Invoice, Delivery, OrderStatus } from './types';
 
 /**
  * Misma fórmula que corre en la Cloud Function, replicada aquí para que la
@@ -69,4 +69,59 @@ export function agingBucket(due: Date | null | undefined): AgingKey {
   if (d <= 60) return 'd60';
   if (d <= 90) return 'd90';
   return 'd90p';
+}
+
+export function getOrderSummary(o: PurchaseOrder) {
+  const invoices: Invoice[] = o.invoices && o.invoices.length > 0 ? o.invoices : [];
+  if (invoices.length === 0 && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
+    invoices.push({
+      id: o.id + '-inv0',
+      folio: o.folio,
+      kilos: o.totalKilograms || 0,
+      financials: o.financials,
+      creditCycle: o.creditCycle || { status: 'pedido' },
+      collection: o.collection
+    });
+  }
+
+  const deliveries: Delivery[] = o.deliveries && o.deliveries.length > 0 ? o.deliveries : [];
+  if (deliveries.length === 0 && o.totalKilograms && o.totalKilograms > 0 && invoices.length > 0) {
+    deliveries.push({
+      id: o.id + '-del0',
+      date: o.processedAt || null,
+      kilos: o.totalKilograms
+    });
+  }
+
+  const kilosDelivered = round2(deliveries.reduce((a, d) => a + d.kilos, 0));
+  const kilosInvoiced = round2(invoices.reduce((a, i) => a + i.kilos, 0));
+  const invoiceTotal = round2(invoices.reduce((a, i) => a + (i.financials?.invoiceTotal || 0), 0));
+  const saleTotal = round2(invoices.reduce((a, i) => a + (i.financials?.saleTotal || 0), 0));
+  const commission = round2(invoices.reduce((a, i) => a + (i.financials?.commission || 0), 0));
+  const netCashFlow = round2(invoices.reduce((a, i) => a + (i.financials?.netCashFlow || 0), 0));
+  const paidAmount = round2(invoices.reduce((a, i) => a + (i.collection?.paidAmount || 0), 0));
+
+  let status: OrderStatus = o.creditCycle?.status ?? 'pedido';
+  if (invoices.length > 0) {
+    if (invoices.some(i => i.creditCycle.status === 'overdue')) status = 'overdue';
+    else if (invoices.some(i => i.creditCycle.status === 'manual_review')) status = 'manual_review';
+    else if (invoices.some(i => i.creditCycle.status === 'pending')) status = 'pending';
+    else if (invoices.some(i => i.creditCycle.status === 'facturado')) status = 'facturado';
+    else if (invoices.every(i => i.creditCycle.status === 'paid')) {
+      status = kilosInvoiced >= (o.totalKilograms || 0) ? 'paid' : 'pending';
+    }
+  }
+
+  return {
+    invoices,
+    deliveries,
+    kilosDelivered,
+    kilosInvoiced,
+    invoiceTotal,
+    saleTotal,
+    commission,
+    netCashFlow,
+    paidAmount,
+    status
+  };
 }

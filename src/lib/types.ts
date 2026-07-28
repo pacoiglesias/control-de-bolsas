@@ -50,17 +50,39 @@ export interface CollectionInfo {
   notes?: string;
 }
 
+export interface Delivery {
+  id: string;
+  date: Timestamp | null;
+  kilos: number;
+  notes?: string;
+}
+
+export interface Invoice {
+  id: string;
+  folio?: string;
+  kilos: number;
+  financials?: OrderFinancials;
+  creditCycle: CreditCycle;
+  collection?: CollectionInfo;
+}
+
 export interface PurchaseOrder {
   id: string;
   fileName?: string;
-  folio?: string;
   client?: string;
   department?: string;
   provider?: string;
   totalKilograms?: number;
+  
+  // Legacy fields (will be migrated to invoices[0])
+  folio?: string;
   financials?: OrderFinancials;
-  creditCycle: CreditCycle;
+  creditCycle?: CreditCycle; // Made optional for legacy, but actually we use it for overall status if needed, though we can derive it. Wait, let's keep it to store overall state if we want, or remove it. Let's keep it optional.
   collection?: CollectionInfo;
+
+  deliveries?: Delivery[];
+  invoices?: Invoice[];
+
   processedAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
   aiError?: string;

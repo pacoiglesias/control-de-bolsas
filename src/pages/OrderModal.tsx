@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { deleteDoc, doc, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
-import { Field, Modal } from '../components/ui';
+import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-import { computeFinancials, addDays } from '../lib/finance';
-import { fmtDateTime, fromInputDate, money, percent, toDate, toInputDate } from '../lib/format';
-import type { FinancialConfig, OrderStatus, PurchaseOrder } from '../lib/types';
+import { computeFinancials, addDays, getOrderSummary } from '../lib/finance';
+import { fromInputDate, money, toInputDate, kilos } from '../lib/format';
+import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery } from '../lib/types';
 
 export default function OrderModal({
   order,
@@ -18,72 +18,64 @@ export default function OrderModal({
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<'resumen' | 'entregas' | 'facturas'>('resumen');
+
+  const initialSummary = useMemo(() => getOrderSummary(order), [order]);
+
   const [form, setForm] = useState({
     folio: order.folio ?? '',
     client: order.client ?? '',
     department: order.department ?? '',
     provider: order.provider ?? '',
     totalKilograms: String(order.totalKilograms ?? ''),
-    status: (order.creditCycle?.status ?? 'pending') as OrderStatus,
-    issueDate: toInputDate(order.creditCycle?.issueDate) || toInputDate(order.processedAt),
-    dueDate: toInputDate(order.creditCycle?.dueDate),
-    contrareciboNumber: order.collection?.contrareciboNumber ?? '',
-    contrareciboDate: toInputDate(order.collection?.contrareciboDate),
-    paidAmount: String(order.collection?.paidAmount ?? ''),
-    paidAt: toInputDate(order.collection?.paidAt),
-    notes: order.collection?.notes ?? '',
+    deliveries: initialSummary.deliveries,
+    invoices: initialSummary.invoices,
   });
 
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const kilosNum = Number(form.totalKilograms) || 0;
-  const preview = computeFinancials(kilosNum, config);
 
-  /** Si cambias la fecha de emisión y no tocaste el vencimiento, se recalcula. */
-  function onIssueChange(v: string) {
-    const issue = fromInputDate(v);
-    setForm((f) => ({
-      ...f,
-      issueDate: v,
-      dueDate: issue && !f.dueDate ? toInputDate(addDays(issue, config.creditDays)) : f.dueDate,
-    }));
-  }
+  // Calculate live summary based on form state
+  const liveSummary = useMemo(() => {
+    // We construct a fake order object to pass to getOrderSummary
+    const tempOrder: PurchaseOrder = {
+      ...order,
+      folio: form.folio,
+      totalKilograms: kilosNum,
+      deliveries: form.deliveries,
+      invoices: form.invoices,
+    };
+    return getOrderSummary(tempOrder);
+  }, [order, form, kilosNum]);
 
   async function save() {
     if (kilosNum <= 0) {
-      toast('Los kilos deben ser mayores a cero.', 'bad');
+      toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
       return;
     }
     setBusy(true);
     try {
-      const issue = fromInputDate(form.issueDate) ?? new Date();
-      const due = fromInputDate(form.dueDate) ?? addDays(issue, config.creditDays);
       const ref = doc(db, PATHS.orders, order.id);
+      
+      // Compute financials for all invoices just in case
+      const updatedInvoices = form.invoices.map(inv => ({
+        ...inv,
+        financials: computeFinancials(inv.kilos, config)
+      }));
+
       await setDoc(ref, {
         folio: form.folio.trim(),
         client: form.client.trim(),
         department: form.department.trim(),
         provider: form.provider.trim(),
         totalKilograms: kilosNum,
-        financials: preview,
-        creditCycle: {
-          status: form.status,
-          issueDate: Timestamp.fromDate(issue),
-          dueDate: Timestamp.fromDate(due),
-        },
-        collection: {
-          contrareciboNumber: form.contrareciboNumber.trim(),
-          contrareciboDate: form.contrareciboDate
-            ? Timestamp.fromDate(fromInputDate(form.contrareciboDate) as Date)
-            : null,
-          paidAmount: Number(form.paidAmount) || 0,
-          paidAt: form.paidAt ? Timestamp.fromDate(fromInputDate(form.paidAt) as Date) : null,
-          notes: form.notes.trim(),
-        },
+        deliveries: form.deliveries,
+        invoices: updatedInvoices,
         updatedAt: serverTimestamp(),
         processedAt: order.processedAt ?? serverTimestamp(),
       }, { merge: true });
-      toast('Orden actualizada', 'ok');
+      toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
@@ -92,37 +84,13 @@ export default function OrderModal({
     }
   }
 
-  async function markPaid() {
-    setBusy(true);
-    try {
-      await setDoc(doc(db, PATHS.orders, order.id), {
-        creditCycle: {
-          ...order.creditCycle,
-          status: 'paid',
-        },
-        collection: {
-          ...order.collection,
-          paidAmount: order.financials?.saleTotal ?? preview.saleTotal,
-          paidAt: Timestamp.fromDate(new Date()),
-        },
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      toast('Marcada como cobrada', 'ok');
-      onClose();
-    } catch (e) {
-      toast(`No se pudo actualizar: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function remove() {
-    if (!window.confirm(`¿Eliminar la orden ${order.folio ?? ''}? Esto no se puede deshacer.`))
+    if (!window.confirm(`¿Eliminar el expediente ${order.folio ?? ''}? Esto no se puede deshacer.`))
       return;
     setBusy(true);
     try {
       await deleteDoc(doc(db, PATHS.orders, order.id));
-      toast('Orden eliminada', 'ok');
+      toast('Expediente eliminado', 'ok');
       onClose();
     } catch (e) {
       toast(`No se pudo eliminar: ${(e as Error).message}`, 'bad');
@@ -131,109 +99,313 @@ export default function OrderModal({
     }
   }
 
-  const isReview = order.creditCycle?.status === 'manual_review';
+  // --- Handlers for Deliveries ---
+  const addDelivery = () => {
+    set('deliveries', [
+      ...form.deliveries,
+      { id: Date.now().toString(), date: Timestamp.now(), kilos: 0, notes: '' }
+    ]);
+  };
+  const updateDelivery = (index: number, field: keyof Delivery, value: any) => {
+    const next = [...form.deliveries];
+    next[index] = { ...next[index], [field]: value };
+    set('deliveries', next);
+  };
+  const removeDelivery = (index: number) => {
+    if (window.confirm('¿Eliminar esta entrega?')) {
+      const next = [...form.deliveries];
+      next.splice(index, 1);
+      set('deliveries', next);
+    }
+  };
+
+  // --- Handlers for Invoices ---
+  const addInvoice = () => {
+    const issue = new Date();
+    const due = addDays(issue, config.creditDays);
+    set('invoices', [
+      ...form.invoices,
+      { 
+        id: Date.now().toString(), 
+        folio: '', 
+        kilos: 0, 
+        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: '' }
+      }
+    ]);
+  };
+  const updateInvoice = (index: number, updateFn: (inv: Invoice) => Invoice) => {
+    const next = [...form.invoices];
+    next[index] = updateFn(next[index]);
+    set('invoices', next);
+  };
+  const removeInvoice = (index: number) => {
+    if (window.confirm('¿Eliminar esta factura?')) {
+      const next = [...form.invoices];
+      next.splice(index, 1);
+      set('invoices', next);
+    }
+  };
 
   return (
-    <Modal wide title={`Orden ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
-      {isReview && (
-        <div className="alert warn">
-          La IA no pudo leer este PDF{order.aiError ? `: ${order.aiError}` : '.'} Captura los kilos
-          y guarda: la orden entra al ciclo de crédito normal.
-        </div>
-      )}
-
-      <div className="form-grid">
-        <Field label="Folio">
-          <input className="input boxed mono" value={form.folio} onChange={(e) => set('folio', e.target.value)} />
-        </Field>
-        <Field label="Cliente">
-          <input className="input boxed" value={form.client} onChange={(e) => set('client', e.target.value)} />
-        </Field>
-        <Field label="Departamento">
-          <input className="input boxed" value={form.department} onChange={(e) => set('department', e.target.value)} />
-        </Field>
-        <Field label="Proveedor">
-          <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} />
-        </Field>
-        <Field label="Kilos totales">
-          <input className="input boxed mono" type="number" step="0.01" value={form.totalKilograms}
-            onChange={(e) => set('totalKilograms', e.target.value)} />
-        </Field>
-        <Field label="Estado">
-          <select className="input boxed" value={form.status}
-            onChange={(e) => set('status', e.target.value as OrderStatus)}>
-            <option value="pending">Por cobrar</option>
-            <option value="paid">Cobrada</option>
-            <option value="overdue">Vencida</option>
-            <option value="manual_review">Revisión manual</option>
-          </select>
-        </Field>
-        <Field label="Fecha de emisión">
-          <input className="input boxed mono" type="date" value={form.issueDate}
-            onChange={(e) => onIssueChange(e.target.value)} />
-        </Field>
-        <Field label={`Vence (crédito ${config.creditDays} días)`}>
-          <input className="input boxed mono" type="date" value={form.dueDate}
-            onChange={(e) => set('dueDate', e.target.value)} />
-        </Field>
-        <Field label="Número de contrarecibo">
-          <input className="input boxed mono" value={form.contrareciboNumber}
-            onChange={(e) => set('contrareciboNumber', e.target.value)} />
-        </Field>
-        <Field label="Fecha de contrarecibo">
-          <input className="input boxed mono" type="date" value={form.contrareciboDate}
-            onChange={(e) => set('contrareciboDate', e.target.value)} />
-        </Field>
-        <Field label="Monto cobrado">
-          <input className="input boxed mono" type="number" step="0.01" value={form.paidAmount}
-            onChange={(e) => set('paidAmount', e.target.value)} />
-        </Field>
-        <Field label="Fecha de cobro">
-          <input className="input boxed mono" type="date" value={form.paidAt}
-            onChange={(e) => set('paidAt', e.target.value)} />
-        </Field>
-        <Field label="Notas" full>
-          <textarea className="input boxed" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-        </Field>
+    <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
+      
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => setTab('resumen')}>Resumen</button>
+        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => setTab('entregas')}>
+          Entregas <span className="badge">{form.deliveries.length}</span>
+        </button>
+        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => setTab('facturas')}>
+          Facturas <span className="badge">{form.invoices.length}</span>
+        </button>
       </div>
 
-      <div className="calc-box">
-        <div className="calc-line">
-          <span>Venta ({kilosNum.toLocaleString('es-MX')} kg × {money(config.salePricePerKg)})</span>
-          <span className="mono">{money(preview.saleTotal)}</span>
-        </div>
-        <div className="calc-line">
-          <span>Costo ({money(config.costPricePerKg)}/kg)</span>
-          <span className="mono">− {money(preview.costTotal)}</span>
-        </div>
-        <div className="calc-line">
-          <span>Comisión {percent(config.commissionRate)} sobre la venta</span>
-          <span className="mono">− {money(preview.commission)}</span>
-        </div>
-        <div className="calc-line total">
-          <span>Flujo neto</span>
-          <span className="mono" style={{ color: preview.netCashFlow >= 0 ? 'var(--ok)' : 'var(--bad)' }}>
-            {money(preview.netCashFlow)}
-          </span>
-        </div>
+      {/* TABS CONTENT */}
+      <div style={{ minHeight: '50vh', maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
+        
+        {/* RESUMEN */}
+        {tab === 'resumen' && (
+          <>
+            <div className="form-grid">
+              <Field label="Folio Interno del Pedido">
+                <input className="input boxed mono" value={form.folio} onChange={(e) => set('folio', e.target.value)} />
+              </Field>
+              <Field label="Cliente">
+                <input className="input boxed" value={form.client} onChange={(e) => set('client', e.target.value)} />
+              </Field>
+              <Field label="Proveedor">
+                <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} />
+              </Field>
+              <Field label="Kilos Pedidos (Total)">
+                <input className="input boxed mono" type="number" step="0.01" value={form.totalKilograms}
+                  onChange={(e) => set('totalKilograms', e.target.value)} />
+              </Field>
+            </div>
+
+            <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
+            <div className="calc-box">
+              <div className="calc-line">
+                <span>Kilos Pedidos</span>
+                <span className="mono">{kilos(kilosNum)}</span>
+              </div>
+              <div className="calc-line">
+                <span>Kilos Entregados</span>
+                <span className="mono" style={{ color: liveSummary.kilosDelivered < kilosNum ? 'var(--warn)' : 'var(--ok)' }}>
+                  {kilos(liveSummary.kilosDelivered)}
+                </span>
+              </div>
+              <div className="calc-line">
+                <span>Kilos Facturados</span>
+                <span className="mono">{kilos(liveSummary.kilosInvoiced)}</span>
+              </div>
+              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+              <div className="calc-line">
+                <span>Venta Total Acumulada</span>
+                <span className="mono">{money(liveSummary.saleTotal)}</span>
+              </div>
+              <div className="calc-line">
+                <span>Cobrado</span>
+                <span className="mono">{money(liveSummary.paidAmount)}</span>
+              </div>
+              <div className="calc-line total">
+                <span>Deuda Restante</span>
+                <span className="mono" style={{ color: liveSummary.saleTotal - liveSummary.paidAmount > 0 ? 'var(--bad)' : 'inherit' }}>
+                  {money(liveSummary.saleTotal - liveSummary.paidAmount)}
+                </span>
+              </div>
+            </div>
+            
+            <div style={{ marginTop: 16 }}>
+              <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
+            </div>
+          </>
+        )}
+
+        {/* ENTREGAS */}
+        {tab === 'entregas' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h4>Registro de Entregas Parciales</h4>
+              <button className="btn btn-primary" onClick={addDelivery}>+ Agregar Entrega</button>
+            </div>
+            {form.deliveries.length === 0 ? (
+              <p className="hint">No hay entregas registradas.</p>
+            ) : (
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th className="num">Kilos</th>
+                    <th>Notas</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.deliveries.map((d, i) => (
+                    <tr key={d.id}>
+                      <td>
+                        <input className="input boxed mono" type="date" 
+                          value={toInputDate(d.date) || ''} 
+                          onChange={e => {
+                            const date = fromInputDate(e.target.value);
+                            updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
+                          }} 
+                        />
+                      </td>
+                      <td className="num">
+                        <input className="input boxed mono" type="number" step="0.01" 
+                          value={d.kilos} 
+                          onChange={e => updateDelivery(i, 'kilos', Number(e.target.value))} 
+                        />
+                      </td>
+                      <td>
+                        <input className="input boxed" type="text" 
+                          value={d.notes || ''} 
+                          onChange={e => updateDelivery(i, 'notes', e.target.value)} 
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn btn-danger" onClick={() => removeDelivery(i)}>X</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {/* FACTURAS */}
+        {tab === 'facturas' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h4>Facturas y Cobranza Parcial</h4>
+              <button className="btn btn-primary" onClick={addInvoice}>+ Agregar Factura</button>
+            </div>
+            {form.invoices.length === 0 ? (
+              <p className="hint">No hay facturas registradas.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {form.invoices.map((inv, i) => {
+                  const fin = computeFinancials(inv.kilos, config);
+                  return (
+                    <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
+                        <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
+                      </div>
+                      <div className="form-grid">
+                        <Field label="Folio">
+                          <input className="input boxed mono" value={inv.folio || ''} 
+                            onChange={e => updateInvoice(i, x => ({...x, folio: e.target.value}))} />
+                        </Field>
+                        <Field label="Kilos Facturados">
+                          <input className="input boxed mono" type="number" step="0.01" value={inv.kilos} 
+                            onChange={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} />
+                        </Field>
+                        <Field label="Estado">
+                          <select className="input boxed" value={inv.creditCycle.status}
+                            onChange={(e) => updateInvoice(i, x => ({
+                              ...x, 
+                              creditCycle: { ...x.creditCycle, status: e.target.value as OrderStatus }
+                            }))}>
+                            <option value="pending">Por cobrar</option>
+                            <option value="paid">Cobrada</option>
+                            <option value="overdue">Vencida</option>
+                            <option value="manual_review">Revisión manual</option>
+                          </select>
+                        </Field>
+                        <Field label="Emisión">
+                          <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.issueDate) || ''}
+                            onChange={(e) => {
+                              const issue = fromInputDate(e.target.value);
+                              if (issue) {
+                                const due = addDays(issue, config.creditDays);
+                                updateInvoice(i, x => ({
+                                  ...x, 
+                                  creditCycle: { 
+                                    ...x.creditCycle, 
+                                    issueDate: Timestamp.fromDate(issue),
+                                    dueDate: Timestamp.fromDate(due)
+                                  }
+                                }));
+                              }
+                            }} />
+                        </Field>
+                        <Field label="Vence">
+                          <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.dueDate) || ''}
+                            onChange={(e) => {
+                              const due = fromInputDate(e.target.value);
+                              if (due) {
+                                updateInvoice(i, x => ({
+                                  ...x, 
+                                  creditCycle: { ...x.creditCycle, dueDate: Timestamp.fromDate(due) }
+                                }));
+                              }
+                            }} />
+                        </Field>
+                        <Field label="Contrarecibo">
+                          <input className="input boxed mono" value={inv.collection?.contrareciboNumber || ''}
+                            onChange={e => updateInvoice(i, x => ({
+                              ...x, collection: { ...x.collection, contrareciboNumber: e.target.value }
+                            }))} />
+                        </Field>
+                        <Field label="Fecha Contrarecibo">
+                          <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.contrareciboDate) || ''}
+                            onChange={e => {
+                              const cd = fromInputDate(e.target.value);
+                              updateInvoice(i, x => ({
+                                ...x, collection: { ...x.collection, contrareciboDate: cd ? Timestamp.fromDate(cd) : undefined }
+                              }))
+                            }} />
+                        </Field>
+                        <Field label="Monto Cobrado">
+                          <input className="input boxed mono" type="number" step="0.01" value={inv.collection?.paidAmount || 0}
+                            onChange={e => updateInvoice(i, x => ({
+                              ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
+                            }))} />
+                        </Field>
+                        <Field label="Fecha de Cobro">
+                          <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.paidAt) || ''}
+                            onChange={e => {
+                              const pa = fromInputDate(e.target.value);
+                              updateInvoice(i, x => ({
+                                ...x, collection: { ...x.collection, paidAt: pa ? Timestamp.fromDate(pa) : undefined }
+                              }))
+                            }} />
+                        </Field>
+                      </div>
+                      <div className="calc-box" style={{ marginTop: 12 }}>
+                        <div className="calc-line">
+                          <span>Venta ({inv.kilos} kg)</span>
+                          <span className="mono">{money(fin.saleTotal)}</span>
+                        </div>
+                        <div className="calc-line total">
+                          <span>Deuda</span>
+                          <span className="mono" style={{ color: fin.saleTotal - (inv.collection?.paidAmount || 0) > 0 ? 'var(--bad)' : 'var(--ok)' }}>
+                            {money(fin.saleTotal - (inv.collection?.paidAmount || 0))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <p className="hint" style={{ marginTop: 12 }}>
-        Archivo: <code>{order.fileName ?? '—'}</code> · procesada {fmtDateTime(order.processedAt)}
-        {order.updatedAt ? ` · editada ${fmtDateTime(order.updatedAt)}` : ''}
-        {toDate(order.collection?.paidAt) ? ` · cobrada ${fmtDateTime(order.collection?.paidAt)}` : ''}
+        Archivo original: <code>{order.fileName ?? '—'}</code>
       </p>
 
-      <div className="modal-actions">
+      <div className="modal-actions" style={{ marginTop: 16 }}>
         <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
-          Eliminar
+          Eliminar Expediente
         </button>
         <span className="spacer" />
-        {form.status !== 'paid' && (
-          <button className="btn btn-ok" onClick={() => void markPaid()} disabled={busy}>
-            Marcar cobrada
-          </button>
-        )}
         <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
         <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
           {busy ? 'Guardando…' : 'Guardar cambios'}
