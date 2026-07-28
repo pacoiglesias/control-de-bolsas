@@ -45,6 +45,14 @@ export default function Cobranza() {
       {} as Record<AgingKey, number>,
     );
 
+    const crCounts: Record<string, number> = {};
+    open.forEach(({ o, inv }) => {
+      const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
+      if (cr) {
+        crCounts[cr] = (crCounts[cr] || 0) + 1;
+      }
+    });
+
     const lista = open
       .map(({ o, inv }) => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)), saldo: saldo(inv) }))
       .sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
@@ -55,6 +63,7 @@ export default function Cobranza() {
       clientes,
       porCliente,
       totalPorBucket,
+      crCounts,
       meDeben: open.reduce((a, x) => a + saldo(x.inv), 0),
       vencido: open
         .filter((x) => x.inv.creditCycle.status === 'overdue')
@@ -155,7 +164,15 @@ export default function Cobranza() {
                       {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
                     </td>
                     <td>{o.client ?? '—'}</td>
-                    <td className="mono">{inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '—'}</td>
+                    <td className="mono">
+                      {inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '—'}
+                      {(inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) && 
+                       data.crCounts[inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || ''] > 1 && (
+                        <span className="badge" style={{ marginLeft: 6, background: 'var(--info)' }}>
+                          Compartido
+                        </span>
+                      )}
+                    </td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{money(saldo)}</td>

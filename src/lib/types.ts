@@ -59,6 +59,7 @@ export interface Delivery {
 
 export interface Invoice {
   id: string;
+  uuid?: string;
   folio?: string;
   kilos: number;
   financials?: OrderFinancials;

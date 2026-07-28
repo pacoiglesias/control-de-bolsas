@@ -38,17 +38,21 @@ const DEFAULTS = {
   commissionBase: "subtotal" as "subtotal" | "total",
 };
 
-const PurchaseOrderSchema = z.object({
-  folio: z.string().describe("Número de folio u orden de compra"),
-  totalKilograms: z.number().describe("Kilogramos totales del pedido"),
-  client: z.string().optional().describe("Nombre o clave del cliente si aparece"),
+const DocumentSchema = z.object({
+  docType: z.enum(["orden_compra", "factura"]).describe("Determina si el documento es una Orden de Compra de un cliente, o una Factura emitida a un cliente."),
+  folio: z.string().describe("Número de folio de la orden de compra o de la factura"),
+  uuid: z.string().optional().describe("Si es factura, el UUID (Folio Fiscal) de 36 caracteres."),
+  ocReference: z.string().optional().describe("Si es factura, el número de la Orden de Compra (OC) en 'Condiciones de Pago' o 'Observaciones' (solo el número)."),
+  totalKilograms: z.number().describe("Suma de Kilogramos totales del documento"),
+  totalAmount: z.number().optional().describe("Si es factura, el monto total (con IVA)."),
+  client: z.string().optional().describe("Nombre o clave del cliente"),
   items: z.array(z.object({
     quantity: z.number().describe("Cantidad numérica"),
     unit: z.string().describe("Unidad de medida (ej. Kilos, Bulto, Millar, Pza)"),
     description: z.string().describe("Descripción del artículo o concepto"),
     unitPrice: z.number().describe("Precio unitario"),
     amount: z.number().describe("Importe total de esta partida")
-  })).optional().describe("Lista detallada de artículos (partidas) de la orden"),
+  })).optional().describe("Lista detallada de artículos (partidas) del documento"),
 });
 
 /** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
@@ -120,9 +124,10 @@ export const parseUploadedPDF = onObjectFinalized(
         prompt: [
           {
             text:
-              "Eres un capturista experto. De esta orden de compra extrae el folio " +
-              "(o número de orden), el cliente, el total de kilogramos y muy importante: " +
-              "extrae el detalle de todos los artículos (partidas) en la tabla central " +
+              "Eres un auditor contable experto. Clasifica este documento como 'orden_compra' o 'factura'. " +
+              "Extrae el folio, cliente, y el total de kilogramos. " +
+              "Si es una factura, extrae también el UUID (Folio Fiscal), el monto total con IVA, y el número de la OC a la que hace referencia. " +
+              "MUY IMPORTANTE: extrae el detalle de todos los artículos (partidas) en la tabla central " +
               "con su cantidad, unidad de medida (Kilos, Bultos, etc), descripción, precio unitario e importe total. " +
               "Todos los números deben ir sin comas.",
           },
@@ -133,7 +138,7 @@ export const parseUploadedPDF = onObjectFinalized(
             },
           },
         ],
-        output: { schema: PurchaseOrderSchema },
+        output: { schema: DocumentSchema },
       });
 
       const data = aiResponse.output;
@@ -146,33 +151,76 @@ export const parseUploadedPDF = onObjectFinalized(
       const dueDate = new Date(issueDate);
       dueDate.setDate(dueDate.getDate() + cfg.creditDays);
 
-      await ref.set(
-        {
-          fileName: filePath,
-          folio: data.folio,
-          client: data.client ?? "",
-          totalKilograms: data.totalKilograms,
-          items: (data.items || []).map((it, i) => ({
-            id: Date.now().toString() + "-" + i,
-            quantity: it.quantity,
-            unit: it.unit,
-            description: it.description,
-            unitPrice: it.unitPrice,
-            amount: it.amount
-          })),
-          financials: computeFinancials(data.totalKilograms, cfg),
-          creditCycle: {
-            issueDate: Timestamp.fromDate(issueDate),
-            dueDate: Timestamp.fromDate(dueDate),
-            status: "pending",
-          },
-          processedAt: FieldValue.serverTimestamp(),
-          aiError: FieldValue.delete(),
-        },
-        { merge: true },
-      );
+      if (data.docType === 'factura') {
+        const ocRefMatch = String(data.ocReference).replace(/\D/g, '');
+        let ocQuery = await db.collection(COL_ORDERS).where('folio', '==', data.ocReference).limit(1).get();
+        if (ocQuery.empty && ocRefMatch) {
+          // Fallback searching just by the digits
+          ocQuery = await db.collection(COL_ORDERS).where('folio', '==', ocRefMatch).limit(1).get();
+        }
 
-      logger.info(`OK ${filePath} → folio ${data.folio}, ${data.totalKilograms} kg`);
+        if (ocQuery.empty) {
+          throw new Error(`Es factura pero no se encontró la OC original: ${data.ocReference}`);
+        }
+
+        const ocDoc = ocQuery.docs[0];
+        const ocData = ocDoc.data();
+        const invoices: any[] = Array.isArray(ocData.invoices) ? ocData.invoices : [];
+        const exists = invoices.some(inv => inv.folio === data.folio || (data.uuid && inv.uuid === data.uuid));
+
+        if (exists) {
+          logger.info(`Factura ${data.folio} ya existe en OC ${ocData.folio}. Se ignora.`);
+        } else {
+          const newInvoice = {
+            id: docIdFor(filePath),
+            folio: data.folio,
+            uuid: data.uuid ?? "",
+            kilos: data.totalKilograms,
+            financials: {
+              ...computeFinancials(data.totalKilograms, cfg),
+              invoiceTotal: data.totalAmount ?? computeFinancials(data.totalKilograms, cfg).invoiceTotal
+            },
+            creditCycle: {
+              issueDate: Timestamp.fromDate(issueDate),
+              dueDate: Timestamp.fromDate(dueDate),
+              status: "pending",
+            }
+          };
+          await ocDoc.ref.update({
+            invoices: FieldValue.arrayUnion(newInvoice),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          logger.info(`Factura ${data.folio} agregada a OC ${ocData.folio}`);
+        }
+      } else {
+        // Es Orden de Compra
+        await ref.set(
+          {
+            fileName: filePath,
+            folio: data.folio,
+            client: data.client ?? "",
+            totalKilograms: data.totalKilograms,
+            items: (data.items || []).map((it, i) => ({
+              id: Date.now().toString() + "-" + i,
+              quantity: it.quantity,
+              unit: it.unit,
+              description: it.description,
+              unitPrice: it.unitPrice,
+              amount: it.amount
+            })),
+            financials: computeFinancials(data.totalKilograms, cfg),
+            creditCycle: {
+              issueDate: Timestamp.fromDate(issueDate),
+              dueDate: Timestamp.fromDate(dueDate),
+              status: "pending",
+            },
+            processedAt: FieldValue.serverTimestamp(),
+            aiError: FieldValue.delete(),
+          },
+          { merge: true },
+        );
+        logger.info(`OK ${filePath} → OC folio ${data.folio}, ${data.totalKilograms} kg`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Fallo de lectura en ${filePath}: ${message}`);
