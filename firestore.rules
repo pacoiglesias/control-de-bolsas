@@ -7,16 +7,13 @@ service cloud.firestore {
     // de Firebase Auth y queda con control total de los datos.
     function isAllowedOwnerEmail() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && (
-          (request.auth.token.email_verified == true && (
-            request.auth.token.email == "paco.iglesias@gmail.com"
-            || request.auth.token.email == "pacoismael@gmail.com"
-            || request.auth.token.email.matches(".*@ruenisco\\.com$")
-          ))
+          request.auth.token.email == "paco.iglesias@gmail.com"
+          || request.auth.token.email == "pacoismael@gmail.com"
           || request.auth.token.email == "paco@cobertores.com"
-          || request.auth.token.email == "paco@cobertors.com"
-          || request.auth.uid == "5XzLwJL7gZRZ2rnFmnbVcasmgcB3"
+          || request.auth.token.email.matches(".*@ruenisco\\.com$")
         );
     }
 
@@ -43,12 +40,34 @@ service cloud.firestore {
       return isAuthenticatedUser() && (getRole() == 'admin' || getRole() == 'manager');
     }
 
+    // Un administrador de verdad: existe su documento Y su rol es 'admin'.
+    // Se consulta con get(), no se confia en nada que mande el cliente.
+    function esAdminReal() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /admins/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null
-        && request.auth.uid == uid
-        && isAllowedOwnerEmail();
-      allow delete: if false;
+      // Cada quien ve su propio permiso; un admin ve la lista completa
+      // para poder administrarla desde la pantalla de Usuarios.
+      allow read: if request.auth != null && (request.auth.uid == uid || esAdminReal());
+
+      // Alta: o eres un correo dueño creando tu propio acceso la primera
+      // vez (arranque del sistema), o eres un admin dando de alta a otro.
+      allow create: if request.auth != null && (
+        (request.auth.uid == uid && isAllowedOwnerEmail())
+        || esAdminReal()
+      );
+
+      // Cambio de rol: solo un admin, y NUNCA sobre si mismo. Asi nadie se
+      // sube el rol solo, y nadie se degrada por accidente dejando el
+      // sistema sin ningun administrador.
+      allow update: if esAdminReal() && request.auth.uid != uid;
+
+      // Baja: solo un admin, y tampoco sobre si mismo, para no dejar el
+      // sistema cerrado sin nadie que pueda entrar a arreglarlo.
+      allow delete: if esAdminReal() && request.auth.uid != uid;
     }
 
     match /purchaseOrders/{orderId} {
@@ -80,8 +99,10 @@ service cloud.firestore {
     match /system_logs/{logId} {
       // Solo super admin lee los logs
       allow read: if isSuperAdmin();
-      // Cualquier usuario puede escribir logs (el backend los genera o el cliente)
-      allow create: if isAuthenticatedUser();
+      // El backend los genera o el cliente validado
+      allow create: if isAuthenticatedUser()
+        && request.resource.data.user == request.auth.token.email
+        && request.resource.data.timestamp == request.time;
       allow update, delete: if false; // Logs inmutables
     }
 

@@ -138,25 +138,30 @@ async function processStorageFile(filePath: string, bucketName?: string) {
         if (uuids.length > 0) {
           logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
           
-          let ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', uuids).get();
-          
           let encontradas = 0;
-          for (const doc of ordersSnapshot.docs) {
-            const oData = doc.data();
-            const invoices = oData.invoices || [];
-            let modified = false;
+          const chunkSize = 30; // Firestore limit for array-contains-any
+          
+          for (let i = 0; i < uuids.length; i += chunkSize) {
+            const chunk = uuids.slice(i, i + chunkSize);
+            let ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', chunk).get();
             
-            for (const inv of invoices) {
-              if (inv.uuid && uuids.includes(inv.uuid.toUpperCase())) {
-                if (!inv.collection) inv.collection = {};
-                inv.collection.complementStatus = 'issued';
-                modified = true;
-                encontradas++;
+            for (const doc of ordersSnapshot.docs) {
+              const oData = doc.data();
+              const invoices = oData.invoices || [];
+              let modified = false;
+              
+              for (const inv of invoices) {
+                if (inv.uuid && chunk.includes(inv.uuid.toUpperCase())) {
+                  if (!inv.collection) inv.collection = {};
+                  inv.collection.complementStatus = 'issued';
+                  modified = true;
+                  encontradas++;
+                }
               }
-            }
-            
-            if (modified) {
-              await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+              
+              if (modified) {
+                await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+              }
             }
           }
           logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
@@ -329,11 +334,28 @@ export const checkOverdueInvoices = onSchedule(
     const db = getFirestore();
     const ahora = Timestamp.now();
 
-    // Ya usamos un índice para no hacer un Full Table Scan O(N) de toda la base
+    // Se filtra por el arreglo desnormalizado para no recorrer toda la base.
     const snapshot = await db.collection(COL_ORDERS)
       .where("invoiceStatuses", "array-contains-any", ["pending", "overdue"])
       .get();
-      
+
+    // OJO: los expedientes creados ANTES de que existiera invoiceStatuses no
+    // tienen ese campo, y array-contains-any los deja fuera: quedarian sin
+    // vigilancia y sin dar error. Se cuentan aparte y se avisa en el log.
+    // migrarInvoiceStatuses() los repara de una pasada.
+    const sinCampo = await db.collection(COL_ORDERS)
+      .where("invoiceStatuses", "==", null)
+      .count()
+      .get()
+      .then((r) => r.data().count)
+      .catch(() => 0);
+    if (sinCampo > 0) {
+      logger.warn(
+        `${sinCampo} expediente(s) sin invoiceStatuses quedan fuera de la ` +
+        `revision de vencidos. Ejecuta migrarInvoiceStatuses para repararlos.`,
+      );
+    }
+
     if (snapshot.empty) {
       logger.info("No hay expedientes que revisar.");
       return;
@@ -363,7 +385,16 @@ export const checkOverdueInvoices = onSchedule(
         }
         return inv;
       });
-      if (tocado) datos.invoices = actualizadas;
+      if (tocado) {
+        datos.invoices = actualizadas;
+        // El arreglo desnormalizado DEBE reescribirse junto con las facturas.
+        // Si no, sigue diciendo ["pending"] y la consulta del dia siguiente
+        // vuelve a traer el mismo expediente una y otra vez, sin fin.
+        datos.invoiceStatuses = actualizadas.map((inv) => {
+          const cc = inv.creditCycle as { status?: string } | undefined;
+          return cc?.status ?? "pending";
+        });
+      }
 
       if (Object.keys(datos).length > 0) {
         datos.updatedAt = FieldValue.serverTimestamp();
@@ -383,6 +414,8 @@ export const checkOverdueInvoices = onSchedule(
     logger.info(`${cambios.length} expedientes con facturas vencidas actualizados.`);
   },
 );
+
+// migrarInvoiceStatuses eliminada para evitar conflicto IAM
 
 /** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
 export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) => {

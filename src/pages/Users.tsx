@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 
 import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { db, config } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -54,9 +54,10 @@ export default function Users() {
     if (newPassword.length < 6) return toast('La contraseña debe tener al menos 6 caracteres', 'bad');
     
     setIsCreating(true);
+    let secondaryApp: FirebaseApp | null = null;
     try {
       // Usar una instancia secundaria para no cerrar la sesión del admin actual
-      const secondaryApp = initializeApp(config, 'SecondaryApp-' + Date.now());
+      secondaryApp = initializeApp(config, 'SecondaryApp-' + Date.now());
       const secondaryAuth = getAuth(secondaryApp);
       
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
@@ -84,6 +85,9 @@ export default function Users() {
       }
     } finally {
       setIsCreating(false);
+      if (secondaryApp) {
+        await deleteApp(secondaryApp).catch(console.error);
+      }
     }
   };
 

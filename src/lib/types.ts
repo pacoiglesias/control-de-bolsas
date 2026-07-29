@@ -71,6 +71,7 @@ export interface Invoice {
 export interface PurchaseOrderItem {
   id: string;
   quantity: number;
+  deliveredQuantity?: number;
   unit: string;
   description: string;
   unitPrice: number;

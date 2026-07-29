@@ -17,21 +17,32 @@ service firebase.storage {
         );
     }
 
+    function isManagerOrAdmin() {
+      return request.auth != null
+        && (
+          (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
+           && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in ['admin', 'manager'])
+          || isAllowedOwnerEmail()
+        );
+    }
+
     function isAdmin() {
       return request.auth != null
         && (
-          firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+          (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
+           && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')
           || isAllowedOwnerEmail()
         );
     }
 
     // PDFs o XMLs, máximo 20 MB, solo administradores, solo bajo uploads/.
     match /uploads/{fileName} {
-      allow read: if isAdmin();
-      allow create: if isAdmin()
+      allow read: if isManagerOrAdmin();
+      allow create: if isManagerOrAdmin()
         && request.resource.size < 20 * 1024 * 1024
         && (request.resource.contentType == 'application/pdf' || request.resource.contentType == 'application/xml' || request.resource.contentType == 'text/xml');
-      allow update, delete: if isAdmin();
+      allow update: if isManagerOrAdmin();
+      allow delete: if isAdmin();
     }
 
     match /{allPaths=**} {

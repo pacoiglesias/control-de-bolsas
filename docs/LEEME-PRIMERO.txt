@@ -24,7 +24,7 @@ los dos anteriores:
   meter usuario ni contrasena.
 
   Se comprobo con un grep sobre el JS ya compilado (dist/assets/*.js):
-  ahi aparecian "GT-742" y "196482.30" en texto plano.
+  ahi aparecian "GT-XXX" y "XXXXXX.30" en texto plano.
 
   Ya esta vaciado. El boton "Cargar base inicial" del Dashboard sigue
   funcionando igual, solo que ya no trae numeros reales incrustados.

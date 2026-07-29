@@ -132,10 +132,22 @@ export default function OrderModal({
   }
 
   function printRemision() {
+    function escapeHtml(str: string) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+          }[tag] || tag)
+      );
+    }
+
     const html = `
       <html>
         <head>
-          <title>Remisión de Entrega - ${form.folio}</title>
+          <title>Remisión de Entrega - ${escapeHtml(form.folio)}</title>
           <style>
             body { font-family: sans-serif; padding: 40px; color: #111; }
             h1 { border-bottom: 2px solid #000; padding-bottom: 10px; }
@@ -151,9 +163,9 @@ export default function OrderModal({
           <h1>REMISIÓN DE ENTREGA</h1>
           <div class="meta">
             <div>
-              <strong>Folio:</strong> ${form.folio || '(Sin folio)'}<br>
-              <strong>Cliente:</strong> ${form.client}<br>
-              <strong>Departamento:</strong> ${form.department || '—'}<br>
+              <strong>Folio:</strong> ${escapeHtml(form.folio) || '(Sin folio)'}<br>
+              <strong>Cliente:</strong> ${escapeHtml(form.client)}<br>
+              <strong>Departamento:</strong> ${escapeHtml(form.department) || '—'}<br>
             </div>
             <div style="text-align: right;">
               <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString()}<br>
@@ -298,7 +310,7 @@ export default function OrderModal({
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
       
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
         <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => setTab('resumen')}>Resumen</button>
         <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => setTab('entregas')}>
           Entregas <span className="badge">{form.deliveries.length}</span>
@@ -354,7 +366,8 @@ export default function OrderModal({
                 <table className="data-table" style={{ width: '100%', marginBottom: 12 }}>
                   <thead>
                     <tr>
-                      <th className="num">Cantidad</th>
+                      <th className="num">Cant. Pedida</th>
+                      <th className="num">Cant. Entregada</th>
                       <th>Unidad</th>
                       <th>Descripción</th>
                       <th className="num">P. Unitario</th>
@@ -366,8 +379,15 @@ export default function OrderModal({
                     {form.items.map((it, i) => (
                       <tr key={it.id}>
                         <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
                             value={it.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
+                        </td>
+                        <td className="num">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input className="input boxed mono" type="number" step="0.01" style={{ width: 70, borderColor: (it.deliveredQuantity ?? 0) >= it.quantity ? 'var(--ok)' : 'var(--line)' }}
+                              value={it.deliveredQuantity || ''} placeholder="0" onChange={e => updateItem(i, 'deliveredQuantity', Number(e.target.value))} disabled={readOnly} />
+                            {(it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
+                          </div>
                         </td>
                         <td>
                           <input className="input boxed" type="text" style={{ width: 80 }}
@@ -392,7 +412,7 @@ export default function OrderModal({
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
+                      <td colSpan={5} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
                       <td className="num mono" style={{ fontWeight: 700 }}>
                         {money(form.items.reduce((acc, it) => acc + it.amount, 0))}
                       </td>
