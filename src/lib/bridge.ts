@@ -78,6 +78,8 @@ export function ordersToHtmlState(
           inv.collection?.notes ?? '',
         ].filter(Boolean).join(' · ');
 
+        const comm = inv.financials?.commission ?? (inv.financials?.saleTotal ? inv.financials.saleTotal * config.commissionRate : (inv.kilos ? inv.kilos * config.salePricePerKg * config.commissionRate : 0));
+
         return {
           id: `app-${inv.id}`,
           seq: seq++,
@@ -93,7 +95,7 @@ export function ordersToHtmlState(
           fechaVencimiento: iso(toDate(inv.creditCycle.dueDate)),
           cobranza,
           montoCobrado: (st === 'paid' || st === 'collected') ? (inv.collection?.paidAmount || total) : (inv.collection?.paidAmount ?? 0),
-          comision: forHelpers ? 0 : (inv.financials?.commission ?? 0),
+          comision: forHelpers ? 0 : comm,
           comisionManual: true,
           montoDepositado: 0,
           fechaCobro: iso(toDate(inv.collection?.paidAt)),
