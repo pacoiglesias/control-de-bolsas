@@ -123,6 +123,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
     expectedKilos: String(purchase.expectedKilos || ''),
     receivedKilos: String(purchase.receivedKilos || ''),
     pricePerKg: String(purchase.pricePerKg || '42'),
+    totalAmount: String(purchase.totalAmount || ''),
     paidAmount: String(purchase.paidAmount || ''),
     status: purchase.status,
     notes: purchase.notes ?? '',
@@ -132,12 +133,12 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
   const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const expectedNum = form.items.length > 0 
-    ? form.items.reduce((acc, it) => acc + (it.unit.toLowerCase() === 'kg' ? it.quantity : 0), 0)
+    ? form.items.reduce((acc, it) => acc + (it.unit.toLowerCase() === 'kg' || it.unit.toLowerCase() === 'kilos' ? it.quantity : 0), 0)
     : (Number(form.expectedKilos) || 0);
   const priceNum = Number(form.pricePerKg) || 0;
-  const totalAmount = form.items.length > 0
+  const totalAmountCalc = form.items.length > 0
     ? form.items.reduce((acc, it) => acc + it.amount, 0)
-    : (expectedNum * priceNum);
+    : (Number(form.totalAmount) || 0);
 
   async function save() {
     if (expectedNum <= 0) return toast('Kilos inválidos', 'bad');
@@ -151,7 +152,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
         expectedKilos: expectedNum,
         receivedKilos: Number(form.receivedKilos) || 0,
         pricePerKg: priceNum,
-        totalAmount,
+        totalAmount: totalAmountCalc,
         paidAmount: Number(form.paidAmount) || 0,
         status: form.status,
         notes: form.notes.trim(),
@@ -161,7 +162,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
       await logAction(user?.email, purchase.createdAt ? 'Compra Editada' : 'Compra Creada', {
         id: purchase.id,
         provider: form.provider.trim(),
-        totalAmount
+        totalAmount: totalAmountCalc
       });
       toast('Guardado', 'ok');
       onClose();
@@ -201,13 +202,37 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
           <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} />
         </Field>
         <Field label="Kilos Pedidos (Esperados)">
-          <input className="input boxed mono" type="number" step="0.01" value={form.expectedKilos} onChange={(e) => set('expectedKilos', e.target.value)} />
+          <input className="input boxed mono" type="number" step="0.01" 
+             value={form.items.length > 0 ? expectedNum : form.expectedKilos} 
+             disabled={form.items.length > 0}
+             onChange={(e) => {
+               const kg = e.target.value;
+               const total = kg === '' ? '' : String(Number(kg) * Number(form.pricePerKg));
+               setForm(f => ({ ...f, expectedKilos: kg, totalAmount: total }));
+             }} />
         </Field>
         <Field label="Kilos Recibidos (Entregas parciales)">
           <input className="input boxed mono" type="number" step="0.01" value={form.receivedKilos} onChange={(e) => set('receivedKilos', e.target.value)} />
         </Field>
         <Field label="Precio Costo por Kg">
-          <input className="input boxed mono" type="number" step="0.01" value={form.pricePerKg} onChange={(e) => set('pricePerKg', e.target.value)} />
+          <input className="input boxed mono" type="number" step="0.01" 
+             value={form.pricePerKg} 
+             onChange={(e) => {
+               const p = e.target.value;
+               const total = p === '' || form.expectedKilos === '' ? '' : String(Number(form.expectedKilos) * Number(p));
+               setForm(f => ({ ...f, pricePerKg: p, totalAmount: total }));
+             }} />
+        </Field>
+        <Field label="Costo Total Esperado">
+          <input className="input boxed mono" type="number" step="0.01" 
+             value={form.items.length > 0 ? totalAmountCalc : form.totalAmount} 
+             disabled={form.items.length > 0}
+             onChange={(e) => {
+               const total = e.target.value;
+               const p = Number(form.pricePerKg);
+               const kg = total === '' || p === 0 ? '' : String(Number((Number(total) / p).toFixed(2)));
+               setForm(f => ({ ...f, totalAmount: total, expectedKilos: kg }));
+             }} />
         </Field>
         <Field label="Anticipos o Pagos (Abonado)">
           <input className="input boxed mono" type="number" step="0.01" value={form.paidAmount} onChange={(e) => set('paidAmount', e.target.value)} />
@@ -282,8 +307,8 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
       
       <div className="calc-box" style={{ marginTop: 12 }}>
         <div className="calc-line total">
-          <span>{form.items.length > 0 ? `Costo Total de ${form.items.length} productos (Kilos: ${kilos(expectedNum)})` : `Costo Total Esperado (${kilos(expectedNum)} × ${money(priceNum)})`}</span>
-          <span className="mono">{money(totalAmount)}</span>
+          <span>{form.items.length > 0 ? `Costo Total de ${form.items.length} productos (Kilos: ${kilos(expectedNum)})` : `Costo Total Esperado`}</span>
+          <span className="mono">{money(totalAmountCalc)}</span>
         </div>
       </div>
 
