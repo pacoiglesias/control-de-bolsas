@@ -88,6 +88,111 @@ export default function Cobranza() {
     }
   }
 
+  function printConsolidatedCr(grp: {
+    cr: string;
+    client: string;
+    folios: string[];
+    totalKilos: number;
+    totalVenta: number;
+    costoAndres: number;
+    comisionContador: number;
+    netUtilidad: number;
+    margenPct: number;
+    status: string;
+  }) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Paquete Consolidado CR - ${grp.cr}</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; line-height: 1.4; }
+            .header { border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; }
+            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f8f8f8; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
+            th { background: #eee; font-weight: 700; }
+            .summary-box { background: #eef7f2; border: 1px solid #2F7A52; padding: 15px; border-radius: 6px; margin-top: 20px; }
+            .summary-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+            .summary-line.total { border-top: 2px solid #2F7A52; font-weight: 800; font-size: 16px; color: #2F7A52; padding-top: 8px; margin-top: 6px; }
+            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+            .sig-box { text-align: center; border-top: 1px solid #000; padding-top: 8px; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
+              <div>Control Bolsas ERP · Contrarecibo ${grp.cr}</div>
+            </div>
+            <div style="text-align:right;">
+              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}
+            </div>
+          </div>
+
+          <div class="meta-grid">
+            <div>
+              <strong>Contrarecibo (CR):</strong> ${grp.cr}<br>
+              <strong>Cliente:</strong> ${grp.client}<br>
+              <strong>Factura(s):</strong> ${grp.folios.map(f => '#' + f).join(', ') || '—'}
+            </div>
+            <div style="text-align:right;">
+              <strong>Proveedor Fabricante:</strong> Andrés (Sin Mermas)<br>
+              <strong>Kilos Entregados:</strong> ${grp.totalKilos.toLocaleString('es-MX')} kg<br>
+              <strong>Estado Cobro:</strong> ${grp.status}
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Concepto / Referencia</th>
+                <th style="text-align:right;">Kilos</th>
+                <th style="text-align:right;">Venta Facturada</th>
+                <th style="text-align:right;">Costo Andrés</th>
+                <th style="text-align:right;">Comisión Contador</th>
+                <th style="text-align:right;">Utilidad Líquida Real</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Contrarecibo ${grp.cr} (${grp.folios.map(f => '#' + f).join(', ')})</td>
+                <td style="text-align:right;">${grp.totalKilos.toLocaleString('es-MX')} kg</td>
+                <td style="text-align:right;">$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                <td style="text-align:right;color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                <td style="text-align:right;color:#B23A2E;">-$${grp.comisionContador.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                <td style="text-align:right;font-weight:700;color:#2F7A52;">$${grp.netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="summary-box">
+            <div class="summary-line"><span>Total Facturado a Cliente (${grp.client}):</span><strong>$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
+            <div class="summary-line"><span>Costo Directo Fabricante Andrés (Sin mermas):</span><span style="color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
+            <div class="summary-line"><span>Comisión Contador / Contabilidad:</span><span style="color:#B23A2E;">-$${grp.comisionContador.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
+            <div class="summary-line total">
+              <span>UTILIDAD LÍQUIDA REAL (MARGEN: ${grp.margenPct.toFixed(2)}%):</span>
+              <span>$${grp.netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
+            </div>
+          </div>
+
+          <div class="signatures">
+            <div class="sig-box">Firma y Sello de Recepción Cliente</div>
+            <div class="sig-box">Autorización de Cobro y Entrada Caja Chica</div>
+          </div>
+
+          <script>
+            window.onload = () => { window.print(); window.setTimeout(() => window.close(), 500); }
+          </script>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  }
+
   const data = useMemo(() => {
     // Extraer todas las facturas de todos los expedientes
     const allInvoices = orders.flatMap((o) => {
@@ -126,6 +231,58 @@ export default function Cobranza() {
       }
     });
 
+    // Agrupar facturas por número de Contrarecibo (CR) para calcular la Utilidad Líquida Real
+    const crGroups: Record<string, {
+      cr: string;
+      client: string;
+      folios: string[];
+      totalKilos: number;
+      totalVenta: number;
+      costoAndres: number;
+      comisionContador: number;
+      netUtilidad: number;
+      margenPct: number;
+      status: string;
+      order: PurchaseOrder;
+    }> = {};
+
+    allInvoices.forEach(({ o, inv }) => {
+      const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || 'SIN-CR').trim();
+      if (!crGroups[cr]) {
+        crGroups[cr] = {
+          cr,
+          client: o.client || '—',
+          folios: [],
+          totalKilos: 0,
+          totalVenta: 0,
+          costoAndres: 0,
+          comisionContador: 0,
+          netUtilidad: 0,
+          margenPct: 0,
+          status: inv.creditCycle.status,
+          order: o,
+        };
+      }
+      const grp = crGroups[cr];
+      if (inv.folio && !grp.folios.includes(inv.folio)) grp.folios.push(inv.folio);
+      
+      const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * config.salePricePerKg * (1 + config.ivaRate));
+      const costAndres = inv.financials?.costTotal ?? (inv.kilos * config.costPricePerKg);
+      const comm = inv.financials?.commission ?? (inv.kilos * config.salePricePerKg * config.commissionRate);
+
+      grp.totalKilos += inv.kilos || 0;
+      grp.totalVenta += invTotal;
+      grp.costoAndres += costAndres;
+      grp.comisionContador += comm;
+    });
+
+    Object.values(crGroups).forEach(grp => {
+      grp.netUtilidad = grp.totalVenta - grp.costoAndres - grp.comisionContador;
+      grp.margenPct = grp.totalVenta > 0 ? (grp.netUtilidad / grp.totalVenta) * 100 : 0;
+    });
+
+    const listaCr = Object.values(crGroups).sort((a, b) => b.totalVenta - a.totalVenta);
+
     const lista = open
       .map(({ o, inv }) => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)), saldo: saldo(inv) }))
       .sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
@@ -133,6 +290,7 @@ export default function Cobranza() {
     return {
       open,
       lista,
+      listaCr,
       clientes,
       porCliente,
       totalPorBucket,
@@ -142,13 +300,13 @@ export default function Cobranza() {
         .filter((x) => x.inv.creditCycle.status === 'overdue')
         .reduce((a, x) => a + saldo(x.inv), 0),
       cobrado: allInvoices
-        .filter((x) => x.inv.creditCycle.status === 'paid')
+        .filter((x) => x.inv.creditCycle.status === 'paid' || x.inv.creditCycle.status === 'collected')
         .reduce((a, x) => a + (x.inv.collection?.paidAmount ?? x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0),
       comisiones: allInvoices
-        .filter((x) => x.inv.creditCycle.status === 'paid')
-        .reduce((a, x) => a + (x.inv.financials?.commission ?? 0), 0),
+        .filter((x) => x.inv.creditCycle.status === 'paid' || x.inv.creditCycle.status === 'collected')
+        .reduce((a, x) => a + (x.inv.financials?.commission ?? (x.inv.kilos * config.salePricePerKg * config.commissionRate)), 0),
     };
-  }, [orders]);
+  }, [orders, config]);
 
   if (loading) {
     return (
@@ -308,6 +466,51 @@ export default function Cobranza() {
                   </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card title="📊 Utilidad Líquida Real por Contrarecibo (Sin mermas - Andrés)" hint={`${data.listaCr.length}`}>
+        {data.listaCr.length === 0 ? (
+          <Empty>No hay contrarecibos para mostrar.</Empty>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Contrarecibo (CR)</th>
+                  <th>Cliente</th>
+                  <th>Facturas</th>
+                  <th className="num">Kilos</th>
+                  <th className="num">Venta Total</th>
+                  <th className="num">Costo Andrés</th>
+                  <th className="num">Comisión Contador</th>
+                  <th className="num">Utilidad Líquida Real</th>
+                  <th className="num">Margen %</th>
+                  <th className="num">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.listaCr.map((grp) => (
+                  <tr key={grp.cr}>
+                    <td className="mono" style={{ fontWeight: 700 }}>{grp.cr}</td>
+                    <td>{grp.client}</td>
+                    <td className="mono">{grp.folios.map(f => '#' + f).join(', ') || '—'}</td>
+                    <td className="num mono">{grp.totalKilos.toLocaleString('es-MX')} kg</td>
+                    <td className="num mono">{money(grp.totalVenta)}</td>
+                    <td className="num mono" style={{ color: 'var(--accent-deep)' }}>-{money(grp.costoAndres)}</td>
+                    <td className="num mono" style={{ color: 'var(--bad)' }}>-{money(grp.comisionContador)}</td>
+                    <td className="num mono" style={{ fontWeight: 800, color: 'var(--ok)' }}>{money(grp.netUtilidad)}</td>
+                    <td className="num mono" style={{ fontWeight: 700, color: grp.margenPct >= 10 ? 'var(--ok)' : 'var(--warn)' }}>{grp.margenPct.toFixed(1)}%</td>
+                    <td className="num">
+                      <button className="btn" onClick={() => printConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px' }}>
+                        🖨️ Imprimir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

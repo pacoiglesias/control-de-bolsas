@@ -36,6 +36,7 @@ export default function OrderModal({
     client: order.client ?? '',
     department: order.department ?? '',
     provider: order.provider ?? '',
+    oc: order.oc ?? '',
     totalKilograms: String(order.totalKilograms ?? ''),
     estimatedDeliveryDate: order.estimatedDeliveryDate ?? null,
     deliveries: initialSummary.deliveries,
@@ -200,6 +201,161 @@ export default function OrderModal({
     window.open(url, '_blank');
   }
 
+  function printConsolidatedPackage() {
+    function escapeHtml(str: string) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    const totalKilos = Number(form.totalKilograms) || 0;
+    const invList = form.invoices ?? [];
+    const delList = form.deliveries ?? [];
+
+    let totalVenta = 0;
+    let totalCostoAndres = 0;
+    let totalComision = 0;
+
+    const invoicesHtml = invList.map(inv => {
+      const baseFin = computeFinancials(inv.kilos, config);
+      const customComm = inv.financials?.commission;
+      const invTotal = baseFin.invoiceTotal;
+      const costAndres = baseFin.costTotal;
+      const comm = customComm ?? baseFin.commission;
+      const net = invTotal - comm - costAndres;
+
+      totalVenta += invTotal;
+      totalCostoAndres += costAndres;
+      totalComision += comm;
+
+      return `
+        <tr>
+          <td style="font-family:monospace;font-weight:600;">#${escapeHtml(inv.folio || '—')}</td>
+          <td style="font-family:monospace;">${escapeHtml(inv.collection?.contrareciboNumber || '—')}</td>
+          <td style="text-align:right;">${inv.kilos.toLocaleString('es-MX')} kg</td>
+          <td style="text-align:right;">$${invTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+          <td style="text-align:right;color:#8A5A1E;">-$${costAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+          <td style="text-align:right;color:#B23A2E;">-$${comm.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+          <td style="text-align:right;font-weight:700;color:#2F7A52;">$${net.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const deliveriesHtml = delList.map(d => `
+      <tr>
+        <td>${d.date ? toDate(d.date)?.toLocaleDateString('es-MX') || '—' : '—'}</td>
+        <td style="text-align:right;">${d.kilos.toLocaleString('es-MX')} kg</td>
+        <td>${escapeHtml(d.notes || '—')}</td>
+      </tr>
+    `).join('');
+
+    const netUtilidad = totalVenta - totalCostoAndres - totalComision;
+    const margenPct = totalVenta > 0 ? ((netUtilidad / totalVenta) * 100).toFixed(2) : '0.00';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Paquete Consolidado - ${escapeHtml(form.client)} (OC ${escapeHtml(form.oc || '—')})</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; line-height: 1.4; }
+            .header { border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; }
+            .header .sub { font-size: 12px; color: #555; }
+            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f8f8f8; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 20px; }
+            .section-title { font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #ccc; padding-bottom: 4px; margin-top: 25px; margin-bottom: 10px; color: #333; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
+            th { background: #eee; font-weight: 700; }
+            .summary-box { background: #eef7f2; border: 1px solid #2F7A52; padding: 15px; border-radius: 6px; margin-top: 20px; }
+            .summary-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+            .summary-line.total { border-top: 2px solid #2F7A52; font-weight: 800; font-size: 16px; color: #2F7A52; padding-top: 8px; margin-top: 6px; }
+            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+            .sig-box { text-align: center; border-top: 1px solid #000; padding-top: 8px; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
+              <div class="sub">Control Bolsas ERP · Remisión + Contrarecibo + Factura</div>
+            </div>
+            <div style="text-align:right;">
+              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}<br>
+              <strong>Folio Expediente:</strong> #${escapeHtml(form.folio || '—')}
+            </div>
+          </div>
+
+          <div class="meta-grid">
+            <div>
+              <strong>Cliente:</strong> ${escapeHtml(form.client || '—')}<br>
+              <strong>Departamento:</strong> ${escapeHtml(form.department || '—')}<br>
+              <strong>Orden de Compra (OC):</strong> ${escapeHtml(form.oc || '—')}
+            </div>
+            <div style="text-align:right;">
+              <strong>Proveedor Fabricante:</strong> Andrés (Sin Mermas)<br>
+              <strong>Kilos Totales:</strong> ${totalKilos.toLocaleString('es-MX')} kg<br>
+              <strong>Facturas Asociadas:</strong> ${invList.length}
+            </div>
+          </div>
+
+          ${delList.length > 0 ? `
+            <div class="section-title">📦 1. REMISIONES Y ENTREGAS DE PLÁSTICO</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha Entrega</th>
+                  <th style="text-align:right;">Kilos Entregados</th>
+                  <th>Notas / Remisión</th>
+                </tr>
+              </thead>
+              <tbody>${deliveriesHtml}</tbody>
+            </table>
+          ` : ''}
+
+          <div class="section-title">📄 2. DETALLE DE FACTURAS Y CONTRARECIBOS (GT/TH)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Folio Factura</th>
+                <th>Contrarecibo (CR)</th>
+                <th style="text-align:right;">Kilos</th>
+                <th style="text-align:right;">Facturado (con IVA)</th>
+                <th style="text-align:right;">Costo Andrés</th>
+                <th style="text-align:right;">Comisión Contador</th>
+                <th style="text-align:right;">Utilidad Líquida Real</th>
+              </tr>
+            </thead>
+            <tbody>${invoicesHtml}</tbody>
+          </table>
+
+          <div class="summary-box">
+            <div class="summary-line"><span>Venta Total Facturada (Cliente GT/TH):</span><strong>$${totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
+            <div class="summary-line"><span>Costo Directo Proveedor Andrés:</span><span style="color:#8A5A1E;">-$${totalCostoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
+            <div class="summary-line"><span>Comisión Contabilidad / Contador:</span><span style="color:#B23A2E;">-$${totalComision.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
+            <div class="summary-line total">
+              <span>UTILIDAD LÍQUIDA REAL (MARGEN: ${margenPct}%):</span>
+              <span>$${netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
+            </div>
+          </div>
+
+          <div class="signatures">
+            <div class="sig-box">Firma y Sello de Recepción Cliente</div>
+            <div class="sig-box">Autorización de Cobro y Caja Chica</div>
+          </div>
+
+          <script>
+            window.onload = () => { window.print(); window.setTimeout(() => window.close(), 500); }
+          </script>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  }
+
   async function remove() {
     if (!window.confirm(`¿Eliminar el expediente ${order.folio ?? ''}? Esto no se puede deshacer.`))
       return;
@@ -320,6 +476,9 @@ export default function OrderModal({
         </button>
         <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => setTab('facturas')}>
           Facturas <span className="badge">{form.invoices.length}</span>
+        </button>
+        <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
+          🖨️ Paquete Consolidado (PDF)
         </button>
       </div>
 
