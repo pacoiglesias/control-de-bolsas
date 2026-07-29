@@ -99,6 +99,9 @@ export interface PurchaseOrder {
   deliveries?: Delivery[];
   invoices?: Invoice[];
   items?: PurchaseOrderItem[];
+  
+  customCostPrice?: number;
+  customCommissionRate?: number;
 
   processedAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
@@ -151,3 +154,12 @@ export const STATUS_TONE: Record<OrderStatus, string> = {
   overdue: 'b-bad',
   manual_review: 'b-warn',
 };
+
+export interface Product {
+  id: string;
+  description: string;
+  unit: string;
+  defaultPrice: number;
+  lastOrderDate?: any;
+  createdAt?: any;
+}

@@ -32,10 +32,15 @@ export default function OcTracking() {
     const map = new Map<string, { order: PurchaseOrder; invoices: OcGroup['invoices'] }>();
 
     for (const order of orders) {
+      // Aseguramos que la OC siempre se agregue, incluso si no tiene facturas.
+      const ocKey = (order.oc || order.folio || order.id).trim();
+      
+      if (!map.has(ocKey)) {
+        map.set(ocKey, { order, invoices: [] });
+      }
+
       const invoices = order.invoices ?? [];
       for (const inv of invoices) {
-        const ocKey = inv.oc || order.oc || 'SIN-OC';
-        if (!map.has(ocKey)) map.set(ocKey, { order, invoices: [] });
         const st = inv.creditCycle?.status ?? 'pending';
         map.get(ocKey)!.invoices.push({
           folio: inv.folio ?? '—',
@@ -55,7 +60,8 @@ export default function OcTracking() {
       .sort((a, b) => {
         if (a.oc === 'SIN-OC') return 1;
         if (b.oc === 'SIN-OC') return -1;
-        return a.oc.localeCompare(b.oc);
+        // Orden inverso (las más recientes o mayores números de OC suelen estar arriba)
+        return b.oc.localeCompare(a.oc);
       });
   }, [orders]);
 
@@ -100,12 +106,20 @@ export default function OcTracking() {
           const totalAmt = group.invoices.reduce((s, i) => s + i.amount, 0);
           const totalKilos = group.invoices.reduce((s, i) => s + i.kilos, 0);
           const paidCount = group.invoices.filter(i => i.paid).length;
-          const allPaid = paidCount === group.invoices.length;
+          const allPaid = group.invoices.length > 0 && paidCount === group.invoices.length;
           const nonePaid = paidCount === 0;
           const isOpen = expanded.has(group.oc);
 
-          const statusColor = allPaid ? 'var(--ok)' : nonePaid ? 'var(--bad)' : 'var(--warn)';
-          const statusLabel = allPaid ? '✅ Cobradas' : nonePaid ? '🔴 Pendientes' : `🟡 Parcial (${paidCount}/${group.invoices.length})`;
+          let statusColor = '#3b82f6'; // info blue
+          let statusLabel = '📝 Nuevo Pedido';
+
+          if (group.invoices.length > 0) {
+            statusColor = allPaid ? 'var(--ok)' : nonePaid ? 'var(--bad)' : 'var(--warn)';
+            statusLabel = allPaid ? '✅ Cobradas' : nonePaid ? '🔴 Pendientes' : `🟡 Parcial (${paidCount}/${group.invoices.length})`;
+          }
+
+          const kilosPedidos = group.order?.totalKilograms ?? 0;
+          const kilosEntregados = group.order?.deliveries?.reduce((a, b) => a + b.kilos, 0) ?? 0;
 
           return (
             <div
@@ -132,97 +146,117 @@ export default function OcTracking() {
                 <span style={{ fontSize: 18 }}>{isOpen ? '▼' : '▶'}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, fontFamily: 'monospace' }}>
-                    OC: {group.oc}
+                    OC: {group.oc} {group.order?.client && <span style={{color: 'var(--muted)', fontWeight: 400, marginLeft: 8}}>{group.order.client}</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                    {group.invoices.length} factura{group.invoices.length !== 1 ? 's' : ''} ·{' '}
-                    {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg facturados
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+                    <span style={{ color: 'var(--text)' }}>Pedida: {kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    {' · '}
+                    <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--info)' }}>Entregada: {kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    {' · '}
+                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{money(totalAmt)}</div>
                   <div style={{ fontSize: 12, color: statusColor, marginTop: 2 }}>{statusLabel}</div>
                 </div>
+                <button
+                  className="btn"
+                  style={{ fontSize: 12, padding: '6px 12px', marginLeft: 16, background: 'var(--surface-alt)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (group.order) setSelectedOrder(group.order);
+                  }}
+                >
+                  Ver Expediente
+                </button>
               </div>
 
               {/* Detalle de facturas */}
               {isOpen && (
                 <div style={{ borderTop: '1px solid var(--border)' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--surface-alt)' }}>
-                        <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vence</th>
-                        <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estado</th>
-                        <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.invoices
-                        .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
-                        .map(inv => (
-                          <tr
-                            key={inv.folio}
-                            style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
-                            onClick={() => setSelectedOrder(inv.order)}
-                          >
-                            <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 600 }}>
-                              #{inv.folio}
-                            </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
-                              {inv.kilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
-                            </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
-                              {money(inv.amount)}
-                            </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
-                              {inv.cr || <span style={{ color: 'var(--muted)' }}>Sin CR</span>}
-                            </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
-                              {inv.dueDate
-                                ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })
-                                : '—'}
-                            </td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                              {inv.status === 'collected' ? (
-                                <span style={{ color: 'var(--ok)', fontWeight: 600 }}>✅ Recibida en Caja</span>
-                              ) : inv.status === 'paid' ? (
-                                <span style={{ color: 'var(--warn)', fontWeight: 600 }}>🟡 Con el Contador</span>
-                              ) : (
-                                <span style={{ color: 'var(--bad)', fontWeight: 600 }}>🔴 Por Cobrar</span>
-                              )}
-                            </td>
-                            <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                              <button
-                                className="btn"
-                                style={{ fontSize: 11, padding: '3px 8px' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedOrder(inv.order);
-                                }}
-                              >
-                                ✏️ Editar Expediente
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--surface-alt)' }}>
-                        <td style={{ padding: '10px 18px', fontWeight: 700 }}>TOTAL</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                          {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })} kg
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                          {money(totalAmt)}
-                        </td>
-                        <td colSpan={4} />
-                      </tr>
-                    </tfoot>
-                  </table>
+                  {group.invoices.length === 0 ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>
+                      📝 Aún no hay facturas registradas en esta Orden de Compra. <br/>
+                      <span style={{ fontSize: 12 }}>Abre el expediente para añadir entregas o facturas.</span>
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--surface-alt)' }}>
+                          <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vence</th>
+                          <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estado</th>
+                          <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.invoices
+                          .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
+                          .map(inv => (
+                            <tr
+                              key={inv.folio}
+                              style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                              onClick={() => setSelectedOrder(inv.order)}
+                            >
+                              <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 600 }}>
+                                #{inv.folio}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
+                                {inv.kilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
+                                {money(inv.amount)}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
+                                {inv.cr || <span style={{ color: 'var(--muted)' }}>Sin CR</span>}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+                                {inv.dueDate
+                                  ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })
+                                  : '—'}
+                              </td>
+                              <td style={{ padding: '10px 18px', textAlign: 'center' }}>
+                                {inv.status === 'collected' ? (
+                                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>✅ Recibida en Caja</span>
+                                ) : inv.status === 'paid' ? (
+                                  <span style={{ color: 'var(--warn)', fontWeight: 600 }}>🟡 Con el Contador</span>
+                                ) : (
+                                  <span style={{ color: 'var(--bad)', fontWeight: 600 }}>🔴 Por Cobrar</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '10px 18px', textAlign: 'center' }}>
+                                <button
+                                  className="btn"
+                                  style={{ fontSize: 11, padding: '3px 8px' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedOrder(inv.order);
+                                  }}
+                                >
+                                  ✏️ Editar
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--surface-alt)' }}>
+                          <td style={{ padding: '10px 18px', fontWeight: 700 }}>TOTAL</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                            {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })} kg
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                            {money(totalAmt)}
+                          </td>
+                          <td colSpan={4} />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  )}
                 </div>
               )}
             </div>

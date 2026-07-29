@@ -34,6 +34,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v5.5.0',
+    date: '28 de Julio de 2026',
+    time: '10:00 PM',
+    summary: 'Catálogo Inteligente Predictivo, Corrección de Utilidad Líquida (Margen Real) y Automatización de Caja Chica.',
+    highlights: [
+      'Catálogo Inteligente (/catalogo) con algoritmo predictivo y semáforo (🔴/🟡/🟢) de reabastecimiento',
+      'Corrección de fórmula de rentabilidad: Utilidad Líquida calculada en base al Margen Real (Venta - Compra - Comisiones) ignorando IVA',
+      'Autocompletado de descripciones, precios y unidades al registrar productos en las Órdenes de Compra',
+      'Flujo Automático Caja Chica -> Compras: Se generan egresos de caja al abonar o liquidar deuda al fabricante Andrés'
+    ]
+  },
+  {
     version: 'v5.4.0',
     date: '28 de Julio de 2026',
     time: '09:25 PM',

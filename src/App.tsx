@@ -15,6 +15,7 @@ import Logs from './pages/Logs';
 import Users from './pages/Users';
 import Seeder from './pages/Seeder';
 import OcTracking from './pages/OcTracking';
+import Catalog from './pages/Catalog';
 
 function Gate() {
   const { user, loading } = useAuth();
@@ -41,6 +42,7 @@ function Gate() {
         <Route path="respaldo" element={<Respaldo />} />
         <Route path="seed" element={<Seeder />} />
         <Route path="oc" element={<OcTracking />} />
+        <Route path="catalogo" element={<Catalog />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

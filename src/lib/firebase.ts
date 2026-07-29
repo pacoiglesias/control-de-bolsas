@@ -28,6 +28,7 @@ export const PATHS = {
   orders: 'purchaseOrders',
   expenses: 'expenses',
   purchases: 'purchases',
+  products: 'products',
   config: 'config',
   configFinancials: 'financials',
   admins: 'admins',

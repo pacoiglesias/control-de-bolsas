@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, PATHS, app } from '../lib/firebase';
 import { logAction } from '../lib/logger';
@@ -10,6 +10,7 @@ import { computeFinancials, addDays, getOrderSummary, daysLate } from '../lib/fi
 import { fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
+import { useProducts } from '../hooks/useProducts';
 
 export default function OrderModal({
   order,
@@ -26,6 +27,7 @@ export default function OrderModal({
 }) {
   const toast = useToast();
   const { user } = useAuth();
+  const { products } = useProducts();
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'resumen' | 'productos' | 'entregas' | 'facturas'>(initialTab as any);
 
@@ -42,11 +44,19 @@ export default function OrderModal({
     deliveries: initialSummary.deliveries,
     invoices: initialSummary.invoices,
     items: order.items ?? [],
+    customCostPrice: order.customCostPrice !== undefined ? String(order.customCostPrice) : '',
+    customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
   });
 
   const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const kilosNum = Number(form.totalKilograms) || 0;
+
+  const fallbackCost = form.invoices[0]?.financials?.costPricePerKg ?? config.costPricePerKg;
+  const fallbackComm = form.invoices[0]?.financials?.commissionRate ?? config.commissionRate;
+  const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : fallbackCost;
+  const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) / 100 : fallbackComm;
+  const dynamicConfig = { ...config, costPricePerKg: ccp, commissionRate: ccr };
 
   // Calculate live summary based on form state
   const liveSummary = useMemo(() => {
@@ -63,12 +73,8 @@ export default function OrderModal({
 
   const computedInvoices = useMemo(() => {
     return form.invoices.map((inv) => {
-      const baseFin = computeFinancials(inv.kilos, config);
-      const customComm = inv.financials?.commission;
-      const fin = {
-        ...baseFin,
-        commission: customComm ?? baseFin.commission,
-      };
+      const baseFin = computeFinancials(inv.kilos, dynamicConfig);
+      const fin = baseFin;
       const d = daysLate(toDate(inv.creditCycle.dueDate));
       const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
       return { inv, fin, d, isLate };
@@ -88,14 +94,10 @@ export default function OrderModal({
       // Compute financials for all invoices just in case
       // Recalculate financials using historical snapshot if available to prevent history tampering
       const updatedInvoices = form.invoices.map(inv => {
-        const snapshotCfg = inv.financials ? {
-          salePricePerKg: inv.financials.salePricePerKg || config.salePricePerKg,
-          costPricePerKg: inv.financials.costPricePerKg || config.costPricePerKg,
-          commissionRate: inv.financials.commissionRate ?? config.commissionRate,
-          ivaRate: config.ivaRate,
-          commissionBase: config.commissionBase,
-          creditDays: config.creditDays
-        } : config;
+        const snapshotCfg = {
+          ...dynamicConfig,
+          salePricePerKg: inv.financials?.salePricePerKg || config.salePricePerKg,
+        };
 
         return {
           ...inv,
@@ -120,7 +122,52 @@ export default function OrderModal({
         items: form.items,
         updatedAt: serverTimestamp(),
         processedAt: order.processedAt ?? serverTimestamp(),
+        customCostPrice: ccp,
+        customCommissionRate: ccr,
       }, { merge: true });
+
+      // Upsert Purchase for Andrés
+      try {
+        const purchaseRef = doc(db, PATHS.purchases, order.id);
+        const purchaseSnap = await getDoc(purchaseRef);
+        if (purchaseSnap.exists()) {
+          await updateDoc(purchaseRef, {
+            expectedKilos: kilosNum,
+            pricePerKg: ccp,
+            totalAmount: kilosNum * ccp,
+          });
+        } else {
+          await setDoc(purchaseRef, {
+            date: serverTimestamp(),
+            provider: form.provider.trim() || 'Andrés',
+            expectedKilos: kilosNum,
+            receivedKilos: 0,
+            pricePerKg: ccp,
+            totalAmount: kilosNum * ccp,
+            paidAmount: 0,
+            status: 'pedido',
+            createdAt: serverTimestamp()
+          });
+        }
+      } catch (err) {
+        console.error("Error linking purchase", err);
+      }
+
+      // Upsert products to catalog
+      if (form.items && form.items.length > 0) {
+        const promises = form.items.map(async (it) => {
+          if (!it.description.trim()) return;
+          const productId = it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+          await setDoc(doc(db, PATHS.products, productId), {
+            description: it.description.trim(),
+            unit: it.unit,
+            defaultPrice: it.unitPrice,
+            lastOrderDate: serverTimestamp(),
+          }, { merge: true });
+        });
+        await Promise.all(promises);
+      }
+
       logAction(user?.email, 'Expediente Guardado', {
         orderId: order.id,
         folio: form.folio,
@@ -226,19 +273,22 @@ export default function OrderModal({
     const invList = form.invoices ?? [];
     const delList = form.deliveries ?? [];
 
-    let totalVenta = 0;
+    let totalVentaSinIVA = 0;
+    let totalVentaConIVA = 0;
     let totalCostoAndres = 0;
     let totalComision = 0;
 
     const invoicesHtml = invList.map(inv => {
       const baseFin = computeFinancials(inv.kilos, config);
       const customComm = inv.financials?.commission;
+      const saleTotal = baseFin.saleTotal;
       const invTotal = baseFin.invoiceTotal;
       const costAndres = baseFin.costTotal;
       const comm = customComm ?? baseFin.commission;
       const net = invTotal - comm - costAndres;
 
-      totalVenta += invTotal;
+      totalVentaSinIVA += saleTotal;
+      totalVentaConIVA += invTotal;
       totalCostoAndres += costAndres;
       totalComision += comm;
 
@@ -263,8 +313,8 @@ export default function OrderModal({
       </tr>
     `).join('');
 
-    const netUtilidad = totalVenta - totalCostoAndres - totalComision;
-    const margenPct = totalVenta > 0 ? ((netUtilidad / totalVenta) * 100).toFixed(2) : '0.00';
+    const netUtilidad = totalVentaConIVA - totalCostoAndres - totalComision;
+    const margenPct = totalVentaConIVA > 0 ? ((netUtilidad / totalVentaConIVA) * 100).toFixed(2) : '0.00';
 
     const html = `
       <!DOCTYPE html>
@@ -344,7 +394,7 @@ export default function OrderModal({
           </table>
 
           <div class="summary-box">
-            <div class="summary-line"><span>Venta Total Facturada (Cliente GT/TH):</span><strong>$${totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
+            <div class="summary-line"><span>Ingreso Total Facturado (Venta + IVA):</span><strong>$${totalVentaConIVA.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
             <div class="summary-line"><span>Costo Directo Proveedor Andrés:</span><span style="color:#8A5A1E;">-$${totalCostoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line"><span>Comisión Contabilidad / Contador:</span><span style="color:#B23A2E;">-$${totalComision.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line total">
@@ -415,7 +465,17 @@ export default function OrderModal({
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
     const next = [...form.items];
     next[index] = { ...next[index], [field]: value };
-    if (field === 'quantity' || field === 'unitPrice') {
+    
+    // Auto-fill from catalog if description matches exactly
+    if (field === 'description') {
+      const matchedProd = products.find(p => p.description === value);
+      if (matchedProd) {
+        next[index].unit = matchedProd.unit;
+        next[index].unitPrice = matchedProd.defaultPrice;
+      }
+    }
+    
+    if (field === 'quantity' || field === 'unitPrice' || field === 'description') {
       next[index].amount = Number((next[index].quantity * next[index].unitPrice).toFixed(2));
     }
     set('items', next);
@@ -478,6 +538,11 @@ export default function OrderModal({
 
   return (
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
+      <datalist id="catalog-products">
+        {products.map(p => (
+          <option key={p.id} value={p.description} />
+        ))}
+      </datalist>
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
@@ -528,6 +593,16 @@ export default function OrderModal({
                   />
                 </Field>
                 <button className="btn" onClick={emailClient} style={{ background: 'var(--info)', color: '#fff', borderColor: 'var(--info)' }}>✉️ Notificar al cliente</button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <Field label={`Costo de Compra (Andrés) $/kg (Histórico/Global: $${fallbackCost})`}>
+                  <input className="input boxed mono" type="number" step="0.01" value={form.customCostPrice}
+                    onChange={(e) => set('customCostPrice', e.target.value)} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
+                </Field>
+                <Field label={`Comisión Contabilidad % (Histórico/Global: ${fallbackComm * 100}%)`}>
+                  <input className="input boxed mono" type="number" step="0.01" value={form.customCommissionRate}
+                    onChange={(e) => set('customCommissionRate', e.target.value)} disabled={readOnly} placeholder={`Ej. ${fallbackComm * 100}`} />
+                </Field>
               </div>
             </div>
 
@@ -622,7 +697,7 @@ export default function OrderModal({
                             value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
                         </td>
                         <td>
-                          <input className="input boxed" type="text" style={{ minWidth: 200 }}
+                          <input className="input boxed" type="text" list="catalog-products" style={{ minWidth: 200 }}
                             value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
                         </td>
                         <td className="num">

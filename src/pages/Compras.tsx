@@ -146,6 +146,10 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
     setBusy(true);
     try {
       const d = fromInputDate(form.date) ?? new Date();
+      const newPaidAmount = Number(form.paidAmount) || 0;
+      const oldPaidAmount = purchase.paidAmount || 0;
+      const diffPaid = newPaidAmount - oldPaidAmount;
+
       await setDoc(doc(db, PATHS.purchases, purchase.id), {
         date: Timestamp.fromDate(d),
         provider: form.provider.trim(),
@@ -153,18 +157,39 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
         receivedKilos: Number(form.receivedKilos) || 0,
         pricePerKg: priceNum,
         totalAmount: totalAmountCalc,
-        paidAmount: Number(form.paidAmount) || 0,
+        paidAmount: newPaidAmount,
         status: form.status,
         notes: form.notes.trim(),
         items: form.items,
         createdAt: purchase.createdAt ?? serverTimestamp(),
       }, { merge: true });
+      
       await logAction(user?.email, purchase.createdAt ? 'Compra Editada' : 'Compra Creada', {
         id: purchase.id,
         provider: form.provider.trim(),
         totalAmount: totalAmountCalc
       });
-      toast('Guardado', 'ok');
+
+      // Crear egreso en Caja Chica por el nuevo pago/anticipo
+      if (diffPaid > 0) {
+        try {
+          await setDoc(doc(collection(db, PATHS.expenses)), {
+            date: Timestamp.now(),
+            concept: `Pago/Anticipo a Proveedor ${form.provider.trim()}`,
+            amount: diffPaid,
+            type: 'egreso',
+            notes: `Asociado al registro de compra ID: ${purchase.id}. Costo Total de OC: $${totalAmountCalc.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+            createdAt: serverTimestamp(),
+          });
+          toast(`Se ha registrado un Egreso en Caja Chica por $${diffPaid.toLocaleString('es-MX', {minimumFractionDigits:2})} de forma automática.`, 'ok');
+        } catch (e) {
+          console.error("Error creating expense:", e);
+          toast('Compra guardada, pero hubo un error al registrar en Caja Chica.', 'bad');
+        }
+      } else {
+        toast('Guardado', 'ok');
+      }
+      
       onClose();
     } catch (e) {
       toast(`Error: ${(e as Error).message}`, 'bad');
