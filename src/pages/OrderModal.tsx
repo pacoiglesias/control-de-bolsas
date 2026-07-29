@@ -584,6 +584,24 @@ export default function OrderModal({
                           <input className="input boxed mono" type="number" step="0.01" value={inv.kilos} 
                             onChange={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
                         </Field>
+                        <Field label="Contrarecibo (CR)">
+                          <input className="input boxed mono" value={inv.collection?.contrareciboNumber || ''} 
+                            onChange={e => updateInvoice(i, x => ({
+                              ...x, 
+                              collection: { ...x.collection, contrareciboNumber: e.target.value }
+                            }))} disabled={readOnly} />
+                        </Field>
+                        <Field label="Vencimiento (Promesa)">
+                          <input className="input boxed mono" type="date" 
+                            value={toInputDate(inv.creditCycle.dueDate) || ''} 
+                            onChange={e => {
+                              const d = fromInputDate(e.target.value);
+                              updateInvoice(i, x => ({
+                                ...x,
+                                creditCycle: { ...x.creditCycle, dueDate: d ? Timestamp.fromDate(d) : null }
+                              }));
+                            }} disabled={readOnly} />
+                        </Field>
                         <Field label="Estado">
                           <select className="input boxed" value={inv.creditCycle.status}
                             disabled={readOnly}

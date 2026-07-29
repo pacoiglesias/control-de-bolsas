@@ -40,10 +40,12 @@ const DEFAULTS = {
 };
 
 const DocumentSchema = z.object({
-  docType: z.enum(["orden_compra", "factura"]).describe("Determina si el documento es una Orden de Compra de un cliente, o una Factura emitida a un cliente."),
-  folio: z.string().describe("Número de folio de la orden de compra o de la factura"),
+  docType: z.enum(["orden_compra", "factura", "contrarecibo"]).describe("Determina si el documento es Orden de Compra, Factura, o Contra Recibo."),
+  folio: z.string().describe("Número de folio del documento"),
   uuid: z.string().optional().describe("Si es factura, el UUID (Folio Fiscal) de 36 caracteres."),
-  ocReference: z.string().optional().describe("Si es factura, el número de la Orden de Compra (OC) en 'Condiciones de Pago' o 'Observaciones' (solo el número)."),
+  ocReference: z.string().optional().describe("Si es factura, el número de la OC a la que hace referencia."),
+  paymentDate: z.string().optional().describe("Si es contrarecibo, la fecha programada de pago (YYYY-MM-DD)"),
+  crInvoices: z.array(z.string()).optional().describe("Si es contrarecibo, lista de facturas que agrupa (solo los números)"),
   totalKilograms: z.number().describe("Suma de Kilogramos totales del documento"),
   totalAmount: z.number().optional().describe("Si es factura, el monto total (con IVA)."),
   client: z.string().optional().describe("Nombre o clave del cliente"),
@@ -180,11 +182,12 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       prompt: [
         {
           text:
-            "Eres un auditor contable experto. Clasifica este documento como 'orden_compra' o 'factura'. " +
+            "Eres un auditor contable experto. Clasifica este documento como 'orden_compra', 'factura' o 'contrarecibo'. " +
             "Extrae el folio, cliente, y el total de kilogramos. " +
             "Si es una factura, extrae también el UUID (Folio Fiscal), el monto total con IVA, y el número de la OC a la que hace referencia. " +
-            "MUY IMPORTANTE: extrae el detalle de todos los artículos (partidas) en la tabla central " +
-            "con su cantidad, unidad de medida (Kilos, Bultos, etc), descripción, precio unitario e importe total. " +
+            "Si es un contrarecibo, extrae la fecha de pago programada (paymentDate en YYYY-MM-DD) y TODOS los números de factura (crInvoices) que están siendo pagados o agrupados. " +
+            "MUY IMPORTANTE: En OC o Facturas, extrae el detalle de todos los artículos (partidas) en la tabla central " +
+            "con su cantidad, unidad de medida, descripción, precio unitario e importe total. " +
             "Todos los números deben ir sin comas.",
         },
         {
@@ -198,7 +201,12 @@ async function processStorageFile(filePath: string, bucketName?: string) {
     });
 
     const data = aiResponse.output;
-    if (!data || !Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0) {
+    if (!data) {
+      throw new Error("La IA no devolvió datos estructurados");
+    }
+    
+    // Si no es contrarecibo, esperamos que tenga kilos válidos.
+    if (data.docType !== 'contrarecibo' && (!Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0)) {
       throw new Error("La IA no devolvió kilos válidos");
     }
 
@@ -251,6 +259,66 @@ async function processStorageFile(filePath: string, bucketName?: string) {
         });
         logger.info(`Factura ${data.folio} agregada a OC ${ocData.folio}`);
       }
+    } else if (data.docType === 'contrarecibo') {
+      if (!data.crInvoices || data.crInvoices.length === 0) {
+        throw new Error("El contrarecibo no contiene números de factura identificables.");
+      }
+      
+      let encontradas = 0;
+      let dueDate: Date | null = null;
+      if (data.paymentDate) {
+        const parts = data.paymentDate.split("-");
+        if (parts.length === 3) {
+          // Asumimos YYYY-MM-DD
+          dueDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+        }
+      }
+
+      // Buscar en los pedidos activos (pending/overdue) las facturas agrupadas
+      const snapshot = await db.collection(COL_ORDERS)
+        .where("invoiceStatuses", "array-contains-any", ["pending", "overdue"])
+        .get();
+      
+      const targetFolios = data.crInvoices.map(f => String(f).replace(/\D/g, ''));
+
+      for (const doc of snapshot.docs) {
+        const oData = doc.data();
+        const invoices = oData.invoices || [];
+        let modified = false;
+
+        for (const inv of invoices) {
+          const invFolio = String(inv.folio).replace(/\D/g, '');
+          if (invFolio && targetFolios.includes(invFolio)) {
+            if (!inv.collection) inv.collection = {};
+            inv.collection.contrareciboNumber = data.folio;
+            if (dueDate && !Number.isNaN(dueDate.getTime())) {
+              inv.creditCycle.dueDate = Timestamp.fromDate(dueDate);
+            }
+            modified = true;
+            encontradas++;
+          }
+        }
+
+        if (modified) {
+          await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+        }
+      }
+
+      if (encontradas === 0) {
+        throw new Error(`Es el contrarecibo ${data.folio} pero no se halló en BD ninguna de estas facturas: ${data.crInvoices.join(', ')}`);
+      }
+      
+      logger.info(`Contrarecibo ${data.folio} procesado. Se vincularon ${encontradas} facturas.`);
+      
+      // Registrar el archivo procesado para evitar reprocesamiento y no ensuciar la base de órdenes con OCs falsas
+      await ref.set({
+        fileName: filePath,
+        folio: data.folio,
+        client: data.client ?? "",
+        docType: "contrarecibo",
+        aiError: FieldValue.delete(),
+        processedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
     } else {
       // Es Orden de Compra
       await ref.set(
