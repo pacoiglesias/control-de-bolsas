@@ -1,43 +1,93 @@
-# Manual de Uso: Control Bolsas ERP (v6.4)
+# Manual de Uso Maestro: ERP Control de Bolsas (v5.5.0)
 
-Bienvenido al sistema de Control Bolsas. Este manual rápido te explicará los flujos operativos principales.
+Bienvenido a tu sistema automatizado de Control de Bolsas. Este manual detalla de la "A a la Z" todos los flujos operativos, las automatizaciones de inteligencia artificial, y cómo el sistema conecta tus ventas con tus deudas y gastos sin que tengas que capturar las cosas dos veces.
 
-## 1. Subir Órdenes de Compra (Proceso Inteligente)
-1. Ve a **Subir Órdenes** en el menú.
-2. Arrastra los PDFs de las órdenes de compra que te enviaron los clientes.
-3. El sistema utilizará Inteligencia Artificial para extraer:
-   - Folio
-   - Cliente
-   - Kilos Totales
-   - **(NUEVO v6)**: Partidas detalladas de artículos (Cantidad, Unidad, Descripción, P.U., Importe).
-4. **Instalación como App (PWA):** En Google Chrome o Safari, puedes hacer clic en el ícono de instalar en la barra de direcciones para tener el sistema como una aplicación de escritorio o móvil independiente.
-5. Un indicador sonoro y visual te avisará cuando el proceso de la IA termine.
-5. Los expedientes se irán a "Órdenes / Ventas".
+---
 
-## 2. Gestión de Expedientes y Detalle de Artículos
-1. Ve a **Órdenes / Ventas**. Aquí verás el semáforo (Pedido, Con CR, Vencidas, etc).
-2. Haz clic en el Folio para abrir el Expediente.
-3. En la pestaña **Resumen**, verás la nueva tabla **Detalle de Artículos**.
-4. Puedes agregar, borrar o corregir los artículos a mano (por si la IA se confundió en algo borroso o si hiciste la venta manual).
-5. Observa el **Estado Global** para ver si la venta total coincide con los cobros.
+## 1. Órdenes de Venta: El Inicio de Todo
 
-## 3. Entregas y Facturación
-- **Entregas:** Ve a la pestaña "Entregas" dentro del expediente. Agrega las notas de remisión. El sistema comparará los Kilos Pedidos vs Entregados.
-- **Facturas:** Ve a la pestaña "Facturas". Sube el PDF o el **XML (Complemento de Pago)**. Si es un XML, el sistema leerá los UUIDs y buscará inmediatamente qué facturas fueron pagadas.
-- **Remisiones:** Puedes generar un PDF de remisión de entrega haciendo clic en el botón "Generar Remisión" dentro del expediente.
+### A. Subir pedidos automáticamente (Con Inteligencia Artificial)
+1. Ve al menú **"Subir Órdenes"**.
+2. Arrastra los PDFs de las Órdenes de Compra (OC) que te mandaron los clientes.
+3. El sistema mandará llamar a **Gemini (Inteligencia Artificial)**, el cual va a leer y extraer: Folio, Cliente, Kilos Totales y una **tabla con el detalle exacto de artículos, cantidades y precios**.
+4. Un indicador sonoro te avisará cuando termine. El expediente se habrá creado solo.
 
-## 4. Cobranza Ágil
-1. Ve a **Cobranza**. Aquí verás todas las facturas pendientes.
-2. Si un cliente ya te pagó, simplemente haz clic en el botón **"💰 Marcar Cobrada"**. 
-3. El sistema registrará el pago automáticamente por el total de la factura con la fecha de hoy, ahorrándote 5 clics.
-4. Si necesitas hacer un pago parcial, usa el botón "Pagar" tradicional para ingresar el monto exacto.
-5. **Alertas de Atraso:** Las facturas vencidas se marcan en rojo y muestran explícitamente los días de atraso (ej. "⚠️ 3 días de atraso") para que sepas a quién cobrar primero.
+### B. Crear un pedido manualmente (Sin PDF)
+Si te pasaron un pedido por teléfono o WhatsApp:
+1. Ve a **"Órdenes / Ventas"**.
+2. Arriba a la derecha dale clic en **"+ Nuevo Pedido"**.
+3. Se abrirá el expediente en blanco para que tú mismo llenes el Cliente, Folio y agregues los artículos a la tabla.
 
-## 5. Búsqueda Global Rápida
-- ¡Nuevo! Presiona **`Ctrl + K`** en tu teclado en cualquier pantalla.
-- Escribe el folio, nombre del cliente o archivo y dale Enter. El sistema te llevará directo a buscarlo.
+---
 
-## 6. Sistema Seguro y Modo Oscuro
-- **Modo Oscuro:** Haz clic en el botón ◐ en la esquina superior derecha o inferior izquierda para descansar la vista.
-- **Estado del Sistema:** En la parte superior verás un indicador verde (`Sistema OK`) que garantiza que estás conectado y que el servidor está respondiendo.
-- **Respaldo Local:** Ve a "Respaldo Local" para descargar toda tu base de datos a un archivo Excel por seguridad.
+## 2. El Expediente Perfecto (Fijar Utilidades Inmutables)
+
+Una vez creado el expediente (ya sea por IA o a mano), dale clic en "Órdenes / Ventas" para abrirlo. 
+
+### A. Confirmar el Costo y la Comisión
+1. En la primera pestaña (**Resumen**), verifica que los artículos estén correctos.
+2. **¡PASO CRÍTICO!** Escribe a cómo le vas a comprar la mercancía a tu fabricante en el campo **Costo de Compra (Andrés)**.
+3. El campo **Comisión (%)** ya vendrá pre-cargado desde tu pantalla de Configuración. Si para este cliente en particular acordaste una comisión distinta, cámbiala ahí mismo.
+4. **Dale clic a Guardar**. Al hacerlo, el sistema le tomará una "fotografía" (Snapshot) a estos números. Si en el futuro la comisión general o tus costos suben, **este expediente jamás alterará su rentabilidad histórica**.
+
+---
+
+## 3. Entregas, Facturación y Contrarecibos
+
+Cuando vayas avanzando con el pedido, entra al expediente:
+- **Entregas:** Pestaña para ir sumando cuántos kilos le mandas físicamente al cliente. El sistema te dice el remanente. Aquí puedes descargar un "PDF de Remisión" para que te lo firmen.
+- **Facturas:** Pestaña donde subes los XML o PDFs de tus facturas y metes su importe total neto. **El sistema usa la Regla de Oro del IVA:** La utilidad final de tu factura asume que el IVA cobrado se queda contigo como ganancia líquida `(Utilidad = Total Facturado - Costos - Comisión)`.
+- **Contrarecibos (Cobranza):** Si el cliente te agrupa varias facturas bajo un número de Contrarecibo (ej. GT-123), se lo asignas en la pestaña de Cobranza del expediente.
+
+---
+
+## 4. Pago a Fabricantes (Deudas y Automatización)
+
+No tienes que capturar tus deudas. El sistema lo hace por ti.
+
+1. **La Deuda Automática:** En el momento exacto en que guardaste una Venta con Kilos Facturados y tu "Costo de Compra", el sistema se fue calladito a la pantalla de **"Compras"** y sumó esa deuda a Andrés.
+2. **Consultar y Pagar:** Ve a **"Compras"** en el menú izquierdo. Verás tu deuda global.
+3. Dale clic a la operación que le vas a abonar a Andrés.
+4. En el modal, anota en **Pagado (Anticipo)** el dinero que le vas a transferir o dar en efectivo.
+5. **Dale a Guardar**.
+
+---
+
+## 5. Caja Chica (Gastos Automatizados)
+
+El sistema vigila tu flujo de efectivo en la pantalla de **Caja Chica**. 
+1. **Egreso Automático:** Cuando le diste "Guardar" al pago de Andrés en el paso anterior, ¡Pum! El sistema registró solito un gasto en la Caja Chica llamado "Pago a proveedor Andrés". 
+2. **Ingreso Automático:** Cuando cobres una factura (ver siguiente punto) y el dinero esté en tus manos, se inyectará como un ingreso en esta misma caja.
+3. **Gastos Manuales:** Obviamente, aquí también puedes agregar tus propios gastos operativos (gasolina, viáticos, sueldos) manualmente.
+
+---
+
+## 6. Cobranza Inteligente (Flujo de 3 Estados)
+
+Ve al menú **"Cobranza"**. Aquí ves el dinero que te deben tus clientes. El sistema usa 3 estados con colores:
+* 🔴 **Por Cobrar:** La factura la tiene el cliente.
+* 🟡 **Con el Contador:** El cliente ya depositó, pero el dinero cayó en la cuenta del contador y no te lo ha dado.
+* 🟢 **Cobrada:** El dinero físico ya lo recibiste y está en tu cuenta.
+
+### Cobro Rápido y Rentabilidad Líquida
+- Si agrupaste facturas con un **Contrarecibo (GT-xxx)**, verás un bloque amarillo hermoso con una **"Rentabilidad Líquida Real"** que te dice exactamente en porcentaje y pesos cuánto te quedó libre quitando a Andrés y al Contador.
+- Puedes darle clic al botón "💰 Cobrar Todo el Contrarecibo" y el sistema liquidará todas sus facturas de un solo golpe.
+
+---
+
+## 7. Catálogo (Semáforo Predictivo)
+
+Ve al menú **"Catálogo"**.
+El sistema lleva una bitácora del precio al que has vendido cada uno de tus productos.
+- 🟢 **Verde:** ¡Felicidades! Lograste subirle el precio de venta a este producto frente a su promedio histórico.
+- 🟡 **Amarillo:** Lo estás vendiendo exactamente al mismo precio de siempre.
+- 🔴 **Rojo:** ¡Cuidado! Le bajaste el precio a este producto comparado con el pasado.
+
+---
+
+## 8. Funciones Clave de Master Admin
+
+* **Monitoreo Live de Bitácora:** Ve a `Logs`. Verás una consola en tiempo real (Live) donde aparecerá cada movimiento que haga cualquier usuario en otra computadora al instante.
+* **Búsqueda Global:** Presiona `Ctrl + K` en cualquier lugar para buscar a la velocidad de la luz cualquier folio o cliente.
+* **PWA (App):** Instálalo como aplicación desde tu navegador Chrome/Safari.
+* **Respaldo Offline:** Ve a `Respaldo`. Descarga tu HTML portátil. Podrás revisar tus expedientes en un avión sin internet y calculará las utilidades respetando tus configuraciones de comisiones inmutables y reglas de IVA.
