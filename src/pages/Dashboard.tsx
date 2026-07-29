@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
@@ -15,6 +15,14 @@ import { daysLate, getOrderSummary } from '../lib/finance';
 import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
 import { logAction } from '../lib/logger';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
+
+export interface LiveLogEntry {
+  id: string;
+  user: string;
+  action: string;
+  details?: any;
+  timestamp: Date | null;
+}
 
 export interface SystemRelease {
   version: string;
@@ -75,8 +83,30 @@ export default function Dashboard() {
   const [health, setHealth] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({ snapshotDate: null, recentLogs: 0, dbStatus: '...' });
   const [showBackupsModal, setShowBackupsModal] = useState(false);
   const [showChangelogModal, setShowChangelogModal] = useState(false);
+  const [showLiveLogsModal, setShowLiveLogsModal] = useState(false);
+  const [liveLogs, setLiveLogs] = useState<LiveLogEntry[]>([]);
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
+
+  // Escuchar cambios operativos del sistema en tiempo real (LIVE MONITOR)
+  useEffect(() => {
+    const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(25));
+    const unsub = onSnapshot(q, (snap: QuerySnapshot) => {
+      const list: LiveLogEntry[] = [];
+      snap.forEach((d: QueryDocumentSnapshot) => {
+        const data = d.data();
+        list.push({
+          id: d.id,
+          user: data.user || 'Sistema',
+          action: data.action || 'Movimiento sin título',
+          details: data.details,
+          timestamp: data.timestamp?.toDate?.() ?? null,
+        });
+      });
+      setLiveLogs(list);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -268,57 +298,66 @@ export default function Dashboard() {
         <p>Centro de mando operativo y financiero. {role !== 'viewer' && `Precio de venta ${money(config.salePricePerKg)}/kg, costo ${money(config.costPricePerKg)}/kg, comisión ${percent(config.commissionRate)}.`}</p>
       </div>
 
-      {/* SECCIÓN DE SALUD DEL SISTEMA, ÚLTIMO CAMBIO Y RESPALDOS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 24 }}>
+      {/* SECCIÓN DE MONITORES EN TIEMPO REAL, VERSIÓN Y RESPALDOS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>
         
-        {/* 1. ÚLTIMO CAMBIO DEL SISTEMA */}
+        {/* 1. MONITOR LIVE DE MOVIMIENTOS EN TIEMPO REAL */}
+        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--ok-bg)', color: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+            ⚡
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Último Movimiento (Live)</span>
+              <span className="badge badge-ok" style={{ fontSize: 10 }}>● En vivo</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
+              🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {liveLogs[0]?.action || 'Sistema iniciado'}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
+              Por: {liveLogs[0]?.user || '—'}
+            </div>
+            <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
+              ⚡ Monitor Live de Movimientos
+            </button>
+          </div>
+        </div>
+
+        {/* 2. VERSIÓN Y PARCHES DEL SISTEMA */}
         <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
             🚀
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Último Cambio</span>
+              <span>Versión del Sistema</span>
               <span className="badge badge-ok" style={{ fontSize: 10 }}>{SYSTEM_CHANGELOG[0].version}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
-              🕒 {SYSTEM_CHANGELOG[0].date} — {SYSTEM_CHANGELOG[0].time}
+              📅 {SYSTEM_CHANGELOG[0].date}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {SYSTEM_CHANGELOG[0].summary}
             </div>
             <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              📜 Bitácora de Cambios
+              📜 Bitácora de Parches
             </button>
           </div>
         </div>
 
-        {/* 2. SALUD DEL SISTEMA Y AUDITORÍA */}
-        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: health.dbStatus === 'OK' ? 'var(--ok-bg)' : 'var(--warn-bg)', color: health.dbStatus === 'OK' ? 'var(--ok)' : 'var(--warn)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-            {health.dbStatus === 'OK' ? '🛡️' : '⚠️'}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Salud del Sistema & Auditoría</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
-              Base de Datos: <strong>{health.dbStatus}</strong> · {health.recentLogs} logs hoy
-            </div>
-            <button className="btn" onClick={() => nav('/logs')} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              📋 Ver Logs de Auditoría
-            </button>
-          </div>
-        </div>
-
-        {/* 3. RESPALDO RODANTE EN NUBE */}
+        {/* 3. SALUD & RESPALDO NUBE */}
         {role === 'admin' && (
           <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--info-bg)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-              ☁️
+              🛡️
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Último Respaldo (Nube)</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, marginBottom: 6 }}>
-                {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
+              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Salud & Respaldos</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, marginBottom: 4 }}>
+                BD: <strong>{health.dbStatus}</strong> · Respaldo: {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
@@ -630,6 +669,40 @@ export default function Dashboard() {
                 </ul>
               </div>
             ))}
+          </div>
+        </Modal>
+      )}
+
+      {showLiveLogsModal && (
+        <Modal title="⚡ Monitor de Movimientos en Tiempo Real (Live)" onClose={() => setShowLiveLogsModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '65vh', overflowY: 'auto', paddingRight: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 4 }}>
+              🔴 <strong>Sincronización en vivo:</strong> Este monitor se actualiza automáticamente al instante cuando cualquier usuario opera en Caja Chica, expedientes, compras o cobranza.
+            </div>
+            {liveLogs.length === 0 ? (
+              <Empty>No hay movimientos registrados recientemente.</Empty>
+            ) : (
+              liveLogs.map((log, idx) => (
+                <div key={log.id} style={{ padding: 12, background: idx === 0 ? 'var(--ok-bg)' : 'var(--paper-sunk)', border: idx === 0 ? '1px solid var(--ok)' : '1px solid var(--line)', borderRadius: 'var(--radius)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 6 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: idx === 0 ? 'var(--ok)' : 'var(--ink)' }}>
+                      {idx === 0 ? '⚡ ' : ''}{log.action}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>
+                      🕒 {log.timestamp ? log.timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Reciente'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <span>Usuario: <strong>{log.user}</strong></span>
+                    {log.details && (
+                      <span style={{ fontSize: 10, color: 'var(--ink-muted)' }}>
+                        {typeof log.details === 'object' ? JSON.stringify(log.details) : String(log.details)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </Modal>
       )}
