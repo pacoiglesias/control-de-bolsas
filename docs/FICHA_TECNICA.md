@@ -1,4 +1,4 @@
-# Ficha Técnica y Reporte de Funciones: Control Bolsas ERP (v5.3.0)
+# Ficha Técnica y Reporte de Funciones: Control Bolsas ERP (v5.4.0)
 
 Este documento detalla exhaustivamente todas las capacidades funcionales, operativas y técnicas del sistema al día de hoy.
 
@@ -8,21 +8,22 @@ Este documento detalla exhaustivamente todas las capacidades funcionales, operat
 - **Extracción de Órdenes de Compra (PDF):** La IA (Gemini 2.0 Flash) lee PDFs de órdenes de compra, extrayendo el Folio de la OC, Cliente, Kilos Totales y desglose de artículos.
 - **Extracción de Facturas de Venta (PDF):** La IA detecta cuando un documento es una Factura, extrae el Folio de Factura, Contrarecibo (GT/TH), kilos facturados y montos con IVA, enlazándola al expediente correspondiente.
 - **Procesamiento de Complementos de Pago (XML):** Lector nativo en la nube que analiza los nodos `pago20:DoctoRelacionado` de CFDIs de pago para conciliar automáticamente.
+- **Búsqueda Indexada O(1):** Indexación automática de `invoiceFolios` en Firestore para vinculación instantánea de Contrarecibos sin Full Table Scans.
 
 ### 1.2 Módulo de Ventas (Órdenes / Expedientes / Seguimiento OC)
 - **Diferenciación de Conceptos:** GT-xxx y TH-xxx son **Números de Contrarecibo (CR)**. Las facturas llevan su propia numeración de **Folio** independiente (ej. #6084, #6054).
-- **Vista Seguimiento OC (`/oc`):** Control exclusivo por Orden de Compra para comparar kilos contratados vs. kilos surtidos, indicando remanentes o surtido completo.
+- **Vista Seguimiento OC (`/oc`):** Control exclusivo por Orden de Compra para comparar kilos contratados vs. kilos surtidos. **Edición interactiva en 1-clic** de expedientes desde la tabla de OCs.
+- **Paquete de Impresión Consolidado (PDF):** Botón `🖨️ Paquete Consolidado (PDF)` que genera en un solo documento imprimible la Remisión de Entrega + Datos de Contrarecibo (GT/TH) + Factura + Utilidad Líquida + Espacio de Firmas.
 - Control multi-entregas: Registro de entregas parciales por fecha y notas de remisión.
-- Generación nativa de **Remisiones en PDF** listas para imprimir.
 
-### 1.3 Módulo de Contrarecibos y Cobranza (Flujo de 3 Estados)
+### 1.3 Módulo de Contrarecibos, Cobranza y Rentabilidad Líquida
 - **Menú "Contrarecibos / Cobranza":** Agrupación clara por folio de Contrarecibo (GT / TH).
+- **Tabla "📊 Utilidad Líquida Real por Contrarecibo":** Muestra la ganancia neta en $ y % por cada Contrarecibo calculada como: `Venta Facturada a GT/TH - Costo Fabricante Andrés - Comisión Contador`. (Cumpliendo la regla: *sin mermas con el proveedor Andrés*).
 - **Flujo Operativo de Cobro en 3 Pasos:**
-  1. `pending` (Por Cobrar): Factura emitida al cliente.
+  1. `pending` (🔴 Por Cobrar): Factura emitida al cliente.
   2. `paid` (🟡 Con el Contador): El cliente (GT/TH) pagó vía transferencia electrónica al contador.
-  3. `collected` (💵 Recibida del Contador): El dinero físico/efectivo fue recibido, descontando la comisión configurada e ingresando automáticamente el **neto** a Caja Chica.
+  3. `collected` (✅ Recibida del Contador): El dinero físico/efectivo fue recibido, descontando la comisión configurada e ingresando automáticamente el **neto** a Caja Chica.
 - **Estatus de Complemento de Pago SAT:** Control de emisión y envío del complemento de pago (`pending` / `issued` / `na`).
-- **Antigüedad de Saldos y Alertas:** Notificación automática de facturas próximas a vencer o vencidas.
 
 ### 1.4 Módulo de Caja Chica y Efectivo
 - Widget **💼 Por Recibir del Contador** en el Panel Principal: Muestra facturas cobradas por el cliente pero aún no entregadas por el contador, desglosando la comisión y el neto exacto a recibir.
@@ -31,16 +32,15 @@ Este documento detalla exhaustivamente todas las capacidades funcionales, operat
 
 ### 1.5 Módulo de Compras a Fabricante
 - Registro de kilos pedidos vs kilos recibidos del proveedor (Andrés / Fabricante).
-- Control de cuentas por pagar y abonos a proveedores.
+- Control de cuentas por pagar y abonos a proveedores (sin mermas; se paga exactamente lo entregado a GT/TH).
 
-### 1.6 Módulo de Configuración Financiera
-- **Comisión Editable en Porcentaje (%):** Permite configurar la comisión del contador en porcentaje (ej: 6.9%), convirtiendo de forma transparente a decimal.
-- Configuración de IVA, días de crédito y precio base de venta/costo por kilo.
-- Botón de **Recálculo Masivo de Órdenes Abiertas** para actualizar montos si cambian las reglas comerciales.
+### 1.6 Módulo de Configuración Financiera y Respaldos Rodantes
+- **Sistema de Respaldos Rodantes en la Nube (5 Máx):** Poda automática de respaldos Firestore en `snapshots` reteniendo exactamente los 5 más recientes con restauración a 1-clic.
+- **Comisión Editable por Factura:** Campo editable en expedientes que permite fijar la comisión del contador por factura individual si difiere de la tasa global.
 
 ### 1.7 Respaldo Offline y Seguridad
 - **Exportación HTML Offline (`bridge.ts`):** Generación de archivo `.html` ejecutable sin internet con todos los datos integrados (facturas, OCs, contrarecibos, caja y comisiones).
-- Respaldo en Excel (`.xlsx`) y JSON estructurado.
+- **Seguridad Reforzada:** Exigencia estricta de `email_verified == true` en Security Rules de Storage y Firestore.
 
 ## 2. Tecnologías y Seguridad
 
@@ -51,4 +51,5 @@ Este documento detalla exhaustivamente todas las capacidades funcionales, operat
 ## 3. Reglas de Negocio Clave
 - **Flujo de Dinero:** Cliente paga por transferencia al Contador -> Contador entrega en efectivo (menos comisión) -> Entra como neto a Caja Chica.
 - **Contrarecibo vs Factura:** GT/TH son identificadores de Contrarecibo; cada factura tiene su Folio numérico.
+- **Proveedor Andrés:** Sin mermas; se paga sobre entregas confirmadas.
 
