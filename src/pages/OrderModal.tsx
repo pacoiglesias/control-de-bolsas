@@ -382,8 +382,12 @@ export default function OrderModal({
               </div>
               <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
               <div className="calc-line">
-                <span>Venta Total Acumulada</span>
+                <span>Venta Total (Sin IVA)</span>
                 <span className="mono">{money(liveSummary.saleTotal)}</span>
+              </div>
+              <div className="calc-line">
+                <span>Total Facturado (Con IVA)</span>
+                <span className="mono">{money(liveSummary.invoiceTotal)}</span>
               </div>
               <div className="calc-line">
                 <span>Cobrado</span>
@@ -391,8 +395,8 @@ export default function OrderModal({
               </div>
               <div className="calc-line total">
                 <span>Deuda Restante</span>
-                <span className="mono" style={{ color: liveSummary.saleTotal - liveSummary.paidAmount > 0 ? 'var(--bad)' : 'inherit' }}>
-                  {money(liveSummary.saleTotal - liveSummary.paidAmount)}
+                <span className="mono" style={{ color: liveSummary.invoiceTotal - liveSummary.paidAmount > 0 ? 'var(--bad)' : 'inherit' }}>
+                  {money(liveSummary.invoiceTotal - liveSummary.paidAmount)}
                 </span>
               </div>
             </div>

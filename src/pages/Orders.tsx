@@ -76,7 +76,7 @@ export default function Orders() {
       kilosEntregados: rows.reduce((a, o) => a + getOrderSummary(o).kilosDelivered, 0),
       kilosPendientes: rows.reduce((a, o) => a + Math.max(0, (o.totalKilograms ?? 0) - getOrderSummary(o).kilosDelivered), 0),
       kilosFacturados: rows.reduce((a, o) => a + getOrderSummary(o).kilosInvoiced, 0),
-      venta: rows.reduce((a, o) => a + getOrderSummary(o).saleTotal, 0),
+      venta: rows.reduce((a, o) => a + getOrderSummary(o).invoiceTotal, 0),
       cobrado: rows.reduce((a, o) => a + getOrderSummary(o).paidAmount, 0),
       comision: rows.reduce((a, o) => a + getOrderSummary(o).commission, 0),
       neto: rows.reduce((a, o) => a + getOrderSummary(o).netCashFlow, 0),
@@ -188,7 +188,7 @@ export default function Orders() {
                 <tr>
                   <th>Expediente</th><th>Cliente</th><th>Prov.</th>
                   <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
-                  <th className="num">Venta Acum.</th><th className="num">Cobrado</th>
+                  <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
                   <th className="num">Deuda Restante</th>
                   <th>Estado</th>
                 </tr>
@@ -214,7 +214,7 @@ export default function Orders() {
                         {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? kilos((o.totalKilograms ?? 0) - summary.kilosDelivered) : '—'}
                       </td>
                       <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
-                      <td className="num mono">{money(summary.saleTotal)}</td>
+                      <td className="num mono">{money(summary.invoiceTotal)}</td>
                       <td className="num mono">{money(summary.paidAmount)}</td>
                       <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
                       <td>
