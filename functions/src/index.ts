@@ -493,10 +493,14 @@ export const checkOverdueInvoices = onSchedule(
 
 // migrarInvoiceStatuses eliminada para evitar conflicto IAM
 
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+
 /** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
 export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
+  if (!req.auth?.token?.email_verified) throw new HttpsError("permission-denied", "Tu correo debe estar verificado.");
+  
   const db = getFirestore();
   const admin = await db.collection("admins").doc(uid).get();
   if (!admin.exists) throw new HttpsError("permission-denied", "Cuenta no autorizada.");
@@ -521,6 +525,58 @@ export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) =>
     throw new HttpsError("internal", "Error al reprocesar: " + err.message);
   }
 });
+
+/**
+ * Trigger de Sanitización y Recálculo Server-Side Mandatorio.
+ * Previene la manipulación de importes, comisiones o flujo neto enviadas desde el navegador (DevTools).
+ */
+export const sanitizePurchaseOrder = onDocumentWritten(
+  { document: `${COL_ORDERS}/{orderId}` },
+  async (event) => {
+    if (!event.data?.after.exists) return;
+    const data = event.data.after.data();
+    if (!data || data._sanitized) return;
+
+    const cfg = await readConfig();
+    const invoices = Array.isArray(data.invoices) ? data.invoices : [];
+    let modified = false;
+
+    const sanitizedInvoices = invoices.map((inv: any) => {
+      const kilos = Number(inv.kilos) || 0;
+      const baseFin = computeFinancials(kilos, cfg);
+      const customComm = inv.financials?.commission;
+      const expectedCommission = customComm ?? baseFin.commission;
+      const expectedNet = baseFin.invoiceTotal - baseFin.costTotal - expectedCommission;
+
+      if (
+        inv.financials?.saleTotal !== baseFin.saleTotal ||
+        inv.financials?.costTotal !== baseFin.costTotal ||
+        inv.financials?.commission !== expectedCommission ||
+        inv.financials?.netCashFlow !== expectedNet
+      ) {
+        modified = true;
+        return {
+          ...inv,
+          financials: {
+            ...baseFin,
+            commission: expectedCommission,
+            netCashFlow: expectedNet,
+          },
+        };
+      }
+      return inv;
+    });
+
+    if (modified) {
+      logger.info(`Sanitizando importes de la orden ${event.params.orderId} contra manipulación de cliente.`);
+      await event.data.after.ref.update({
+        invoices: sanitizedInvoices,
+        _sanitized: true,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+);
 
 
 
