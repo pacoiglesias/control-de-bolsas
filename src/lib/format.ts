@@ -13,6 +13,19 @@ export const money = (n: number | undefined | null): string =>
 export const kilos = (n: number | undefined | null): string =>
   `${(Number(n) || 0).toLocaleString('es-MX')} kg`;
 
+export const compactMoney = (n: number | undefined | null): string => {
+  const num = Number(n) || 0;
+  if (Math.abs(num) >= 1_000_000) return `$${(num / 1_000_000).toLocaleString('es-MX', { maximumFractionDigits: 2 })}M`;
+  if (Math.abs(num) >= 1_000) return `$${(num / 1_000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}k`;
+  return money(num);
+};
+
+export const compactKilos = (n: number | undefined | null): string => {
+  const num = Number(n) || 0;
+  if (Math.abs(num) >= 1_000) return `${(num / 1_000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}t`;
+  return kilos(num);
+};
+
 export const percent = (n: number | undefined | null): string =>
   `${((Number(n) || 0) * 100).toLocaleString('es-MX', { maximumFractionDigits: 3 })}%`;
 

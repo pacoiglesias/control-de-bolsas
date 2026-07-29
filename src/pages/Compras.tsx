@@ -126,13 +126,18 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
     paidAmount: String(purchase.paidAmount || ''),
     status: purchase.status,
     notes: purchase.notes ?? '',
+    items: purchase.items ?? [],
   });
 
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
-  const expectedNum = Number(form.expectedKilos) || 0;
+  const expectedNum = form.items.length > 0 
+    ? form.items.reduce((acc, it) => acc + (it.unit.toLowerCase() === 'kg' ? it.quantity : 0), 0)
+    : (Number(form.expectedKilos) || 0);
   const priceNum = Number(form.pricePerKg) || 0;
-  const totalAmount = expectedNum * priceNum;
+  const totalAmount = form.items.length > 0
+    ? form.items.reduce((acc, it) => acc + it.amount, 0)
+    : (expectedNum * priceNum);
 
   async function save() {
     if (expectedNum <= 0) return toast('Kilos inválidos', 'bad');
@@ -150,6 +155,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
         paidAmount: Number(form.paidAmount) || 0,
         status: form.status,
         notes: form.notes.trim(),
+        items: form.items,
         createdAt: purchase.createdAt ?? serverTimestamp(),
       }, { merge: true });
       await logAction(user?.email, purchase.createdAt ? 'Compra Editada' : 'Compra Creada', {
@@ -186,7 +192,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
   }
 
   return (
-    <Modal title={purchase.createdAt ? 'Editar compra' : 'Nueva compra'} onClose={onClose}>
+    <Modal title={purchase.createdAt ? 'Editar compra' : 'Nueva compra'} onClose={onClose} wide>
       <div className="form-grid">
         <Field label="Fecha">
           <input className="input boxed mono" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
@@ -218,9 +224,65 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
         </Field>
       </div>
       
+      {/* Submenú de Productos */}
+      <div style={{ marginTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h4 style={{ margin: 0, fontSize: 14 }}>Productos a Surtir</h4>
+          <button className="btn" type="button" onClick={() => set('items', [...form.items, { id: crypto.randomUUID(), description: '', quantity: 1, unit: 'kg', unitPrice: 0, amount: 0 }])}>
+            + Agregar Producto
+          </button>
+        </div>
+        {form.items.length > 0 && (
+          <div className="table-scroll">
+            <table className="data-table" style={{ fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th>Cant.</th>
+                  <th>U.M.</th>
+                  <th>Descripción</th>
+                  <th className="num">P. Unit</th>
+                  <th className="num">Importe</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.items.map((item, i) => (
+                  <tr key={item.id}>
+                    <td style={{ padding: '6px 8px' }}><input className="input boxed mono" type="number" style={{ width: 70 }} value={item.quantity} onChange={e => {
+                      const newItems = [...form.items];
+                      newItems[i].quantity = Number(e.target.value);
+                      newItems[i].amount = newItems[i].quantity * newItems[i].unitPrice;
+                      set('items', newItems);
+                    }} /></td>
+                    <td style={{ padding: '6px 8px' }}><input className="input boxed" style={{ width: 60 }} value={item.unit} onChange={e => {
+                      const newItems = [...form.items];
+                      newItems[i].unit = e.target.value;
+                      set('items', newItems);
+                    }} /></td>
+                    <td style={{ padding: '6px 8px' }}><input className="input boxed" style={{ width: '100%', minWidth: 200 }} value={item.description} onChange={e => {
+                      const newItems = [...form.items];
+                      newItems[i].description = e.target.value;
+                      set('items', newItems);
+                    }} /></td>
+                    <td style={{ padding: '6px 8px' }}><input className="input boxed mono" type="number" style={{ width: 85 }} value={item.unitPrice} onChange={e => {
+                      const newItems = [...form.items];
+                      newItems[i].unitPrice = Number(e.target.value);
+                      newItems[i].amount = newItems[i].quantity * newItems[i].unitPrice;
+                      set('items', newItems);
+                    }} /></td>
+                    <td className="num mono" style={{ padding: '6px 8px' }}>{money(item.amount)}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right' }}><button type="button" className="btn-icon" onClick={() => set('items', form.items.filter(x => x.id !== item.id))}>✕</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      
       <div className="calc-box" style={{ marginTop: 12 }}>
         <div className="calc-line total">
-          <span>Costo Total Esperado ({kilos(expectedNum)} × {money(priceNum)})</span>
+          <span>{form.items.length > 0 ? `Costo Total de ${form.items.length} productos (Kilos: ${kilos(expectedNum)})` : `Costo Total Esperado (${kilos(expectedNum)} × ${money(priceNum)})`}</span>
           <span className="mono">{money(totalAmount)}</span>
         </div>
       </div>

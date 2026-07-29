@@ -206,6 +206,8 @@ textarea.input{min-height:70px;resize:vertical}
 @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes fadeInCard{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
 
+.show-mobile{display:none}
+
 @media (max-width:900px){
   .app-shell{grid-template-columns:1fr}
   .topbar{display:flex}
@@ -220,6 +222,8 @@ textarea.input{min-height:70px;resize:vertical}
   .input,.search-input{font-size:16px}
   .search-input{width:100%}
   .modal-actions .btn{flex:1;justify-content:center}
+  .hide-mobile{display:none!important}
+  .show-mobile{display:inline!important}
 }
 @media print{
   .sidebar,.topbar,.no-print,.chip-row,.toast-root,.modal-overlay{display:none!important}

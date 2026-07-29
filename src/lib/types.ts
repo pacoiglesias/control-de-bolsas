@@ -126,6 +126,7 @@ export interface Purchase {
   status: PurchaseStatus;
   notes?: string;
   createdAt: Timestamp | null;
+  items?: PurchaseOrderItem[];
 }
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {

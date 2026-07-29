@@ -6,7 +6,7 @@ import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { db, config } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Skeleton } from '../components/ui';
+import { Skeleton, Modal, Field, Card } from '../components/ui';
 
 interface UserData {
   id: string;
@@ -25,6 +25,7 @@ export default function Users() {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'admin' | 'manager' | 'viewer'>('viewer');
   const [isCreating, setIsCreating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -77,6 +78,7 @@ export default function Users() {
       setNewEmail('');
       setNewPassword('');
       setNewRole('viewer');
+      setShowModal(false);
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
@@ -116,53 +118,53 @@ export default function Users() {
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div className="card fadeInCard">
-        <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>Dar de Alta Nuevo Usuario</h2>
-        <p style={{ color: 'var(--ink-faint)', fontSize: 14, marginBottom: 16 }}>
-          Al registrar a un empleado desde aquí, se le dará permiso automático para acceder con su correo y contraseña (sin necesidad de verificar el correo con Google).
-        </p>
-        
-        <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 12, alignItems: 'end' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Correo Electrónico</label>
-            <input 
-              type="email" 
-              className="input-field" 
-              placeholder="vendedor@empresa.com"
-              value={newEmail}
-              onChange={e => setNewEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Contraseña Temporal</label>
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="Min 6 caracteres"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              minLength={6}
-              required
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Rol</label>
-            <select className="input-field" value={newRole} onChange={e => setNewRole(e.target.value as any)}>
-              <option value="viewer">Visor (Viewer)</option>
-              <option value="manager">Gerente (Manager)</option>
-              <option value="admin">Administrador (Admin)</option>
-            </select>
-          </div>
-          <button type="submit" className="primary-btn" disabled={isCreating} style={{ height: 38 }}>
-            {isCreating ? 'Creando...' : 'Crear Acceso'}
-          </button>
-        </form>
+    <>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h1>Usuarios y Permisos</h1>
+          <p>Gestiona quién tiene acceso a la plataforma.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Usuario</button>
       </div>
 
-      <div className="card fadeInCard" style={{ animationDelay: '0.1s' }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>Usuarios Autorizados</h2>
+      {showModal && (
+        <Modal title="Dar de Alta Nuevo Usuario" onClose={() => setShowModal(false)}>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>
+            Al registrar a un empleado desde aquí, se le dará permiso automático para acceder con su correo y contraseña, sin necesidad de verificar el correo con Google.
+          </p>
+          <form onSubmit={handleCreateUser}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+              <div onClick={() => setNewRole('admin')} style={{ border: newRole === 'admin' ? '2px solid var(--accent)' : '1px solid var(--line-soft)', padding: 16, borderRadius: 'var(--radius)', cursor: 'pointer', background: newRole === 'admin' ? 'var(--accent-tint)' : 'var(--paper-sunk)', transition: 'all 0.2s' }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: 14 }}>🛡️ Administrador</h4>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--ink-faint)' }}>Control total del sistema y finanzas.</p>
+              </div>
+              <div onClick={() => setNewRole('viewer')} style={{ border: newRole === 'viewer' ? '2px solid var(--accent)' : '1px solid var(--line-soft)', padding: 16, borderRadius: 'var(--radius)', cursor: 'pointer', background: newRole === 'viewer' ? 'var(--accent-tint)' : 'var(--paper-sunk)', transition: 'all 0.2s' }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: 14 }}>👁️ Visualizador</h4>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--ink-faint)' }}>Solo lectura. Ideal para clientes o áreas de piso.</p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <Field label="Correo Electrónico" full>
+                <input type="email" className="input boxed" placeholder="empleado@empresa.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} required />
+              </Field>
+              <Field label="Contraseña Temporal" full>
+                <input type="text" className="input boxed" placeholder="Mínimo 6 caracteres" value={newPassword} onChange={e => setNewPassword(e.target.value)} minLength={6} required />
+              </Field>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: 24 }}>
+              <span className="spacer" />
+              <button type="button" className="btn" onClick={() => setShowModal(false)} disabled={isCreating}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={isCreating}>
+                {isCreating ? 'Creando Acceso...' : 'Crear Acceso'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      <Card title="Usuarios Autorizados">
         {loading ? (
           <div style={{ padding: 20 }}>
             {[1,2,3,4,5].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 44, marginBottom: 8 }} />)}
@@ -216,7 +218,7 @@ export default function Users() {
             </table>
           </div>
         )}
-      </div>
-    </div>
+      </Card>
+    </>
   );
 }

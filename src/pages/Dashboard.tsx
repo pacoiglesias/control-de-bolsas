@@ -8,7 +8,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { KpiCard, Card, Empty, StatusBadge, Skeleton } from '../components/ui';
+import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
 import { daysLate, getOrderSummary } from '../lib/finance';
 import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
@@ -252,22 +252,22 @@ export default function Dashboard() {
       )}
 
       <div className="kpi-grid">
-        <KpiCard hero label="TOTAL VENDIDO" value={money(k.totalVendido)}
+        <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.totalVendido} />}
           sub={`${kilos(k.totalKilos)} procesados en ${orders.length} órdenes`} />
         {role !== 'viewer' && (
-          <KpiCard tone="ok" label="Ganancia neta (flujo)" value={money(k.netoTotal)}
+          <KpiCard tone="ok" label="Ganancia neta (flujo)" value={<ResponsiveMoney value={k.netoTotal} />}
             sub="venta − costo − comisión" />
         )}
-        <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={money(k.porCobrar)}
+        <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
           sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}
           onClick={() => nav('/cobranza')} />
-        <KpiCard tone={k.overdue.length ? 'bad' : undefined} label="Vencido" value={money(k.vencido)}
+        <KpiCard tone={k.overdue.length ? 'bad' : undefined} label="Vencido" value={<ResponsiveMoney value={k.vencido} />}
           sub={`${k.overdue.length} factura${k.overdue.length === 1 ? '' : 's'} pasada${k.overdue.length === 1 ? '' : 's'} de fecha`}
           onClick={() => nav('/cobranza')} />
-        <KpiCard tone="cash" label="Cobrado" value={money(k.cobrado)}
+        <KpiCard tone="cash" label="Cobrado" value={<ResponsiveMoney value={k.cobrado} />}
           sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />
         {role === 'admin' && (
-          <KpiCard tone={saldoCaja < 0 ? "bad" : "ok"} label="Caja Chica" value={money(saldoCaja)}
+          <KpiCard tone={saldoCaja < 0 ? "bad" : "ok"} label="Caja Chica" value={<ResponsiveMoney value={saldoCaja} />}
             sub="flujo líquido" onClick={() => nav('/caja-chica')} />
         )}
         <KpiCard tone={k.review.length ? 'warn' : undefined} label="Esperan captura manual"

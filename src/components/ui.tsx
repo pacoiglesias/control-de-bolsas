@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
+import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 
 export function KpiCard({
   label,
@@ -122,4 +123,22 @@ export function Spinner({ label }: { label?: string }) {
 
 export function Skeleton({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={`skeleton ${className}`} style={style} />;
+}
+
+export function ResponsiveMoney({ value }: { value: number }) {
+  return (
+    <>
+      <span className="hide-mobile">{money(value)}</span>
+      <span className="show-mobile" title={money(value)}>{compactMoney(value)}</span>
+    </>
+  );
+}
+
+export function ResponsiveKilos({ value }: { value: number }) {
+  return (
+    <>
+      <span className="hide-mobile">{kilos(value)}</span>
+      <span className="show-mobile" title={kilos(value)}>{compactKilos(value)}</span>
+    </>
+  );
 }
