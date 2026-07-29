@@ -251,9 +251,11 @@ async function processStorageFile(filePath: string, bucketName?: string) {
             status: "pending",
           }
         };
+        const cleanFolio = String(data.folio).replace(/\D/g, '');
         await ocDoc.ref.update({
           invoices: FieldValue.arrayUnion(newInvoice),
           invoiceStatuses: FieldValue.arrayUnion("pending"),
+          ...(cleanFolio ? { invoiceFolios: FieldValue.arrayUnion(cleanFolio) } : {}),
           ...(data.uuid ? { invoiceUuids: FieldValue.arrayUnion(data.uuid.toUpperCase()) } : {}),
           updatedAt: FieldValue.serverTimestamp()
         });
@@ -269,38 +271,44 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       if (data.paymentDate) {
         const parts = data.paymentDate.split("-");
         if (parts.length === 3) {
-          // Asumimos YYYY-MM-DD
           dueDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
         }
       }
 
-      // Buscar en TODOS los pedidos que tengan facturas
-      const snapshot = await db.collection(COL_ORDERS)
-        .where("invoices", "!=", null)
-        .get();
+      const targetFolios = data.crInvoices.map(f => String(f).replace(/\D/g, '')).filter(Boolean);
       
-      const targetFolios = data.crInvoices.map(f => String(f).replace(/\D/g, ''));
-
-      for (const doc of snapshot.docs) {
-        const oData = doc.data();
-        const invoices = oData.invoices || [];
-        let modified = false;
-
-        for (const inv of invoices) {
-          const invFolio = String(inv.folio).replace(/\D/g, '');
-          if (invFolio && targetFolios.includes(invFolio)) {
-            if (!inv.collection) inv.collection = {};
-            inv.collection.contrareciboNumber = data.folio;
-            if (dueDate && !Number.isNaN(dueDate.getTime())) {
-              inv.creditCycle.dueDate = Timestamp.fromDate(dueDate);
-            }
-            modified = true;
-            encontradas++;
-          }
+      // Búsqueda indexada por lotes (chunked) O(1) sin hacer Full Table Scan
+      const chunkSize = 30; // Límite de Firestore para array-contains-any
+      for (let i = 0; i < targetFolios.length; i += chunkSize) {
+        const chunk = targetFolios.slice(i, i + chunkSize);
+        let snapshot = await db.collection(COL_ORDERS).where('invoiceFolios', 'array-contains-any', chunk).get();
+        
+        // Fallback: si es una base legacy donde invoiceFolios aún no existe en docs viejos
+        if (snapshot.empty) {
+          snapshot = await db.collection(COL_ORDERS).where("invoices", "!=", null).limit(100).get();
         }
 
-        if (modified) {
-          await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+        for (const doc of snapshot.docs) {
+          const oData = doc.data();
+          const invoices = oData.invoices || [];
+          let modified = false;
+
+          for (const inv of invoices) {
+            const invFolio = String(inv.folio).replace(/\D/g, '');
+            if (invFolio && chunk.includes(invFolio)) {
+              if (!inv.collection) inv.collection = {};
+              inv.collection.contrareciboNumber = data.folio;
+              if (dueDate && !Number.isNaN(dueDate.getTime())) {
+                inv.creditCycle.dueDate = Timestamp.fromDate(dueDate);
+              }
+              modified = true;
+              encontradas++;
+            }
+          }
+
+          if (modified) {
+            await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
+          }
         }
       }
 

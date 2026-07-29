@@ -61,6 +61,20 @@ export default function OrderModal({
     return getOrderSummary(tempOrder);
   }, [order, form.folio, kilosNum, form.deliveries, form.invoices]);
 
+  const computedInvoices = useMemo(() => {
+    return form.invoices.map((inv) => {
+      const baseFin = computeFinancials(inv.kilos, config);
+      const customComm = inv.financials?.commission;
+      const fin = {
+        ...baseFin,
+        commission: customComm ?? baseFin.commission,
+      };
+      const d = daysLate(toDate(inv.creditCycle.dueDate));
+      const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
+      return { inv, fin, d, isLate };
+    });
+  }, [form.invoices, config]);
+
   async function save() {
     if (kilosNum <= 0) {
       sound.playError();
@@ -707,15 +721,7 @@ export default function OrderModal({
               <p className="hint">No hay facturas registradas.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {form.invoices.map((inv, i) => {
-                  const baseFin = computeFinancials(inv.kilos, config);
-                  const customComm = inv.financials?.commission;
-                  const fin = {
-                    ...baseFin,
-                    commission: customComm ?? baseFin.commission,
-                  };
-                  const d = daysLate(toDate(inv.creditCycle.dueDate));
-                  const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
+                {computedInvoices.map(({ inv, fin, d, isLate }, i) => {
                   
                   return (
                     <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
@@ -897,7 +903,7 @@ export default function OrderModal({
                               updateInvoice(i, x => ({
                                 ...x,
                                 financials: {
-                                  ...(x.financials ?? baseFin),
+                                  ...(x.financials ?? fin),
                                   commission: val,
                                 }
                               }));
