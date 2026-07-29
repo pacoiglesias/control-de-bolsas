@@ -91,3 +91,29 @@ El sistema lleva una bitácora del precio al que has vendido cada uno de tus pro
 * **Búsqueda Global:** Presiona `Ctrl + K` en cualquier lugar para buscar a la velocidad de la luz cualquier folio o cliente.
 * **PWA (App):** Instálalo como aplicación desde tu navegador Chrome/Safari.
 * **Respaldo Offline:** Ve a `Respaldo`. Descarga tu HTML portátil. Podrás revisar tus expedientes en un avión sin internet y calculará las utilidades respetando tus configuraciones de comisiones inmutables y reglas de IVA.
+
+---
+
+## 9. Casos Prácticos de la Vida Real (Ejemplos)
+
+Para que todo quede 100% claro, aquí tienes 3 ejemplos comunes de tu día a día:
+
+### Caso 1: Una Venta Común (El Flujo del Dinero)
+* **La Acción:** Le vendes 1,000 kilos a "Bolsas Juanito" a $75.00 el kilo. Tu costo con Andrés es de $42.00, y le pagas al Contador un 6% de comisión. El sistema calcula que cobraste $75,000 + IVA = **$87,000 totales**.
+* **Lo que hace el sistema por detrás:**
+  1. Congela el costo de $42 y el 6% para este pedido (así si mañana subes el precio a Andrés a $45, la venta de Juanito no se descuadra).
+  2. Genera una deuda en la pestaña **Compras** por **$42,000** (1,000 kg x $42) a favor de Andrés.
+  3. Calcula tu Utilidad Líquida usando la Regla de Oro: `$87,000 (Facturado) - $42,000 (Andrés) - $5,220 (Contador) = $39,780 libres para ti`.
+
+### Caso 2: El Contador retiene el dinero
+* **La Acción:** El cliente "Bolsas Juanito" te avisa que ya transfirió los $87,000, pero los mandó a la cuenta de tu Contador. 
+* **Lo que tú haces:** Vas a "Cobranza", buscas la factura de Juanito y la pasas al estado 🟡 **"Con el Contador"**.
+* **Lo que hace el sistema:** Mueve ese dinero a tu widget del Dashboard que dice *"Dinero con el Contador"*. Tú sabes que ese dinero existe, pero aún no te lo puedes gastar porque no lo tienes físicamente.
+* **El desenlace:** Tres días después, el Contador te hace la transferencia descontando su comisión. Vuelves a la factura y la pasas a estado 🟢 **"Cobrada"**. En ese instante, el dinero líquido entra oficialmente a tu **Caja Chica**.
+
+### Caso 3: Liquidando deudas con Andrés
+* **La Acción:** Hoy es viernes de pagos. Ves en tu pantalla de **Compras** que a Andrés le debes $100,000 de tres pedidos distintos. Le haces una transferencia de $50,000 como abono general.
+* **Lo que tú haces:** Le das clic a cualquiera de esos pedidos en la tabla y en "Pagado (Anticipo)" le pones los $50,000.
+* **Lo que hace el sistema:** 
+  1. Reduce tu deuda global con el Fabricante a $50,000.
+  2. Va solito a la **Caja Chica** y anota: *"Egreso por $50,000 - Pago a Proveedor Andrés"*. No tuviste que registrar el gasto a mano, el sistema te cuidó la espalda para que tu saldo en el banco coincida con la Caja Chica.
