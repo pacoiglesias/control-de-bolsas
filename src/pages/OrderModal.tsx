@@ -27,7 +27,7 @@ export default function OrderModal({
   const toast = useToast();
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'resumen' | 'entregas' | 'facturas'>(initialTab);
+  const [tab, setTab] = useState<'resumen' | 'productos' | 'entregas' | 'facturas'>(initialTab as any);
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
 
@@ -312,6 +312,9 @@ export default function OrderModal({
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
         <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => setTab('resumen')}>Resumen</button>
+        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => setTab('productos')}>
+          Productos <span className="badge">{form.items.length}</span>
+        </button>
         <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => setTab('entregas')}>
           Entregas <span className="badge">{form.deliveries.length}</span>
         </button>
@@ -355,74 +358,6 @@ export default function OrderModal({
               </div>
             </div>
 
-            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h4>Detalle de Artículos (Partidas)</h4>
-              {!readOnly && <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>}
-            </div>
-            {form.items.length === 0 ? (
-              <p className="hint">No hay artículos detallados. Agrega uno o espera a la IA.</p>
-            ) : (
-              <div className="table-scroll">
-                <table className="data-table" style={{ width: '100%', marginBottom: 12 }}>
-                  <thead>
-                    <tr>
-                      <th className="num">Cant. Pedida</th>
-                      <th className="num">Cant. Entregada</th>
-                      <th>Unidad</th>
-                      <th>Descripción</th>
-                      <th className="num">P. Unitario</th>
-                      <th className="num">Importe</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.items.map((it, i) => (
-                      <tr key={it.id}>
-                        <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
-                            value={it.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
-                        </td>
-                        <td className="num">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <input className="input boxed mono" type="number" step="0.01" style={{ width: 70, borderColor: (it.deliveredQuantity ?? 0) >= it.quantity ? 'var(--ok)' : 'var(--line)' }}
-                              value={it.deliveredQuantity || ''} placeholder="0" onChange={e => updateItem(i, 'deliveredQuantity', Number(e.target.value))} disabled={readOnly} />
-                            {(it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <input className="input boxed" type="text" style={{ width: 80 }}
-                            value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
-                        </td>
-                        <td>
-                          <input className="input boxed" type="text" style={{ minWidth: 200 }}
-                            value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
-                        </td>
-                        <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
-                            value={it.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
-                        </td>
-                        <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
-                          {money(it.amount)}
-                        </td>
-                        <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
-                          {!readOnly && <button className="btn btn-danger" onClick={() => removeItem(i)}>X</button>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
-                      <td className="num mono" style={{ fontWeight: 700 }}>
-                        {money(form.items.reduce((acc, it) => acc + it.amount, 0))}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-
             <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
             <div className="calc-box">
               <div className="calc-line">
@@ -465,6 +400,79 @@ export default function OrderModal({
             <div style={{ marginTop: 16 }}>
               <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
             </div>
+          </>
+        )}
+
+        {/* PRODUCTOS */}
+        {tab === 'productos' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h4>Detalle de Artículos (Partidas de la OC)</h4>
+              {!readOnly && <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>}
+            </div>
+            {form.items.length === 0 ? (
+              <p className="hint">No hay artículos detallados. La IA extrae estos datos automáticamente del PDF de la Orden de Compra.</p>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table" style={{ width: '100%', marginBottom: 12 }}>
+                  <thead>
+                    <tr>
+                      <th className="num">Cant. Pedida</th>
+                      <th className="num">Cant. Entregada</th>
+                      <th>Unidad</th>
+                      <th>Descripción</th>
+                      <th className="num">P. Unitario</th>
+                      <th className="num">Importe</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.items.map((it, i) => (
+                      <tr key={it.id}>
+                        <td className="num">
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
+                            value={it.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
+                        </td>
+                        <td className="num">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input className="input boxed mono" type="number" step="0.01" style={{ width: 70, borderColor: (it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 ? 'var(--ok)' : 'var(--line)' }}
+                              value={it.deliveredQuantity || ''} placeholder="0" onChange={e => updateItem(i, 'deliveredQuantity', Number(e.target.value))} disabled={readOnly} />
+                            {(it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <input className="input boxed" type="text" style={{ width: 80 }}
+                            value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
+                        </td>
+                        <td>
+                          <input className="input boxed" type="text" style={{ minWidth: 200 }}
+                            value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
+                        </td>
+                        <td className="num">
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
+                            value={it.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
+                        </td>
+                        <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
+                          {money(it.amount)}
+                        </td>
+                        <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
+                          {!readOnly && <button className="btn btn-icon" onClick={() => removeItem(i)}>🗑️</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
+                      <td className="num mono" style={{ fontWeight: 700 }}>
+                        {money(form.items.reduce((acc, it) => acc + it.amount, 0))}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </>
         )}
 
