@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -27,35 +27,34 @@ export default function Logs() {
 
   useEffect(() => {
     if (role !== 'admin') return;
-    (async () => {
-      try {
-        // Se piden mas de las que se muestran de entrada para que los
-        // filtros y la busqueda tengan con que trabajar sin ir de vuelta
-        // a Firestore en cada tecleo.
-        const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(500));
-        const snap = await getDocs(q);
-        setLogs(
-          snap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              user: data.user ?? '—',
-              action: data.action ?? '—',
-              details: data.details ?? null,
-              timestamp: data.timestamp?.toDate?.() ?? null,
-            };
-          }),
-        );
-      } catch (err) {
-        setError(
-          (err as { code?: string }).code === 'permission-denied'
-            ? 'Firestore rechazó la lectura de la bitácora. Revisa tu rol en admins/{uid}.'
-            : (err as Error).message,
-        );
-      } finally {
-        setLoading(false);
-      }
-    })();
+
+    const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(500));
+    
+    // Monitoreo Live (Real-Time) de la bitácora
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setLogs(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            user: data.user ?? '—',
+            action: data.action ?? '—',
+            details: data.details ?? null,
+            timestamp: data.timestamp?.toDate?.() ?? null,
+          };
+        }),
+      );
+      setLoading(false);
+    }, (err) => {
+      setError(
+        (err as { code?: string }).code === 'permission-denied'
+          ? 'Firestore rechazó la lectura de la bitácora. Revisa tu rol en admins/{uid}.'
+          : (err as Error).message,
+      );
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [role]);
 
   const actionTypes = useMemo(() => {
