@@ -126,17 +126,42 @@ export default function Settings() {
               <input className="input boxed mono" type="number" step="0.01" value={form.costPricePerKg}
                 onChange={(e) => setForm({ ...form, costPricePerKg: Number(e.target.value) })} />
             </Field>
-            <Field label="Comisión (decimal: 0.069 = 6.9%)">
-              <input className="input boxed mono" type="number" step="0.001" value={form.commissionRate}
-                onChange={(e) => setForm({ ...form, commissionRate: Number(e.target.value) })} />
+            <Field label="Comisión del contador (%)">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  className="input boxed mono"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={parseFloat((form.commissionRate * 100).toFixed(4))}
+                  onChange={(e) => setForm({ ...form, commissionRate: Number(e.target.value) / 100 })}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--ink)' }}>%</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Actual: {(form.commissionRate * 100).toFixed(2)}% — equivale a {form.commissionRate.toFixed(4)} en decimal
+              </div>
             </Field>
             <Field label="Días de crédito">
               <input className="input boxed mono" type="number" step="1" value={form.creditDays}
                 onChange={(e) => setForm({ ...form, creditDays: Number(e.target.value) })} />
             </Field>
-            <Field label="IVA (decimal: 0.16 = 16%)">
-              <input className="input boxed mono" type="number" step="0.01" value={form.ivaRate}
-                onChange={(e) => setForm({ ...form, ivaRate: Number(e.target.value) })} />
+            <Field label="IVA (%)">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  className="input boxed mono"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="100"
+                  value={parseFloat((form.ivaRate * 100).toFixed(2))}
+                  onChange={(e) => setForm({ ...form, ivaRate: Number(e.target.value) / 100 })}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--ink)' }}>%</span>
+              </div>
             </Field>
             <Field label="Contabilidad cobra su comisión sobre">
               <select className="input boxed" value={form.commissionBase}

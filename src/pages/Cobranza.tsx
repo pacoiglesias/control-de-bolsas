@@ -174,7 +174,7 @@ export default function Cobranza() {
   return (
     <>
       <div className="page-head">
-        <h1>Cobranza</h1>
+        <h1>Contrarecibos / Cobranza</h1>
         <p>
           Lo que te deben, ordenado por antigüedad. Una orden deja de contar aquí en cuanto la
           marcas como cobrada; la comisión de contabilidad ya viene descontada del flujo neto.

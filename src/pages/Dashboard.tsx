@@ -114,6 +114,25 @@ export default function Dashboard() {
       }
     });
 
+    // Facturas en estado 'paid': el cliente pagó pero el contador aún no te da el efectivo
+    const porRecibir: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
+    orders.forEach(o => {
+      (o.invoices ?? []).forEach(inv => {
+        if (inv.creditCycle?.status === 'paid') {
+          const invTotal = inv.financials?.invoiceTotal ?? 0;
+          const commission = inv.financials?.commission ?? 0;
+          porRecibir.push({
+            folio: inv.folio ?? '?',
+            cr: inv.collection?.contrareciboNumber ?? '—',
+            invoiceTotal: invTotal,
+            commission,
+            net: invTotal - commission,
+          });
+        }
+      });
+    });
+    const totalPorRecibir = porRecibir.reduce((s, x) => s + x.net, 0);
+
     const mesesKeys = Object.keys(meses).sort().slice(-6);
     const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => meses[m].venta)) : 1;
     proximos.sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
@@ -121,6 +140,7 @@ export default function Dashboard() {
     return {
       totalKilos, totalVendido, netoTotal, porCobrar, vencido, cobrado, netoCobrado,
       pending, overdue, paid, review, meses, mesesKeys, maxMes, proximos,
+      porRecibir, totalPorRecibir,
     };
   }, [orders]);
 
@@ -195,6 +215,57 @@ export default function Dashboard() {
               <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar Ahora</button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 💼 POR RECIBIR DEL CONTADOR */}
+      {k.porRecibir.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2218 100%)',
+          border: '1px solid var(--ok)',
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 22,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
+                💼 Por Recibir del Contador
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                Estas facturas ya fueron cobradas por el cliente — el contador aún no te da el efectivo
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Total neto a recibir</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
+            </div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Factura</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Contrarecibo</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Importe Factura</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Comisión</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Neto a recibir</th>
+              </tr>
+            </thead>
+            <tbody>
+              {k.porRecibir.map((r, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                  <td style={{ padding: '8px 8px', color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>#{r.folio}</td>
+                  <td style={{ padding: '8px 8px', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{r.cr}</td>
+                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.8)' }}>{money(r.invoiceTotal)}</td>
+                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
+                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 700 }}>{money(r.net)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+            Abre la factura → "💵 Recibida del Contador → Caja Chica" para mover el dinero automáticamente.
+          </div>
         </div>
       )}
 

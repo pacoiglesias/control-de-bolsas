@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { deleteDoc, doc, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, PATHS, app } from '../lib/firebase';
 import { logAction } from '../lib/logger';
@@ -558,19 +558,58 @@ export default function OrderModal({
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
                         {!readOnly && (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 8px', fontSize: 13 }}
-                              onClick={() => {
-                                sound.playCash();
-                                updateInvoice(i, x => ({
-                                  ...x, 
-                                  creditCycle: { ...x.creditCycle, status: 'paid' },
-                                  collection: { ...x.collection, paidAmount: fin.saleTotal, paidAt: Timestamp.now() }
-                                }));
-                                toast('Factura marcada como cobrada al 100%', 'ok');
-                              }}>
-                              💰 Marcar Cobrada
-                            </button>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {inv.creditCycle.status !== 'paid' && inv.creditCycle.status !== 'collected' && (
+                              <button className="btn" style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '4px 10px', fontSize: 13 }}
+                                onClick={() => {
+                                  sound.playCash();
+                                  const invTotal = inv.financials?.invoiceTotal ?? computeFinancials(inv.kilos, config).invoiceTotal;
+                                  updateInvoice(i, x => ({
+                                    ...x,
+                                    creditCycle: { ...x.creditCycle, status: 'paid' },
+                                    collection: { ...x.collection, paidAmount: invTotal, paidAt: Timestamp.now() }
+                                  }));
+                                  toast('✅ Marcada como cobrada por el cliente. Pendiente de recibir del contador.', 'ok');
+                                }}>
+                                💰 Cobrada por Cliente
+                              </button>
+                            )}
+                            {inv.creditCycle.status === 'paid' && (
+                              <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 13 }}
+                                onClick={async () => {
+                                  sound.playCash();
+                                  const invTotal = inv.financials?.invoiceTotal ?? computeFinancials(inv.kilos, config).invoiceTotal;
+                                  const commission = inv.financials?.commission ?? computeFinancials(inv.kilos, config).commission;
+                                  const netAmount = (invTotal ?? 0) - (commission ?? 0);
+                                  // 1. Actualizar estado de la factura
+                                  updateInvoice(i, x => ({
+                                    ...x,
+                                    creditCycle: { ...x.creditCycle, status: 'collected' },
+                                    collection: { ...x.collection, collectedAt: Timestamp.now() }
+                                  }));
+                                  // 2. Crear ingreso automático en Caja Chica
+                                  try {
+                                    await addDoc(collection(db, PATHS.expenses), {
+                                      date: Timestamp.now(),
+                                      concept: `Cobro factura #${inv.folio ?? '?'} (CR: ${inv.collection?.contrareciboNumber ?? '—'})`,
+                                      amount: netAmount,
+                                      type: 'ingreso',
+                                      notes: `Factura: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+                                      createdAt: serverTimestamp(),
+                                    });
+                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a Caja Chica.`, 'ok');
+                                  } catch {
+                                    toast('Factura marcada, pero error al registrar en Caja Chica.', 'bad');
+                                  }
+                                }}>
+                                💵 Recibida del Contador → Caja Chica
+                              </button>
+                            )}
+                            {inv.creditCycle.status === 'collected' && (
+                              <span style={{ background: 'var(--ok)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
+                                ✅ Recibida y en Caja Chica
+                              </span>
+                            )}
                             <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
                           </div>
                         )}
@@ -610,9 +649,10 @@ export default function OrderModal({
                               creditCycle: { ...x.creditCycle, status: e.target.value as OrderStatus }
                             }))}>
                             <option value="pending">Por cobrar</option>
-                            <option value="paid">Cobrada</option>
-                            <option value="overdue">Vencida</option>
-                            <option value="manual_review">Revisión manual</option>
+                              <option value="paid">🟡 Con el contador</option>
+                              <option value="collected">✅ Recibida</option>
+                              <option value="overdue">Vencida</option>
+                              <option value="manual_review">Revisión manual</option>
                           </select>
                           {isLate && (
                             <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4 }}>
@@ -685,16 +725,42 @@ export default function OrderModal({
                               }))
                             }} />
                         </Field>
+                        {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
+                          <Field label="Complemento de Pago (SAT)">
+                            <select
+                              className="input boxed"
+                              disabled={readOnly}
+                              value={inv.collection?.complementStatus ?? 'pending'}
+                              onChange={e => updateInvoice(i, x => ({
+                                ...x, collection: { ...x.collection, complementStatus: e.target.value as 'pending' | 'issued' | 'na' }
+                              }))}
+                            >
+                              <option value="pending">⏳ Pendiente de emitir</option>
+                              <option value="issued">✅ Emitido y enviado</option>
+                              <option value="na">— No aplica</option>
+                            </select>
+                            {inv.collection?.complementStatus === 'pending' && (
+                              <div style={{ fontSize: 11, color: 'var(--bad)', marginTop: 4, fontWeight: 600 }}>
+                                ⚠️ Recuerda emitir el complemento de pago al SAT y enviarlo al cliente.
+                              </div>
+                            )}
+                            {inv.collection?.complementStatus === 'issued' && (
+                              <div style={{ fontSize: 11, color: 'var(--ok)', marginTop: 4, fontWeight: 600 }}>
+                                ✅ Complemento emitido y enviado al cliente.
+                              </div>
+                            )}
+                          </Field>
+                        )}
                       </div>
                       <div className="calc-box" style={{ marginTop: 12 }}>
                         <div className="calc-line">
-                          <span>Venta ({inv.kilos} kg)</span>
-                          <span className="mono">{money(fin.saleTotal)}</span>
+                          <span>Factura #{inv.folio}</span>
+                          <span className="mono">{money(fin.invoiceTotal)}</span>
                         </div>
                         <div className="calc-line total">
                           <span>Deuda</span>
-                          <span className="mono" style={{ color: fin.saleTotal - (inv.collection?.paidAmount || 0) > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                            {money(fin.saleTotal - (inv.collection?.paidAmount || 0))}
+                          <span className="mono" style={{ color: fin.invoiceTotal - (inv.collection?.paidAmount || 0) > 0 ? 'var(--bad)' : 'var(--ok)' }}>
+                            {money(fin.invoiceTotal - (inv.collection?.paidAmount || 0))}
                           </span>
                         </div>
                       </div>

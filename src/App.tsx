@@ -13,6 +13,8 @@ import CajaChica from './pages/CajaChica';
 import Compras from './pages/Compras';
 import Logs from './pages/Logs';
 import Users from './pages/Users';
+import Seeder from './pages/Seeder';
+import OcTracking from './pages/OcTracking';
 
 function Gate() {
   const { user, loading } = useAuth();
@@ -37,6 +39,8 @@ function Gate() {
         <Route path="usuarios" element={<Users />} />
         <Route path="logs" element={<Logs />} />
         <Route path="respaldo" element={<Respaldo />} />
+        <Route path="seed" element={<Seeder />} />
+        <Route path="oc" element={<OcTracking />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -274,9 +274,9 @@ async function processStorageFile(filePath: string, bucketName?: string) {
         }
       }
 
-      // Buscar en los pedidos activos (pending/overdue) las facturas agrupadas
+      // Buscar en TODOS los pedidos que tengan facturas
       const snapshot = await db.collection(COL_ORDERS)
-        .where("invoiceStatuses", "array-contains-any", ["pending", "overdue"])
+        .where("invoices", "!=", null)
         .get();
       
       const targetFolios = data.crInvoices.map(f => String(f).replace(/\D/g, ''));

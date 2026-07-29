@@ -2,6 +2,18 @@
 
 Este documento rastrea la evolución del sistema desde su inicio hasta la versión actual.
 
+## [v5.3.0] - 28 Julio 2026 (Seguimiento OC, Flujo 3 Estados y Respaldo Offline Sync)
+* **Diferenciación Estricta Contrarecibo vs Folio:** Clarificación total en toda la UI y base de datos: GT-xxx y TH-xxx son números de Contrarecibo (CR), mientras que cada factura posee su Folio numérico individual.
+* **Seguimiento OC (`/oc`):** Nueva vista dedicada para rastrear kilos contratados en Órdenes de Compra vs kilos surtidos y remanentes.
+* **Flujo de Cobro de 3 Estados:**
+  - `pending`: Por cobrar al cliente.
+  - `paid`: 🟡 Con el Contador (cliente transfirió al contador).
+  - `collected`: 💵 Recibida del Contador (efectivo recibido en Caja Chica neto de comisión).
+* **Widget Dashboard "Por Recibir del Contador":** Monitoreo en vivo de facturas cobradas por el cliente pero pendientes de recibir del contador.
+* **Comisión Editable en Porcentaje (%):** Edición directa en porcentaje (ej: 6.9%) en la pantalla de Configuración.
+* **Complemento de Pago SAT (REP):** Control de estado de emisión (`pending`, `issued`, `na`).
+* **Respaldo HTML Offline Mapeado (`bridge.ts`):** Exportación HTML offline sincronizada con campos de OC y estados de cobro.
+
 ## [v6.4] - 28 Julio 2026 (Auditoría de Automejora Continua)
 * **Performance Extremo (O(1)):** Se refactorizaron los bucles matemáticos de React (`finance.ts` y `OrderModal.tsx`) para eliminar el sobre-cálculo masivo por cada pulsación de tecla.
 * **Backend Optimizado:** Búsqueda O(1) para Complementos de Pago XML mediante indexación inversa (`invoiceUuids`), previniendo caídas por escaneos totales de la base de datos.

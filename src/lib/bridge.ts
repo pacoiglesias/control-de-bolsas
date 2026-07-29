@@ -67,9 +67,10 @@ export function ordersToHtmlState(
       const summary = getOrderSummary(o);
       return summary.invoices.map((inv) => {
         const st = inv.creditCycle.status;
-        const cobranza: HtmlFactura['cobranza'] = st === 'paid' ? 'COBRADO' : 'PENDIENTE';
+        const cobranza: HtmlFactura['cobranza'] = (st === 'paid' || st === 'collected') ? 'COBRADO' : 'PENDIENTE';
         const total = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
         const cr = inv.collection?.contrareciboNumber?.trim() ?? '';
+        const ocNum = inv.oc ?? o.oc ?? '';
         const notas = [
           o.fileName ? `Archivo ${o.fileName}` : '',
           inv.kilos ? `${inv.kilos.toLocaleString('es-MX')} kg facturados` : '',
@@ -83,7 +84,7 @@ export function ordersToHtmlState(
           folio: inv.folio ?? '',
           cliente: o.client ?? '',
           receptor: '',
-          oc: '',
+          oc: ocNum,
           fechaFactura: iso(toDate(inv.creditCycle.issueDate) ?? toDate(o.processedAt)),
           montoTotal: total,
           contrarecibo: cr ? 'SI' : 'NO',
@@ -91,7 +92,7 @@ export function ordersToHtmlState(
           fechaContrarecibo: iso(toDate(inv.collection?.contrareciboDate)),
           fechaVencimiento: iso(toDate(inv.creditCycle.dueDate)),
           cobranza,
-          montoCobrado: st === 'paid' ? (inv.collection?.paidAmount || total) : (inv.collection?.paidAmount ?? 0),
+          montoCobrado: (st === 'paid' || st === 'collected') ? (inv.collection?.paidAmount || total) : (inv.collection?.paidAmount ?? 0),
           comision: forHelpers ? 0 : (inv.financials?.commission ?? 0),
           comisionManual: true,
           montoDepositado: 0,
