@@ -17,9 +17,10 @@ service cloud.firestore {
         );
     }
 
-    // Un usuario existe en la plataforma si es owner o tiene documento.
+    // Un usuario existe en la plataforma si es owner o tiene documento con email verificado.
     function isAuthenticatedUser() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid))
           || isAllowedOwnerEmail()
@@ -40,10 +41,10 @@ service cloud.firestore {
       return isAuthenticatedUser() && (getRole() == 'admin' || getRole() == 'manager');
     }
 
-    // Un administrador de verdad: existe su documento Y su rol es 'admin'.
-    // Se consulta con get(), no se confia en nada que mande el cliente.
+    // Un administrador de verdad: existe su documento Y su rol es 'admin' con correo verificado.
     function esAdminReal() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
     }

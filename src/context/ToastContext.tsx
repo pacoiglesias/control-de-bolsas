@@ -9,12 +9,27 @@ interface Toast {
 
 const Ctx = createContext<(msg: string, tone?: Tone) => void>(() => {});
 
+function formatErrorMessage(msg: string): string {
+  if (!msg) return 'Ocurrió un error inesperado.';
+  if (msg.includes('permission-denied') || msg.includes('Missing or insufficient permissions')) {
+    return '🔒 Acceso denegado: No tienes permisos de administrador para realizar esta acción.';
+  }
+  if (msg.includes('network-request-failed')) {
+    return '📶 Error de conexión: Revisa tu señal de internet e intenta de nuevo.';
+  }
+  if (msg.includes('auth/user-not-found') || msg.includes('auth/wrong-password')) {
+    return '🔑 Credenciales incorrectas: Verifica tu correo o contraseña.';
+  }
+  return msg;
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const push = useCallback((msg: string, tone: Tone = 'info') => {
+    const sanitized = tone === 'bad' ? formatErrorMessage(msg) : msg;
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, msg, tone }]);
+    setToasts((t) => [...t, { id, msg: sanitized, tone }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   }, []);
 
