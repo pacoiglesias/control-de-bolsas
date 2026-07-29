@@ -1,4 +1,4 @@
-# Radiografía del Sistema: Control Bolsas ERP (v6.0)
+# Radiografía del Sistema: Control Bolsas ERP (v5.5.0)
 
 Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio.
 
@@ -22,9 +22,14 @@ Representa un requerimiento del cliente. Es el núcleo del sistema.
 *   `deliveries[]`: Entregas parciales (Kilos físicos entregados, fecha).
 *   `invoices[]`: Facturas generadas. Cada factura tiene:
     *   `kilos`: Kilos que ampara esta factura.
-    *   `financials`: Subtotal, Costo, Comisión y Flujo Neto.
+    *   `financials`: Subtotal, Costo, Comisión y Flujo Neto. (El costo de compra y comisión pueden ser ajustados dinámicamente por pedido sin afectar el historial).
     *   `creditCycle`: Estatus de pago (`pending`, `overdue`, `paid`) y fechas de vencimiento.
     *   `collection`: Datos de cobranza (`contrareciboNumber`, `paidAmount`, etc).
+
+### Colección: `products` (Catálogo Inteligente)
+* `description`: Nombre del producto.
+* `unit`, `defaultPrice`, `lastOrderDate`.
+El sistema cuenta con un catálogo predictivo y un semáforo (Verde, Amarillo, Rojo) basado en el historial de compras del producto.
 
 ### Colección: `purchases` (Compras a Fabricante)
 Representa mercancía que tú le compras a tu proveedor.
@@ -36,7 +41,9 @@ Gastos operativos y flujo en efectivo (Ingresos/Egresos manuales).
 
 ## Notas Operativas y Lógica Financiera
 1.  **Cálculo de Cobranza:** Se calcula iterando todas las facturas abiertas de todos los expedientes y agrupando la deuda por cliente.
-2.  **Regla del Contrarecibo (IMPORTANTE):** El sistema permite que múltiples facturas compartan el mismo número de contrarecibo (`contrareciboNumber`). Sin embargo, **la cobranza y el estatus (`creditCycle.status`) se maneja a nivel de factura individual**. Actualmente no hay una funcionalidad nativa para "Agrupar facturas por Contrarecibo y pagarlas en bloque", cada factura debe marcarse pagada de manera independiente, aunque el sistema no restringe que se use el mismo número como referencia.
+2.  **Lógica Financiera Inmutable:** El IVA cobrado es parte íntegra de la utilidad (ya que los impuestos se manejan fuera del sistema). La fórmula es: `Utilidad Líquida = (Venta Facturada con IVA) - (Kilos * Costo Fabricante) - (Comisión Contabilidad)`.
+3.  **Enlace Venta -> Compra:** Al generar o editar un pedido, el sistema automáticamente genera o actualiza el registro espejo de la deuda oficial en la colección `purchases` para Andrés (el proveedor) utilizando el costo dinámico asignado al expediente.
+4.  **Enlace Compras -> Caja Chica:** Cuando se realiza un pago (abono o liquidación) a un proveedor en el panel de Compras, el sistema automáticamente genera un registro de egreso en `expenses` para que el saldo de Caja Chica coincida al centavo.
 
 ---
 
@@ -56,7 +63,7 @@ ARQUITECTURA:
 4. La UX incluye un buscador global por teclado (Ctrl+K), Modo Oscuro (var --theme), y reportes en tiempo real.
 
 REGLAS ESTRICTAS:
-- No destruyas la estructura de los expedientes (PurchaseOrders).
+- No destruyas la estructura de los expedientes (PurchaseOrders). El costo y comisión a nivel expediente (`customCostPrice`, `customCommissionRate`) sobreescriben la configuración global pero NUNCA el historial pasado (Snapshots).
 - Si alteras el esquema de base de datos en TypeScript ('src/lib/types.ts'), debes actualizar la lógica de validación de Zod en 'functions/src/index.ts'.
 - Mantén el diseño de la interfaz alineado a los componentes actuales en 'src/components/ui/'.
 
