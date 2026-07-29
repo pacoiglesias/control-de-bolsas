@@ -4,18 +4,21 @@ import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebas
 import { db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
+import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney } from '../components/ui';
+import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
 import { daysLate, getOrderSummary } from '../lib/finance';
 import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
 import { logAction } from '../lib/logger';
+import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 
 export default function Dashboard() {
   const { orders, loading, error } = useOrders();
+  const { purchases } = usePurchases();
   const { expenses, loading: loadingExp } = useExpenses();
   const { role, user } = useAuth();
   const { config } = useConfig();
@@ -23,6 +26,9 @@ export default function Dashboard() {
   const toast = useToast();
   const [seeding, setSeeding] = useState(false);
   const [health, setHealth] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({ snapshotDate: null, recentLogs: 0, dbStatus: '...' });
+  const [showBackupsModal, setShowBackupsModal] = useState(false);
+  const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -47,6 +53,49 @@ export default function Dashboard() {
     };
     fetchHealth();
   }, [role]);
+
+  async function handleCreateBackup() {
+    setBackupBusy(true);
+    try {
+      const res = await createCloudBackup(user?.email, orders, purchases, expenses, config);
+      setHealth(h => ({ ...h, snapshotDate: new Date() }));
+      toast(`☁ Respaldo guardado en la nube (${res.count}/5 disponibles)`, 'ok');
+    } catch (e) {
+      toast(`No se pudo crear el respaldo: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleOpenBackupsModal() {
+    setBackupBusy(true);
+    try {
+      const backups = await listCloudBackups();
+      setCloudBackups(backups);
+      setShowBackupsModal(true);
+    } catch (e) {
+      toast(`Error al listar respaldos: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleRestoreBackup(snap: CloudSnapshotMeta) {
+    if (!window.confirm(`⚠️ ¿Deseas restaurar el respaldo del ${snap.createdAt?.toLocaleString('es-MX')}?\n\nEsto actualizará el estado de la nube con este punto de restauración.`)) {
+      return;
+    }
+    setBackupBusy(true);
+    try {
+      const res = await restoreCloudBackup(user?.email, snap);
+      toast(`✅ ${res.message}`, 'ok');
+      setShowBackupsModal(false);
+      window.location.reload();
+    } catch (e) {
+      toast(`Error al restaurar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBackupBusy(false);
+    }
+  }
 
   const k = useMemo(() => {
     const live: any[] = [];
@@ -172,8 +221,8 @@ export default function Dashboard() {
       </div>
 
       {role === 'admin' && (
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24, padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', alignItems: 'center' }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 24, padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 20, background: health.dbStatus === 'OK' ? 'var(--ok-bg)' : 'var(--warn-bg)', color: health.dbStatus === 'OK' ? 'var(--ok)' : 'var(--warn)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
               {health.dbStatus === 'OK' ? '🛡️' : '⚠️'}
             </div>
@@ -182,11 +231,19 @@ export default function Dashboard() {
               <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Conexión a base de datos: {health.dbStatus}</div>
             </div>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
             <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Último Respaldo (Nube)</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 6 }}>{health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 11, padding: '4px 8px' }}>
+                {backupBusy ? 'Guardando…' : '☁ Respaldar en Nube'}
+              </button>
+              <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 11, padding: '4px 8px' }}>
+                📋 Respaldos (5 max)
+              </button>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 150 }}>
             <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Auditoría Activa</div>
             <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{health.recentLogs} movimientos hoy</div>
           </div>
@@ -434,6 +491,44 @@ export default function Dashboard() {
           </div>
         )}
       </Card>
+
+      {showBackupsModal && (
+        <Modal title="☁ Respaldos en la Nube (Máximo 5 rodantes)" onClose={() => setShowBackupsModal(false)}>
+          <div style={{ padding: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+              El sistema mantiene automáticamente los <strong>5 respaldos más recientes</strong> en Firestore. Si creas uno nuevo, el más antiguo se elimina de la nube para no saturar.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Respaldos activos: {cloudBackups.length} de 5</span>
+              <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 12 }}>
+                {backupBusy ? 'Guardando…' : '➕ Crear Nuevo Respaldo Ahora'}
+              </button>
+            </div>
+            {cloudBackups.length === 0 ? (
+              <Empty>No hay respaldos guardados aún en la nube.</Empty>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {cloudBackups.map((snap, idx) => (
+                  <div key={snap.id} style={{ padding: 14, background: 'var(--paper-sunk)', borderRadius: 8, border: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>📅 {snap.createdAt ? snap.createdAt.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : snap.id}</span>
+                        {idx === 0 && <span style={{ fontSize: 11, background: 'var(--ok)', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>Más reciente</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
+                        Creado por: <strong>{snap.createdBy}</strong> · Expedientes: <strong>{snap.totalOrders}</strong>
+                      </div>
+                    </div>
+                    <button className="btn" onClick={() => void handleRestoreBackup(snap)} disabled={backupBusy} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', fontSize: 12 }}>
+                      🔄 Restaurar este respaldo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

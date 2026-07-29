@@ -17,6 +17,8 @@ import {
   type HtmlFactura, type HtmlImportSummary, type HtmlState,
 } from '../lib/bridge';
 
+import { createCloudBackup } from '../lib/cloudBackup';
+
 const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '';
 
 function descargar(nombre: string, contenido: string, mime: string) {
@@ -73,14 +75,8 @@ export default function Respaldo() {
   async function guardarSnapshotEnLaNube() {
     setBusy('snap');
     try {
-      const estado = ordersToHtmlState(orders, purchases, expenses, config, PROJECT_ID);
-      await setDoc(doc(db, 'snapshots', 'latest'), {
-        payload: JSON.stringify(estado),
-        createdAt: serverTimestamp(),
-        facturas: estado.facturas.length,
-      });
-      await logAction(user?.email, 'Snapshot en la nube (Firestore)', { records: estado.facturas?.length || 0 });
-      toast('Snapshot guardado en Firestore (snapshots/latest)', 'ok');
+      const res = await createCloudBackup(user?.email, orders, purchases, expenses, config, PROJECT_ID);
+      toast(`☁ Snapshot guardado en Firestore (${res.count}/5 respaldos en la nube)`, 'ok');
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
     } finally {
