@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>Control Bolsas · Compra · Venta · Cobranza (v4)</title>
+<title>Control Bolsas · Compra · Venta · Cobranza (v5.5.0 Offline)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -744,7 +744,7 @@ function pedidoResumen(p){
   const comision    = r2(sum(facturas, f=> num(f.montoCobrado)>0 ? comisionDe(f) : 0));
   const entregadoSinFacturar = entregas.filter(e=>e.facturado!=='SI');
   const kSinFacturar = sum(entregadoSinFacturar, e=>num(e.kilos));
-  const margen      = r2(facturado/(1+iva) - costoReal - comision);
+  const margen      = r2(facturado - costoReal - comision);
   const margenPct   = facturado>0 ? (margen/(facturado/(1+iva)))*100 : null;
 
   const hoy = todayISO();
@@ -1700,7 +1700,7 @@ function renderPedidos(){
     <div class="kpi-card"><div class="kpi-label">Recibido y aún en tu poder</div><div class="kpi-value">${kg(kEnBodega)}</div><div class="kpi-sub">ya lo pagaste o lo debes, pero no ha salido</div></div>
     <div class="kpi-card ${retrasados.length?'bad':''}"><div class="kpi-label">Pedidos retrasados</div><div class="kpi-value">${retrasados.length}</div><div class="kpi-sub">pasó la fecha prometida sin surtir completo</div></div>
     <div class="kpi-card ${anticipoAFavor>0?'ok':''}"><div class="kpi-label">Anticipos a tu favor</div><div class="kpi-value">${money(anticipoAFavor)}</div><div class="kpi-sub">le pagaste al fabricante más de lo que te ha surtido</div></div>
-    <div class="kpi-card ${margenAcum>0?'ok':''}"><div class="kpi-label">Margen de lo ya facturado</div><div class="kpi-value">${money(margenAcum)}</div><div class="kpi-sub">venta sin IVA − costo real − comisión</div></div>
+    <div class="kpi-card ${margenAcum>0?'ok':''}"><div class="kpi-label">Margen de lo ya facturado</div><div class="kpi-value">${money(margenAcum)}</div><div class="kpi-sub">venta con IVA − costo real − comisión</div></div>
   </div>
 
   <div class="card">
