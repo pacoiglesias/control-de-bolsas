@@ -16,6 +16,53 @@ import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
 import { logAction } from '../lib/logger';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 
+export interface SystemRelease {
+  version: string;
+  date: string;
+  time: string;
+  summary: string;
+  highlights: string[];
+}
+
+export const SYSTEM_CHANGELOG: SystemRelease[] = [
+  {
+    version: 'v5.4.0',
+    date: '28 de Julio de 2026',
+    time: '09:25 PM',
+    summary: 'Paquete Consolidado PDF (Remisión + CR + Factura), Rentabilidad Líquida Real por CR, Optimización O(1) Cloud Functions y Seguridad Zero-Trust.',
+    highlights: [
+      'Paquete de Impresión Consolidado (Remisión + CR + Factura) en 1-clic con firmantes',
+      'Tabla de Rentabilidad Líquida Real por Contrarecibo ($ y %) sin mermas para Andrés',
+      'Indexación O(1) de invoiceFolios en Cloud Functions eliminando Full Table Scans',
+      'Edición interactiva de expedientes directamente desde Seguimiento de OC (/oc)',
+      'Seguridad Zero-Trust: email_verified == true en Firestore & Storage Rules',
+    ]
+  },
+  {
+    version: 'v5.3.0',
+    date: '28 de Julio de 2026',
+    time: '06:10 PM',
+    summary: 'Seguimiento OC, Flujo de Cobro en 3 Estados y Sincronización HTML Offline.',
+    highlights: [
+      'Vista de Seguimiento OC (/oc) para comparar kilos contratados vs surtidos',
+      'Flujo de Cobranza de 3 Estados (Por Cobrar -> Con Contador -> Recibido en Caja)',
+      'Widget "Por Recibir del Contador" en Dashboard',
+      'Sincronización en la nube con plantilla HTML Offline (bridge.ts)',
+    ]
+  },
+  {
+    version: 'v5.2.0',
+    date: '28 de Julio de 2026',
+    time: '02:40 PM',
+    summary: 'Sistema de Respaldos Rodantes en la Nube (5 Máx) y Comisión Editable por Factura.',
+    highlights: [
+      'Poda automática de snapshots reteniendo exactamente los 5 más recientes',
+      'Restauración a 1-clic desde la interfaz del Dashboard',
+      'Campo de comisión del contador editable por factura individual',
+    ]
+  }
+];
+
 export default function Dashboard() {
   const { orders, loading, error } = useOrders();
   const { purchases } = usePurchases();
@@ -27,6 +74,7 @@ export default function Dashboard() {
   const [seeding, setSeeding] = useState(false);
   const [health, setHealth] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({ snapshotDate: null, recentLogs: 0, dbStatus: '...' });
   const [showBackupsModal, setShowBackupsModal] = useState(false);
+  const [showChangelogModal, setShowChangelogModal] = useState(false);
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
 
@@ -220,36 +268,47 @@ export default function Dashboard() {
         <p>Centro de mando operativo y financiero. {role !== 'viewer' && `Precio de venta ${money(config.salePricePerKg)}/kg, costo ${money(config.costPricePerKg)}/kg, comisión ${percent(config.commissionRate)}.`}</p>
       </div>
 
-      {role === 'admin' && (
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24, padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 20, background: health.dbStatus === 'OK' ? 'var(--ok-bg)' : 'var(--warn-bg)', color: health.dbStatus === 'OK' ? 'var(--ok)' : 'var(--warn)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-              {health.dbStatus === 'OK' ? '🛡️' : '⚠️'}
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Salud del Sistema</div>
-              <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Conexión a base de datos: {health.dbStatus}</div>
-            </div>
+      {/* WIDGET ÚLTIMO CAMBIO Y SALUD DEL SISTEMA */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24, padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ flex: 2, minWidth: 280, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+            🚀
           </div>
-          <div style={{ flex: 1, minWidth: 240 }}>
-            <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Último Respaldo (Nube)</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 6 }}>{health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 11, padding: '4px 8px' }}>
-                {backupBusy ? 'Guardando…' : '☁ Respaldar en Nube'}
-              </button>
-              <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 11, padding: '4px 8px' }}>
-                📋 Respaldos (5 max)
-              </button>
+          <div>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              Último Cambio del Sistema
+              <span className="badge badge-ok" style={{ fontSize: 11 }}>{SYSTEM_CHANGELOG[0].version}</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
+              🕒 {SYSTEM_CHANGELOG[0].date} a las {SYSTEM_CHANGELOG[0].time}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+              {SYSTEM_CHANGELOG[0].summary}
             </div>
           </div>
-          <div style={{ flex: 1, minWidth: 150 }}>
-            <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Auditoría Activa</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{health.recentLogs} movimientos hoy</div>
-          </div>
-          <button className="btn" onClick={() => nav('/logs')} style={{ fontSize: 12 }}>Ver Bitácora</button>
         </div>
-      )}
+
+        <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 12, background: 'var(--surface)', borderColor: 'var(--line)', fontWeight: 600, padding: '8px 12px' }}>
+          📜 Bitácora de Cambios
+        </button>
+
+        {role === 'admin' && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', borderLeft: '1px solid var(--line)', paddingLeft: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--ink)' }}>Último Respaldo (Nube)</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 4 }}>{health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 11, padding: '3px 7px' }}>
+                  {backupBusy ? 'Guardando…' : '☁ Respaldar'}
+                </button>
+                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 11, padding: '3px 7px' }}>
+                  📋 5 Máx
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ALERTAS URGENTES */}
       {(k.overdue.length > 0 || k.review.length > 0) && (
@@ -526,6 +585,27 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {showChangelogModal && (
+        <Modal title="📜 Bitácora Histórica de Cambios del Sistema" onClose={() => setShowChangelogModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '65vh', overflowY: 'auto', paddingRight: 8 }}>
+            {SYSTEM_CHANGELOG.map((item) => (
+              <div key={item.version} style={{ padding: 16, background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 'var(--radius)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+                  <span className="badge badge-ok" style={{ fontSize: 13, fontWeight: 700 }}>Versión {item.version}</span>
+                  <span style={{ fontSize: 12, color: 'var(--accent-deep)', fontWeight: 600 }}>🕒 {item.date} — {item.time}</span>
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)', marginBottom: 8 }}>{item.summary}</div>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--ink-soft)' }}>
+                  {item.highlights.map((h, i) => (
+                    <li key={i} style={{ marginBottom: 4 }}>{h}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </Modal>
       )}
