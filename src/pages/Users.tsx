@@ -6,6 +6,7 @@ import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { db, config } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { Skeleton } from '../components/ui';
 
 interface UserData {
   id: string;
@@ -163,7 +164,9 @@ export default function Users() {
       <div className="card fadeInCard" style={{ animationDelay: '0.1s' }}>
         <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>Usuarios Autorizados</h2>
         {loading ? (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-faint)' }}>Cargando usuarios...</div>
+          <div style={{ padding: 20 }}>
+            {[1,2,3,4,5].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 44, marginBottom: 8 }} />)}
+          </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>

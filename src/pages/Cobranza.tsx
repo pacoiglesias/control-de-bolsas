@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
-import { Card, Empty, KpiCard, Spinner, StatusBadge } from '../components/ui';
+import { Card, Empty, KpiCard, Skeleton, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } from '../lib/finance';
 import { fmtDate, money, toDate } from '../lib/format';
@@ -150,7 +150,24 @@ export default function Cobranza() {
     };
   }, [orders]);
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <>
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 250, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: 350, height: 16 }} />
+        </div>
+        <div className="kpi-grid">
+          {[1,2].map(i => <Skeleton key={i} className="skeleton-card" style={{ height: 85 }} />)}
+        </div>
+        <Card>
+          <div style={{ padding: 20 }}>
+            {[1,2,3,4,5].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 48, marginBottom: 8 }} />)}
+          </div>
+        </Card>
+      </>
+    );
+  }
   if (role === 'viewer') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 

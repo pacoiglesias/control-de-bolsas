@@ -234,3 +234,30 @@ textarea.input{min-height:70px;resize:vertical}
 .cr-chip.shared{border-color:var(--info);background:var(--info-bg);color:var(--info)}
 .cr-chip svg{width:12px;height:12px;opacity:0.7}
 
+/* =========================================================================
+   Skeleton Loaders (Glassmorphism)
+========================================================================= */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--paper-sunk) 25%, var(--line-soft) 50%, var(--paper-sunk) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: var(--radius-sm);
+  color: transparent !important;
+  pointer-events: none;
+  user-select: none;
+  border: 1px solid var(--glass-border);
+}
+.skeleton * {
+  visibility: hidden;
+}
+.skeleton-row {
+  height: 20px;
+}
+.skeleton-card {
+  height: 100px;
+  border-radius: var(--radius);
+}

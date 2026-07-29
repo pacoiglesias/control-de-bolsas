@@ -5,7 +5,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
 import { db, PATHS } from '../lib/firebase';
 import { doc, collection } from 'firebase/firestore';
-import { Card, Empty, Spinner, StatusBadge } from '../components/ui';
+import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from './OrderModal';
 import { kilos, money } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
@@ -108,7 +108,21 @@ export default function Orders() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <>
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 200, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: 300, height: 16 }} />
+        </div>
+        <Card>
+          <div style={{ padding: 20 }}>
+            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 48, marginBottom: 8 }} />)}
+          </div>
+        </Card>
+      </>
+    );
+  }
   if (error) return <div className="alert bad">{error}</div>;
 
   return (

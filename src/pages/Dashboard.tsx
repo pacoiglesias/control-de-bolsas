@@ -8,7 +8,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { KpiCard, Card, Empty, Spinner, StatusBadge } from '../components/ui';
+import { KpiCard, Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import { fmtDate, kilos, money, monthKey, monthLabel, percent, toDate } from '../lib/format';
 import { daysLate, getOrderSummary } from '../lib/finance';
 import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
@@ -126,7 +126,22 @@ export default function Dashboard() {
 
   const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
 
-  if (loading || loadingExp) return <Spinner label="Conectando con Firestore…" />;
+  if (loading || loadingExp) {
+    return (
+      <div style={{ padding: '0 0 40px' }}>
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 280, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: '60%', height: 16 }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {[1,2,3,4].map(i => <Skeleton key={i} className="skeleton-card" />)}
+        </div>
+        <div className="kpi-grid">
+          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="skeleton-card" style={{ height: 85 }} />)}
+        </div>
+      </div>
+    );
+  }
   if (error) return <div className="alert bad">{error}</div>;
 
   return (
