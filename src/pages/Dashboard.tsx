@@ -268,46 +268,70 @@ export default function Dashboard() {
         <p>Centro de mando operativo y financiero. {role !== 'viewer' && `Precio de venta ${money(config.salePricePerKg)}/kg, costo ${money(config.costPricePerKg)}/kg, comisión ${percent(config.commissionRate)}.`}</p>
       </div>
 
-      {/* WIDGET ÚLTIMO CAMBIO Y SALUD DEL SISTEMA */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24, padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ flex: 2, minWidth: 280, display: 'flex', alignItems: 'center', gap: 14 }}>
+      {/* SECCIÓN DE SALUD DEL SISTEMA, ÚLTIMO CAMBIO Y RESPALDOS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 24 }}>
+        
+        {/* 1. ÚLTIMO CAMBIO DEL SISTEMA */}
+        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
             🚀
           </div>
-          <div>
-            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              Último Cambio del Sistema
-              <span className="badge badge-ok" style={{ fontSize: 11 }}>{SYSTEM_CHANGELOG[0].version}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Último Cambio</span>
+              <span className="badge badge-ok" style={{ fontSize: 10 }}>{SYSTEM_CHANGELOG[0].version}</span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
-              🕒 {SYSTEM_CHANGELOG[0].date} a las {SYSTEM_CHANGELOG[0].time}
+            <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
+              🕒 {SYSTEM_CHANGELOG[0].date} — {SYSTEM_CHANGELOG[0].time}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
               {SYSTEM_CHANGELOG[0].summary}
             </div>
+            <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
+              📜 Bitácora de Cambios
+            </button>
           </div>
         </div>
 
-        <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 12, background: 'var(--surface)', borderColor: 'var(--line)', fontWeight: 600, padding: '8px 12px' }}>
-          📜 Bitácora de Cambios
-        </button>
+        {/* 2. SALUD DEL SISTEMA Y AUDITORÍA */}
+        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 22, background: health.dbStatus === 'OK' ? 'var(--ok-bg)' : 'var(--warn-bg)', color: health.dbStatus === 'OK' ? 'var(--ok)' : 'var(--warn)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+            {health.dbStatus === 'OK' ? '🛡️' : '⚠️'}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Salud del Sistema & Auditoría</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Base de Datos: <strong>{health.dbStatus}</strong> · {health.recentLogs} logs hoy
+            </div>
+            <button className="btn" onClick={() => nav('/logs')} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
+              📋 Ver Logs de Auditoría
+            </button>
+          </div>
+        </div>
 
+        {/* 3. RESPALDO RODANTE EN NUBE */}
         {role === 'admin' && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', borderLeft: '1px solid var(--line)', paddingLeft: 16 }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--ink)' }}>Último Respaldo (Nube)</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 4 }}>{health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}</div>
+          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--info-bg)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+              ☁️
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Último Respaldo (Nube)</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, marginBottom: 6 }}>
+                {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
+              </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 11, padding: '3px 7px' }}>
+                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
                   {backupBusy ? 'Guardando…' : '☁ Respaldar'}
                 </button>
-                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 11, padding: '3px 7px' }}>
+                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
                   📋 5 Máx
                 </button>
               </div>
             </div>
           </div>
         )}
+
       </div>
 
       {/* ALERTAS URGENTES */}
