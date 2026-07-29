@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials, addDays, getOrderSummary, daysLate } from '../lib/finance';
-import { fromInputDate, money, toInputDate, kilos, toDate } from '../lib/format';
+import { fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 
@@ -549,7 +549,12 @@ export default function OrderModal({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {form.invoices.map((inv, i) => {
-                  const fin = computeFinancials(inv.kilos, config);
+                  const baseFin = computeFinancials(inv.kilos, config);
+                  const customComm = inv.financials?.commission;
+                  const fin = {
+                    ...baseFin,
+                    commission: customComm ?? baseFin.commission,
+                  };
                   const d = daysLate(toDate(inv.creditCycle.dueDate));
                   const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
                   
@@ -563,7 +568,7 @@ export default function OrderModal({
                               <button className="btn" style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '4px 10px', fontSize: 13 }}
                                 onClick={() => {
                                   sound.playCash();
-                                  const invTotal = inv.financials?.invoiceTotal ?? computeFinancials(inv.kilos, config).invoiceTotal;
+                                  const invTotal = fin.invoiceTotal;
                                   updateInvoice(i, x => ({
                                     ...x,
                                     creditCycle: { ...x.creditCycle, status: 'paid' },
@@ -578,9 +583,9 @@ export default function OrderModal({
                               <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 13 }}
                                 onClick={async () => {
                                   sound.playCash();
-                                  const invTotal = inv.financials?.invoiceTotal ?? computeFinancials(inv.kilos, config).invoiceTotal;
-                                  const commission = inv.financials?.commission ?? computeFinancials(inv.kilos, config).commission;
-                                  const netAmount = (invTotal ?? 0) - (commission ?? 0);
+                                  const invTotal = fin.invoiceTotal;
+                                  const commission = fin.commission;
+                                  const netAmount = invTotal - commission;
                                   // 1. Actualizar estado de la factura
                                   updateInvoice(i, x => ({
                                     ...x,
@@ -725,6 +730,23 @@ export default function OrderModal({
                               }))
                             }} />
                         </Field>
+                        <Field label="Comisión Contador ($)">
+                          <input className="input boxed mono" type="number" step="0.01" value={inv.financials?.commission ?? fin.commission}
+                            disabled={readOnly}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              updateInvoice(i, x => ({
+                                ...x,
+                                financials: {
+                                  ...(x.financials ?? baseFin),
+                                  commission: val,
+                                }
+                              }));
+                            }} />
+                          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                            {inv.financials?.commission !== undefined ? '⚠️ Comisión personalizada para esta factura' : `Auto: ${percent(config.commissionRate)} s/subtotal`}
+                          </div>
+                        </Field>
                         {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
                           <Field label="Complemento de Pago (SAT)">
                             <select
@@ -754,14 +776,16 @@ export default function OrderModal({
                       </div>
                       <div className="calc-box" style={{ marginTop: 12 }}>
                         <div className="calc-line">
-                          <span>Factura #{inv.folio}</span>
+                          <span>Factura #{inv.folio || '?'}</span>
                           <span className="mono">{money(fin.invoiceTotal)}</span>
                         </div>
+                        <div className="calc-line">
+                          <span>Comisión del Contador</span>
+                          <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.commission)}</span>
+                        </div>
                         <div className="calc-line total">
-                          <span>Deuda</span>
-                          <span className="mono" style={{ color: fin.invoiceTotal - (inv.collection?.paidAmount || 0) > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                            {money(fin.invoiceTotal - (inv.collection?.paidAmount || 0))}
-                          </span>
+                          <span>Neto a recibir del contador</span>
+                          <span className="mono" style={{ color: 'var(--ok)' }}>{money(fin.invoiceTotal - fin.commission)}</span>
                         </div>
                       </div>
                     </div>
