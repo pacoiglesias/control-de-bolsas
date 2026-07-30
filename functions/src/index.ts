@@ -328,6 +328,22 @@ export const checkOverdueInvoices = onSchedule(
       cambios.slice(i, i + 400).forEach((c) => batch.update(c.ref, c.datos));
       await batch.commit();
     }
+
+    // Aviso de vencimiento: NO es un correo (no hay servicio de mail
+    // conectado). Es un renglon en system_logs, buscable y filtrable desde
+    // /logs, con los folios que cruzaron a vencido hoy. El semaforo del panel
+    // (Dashboard.tsx) ya muestra el conteo visual; esto deja el detalle.
+    const folios = snapshot.docs
+      .filter((d) => cambios.some((c) => c.ref.id === d.id))
+      .map((d) => d.data().folio || d.id)
+      .slice(0, 50); // tope razonable para no inflar el registro
+    await db.collection("system_logs").add({
+      user: "sistema (checkOverdueInvoices)",
+      action: "Facturas Vencidas (automático)",
+      details: { cantidad: cambios.length, folios },
+      timestamp: FieldValue.serverTimestamp(),
+    });
+
     logger.info(`${cambios.length} expedientes con facturas vencidas actualizados.`);
   },
 );

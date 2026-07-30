@@ -243,7 +243,7 @@ export default function Dashboard() {
 
   const k = useMemo(() => {
     const st = statsDoc || {};
-    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0 };
+    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0 };
     const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0 };
     const mesesObj = st.histograms || {};
 
@@ -611,7 +611,17 @@ export default function Dashboard() {
           </>
         )}
         <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
-          sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}
+          sub={
+            <>
+              {k.pending.length + k.overdue.length} órdenes abiertas
+              {(k.porCobrarSinCR ?? 0) > 0 && (
+                <><br /><span style={{ color: 'var(--warn)' }}>{money(k.porCobrarSinCR ?? 0)} sin CR</span></>
+              )}
+              {(k.porCobrarConCR ?? 0) > 0 && (
+                <><br />{money(k.porCobrarConCR ?? 0)} con CR</>
+              )}
+            </>
+          }
           onClick={() => nav('/cobranza')} />
         <KpiCard tone={k.overdue.length ? 'bad' : undefined} label="Vencido" value={<ResponsiveMoney value={k.vencido} />}
           sub={`${k.overdue.length} factura${k.overdue.length === 1 ? '' : 's'} pasada${k.overdue.length === 1 ? '' : 's'} de fecha`}

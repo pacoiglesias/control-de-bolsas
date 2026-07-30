@@ -11,6 +11,14 @@ export interface FinancialConfig {
   ivaRate: number;
   /** Sobre qué importe cobra su comisión contabilidad. */
   commissionBase: 'subtotal' | 'total';
+  /** Clave de producto/servicio del SAT (catálogo c_ClaveProdServ). */
+  satClaveProdServ?: string;
+  /** Clave de unidad de medida del SAT (catálogo c_ClaveUnidad). */
+  satClaveUnidad?: string;
+  /** Método de pago SAT: PUE (una exhibición) o PPD (parcialidades/diferido). */
+  satMetodoPago?: string;
+  /** Forma de pago SAT (catálogo c_FormaPago). "99" = Por definir. */
+  satFormaPago?: string;
 }
 
 export const DEFAULT_CONFIG: FinancialConfig = {
@@ -33,6 +41,11 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    * honorario que cobra el contador por gestionar la cobranza.
    */
   commissionBase: 'subtotal',
+  // Tomados de una OC real del negocio; editables en Configuracion.
+  satClaveProdServ: '24141500',
+  satClaveUnidad: 'KGM',
+  satMetodoPago: 'PPF',
+  satFormaPago: '99',
 };
 
 export interface OrderFinancials {
@@ -65,6 +78,13 @@ export interface CollectionInfo {
   paidAmount?: number;
   paidAt?: Timestamp | null;
   collectedAt?: Timestamp | null;  // Cuando el contador entregó el efectivo
+  /**
+   * Referencia de la transferencia con la que el contador te entrega el
+   * efectivo (ej. "TR_3583"). Es un identificador DISTINTO del contrarecibo
+   * (ej. "GT-570"): sin este campo no había dónde anotarla, y sin ella no se
+   * puede conciliar el depósito contra el estado de cuenta bancario.
+   */
+  transferRef?: string;
   notes?: string;
   complementStatus?: 'pending' | 'issued' | 'na';
 }

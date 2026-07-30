@@ -196,7 +196,12 @@ export default function Cobranza() {
   async function collectContrareciboBlock(crNumber: string, netCobrado: number) {
     if (!crNumber) return;
     if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
-    
+
+    // Referencia de la transferencia (ej. "TR_3583"), distinta del numero de
+    // contrarecibo (ej. "GT-570"): sin ella no se puede conciliar el deposito
+    // contra el estado de cuenta bancario despues.
+    const transferRef = (window.prompt('Referencia de la transferencia (opcional, ej. TR_3583):') || '').trim();
+
     const invoicesToCollect = data.paid.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
     );
@@ -246,7 +251,7 @@ export default function Cobranza() {
             const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
               ...x,
               creditCycle: { ...x.creditCycle, status: 'collected' },
-              collection: { ...x.collection, collectedAt: Timestamp.now() },
+              collection: { ...x.collection, collectedAt: Timestamp.now(), transferRef: transferRef || x.collection?.transferRef || '' },
             }));
             if (nuevas) invoices = nuevas;
           }
@@ -1156,6 +1161,7 @@ export default function Cobranza() {
                     <th>Folio</th>
                     <th>Cliente</th>
                     <th>Contrarecibo</th>
+                    <th>Referencia Transferencia</th>
                     <th className="num">Monto Venta</th>
                     <th>Estado</th>
                     <th>Acción Reversión</th>
@@ -1170,6 +1176,7 @@ export default function Cobranza() {
                         <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
                         <td>{o.client ?? '—'}</td>
                         <td className="mono">{currentCr || '—'}</td>
+                        <td className="mono">{inv.collection?.transferRef || '—'}</td>
                         <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
                           {money(invTotal)}
                         </td>

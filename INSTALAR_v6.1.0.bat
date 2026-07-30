@@ -1,34 +1,27 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title Control Bolsas - Instalar v6.7.0 - Ciclo 7
+title Control Bolsas - Instalar v6.1.0 - Ciclo 5
 color 0B
 cls
 echo.
 echo  ============================================================
-echo    INSTALAR v6.7.0  -  CICLO 11 (carga inicial)
+echo    INSTALAR v6.1.0  -  CICLO 5 (panel funcional)
 echo  ============================================================
 echo.
 echo   Este instalador NO BORRA NADA. Lo unico que hace es:
 echo     - respaldar tu proyecto completo antes de tocar un archivo
-echo     - copiar el proyecto v6.7.0 completo
+echo     - copiar el proyecto v6.1.0 completo
 echo     - respetar lo tuyo: .env, .firebaserc, node_modules,
 echo       dist, .git y cualquier archivo que no venga en el ZIP
 echo.
-echo   CICLOS 10-11 - Compilacion reparada, menu claro,
-echo   Compras con codigo de producto:
-echo     - Reparados 2 errores que impedian compilar en local
-echo       (Cobranza.tsx y un Hook condicional en Compras.tsx)
-echo     - "Ganancia Comercial" corregida: usaba un campo que
-echo       no existe en el modelo y pisaba el valor correcto.
-echo     - Boton "Facturar lo entregado" en el expediente.
-echo     - Menu renombrado: Expedientes / Por Orden de Compra,
-echo       antes confusos por leer la misma coleccion.
-echo     - Compras ahora tiene codigo de producto con busqueda
-echo       en el catalogo y alta rapida si no existe.
-echo.
-echo   [!] Despues de instalar, revisa CONFIGURACION: manda lo
-echo       guardado en Firestore, no el valor por omision.
+echo   CICLO 5 - Arregla el panel principal en ceros:
+echo     - Nueva funcion + boton "Recalcular Indicadores"
+echo     - Corrige el fallo que habria reventado el panel al
+echo       llenarse las estadisticas (porRecibir)
+echo     - Los logs en vivo por fin cargan para el administrador
+echo   Ademas: escape de HTML en impresion, transacciones contra
+echo   escrituras concurrentes, y bundle de 598kB a 34.9kB.
 echo.
 
 cd /d "%~dp0"
@@ -70,7 +63,7 @@ if !CUANTOS!==0 (
   color 0C
   echo.
   echo  [X] No encontre ningun .zip junto a este .bat.
-  echo      Deja "control-bolsas-v6.7.0.zip" en esta misma carpeta.
+  echo      Deja "control-bolsas-v6.1.0.zip" en esta misma carpeta.
   pause & exit /b 1
 )
 if !CUANTOS! GTR 1 (
@@ -86,7 +79,7 @@ if !CUANTOS! GTR 1 (
 for %%f in ("!ZIPFILE!") do echo  [OK] Paquete: %%~nxf
 
 REM ---------- 3. Descomprimir a temporal ----------
-set "TMPDIR=%TEMP%\cb_v67_%RANDOM%"
+set "TMPDIR=%TEMP%\cb_v61_%RANDOM%"
 echo  [..] Descomprimiendo...
 powershell -NoProfile -Command "try{ Expand-Archive -LiteralPath '!ZIPFILE!' -DestinationPath '!TMPDIR!' -Force; exit 0 }catch{ exit 1 }"
 if errorlevel 1 (
@@ -167,7 +160,7 @@ REM cualquier archivo que en el destino "parezca" igual o mas nuevo. Si tu
 REM copia local tiene fecha mas reciente que la del paquete, la correccion
 REM nunca llegaria. /IS fuerza a copiar tambien los que se ven "iguales".
 set "MERGE_LOG=%TEMP%\cb_instalacion_log.txt"
-echo  [..] Instalando la v6.7.0...
+echo  [..] Instalando la v6.1.0...
 echo.
 robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" /R:2 /W:2 /LOG:"!MERGE_LOG!"
 set RC=%ERRORLEVEL%
@@ -220,7 +213,7 @@ echo  [OK] Typecheck limpio
 color 0A
 echo.
 echo  ============================================================
-echo    v6.7.0 INSTALADA  -  CICLO 11
+echo    v6.1.0 INSTALADA  -  CICLO 5
 echo.
 echo    Se respeto: .env, .firebaserc, node_modules, dist, .git
 echo    Tu version anterior completa quedo en:

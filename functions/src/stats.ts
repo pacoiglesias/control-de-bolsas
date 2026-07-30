@@ -20,11 +20,11 @@ function monthKey(d: Date): string {
 }
 
 export function extractStats(data: any): Record<string, any> {
-  let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
+  let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, porCobrarSinCR = 0, porCobrarConCR = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
   let margen = 0, gananciaRealizada = 0;
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   
-  if (!data) return { kilos, vendido, neto, porCobrar, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0 };
+  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
@@ -87,6 +87,12 @@ export function extractStats(data: any): Record<string, any> {
         porRecibir += (invTotal - commission);
       } else if (s === 'pending' || s === 'overdue') {
         porCobrar += saldo;
+        // Dos gestiones distintas: sin CR se persigue para que el cliente
+        // emita el contrarecibo; con CR ya se sabe cuando vence y solo
+        // queda esperar. El usuario ya las llevaba separadas en su propia
+        // hoja de calculo; el sistema las mezclaba en un solo numero.
+        const tieneCr = !!(inv.collection?.contrareciboNumber || data.collection?.contrareciboNumber);
+        if (tieneCr) porCobrarConCR += saldo; else porCobrarSinCR += saldo;
         if (s === 'overdue') vencido += saldo;
       }
       
@@ -104,7 +110,7 @@ export function extractStats(data: any): Record<string, any> {
   }
 
   return {
-    kilos, vendido, neto, porCobrar, vencido, cobrado, netoCobrado, porRecibir,
+    kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir,
     margen, gananciaRealizada,
     meses,
     isPending: status === 'pending' ? 1 : 0,
@@ -139,6 +145,8 @@ export const syncDashboardStats = onDocumentWritten(
     addDelta("margenTotal", before.margen || 0, after.margen || 0);
     addDelta("gananciaRealizadaTotal", before.gananciaRealizada || 0, after.gananciaRealizada || 0);
     addDelta("porCobrar", before.porCobrar, after.porCobrar);
+    addDelta("porCobrarSinCR", before.porCobrarSinCR, after.porCobrarSinCR);
+    addDelta("porCobrarConCR", before.porCobrarConCR, after.porCobrarConCR);
     addDelta("vencido", before.vencido, after.vencido);
     addDelta("cobrado", before.cobrado, after.cobrado);
     addDelta("netoCobrado", before.netoCobrado, after.netoCobrado);
@@ -217,8 +225,8 @@ export const recalcDashboardStats = onCall(
 
     const kpis = {
       totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0,
-      gananciaRealizadaTotal: 0, porCobrar: 0, vencido: 0, cobrado: 0,
-      netoCobrado: 0, porRecibir: 0,
+      gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0,
+      vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0,
     };
     const counters = { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0 };
     const histograms: Record<string, Record<string, number>> = {};
@@ -243,6 +251,8 @@ export const recalcDashboardStats = onCall(
         kpis.margenTotal += s.margen || 0;
         kpis.gananciaRealizadaTotal += s.gananciaRealizada || 0;
         kpis.porCobrar += s.porCobrar;
+        kpis.porCobrarSinCR += s.porCobrarSinCR;
+        kpis.porCobrarConCR += s.porCobrarConCR;
         kpis.vencido += s.vencido;
         kpis.cobrado += s.cobrado;
         kpis.netoCobrado += s.netoCobrado;

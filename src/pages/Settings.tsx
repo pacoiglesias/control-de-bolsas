@@ -182,8 +182,38 @@ export default function Settings() {
             <div className="calc-line total"><span>Flujo neto por cada 1,000 kg</span><span className="mono">{money(preview.netCashFlow)}</span></div>
             <div className="calc-line"><span>Margen sobre venta</span><span className="mono">{((preview.netCashFlow / preview.saleTotal) * 100).toFixed(2)}%</span></div>
           </div>
+        </div>
+      </Card>
 
-          <div className="modal-actions">
+      <Card title="Datos para facturar (SAT)">
+        <div style={{ padding: 16 }}>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Constantes de tus facturas: captúralas una vez aquí para copiarlas directo a tu sistema
+            de facturación en vez de recordarlas cada vez.
+          </p>
+          <div className="form-grid">
+            <Field label="Clave de producto/servicio SAT">
+              <input className="input boxed mono" value={form.satClaveProdServ ?? ''}
+                placeholder="24141500"
+                onChange={(e) => setForm({ ...form, satClaveProdServ: e.target.value })} />
+            </Field>
+            <Field label="Clave de unidad SAT">
+              <input className="input boxed mono" value={form.satClaveUnidad ?? ''}
+                placeholder="KGM"
+                onChange={(e) => setForm({ ...form, satClaveUnidad: e.target.value })} />
+            </Field>
+            <Field label="Método de pago">
+              <input className="input boxed mono" value={form.satMetodoPago ?? ''}
+                placeholder="PPD / PUE"
+                onChange={(e) => setForm({ ...form, satMetodoPago: e.target.value })} />
+            </Field>
+            <Field label="Forma de pago SAT">
+              <input className="input boxed mono" value={form.satFormaPago ?? ''}
+                placeholder="99"
+                onChange={(e) => setForm({ ...form, satFormaPago: e.target.value })} />
+            </Field>
+          </div>
+          <div className="modal-actions" style={{ marginTop: 16 }}>
             <button className="btn" onClick={() => setForm(config)} disabled={!dirty || busy}>Descartar</button>
             <button className="btn btn-primary" onClick={() => void onSave().then(tocarConfig)} disabled={!dirty || busy}>
               {busy ? 'Guardando…' : 'Guardar configuración'}

@@ -1,6 +1,6 @@
 {
   "name": "control-bolsas-functions",
-  "version": "6.7.0",
+  "version": "6.8.0",
   "main": "lib/index.js",
   "engines": {
     "node": "22"
@@ -12,8 +12,6 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
-    "@genkit-ai/ai": "1.8.0",
-    "@genkit-ai/core": "1.8.0",
     "@google-cloud/firestore": "^7.11.0",
     "fast-xml-parser": "^5.10.1",
     "firebase-admin": "^12.7.0",

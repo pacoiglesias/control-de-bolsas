@@ -6,6 +6,27 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 12 — 2026-07-30 — Lista de sugerencias implementada
+
+> Verificación: `tsc` limpio en raíz y `functions`, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+| # | Sugerencia | Estado |
+|---|---|---|
+| 1 | Separar "facturado sin CR" de "CR generado" en el panel | ✅ Nuevos `porCobrarSinCR`/`porCobrarConCR` en `stats.ts` (trigger y recálculo), desglose visible bajo "Te deben" en el Dashboard |
+| 2 | Campo para la referencia de transferencia | ✅ `CollectionInfo.transferRef` en `types.ts`; se pregunta al recoger un contrarecibo en `Cobranza.tsx` y se muestra en el historial |
+| 3 | Datos SAT en Configuración | ✅ 4 campos nuevos en `FinancialConfig`, tarjeta propia en `Settings.tsx` precargada con los valores reales de una OC, conectados a la remisión impresa en `OrderModal.tsx` |
+| 4 | Revisar `npm audit` | ✅ Revisado con cuidado: todas las vulnerabilidades altas/críticas de la raíz están en *devDependencies* (eslint, vite, vitest) — nunca llegan al navegador. La única de producción real (`react-router-dom`, moderada) no tiene parche en la rama 6.x sin saltar a la 7.x, un cambio mayor que no se fuerza sin planearlo aparte. |
+| — | Vulnerabilidad alta en `functions` (`@genkit-ai/core`) | ✅ Resuelta de raíz: era la dependencia muerta de la IA retirada, sin una sola importación en `functions/src`. Se desinstaló junto con `@genkit-ai/ai`. `functions` pasó de 12 altas a **0 altas, 0 críticas**. |
+| 5 | Node 22 vs Node 24 local | 🟡 Documentado, no corregible en código: `functions/package.json` ya declara `"node": "22"` correctamente. Es la instalación local del usuario la que difiere de Cloud Functions. |
+| 6 | Fusionar la rama de trabajo a `main` | 🟡 Es una operación de Git que corresponde al usuario (o a una sesión con acceso real al repositorio), no al código. Instrucciones en el mensaje de entrega. |
+| 7 | `src/lib/seedData.ts` huérfano | ✅ Confirmado sin referencias y eliminado. |
+| 8 | Precio por producto/cliente | 🔴 Pendiente a propósito: `computeFinancials` usa un único `salePricePerKg` global para todo el expediente. Implementarlo bien requiere rediseñar cómo los renglones de venta alimentan el cálculo financiero — un cambio de arquitectura real, no una corrección puntual, y no hay datos reales todavía contra qué verificarlo (a diferencia del ajuste de comisión, que sí tuvo tres cobros reales para validar). Se queda para una sesión dedicada. |
+| 9 | Historial de cambios de configuración | ✅ Ya existía: `logAction()` registra `oldConfig`/`newConfig` en `system_logs` en cada guardado, y `Logs.tsx` ya permite filtrar por "Configuración Financiera Modificada". |
+| 10 | Recordatorio de vencimientos | ✅ Parcial y explícito: `checkOverdueInvoices` ahora escribe un renglón en `system_logs` con los folios que cruzaron a vencido cada día, buscable desde `/logs`. **No es un correo real** — no hay servicio de mail conectado; agregar uno es una decisión aparte (qué proveedor, qué costo) que no se tomó unilateralmente. |
+
+
+---
+
 ## ✅ Ciclo 11 — 2026-07-30 — Menú sin confusión, Compras con código y catálogo por código
 
 | Archivo | Problema encontrado | Optimización aplicada |

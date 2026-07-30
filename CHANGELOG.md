@@ -1,5 +1,25 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.8.0] - 30 Julio 2026 (Ciclo 12 — Lista de sugerencias)
+
+### Agregado
+- **"Te deben" separado en sin-contrarecibo / con-contrarecibo generado**, en el panel y en la agregación del servidor.
+- **Referencia de transferencia** para conciliar el depósito del contador contra el estado de cuenta bancario.
+- **Datos SAT en Configuración** (clave de producto, unidad, método y forma de pago), conectados a la remisión impresa.
+- `checkOverdueInvoices` ahora deja un registro buscable en `/logs` con los folios que vencieron cada día.
+
+### Corregido — seguridad
+- **Vulnerabilidad alta en producción (`@genkit-ai/core`) eliminada.** Era la dependencia muerta de la IA retirada, sin una sola importación real. `functions` pasó de 12 vulnerabilidades altas a 0 altas y 0 críticas.
+- `npm audit` de la raíz revisado: todas las alertas altas/críticas restantes son de herramientas de desarrollo (eslint, vite, vitest), nunca llegan al navegador.
+
+### Limpieza
+- `src/lib/seedData.ts` eliminado (huérfano desde el Ciclo 7).
+
+### Pendiente, a propósito
+- Precio por producto/cliente: requiere rediseñar el motor financiero, se deja para una sesión dedicada.
+- Recordatorio de vencimientos por correo: no hay servicio de mail conectado.
+
+
 ## [v6.7.0] - 30 Julio 2026 (Ciclo 11 — Menú claro, Compras con código de producto)
 
 ### Cambiado

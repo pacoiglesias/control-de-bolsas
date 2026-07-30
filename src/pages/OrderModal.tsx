@@ -378,6 +378,9 @@ export default function OrderModal({
             </div>
             <div style="text-align: right;">
               <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString()}<br>
+              <strong>Clave SAT:</strong> ${escapeHtml(config.satClaveProdServ) || '—'}<br>
+              <strong>Unidad SAT:</strong> ${escapeHtml(config.satClaveUnidad) || '—'}<br>
+              <strong>Método/Forma de pago:</strong> ${escapeHtml(config.satMetodoPago) || '—'} / ${escapeHtml(config.satFormaPago) || '—'}<br>
             </div>
           </div>
           <table>
