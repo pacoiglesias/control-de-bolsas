@@ -109,7 +109,25 @@ export default function Catalog() {
                       {p.status === 'green' && <span title="Surtido recientemente" style={{ fontSize: 20 }}>🟢</span>}
                       {p.status === 'unknown' && <span title="Faltan datos para predecir (sólo 1 pedido)" style={{ fontSize: 20 }}>⚪</span>}
                     </td>
-                    <td className="mono" style={{ color: 'var(--ink-soft)' }}>{p.code || '—'}</td>
+                    <td className="mono">
+                      <input 
+                        className="input boxed mono" 
+                        style={{ width: '100px', fontSize: '12px' }} 
+                        defaultValue={p.code || ''} 
+                        placeholder="Sin código"
+                        onBlur={async (e) => {
+                          if (e.target.value !== (p.code || '')) {
+                            try {
+                              const { doc, updateDoc } = await import('firebase/firestore');
+                              const { db } = await import('../lib/firebase');
+                              await updateDoc(doc(db, 'products', p.id), { code: e.target.value });
+                            } catch (err) {
+                              console.error('Error al guardar código:', err);
+                            }
+                          }
+                        }}
+                      />
+                    </td>
                     <td style={{ fontWeight: 600 }}>{p.description}</td>
                     <td className="num mono">{money(p.defaultPrice)} <span style={{fontSize:10, color:'#666'}}>/{p.unit}</span></td>
                     <td className="num">{p.orderCount}</td>

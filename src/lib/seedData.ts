@@ -15,6 +15,7 @@ export interface SeedItem {
   contrareciboDateStr?: string;
   notes?: string;
   origin: string;
+  items?: any[];
 }
 
 export const INITIAL_SEED_DATA: SeedItem[] = [
@@ -196,7 +197,58 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     status: 'pending',
     notes: 'Pedido 120267113870 · CFDI 4.0 Ingreso (6084) · Pendiente de contrarecibo',
     origin: 'facturas_pendientes_contrarecibo'
+  },
+  {
+    id: 'seed-FAC-120267114014',
+    folio: '120267114014',
+    client: 'GTP930115PU1 (Grupo Textil Providencia)',
+    total: 141000.00,
+    issueDateStr: '2026-07-23',
+    dueDateStr: '2026-08-22',
+    status: 'pedido',
+    notes: 'PEDIDO DE MATERIAL PARA PROGRAMAS COPPEL/WALMART/LIVERPOOL',
+    origin: 'base_inicial_ordenes',
+    items: [
+      {
+        id: 'item-1',
+        code: 'enbo000006-sc',
+        description: 'BOLSA POLIETILENO 77 CM X 55 CM _Sin Color',
+        quantity: 1000,
+        deliveredQuantity: 983.46,
+        unit: 'PZA',
+        unitPrice: 47.00,
+        amount: 47000.00
+      },
+      {
+        id: 'item-2',
+        code: 'egbo000103-sc',
+        description: 'BULTO 80 X 20 +20 X 160 *250',
+        quantity: 1000,
+        deliveredQuantity: 1000.00,
+        unit: 'PZA',
+        unitPrice: 47.00,
+        amount: 47000.00
+      },
+      {
+        id: 'item-3',
+        code: 'egbo000107-sc',
+        description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250',
+        quantity: 1000,
+        deliveredQuantity: 980.70,
+        unit: 'PZA',
+        unitPrice: 47.00,
+        amount: 47000.00
+      }
+    ]
   }
+];
+
+export const INITIAL_EXPENSES = [
+  { id: 'seed-exp-1', dateStr: '2026-07-01', concept: 'saldo nuestra caja chica', amount: -819.44, type: 'egreso' },
+  { id: 'seed-exp-2', dateStr: '2026-07-15', concept: 'recibimos pago dinero ingresa en csaja chica', amount: 144945, type: 'ingreso' },
+  { id: 'seed-exp-3', dateStr: '2026-07-20', concept: 'deuda con andres es negativo para nosotros porque', amount: -125175.56, type: 'egreso', provider: 'Andres' },
+  { id: 'seed-exp-4', dateStr: '2026-07-21', concept: 'adelanto andres 21 julio', amount: 145000, type: 'egreso', provider: 'Andres' },
+  { id: 'seed-exp-5', dateStr: '2026-07-23', concept: 'recibimos el dinero 23 de julio ingresa en caja chica', amount: 76140, type: 'ingreso' }
 ];
 
 export async function seedInitialDatabase() {
@@ -238,8 +290,34 @@ export async function seedInitialDatabase() {
         paidAt: null,
         notes: item.notes ?? '',
       },
+      items: (item as any).items || [],
       processedAt: serverTimestamp(),
       origin: item.origin,
+    });
+    
+    // Add items to products catalog if they exist
+    if ((item as any).items) {
+      (item as any).items.forEach((it: any) => {
+        const productId = it.code?.trim() ? it.code.trim().toUpperCase() : it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        batch.set(doc(db, PATHS.products, productId), {
+          code: it.code?.trim() || null,
+          description: it.description.trim(),
+          unit: it.unit,
+          defaultPrice: it.unitPrice,
+          lastOrderDate: serverTimestamp(),
+        }, { merge: true });
+      });
+    }
+  });
+
+  INITIAL_EXPENSES.forEach((exp) => {
+    batch.set(doc(db, PATHS.expenses, exp.id), {
+      date: Timestamp.fromDate(new Date(`${exp.dateStr}T12:00:00`)),
+      concept: exp.concept,
+      amount: Math.abs(exp.amount),
+      type: exp.type,
+      provider: (exp as any).provider || null,
+      createdAt: serverTimestamp(),
     });
   });
 

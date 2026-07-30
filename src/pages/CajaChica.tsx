@@ -101,6 +101,7 @@ function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => v
     amount: String(expense.amount || ''),
     type: expense.type,
     notes: expense.notes ?? '',
+    provider: expense.provider ?? '',
   });
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -118,6 +119,7 @@ function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => v
         amount: Number(form.amount),
         type: form.type,
         notes: form.notes.trim(),
+        provider: form.provider.trim() || null,
         createdAt: expense.createdAt ?? serverTimestamp(),
       }, { merge: true });
       await logAction(user?.email, expense.createdAt ? 'Gasto Editado' : 'Gasto Creado', {
@@ -167,6 +169,9 @@ function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => v
         </Field>
         <Field label="Concepto (e.g. Gasolina, Papelería)">
           <input className="input boxed" value={form.concept} onChange={(e) => set('concept', e.target.value)} />
+        </Field>
+        <Field label="Proveedor (Opcional, para anticipos)">
+          <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder="Ej. Andres" />
         </Field>
         <Field label="Monto">
           <input className="input boxed mono" type="number" step="0.01" value={form.amount} onChange={(e) => set('amount', e.target.value)} />

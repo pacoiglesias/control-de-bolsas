@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Card, Empty, Spinner } from '../components/ui';
 import { fmtDateTime } from '../lib/format';
+import { useToast } from '../context/ToastContext';
 
 interface LogEntry {
   id: string;
@@ -18,12 +19,14 @@ const PAGE_SIZE = 100;
 
 export default function Logs() {
   const { role } = useAuth();
+  const toast = useToast();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('TODAS');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -95,6 +98,23 @@ export default function Logs() {
     URL.revokeObjectURL(url);
   }
 
+  async function clearLogs() {
+    if (!confirm('¿Estás seguro de que deseas borrar TODA la bitácora? Esto no se puede deshacer.')) return;
+    setClearing(true);
+    try {
+      const q = query(collection(db, 'system_logs'), limit(500));
+      const snap = await getDocs(q);
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      toast('Bitácora limpiada con éxito', 'ok');
+    } catch (e) {
+      toast(`Error al limpiar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setClearing(false);
+    }
+  }
+
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (loading) return <Spinner label="Cargando bitácora…" />;
   if (error) return <div className="alert bad">{error}</div>;
@@ -116,6 +136,9 @@ export default function Logs() {
         hint={`${filtered.length} de ${logs.length}`}
         actions={
           <>
+            <button className="btn" style={{ color: 'var(--bad)', borderColor: 'var(--bad)' }} onClick={clearLogs} disabled={clearing || logs.length === 0}>
+              {clearing ? 'Borrando...' : '🗑️ Limpiar'}
+            </button>
             <button className="btn" onClick={exportCSV}>⭳ CSV</button>
           </>
         }

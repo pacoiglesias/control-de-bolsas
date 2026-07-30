@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from '../hooks/usePurchases';
+import { useExpenses } from '../hooks/useExpenses';
 import { Card, Empty, Field, Modal, Spinner, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -12,99 +13,180 @@ import type { Purchase, PurchaseStatus } from '../lib/types';
 
 export default function Compras() {
   const { role } = useAuth();
-  const { purchases, loading, error } = usePurchases();
+  const { purchases, loading: loadingP, error: errorP } = usePurchases();
+  const { expenses, loading: loadingE, error: errorE } = useExpenses();
   const [selected, setSelected] = useState<Purchase | null>(null);
+  const [tab, setTab] = useState<'ordenes' | 'estado'>('ordenes');
+  const selectedProvider = 'Andres';
 
-  if (loading) return <Spinner />;
+  if (loadingP || loadingE) return <Spinner />;
   if (role !== 'admin') return <Navigate to="/" replace />;
-  if (error) return <div className="alert bad">{error}</div>;
+  if (errorP || errorE) return <div className="alert bad">{errorP || errorE}</div>;
 
-  const pendientesKilos = purchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
-  const deuda = purchases.reduce((acc, p) => acc + (p.totalAmount - p.paidAmount), 0);
+  // Filtrado por proveedor actual
+  const provPurchases = purchases.filter(p => p.provider.toLowerCase() === selectedProvider.toLowerCase());
+  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === selectedProvider.toLowerCase());
+
+  const pendientesKilos = provPurchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
+  
+  // Cálculo exacto de la deuda basado en el Libro Mayor
+  const totalPurchasesCost = provPurchases.reduce((acc, p) => acc + p.totalAmount, 0);
+  const totalPagado = provExpenses.reduce((acc, e) => {
+    if (e.type === 'egreso') return acc + e.amount; // Le pagamos (abono a la deuda)
+    if (e.type === 'ingreso') return acc - e.amount; // Nos devolvió (cargo a la deuda)
+    return acc;
+  }, 0);
+  const deudaReal = totalPurchasesCost - totalPagado;
+
+  // Generación del Libro Mayor Cronológico
+  type LedgerEntry = { id: string; date: Timestamp | null; concept: string; cargo: number; abono: number; source: 'purchase' | 'expense' };
+  
+  const ledger: LedgerEntry[] = [
+    ...provPurchases.map(p => ({
+      id: p.id,
+      date: p.date,
+      concept: `Compra de Material`,
+      cargo: p.totalAmount, // Sube la deuda
+      abono: 0,
+      source: 'purchase' as const
+    })),
+    ...provExpenses.map(e => ({
+      id: e.id,
+      date: e.date,
+      concept: e.concept,
+      cargo: e.type === 'ingreso' ? e.amount : 0, 
+      abono: e.type === 'egreso' ? e.amount : 0, 
+      source: 'expense' as const
+    }))
+  ].sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
 
   return (
     <>
       <div className="page-head">
-        <h1>Compras al Fabricante</h1>
+        <h1>Compras y Proveedores</h1>
         <p>Control de pedidos a proveedores, anticipos, recepciones parciales y saldos.</p>
+        <div className="tabs" style={{ marginTop: 16 }}>
+          <button className={tab === 'ordenes' ? 'active' : ''} onClick={() => setTab('ordenes')}>Órdenes de Compra</button>
+          <button className={tab === 'estado' ? 'active' : ''} onClick={() => setTab('estado')}>Estado de Cuenta</button>
+        </div>
       </div>
 
       <div className="kpi-grid">
-        <Card title="Kilos pendientes de entrega">
+        <Card title={`Kilos pendientes (${selectedProvider})`}>
           <div className="num" style={{ fontSize: 24 }}>{kilos(pendientesKilos)}</div>
         </Card>
-        <Card title={deuda < 0 ? 'Saldo a Favor (Anticipos)' : 'Deuda Global al Fabricante'}>
-          <div className="num" style={{ fontSize: 24, color: deuda < 0 ? 'var(--info)' : 'var(--bad)' }}>
-            {deuda < 0 ? `+ ${money(Math.abs(deuda))}` : money(deuda)}
+        <Card title={deudaReal < 0 ? `Saldo a Favor (${selectedProvider})` : `Deuda Exacta (${selectedProvider})`}>
+          <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--info)' : 'var(--bad)' }}>
+            {deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}
           </div>
         </Card>
       </div>
 
-      <Card
-        actions={
-          <>
-            <button className="btn btn-primary no-print" onClick={() => setSelected({
-              id: doc(collection(db, PATHS.purchases)).id,
-              date: Timestamp.fromDate(new Date()),
-              provider: 'Andres',
-              expectedKilos: 0,
-              receivedKilos: 0,
-              pricePerKg: 42,
-              totalAmount: 0,
-              paidAmount: 0,
-              status: 'pedido',
-              createdAt: null,
-            } as Purchase)}>
-              + Nuevo Pedido al Fabricante
-            </button>
-            <span className="spacer" />
-            <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
-          </>
-        }
-        title="Historial de Compras"
-      >
-        {purchases.length === 0 ? (
-          <Empty>No hay compras registradas.</Empty>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Proveedor</th>
-                  <th className="num">Kilos Pedidos</th>
-                  <th className="num">Kilos Entregados</th>
-                  <th className="num">Costo Total</th>
-                  <th className="num">Pagado (Anticipo)</th>
-                  <th className="num">Deuda</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchases.map((p) => {
-                  const d = p.totalAmount - p.paidAmount;
-                  return (
+      {tab === 'ordenes' ? (
+        <Card
+          actions={
+            <>
+              <button className="btn btn-primary no-print" onClick={() => setSelected({
+                id: doc(collection(db, PATHS.purchases)).id,
+                date: Timestamp.fromDate(new Date()),
+                provider: selectedProvider,
+                expectedKilos: 0,
+                receivedKilos: 0,
+                pricePerKg: 42,
+                totalAmount: 0,
+                paidAmount: 0,
+                status: 'pedido',
+                createdAt: null,
+                items: [],
+              } as unknown as Purchase)}>
+                + Nuevo Pedido al Fabricante
+              </button>
+              <span className="spacer" />
+              <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
+            </>
+          }
+          title="Historial de Compras"
+        >
+          {provPurchases.length === 0 ? (
+            <Empty>No hay compras registradas para {selectedProvider}.</Empty>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th className="num">Kilos Pedidos</th>
+                    <th className="num">Kilos Entregados</th>
+                    <th className="num">Costo Total</th>
+                    <th className="num">Pagado (Interno)</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {provPurchases.map((p) => (
                     <tr key={p.id} onClick={() => setSelected(p)} style={{ cursor: 'pointer' }}>
                       <td className="mono">{fmtDate(p.date)}</td>
-                      <td>{p.provider}</td>
                       <td className="num mono">{kilos(p.expectedKilos)}</td>
                       <td className="num mono">{kilos(p.receivedKilos)}</td>
                       <td className="num mono">{money(p.totalAmount)}</td>
                       <td className="num mono">{money(p.paidAmount)}</td>
-                      <td className="num mono" style={{ color: d > 0 ? 'var(--bad)' : (d < 0 ? 'var(--info)' : 'var(--ok)') }}>
-                        {d < 0 ? `+ ${money(Math.abs(d))}` : money(d)}
-                      </td>
                       <td>
                         <StatusBadge status={p.status === 'pedido' ? 'pending' : p.status === 'parcial' ? 'manual_review' : 'paid'} />
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card title={`Estado de Cuenta: ${selectedProvider}`} actions={<button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>}>
+          {ledger.length === 0 ? (
+            <Empty>No hay movimientos registrados para este proveedor.</Empty>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Concepto</th>
+                    <th className="num">Cargo (+)</th>
+                    <th className="num">Abono (-)</th>
+                    <th className="num">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    let runningBalance = 0;
+                    return ledger.map((entry, idx) => {
+                      runningBalance += (entry.cargo - entry.abono);
+                      return (
+                        <tr key={entry.id + idx}>
+                          <td className="mono">{fmtDate(entry.date)}</td>
+                          <td>
+                            {entry.concept}
+                            {entry.source === 'purchase' && <span className="badge pending" style={{marginLeft: 8}}>Compra</span>}
+                          </td>
+                          <td className="num mono" style={{ color: entry.cargo > 0 ? 'var(--bad)' : 'inherit' }}>
+                            {entry.cargo > 0 ? money(entry.cargo) : '-'}
+                          </td>
+                          <td className="num mono" style={{ color: entry.abono > 0 ? 'var(--ok)' : 'inherit' }}>
+                            {entry.abono > 0 ? money(entry.abono) : '-'}
+                          </td>
+                          <td className="num mono" style={{ fontWeight: 600 }}>
+                            {money(runningBalance)}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
 
       {selected && (
         <PurchaseModal purchase={selected} onClose={() => setSelected(null)} />
@@ -112,6 +194,7 @@ export default function Compras() {
     </>
   );
 }
+
 
 function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () => void }) {
   const { user } = useAuth();
@@ -179,6 +262,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
             amount: diffPaid,
             type: 'egreso',
             notes: `Asociado al registro de compra ID: ${purchase.id}. Costo Total de OC: $${totalAmountCalc.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+            provider: form.provider.trim() || null,
             createdAt: serverTimestamp(),
           });
           toast(`Se ha registrado un Egreso en Caja Chica por $${diffPaid.toLocaleString('es-MX', {minimumFractionDigits:2})} de forma automática.`, 'ok');

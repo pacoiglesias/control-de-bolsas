@@ -123,6 +123,7 @@ export interface Expense {
   type: 'ingreso' | 'egreso';
   notes?: string;
   createdAt: Timestamp | null;
+  provider?: string;
 }
 
 export type PurchaseStatus = 'pedido' | 'parcial' | 'entregado';

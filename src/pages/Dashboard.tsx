@@ -416,7 +416,7 @@ export default function Dashboard() {
             <div className="alert warn" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 20 }}>🔍</span>
               <div style={{ flex: 1 }}>
-                <strong>Revisión manual:</strong> {k.review.length} PDF{k.review.length > 1 ? 's' : ''} no pudieron ser leídos por la IA y esperan captura.
+                <strong>Revisión manual:</strong> {k.review.length} archivo{k.review.length > 1 ? 's' : ''} con errores en XML o que esperan captura manual.
               </div>
               <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar Ahora</button>
             </div>
