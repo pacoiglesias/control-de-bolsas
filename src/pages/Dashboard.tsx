@@ -188,11 +188,12 @@ export default function Dashboard() {
   }
 
   const k = useMemo(() => {
-    const live: any[] = [];
-    const pending: any[] = [];
-    const overdue: any[] = [];
-    const paid: any[] = [];
-    const review: any[] = [];
+    const live: PurchaseOrder[] = [];
+    const pending: PurchaseOrder[] = [];
+    const overdue: PurchaseOrder[] = [];
+    const paid: PurchaseOrder[] = [];
+    const review: PurchaseOrder[] = [];
+    const porRecibir: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
 
     let totalKilos = 0;
     let totalVendido = 0;
@@ -202,7 +203,7 @@ export default function Dashboard() {
     let cobrado = 0;
     let netoCobrado = 0;
     const meses: Record<string, { venta: number; cobrado: number; ganancia: number }> = {};
-    const proximos: any[] = [];
+    const proximos: { o: PurchaseOrder; inv: Invoice; d: number | null }[] = [];
 
     orders.forEach(o => {
       const status = o.creditCycle?.status;
@@ -229,6 +230,14 @@ export default function Dashboard() {
           if (inv.creditCycle.status === 'paid') {
             cobrado += paidAmt > 0 ? paidAmt : invTotal;
             netoCobrado += invNet;
+            const commission = inv.financials?.commission ?? 0;
+            porRecibir.push({
+              folio: inv.folio ?? '?',
+              cr: inv.collection?.contrareciboNumber ?? '—',
+              invoiceTotal: invTotal,
+              commission,
+              net: invTotal - commission,
+            });
           } else if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
             porCobrar += saldo;
             if (inv.creditCycle.status === 'overdue') {
@@ -253,23 +262,6 @@ export default function Dashboard() {
       }
     });
 
-    // Facturas en estado 'paid': el cliente pagó pero el contador aún no te da el efectivo
-    const porRecibir: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
-    orders.forEach(o => {
-      (o.invoices ?? []).forEach(inv => {
-        if (inv.creditCycle?.status === 'paid') {
-          const invTotal = inv.financials?.invoiceTotal ?? 0;
-          const commission = inv.financials?.commission ?? 0;
-          porRecibir.push({
-            folio: inv.folio ?? '?',
-            cr: inv.collection?.contrareciboNumber ?? '—',
-            invoiceTotal: invTotal,
-            commission,
-            net: invTotal - commission,
-          });
-        }
-      });
-    });
     const totalPorRecibir = porRecibir.reduce((s, x) => s + x.net, 0);
 
     const mesesKeys = Object.keys(meses).sort().slice(-6);

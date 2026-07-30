@@ -5,8 +5,12 @@ import { useConfig } from '../hooks/useConfig';
 import { computeFinancials } from '../lib/finance';
 import type { PurchaseOrder } from '../lib/types';
 
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+
 export default function Seeder() {
-  const { config } = useConfig();
+  const { role } = useAuth();
+  const { config, loading: configLoading } = useConfig();
   const [log, setLog] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [rawData, setRawData] = useState(`1	TH-836	27/07/2026	26/08/2026	106,720.17
@@ -171,6 +175,8 @@ export default function Seeder() {
     setRunning(false);
   };
 
+  if (role !== 'admin') return <Navigate to="/" replace />;
+
   return (
     <div style={{ padding: 40, maxWidth: 900, margin: '0 auto' }}>
       <h1>Sincronización Maestra Editable (Reset)</h1>
@@ -197,10 +203,10 @@ export default function Seeder() {
 
       <button 
         onClick={handleRun} 
-        disabled={running}
-        style={{ padding: '16px 32px', fontSize: 18, background: 'var(--bad)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold' }}
+        disabled={running || configLoading}
+        style={{ padding: '16px 32px', fontSize: 18, background: (running || configLoading) ? '#ccc' : 'var(--bad)', color: 'white', border: 'none', borderRadius: 8, cursor: (running || configLoading) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
       >
-        {running ? "Procesando..." : "BORRAR TODO E INYECTAR DATOS"}
+        {running ? "Procesando..." : configLoading ? "Cargando configuración..." : "BORRAR TODO E INYECTAR DATOS"}
       </button>
 
       <div style={{ marginTop: 40, background: '#f5f5f5', padding: 20, borderRadius: 8, fontFamily: 'monospace' }}>

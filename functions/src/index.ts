@@ -281,13 +281,8 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       const chunkSize = 30; // Límite de Firestore para array-contains-any
       for (let i = 0; i < targetFolios.length; i += chunkSize) {
         const chunk = targetFolios.slice(i, i + chunkSize);
-        let snapshot = await db.collection(COL_ORDERS).where('invoiceFolios', 'array-contains-any', chunk).get();
+        const snapshot = await db.collection(COL_ORDERS).where('invoiceFolios', 'array-contains-any', chunk).get();
         
-        // Fallback: si es una base legacy donde invoiceFolios aún no existe en docs viejos
-        if (snapshot.empty) {
-          snapshot = await db.collection(COL_ORDERS).where("invoices", "!=", null).limit(100).get();
-        }
-
         for (const doc of snapshot.docs) {
           const oData = doc.data();
           const invoices = oData.invoices || [];
@@ -542,7 +537,7 @@ export const sanitizePurchaseOrder = onDocumentWritten(
   async (event) => {
     if (!event.data?.after.exists) return;
     const data = event.data.after.data();
-    if (!data || data._sanitized) return;
+    if (!data) return;
 
     const cfg = data.historicalConfig ?? await readConfig();
     const invoices = Array.isArray(data.invoices) ? data.invoices : [];
@@ -555,10 +550,11 @@ export const sanitizePurchaseOrder = onDocumentWritten(
       const expectedNet = baseFin.invoiceTotal - baseFin.costTotal - expectedCommission;
 
       if (
-        inv.financials?.saleTotal !== baseFin.saleTotal ||
-        inv.financials?.costTotal !== baseFin.costTotal ||
-        inv.financials?.commission !== expectedCommission ||
-        inv.financials?.netCashFlow !== expectedNet
+        !inv.financials ||
+        inv.financials.saleTotal !== baseFin.saleTotal ||
+        inv.financials.costTotal !== baseFin.costTotal ||
+        inv.financials.commission !== expectedCommission ||
+        inv.financials.netCashFlow !== expectedNet
       ) {
         modified = true;
         return {
@@ -577,7 +573,6 @@ export const sanitizePurchaseOrder = onDocumentWritten(
       logger.info(`Sanitizando importes de la orden ${event.params.orderId} contra manipulación de cliente.`);
       await event.data.after.ref.update({
         invoices: sanitizedInvoices,
-        _sanitized: true,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }

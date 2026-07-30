@@ -38,7 +38,11 @@ export default function Layout() {
     localStorage.setItem('cb-theme', theme);
   }, [theme]);
 
-  useEffect(() => setNavOpen(false), [location.pathname]);
+  useEffect(() => {
+    setNavOpen(false);
+    const item = NAV.find((n) => (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
+    document.title = item ? `${item.label} · Control Bolsas` : 'Control Bolsas ERP';
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);

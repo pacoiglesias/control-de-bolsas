@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let snap = await getDoc(adminRef);
 
         const email = u.email?.toLowerCase().trim() ?? '';
-        const isMasterUser = email === 'paco@cobertores.com' || email === 'paco@cobertors.com';
+        const isMasterUser = email === 'paco@cobertores.com';
 
         if (!u.emailVerified && !isMasterUser) {
           setError(`Por seguridad, debes verificar tu correo o iniciar sesión con Google.`);

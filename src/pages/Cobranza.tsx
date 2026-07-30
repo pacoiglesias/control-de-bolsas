@@ -80,9 +80,11 @@ export default function Cobranza() {
     }
     
     try {
-      await Promise.all(Object.entries(updatesByOrder).map(([orderId, newInvoices]) => 
-        updateDoc(doc(db, PATHS.orders, orderId), { invoices: newInvoices })
-      ));
+      const batch = writeBatch(db);
+      Object.entries(updatesByOrder).forEach(([orderId, newInvoices]) => {
+        batch.update(doc(db, PATHS.orders, orderId), { invoices: newInvoices });
+      });
+      await batch.commit();
       toast(`Contrarecibo ${crNumber} cobrado exitosamente`, 'ok');
     } catch (e) {
       toast('Error al procesar el cobro en bloque', 'bad');

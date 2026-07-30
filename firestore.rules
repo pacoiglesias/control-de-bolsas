@@ -102,8 +102,7 @@ service cloud.firestore {
       allow read: if isSuperAdmin();
       // El backend los genera o el cliente validado
       allow create: if isAuthenticatedUser()
-        && request.resource.data.user == request.auth.token.email
-        && request.resource.data.timestamp == request.time;
+        && request.resource.data.keys().hasAll(['user', 'action', 'timestamp']);
       allow update, delete: if false; // Logs inmutables
     }
 
