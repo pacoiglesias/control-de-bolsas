@@ -101,6 +101,16 @@ export default function OrderModal({
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
       return;
     }
+    const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined;
+    const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined;
+    const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) : undefined;
+
+    if ((ccp !== undefined && isNaN(ccp)) || (csp !== undefined && isNaN(csp)) || (ccr !== undefined && isNaN(ccr))) {
+      sound.playError();
+      toast('Por favor, ingresa solo números válidos en Costo, Precio o Comisión.', 'bad');
+      return;
+    }
+
     setBusy(true);
     try {
       const ref = doc(db, PATHS.orders, order.id);
@@ -583,14 +593,14 @@ export default function OrderModal({
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => setTab('resumen')}>Resumen</button>
-        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => setTab('productos')}>
+        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('resumen'); }}>Resumen</button>
+        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('productos'); }}>
           Productos <span className="badge">{form.items.length}</span>
         </button>
-        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => setTab('entregas')}>
+        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('entregas'); }}>
           Entregas <span className="badge">{form.deliveries.length}</span>
         </button>
-        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => setTab('facturas')}>
+        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('facturas'); }}>
           Facturas <span className="badge">{form.invoices.length}</span>
         </button>
         <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
@@ -1114,11 +1124,9 @@ export default function OrderModal({
                               <option value="overdue">Vencida</option>
                               <option value="manual_review">Revisión manual</option>
                           </select>
-                          {isLate && (
-                            <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4 }}>
-                              ⚠️ {d} días de atraso
-                            </div>
-                          )}
+                          <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4, minHeight: 18, visibility: isLate ? 'visible' : 'hidden' }}>
+                            {isLate ? `⚠️ ${d} días de atraso` : ' '}
+                          </div>
                         </Field>
                         <Field label="Emisión">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.issueDate) || ''}
