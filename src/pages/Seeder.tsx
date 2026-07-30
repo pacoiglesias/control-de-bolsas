@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { collection, doc, writeBatch, getDocs, Timestamp } from 'firebase/firestore';
-import { db, PATHS } from '../lib/firebase';
+import { db, PATHS, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { useConfig } from '../hooks/useConfig';
 import { computeFinancials } from '../lib/finance';
 import type { PurchaseOrder } from '../lib/types';
@@ -104,7 +105,10 @@ export default function Seeder() {
       
       // Inyectar Contrarecibos
       crs.forEach((cr) => {
-        const totalKilos = cr.amount / 54.52; 
+        // Precio de la configuracion, no un 54.52 incrustado: si algun dia
+        // cambia el precio de venta, la migracion seguia derivando kilos con
+        // el valor viejo y los importes salian corridos sin avisar.
+        const totalKilos = cr.amount / config.salePricePerKg;
         const crKey = `CR-${cr.folio}`;
 
         const newOrder: PurchaseOrder = {
@@ -128,6 +132,12 @@ export default function Seeder() {
             creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(cr.issueDate), dueDate: Timestamp.fromDate(cr.dueDate) },
             collection: { contrareciboNumber: cr.folio }
           }],
+          // invoiceStatuses es el arreglo desnormalizado que sostiene las
+          // consultas array-contains-any del Dashboard y de Cobranza, y la del
+          // barrido nocturno. El Seeder NUNCA lo escribia: los expedientes se
+          // creaban correctamente en Firestore pero eran invisibles para todas
+          // esas pantallas. Por eso "cargaba" y no se veia nada.
+          invoiceStatuses: ['pending'],
           processedAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         };
@@ -137,7 +147,7 @@ export default function Seeder() {
       // Inyectar Facturas Pendientes
       if (facturas.length > 0) {
         const totalAmountFacturas = facturas.reduce((sum, f) => sum + f.amount, 0);
-        const totalKilosFacturas = totalAmountFacturas / 54.52;
+        const totalKilosFacturas = totalAmountFacturas / config.salePricePerKg;
         const crKey = `PENDIENTES`;
 
         const pendingOrder: PurchaseOrder = {
@@ -156,11 +166,12 @@ export default function Seeder() {
             id: `${crKey}-inv-${i}`,
             folio: `FACT-${f.folio}`,
             oc: f.oc,
-            kilos: f.amount / 54.52,
-            financials: { ...computeFinancials(f.amount / 54.52, config), invoiceTotal: f.amount },
+            kilos: f.amount / config.salePricePerKg,
+            financials: { ...computeFinancials(f.amount / config.salePricePerKg, config), invoiceTotal: f.amount },
             creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date), dueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date) },
             collection: { contrareciboNumber: '' }
           })),
+          invoiceStatuses: facturas.map(() => 'pending'),
           processedAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         };
@@ -168,7 +179,24 @@ export default function Seeder() {
       }
 
       await batch.commit();
-      addLog("✅ Migración completada con éxito. Revisar panel de Cobranza.");
+      addLog(`Migrados ${crs.length} contrarecibos y ${facturas.length} facturas.`);
+
+      // Recalcular indicadores AQUI mismo. syncDashboardStats solo reacciona a
+      // escrituras posteriores a su despliegue y ademas ignora los writeBatch
+      // que acaban de correr si el documento de stats nunca existio: sin este
+      // paso, la migracion terminaba "con exito" y el panel seguia en ceros,
+      // obligando a ir a buscar el boton de recalcular a mano.
+      addLog("Recalculando indicadores del panel…");
+      try {
+        const recalc = httpsCallable<unknown, { procesados: number }>(functions, 'recalcDashboardStats');
+        const res = await recalc({});
+        addLog(`✅ Indicadores recalculados sobre ${res.data.procesados} expedientes.`);
+      } catch (e) {
+        addLog(`⚠️ Los datos se migraron bien, pero fallo el recalculo: ${(e as Error).message}`);
+        addLog("   Puedes recalcular a mano desde el boton del panel principal.");
+      }
+
+      addLog("✅ Migración completada. Revisar panel de Cobranza.");
     } catch (e: any) {
       addLog(`❌ Error: ${e.message}`);
     }

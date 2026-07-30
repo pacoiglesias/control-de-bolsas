@@ -3,6 +3,25 @@
 Este documento es la bitácora viva de la Auditoría de Automejora Continua del sistema Control Bolsas ERP. Cada hallazgo, optimización, parche de seguridad y refactorización queda registrado aquí con fecha, archivo afectado, diagnóstico y resolución.
 
 **Leyenda de estados:** ✅ Resuelto · 🔧 En curso · 🔴 Pendiente (detectado, sin corregir) · ↩️ Regresión (se resolvió antes y volvió)
+
+---
+
+## ✅ Ciclo 7 — 2026-07-30 — La carga inicial creaba expedientes invisibles
+
+> Verificación: `tsc` limpio en raíz y `functions`, `eslint .` con 0 errores y 0 advertencias, 12/12 pruebas, build completo.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Seeder.tsx` | 🔴 **La migración nunca escribía `invoiceStatuses`.** Los expedientes se creaban bien en Firestore, pero ese arreglo desnormalizado es lo que sostiene TODAS las consultas `array-contains-any` del sistema: Dashboard, Cobranza y el barrido nocturno `checkOverdueInvoices`. Sin él, los registros migrados eran **invisibles** en todas esas pantallas. La migración reportaba éxito y no se veía nada. | `invoiceStatuses` agregado tanto a los contrarecibos como al expediente de facturas pendientes. |
+| `src/lib/types.ts` | 🔴 **`PurchaseOrder` no declaraba `invoiceStatuses`**, pese a que todo el sistema depende de ese campo. Nada impedía que una ruta de escritura lo omitiera —que es exactamente lo que pasaba en el Seeder— porque el compilador no tenía forma de saber que faltaba. | Campo declarado y documentado, con la indicación de escribirlo siempre vía `camposInvoices()`. |
+| `src/pages/Seeder.tsx` | Precio de venta `54.52` incrustado en tres lugares para derivar kilos desde el importe. Si cambiaba el precio en la configuración, la migración seguía usando el viejo y los importes salían corridos sin avisar. | Sustituido por `config.salePricePerKg`. |
+| `src/pages/Seeder.tsx` | Al terminar decía "Migración completada con éxito" pero **el panel seguía en ceros**: `syncDashboardStats` solo reacciona a escrituras posteriores a su despliegue. Había que ir a buscar el botón de recalcular a mano sin que nada lo indicara. | La migración ahora invoca `recalcDashboardStats` al terminar y reporta cuántos expedientes procesó. Si el recálculo falla, avisa que los datos sí se migraron y cómo recalcular a mano. |
+| `src/pages/Dashboard.tsx` | El aviso "Cargar base inicial (15 registros)" inyectaba **datos de ejemplo** desde `seedData.ts`, un camino distinto y peor que `/seed`, que sí carga los contrarecibos y facturas reales. Mezclaba registros ficticios con los del negocio. | Reemplazado por un enlace a `/seed`, visible solo para administradores. Eliminados el import, el estado `seeding` y el `logAction` que quedaron sin uso. |
+
+### 🟡 Pendiente consciente
+
+`src/lib/seedData.ts` quedó **huérfano**: ya nadie lo importa. No estorba (no entra al paquete final), pero es candidato a borrarse en la próxima limpieza si se confirma que esos 15 registros de ejemplo ya no hacen falta.
+
 ---
 
 ## ✅ Ciclo 6 — 2026-07-30 — Estado de Cuenta de Proveedor y Fix Semilla
@@ -453,5 +472,6 @@ eadConfigCacheada provocaba condición de carrera si múltiples eventos se proce
 - **Análisis Staff Engineer:** Al realizar un escaneo profundo de dependencias (15 archivos afectados incluyendo stats.ts, Cobranza.tsx, OrderModal.tsx), descubrí que el modelo actual es **100% correcto** para este caso de uso NoSQL.
   1. **El límite de 1MB es un mito aquí:** Invoice solo guarda metadata (IDs, fechas, montos). Los archivos XML/PDF pesados viven en Firebase Storage. Un expediente con 100 facturas pesa menos de 50KB.
   2. **Atomicidad:** Al estar embebidas, las Cloud Functions (syncDashboardStats) pueden recalcular toda la orden en un solo trigger, asegurando coherencia. Una subcolección rompería esta atomicidad y obligaría a crear complejas transacciones multi-documento.
-  3. **Concurrencia:** Ya está resuelta con el uso de unTransaction que inyectaste en la v6.0.
+  3. **Concurrencia:** Ya está resuelta con el uso de 
+unTransaction que inyectaste en la v6.0.
 - **Decisión:** **SE CANCELA EL PASO 3**. Sería un anti-patrón de sobreingeniería (Over-engineering). Nos enfocaremos en optimizar el frontend (UI/UX) y limpiar deuda técnica (Paso 4).

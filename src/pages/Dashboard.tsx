@@ -12,8 +12,6 @@ import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
 import { kilos, money, monthLabel, percent, toDate, fmtDate } from '../lib/format';
 import { daysLate, round2 } from '../lib/finance';
-import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
-import { logAction } from '../lib/logger';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder, Invoice } from '../lib/types';
 import { useDocumentData, useCollectionData } from 'react-firebase-hooks/firestore';
@@ -104,7 +102,6 @@ export default function Dashboard() {
   const { config } = useConfig();
   const nav = useNavigate();
   const toast = useToast();
-  const [seeding, setSeeding] = useState(false);
   const [health, setHealth] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({ snapshotDate: null, recentLogs: 0, dbStatus: '...' });
   const [showBackupsModal, setShowBackupsModal] = useState(false);
   const [showChangelogModal, setShowChangelogModal] = useState(false);
@@ -509,31 +506,18 @@ export default function Dashboard() {
         </div>
       )}
 
-      {(statsDoc?.counters?.totalOrders ?? 0) === 0 && INITIAL_SEED_DATA.length > 0 && (
+      {(statsDoc?.counters?.totalOrders ?? 0) === 0 && role === 'admin' && (
         <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
             El sistema no tiene órdenes registradas aún
           </div>
           <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-            Puedes cargar la base inicial con {INITIAL_SEED_DATA.length} registro{INITIAL_SEED_DATA.length === 1 ? '' : 's'} de ejemplo.
+            La carga inicial se hace desde la pantalla de migración, donde pegas
+            tus contrarecibos y facturas reales. Este panel ya no carga datos de
+            ejemplo: hacerlo desde aquí mezclaba registros ficticios con los tuyos.
           </div>
-          <button
-            className="btn btn-primary"
-            disabled={seeding}
-            onClick={async () => {
-              setSeeding(true);
-              try {
-                await seedInitialDatabase();
-                logAction(user?.email, 'Base Inicial Cargada', { registros: INITIAL_SEED_DATA.length });
-                toast(`Base inicial cargada: ${INITIAL_SEED_DATA.length} registros`, 'ok');
-              } catch (e) {
-                toast(`Error al cargar datos: ${(e as Error).message}`, 'bad');
-              } finally {
-                setSeeding(false);
-              }
-            }}
-          >
-            {seeding ? 'Cargando datos…' : `📥 Cargar base inicial (${INITIAL_SEED_DATA.length} registros)`}
+          <button className="btn btn-primary" onClick={() => nav('/seed')}>
+            📥 Ir a la carga inicial
           </button>
         </div>
       )}

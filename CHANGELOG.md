@@ -1,5 +1,17 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.2.0] - 30 Julio 2026 (Ciclo 7 — La carga inicial por fin funciona)
+
+### Corregido — crítico
+- **La migración creaba expedientes invisibles.** `Seeder.tsx` nunca escribía `invoiceStatuses`, el arreglo desnormalizado del que dependen todas las consultas del sistema (Dashboard, Cobranza y el barrido nocturno). Los registros quedaban bien guardados en Firestore pero no aparecían en ninguna pantalla, mientras la migración reportaba éxito.
+- **`PurchaseOrder` no declaraba `invoiceStatuses`.** Por eso nada impedía que una ruta de escritura lo omitiera. Ya está declarado y documentado.
+- **La migración terminaba con el panel en ceros.** Ahora invoca `recalcDashboardStats` al final y reporta cuántos expedientes procesó.
+
+### Cambiado
+- **Se retiró la carga de datos de ejemplo del panel principal.** El aviso inyectaba 15 registros ficticios desde `seedData.ts`, mezclándolos con los reales. Ahora enlaza a `/seed`, que carga contrarecibos y facturas de verdad, y solo lo ven los administradores.
+- El precio de venta dejó de estar incrustado (`54.52`) en la migración: se toma de la configuración.
+
+
 ## [v6.1.1] - 30 Julio 2026 (Ciclo 6 — Proveedores y Estado de Cuenta)
 
 ### Nuevas Características y Correcciones Críticas

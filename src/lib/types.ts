@@ -104,6 +104,19 @@ export interface PurchaseOrder {
 
   deliveries?: Delivery[];
   invoices?: Invoice[];
+  /**
+   * Copia desnormalizada de los estatus de `invoices[]`, en el mismo orden.
+   *
+   * Firestore no sabe consultar dentro de objetos de un arreglo, asi que este
+   * campo plano es lo que sostiene TODAS las consultas del sistema: el
+   * `array-contains-any` del Dashboard y de Cobranza, y el barrido nocturno
+   * `checkOverdueInvoices`. Un expediente sin este campo existe en la base
+   * pero es invisible para esas pantallas.
+   *
+   * Escribirlo siempre a traves de `camposInvoices()` en lib/invoiceOps.ts,
+   * que garantiza que viaje junto con `invoices` y `updatedAt`.
+   */
+  invoiceStatuses?: string[];
   items?: PurchaseOrderItem[];
   
   customCostPrice?: number;
