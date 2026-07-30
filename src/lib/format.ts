@@ -71,3 +71,21 @@ export function monthLabel(key: string): string {
   const [y, m] = key.split('-');
   return `${MESES[Number(m) - 1]} ${y.slice(2)}`;
 }
+
+/**
+ * Escapa HTML antes de interpolar texto de negocio (folio, cliente, notas...)
+ * dentro de las plantillas de impresión que se abren como Blob URL.
+ *
+ * Vivía duplicada dos veces dentro de OrderModal.tsx y no existía en absoluto
+ * en Cobranza.tsx: su paquete consolidado interpolaba `client`, `cr` y los
+ * folios sin escapar. Un blob URL abierto con `window.open` hereda el origen
+ * de quien lo abre, así que cualquier HTML sin escapar ahí corre con la
+ * sesión de Firebase viva. Única fuente de verdad para los tres constructores.
+ */
+export function escapeHtml(str: string | null | undefined): string {
+  return (str ?? '').replace(
+    /[&<>'"]/g,
+    (tag) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag),
+  );
+}

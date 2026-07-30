@@ -1,22 +1,36 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { OrdersProvider } from './context/OrdersContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Upload from './pages/Upload';
-import Orders from './pages/Orders';
-import Cobranza from './pages/Cobranza';
-import Settings from './pages/Settings';
-import Respaldo from './pages/Respaldo';
-import CajaChica from './pages/CajaChica';
-import Compras from './pages/Compras';
-import Logs from './pages/Logs';
-import Users from './pages/Users';
-import Seeder from './pages/Seeder';
-import OcTracking from './pages/OcTracking';
-import Catalog from './pages/Catalog';
+
+// Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
+// estatica y viajaban todas en el chunk principal, Recharts incluido pese a
+// que solo lo usa Dashboard. Con lazy() cada ruta va a su propio chunk y el
+// navegador solo baja lo que la persona realmente visita.
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Upload = lazy(() => import('./pages/Upload'));
+const Orders = lazy(() => import('./pages/Orders'));
+const Cobranza = lazy(() => import('./pages/Cobranza'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Respaldo = lazy(() => import('./pages/Respaldo'));
+const CajaChica = lazy(() => import('./pages/CajaChica'));
+const Compras = lazy(() => import('./pages/Compras'));
+const Logs = lazy(() => import('./pages/Logs'));
+const Users = lazy(() => import('./pages/Users'));
+const Seeder = lazy(() => import('./pages/Seeder'));
+const OcTracking = lazy(() => import('./pages/OcTracking'));
+const Catalog = lazy(() => import('./pages/Catalog'));
+
+function RouteFallback() {
+  return (
+    <div className="boot">
+      <span className="spinner" /> Cargando…
+    </div>
+  );
+}
 
 function Gate() {
   const { user, loading } = useAuth();
@@ -29,6 +43,7 @@ function Gate() {
   }
   if (!user) return <Login />;
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
@@ -47,6 +62,7 @@ function Gate() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }
 

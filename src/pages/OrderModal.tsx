@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, PATHS, functions } from '../lib/firebase';
 import { logAction } from '../lib/logger';
@@ -7,10 +7,11 @@ import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate, round2 } from '../lib/finance';
-import { fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
+import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 import { useProducts } from '../hooks/useProducts';
+import { camposInvoices } from '../lib/invoiceOps';
 import { useInvoiceParser } from '../hooks/useInvoiceParser';
 
 export default function OrderModal({
@@ -51,6 +52,11 @@ export default function OrderModal({
   });
 
   const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Sello de tiempo del expediente al ABRIR el modal, no en cada render:
+  // compararlo contra el del servidor al guardar es lo que permite detectar si
+  // alguien mas toco el expediente mientras seguia abierto aqui.
+  const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
 
   const kilosNum = Number(form.totalKilograms) || 0;
 
@@ -144,23 +150,45 @@ export default function OrderModal({
         };
       });
 
-      await setDoc(ref, {
-        folio: form.folio.trim(),
-        client: form.client.trim(),
-        department: form.department.trim(),
-        provider: form.provider.trim(),
-        totalKilograms: kilosNum,
-        estimatedDeliveryDate: form.estimatedDeliveryDate,
-        deliveries: form.deliveries,
-        invoices: updatedInvoices,
-        invoiceStatuses: updatedInvoices.map(i => i.creditCycle.status),
-        items: form.items,
-        updatedAt: serverTimestamp(),
-        processedAt: order.processedAt ?? serverTimestamp(),
-        customCostPrice: ccp,
-        customSellPrice: csp,
-        customCommissionRate: ccr,
-      }, { merge: true });
+      // El guardado completo del expediente corre en una transaccion: antes
+      // era un setDoc a ciegas desde la copia local del formulario, asi que un
+      // cobro registrado en Cobranza mientras este modal seguia abierto se
+      // revertia en silencio al guardar aqui. La transaccion relee el
+      // documento y aborta si `updatedAt` ya no coincide con lo que habia al
+      // abrir el modal. camposInvoices() es la misma funcion que usa Cobranza:
+      // invoices/invoiceStatuses/updatedAt viajan juntos por un solo camino.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+
+        const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
+        if (
+          baselineUpdatedAt &&
+          freshUpdatedAt &&
+          freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()
+        ) {
+          throw new Error(
+            'Este expediente fue modificado por otra persona mientras lo editabas. ' +
+            'Ciérralo y vuelve a abrirlo para ver los cambios más recientes antes de guardar.',
+          );
+        }
+
+        tx.set(ref, {
+          folio: form.folio.trim(),
+          client: form.client.trim(),
+          department: form.department.trim(),
+          provider: form.provider.trim(),
+          totalKilograms: kilosNum,
+          estimatedDeliveryDate: form.estimatedDeliveryDate,
+          deliveries: form.deliveries,
+          items: form.items,
+          processedAt: order.processedAt ?? serverTimestamp(),
+          customCostPrice: ccp,
+          customSellPrice: csp,
+          customCommissionRate: ccr,
+          ...camposInvoices(updatedInvoices),
+        }, { merge: true });
+      });
 
       // Upsert Purchase for Andrés
       try {
@@ -248,17 +276,6 @@ export default function OrderModal({
   }
 
   function printRemision() {
-    function escapeHtml(str: string) {
-      return (str || '').replace(/[&<>'"]/g, 
-        tag => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            "'": '&#39;',
-            '"': '&quot;'
-          }[tag] || tag)
-      );
-    }
 
     const html = `
       <html>
@@ -314,14 +331,10 @@ export default function OrderModal({
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function printConsolidatedPackage() {
-    function escapeHtml(str: string) {
-      return (str || '').replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-      );
-    }
 
     const totalKilos = Number(form.totalKilograms) || 0;
     const invList = form.invoices ?? [];
@@ -469,6 +482,7 @@ export default function OrderModal({
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   async function remove() {

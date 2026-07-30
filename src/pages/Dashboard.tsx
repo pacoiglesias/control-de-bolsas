@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, where, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
-import { db, PATHS } from '../lib/firebase';
+import { db, PATHS, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
@@ -10,7 +11,7 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
 import { kilos, money, monthLabel, percent, toDate, fmtDate } from '../lib/format';
-import { daysLate } from '../lib/finance';
+import { daysLate, round2 } from '../lib/finance';
 import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
 import { logAction } from '../lib/logger';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
@@ -111,11 +112,31 @@ export default function Dashboard() {
   const [liveLogs, setLiveLogs] = useState<LiveLogEntry[]>([]);
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [recalcBusy, setRecalcBusy] = useState(false);
+
+  async function recalcStats() {
+    setRecalcBusy(true);
+    try {
+      const fn = httpsCallable<unknown, { ok: boolean; procesados: number; mensaje: string }>(
+        functions, 'recalcDashboardStats',
+      );
+      const res = await fn({});
+      toast(res.data.mensaje, 'ok');
+    } catch (e) {
+      toast(`No se pudieron recalcular los indicadores: ${(e as Error).message}`, 'bad');
+    } finally {
+      setRecalcBusy(false);
+    }
+  }
 
   const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', 'dashboard'));
+  // 'paid' = cobrada por el cliente, pendiente de que el contador entregue el
+  // efectivo. Faltaba en esta consulta: un expediente cuyas facturas estuvieran
+  // TODAS en 'paid' no se cargaba, y entonces la tabla "Por Recibir del
+  // Contador" se quedaba sin datos de donde salir.
   const [activeOrdersDoc, loadingActive, activeError] = useCollectionData(query(
     collection(db, PATHS.orders),
-    where('invoiceStatuses', 'array-contains-any', ['pending', 'overdue', 'manual_review'])
+    where('invoiceStatuses', 'array-contains-any', ['pending', 'overdue', 'manual_review', 'paid'])
   ));
   
   const loading = loadingStats || loadingActive || loadingExp;
@@ -139,7 +160,11 @@ export default function Dashboard() {
       setLiveLogs(list);
     });
     return () => unsub();
-  }, []);
+    // `role` DEBE estar en las dependencias: llega asincrono desde
+    // AuthContext, asi que en el primer render vale undefined, el efecto sale
+    // por el early return y con el arreglo vacio nunca volvia a ejecutarse.
+    // Resultado: al administrador no le cargaban nunca los logs en vivo.
+  }, [role]);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -211,11 +236,17 @@ export default function Dashboard() {
       setBackupBusy(false);
     }
   }
-    const activeOrders = (activeOrdersDoc as PurchaseOrder[]) || [];
+    // Memoizado: `(x as T[]) || []` crea un arreglo nuevo en cada render
+    // cuando activeOrdersDoc es undefined, y eso invalidaba el useMemo de
+    // abajo en cada ciclo, recalculando todos los KPIs sin necesidad.
+    const activeOrders = useMemo(
+      () => (activeOrdersDoc as PurchaseOrder[]) ?? [],
+      [activeOrdersDoc],
+    );
 
   const k = useMemo(() => {
     const st = statsDoc || {};
-    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: [] };
+    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0 };
     const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0 };
     const mesesObj = st.histograms || {};
 
@@ -223,13 +254,33 @@ export default function Dashboard() {
     const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => mesesObj[m].venta)) : 1;
 
     const proximos: { o: PurchaseOrder; inv: Invoice; d: number | null }[] = [];
-    
+
+    // Detalle de "Por Recibir del Contador". Se arma AQUI, desde los
+    // expedientes vivos, no desde stats/dashboard: la tabla necesita folio,
+    // contrarecibo e importes factura por factura, y un contador agregado por
+    // definicion no puede darlos. Antes se hacia `kpis.porRecibir.reduce(...)`
+    // esperando un arreglo, pero el trigger escribe ese campo como NUMERO via
+    // FieldValue.increment: en cuanto stats/dashboard tuviera datos, el
+    // Dashboard entero reventaba con "porRecibir.reduce is not a function".
+    const porRecibir: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
+
     activeOrders.forEach(o => {
       const invoices = o.invoices || [];
       invoices.forEach(inv => {
         if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
           const late = daysLate(toDate(inv.creditCycle.dueDate));
           if (late !== null && late > -8) proximos.push({ o, inv, d: late });
+        }
+        if (inv.creditCycle.status === 'paid') {
+          const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+          const commission = Number(inv.financials?.commission ?? 0);
+          porRecibir.push({
+            folio: inv.folio ?? '—',
+            cr: inv.collection?.contrareciboNumber || '—',
+            invoiceTotal,
+            commission,
+            net: round2(invoiceTotal - commission),
+          });
         }
       });
     });
@@ -238,7 +289,8 @@ export default function Dashboard() {
 
     return {
       ...kpis,
-      totalPorRecibir: kpis.porRecibir.reduce((acc: number, r: any) => acc + (r.net ?? 0), 0),
+      porRecibir,
+      totalPorRecibir: round2(porRecibir.reduce((acc, r) => acc + r.net, 0)),
       pending: { length: counters.pendingOrders },
       overdue: { length: counters.overdueOrders },
       review: { length: counters.manualReview },
@@ -442,6 +494,18 @@ export default function Dashboard() {
             <span style={{ fontSize: 24 }}>💰</span>
             <span style={{ fontWeight: 600 }}>Registrar Cobro</span>
           </button>
+          {role === 'admin' && (
+            <button
+              className="btn"
+              onClick={() => void recalcStats()}
+              disabled={recalcBusy}
+              title="Reconstruye los indicadores de este panel leyendo todos los expedientes. Úsalo si las cifras se ven en cero o descuadradas."
+              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}
+            >
+              <span style={{ fontSize: 24 }}>{recalcBusy ? '⏳' : '🔄'}</span>
+              <span style={{ fontWeight: 600 }}>{recalcBusy ? 'Recalculando…' : 'Recalcular Indicadores'}</span>
+            </button>
+          )}
         </div>
       )}
 

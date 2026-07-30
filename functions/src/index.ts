@@ -443,4 +443,4 @@ export const sanitizePurchaseOrder = onDocumentWritten(
   },
 );
 
-export { syncDashboardStats } from "./stats";
+export { syncDashboardStats, recalcDashboardStats } from "./stats";

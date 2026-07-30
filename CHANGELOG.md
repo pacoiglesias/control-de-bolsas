@@ -1,5 +1,24 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.1.0] - 30 Julio 2026 (Ciclo 5 — Panel funcional, backfill y Ciclo 4 sobre v6)
+
+### Corregido — el panel principal mostraba todo en cero
+- **Faltaba la siembra inicial de la agregación.** `syncDashboardStats` es incremental: solo suma diferencias cuando se escribe un expediente. Los expedientes previos a su despliegue nunca dispararon un evento, así que `stats/dashboard` nacía vacío. Nueva función invocable **`recalcDashboardStats`** que reconstruye el documento recorriendo todos los expedientes, con un botón **"Recalcular Indicadores"** en el panel (solo administradores). Sirve además como reconciliación si las cifras se desfasan.
+- **`porRecibir` tenía tipos incompatibles** entre el trigger (número) y el panel (arreglo). El panel habría reventado en cuanto las estadísticas se llenaran. El detalle por factura ahora se arma en el cliente, que es de donde puede salir.
+- **Las facturas en estatus `paid` no se cargaban**, dejando sin datos la tabla "Por Recibir del Contador".
+- **Los logs en vivo nunca cargaban para el administrador**: el efecto dependía de `role`, que llega asíncrono, pero tenía dependencias vacías.
+
+### Corregido — seguridad y concurrencia (Ciclo 4 reaplicado sobre v6)
+- **HTML sin escapar** en el paquete consolidado de Cobranza, abierto como Blob URL con el mismo origen que la aplicación. `escapeHtml()` centralizado y aplicado a las tres plantillas de impresión.
+- **`OrderModal.save()` ya no sobrescribe cambios concurrentes en silencio**: migrado a `runTransaction` con concurrencia optimista.
+- **El importe inyectado en Caja Chica se recalcula dentro de la transacción**, no desde el snapshot ya renderizado.
+- Fuga de memoria en las tres impresiones (blob URLs sin revocar).
+
+### Rendimiento
+- **Chunk principal: 598 kB → 34.9 kB.** Carga diferida por ruta y Recharts en su propio chunk.
+- KPIs del panel dejan de recalcularse en cada render.
+
+
 ## [v6.0.0] - 30 Julio 2026 (Arquitectura O(1), retiro de la IA, y reparación para que compile)
 
 > Esta versión se desarrolló en una sesión previa pero **nunca llegó a compilar**: quedó a medio terminar en la carpeta local, sin subir a Git. Esta entrega la deja funcionando por primera vez, con `tsc`, `eslint`, pruebas y build en verde.

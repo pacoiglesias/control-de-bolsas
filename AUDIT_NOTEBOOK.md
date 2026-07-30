@@ -5,6 +5,45 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 **Leyenda de estados:** ✅ Resuelto · 🔧 En curso · 🔴 Pendiente (detectado, sin corregir) · ↩️ Regresión (se resolvió antes y volvió)
 ---
 
+## ✅ Ciclo 5 — 2026-07-30 — Panel en ceros, backfill de agregación y Ciclo 4 sobre v6
+
+> Verificación: `tsc --noEmit` limpio en raíz y `functions`, `eslint .` con **0 errores y 0 advertencias**, 12/12 pruebas, `npm run build` completo.
+
+### 🔴 Panel principal mostraba todo en cero — causa raíz y corrección
+
+| Archivo | Problema | Optimización aplicada |
+|---|---|---|
+| `functions/src/stats.ts` | `syncDashboardStats` es **incremental**: aplica `FieldValue.increment` sobre la diferencia cada vez que se escribe un expediente. Los expedientes anteriores a su despliegue nunca dispararon un evento, así que `stats/dashboard` nacía vacío y el panel mostraba ceros **para siempre**. Faltaba la siembra inicial. | Nueva función invocable `recalcDashboardStats`: recorre `purchaseOrders` paginando de 300 en 300, reconstruye el documento completo y lo escribe con `set` sin merge (reemplazo total, para que ningún contador viejo quede pegado). Reutiliza `extractStats()`, la **misma** función del trigger incremental: duplicar la fórmula habría hecho que el recálculo "corrigiera" hacia un valor equivocado con el tiempo. Exige sesión, correo verificado y rol de administrador. |
+| `src/pages/Dashboard.tsx` | `kpis.porRecibir.reduce(...)` esperaba un **arreglo**, pero el trigger escribe ese campo como **número** vía `increment`. No reventaba solo porque el documento no existía y caía al valor por omisión `[]`. **En cuanto el backfill llenara las estadísticas, el panel entero habría tronado** con "porRecibir.reduce is not a function". | El detalle de "Por Recibir del Contador" se arma en el cliente desde los expedientes vivos: la tabla necesita folio, contrarecibo e importes factura por factura, y un contador agregado por definición no puede darlos. |
+| `src/pages/Dashboard.tsx` | La consulta en vivo no incluía el estatus `paid`. Un expediente con **todas** sus facturas en `paid` no se cargaba, así que la tabla "Por Recibir del Contador" se quedaba sin datos de dónde salir. | Agregado `'paid'` al `array-contains-any`. |
+| `src/pages/Dashboard.tsx` | `useEffect` de logs en vivo con dependencias `[]` y un `if (role !== 'admin') return` adentro. `role` llega asíncrono desde `AuthContext`: en el primer render vale `undefined`, el efecto salía por el early return y **nunca volvía a ejecutarse**. Al administrador no le cargaban jamás los logs en vivo. | `role` agregado a las dependencias. |
+| `src/pages/Dashboard.tsx` | `(activeOrdersDoc as PurchaseOrder[]) \|\| []` creaba un arreglo nuevo en cada render, invalidando el `useMemo` de los KPIs en cada ciclo. | Memoizado sobre `[activeOrdersDoc]`. |
+
+### 🔴 Ciclo 4 reaplicado sobre la base v6
+
+| Archivo | Problema | Optimización aplicada |
+|---|---|---|
+| `src/pages/Cobranza.tsx` | `printConsolidatedCr` interpolaba `cr`, `client`, `folios` y `status` **sin escapar** en una plantilla abierta como Blob URL, que hereda el origen de la aplicación con la sesión de Firebase viva. | `escapeHtml()` centralizado en `lib/format.ts` y aplicado a las tres plantillas de impresión del sistema. |
+| `src/pages/OrderModal.tsx` | `escapeHtml` definida **dos veces** dentro del mismo archivo. | Ambas copias eliminadas; todas usan la de `lib/format.ts`. |
+| `src/pages/Cobranza.tsx`, `src/pages/OrderModal.tsx` (×2) | `URL.createObjectURL` sin revocar: fuga de memoria en cada impresión. | Revocados 10 s después de abrir la ventana. |
+| `src/pages/OrderModal.tsx` | `save()` escribía con `setDoc` desde la copia local del formulario: un cobro registrado en Cobranza mientras el modal seguía abierto **se revertía en silencio**. | Migrado a `runTransaction` con **concurrencia optimista**: compara el `updatedAt` capturado al abrir el modal contra el del servidor y aborta con aviso explícito si alguien más escribió mientras tanto. |
+| `src/lib/invoiceOps.ts` (nuevo) | `camposInvoices()` y `aplicarPorId()` vivían dentro de `Cobranza.tsx`; `OrderModal` calculaba `invoiceStatuses` por su cuenta — dos caminos para escribir lo mismo. | Extraídas a módulo compartido; ambas pantallas usan la misma implementación. |
+| `src/pages/Cobranza.tsx` | `collectContrareciboBlock` inyectaba en Caja Chica un `netUtilidad` calculado **fuera** de la transacción, desde el snapshot ya renderizado. | Recalculado dentro de la transacción desde las facturas releídas; aborta si difiere en más de $1 de lo confirmado en pantalla. |
+
+### ⚡ Rendimiento
+
+| Archivo | Problema | Optimización aplicada |
+|---|---|---|
+| `src/App.tsx`, `vite.config.ts` | Las 13 pantallas se importaban de forma estática; Recharts (382 kB), usado solo por el Dashboard, viajaba en el chunk principal. | `React.lazy()` por ruta con `<Suspense>` y `manualChunk` propio para `recharts`. **Chunk principal: 598 kB → 34.9 kB.** |
+
+### 🟡 Pendientes conscientes
+
+- Dependencias de Gemini (`genkit`, `@genkit-ai/*`) siguen en `functions/package.json` sin usarse.
+- `main` en GitHub sigue en v5.8.1; la v6 vive en la rama `optimize/workspace-2026-07-29-ciclo2`.
+- `OrderModal.backup.tsx` y `fix_dashboard.cjs` volvieron al repositorio (el instalador fusiona y nunca borra, por diseño). Requieren `git rm` manual.
+
+---
+
 ## 🚨 Incidente — 2026-07-30 — El parche del Ciclo 4 sobrescribió trabajo de la v6.0.0
 
 **Qué pasó.** Se generó un paquete de correcciones ("Ciclo 4", v5.9.0) auditando el repositorio público de GitHub, que estaba en v5.8.1. La carpeta local, en cambio, tenía una **v6.0.0 sin subir** desarrollada en otra sesión: retiro de la IA de Gemini, parser de facturas del lado del cliente (`useInvoiceParser.ts`), agregación server-side (`functions/src/stats.ts`), paginación y deshacer cobros en bloque.
@@ -349,7 +388,8 @@ Los doce hallazgos del ciclo 3 fueron corregidos y verificados. Estado de la ver
 - **Solución 1:** Lógica de parseo de XML/Factura extraída al hook src/hooks/useInvoiceParser.ts.
 - **Problema 2:** unctions/src/index.ts sobrescribiendo invoiceTotal de facturas capturadas por folio corto por falta de validación de olio.
 - **Solución 2:** Inclusión de check (inv.uuid || (inv.folio && inv.folio.length > 2)) en sanitizePurchaseOrder para proteger facturas manuales y XMLs subidos.
-- **Problema 3:** unctions/src/index.ts eadConfigCacheada provocaba condición de carrera si múltiples eventos se procesan en la misma instancia de Cloud Functions simultáneamente.
+- **Problema 3:** unctions/src/index.ts 
+eadConfigCacheada provocaba condición de carrera si múltiples eventos se procesan en la misma instancia de Cloud Functions simultáneamente.
 - **Solución 3:** Implementación de pendingConfigPromise para centralizar lecturas superpuestas, minimizando costos de Firestore.
 ### 🔴 2026-07-29 — src/pages/Upload.tsx — Subida de documentos duplicados
 - **Problema:** Al no verificar el contenido del archivo antes de subirlo a Storage, los usuarios pueden arrastrar el mismo PDF varias veces, generando expedientes duplicados.

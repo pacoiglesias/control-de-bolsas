@@ -5,12 +5,11 @@ import type { Invoice } from './types';
  * Los tres campos que SIEMPRE deben viajar juntos al escribir facturas.
  *
  * invoiceStatuses es el arreglo desnormalizado que sostiene la consulta del
- * barrido nocturno (checkOverdueInvoices). Vivía definida solo dentro de
- * Cobranza.tsx: las tres rutas de cobro la usaban, pero OrderModal.save
- * seguía calculando invoiceStatuses por su cuenta con un .map() suelto y sin
- * pasar por esta función — dos caminos para escribir lo mismo, con el mismo
- * riesgo de divergencia que ya tuvo la fórmula financiera antes de
- * consolidarse en finance.core.ts.
+ * barrido nocturno y la del Dashboard. Vivía definida solo dentro de
+ * Cobranza.tsx: sus rutas de cobro la usaban, pero OrderModal.save calculaba
+ * invoiceStatuses por su cuenta con un .map() suelto — dos caminos para
+ * escribir lo mismo, con el mismo riesgo de divergir que ya tuvo la fórmula
+ * financiera antes de consolidarse en finance.core.ts.
  */
 export function camposInvoices(invoices: Invoice[]) {
   return {
