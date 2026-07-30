@@ -15,6 +15,7 @@ import { daysLate, getOrderSummary } from '../lib/finance';
 import { seedInitialDatabase, INITIAL_SEED_DATA } from '../lib/seedData';
 import { logAction } from '../lib/logger';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
+import type { PurchaseOrder, Invoice } from '../lib/types';
 
 export interface LiveLogEntry {
   id: string;
