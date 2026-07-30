@@ -90,6 +90,7 @@ export default function Catalog() {
               <thead>
                 <tr>
                   <th>Semáforo</th>
+                  <th>Código</th>
                   <th>Descripción</th>
                   <th className="num">Precio Sug.</th>
                   <th className="num">Veces Pedido</th>
@@ -108,6 +109,7 @@ export default function Catalog() {
                       {p.status === 'green' && <span title="Surtido recientemente" style={{ fontSize: 20 }}>🟢</span>}
                       {p.status === 'unknown' && <span title="Faltan datos para predecir (sólo 1 pedido)" style={{ fontSize: 20 }}>⚪</span>}
                     </td>
+                    <td className="mono" style={{ color: 'var(--ink-soft)' }}>{p.code || '—'}</td>
                     <td style={{ fontWeight: 600 }}>{p.description}</td>
                     <td className="num mono">{money(p.defaultPrice)} <span style={{fontSize:10, color:'#666'}}>/{p.unit}</span></td>
                     <td className="num">{p.orderCount}</td>
