@@ -289,10 +289,32 @@ export default function Dashboard() {
       });
     });
 
-    proximos.sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
+    // Live fallback para Ganancia Comercial y Ganancia por Cobros
+    let liveMargenTotal = kpis.margenTotal || 0;
+    let liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
+
+    if (liveMargenTotal === 0 || liveGananciaRealizada === 0) {
+      activeOrders.forEach(o => {
+        (o.invoices || []).forEach(inv => {
+          const invTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+          const comm = Number(inv.financials?.commission ?? 0);
+          const matCost = Number((inv.financials as any)?.materialCost ?? (inv.kilos * config.costPricePerKg));
+          const netProfit = invTotal - matCost - comm;
+          
+          if (netProfit > 0) {
+            liveMargenTotal += netProfit;
+            if (inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') {
+              liveGananciaRealizada += netProfit;
+            }
+          }
+        });
+      });
+    }
 
     return {
       ...kpis,
+      margenTotal: round2(liveMargenTotal),
+      gananciaRealizadaTotal: round2(liveGananciaRealizada),
       porRecibir,
       totalPorRecibir: round2(porRecibir.reduce((acc, r) => acc + r.net, 0)),
       pending: { length: counters.pendingOrders },
@@ -307,7 +329,7 @@ export default function Dashboard() {
       recientes1,
       proximos
     };
-  }, [statsDoc, activeOrders]);
+  }, [statsDoc, activeOrders, config]);
 
   const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
 
@@ -572,9 +594,9 @@ export default function Dashboard() {
           sub={`${kilos(k.totalKilos)} procesados en ${k.totalOrders} órdenes`} />
         {role !== 'viewer' && (
           <>
-            <KpiCard tone="ok" label="Ganancia Comercial" value={<ResponsiveMoney value={k.kpis?.margenTotal || 0} />}
+            <KpiCard tone="ok" label="Ganancia Comercial" value={<ResponsiveMoney value={k.margenTotal || 0} />}
               sub="Venta - Costo (Devengada)" />
-            <KpiCard tone="ok" label="Ganancia por Cobros" value={<ResponsiveMoney value={k.kpis?.gananciaRealizadaTotal || 0} />}
+            <KpiCard tone="ok" label="Ganancia por Cobros" value={<ResponsiveMoney value={k.gananciaRealizadaTotal || 0} />}
               sub="Flujo real (Cobrado)" />
           </>
         )}

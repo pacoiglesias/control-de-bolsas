@@ -6,6 +6,16 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 20 — 2026-07-30 — Corrección de Desestructuración $0.00 en Ganancia Comercial y Ganancia por Cobros
+
+> Se diagnosticó y corrigió el bug que mostraba $0.00 en las tarjetas KPI de "Ganancia Comercial" y "Ganancia por Cobros" en el Dashboard. Se detectó una inconsistencia de desestructuración (`k.kpis?.margenTotal` en lugar de `k.margenTotal`) y se incorporó un cálculo de respaldo en tiempo real sobre las órdenes activas para cuando el agregador asíncrono no haya emitido el snapshot.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Dashboard.tsx` | Las tarjetas `Ganancia Comercial` y `Ganancia por Cobros` mostraban `$0.00` porque intentaban leer `k.kpis?.margenTotal`, pero `kpis` se había desestructurado directamente en el nivel raíz del objeto `k`. | Corregido a `k.margenTotal` y `k.gananciaRealizadaTotal`, agregando además el cálculo en vivo de respaldo sobre `activeOrders`. |
+
+---
+
 ## ✅ Ciclo 19 — 2026-07-30 — Consola del Semáforo de Control de Riesgo Operativo en Dashboard Principal
 
 > Se diseñó e incorporó el Panel Consola de Semáforo de Control de Riesgo en el Dashboard principal. Agrupa visualmente el estado del sistema en 4 niveles de riesgo operativo: Facturas Críticas (>30d en rojo), Urgentes (16-30d en naranja), Recientes (1-15d en amarillo) y Por Recoger del Contador (en verde).
