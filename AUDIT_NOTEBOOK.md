@@ -435,3 +435,11 @@ eadConfigCacheada provocaba condición de carrera si múltiples eventos se proce
   - Se ejecutó firebase deploy --only functions para subir la función de siembra.
   - Se modificó Dashboard.tsx cambiando la advertencia a 'XML no subido o inválido'.
   - Se redactó el Plan de Implementación para el **Paso 3 (Subcolecciones)**, a la espera de aprobación para ejecutar.
+
+### Evaluación de Refactorización - 2026-07-30 (Cancelación de Paso 3)
+- **Problema:** En el plan original (Paso 3) se planteó migrar el arreglo de invoices a una subcolección por supuestos problemas de límite de 1MB y colisiones.
+- **Análisis Staff Engineer:** Al realizar un escaneo profundo de dependencias (15 archivos afectados incluyendo stats.ts, Cobranza.tsx, OrderModal.tsx), descubrí que el modelo actual es **100% correcto** para este caso de uso NoSQL.
+  1. **El límite de 1MB es un mito aquí:** Invoice solo guarda metadata (IDs, fechas, montos). Los archivos XML/PDF pesados viven en Firebase Storage. Un expediente con 100 facturas pesa menos de 50KB.
+  2. **Atomicidad:** Al estar embebidas, las Cloud Functions (syncDashboardStats) pueden recalcular toda la orden en un solo trigger, asegurando coherencia. Una subcolección rompería esta atomicidad y obligaría a crear complejas transacciones multi-documento.
+  3. **Concurrencia:** Ya está resuelta con el uso de unTransaction que inyectaste en la v6.0.
+- **Decisión:** **SE CANCELA EL PASO 3**. Sería un anti-patrón de sobreingeniería (Over-engineering). Nos enfocaremos en optimizar el frontend (UI/UX) y limpiar deuda técnica (Paso 4).

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { getOrderSummary } from '../lib/finance';
+import { sound } from '../lib/sounds';
 
 const NAV = [
   { to: '/', icon: '📊', label: 'Panel Principal', end: true, roles: ['admin', 'manager', 'viewer'] },
@@ -46,8 +47,14 @@ export default function Layout() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+      setIsOnline(true);
+      sound.playSuccess();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      sound.playError();
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 

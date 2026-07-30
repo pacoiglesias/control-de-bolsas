@@ -301,3 +301,17 @@ textarea.input{min-height:70px;resize:vertical}
   height: 100px;
   border-radius: var(--radius);
 }
+
+/* Micro-interacciones (Paso 4) */
+.data-table tbody tr {
+  transition: background-color 0.15s ease-in-out;
+}
+.data-table tbody tr:hover {
+  background-color: rgba(0,0,0,0.02);
+}
+button {
+  transition: transform 0.1s ease-in-out, background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+}
+button:active {
+  transform: scale(0.97);
+}
