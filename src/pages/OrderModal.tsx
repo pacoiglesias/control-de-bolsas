@@ -107,10 +107,86 @@ export default function OrderModal({
       const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
       return { inv, fin, d, isLate };
     });
-    // dynamicConfig ya esta memoizado sobre [config, ccp, ccr]: depender del
-    // objeto es correcto y ademas satisface exhaustive-deps. Antes faltaba por
-    // completo y los importes no se refrescaban al cambiar el costo variable.
   }, [form.invoices, dynamicConfig]);
+
+  const totalDeliveredKilos = useMemo(() => {
+    if (form.items && form.items.length > 0) {
+      return round2(form.items.reduce((sum, it) => sum + (Number(it.deliveredQuantity || it.quantity || 0)), 0));
+    }
+    if (form.deliveries && form.deliveries.length > 0) {
+      return round2(form.deliveries.reduce((sum, d) => sum + (Number(d.kilos) || 0), 0));
+    }
+    return kilosNum;
+  }, [form.items, form.deliveries, kilosNum]);
+
+  const orderedKilos = kilosNum;
+  const pendingKilos = useMemo(() => {
+    return round2(Math.max(0, orderedKilos - totalDeliveredKilos));
+  }, [orderedKilos, totalDeliveredKilos]);
+
+  const pendingSaleValueSubtotal = useMemo(() => {
+    return round2(pendingKilos * (dynamicConfig.salePricePerKg || 47));
+  }, [pendingKilos, dynamicConfig.salePricePerKg]);
+
+  const pendingSaleValueWithIVA = useMemo(() => {
+    return round2(pendingSaleValueSubtotal * (1 + (dynamicConfig.ivaRate ?? 0.16)));
+  }, [pendingSaleValueSubtotal, dynamicConfig.ivaRate]);
+
+  const addDeliveredInvoice = () => {
+    const issue = new Date();
+    const due = addDays(issue, config.creditDays);
+    const kDelivered = totalDeliveredKilos;
+    
+    sound.playSuccess();
+    set('invoices', [
+      ...form.invoices,
+      { 
+        id: Date.now().toString(), 
+        folio: form.folio ? `FACT-${form.folio}` : 'FACT-NUEVA', 
+        oc: form.folio || '',
+        kilos: kDelivered, 
+        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: `Factura generada automáticamente por entrega de ${kDelivered.toLocaleString('es-MX')} kg` }
+      }
+    ]);
+    toast(`⚡ Factura generada automáticamente por ${kDelivered.toLocaleString('es-MX')} kg entregados`, 'ok');
+  };
+
+  const renderDeliveryAlertBanner = () => {
+    if (pendingKilos <= 0.01 || totalDeliveredKilos <= 0) return null;
+    return (
+      <div style={{
+        background: 'rgba(234, 179, 8, 0.12)',
+        border: '1px solid rgba(234, 179, 8, 0.4)',
+        borderRadius: 'var(--radius)',
+        padding: '12px 16px',
+        marginBottom: 16,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
+        fontSize: 13,
+        lineHeight: 1.5,
+        color: 'var(--ink)'
+      }}>
+        <div>
+          <strong>⚠️ Aviso de Entrega Faltante (Tolerancia Operativa):</strong> La OC pedía <strong>{orderedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</strong> y Andrés entregó <strong>{totalDeliveredKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</strong>.
+          <br />
+          Quedan <strong style={{ color: '#b45309' }}>{pendingKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg pendientes</strong> (${pendingSaleValueSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} subtotal neto / ${pendingSaleValueWithIVA.toLocaleString('es-MX', { minimumFractionDigits: 2 })} con IVA de venta).
+        </div>
+        {!readOnly && (
+          <button
+            className="btn"
+            style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontSize: 12, padding: '6px 14px', whiteSpace: 'nowrap', fontWeight: 600 }}
+            onClick={addDeliveredInvoice}
+          >
+            ⚡ Facturar {totalDeliveredKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados
+          </button>
+        )}
+      </div>
+    );
+  };
 
   async function save() {
     if (kilosNum <= 0) {
@@ -780,6 +856,7 @@ export default function OrderModal({
         {/* RESUMEN */}
         {tab === 'resumen' && (
           <>
+            {renderDeliveryAlertBanner()}
             <div className="form-grid">
               <Field label="Folio Interno del Pedido">
                 <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />
@@ -1107,46 +1184,18 @@ export default function OrderModal({
         {/* FACTURAS */}
         {tab === 'facturas' && (
           <>
+            {renderDeliveryAlertBanner()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h4>Registro de Facturas</h4>
+              <div>
+                <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
+                <p className="hint" style={{ margin: 0 }}>Facturas vinculadas a este pedido.</p>
+              </div>
               {!readOnly && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {/* FACTURAS XML/TEXTO */}
-                  <label className="btn" style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)', cursor: 'pointer' }}>
-                    📂 XML Factura
-                    <input type="file" accept=".xml" style={{ display: 'none' }} onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (evt) => {
-                        const text = String(evt.target?.result || '');
-                        processFacturaText(text);
-                      };
-                      reader.readAsText(file);
-                      e.target.value = '';
-                    }} />
-                  </label>
-                  
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button className="btn" onClick={() => {
                     const text = window.prompt("Pega aquí el texto completo copiado del PDF o XML de la Factura:");
                     if (text) processFacturaText(text);
                   }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR FACTURA</button>
-                  
-                  {/* PAGOS XML/TEXTO */}
-                  <label className="btn" style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)', cursor: 'pointer' }}>
-                    📂 XML Pago
-                    <input type="file" accept=".xml" style={{ display: 'none' }} onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (evt) => {
-                        const text = String(evt.target?.result || '');
-                        processPagoText(text);
-                      };
-                      reader.readAsText(file);
-                      e.target.value = '';
-                    }} />
-                  </label>
 
                   <button className="btn" onClick={() => {
                     const text = window.prompt("Pega aquí el texto completo copiado del PDF del Complemento de Pago:");
@@ -1154,6 +1203,15 @@ export default function OrderModal({
                   }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
 
                   <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
+                  {totalDeliveredKilos > 0 && (
+                    <button
+                      className="btn"
+                      style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}
+                      onClick={addDeliveredInvoice}
+                    >
+                      ⚡ Facturar {totalDeliveredKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados
+                    </button>
+                  )}
                 </div>
               )}
             </div>

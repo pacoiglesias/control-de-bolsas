@@ -6,6 +6,17 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 15 — 2026-07-30 — Botón "⚡ Facturar lo Entregado" y Banner Operativo de Entrega Faltante
+
+> Se agregaron las herramientas automatizadas solicitadas para eliminar operaciones manuales al facturar entregas reales y señalar discrepancias de kilaje contra la OC.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/OrderModal.tsx` | El usuario tenía que sumar manualmente los kilos entregados y capturar la factura a mano. | Agregado el botón **⚡ Facturar lo entregado**. Con un solo clic suma las partidas entregadas (ej. 2,964.16 kg), crea el registro de factura con el importe exacto con IVA y la OC vinculada. |
+| `src/pages/OrderModal.tsx` | Si la OC solicitaba 3,000.00 kg y Andrés entregaba 2,964.16 kg, el sistema no señalaba los 35.84 kg pendientes ni su valor monetario ($1,684.48 subtotal). | Agregado el banner de aviso **⚠️ Aviso de Entrega Faltante (Tolerancia Operativa)** en las pestañas Resumen y Facturas, indicando kilos pedidos, entregados, pendientes y valor de venta. |
+
+---
+
 ## ✅ Ciclo 14 — 2026-07-30 — Auditoría Integral del Libro Mayor y Flujo Físico de Caja Chica ($75,265.56)
 
 > Se auditó el desglose completo del archivo maestro del usuario. Se detectó que el concepto "Deuda con Andrés ($125,175.56)" es un Pasivo (Cuentas por Pagar) de Compras y NO una salida física de Caja Chica. Al excluirlo de los movimientos en efectivo, el saldo de Caja Chica cuadró al centavo con el total exacto del archivo maestro ($75,265.56).
