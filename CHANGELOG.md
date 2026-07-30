@@ -1,5 +1,32 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.4.0] - 30 Julio 2026 (Ciclo 9 — Caja Chica recibe el importe real)
+
+### Corregido — crítico
+- **El cobro en bloque registraba en Caja Chica la utilidad en vez del depósito.** Restaba el costo del material, que ya se paga a Andrés por separado desde Compras: se contaba dos veces. En un contrarecibo real la diferencia eran 140,398.44 pesos.
+- **Los dos caminos de cobro no coincidían.** El cobro individual desde el expediente ya registraba el importe correcto; el cobro en bloque no. Unificados.
+- **Comisión ajustada a la realidad: 8% del subtotal.** Verificado contra tres cobros; el de 153,381.00 cuadra al centavo. Antes usaba 6.9% sobre el total, que erraba unos pesos por contrarecibo.
+
+### Agregado
+- El paquete consolidado impreso ahora muestra el **depósito que recibes**, no solo el margen.
+
+### ⚠️ Requiere acción
+En **Configuración**: comisión **8**, base **subtotal (sin IVA)**, precio de venta **47**. Manda lo guardado en Firestore, no el valor por omisión del código.
+
+
+## [v6.3.0] - 30 Julio 2026 (Ciclo 8 — Base de comisión corregida)
+
+### Corregido — crítico
+- **La comisión se calculaba sobre el subtotal en vez del total con IVA.** Verificado contra el contrarecibo real TR_3583: 182,250.55 × 0.069 = 12,575.29 es lo que efectivamente descuentan. El sistema calculaba 10,840.77, subestimando la comisión en 1,734.52 en ese solo contrarecibo e inflando la utilidad esperada por la misma cantidad. Corregido en frontend y backend a la vez.
+- **Regresión propia detectada y corregida:** la migración derivaba kilos dividiendo importes brutos entre el precio neto (47), inflándolos un 16%. Ahora usa el precio con IVA (54.52 = 47 × 1.16).
+
+### Pruebas
+- La prueba de `computeFinancials` fijaba la base equivocada; actualizada con la verificación real. Nueva prueba que cubre el modo `commissionBase: 'subtotal'`.
+
+### ⚠️ Requiere acción
+Revisa **Configuración**: manda lo guardado en Firestore, no el valor por omisión. La base de comisión debe decir *total (con IVA)* y el precio de venta debe ser **47**, no 54.52.
+
+
 ## [v6.2.0] - 30 Julio 2026 (Ciclo 7 — La carga inicial por fin funciona)
 
 ### Corregido — crítico

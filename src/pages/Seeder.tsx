@@ -100,6 +100,15 @@ export default function Seeder() {
         };
       }).filter((item): item is NonNullable<typeof item> => item !== null && !isNaN(item.amount));
 
+      // Los importes de contrarecibos y facturas vienen CON IVA. El precio de
+      // la configuracion (salePricePerKg) es el SUBTOTAL: 47.00 sin IVA, que
+      // con el 16% da los 54.52 por kilo que aparecen en los documentos.
+      // Dividir el importe bruto entre el precio neto inflaba los kilos un 16%.
+      const precioBrutoPorKg = config.salePricePerKg * (1 + config.ivaRate);
+      if (!(precioBrutoPorKg > 0)) {
+        throw new Error('La configuración financiera no tiene un precio de venta válido.');
+      }
+      addLog(`Precio por kilo con IVA: ${precioBrutoPorKg.toFixed(2)} (${config.salePricePerKg} + ${(config.ivaRate * 100).toFixed(0)}%)`);
       addLog(`Se detectaron ${crs.length} contrarecibos y ${facturas.length} facturas pendientes.`);
       batch = writeBatch(db);
       
@@ -108,7 +117,7 @@ export default function Seeder() {
         // Precio de la configuracion, no un 54.52 incrustado: si algun dia
         // cambia el precio de venta, la migracion seguia derivando kilos con
         // el valor viejo y los importes salian corridos sin avisar.
-        const totalKilos = cr.amount / config.salePricePerKg;
+        const totalKilos = cr.amount / precioBrutoPorKg;
         const crKey = `CR-${cr.folio}`;
 
         const newOrder: PurchaseOrder = {
@@ -147,7 +156,7 @@ export default function Seeder() {
       // Inyectar Facturas Pendientes
       if (facturas.length > 0) {
         const totalAmountFacturas = facturas.reduce((sum, f) => sum + f.amount, 0);
-        const totalKilosFacturas = totalAmountFacturas / config.salePricePerKg;
+        const totalKilosFacturas = totalAmountFacturas / precioBrutoPorKg;
         const crKey = `PENDIENTES`;
 
         const pendingOrder: PurchaseOrder = {
@@ -166,8 +175,8 @@ export default function Seeder() {
             id: `${crKey}-inv-${i}`,
             folio: `FACT-${f.folio}`,
             oc: f.oc,
-            kilos: f.amount / config.salePricePerKg,
-            financials: { ...computeFinancials(f.amount / config.salePricePerKg, config), invoiceTotal: f.amount },
+            kilos: f.amount / precioBrutoPorKg,
+            financials: { ...computeFinancials(f.amount / precioBrutoPorKg, config), invoiceTotal: f.amount },
             creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date), dueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date) },
             collection: { contrareciboNumber: '' }
           })),

@@ -41,9 +41,12 @@ const COL_ORDERS = "purchaseOrders";
 const DEFAULTS = {
   salePricePerKg: 47,
   costPricePerKg: 42,
-  commissionRate: 0.069,
+  commissionRate: 0.08,
   creditDays: 30,
   ivaRate: 0.16,
+  // 8% sobre el SUBTOTAL. Verificado contra tres cobros reales (el de
+  // 153,381.00 cuadra al centavo: 132,225.00 x 0.08 = 10,578.00).
+  // Debe coincidir con DEFAULT_CONFIG en src/lib/types.ts.
   commissionBase: "subtotal" as "subtotal" | "total",
 };
 

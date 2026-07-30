@@ -6,6 +6,41 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 9 — 2026-07-30 — Comisión real confirmada y Caja Chica recibiendo el importe correcto
+
+> **Regla del negocio, confirmada con tres cobros reales:** el cliente (TH/GT) paga la **factura completa**; el contador descuenta **8% del subtotal** por la gestión de cobro. El cobro de 153,381.00 cuadra al centavo: subtotal 132,225.00 × 0.08 = 10,578.00 de honorario, y 132,225.00 × 1.08 = 142,803.00 depositados. Regla práctica: **depósito = subtotal × 1.08**.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Cobranza.tsx` | 🔴 **El cobro en bloque depositaba en Caja Chica un importe equivocado.** Inyectaba `venta − costo − comisión` (la utilidad), cuando lo que realmente entra es `venta − comisión`. El costo del material se paga a Andrés **por separado** desde Compras, que ya genera su propio egreso: restarlo también aquí lo contaba dos veces. En TR_3583 la diferencia son **140,398.44 pesos**. | Nuevo `netCobrado = totalVenta − comisionContador`, recalculado dentro de la transacción. `netUtilidad` se conserva como indicador de margen para el paquete impreso, que es su uso legítimo. |
+| `src/pages/Cobranza.tsx` vs `src/pages/OrderModal.tsx` | 🔴 **Los dos caminos de cobro depositaban cantidades distintas para el mismo hecho.** El cobro individual (`OrderModal`) ya usaba `invTotal − commission` (correcto) y el cobro en bloque restaba además el costo. Misma operación, dos resultados. | Unificados: ambos registran el importe realmente depositado. |
+| `src/lib/types.ts`, `functions/src/index.ts` | `commissionRate` 0.069 con base `total` era una aproximación (erraba ~6 pesos por contrarecibo). | **8% sobre `subtotal`**, que reproduce los cobros reales al centavo. Corregido en frontend y backend a la vez para que no calculen distinto. |
+| `src/lib/__tests__/finance.test.ts` | Las pruebas fijaban la base anterior. | Actualizadas, más una prueba nueva que **reproduce el cobro real de 153,381.00**: si alguien mueve esos valores, la suite falla y explica por qué. 13/13. |
+| `src/pages/Cobranza.tsx` | El paquete impreso mostraba el margen pero no el importe a recibir. | Agregada la línea **"DEPÓSITO QUE RECIBES (factura menos comisión)"**. |
+| `src/pages/Cobranza.tsx` | El concepto en Caja Chica decía "Ingreso por Utilidad del Contrarecibo", que describía mal el movimiento. | "Cobro del Contrarecibo {n}". |
+
+### 📌 Acción pendiente del usuario
+
+`DEFAULT_CONFIG` es solo el respaldo: **manda lo guardado en Firestore**. En **Configuración** debe quedar: comisión **8**, base **subtotal (sin IVA)**, precio de venta **47**.
+
+---
+
+## ✅ Ciclo 8 — 2026-07-30 — La comisión se calculaba sobre la base equivocada
+
+> Aclaración del negocio: **54.52 = 47 × 1.16**. El 47 es el subtotal por kilo y el 54.52 el precio con IVA que aparece en contrarecibos y facturas.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/lib/types.ts`, `functions/src/index.ts` | 🔴 **`commissionBase` estaba en `'subtotal'`.** Verificado contra el contrarecibo real TR_3583: 182,250.55 × 0.069 = **12,575.29**, que es exactamente lo descontado. Con base `'subtotal'` daba 10,840.77: **1,734.52 menos en un solo contrarecibo**, e inflaba la utilidad esperada por la misma cantidad. El valor estaba mal en los dos lados a la vez, frontend y backend. | Corregido a `'total'` en ambos, con la verificación documentada en el código. El modo `'subtotal'` sigue existiendo y funcionando para quien lo configure. |
+| `src/pages/Seeder.tsx` | 🔴 **Regresión introducida en el Ciclo 7 y detectada aquí.** Al sustituir el `54.52` incrustado por `config.salePricePerKg` (que es 47, el subtotal), los kilos derivados de importes brutos quedaban **inflados un 16%**. | Se calcula `precioBrutoPorKg = salePricePerKg × (1 + ivaRate)` una sola vez y se usa en las tres derivaciones. La migración ahora reporta ese precio en su bitácora para que sea verificable a simple vista. |
+| `src/lib/__tests__/finance.test.ts` | La prueba fijaba `commission = 324.30`, congelando la base equivocada. **La suite atrapó el cambio**, que es justo para lo que existe. | Actualizada a 376.19 con la justificación y el número real que la respalda. Agregada una prueba nueva que cubre el modo `'subtotal'`, para que siga garantizado. |
+
+### 📌 Acción pendiente del usuario
+
+`DEFAULT_CONFIG` es solo el valor de respaldo: **manda lo que esté guardado en Firestore**. Hay que entrar a **Configuración** y verificar que la base de comisión diga *total (con IVA)* y que el precio de venta sea **47**, no 54.52. Si dice 54.52, el sistema le suma el IVA otra vez y factura a 63.24 por kilo.
+
+---
+
 ## ✅ Ciclo 7 — 2026-07-30 — La carga inicial creaba expedientes invisibles
 
 > Verificación: `tsc` limpio en raíz y `functions`, `eslint .` con 0 errores y 0 advertencias, 12/12 pruebas, build completo.

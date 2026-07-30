@@ -161,9 +161,9 @@ export default function Cobranza() {
     }
   }
 
-  async function collectContrareciboBlock(crNumber: string, netUtilidad: number) {
+  async function collectContrareciboBlock(crNumber: string, netCobrado: number) {
     if (!crNumber) return;
-    if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se inyectará un Ingreso por $${netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
+    if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
     
     const invoicesToCollect = data.paid.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
@@ -185,13 +185,13 @@ export default function Cobranza() {
         }));
         const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
 
-        // netUtilidad se recalcula AQUI, con los datos releidos dentro de la
+        // netCobrado se recalcula AQUI, con los datos releidos dentro de la
         // transaccion, en vez de usar el parametro que llega desde el render.
         // Antes viajaba tal cual desde la pantalla: si el saneador nocturno,
         // un complemento XML u otro usuario tocaban financials entre el render
         // y el clic, el ingreso inyectado en Caja Chica quedaba desactualizado
         // y nada lo detectaba despues.
-        let netUtilidadReal = 0;
+        let netCobradoReal = 0;
 
         refs.forEach(({ id, ref }, k) => {
           const snap = snaps[k];
@@ -201,9 +201,10 @@ export default function Cobranza() {
             const inv = invoices.find((x) => x.id === invoiceId);
             if (inv) {
               const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-              const costo = inv.financials?.costTotal ?? 0;
               const comision = inv.financials?.commission ?? 0;
-              netUtilidadReal += invTotal - costo - comision;
+              // Lo que entra a Caja Chica: la factura completa menos el
+              // honorario del contador. Sin restar el costo del material.
+              netCobradoReal += invTotal - comision;
             }
             const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
               ...x,
@@ -215,27 +216,27 @@ export default function Cobranza() {
           tx.update(ref, camposInvoices(invoices));
         });
 
-        netUtilidadReal = round2(netUtilidadReal);
+        netCobradoReal = round2(netCobradoReal);
 
         // Un peso de tolerancia por redondeo; mas que eso significa que algo
         // cambio de verdad entre el render y el clic.
-        if (Math.abs(netUtilidadReal - netUtilidad) > 1) {
+        if (Math.abs(netCobradoReal - netCobrado) > 1) {
           throw new Error(
             `El importe cambió desde que se mostró en pantalla ` +
-            `($${netUtilidad.toFixed(2)} → $${netUtilidadReal.toFixed(2)}). ` +
+            `($${netCobrado.toFixed(2)} → $${netCobradoReal.toFixed(2)}). ` +
             `Cierra este cuadro, revisa el Contrarecibo ${crNumber} e intenta de nuevo.`,
           );
         }
 
         tx.set(doc(collection(db, PATHS.expenses)), {
           date: Timestamp.now(),
-          concept: `Ingreso por Utilidad del Contrarecibo ${crNumber}`,
+          concept: `Cobro del Contrarecibo ${crNumber}`,
           type: 'ingreso',
-          amount: netUtilidadReal,
+          amount: netCobradoReal,
           createdAt: Timestamp.now(),
         });
       });
-      toast(`Contrarecibo ${crNumber} recogido. Utilidad inyectada en Caja Chica.`, 'ok');
+      toast(`Contrarecibo ${crNumber} cobrado. Ingreso registrado en Caja Chica.`, 'ok');
     } catch (e) {
       toast(`Error al procesar la recolección en bloque: ${(e as Error).message}`, 'bad');
     }
@@ -250,6 +251,7 @@ export default function Cobranza() {
     costoAndres: number;
     comisionContador: number;
     netUtilidad: number;
+    netCobrado: number;
     margenPct: number;
     status: string;
   }) {
@@ -324,6 +326,7 @@ export default function Cobranza() {
             <div class="summary-line"><span>Total Facturado a Cliente (${escapeHtml(grp.client)}):</span><strong>$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
             <div class="summary-line"><span>Costo Directo Fabricante Andrés (Sin mermas):</span><span style="color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line"><span>Comisión Contador / Contabilidad:</span><span style="color:#B23A2E;">-$${grp.comisionContador.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
+            <div class="summary-line"><span><strong>DEPÓSITO QUE RECIBES</strong> (factura menos comisión):</span><strong style="color:#2F7A52;">$${grp.netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
             <div class="summary-line total">
               <span>UTILIDAD LÍQUIDA REAL (MARGEN: ${grp.margenPct.toFixed(2)}%):</span>
               <span>$${grp.netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
@@ -401,6 +404,7 @@ export default function Cobranza() {
       costoAndres: number;
       comisionContador: number;
       netUtilidad: number;
+      netCobrado: number;
       margenPct: number;
       status: string;
       order: PurchaseOrder;
@@ -418,6 +422,7 @@ export default function Cobranza() {
           costoAndres: 0,
           comisionContador: 0,
           netUtilidad: 0,
+          netCobrado: 0,
           margenPct: 0,
           status: inv.creditCycle.status,
           order: o,
@@ -437,7 +442,13 @@ export default function Cobranza() {
     });
 
     Object.values(crGroups).forEach(grp => {
+      // netUtilidad es un INDICADOR de margen (venta - costo - honorario).
+      // netCobrado es el DINERO QUE ENTRA: el cliente paga la factura completa
+      // y el contador solo descuenta su honorario. El costo del material NO se
+      // resta aqui: se paga a Andres por separado desde Compras, que ya genera
+      // su propio egreso. Restarlo tambien aqui lo contaba dos veces.
       grp.netUtilidad = grp.totalVenta - grp.costoAndres - grp.comisionContador;
+      grp.netCobrado = round2(grp.totalVenta - grp.comisionContador);
       grp.margenPct = grp.totalVenta > 0 ? (grp.netUtilidad / grp.totalVenta) * 100 : 0;
     });
 
@@ -791,7 +802,7 @@ export default function Cobranza() {
                                 style={{ padding: '2px 6px', fontSize: '10px' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  collectContrareciboBlock(currentCr, crGroup.netUtilidad);
+                                  collectContrareciboBlock(currentCr, crGroup.netCobrado);
                                 }}
                               >
                                 💰 Recoger Lote

@@ -14,11 +14,24 @@ export interface FinancialConfig {
 }
 
 export const DEFAULT_CONFIG: FinancialConfig = {
+  /** Subtotal por kilo, SIN IVA. Con el 16% da los 54.52 que aparecen en los
+   *  contrarecibos y facturas: 47 × 1.16 = 54.52. No poner 54.52 aquí, o el
+   *  sistema le sumaría el IVA otra vez. */
   salePricePerKg: 47,
   costPricePerKg: 42,
-  commissionRate: 0.069,
+  /** Honorario del contador por la gestión de cobro: 8% del SUBTOTAL. */
+  commissionRate: 0.08,
   creditDays: 30,
   ivaRate: 0.16,
+  /**
+   * 8% sobre el SUBTOTAL (sin IVA). Verificado contra tres cobros reales; el
+   * de 153,381.00 cuadra al centavo:
+   *   subtotal 132,225.00 x 0.08 = 10,578.00  ← honorario exacto
+   *   subtotal 132,225.00 x 1.08 = 142,803.00 ← depósito exacto
+   * Regla practica: lo que te depositan = subtotal x 1.08.
+   * No es un descuento del cliente (TH/GT paga la factura completa): es el
+   * honorario que cobra el contador por gestionar la cobranza.
+   */
   commissionBase: 'subtotal',
 };
 

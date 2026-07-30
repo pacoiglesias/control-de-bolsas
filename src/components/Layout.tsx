@@ -151,7 +151,7 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Control Bolsas v6.2.0 · Desarrollado por Paco Iglesias &copy; 2026<br/>
+            Control Bolsas v6.4.0 · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, configEfectiva, getOrderSummary } from '../finance';
+import { computeFinancials, configEfectiva, getOrderSummary, round2 } from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
@@ -32,14 +32,29 @@ function factura(status: OrderStatus, kilos = 100) {
 }
 
 describe('computeFinancials', () => {
-  it('el neto se calcula sobre la factura CON IVA, no sobre el subtotal', () => {
+  it('el honorario del contador va sobre el SUBTOTAL, no sobre la factura', () => {
     const f = computeFinancials(100, cfg);
     expect(f.saleTotal).toBe(4700);
     expect(f.invoiceTotal).toBe(5452);
     expect(f.costTotal).toBe(4200);
-    expect(f.commission).toBe(324.3);
-    // 5452 - 4200 - 324.30
-    expect(f.netCashFlow).toBe(927.7);
+    // 8% del subtotal: 4700 x 0.08 = 376.00
+    expect(f.commission).toBe(376);
+    expect(f.netCashFlow).toBe(876);
+  });
+
+  it('reproduce al centavo un cobro real del contador', () => {
+    // Cobro real: bruto 153,381.00 -> subtotal 132,225.00, depositado 142,803.00.
+    const kilos = 132225 / cfg.salePricePerKg;
+    const f = computeFinancials(kilos, cfg);
+    expect(f.saleTotal).toBe(132225);
+    expect(f.invoiceTotal).toBe(153381);
+    expect(f.commission).toBe(10578);
+    expect(round2(f.invoiceTotal! - f.commission!)).toBe(142803);
+  });
+
+  it('respeta commissionBase: total cuando así se configura', () => {
+    const f = computeFinancials(100, { ...cfg, commissionBase: 'total' });
+    expect(f.commission).toBe(436.16); // 5452 x 0.08
   });
 
   it('redondea a dos decimales todos los importes', () => {
@@ -58,10 +73,6 @@ describe('computeFinancials', () => {
     expect(f.netCashFlow).toBe(0);
   });
 
-  it('commissionBase "total" cobra sobre la factura con IVA', () => {
-    const f = computeFinancials(100, { ...cfg, commissionBase: 'total' });
-    expect(f.commission).toBe(376.19);
-  });
 });
 
 describe('configEfectiva', () => {
