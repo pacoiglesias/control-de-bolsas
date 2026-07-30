@@ -683,26 +683,26 @@ export default function OrderModal({
                       <tr key={it.id}>
                         <td className="num">
                           <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
-                            value={it.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
+                            defaultValue={it.quantity} onBlur={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
                         </td>
                         <td className="num">
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <input className="input boxed mono" type="number" step="0.01" style={{ width: 70, borderColor: (it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 ? 'var(--ok)' : 'var(--line)' }}
-                              value={it.deliveredQuantity || ''} placeholder="0" onChange={e => updateItem(i, 'deliveredQuantity', Number(e.target.value))} disabled={readOnly} />
+                              defaultValue={it.deliveredQuantity || ''} placeholder="0" onBlur={e => updateItem(i, 'deliveredQuantity', Number(e.target.value))} disabled={readOnly} />
                             {(it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
                           </div>
                         </td>
                         <td>
                           <input className="input boxed" type="text" style={{ width: 80 }}
-                            value={it.unit} onChange={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
+                            defaultValue={it.unit} onBlur={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
                         </td>
                         <td>
                           <input className="input boxed" type="text" list="catalog-products" style={{ minWidth: 200 }}
-                            value={it.description} onChange={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
+                            defaultValue={it.description} onBlur={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
                         </td>
                         <td className="num">
                           <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
-                            value={it.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
+                            defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
                         </td>
                         <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
                           {money(it.amount)}
@@ -752,8 +752,8 @@ export default function OrderModal({
                     <tr key={d.id}>
                       <td>
                         <input className="input boxed mono" type="date" 
-                          value={toInputDate(d.date) || ''} 
-                          onChange={e => {
+                          defaultValue={toInputDate(d.date) || ''} 
+                          onBlur={e => {
                             const date = fromInputDate(e.target.value);
                             updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
                           }}
@@ -762,15 +762,15 @@ export default function OrderModal({
                       </td>
                       <td className="num">
                         <input className="input boxed mono" type="number" step="0.01" 
-                          value={d.kilos} 
-                          onChange={e => updateDelivery(i, 'kilos', Number(e.target.value))}
+                          defaultValue={d.kilos} 
+                          onBlur={e => updateDelivery(i, 'kilos', Number(e.target.value))}
                           disabled={readOnly}
                         />
                       </td>
                       <td>
                         <input className="input boxed" type="text" 
-                          value={d.notes || ''} 
-                          onChange={e => updateDelivery(i, 'notes', e.target.value)}
+                          defaultValue={d.notes || ''} 
+                          onBlur={e => updateDelivery(i, 'notes', e.target.value)}
                           disabled={readOnly}
                         />
                       </td>
@@ -861,16 +861,16 @@ export default function OrderModal({
                       </div>
                       <div className="form-grid">
                         <Field label="Folio">
-                          <input className="input boxed mono" value={inv.folio || ''} 
-                            onChange={e => updateInvoice(i, x => ({...x, folio: e.target.value}))} disabled={readOnly} />
+                          <input className="input boxed mono" defaultValue={inv.folio || ''} 
+                            onBlur={e => updateInvoice(i, x => ({...x, folio: e.target.value}))} disabled={readOnly} />
                         </Field>
                         <Field label="Kilos Facturados">
-                          <input className="input boxed mono" type="number" step="0.01" value={inv.kilos} 
-                            onChange={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
+                          <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.kilos} 
+                            onBlur={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
                         </Field>
                         <Field label="Contrarecibo (CR)">
-                          <input className="input boxed mono" value={inv.collection?.contrareciboNumber || ''} 
-                            onChange={e => updateInvoice(i, x => ({
+                          <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''} 
+                            onBlur={e => updateInvoice(i, x => ({
                               ...x, 
                               collection: { ...x.collection, contrareciboNumber: e.target.value }
                             }))} disabled={readOnly} />
@@ -937,9 +937,9 @@ export default function OrderModal({
                             }} />
                         </Field>
                         <Field label="Contrarecibo">
-                          <input className="input boxed mono" value={inv.collection?.contrareciboNumber || ''}
+                          <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''}
                             disabled={readOnly}
-                            onChange={e => updateInvoice(i, x => ({
+                            onBlur={e => updateInvoice(i, x => ({
                               ...x, collection: { ...x.collection, contrareciboNumber: e.target.value }
                             }))} />
                         </Field>
@@ -954,9 +954,9 @@ export default function OrderModal({
                             }} />
                         </Field>
                         <Field label="Monto Cobrado">
-                          <input className="input boxed mono" type="number" step="0.01" value={inv.collection?.paidAmount || 0}
+                          <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.collection?.paidAmount || 0}
                             disabled={readOnly}
-                            onChange={e => updateInvoice(i, x => ({
+                            onBlur={e => updateInvoice(i, x => ({
                               ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
                             }))} />
                         </Field>
@@ -971,9 +971,9 @@ export default function OrderModal({
                             }} />
                         </Field>
                         <Field label="Comisión Contador ($)">
-                          <input className="input boxed mono" type="number" step="0.01" value={inv.financials?.commission ?? fin.commission}
+                          <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.financials?.commission ?? fin.commission}
                             disabled={readOnly}
-                            onChange={e => {
+                            onBlur={e => {
                               const val = Number(e.target.value);
                               updateInvoice(i, x => ({
                                 ...x,
@@ -1051,7 +1051,7 @@ export default function OrderModal({
       <div className="modal-actions" style={{ marginTop: 16 }}>
         {!readOnly && (
           <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
-            Eliminar Expediente
+            {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '🗑️ '} Eliminar Expediente
           </button>
         )}
         <button className="btn" onClick={printRemision} style={{ marginLeft: 12 }}>📄 Generar Remisión (PDF)</button>

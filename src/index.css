@@ -132,8 +132,10 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .data-table th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .data-table tbody tr:hover td{background-color:var(--paper-sunk)}
 .data-table tbody tr.row-hovered-cr td{background-color:var(--info-bg) !important;}
-.data-table tbody tr.row-bad td{background-color:var(--warn-bg)}
-.data-table tbody tr.row-bad:hover td{background-color:var(--warn-bg);filter:brightness(0.96)}
+.data-table tbody tr.row-bad td{background-color:var(--bad-bg, rgba(239, 68, 68, 0.1))}
+.data-table tbody tr.row-bad:hover td{background-color:var(--bad-bg, rgba(239, 68, 68, 0.15));filter:brightness(0.96)}
+.data-table tbody tr.row-warn td{background-color:var(--warn-bg, rgba(245, 158, 11, 0.1))}
+.data-table tbody tr.row-warn:hover td{background-color:var(--warn-bg, rgba(245, 158, 11, 0.15));filter:brightness(0.96)}
 .num{text-align:right}
 tr.row-done{opacity:.62}
 tfoot td{padding:10px;font-weight:600;background:var(--paper-sunk);border-top:2px solid var(--line);font-family:'IBM Plex Mono';font-size:12px}

@@ -7,7 +7,7 @@ import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } 
 import { fmtDate, money, toDate } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp, writeBatch, collection } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import type { PurchaseOrder } from '../lib/types';
@@ -19,6 +19,7 @@ export default function Cobranza() {
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas'>('pendientes');
 
   async function toggleComplementStatus(orderId: string, invoiceId: string) {
     const o = orders.find(x => x.id === orderId);
@@ -85,6 +86,54 @@ export default function Cobranza() {
       toast(`Contrarecibo ${crNumber} cobrado exitosamente`, 'ok');
     } catch (e) {
       toast('Error al procesar el cobro en bloque', 'bad');
+    }
+  }
+
+  async function collectContrareciboBlock(crNumber: string, netUtilidad: number) {
+    if (!crNumber) return;
+    if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se inyectará un Ingreso por $${netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
+    
+    const invoicesToCollect = data.paid.filter(({ o, inv }) => 
+      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
+    );
+    
+    const batch = writeBatch(db);
+    
+    const updatesByOrder: Record<string, any[]> = {};
+    for (const { o, inv } of invoicesToCollect) {
+      if (!updatesByOrder[o.id]) {
+        updatesByOrder[o.id] = [...(o.invoices || [])];
+      }
+      const invIndex = updatesByOrder[o.id]!.findIndex((i: any) => i.id === inv.id);
+      if (invIndex >= 0) {
+        updatesByOrder[o.id]![invIndex] = {
+          ...inv,
+          creditCycle: {
+            ...inv.creditCycle,
+            status: 'collected'
+          }
+        };
+      }
+    }
+    
+    for (const [orderId, newInvoices] of Object.entries(updatesByOrder)) {
+      batch.update(doc(db, PATHS.orders, orderId), { invoices: newInvoices });
+    }
+    
+    const expenseRef = doc(collection(db, PATHS.expenses));
+    batch.set(expenseRef, {
+      date: Timestamp.now(),
+      concept: `Ingreso por Utilidad del Contrarecibo ${crNumber}`,
+      type: 'ingreso',
+      amount: netUtilidad,
+      createdAt: Timestamp.now()
+    });
+    
+    try {
+      await batch.commit();
+      toast(`Contrarecibo ${crNumber} recogido. Utilidad inyectada en Caja Chica.`, 'ok');
+    } catch (e) {
+      toast('Error al procesar la recolección en bloque', 'bad');
     }
   }
 
@@ -200,6 +249,10 @@ export default function Cobranza() {
       return s.invoices.map((inv) => ({ o, inv }));
     });
 
+    const paid = allInvoices.filter(
+      (x) => x.inv.creditCycle.status === 'paid',
+    );
+
     const open = allInvoices.filter(
       (x) => x.inv.creditCycle.status === 'pending' || x.inv.creditCycle.status === 'overdue',
     );
@@ -284,11 +337,21 @@ export default function Cobranza() {
     const listaCr = Object.values(crGroups).sort((a, b) => b.totalVenta - a.totalVenta);
 
     const lista = open
-      .map(({ o, inv }) => ({ o, inv, d: daysLate(toDate(inv.creditCycle.dueDate)), saldo: saldo(inv) }))
-      .sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
+      .map(({ o, inv }) => {
+        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+        const hasCr = cr.length > 0;
+        const d = daysLate(toDate(inv.creditCycle.dueDate));
+        return { o, inv, d, saldo: saldo(inv), hasCr, cr };
+      })
+      .sort((a, b) => {
+        // Prioridad: Sin CR primero (urgentes), luego por días de vencimiento descendente
+        if (a.hasCr !== b.hasCr) return a.hasCr ? 1 : -1;
+        return (b.d ?? -999) - (a.d ?? -999);
+      });
 
     return {
       open,
+      paid,
       lista,
       listaCr,
       clientes,
@@ -339,7 +402,18 @@ export default function Cobranza() {
         </p>
       </div>
 
-      <div className="kpi-grid">
+      <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
+        <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')}>
+          Pendientes de Cobro ({data.open.length})
+        </button>
+        <button className={`tab ${activeTab === 'pagadas' ? 'active' : ''}`} onClick={() => setActiveTab('pagadas')}>
+          Historial: Ventas ya Pagadas (Por recoger) ({data.paid.length})
+        </button>
+      </div>
+
+      {activeTab === 'pendientes' && (
+        <>
+          <div className="kpi-grid">
         <KpiCard hero tone={data.meDeben > 0 ? 'warn' : 'ok'} label="TE DEBEN" value={money(data.meDeben)}
           sub={`${data.open.length} órdenes abiertas`} />
         <KpiCard tone={data.vencido > 0 ? 'bad' : undefined} label="De eso, vencido" value={money(data.vencido)} />
@@ -395,20 +469,50 @@ export default function Cobranza() {
         {data.lista.length === 0 ? (
           <Empty>No hay nada pendiente de cobro.</Empty>
         ) : (
+          <>
+          {/* Resumen rápido */}
+          {(() => {
+            const sinCr = data.lista.filter(x => !x.hasCr);
+            const conCr = data.lista.filter(x => x.hasCr);
+            const conCrVencidos = conCr.filter(x => (x.d ?? 0) > 0);
+            return (
+              <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                {sinCr.length > 0 && (
+                  <span className="badge" style={{ background: 'var(--bad)', fontSize: 12, padding: '4px 10px' }}>
+                    ⚠ {sinCr.length} factura(s) SIN contrarecibo — Requiere acción
+                  </span>
+                )}
+                {conCrVencidos.length > 0 && (
+                  <span className="badge" style={{ background: 'var(--warn)', color: '#333', fontSize: 12, padding: '4px 10px' }}>
+                    📅 {conCrVencidos.length} CR vencidos — Listo para cobrar
+                  </span>
+                )}
+                <span className="badge" style={{ background: 'var(--ok)', fontSize: 12, padding: '4px 10px' }}>
+                  ✓ {conCr.filter(x => (x.d ?? 0) <= 0).length} CR en plazo
+                </span>
+              </div>
+            );
+          })()}
           <div className="table-scroll">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Vence</th>
-                  <th className="num">Días</th><th className="num">Saldo</th><th>Estado</th>
+                  <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Fecha Cobro</th>
+                  <th className="num">Plazo</th><th className="num">Saldo</th><th>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {data.lista.map(({ o, inv, d, saldo }) => {
-                  const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
+                {data.lista.map(({ o, inv, d, saldo, hasCr, cr: currentCr }) => {
                   const isHovered = hoveredCr && hoveredCr === currentCr;
+                  // Lógica de color de fila:
+                  // Sin CR = fila roja (urgente)
+                  // Con CR vencido = fila naranja suave (listo para cobrar)
+                  // Con CR en plazo = fila normal
+                  const rowClass = !hasCr 
+                    ? 'row-bad' 
+                    : (d !== null && d > 0) ? 'row-warn' : '';
                   return (
-                  <tr key={inv.id} className={`${(d ?? 0) > 0 ? 'row-bad' : ''} ${isHovered ? 'row-hovered-cr' : ''}`}
+                  <tr key={inv.id} className={`${rowClass} ${isHovered ? 'row-hovered-cr' : ''}`}
                     onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
                     <td className="mono">
                       {inv.folio ?? o.folio ?? '—'}
@@ -423,7 +527,9 @@ export default function Cobranza() {
                           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-3.31-2.69-6-6-6S3 1.69 3 5v12.5c0 3.86 3.14 7 7 7s7-3.14 7-7V6h-1.5z"/></svg>
                           {currentCr}
                         </div>
-                      ) : '—'}
+                      ) : (
+                        <span className="badge" style={{ background: 'var(--bad)', fontSize: 10 }}>⚠ SIN CR</span>
+                      )}
                       {currentCr && 
                        data.crCounts[currentCr] > 1 && (
                         <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', marginLeft: 6 }}>
@@ -442,10 +548,22 @@ export default function Cobranza() {
                     </td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">
-                      {d === null ? '—' : d > 0 ? (
-                        <span className="badge" style={{ background: 'var(--bad)' }}>{d} días de atraso</span>
+                      {d === null ? '—' : hasCr ? (
+                        // Con Contrarecibo: mostrar cuenta regresiva, NO atraso
+                        d > 0 ? (
+                          <span className="badge" style={{ background: 'var(--warn)', color: '#333' }}>Cobrar ✓</span>
+                        ) : d === 0 ? (
+                          <span className="badge" style={{ background: 'var(--ok)' }}>Hoy</span>
+                        ) : (
+                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)}d</span>
+                        )
                       ) : (
-                        d
+                        // Sin Contrarecibo: sí mostrar urgencia
+                        d > 0 ? (
+                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d}d sin CR</span>
+                        ) : (
+                          <span style={{ color: 'var(--ink-faint)' }}>Recién emitida</span>
+                        )
                       )}
                     </td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{money(saldo)}</td>
@@ -469,6 +587,7 @@ export default function Cobranza() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Card>
 
@@ -516,6 +635,69 @@ export default function Cobranza() {
           </div>
         )}
       </Card>
+      </>
+      )}
+
+      {activeTab === 'pagadas' && (
+        <Card title="Contrarecibos Cobrados (Por recoger Dinero)">
+          {data.paid.length === 0 ? (
+            <Empty>No hay lotes pendientes de recoger efectivo.</Empty>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Folio</th><th>Cliente</th><th>Contrarecibo</th>
+                    <th className="num">Utilidad (A ingresar)</th><th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.paid.map(({ o, inv }) => {
+                    const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
+                    const crGroup = currentCr ? data.listaCr.find(g => g.cr === currentCr) : null;
+                    const isHovered = hoveredCr && hoveredCr === currentCr;
+                    
+                    return (
+                      <tr key={inv.id} className={isHovered ? 'row-hovered-cr' : ''} onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
+                        <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
+                        <td>{o.client ?? '—'}</td>
+                        <td className="mono" onMouseEnter={() => currentCr ? setHoveredCr(currentCr) : null} onMouseLeave={() => setHoveredCr(null)}>
+                          {currentCr ? (
+                            <div className="cr-chip">
+                              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-3.31-2.69-6-6-6S3 1.69 3 5v12.5c0 3.86 3.14 7 7 7s7-3.14 7-7V6h-1.5z"/></svg>
+                              {currentCr}
+                            </div>
+                          ) : '—'}
+                          {currentCr && crGroup && data.paid.findIndex(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === currentCr) === data.paid.findIndex(x => x.inv.id === inv.id) && (
+                            <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', marginLeft: 6 }}>
+                              <button 
+                                className="btn-small btn-ok" 
+                                style={{ padding: '2px 6px', fontSize: '10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  collectContrareciboBlock(currentCr, crGroup.netUtilidad);
+                                }}
+                              >
+                                💰 Recoger Lote
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
+                          {crGroup ? money(crGroup.netUtilidad) : '—'}
+                        </td>
+                        <td>
+                          <StatusBadge status={inv.creditCycle.status} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
 
       {selected && (
         <OrderModal

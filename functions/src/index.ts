@@ -344,6 +344,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
             amount: it.amount
           })),
           financials: computeFinancials(data.totalKilograms, cfg),
+          historicalConfig: cfg,
           creditCycle: {
             issueDate: Timestamp.fromDate(issueDate),
             dueDate: Timestamp.fromDate(dueDate),
@@ -390,6 +391,12 @@ export const parseUploadedPDF = onObjectFinalized(
       return;
     }
 
+    const size = Number(event.data.size) || 0;
+    if (size > 5 * 1024 * 1024) {
+      logger.warn(`Ignorado (archivo muy grande > 5MB): ${filePath}`);
+      return;
+    }
+
     const db = getFirestore();
     const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
 
@@ -412,7 +419,7 @@ export const checkOverdueInvoices = onSchedule(
 
     // Se filtra por el arreglo desnormalizado para no recorrer toda la base.
     const snapshot = await db.collection(COL_ORDERS)
-      .where("invoiceStatuses", "array-contains-any", ["pending", "overdue"])
+      .where("invoiceStatuses", "array-contains", "pending")
       .get();
 
     // OJO: los expedientes creados ANTES de que existiera invoiceStatuses no
@@ -537,15 +544,14 @@ export const sanitizePurchaseOrder = onDocumentWritten(
     const data = event.data.after.data();
     if (!data || data._sanitized) return;
 
-    const cfg = await readConfig();
+    const cfg = data.historicalConfig ?? await readConfig();
     const invoices = Array.isArray(data.invoices) ? data.invoices : [];
     let modified = false;
 
     const sanitizedInvoices = invoices.map((inv: any) => {
       const kilos = Number(inv.kilos) || 0;
       const baseFin = computeFinancials(kilos, cfg);
-      const customComm = inv.financials?.commission;
-      const expectedCommission = customComm ?? baseFin.commission;
+      const expectedCommission = baseFin.commission; // Validacion estricta (no confiar en el cliente)
       const expectedNet = baseFin.invoiceTotal - baseFin.costTotal - expectedCommission;
 
       if (
