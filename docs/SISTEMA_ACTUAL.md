@@ -1,4 +1,4 @@
-# Radiografía del Sistema: Control Bolsas ERP (v5.5.0)
+# Radiografía del Sistema: Control Bolsas ERP (v5.7.0)
 
 Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio.
 

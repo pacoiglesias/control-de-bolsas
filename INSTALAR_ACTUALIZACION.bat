@@ -117,7 +117,10 @@ if exist "!PROYECTO!\.gitignore" (
 
 echo  [..] Respaldando tu version actual en:
 echo       _respaldo_!SELLO!
-robocopy "!PROYECTO!" "!BACKUP!" /E /XD node_modules dist .git .firebase _respaldo_* lib /NFL /NDL /NJH /NJS /NC /NS >nul
+REM /XD con nombre suelto excluye ESA carpeta a CUALQUIER nivel. Poner
+REM "lib" a secas descartaba tambien src\lib, asi que el respaldo previo
+REM se guardaba sin la mitad de la logica del sistema.
+robocopy "!PROYECTO!" "!BACKUP!" /E /XD "!PROYECTO!\node_modules" "!PROYECTO!\dist" "!PROYECTO!\.git" "!PROYECTO!\.firebase" "!PROYECTO!\functions\node_modules" "!PROYECTO!\functions\lib" _respaldo_* /NFL /NDL /NJH /NJS /NC /NS >nul
 if errorlevel 8 (
   color 0C
   echo  [X] Fallo el respaldo. NO instalo nada para no arriesgar tus datos.
@@ -127,6 +130,8 @@ if errorlevel 8 (
 echo  [OK] Respaldo hecho
 
 REM ---------- 6. Copiar SIN borrar y SIN pisar lo tuyo ----------
+REM package-lock.json YA NO se excluye: si el paquete trae uno es porque las
+REM dependencias cambiaron, y dejar el viejo desincroniza npm ci.
 REM /IS /IT son obligatorios: sin ellos, robocopy compara fecha y tamano
 REM y SE SALTA EN SILENCIO cualquier archivo que en el destino parezca
 REM "igual o mas nuevo" -- sin avisar, sin marcar error. Si tu copia local
@@ -136,7 +141,13 @@ REM el archivo NUEVO del parche nunca llega. /IS fuerza a copiar tambien
 REM los que se ven "iguales"; /IT copia los que difieren solo en atributos.
 echo  [..] Copiando archivos nuevos...
 echo.
-robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XF .env .env.local .firebaserc package-lock.json /XD node_modules dist .git .firebase lib _respaldo_* /NFL /NDL /NJH /NJS /NC /NS
+REM CAUSA RAIZ CORREGIDA: "/XD ... lib" excluia src\lib ademas de
+REM functions\lib, porque robocopy interpreta un nombre suelto como
+REM "cualquier carpeta que se llame asi, en cualquier nivel". Resultado:
+REM src\lib (finance.ts, logger.ts, cloudBackup.ts, types.ts...) NUNCA se
+REM instalaba, y las correcciones de esos archivos se perdian en silencio.
+REM Ahora las exclusiones van con ruta completa: solo lo que se pretendia.
+robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XF .env .env.local .firebaserc /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\.firebase" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" _respaldo_* /NFL /NDL /NJH /NJS /NC /NS
 set RC=%ERRORLEVEL%
 if !RC! GEQ 8 (
   color 0C

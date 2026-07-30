@@ -1,10 +1,10 @@
-# Ficha Técnica y Reporte de Funciones: Control Bolsas ERP (v5.5.0)
+# Ficha Técnica y Reporte de Funciones: Control Bolsas ERP (v5.7.0)
 
 ## Resumen del Sistema y Arquitectura
 
 - **Producción URL:** `https://control-de-bolsas-69.web.app/`
 - **Proyecto Firebase:** `control-de-bolsas-89c88`
-- **Versión Actual:** `v5.5.0`
+- **Versión Actual:** `v5.7.0`
 
 ### Reglas del Dominio Operativo
 1. **Diferenciación GT / TH vs Folio:**

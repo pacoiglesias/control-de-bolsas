@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { OrdersProvider } from './context/OrdersContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -54,7 +55,11 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-          <Gate />
+          {/* OrdersProvider debe envolver a Gate: dentro viven las nueve
+              pantallas que consumen useOrders(). */}
+          <OrdersProvider>
+            <Gate />
+          </OrdersProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -111,12 +111,25 @@ export default function Respaldo() {
       const conFolio = facturas.filter((f) => (f.folio ?? '').trim());
 
       // Índice de lo que ya está en la nube, por folio.
+      //
+      // Antes esto era where('folio', '!=', '') sobre toda la coleccion: un
+      // escaneo completo que descargaba TODOS los expedientes en cada
+      // importacion. Ahora solo se consultan los folios que trae el archivo
+      // entrante, en lotes de 30 (el maximo que admite el operador 'in').
       const existentes = new Map<string, string>();
-      const snap = await getDocs(query(collection(db, PATHS.orders), where('folio', '!=', '')));
-      snap.docs.forEach((d) => {
-        const folio = String(d.data().folio ?? '').trim();
-        if (folio) existentes.set(folio, d.id);
-      });
+      const foliosBuscados = Array.from(
+        new Set(conFolio.map((f) => f.folio.trim()).filter(Boolean)),
+      );
+      for (let i = 0; i < foliosBuscados.length; i += 30) {
+        const lote = foliosBuscados.slice(i, i + 30);
+        const snap = await getDocs(
+          query(collection(db, PATHS.orders), where('folio', 'in', lote)),
+        );
+        snap.docs.forEach((d) => {
+          const folio = String(d.data().folio ?? '').trim();
+          if (folio) existentes.set(folio, d.id);
+        });
+      }
 
       let creadas = 0;
       let actualizadas = 0;

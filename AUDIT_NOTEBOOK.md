@@ -6,6 +6,121 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## 🚨 Incidente — 2026-07-29 — `INSTALAR_ACTUALIZACION.bat` descartaba `src/lib` entero
+
+- **Problema:** la línea de copia del instalador usaba `robocopy ... /XD node_modules dist .git .firebase lib _respaldo_*`. Robocopy interpreta un nombre suelto en `/XD` como *«cualquier carpeta que se llame así, en cualquier nivel»*. La intención era excluir `functions/lib` (código compilado); el efecto fue excluir también **`src/lib`**, es decir `finance.ts`, `logger.ts`, `cloudBackup.ts`, `types.ts`, `format.ts`, `firebase.ts` y `bridge.ts`.
+  El mismo defecto estaba en la línea del respaldo previo, así que los respaldos de seguridad que generaba el instalador **se guardaban sin la mitad de la lógica del sistema**.
+- **Cómo se detectó:** al ejecutar `INSTALL_AND_DEPLOY.bat` de la v5.8.0, Vitest respondió «No test files found». El archivo de pruebas vive en `src/lib/__tests__/`. Tirando del hilo se confirmó, contra el historial de Git, que el commit `87c5776` (v5.7.0) no contiene **ningún** archivo bajo `src/lib`.
+- **Daño real en producción:** la v5.7.0 endureció la regla de `system_logs` a `request.resource.data.user == request.auth.token.email.lower()`, pero `logger.ts` —el archivo que normaliza el correo antes de enviarlo— nunca se instaló. Desde ese despliegue, **todas las escrituras de bitácora se rechazaban**, y como `logAction` captura el error sin propagarlo, el fallo era invisible. Es, punto por punto, el mismo modo de fallo que provocó el diagnóstico equivocado del ciclo 1.
+  También se perdió la separación de metadatos y contenido en `cloudBackup.ts`; eso no rompía nada, sólo dejó la mejora sin aplicar.
+- **Solución:** exclusiones con ruta completa (`"!ORIGEN!\functions\lib"` en vez de `lib`) en las dos líneas de robocopy, y reaplicación de los dos archivos perdidos en el paquete v5.8.1.
+- **Lección:** el paquete se verificaba compilando en origen, no comprobando qué llegaba al destino. Una comprobación posterior a la instalación —que confirme que los archivos del ZIP existen en el proyecto con el mismo tamaño— habría cazado esto en el primer intento.
+- **Estado:** ✅ Resuelto en v5.8.1
+
+---
+
+## ✅ Ciclo 3 — RESUELTO en v5.8.0 (2026-07-29)
+
+Los doce hallazgos del ciclo 3 fueron corregidos y verificados. Estado de la verificación al cerrar el ciclo:
+`tsc --noEmit` limpio · `eslint .` sin errores ni avisos · **12 pruebas unitarias en verde** · `npm run build` completo (frontend + functions).
+
+| Hallazgo | Archivo | Resolución |
+|---|---|---|
+| CI publicaba un frontend inservible | `.github/workflows/deploy.yml` | Se inyectan las seis `VITE_FIREBASE_*` desde *GitHub Secrets*; se añadió una comprobación que aborta si el bundle sale con `apiKey:void 0`; typecheck y pruebas como barrera previa; despliegue reducido a `--only hosting,functions` (las reglas ya no se publican por push); acción fijada a `v14.11.1`; `checkout`/`setup-node` a v4; control de concurrencia. ✅ |
+| `collected` rompía la derivación de estatus | `src/lib/finance.ts` | Se añadió la bandera `hasCollected`, `collected` cuenta como liquidado en `allPaid`, y hay rama propia en la cascada. Cubierto por prueba de regresión que recorre los siete valores de `OrderStatus` y falla si alguno cae al valor legado de la raíz. ✅ |
+| `invoiceStatuses` se desincronizaba en cada cobro | `src/pages/Cobranza.tsx` | Helper `camposInvoices()` que siempre escribe `invoices`, `invoiceStatuses` y `updatedAt` juntos, usado en las tres rutas de cobro. ✅ |
+| Nueve suscripciones a la misma consulta | `src/context/OrdersContext.tsx` (nuevo) | `OrdersProvider` con suscripción única montado en `App.tsx`. `useOrders()` queda como fachada con firma idéntica: ninguna pantalla necesitó cambios. ✅ |
+| Sin reintentos ni clasificación de errores | `functions/src/index.ts` | `retry: true` en el trigger de Storage (retroceso exponencial de Eventarc) más `esTransitorio()`, que distingue 429/5xx/cuota/timeout de un PDF ilegible. Sólo se relanzan los transitorios y hasta `MAX_INTENTOS = 3`, contados en `aiAttempts` dentro del propio expediente. Un fallo permanente no vuelve a quemar cuota de Gemini. ✅ |
+| Cliente Genkit reconstruido por invocación | `functions/src/index.ts` | `obtenerGenkit()` con caché a nivel de módulo. ✅ |
+| Escaneo completo en la importación | `src/pages/Respaldo.tsx` | `where('folio','!=','')` sustituido por consultas `where('folio','in',[...])` en lotes de 30, sobre los folios que trae el archivo entrante. De N lecturas a las estrictamente necesarias. ✅ |
+| `writeBatch` daba atomicidad, no aislamiento | `src/pages/Cobranza.tsx` | Las tres rutas migradas a `runTransaction`, releyendo dentro de la transacción y aplicando por **id de factura**, no por índice. En la recolección de efectivo, el movimiento de Caja Chica va dentro de la misma transacción. ✅ |
+| Fórmula financiera duplicada y divergiendo | `functions/src/shared/finance.core.ts` (nuevo) | Fuente única de verdad importada por los dos lados. `configEfectiva` deja de existir dos veces con dos nombres: `OrderModal` usa exactamente la misma función que el trigger de saneamiento. ✅ |
+| Sin ESLint ni pruebas | `eslint.config.js`, `vitest.config.ts`, `src/lib/__tests__/finance.test.ts` | ESLint 9 con `react-hooks/exhaustive-deps` y 12 pruebas sobre `computeFinancials`, `configEfectiva` y `getOrderSummary`. Deliberadamente fuera de `npm run build` (un error de estilo no debe bloquear un despliegue urgente), pero **sí** dentro del CI y de `INSTALL_AND_DEPLOY.bat`. ✅ |
+| Clases `.stat-*` inexistentes en Seguimiento de OC | `src/pages/OcTracking.tsx` | Sustituidas por el componente `KpiCard` del sistema. ✅ |
+| Datos falsos durante la carga | `src/pages/OcTracking.tsx` | Esqueletos de carga; `money` local duplicada eliminada en favor de `lib/format`; ternario-sentencia convertido en `if/else`. ✅ |
+| Manuales anclados en v5.5.0 | `docs/*.md` | Versión sincronizada y nota con los tres cambios que el usuario final nota: límite de 5 MB, verificación de correo obligatoria en altas, Catálogo funcionando. ✅ |
+
+**Lo que el linter encontró en su primera ejecución** (todo corregido en el mismo ciclo): dos `prefer-const` en las Cloud Functions, dos `@ts-ignore` en `Layout.tsx` que además silenciaban cualquier otro error de esa línea —resueltos declarando `__BUILD_DATE__` en `src/vite-env.d.ts`—, un `catch` que se tragaba el error en `Dashboard.tsx`, una variable acumuladora muerta en `OrderModal.tsx`, y **dos `useMemo`/`useCallback` con dependencias incompletas** en `OrderModal.tsx` y `Upload.tsx`. Exactamente la familia de defectos que motivó añadir la herramienta.
+
+### 🔴 Lo que queda abierto (consciente, no olvidado)
+- **Agregación en `stats/dashboard`.** El `OrdersProvider` elimina las copias duplicadas en memoria, pero la suscripción sigue trayendo la colección entera. El paso definitivo —un documento de agregados mantenido por trigger, con las pantallas leyendo métricas en vez de documentos— es un cambio de modelo de datos que merece su propia rama y su propia migración. Es el siguiente trabajo grande.
+- **`invoices` como subcolección.** Las transacciones cierran la pérdida de escrituras concurrentes, pero mientras `invoices` sea un arreglo dentro del expediente seguirá existiendo el techo de 1 MiB por documento y la reescritura completa en cada cambio.
+- **Expedientes fantasma.** Cuando una factura no encuentra su OC, el `catch` sigue creando un documento vacío en `manual_review`. Debería ir a una colección `failedUploads`.
+
+---
+
+## 🔎 Ciclo 3 — 2026-07-29 (auditoría sobre `main` @ `f7d0a4b`, versión 5.7.0)
+
+> Verificación previa: se clonó el repositorio limpio, se corrió `npm ci` en raíz y en `functions`, y `npm run build` completo. Compila sin errores. Las seis correcciones críticas del ciclo 2 están confirmadas en el código desplegado.
+
+### 🔴 2026-07-29 — `.github/workflows/deploy.yml` — El CI publica un frontend inservible en cada push a `main`
+- **Problema:** el workflow ejecuta `npm run build` **sin inyectar las variables `VITE_FIREBASE_*`**, que viven en `.env` y están correctamente excluidas del repositorio. Vite sustituye cada variable ausente por `undefined` en tiempo de compilación, así que el bundle sale con la configuración de Firebase vacía y la aplicación arranca mostrando «Faltan variables de entorno» (`Login.tsx`).
+  **Comprobado, no supuesto:** al compilar este repositorio sin `.env` —exactamente lo que hace el runner— el bundle resultante contiene literalmente `apiKey:void 0` y la cadena `Faltan variables`.
+  Agrava el problema que el paso final sea `firebase deploy` **sin `--only`**: publica hosting, reglas y funciones de una vez. Es decir, cada push a `main` puede sobrescribir un despliegue manual correcto con uno roto, sin que nada avise.
+- **Solución propuesta:** inyectar las variables desde *GitHub Secrets* en el paso de build (`env: VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}`, y las otras cinco), fijar `w9jds/firebase-action` a un SHA concreto en vez de `@master`, actualizar `actions/checkout` y `actions/setup-node` a v4, y separar el despliegue de reglas a un workflow con aprobación manual.
+- **Verificación inmediata sugerida:** abrir producción en una ventana privada. Si aparece «Faltan variables de entorno», el CI ya sobrescribió el despliegue bueno y hay que volver a publicar con `INSTALL_AND_DEPLOY.bat`.
+- **Estado:** 🔴 Pendiente — es el hallazgo más urgente del ciclo.
+
+### 🔴 2026-07-29 — `src/lib/finance.ts` — El estado `collected` no existe para `getOrderSummary`, y la v5.7.0 amplificó el daño
+- **Problema:** `OrderStatus` incluye `'collected'` («✅ Recibida»: el contador ya entregó el efectivo, el estado final del ciclo). El bucle de derivación de `getOrderSummary` (líneas 108-114) contempla `overdue`, `manual_review`, `pending`, `facturado`, `paid` y `pedido`, pero **no `collected`**. Una factura en ese estado no enciende ninguna bandera, hace `allPaid = false` y `allPedido = false`, y la cascada de `if/else` no entra en ninguna rama. El estatus se queda en el valor de respaldo: `o.creditCycle?.status`, el campo legado de la raíz del documento — habitualmente `'pending'`.
+  Resultado: un expediente completamente cobrado y con el efectivo ya recibido vuelve a mostrarse como pendiente.
+- **Responsabilidad:** este defecto ya existía, pero **la corrección del ciclo 2 lo amplificó**. Al unificar `Orders`, `Dashboard` y `Layout` sobre el estatus derivado (que era lo correcto), el fallo pasó de afectar sólo a la columna «Estado» a contaminar también los chips de filtro, los KPIs del tablero y los badges rojos del menú. Se introdujo al arreglar otra cosa y se corrige en el mismo sitio.
+- **Solución propuesta:** añadir `if (s === 'collected') hasCollected = true;` y una rama antes de `allPaid`, decidiendo explícitamente si un expediente con facturas `collected` debe presentarse como `paid` (recomendado: el dinero entró) o mantener `collected` como estado propio en la tabla. Conviene además una prueba unitaria sobre `getOrderSummary` que recorra los siete valores de `OrderStatus`: es justo el tipo de omisión que un `switch` exhaustivo con `never` habría impedido en tiempo de compilación.
+- **Estado:** 🔴 Pendiente
+
+### 🔴 2026-07-29 — `src/pages/Cobranza.tsx` — `invoiceStatuses` se desincroniza en cada cobro
+- **Problema:** el arreglo desnormalizado `invoiceStatuses` sostiene la consulta del barrido nocturno (`where("invoiceStatuses", "array-contains", "pending")`). En todo el frontend **sólo `OrderModal.save()` lo reescribe** (línea 124). Las dos rutas de Cobranza —`collectCash` (línea 121) y `payContrareciboBlock`— actualizan el arreglo `invoices` sin tocarlo, igual que el manejador de complementos XML del backend.
+  Consecuencia: facturas ya cobradas siguen figurando como `"pending"` en el índice. El barrido diario las vuelve a traer indefinidamente —coste de lectura recurrente y creciente— y cualquier consulta futura que se apoye en ese campo devolverá expedientes que ya no aplican. Las escrituras tampoco actualizan `updatedAt`.
+- **Solución propuesta:** extraer un helper `escribirInvoices(ref, invoices)` que siempre escriba los tres campos juntos (`invoices`, `invoiceStatuses`, `updatedAt`) y usarlo en las cuatro rutas. A medio plazo, mover `invoices` a subcolección elimina la clase entera de problema.
+- **Estado:** 🔴 Pendiente
+
+### 🟡 2026-07-29 — `src/hooks/useOrders.ts` — Suscripción sin límite replicada en nueve pantallas (sigue abierto del ciclo 2)
+- **Problema:** sin cambios respecto al ciclo anterior. `onSnapshot` sobre `purchaseOrders` sin `limit()` ni filtros, invocado de forma independiente desde `Layout`, `Dashboard`, `Orders`, `Cobranza`, `Upload`, `Respaldo`, `Settings`, `Catalog` y `OcTracking`. Cada instancia guarda su propia copia del arreglo en el estado de React.
+- **Solución propuesta:** documento de agregados `stats/dashboard` mantenido por trigger, consultas acotadas por vista, paginación por cursor en Órdenes y un `OrdersProvider` único. Es trabajo de rama propia, no de parche.
+- **Estado:** 🔴 Pendiente
+
+### 🟡 2026-07-29 — `functions/src/index.ts` — Sin reintentos ni cola de descartes (sigue abierto del ciclo 2)
+- **Problema:** cero apariciones de `retry` en todo el archivo. Los triggers de Storage v2 no reintentan por omisión, así que un 429 o un 503 de Gemini deja el expediente en `manual_review` hasta intervención humana, sin distinguirlo de un PDF genuinamente ilegible. El cliente `genkit({...})` se sigue construyendo dentro del handler (línea 218) en cada invocación.
+- **Estado:** 🔴 Pendiente
+
+### 🟡 2026-07-29 — `src/pages/Respaldo.tsx` — Escaneo completo en la importación
+- **Problema:** la línea 115 hace `getDocs(query(collection(orders), where('folio', '!=', '')))` para construir un índice de folios en memoria. A 10.000 expedientes son 10.000 lecturas facturadas por cada importación.
+- **Solución propuesta:** consultar sólo los folios presentes en el archivo entrante, en lotes de 30 con `where('folio', 'in', [...])`.
+- **Estado:** 🔴 Pendiente
+
+### 🟡 2026-07-29 — `src/pages/Cobranza.tsx` — `writeBatch` da atomicidad, no aislamiento
+- **Problema:** el ciclo 1 migró `payContrareciboBlock` de `Promise.all(updateDoc)` a `writeBatch`, lo cual garantiza que el lote se aplique entero o no se aplique. Pero sigue habiendo lectura-modificación-escritura del arreglo `invoices` completo a partir de una copia local del snapshot. Dos usuarios simultáneos, o un usuario y el procesador de complementos XML, continúan pisándose: el último gana.
+- **Solución propuesta:** `runTransaction` releyendo dentro de la transacción y aplicando el cambio por `id` de factura, no por índice de arreglo.
+- **Estado:** 🔴 Pendiente
+
+### 🟡 2026-07-29 — `finance.ts` / `functions/src/index.ts` — La fórmula duplicada empezó a divergir
+- **Problema:** `computeFinancials` sigue existiendo dos veces, con el comentario «Si cambias una, cambia la otra» como única salvaguarda. La v5.7.0 introdujo una divergencia real: `configEfectiva` —que aplica `customCostPrice` y `customCommissionRate`— **sólo existe en el backend**. El frontend resuelve lo mismo con `dynamicConfig` dentro de `OrderModal`, con otro nombre y otra ubicación. Son dos implementaciones de la misma regla de negocio en dos lugares distintos.
+- **Solución propuesta:** mover la fórmula y la resolución de configuración a un módulo compartido (`shared/finance.ts`) importado por ambos vía alias de rutas, y cubrirlo con pruebas.
+- **Estado:** 🔴 Pendiente
+
+### 🟡 2026-07-29 — Tooling — Sigue sin ESLint ni pruebas
+- **Problema:** el hallazgo `collected` de este ciclo es exactamente lo que una prueba unitaria de `getOrderSummary` sobre los siete valores de `OrderStatus` habría detectado en segundos. `npm run build` sólo ejecuta `tsc -b`.
+- **Nota operativa:** añadir dependencias de desarrollo obliga a regenerar los `package-lock.json`; debe hacerse en un commit propio, no dentro de un paquete de correcciones, para no arriesgar el `npm ci` del CI.
+- **Estado:** 🔴 Pendiente
+
+### 🟢 2026-07-29 — `src/index.css` — Clases invocadas que no existen (segunda tanda)
+- **Problema:** `OcTracking.tsx` usa `.stat-card`, `.stat-label` y `.stat-value` para las tres tarjetas de resumen de la parte superior. Ninguna está definida en la hoja de estilo: esos KPIs se dibujan sin recuadro, sin tipografía y sin jerarquía, en una pantalla que por lo demás sigue el diseño del sistema. `.page` tampoco existe y se usa en doce archivos; es inofensiva, pero induce a pensar que hay un contenedor con estilo cuando no lo hay.
+- **Solución propuesta:** definir las tres clases reutilizando los tokens de `.kpi-card`, o sustituir el bloque por el componente `KpiCard` que ya existe en `components/ui.tsx`, que es la opción coherente.
+- **Estado:** 🔴 Pendiente
+
+### 🟢 2026-07-29 — `src/pages/OcTracking.tsx` y `src/pages/Catalog.tsx` — Muestran datos falsos mientras cargan
+- **Problema:** `OcTracking` desestructura `useOrders()` ignorando `loading` y `error`. Durante la carga inicial la pantalla afirma «OCs activas: 0» y «Total facturado: $0.00» como si fueran cifras reales, y después salta a los valores correctos (desplazamiento de contenido, además de información momentáneamente falsa). `Catalog` sí recibe `loading` y `error` pero conviene revisar que los presente.
+  El mismo archivo define su propia función `money()` (líneas 7-8), duplicando la de `lib/format.ts`, y usa `next.has(oc) ? next.delete(oc) : next.add(oc)` como sentencia-expresión, un patrón que cualquier linter marcaría.
+- **Solución propuesta:** usar los esqueletos de carga que ya existen (`Skeleton` en `components/ui.tsx`), importar `money` de `lib/format` y convertir el ternario en `if/else`.
+- **Estado:** 🔴 Pendiente
+
+### 🟢 2026-07-29 — Documentación — Los manuales siguen anclados en v5.5.0
+- **Problema:** `docs/FICHA_TECNICA.md`, `docs/INSTRUCCIONES_USO.md` y `docs/SISTEMA_ACTUAL.md` se presentan como v5.5.0 mientras el sistema va en 5.7.0. Entre medias cambiaron cosas que el usuario final nota: el límite de subida bajó de 20 MB a 5 MB, las altas de usuario ahora exigen verificar el correo, y el Catálogo pasó de no funcionar a funcionar.
+- **Solución propuesta:** actualizar el encabezado de versión de los tres, corregir el límite de tamaño en el manual de uso y añadir el paso de verificación de correo al procedimiento de alta.
+- **Estado:** 🔴 Pendiente
+
+---
+
 ## 🔎 Ciclo 2 — 2026-07-29 (auditoría sobre `main` @ `3b5d201`)
 
 ### 🔴 2026-07-29 — `firestore.rules` — La colección `products` no tiene regla: el Catálogo está muerto y guardar un expediente falla

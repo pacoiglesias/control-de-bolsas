@@ -79,7 +79,7 @@ export default function Upload() {
         );
       });
     },
-    [toast],
+    [toast, user?.email],
   );
 
   /** Cruza cada archivo subido con la orden que creó la Cloud Function. */

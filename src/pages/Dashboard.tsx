@@ -138,7 +138,8 @@ export default function Dashboard() {
         });
         
         setHealth({ snapshotDate: snapDate, recentLogs: logsToday, dbStatus: 'OK' });
-      } catch(e) {
+      } catch (e) {
+        console.error('No se pudo leer el estado del sistema:', e);
         setHealth({ snapshotDate: null, recentLogs: 0, dbStatus: 'Sin conexión' });
       }
     };

@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import OrderModal from './OrderModal';
+import { KpiCard, Skeleton } from '../components/ui';
+// money vivia duplicada aqui con su propia implementacion. Una sola.
+import { money } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
-
-const money = (n: number) =>
-  n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
 interface OcGroup {
   oc: string;
@@ -23,7 +23,7 @@ interface OcGroup {
 }
 
 export default function OcTracking() {
-  const { orders } = useOrders();
+  const { orders, loading, error } = useOrders();
   const { config } = useConfig();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
@@ -68,7 +68,8 @@ export default function OcTracking() {
   const toggle = (oc: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(oc) ? next.delete(oc) : next.add(oc);
+      if (next.has(oc)) next.delete(oc);
+      else next.add(oc);
       return next;
     });
   };
@@ -77,6 +78,28 @@ export default function OcTracking() {
     (acc, g) => acc + g.invoices.reduce((s, i) => s + i.amount, 0), 0
   );
 
+  // Antes esta pantalla ignoraba `loading`: durante la carga afirmaba
+  // "OCs activas: 0" y "Total facturado: $0.00" como si fueran cifras reales,
+  // y despues saltaba a los valores correctos moviendo todo el contenido.
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 240, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: '60%', height: 16 }} />
+        </div>
+        <div className="kpi-grid">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="skeleton-card" style={{ height: 92 }} />)}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 56 }} />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) return <div className="alert bad">{error}</div>;
+
   return (
     <div className="page">
       <div className="page-head">
@@ -84,20 +107,16 @@ export default function OcTracking() {
         <p>Vista por Orden de Compra — cuánto se facturó, avance de entregas y estado de cobro. Haz clic en cualquier renglón para editar el expediente.</p>
       </div>
 
-      {/* Resumen rápido */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div className="stat-card" style={{ flex: 1, minWidth: 160 }}>
-          <div className="stat-label">OCs activas</div>
-          <div className="stat-value">{ocGroups.length}</div>
-        </div>
-        <div className="stat-card" style={{ flex: 1, minWidth: 160 }}>
-          <div className="stat-label">Total facturado</div>
-          <div className="stat-value">{money(totalGeneral)}</div>
-        </div>
-        <div className="stat-card" style={{ flex: 1, minWidth: 160 }}>
-          <div className="stat-label">Total facturas</div>
-          <div className="stat-value">{ocGroups.reduce((s, g) => s + g.invoices.length, 0)}</div>
-        </div>
+      {/* Resumen rápido. Usa el mismo KpiCard que el resto del sistema: las
+          clases .stat-card / .stat-label / .stat-value nunca existieron en la
+          hoja de estilo, asi que estas tres tarjetas salian sin formato. */}
+      <div className="kpi-grid">
+        <KpiCard label="OCs activas" value={String(ocGroups.length)} />
+        <KpiCard label="Total facturado" value={money(totalGeneral)} tone="cash" />
+        <KpiCard
+          label="Total facturas"
+          value={String(ocGroups.reduce((s, g) => s + g.invoices.length, 0))}
+        />
       </div>
 
       {/* Tabla de OCs */}

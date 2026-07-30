@@ -40,7 +40,22 @@ export async function createCloudBackup(
   const estado = ordersToHtmlState(orders, purchases, expenses, config, projectId);
   const payload = JSON.stringify(estado);
 
-  const snapData = {
+  // Firestore rechaza documentos de mas de 1 MiB. Vale mas avisar aqui, con un
+  // mensaje entendible, que dejar que el respaldo falle con un error tecnico y
+  // que el panel siga mostrando la fecha del respaldo anterior como si nada.
+  const pesoKB = Math.round(payload.length / 1024);
+  if (payload.length > 950_000) {
+    throw new Error(
+      `El respaldo pesa ${pesoKB} KB y el limite por documento de Firestore es ` +
+      `1024 KB. Descarga el respaldo HTML local y avisa: hay que mover el ` +
+      `contenido a Cloud Storage.`,
+    );
+  }
+
+  // Metadatos ligeros en el documento padre. El contenido pesado va en una
+  // subcoleccion aparte: listar o podar respaldos ya no descarga los cinco
+  // payloads completos (eran ~1.5 MB por cada operacion).
+  await setDoc(doc(db, 'snapshots', snapId), {
     id: snapId,
     createdAt: serverTimestamp(),
     createdBy: userEmail || 'admin',
@@ -48,18 +63,17 @@ export async function createCloudBackup(
     totalPurchases: purchases.length,
     totalExpenses: expenses.length,
     facturasCount: estado.facturas.length,
-    payload,
-  };
+    payloadKB: pesoKB,
+  });
+  await setDoc(doc(db, 'snapshots', snapId, 'blob', 'data'), { payload });
 
-  // 1. Guardar snapshot específico
-  await setDoc(doc(db, 'snapshots', snapId), snapData);
-
-  // 2. Guardar referencia en 'latest'
+  // Puntero al ultimo respaldo. Solo referencia, sin copia del contenido.
   await setDoc(doc(db, 'snapshots', 'latest'), {
     createdAt: serverTimestamp(),
     createdBy: userEmail || 'admin',
     totalOrders: orders.length,
-    payload,
+    lastSnapshotId: snapId,
+    payloadKB: pesoKB,
   });
 
   // 3. Obtener todos los snapshots existentes para podar y dejar máximo 5
@@ -83,6 +97,8 @@ export async function createCloudBackup(
     const toDelete = list.slice(5);
     for (const item of toDelete) {
       try {
+        // El contenido primero: borrar solo el padre dejaria el blob huerfano.
+        await deleteDoc(doc(db, 'snapshots', item.id, 'blob', 'data')).catch(() => {});
         await deleteDoc(doc(db, 'snapshots', item.id));
       } catch {
         /* ignorar error de borrado individual */
@@ -137,12 +153,18 @@ export async function restoreCloudBackup(
   snapshot: CloudSnapshotMeta
 ): Promise<{ ordersRestored: number; message: string }> {
   if (!snapshot.payload) {
-    // Intentar leer el documento completo si no traía payload en la lista
-    const snapDoc = await getDoc(doc(db, 'snapshots', snapshot.id));
-    if (!snapDoc.exists() || !snapDoc.data().payload) {
-      throw new Error('El respaldo no contiene un archivo de datos válido.');
+    // Formato nuevo: el contenido vive en la subcoleccion blob/.
+    const blob = await getDoc(doc(db, 'snapshots', snapshot.id, 'blob', 'data'));
+    if (blob.exists() && blob.data().payload) {
+      snapshot.payload = blob.data().payload;
+    } else {
+      // Formato anterior: el payload estaba dentro del documento padre.
+      const snapDoc = await getDoc(doc(db, 'snapshots', snapshot.id));
+      if (!snapDoc.exists() || !snapDoc.data().payload) {
+        throw new Error('El respaldo no contiene un archivo de datos válido.');
+      }
+      snapshot.payload = snapDoc.data().payload;
     }
-    snapshot.payload = snapDoc.data().payload;
   }
 
   const data = JSON.parse(snapshot.payload!);

@@ -1,18 +1,48 @@
 name: Deploy to Firebase Hosting and Functions
 
+# NOTA IMPORTANTE SOBRE ESTE ARCHIVO
+# ==================================
+# La versión anterior compilaba con `npm run build` SIN inyectar las variables
+# VITE_FIREBASE_*, que viven en .env y están (correctamente) fuera del
+# repositorio. Vite sustituye cada variable ausente por `undefined` en tiempo
+# de compilación, así que el bundle salía con la configuración de Firebase
+# vacía y la aplicación arrancaba mostrando "Faltan variables de entorno".
+# Como además el último paso era `firebase deploy` sin `--only`, cada push a
+# main podía sobrescribir un despliegue manual correcto con uno inservible.
+#
+# ANTES DE QUE ESTO FUNCIONE hay que dar de alta seis secretos en
+# GitHub -> Settings -> Secrets and variables -> Actions:
+#   VITE_FIREBASE_API_KEY
+#   VITE_FIREBASE_AUTH_DOMAIN
+#   VITE_FIREBASE_PROJECT_ID
+#   VITE_FIREBASE_STORAGE_BUCKET
+#   VITE_FIREBASE_MESSAGING_SENDER_ID
+#   VITE_FIREBASE_APP_ID
+# Son los mismos valores que ya tienes en tu .env local. No son secretos en el
+# sentido criptográfico (viajan en el bundle del navegador), pero se manejan
+# así para no versionarlos.
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+# Si llegan dos pushes seguidos, cancela el despliegue anterior en vuelo: dos
+# `firebase deploy` simultáneos sobre el mismo proyecto pueden dejar hosting y
+# functions en versiones distintas.
+concurrency:
+  group: deploy-produccion
+  cancel-in-progress: true
 
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -21,18 +51,45 @@ jobs:
         run: npm ci
 
       - name: Install Dependencies (Functions)
-        run: cd functions && npm ci
+        run: npm --prefix functions ci
+
+      # Barreras de calidad antes de tocar producción. Si los tipos no
+      # compilan o la fórmula financiera cambió de resultado, no se despliega.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
 
       - name: Build Frontend
         run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
-      - name: Build Functions
-        run: cd functions && npm run build
+      # Red de seguridad: si faltó algún secreto, el bundle queda con
+      # `apiKey:void 0`. Vale más detenerse aquí que publicar una app muerta.
+      - name: Verificar que el bundle trae la configuración
+        run: |
+          if grep -rq "apiKey:void 0" dist/assets/ 2>/dev/null; then
+            echo "::error::El bundle se compiló sin las variables VITE_FIREBASE_*."
+            echo "::error::Da de alta los seis secretos en Settings > Secrets > Actions."
+            exit 1
+          fi
+          echo "Configuración presente en el bundle."
 
-      - name: Deploy Firebase
-        uses: w9jds/firebase-action@master
+      - name: Deploy Hosting y Functions
+        uses: w9jds/firebase-action@v14.11.1
         with:
-          args: deploy
+          args: deploy --only hosting,functions
         env:
           GCP_SA_KEY: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           PROJECT_ID: control-de-bolsas-89c88
+
+      # Las reglas de seguridad NO se despliegan aquí a propósito. Un cambio
+      # mal hecho deja la base abierta o inaccesible, y eso no debe ocurrir por
+      # un push distraído. Se publican a mano con INSTALL_AND_DEPLOY.bat.

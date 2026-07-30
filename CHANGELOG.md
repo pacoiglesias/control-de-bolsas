@@ -1,5 +1,43 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v5.8.1] - 29 Julio 2026 (Corrección del instalador)
+
+### Corregido — crítico
+- **`INSTALAR_ACTUALIZACION.bat` descartaba `src/lib` en cada instalación.** La exclusión `/XD ... lib` de robocopy, pensada para `functions/lib`, se aplicaba a cualquier carpeta con ese nombre a cualquier nivel. Ninguna corrección sobre `finance.ts`, `logger.ts`, `cloudBackup.ts` o `types.ts` había llegado jamás al proyecto. El mismo fallo estaba en la línea del respaldo previo, que por tanto guardaba copias incompletas. Ahora las exclusiones llevan ruta completa.
+- **Bitácora reparada.** La v5.7.0 endureció la regla de `system_logs` exigiendo que el correo coincida con el del token, pero `logger.ts` —que lo normaliza— nunca se instaló: desde entonces todas las escrituras de auditoría se rechazaban en silencio. Reaplicado.
+- **Respaldos en la nube:** reaplicada la separación entre metadatos y contenido (`snapshots/{id}/blob/data`), también perdida por el mismo motivo.
+
+## [v5.8.0] - 29 Julio 2026 (Auditoría de Automejora Continua — Ciclo 3)
+
+### Corregido — crítico
+- **El CI dejó de publicar un frontend inservible.** El workflow compilaba sin inyectar las `VITE_FIREBASE_*`, así que el bundle salía con `apiKey: void 0` y la app arrancaba en «Faltan variables de entorno»; como además desplegaba todo sin `--only`, cada push podía sobrescribir un despliegue manual correcto. Ahora las variables vienen de *GitHub Secrets*, hay una comprobación que aborta si el bundle sale vacío, y las reglas de seguridad ya no se publican por push.
+- **El estado `collected` volvió a existir para el sistema.** `getOrderSummary` no lo contemplaba: una factura cobrada y recibida no encendía ninguna bandera y el estatus caía al campo legado de la raíz, así que un expediente completamente liquidado se mostraba como pendiente. Cubierto con prueba de regresión sobre los siete estados.
+- **`invoiceStatuses` deja de desincronizarse.** Las rutas de cobro actualizaban `invoices` sin tocar el arreglo desnormalizado que sostiene el barrido nocturno; facturas ya cobradas seguían figurando como pendientes y se releían cada noche indefinidamente.
+
+### Corregido — concurrencia e integridad
+- **Cobranza es transaccional.** Las tres rutas de escritura pasaron de `writeBatch` a `runTransaction`, releyendo dentro de la operación y aplicando por id de factura. `writeBatch` daba atomicidad pero no aislamiento: dos usuarios simultáneos seguían pisándose. En la recolección de efectivo, el movimiento de Caja Chica ahora ocurre dentro de la misma transacción.
+- **Fórmula financiera con fuente única.** `computeFinancials` y `configEfectiva` viven en `functions/src/shared/finance.core.ts`, importado por frontend y backend. Estaban duplicadas y ya habían divergido.
+
+### Resiliencia
+- **Reintentos automáticos con criterio.** `retry: true` en el trigger de Storage más una función que distingue fallos transitorios (429, 5xx, cuota, timeout) de permanentes. Sólo se reintentan los primeros, hasta tres veces, contando los intentos en el propio expediente. Un PDF ilegible ya no consume cuota de Gemini reintentándose.
+- El cliente de Genkit se construye una vez por instancia en vez de en cada invocación.
+
+### Rendimiento
+- **Suscripción única a `purchaseOrders`.** `useOrders()` se invocaba de forma independiente desde nueve pantallas, cada una con su copia del arreglo y su ciclo de render. Ahora hay un `OrdersProvider` en la raíz; el hook conserva la misma firma.
+- **La importación de respaldos dejó de escanear la base completa.** Sustituido por consultas `in` en lotes de 30 sobre los folios del archivo entrante.
+
+### Calidad
+- **ESLint y Vitest.** 12 pruebas sobre las dos funciones donde un error se traduce en dinero mal contado. El linter, en su primera ejecución, encontró dos `useMemo`/`useCallback` con dependencias incompletas, dos `@ts-ignore` que silenciaban errores, un `catch` mudo y una variable acumuladora muerta: todo corregido.
+- `INSTALL_AND_DEPLOY.bat` corre `npm ci` y las pruebas antes de desplegar, y se detiene si algo falla.
+- El instalador dejó de excluir `package-lock.json`: excluirlo desincronizaba las dependencias cuando una actualización las cambiaba.
+
+### Interfaz
+- Seguimiento de OC usa el `KpiCard` del sistema (las clases `.stat-*` nunca existieron) y muestra esqueletos de carga en vez de afirmar «0 OCs» y «$0.00» mientras carga.
+
+### Documentación
+- Manuales sincronizados a v5.8.0 con nota sobre el límite de 5 MB, la verificación de correo obligatoria y el Catálogo funcionando.
+- `AUDIT_NOTEBOOK.md` con el ciclo 3 cerrado y los tres puntos que quedan abiertos a conciencia.
+
 ## [v5.7.0] - 29 Julio 2026 (Auditoría de Automejora Continua — Ciclo 2)
 
 ### Corregido — datos

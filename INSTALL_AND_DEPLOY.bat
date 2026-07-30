@@ -30,12 +30,35 @@ if not exist ".env" (
   pause & exit /b 1
 )
 
-echo  --- 1/5 Dependencias ---
-if not exist "node_modules" call npm install
-if not exist "functions\node_modules" call npm --prefix functions install
+echo  --- 1/6 Dependencias ---
+REM npm ci en vez de npm install: reinstala exactamente lo que dice el
+REM package-lock.json. Si una actualizacion cambio las dependencias, npm
+REM install podria dejar el arbol viejo y el build fallaria de formas raras.
+call npm ci
+if errorlevel 1 (
+  echo  [!] npm ci fallo. Intento con npm install...
+  call npm install
+)
+call npm --prefix functions ci
+if errorlevel 1 (
+  echo  [!] npm ci de functions fallo. Intento con npm install...
+  call npm --prefix functions install
+)
 
 echo.
-echo  --- 2/5 Compilando ---
+echo  --- 2/6 Pruebas de la formula financiera ---
+call npm test
+if errorlevel 1 (
+  color 0C
+  echo.
+  echo  [X] Las pruebas fallaron. NO se despliega nada.
+  echo      Algo cambio el resultado de los calculos de dinero.
+  pause ^& exit /b 1
+)
+echo  [OK] Calculos verificados
+
+echo.
+echo  --- 3/6 Compilando ---
 call npm run build
 if errorlevel 1 (
   color 0C
@@ -47,7 +70,7 @@ if errorlevel 1 (
 echo  [OK] Compilado
 
 echo.
-echo  --- 3/5 Reglas e indices ---
+echo  --- 4/6 Reglas e indices ---
 call firebase deploy --only firestore:rules,firestore:indexes,storage
 if errorlevel 1 (
   color 0C
@@ -56,7 +79,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo  --- 4/5 Cloud Functions ---
+echo  --- 5/6 Cloud Functions ---
 call firebase deploy --only functions
 if errorlevel 1 (
   color 0E
@@ -68,7 +91,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo  --- 5/5 Hosting ---
+echo  --- 6/6 Hosting ---
 call firebase deploy --only hosting
 if errorlevel 1 (
   color 0C

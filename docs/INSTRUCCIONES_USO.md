@@ -1,4 +1,10 @@
-# Manual de Uso Maestro: ERP Control de Bolsas (v5.5.0)
+# Manual de Uso Maestro: ERP Control de Bolsas (v5.7.0)
+
+> **Cambios de la v5.7.0 que conviene conocer**
+> - **Tamaño máximo de archivo: 5 MB.** Es el límite real que alcanza a leer la IA. Si un PDF pesa más, el sistema lo deja en «Revisión manual» explicando el motivo, en vez de descartarlo en silencio como hacía antes.
+> - **Altas de usuario:** al dar de alta a un empleado se le envía un correo de verificación. **Tiene que abrirlo antes de poder entrar.** Es un requisito de las reglas de seguridad y no se puede saltar.
+> - **Catálogo:** la pantalla ya carga. Se alimenta sola con las partidas de los expedientes que vas guardando.
+
 
 Bienvenido a tu sistema automatizado de Control de Bolsas. Este manual detalla de la "A a la Z" todos los flujos operativos, las automatizaciones de inteligencia artificial, y cómo el sistema conecta tus ventas con tus deudas y gastos sin que tengas que capturar las cosas dos veces.
 

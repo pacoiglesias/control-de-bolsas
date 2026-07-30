@@ -16,6 +16,12 @@ import { googleAI } from "@genkit-ai/googleai";
 import { defineSecret } from "firebase-functions/params";
 import { XMLParser } from "fast-xml-parser";
 import { createHash } from "crypto";
+import {
+  computeFinancials,
+  configEfectiva,
+  round2,
+  type FinanceConfigCore,
+} from "./shared/finance.core";
 
 initializeApp();
 
@@ -72,7 +78,7 @@ const DocumentSchema = z.object({
 const docIdFor = (filePath: string) =>
   createHash("sha1").update(filePath).digest("hex").slice(0, 20);
 
-async function readConfig() {
+async function readConfig(): Promise<FinanceConfigCore> {
   const snap = await getFirestore().collection("config").doc("financials").get();
   const c = snap.exists ? (snap.data() as Partial<typeof DEFAULTS>) : {};
   return {
@@ -85,56 +91,52 @@ async function readConfig() {
   };
 }
 
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-
-/**
- * Configuracion con la que hay que evaluar UN expediente concreto.
- *
- * El expediente puede traer costo y comision propios (funcion "Costos
- * variables"): son decisiones de negocio legitimas, no manipulacion. Si no se
- * aplican aqui, el sanitizador los ve como discrepancia y los revierte.
- */
-function configEfectiva(data: FirebaseFirestore.DocumentData, base: typeof DEFAULTS) {
-  const cfg = { ...base };
-  if (Number.isFinite(Number(data.customCostPrice))) {
-    cfg.costPricePerKg = Number(data.customCostPrice);
-  }
-  if (Number.isFinite(Number(data.customCommissionRate))) {
-    cfg.commissionRate = Number(data.customCommissionRate);
-  }
-  return cfg;
-}
-
 /** Cache corto de config/financials: el sanitizador se dispara en cascada
  *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
  *  documento en cada invocacion. */
-let cacheConfig: { valor: typeof DEFAULTS; expira: number } | null = null;
-async function readConfigCacheada() {
+let cacheConfig: { valor: FinanceConfigCore; expira: number } | null = null;
+async function readConfigCacheada(): Promise<FinanceConfigCore> {
   if (cacheConfig && Date.now() < cacheConfig.expira) return cacheConfig.valor;
   const valor = await readConfig();
   cacheConfig = { valor, expira: Date.now() + 60_000 };
   return valor;
 }
 
-/** Idéntica a src/lib/finance.ts en el frontend. Si cambias una, cambia la otra. */
-function computeFinancials(kilos: number, cfg: typeof DEFAULTS) {
-  const saleTotal = round2(kilos * cfg.salePricePerKg);
-  const invoiceTotal = round2(saleTotal * (1 + cfg.ivaRate));
-  const costTotal = round2(kilos * cfg.costPricePerKg);
-  const base = cfg.commissionBase === "total" ? invoiceTotal : saleTotal;
-  const commission = round2(base * cfg.commissionRate);
-  return {
-    salePricePerKg: cfg.salePricePerKg,
-    costPricePerKg: cfg.costPricePerKg,
-    commissionRate: cfg.commissionRate,
-    saleTotal,
-    invoiceTotal,
-    costTotal,
-    commission,
-    netCashFlow: round2(invoiceTotal - costTotal - commission),
-  };
+/**
+ * Clasifica un fallo como transitorio o permanente.
+ *
+ * Sin esto, un 429 por cuota de Gemini y un PDF genuinamente ilegible
+ * terminaban en el mismo sitio: manual_review, esperando intervencion humana.
+ * Los transitorios se relanzan para que Eventarc los reintente con retroceso
+ * exponencial; los permanentes se dan por perdidos de inmediato para no
+ * quemar cuota reintentando algo que nunca va a funcionar.
+ */
+function esTransitorio(error: unknown): boolean {
+  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const codigo = Number((error as { code?: unknown })?.code ?? (error as { status?: unknown })?.status);
+  if (codigo === 429 || (codigo >= 500 && codigo <= 599)) return true;
+  return [
+    "429", "500", "502", "503", "504",
+    "quota", "rate limit", "resource exhausted", "resource_exhausted",
+    "deadline", "timeout", "etimedout", "econnreset", "socket hang up",
+    "unavailable", "internal error", "overloaded",
+  ].some((p) => msg.includes(p));
 }
 
+/** Tope de reintentos: pasado esto se deja en manual_review aunque el error
+ *  parezca transitorio. Evita que un fallo permanente disfrazado de 503 se
+ *  reintente durante dias. */
+const MAX_INTENTOS = 3;
+
+/** El cliente de Genkit se construia dentro del handler, en cada invocacion.
+ *  Se crea una sola vez por instancia y se reutiliza mientras siga caliente. */
+let genkitCache: ReturnType<typeof genkit> | null = null;
+function obtenerGenkit() {
+  if (!genkitCache) {
+    genkitCache = genkit({ plugins: [googleAI({ apiKey: apiKeySecret.value() })] });
+  }
+  return genkitCache;
+}
 
 async function processStorageFile(filePath: string, bucketName?: string) {
   const db = getFirestore();
@@ -166,7 +168,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
         if (!pago) throw new Error("Complemento de Pago sin nodo de Pago");
         if (!Array.isArray(pago)) pago = [pago]; // Puede haber multiples nodos de pago
         
-        let uuids: string[] = [];
+        const uuids: string[] = [];
         for (const p of pago) {
           let doctosRelacionados = p["pago20:DoctoRelacionado"] || p["pago10:DoctoRelacionado"] || [];
           if (!Array.isArray(doctosRelacionados)) doctosRelacionados = [doctosRelacionados];
@@ -184,7 +186,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
           
           for (let i = 0; i < uuids.length; i += chunkSize) {
             const chunk = uuids.slice(i, i + chunkSize);
-            let ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', chunk).get();
+            const ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', chunk).get();
             
             for (const doc of ordersSnapshot.docs) {
               const oData = doc.data();
@@ -215,7 +217,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
 
     // Módulo PDF: Inteligencia Artificial
     const pdfBuffer = fileBuffer;
-    const ai = genkit({ plugins: [googleAI({ apiKey: apiKeySecret.value() })] });
+    const ai = obtenerGenkit();
     const aiResponse = await ai.generate({
       model: MODEL,
       prompt: [
@@ -394,23 +396,54 @@ async function processStorageFile(filePath: string, bucketName?: string) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`Fallo de lectura en ${filePath}: ${message}`);
+    const transitorio = esTransitorio(error);
+
+    // Cuantos intentos lleva este archivo. Se guarda en el propio expediente
+    // para no depender de la memoria de la instancia, que muere entre
+    // invocaciones.
+    const previo = await ref.get();
+    const intentos = Number(previo.data()?.aiAttempts ?? 0) + 1;
+    const reintentable = transitorio && intentos < MAX_INTENTOS;
+
+    logger.error(
+      `Fallo de lectura en ${filePath} (intento ${intentos}/${MAX_INTENTOS}, ` +
+      `${transitorio ? "transitorio" : "permanente"}): ${message}`,
+    );
+
     await ref.set(
       {
         fileName: filePath,
         creditCycle: { status: "manual_review" },
-        aiError: message.slice(0, 500),
+        aiError: reintentable
+          ? `Reintentando automaticamente (intento ${intentos} de ${MAX_INTENTOS}): ${message.slice(0, 400)}`
+          : message.slice(0, 500),
+        aiAttempts: intentos,
+        aiRetryable: reintentable,
         processedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
-    throw error;
+
+    // Solo se relanza si vale la pena reintentar. Relanzar siempre, con
+    // retry activado, haria que un PDF ilegible se reprocesara durante dias
+    // quemando cuota de Gemini.
+    if (reintentable) throw error;
   }
 }
 
 
 export const parseUploadedPDF = onObjectFinalized(
-  { secrets: [apiKeySecret], memory: "1GiB", timeoutSeconds: 300 },
+  {
+    secrets: [apiKeySecret],
+    memory: "1GiB",
+    timeoutSeconds: 300,
+    // retry activa el reintento con retroceso exponencial de Eventarc. Sin
+    // esto, el throw del catch solo dejaba rastro en los logs y nadie lo
+    // recogia: un 429 de Gemini condenaba el expediente a revision manual.
+    // processStorageFile solo relanza los errores transitorios y hasta
+    // MAX_INTENTOS veces, asi que esto no dispara reintentos infinitos.
+    retry: true,
+  },
   async (event) => {
     const filePath = event.data.name;
     const contentType = event.data.contentType ?? "";
@@ -614,7 +647,7 @@ export const sanitizePurchaseOrder = onDocumentWritten(
     const base = data.historicalConfig ?? await readConfigCacheada();
     // Los costos y comisiones propios del expediente son configuracion valida,
     // no manipulacion: entran en la formula de referencia.
-    const cfg = configEfectiva(data, base);
+    const cfg = configEfectiva(base, data);
 
     let modified = false;
 

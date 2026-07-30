@@ -7,7 +7,8 @@ import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } 
 import { fmtDate, money, toDate } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { doc, updateDoc, Timestamp, writeBatch, collection } from 'firebase/firestore';
+import { doc, Timestamp, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
+import type { Invoice } from '../lib/types';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import type { PurchaseOrder } from '../lib/types';
@@ -21,6 +22,36 @@ export default function Cobranza() {
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas'>('pendientes');
 
+  /**
+   * Los tres campos que SIEMPRE deben viajar juntos al escribir facturas.
+   *
+   * invoiceStatuses es el arreglo desnormalizado que sostiene la consulta del
+   * barrido nocturno. Solo OrderModal.save lo reescribia: las rutas de cobro
+   * de esta pantalla actualizaban invoices y lo dejaban atras, asi que
+   * facturas ya cobradas seguian figurando como "pending" en el indice y el
+   * barrido diario las volvia a traer indefinidamente.
+   */
+  function camposInvoices(invoices: Invoice[]) {
+    return {
+      invoices,
+      invoiceStatuses: invoices.map((i) => i.creditCycle?.status ?? 'pending'),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  /** Aplica un cambio sobre UNA factura identificada por id, no por indice. */
+  function aplicarPorId(
+    invoices: Invoice[],
+    invoiceId: string,
+    cambio: (inv: Invoice) => Invoice,
+  ): Invoice[] | null {
+    const i = invoices.findIndex((x) => x.id === invoiceId);
+    if (i < 0) return null;
+    const copia = [...invoices];
+    copia[i] = cambio(copia[i]);
+    return copia;
+  }
+
   async function toggleComplementStatus(orderId: string, invoiceId: string) {
     const o = orders.find(x => x.id === orderId);
     if (!o) return;
@@ -30,21 +61,30 @@ export default function Cobranza() {
     const inv = o.invoices![invIndex];
     const current = inv.collection?.complementStatus;
     const nextStatus = current === 'issued' ? 'pending' : 'issued';
-    
+
     try {
-      const ref = doc(db, PATHS.orders, orderId);
-      const newInvoices = [...o.invoices!];
-      newInvoices[invIndex] = {
-        ...inv,
-        collection: {
-          ...inv.collection,
-          complementStatus: nextStatus
-        }
-      };
-      await updateDoc(ref, { invoices: newInvoices });
+      // Transaccion: se relee el expediente dentro de la operacion y el cambio
+      // se aplica por id de factura. Con el patron anterior se escribia el
+      // arreglo completo desde una copia local del snapshot, asi que dos
+      // usuarios simultaneos —o un usuario y el procesador de complementos
+      // XML— se pisaban: el ultimo en escribir borraba lo del otro.
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, PATHS.orders, orderId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('El expediente ya no existe');
+
+        const actuales: Invoice[] = snap.data().invoices ?? [];
+        const nuevas = aplicarPorId(actuales, invoiceId, (x) => ({
+          ...x,
+          collection: { ...x.collection, complementStatus: nextStatus },
+        }));
+        if (!nuevas) throw new Error('La factura ya no está en el expediente');
+
+        tx.update(ref, camposInvoices(nuevas));
+      });
       toast(`Complemento marcado como ${nextStatus === 'issued' ? 'Emitido' : 'Pendiente'}`, 'ok');
     } catch (e) {
-      toast('Error al actualizar complemento', 'bad');
+      toast(`Error al actualizar complemento: ${(e as Error).message}`, 'bad');
     }
   }
 
@@ -56,38 +96,47 @@ export default function Cobranza() {
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
     );
     
-    const updatesByOrder: Record<string, typeof invoicesToPay[0]['o']['invoices']> = {};
+    // Que facturas hay que tocar en cada expediente. Los datos frescos se
+    // leen dentro de la transaccion, no de este snapshot.
+    const objetivo: Record<string, string[]> = {};
     for (const { o, inv } of invoicesToPay) {
-      if (!updatesByOrder[o.id]) {
-        updatesByOrder[o.id] = [...(o.invoices || [])];
-      }
-      
-      const invIndex = updatesByOrder[o.id]!.findIndex(i => i.id === inv.id);
-      if (invIndex >= 0) {
-        updatesByOrder[o.id]![invIndex] = {
-          ...inv,
-          creditCycle: {
-            ...inv.creditCycle,
-            status: 'paid'
-          },
-          collection: {
-            ...inv.collection,
-            paidAmount: inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0,
-            paidAt: Timestamp.now()
-          }
-        };
-      }
+      (objetivo[o.id] ??= []).push(inv.id);
     }
-    
+
     try {
-      const batch = writeBatch(db);
-      Object.entries(updatesByOrder).forEach(([orderId, newInvoices]) => {
-        batch.update(doc(db, PATHS.orders, orderId), { invoices: newInvoices });
+      // writeBatch garantizaba atomicidad (todo o nada) pero no aislamiento:
+      // seguia escribiendo el arreglo completo desde una copia local. La
+      // transaccion relee cada expediente y aplica los cambios por id.
+      await runTransaction(db, async (tx) => {
+        const refs = Object.keys(objetivo).map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        // Firestore exige TODAS las lecturas antes de cualquier escritura.
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+
+        refs.forEach(({ id, ref }, k) => {
+          const snap = snaps[k];
+          if (!snap.exists()) return;
+          let invoices: Invoice[] = snap.data().invoices ?? [];
+          for (const invoiceId of objetivo[id]) {
+            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
+              ...x,
+              creditCycle: { ...x.creditCycle, status: 'paid' },
+              collection: {
+                ...x.collection,
+                paidAmount: x.financials?.invoiceTotal ?? x.financials?.saleTotal ?? 0,
+                paidAt: Timestamp.now(),
+              },
+            }));
+            if (nuevas) invoices = nuevas;
+          }
+          tx.update(ref, camposInvoices(invoices));
+        });
       });
-      await batch.commit();
       toast(`Contrarecibo ${crNumber} cobrado exitosamente`, 'ok');
     } catch (e) {
-      toast('Error al procesar el cobro en bloque', 'bad');
+      toast(`Error al procesar el cobro en bloque: ${(e as Error).message}`, 'bad');
     }
   }
 
@@ -99,43 +148,48 @@ export default function Cobranza() {
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
     );
     
-    const batch = writeBatch(db);
-    
-    const updatesByOrder: Record<string, any[]> = {};
+    const objetivo: Record<string, string[]> = {};
     for (const { o, inv } of invoicesToCollect) {
-      if (!updatesByOrder[o.id]) {
-        updatesByOrder[o.id] = [...(o.invoices || [])];
-      }
-      const invIndex = updatesByOrder[o.id]!.findIndex((i: any) => i.id === inv.id);
-      if (invIndex >= 0) {
-        updatesByOrder[o.id]![invIndex] = {
-          ...inv,
-          creditCycle: {
-            ...inv.creditCycle,
-            status: 'collected'
-          }
-        };
-      }
+      (objetivo[o.id] ??= []).push(inv.id);
     }
-    
-    for (const [orderId, newInvoices] of Object.entries(updatesByOrder)) {
-      batch.update(doc(db, PATHS.orders, orderId), { invoices: newInvoices });
-    }
-    
-    const expenseRef = doc(collection(db, PATHS.expenses));
-    batch.set(expenseRef, {
-      date: Timestamp.now(),
-      concept: `Ingreso por Utilidad del Contrarecibo ${crNumber}`,
-      type: 'ingreso',
-      amount: netUtilidad,
-      createdAt: Timestamp.now()
-    });
-    
+
     try {
-      await batch.commit();
+      // El movimiento de Caja Chica va DENTRO de la misma transaccion que el
+      // cambio de estatus. Si se separaran, un fallo a la mitad podria dejar
+      // el ingreso registrado sin las facturas marcadas, o al reves.
+      await runTransaction(db, async (tx) => {
+        const refs = Object.keys(objetivo).map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+
+        refs.forEach(({ id, ref }, k) => {
+          const snap = snaps[k];
+          if (!snap.exists()) return;
+          let invoices: Invoice[] = snap.data().invoices ?? [];
+          for (const invoiceId of objetivo[id]) {
+            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
+              ...x,
+              creditCycle: { ...x.creditCycle, status: 'collected' },
+              collection: { ...x.collection, collectedAt: Timestamp.now() },
+            }));
+            if (nuevas) invoices = nuevas;
+          }
+          tx.update(ref, camposInvoices(invoices));
+        });
+
+        tx.set(doc(collection(db, PATHS.expenses)), {
+          date: Timestamp.now(),
+          concept: `Ingreso por Utilidad del Contrarecibo ${crNumber}`,
+          type: 'ingreso',
+          amount: netUtilidad,
+          createdAt: Timestamp.now(),
+        });
+      });
       toast(`Contrarecibo ${crNumber} recogido. Utilidad inyectada en Caja Chica.`, 'ok');
     } catch (e) {
-      toast('Error al procesar la recolección en bloque', 'bad');
+      toast(`Error al procesar la recolección en bloque: ${(e as Error).message}`, 'bad');
     }
   }
 

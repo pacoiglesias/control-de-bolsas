@@ -6,7 +6,7 @@ import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-import { computeFinancials, addDays, getOrderSummary, daysLate } from '../lib/finance';
+import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate } from '../lib/finance';
 import { fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
@@ -56,7 +56,13 @@ export default function OrderModal({
   const fallbackComm = form.invoices[0]?.financials?.commissionRate ?? config.commissionRate;
   const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : fallbackCost;
   const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) / 100 : fallbackComm;
-  const dynamicConfig = { ...config, costPricePerKg: ccp, commissionRate: ccr };
+  // Misma funcion que usa el trigger de saneamiento en el backend. Cuando
+  // esto era un objeto literal aparte, la resolucion de costos variables
+  // existia dos veces con dos nombres distintos y podia divergir.
+  const dynamicConfig = useMemo(
+    () => configEfectiva(config, { customCostPrice: ccp, customCommissionRate: ccr }),
+    [config, ccp, ccr],
+  );
 
   // Calculate live summary based on form state
   const liveSummary = useMemo(() => {
@@ -79,10 +85,10 @@ export default function OrderModal({
       const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
       return { inv, fin, d, isLate };
     });
-    // ccp y ccr entran en dynamicConfig: sin ellos en las dependencias, al
-    // cambiar el costo variable los importes en pantalla no se actualizaban
-    // hasta que el usuario tocaba cualquier otro campo.
-  }, [form.invoices, config, ccp, ccr]);
+    // dynamicConfig ya esta memoizado sobre [config, ccp, ccr]: depender del
+    // objeto es correcto y ademas satisface exhaustive-deps. Antes faltaba por
+    // completo y los importes no se refrescaban al cambiar el costo variable.
+  }, [form.invoices, dynamicConfig]);
 
   async function save() {
     if (kilosNum <= 0) {
@@ -285,7 +291,6 @@ export default function OrderModal({
     const invList = form.invoices ?? [];
     const delList = form.deliveries ?? [];
 
-    let totalVentaSinIVA = 0;
     let totalVentaConIVA = 0;
     let totalCostoAndres = 0;
     let totalComision = 0;
@@ -293,13 +298,11 @@ export default function OrderModal({
     const invoicesHtml = invList.map(inv => {
       const baseFin = computeFinancials(inv.kilos, config);
       const customComm = inv.financials?.commission;
-      const saleTotal = baseFin.saleTotal;
       const invTotal = baseFin.invoiceTotal;
       const costAndres = baseFin.costTotal;
       const comm = customComm ?? baseFin.commission;
       const net = invTotal - comm - costAndres;
 
-      totalVentaSinIVA += saleTotal;
       totalVentaConIVA += invTotal;
       totalCostoAndres += costAndres;
       totalComision += comm;

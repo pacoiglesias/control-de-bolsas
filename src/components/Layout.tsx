@@ -109,8 +109,7 @@ export default function Layout() {
         <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
           <div className="brand">
             <div className="brand-mark">CONTROL BOLSAS</div>
-            {/* @ts-ignore */}
-            <div className="brand-sub">Master Track · v6.3 ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
+            <div className="brand-sub">Master Track · v5.8.1 ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
           </div>
           <nav className="nav">
             {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => (
@@ -145,9 +144,8 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Control Bolsas v6.3 · Desarrollado por Paco Iglesias &copy; 2026<br/>
-            {/* @ts-ignore */}
-            Última actualización (Sprint 3): {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
+            Control Bolsas v5.8.1 · Desarrollado por Paco Iglesias &copy; 2026<br/>
+            Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>
       </div>

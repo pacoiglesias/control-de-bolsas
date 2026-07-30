@@ -1,40 +1,25 @@
-import type { FinancialConfig, OrderFinancials, PurchaseOrder, Invoice, Delivery, OrderStatus } from './types';
+import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from './types';
 
 /**
- * Misma fórmula que corre en la Cloud Function, replicada aquí para que la
- * captura manual y el recálculo desde Configuración den EXACTAMENTE el mismo
- * resultado que el procesamiento automático.
+ * La formula vive en un solo lugar: functions/src/shared/finance.core.ts, que
+ * importan tanto el frontend como las Cloud Functions. Antes estaba duplicada
+ * en ambos lados con el comentario "si cambias una, cambia la otra", y la
+ * duplicacion ya habia empezado a divergir.
  *
- *   subtotal = kilos x precio de venta
- *   factura  = subtotal + IVA        <- esto es lo que le cobras al cliente
- *   costo    = kilos x costo
- *   comision = (subtotal o factura) x tasa, segun commissionBase
- *   neto     = factura - costo - comision
- *
- * El neto se calcula sobre la factura (con IVA) porque el usuario indicó que el IVA es parte íntegra de su ganancia.
+ * Se reexporta desde aqui para que nada del frontend tenga que conocer esa
+ * ruta y todos los imports existentes sigan funcionando igual.
  */
-export function computeFinancials(kilos: number, cfg: FinancialConfig): Required<OrderFinancials> {
-  const k = Number.isFinite(kilos) ? kilos : 0;
-  const saleTotal = round2(k * cfg.salePricePerKg);
-  const invoiceTotal = round2(saleTotal * (1 + (cfg.ivaRate ?? 0)));
-  const costTotal = round2(k * cfg.costPricePerKg);
-  const base = cfg.commissionBase === 'total' ? invoiceTotal : saleTotal;
-  const commission = round2(base * cfg.commissionRate);
-  return {
-    salePricePerKg: cfg.salePricePerKg,
-    costPricePerKg: cfg.costPricePerKg,
-    commissionRate: cfg.commissionRate,
-    saleTotal,
-    invoiceTotal,
-    costTotal,
-    commission,
-    netCashFlow: round2(invoiceTotal - costTotal - commission),
-  };
-}
+import { round2 } from '../../functions/src/shared/finance.core';
 
-export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
+export {
+  computeFinancials,
+  configEfectiva,
+  round2,
+} from '../../functions/src/shared/finance.core';
+export type {
+  FinanceConfigCore,
+  FinanceResultCore,
+} from '../../functions/src/shared/finance.core';
 
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date.getTime());
@@ -96,6 +81,12 @@ export function getOrderSummary(o: PurchaseOrder) {
   
   let kilosInvoiced = 0, invoiceTotal = 0, saleTotal = 0, commission = 0, netCashFlow = 0, paidAmount = 0;
   let hasOverdue = false, hasManual = false, hasPending = false, hasFacturado = false, allPaid = true, allPedido = true;
+  // 'collected' es el estado FINAL del ciclo: el contador ya entrego el
+  // efectivo. No estaba contemplado abajo, asi que una factura cobrada no
+  // encendia ninguna bandera, ponia allPaid en false y la cascada de if/else
+  // caia al valor de respaldo o.creditCycle.status (el campo legado de la
+  // raiz): un expediente totalmente cobrado volvia a mostrarse como pendiente.
+  let hasCollected = false;
 
   for (const i of invoices) {
     kilosInvoiced += i.kilos;
@@ -110,7 +101,9 @@ export function getOrderSummary(o: PurchaseOrder) {
     if (s === 'manual_review') hasManual = true;
     if (s === 'pending') hasPending = true;
     if (s === 'facturado') hasFacturado = true;
-    if (s !== 'paid') allPaid = false;
+    if (s === 'collected') hasCollected = true;
+    // Cobrada y recibida cuentan igual como "ya no se debe nada".
+    if (s !== 'paid' && s !== 'collected') allPaid = false;
     if (s !== 'pedido') allPedido = false;
   }
 
@@ -128,7 +121,11 @@ export function getOrderSummary(o: PurchaseOrder) {
     else if (hasPending) status = 'pending';
     else if (hasFacturado) status = 'facturado';
     else if (allPaid) {
-      status = kilosInvoiced >= (o.totalKilograms || 0) ? 'paid' : 'pending';
+      // Si todo esta liquidado pero faltan kilos por facturar, el expediente
+      // sigue abierto. Si ademas el efectivo ya se recibio, se distingue con
+      // 'collected' para no perder ese matiz en la tabla.
+      if (kilosInvoiced < (o.totalKilograms || 0)) status = 'pending';
+      else status = hasCollected ? 'collected' : 'paid';
     } else if (allPedido) {
       status = 'pedido';
     }
