@@ -289,27 +289,37 @@ export default function Dashboard() {
       });
     });
 
-    // Live fallback para Ganancia Comercial y Ganancia por Cobros
+    // Respaldo en vivo, SOLO para el indicador que de verdad esta en cero.
+    // Antes las dos condiciones iban unidas con ||: gananciaRealizadaTotal en
+    // $0.00 es CORRECTO mientras nada se haya cobrado todavia (collected), asi
+    // que la condicion se disparaba sin necesidad, recalculaba ambos valores
+    // en el navegador, y el bug de abajo terminaba pisando un margenTotal
+    // correcto que ya venia bien calculado del servidor.
     let liveMargenTotal = kpis.margenTotal || 0;
-    let liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
-    if (liveMargenTotal === 0 || liveGananciaRealizada === 0) {
+    if (kpis.margenTotal === 0) {
+      liveMargenTotal = 0;
       activeOrders.forEach(o => {
         (o.invoices || []).forEach(inv => {
           const invTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
           const comm = Number(inv.financials?.commission ?? 0);
-          const matCost = Number((inv.financials as any)?.materialCost ?? (inv.kilos * config.costPricePerKg));
-          const netProfit = invTotal - matCost - comm;
-          
-          if (netProfit > 0) {
-            liveMargenTotal += netProfit;
-            if (inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') {
-              liveGananciaRealizada += netProfit;
-            }
-          }
+          // `materialCost` no existe en OrderFinancials (es `costTotal`); con
+          // el campo equivocado esto siempre caia al `??`, y aun asi debia
+          // dar un margen positivo — el problema real era la condicion de
+          // arriba, pero se corrige el nombre del campo de todos modos.
+          const matCost = Number(inv.financials?.costTotal ?? (inv.kilos * config.costPricePerKg));
+          liveMargenTotal += invTotal - matCost - comm;
         });
       });
+      liveMargenTotal = round2(liveMargenTotal);
     }
+
+    // Ganancia por Cobros NO tiene respaldo en vivo: la consulta de
+    // activeOrders excluye a proposito el estatus 'collected' (mas abajo),
+    // asi que un recalculo en el navegador nunca veria las facturas que mas
+    // importan para este indicador. Se confia siempre en el agregado del
+    // servidor, que si recorre todos los expedientes.
+    const liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
     return {
       ...kpis,

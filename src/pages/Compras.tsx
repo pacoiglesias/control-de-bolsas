@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp, addDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from '../hooks/usePurchases';
+import { useProducts } from '../hooks/useProducts';
 import { useExpenses } from '../hooks/useExpenses';
 import { Card, Empty, Field, Modal, Spinner, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +19,12 @@ export default function Compras() {
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [tab, setTab] = useState<'ordenes' | 'estado'>('ordenes');
   const selectedProvider = 'Andres';
+  // Todos los hooks van ANTES de cualquier return condicional. Estaba
+  // despues de dos returns tempranos: en el render donde role aun no es
+  // 'admin' (llega asincrono de AuthContext) este hook nunca se llamaba, y
+  // en el siguiente render, cuando ya lo era, si. React ve un numero
+  // distinto de hooks entre renders y revienta el componente.
+  const toast = useToast();
 
   if (loadingP || loadingE) return <Spinner />;
   if (role !== 'admin') return <Navigate to="/" replace />;
@@ -61,7 +68,6 @@ export default function Compras() {
   ];
 
   const sortedLedger = ledger.sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
-  const toast = useToast();
 
   function exportComprasCsv() {
     const headers = ['Fecha', 'Concepto', 'Cargo (Material Sube Deuda)', 'Abono (Pagos / Adelantos)', 'Origen'];
@@ -290,7 +296,9 @@ export default function Compras() {
 function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () => void }) {
   const { user } = useAuth();
   const toast = useToast();
+  const { products } = useProducts();
   const [busy, setBusy] = useState(false);
+  const [creatingCode, setCreatingCode] = useState<string | null>(null);
   const [form, setForm] = useState({
     date: toInputDate(purchase.date),
     provider: purchase.provider,
@@ -305,6 +313,50 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
   });
 
   const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  /**
+   * Busca el codigo en el catalogo compartido (el mismo que usa OrderModal
+   * para las ventas) y autocompleta descripcion, unidad y precio. Antes
+   * Compras no tenia ningun campo de codigo: cada renglon era texto libre
+   * sin conexion al catalogo, asi que nunca se sabia si "BOLSA 77X55" de una
+   * compra era el mismo articulo que "Bolsa Polietileno 77 CM X 55 CM" de
+   * una venta.
+   */
+  function buscarPorCodigo(i: number, code: string) {
+    const newItems = [...form.items];
+    newItems[i] = { ...newItems[i], code };
+    const prod = products.find(p => (p.code ?? '').trim().toLowerCase() === code.trim().toLowerCase());
+    if (prod && code.trim()) {
+      newItems[i].description = prod.description;
+      newItems[i].unit = prod.unit || newItems[i].unit;
+      if (!newItems[i].unitPrice) {
+        newItems[i].unitPrice = prod.defaultPrice;
+        newItems[i].amount = newItems[i].quantity * prod.defaultPrice;
+      }
+    }
+    set('items', newItems);
+  }
+
+  async function altaRapidaProducto(i: number) {
+    const item = form.items[i];
+    const code = (item.code ?? '').trim();
+    if (!code) return;
+    setCreatingCode(code);
+    try {
+      await addDoc(collection(db, PATHS.products), {
+        code,
+        description: item.description || code,
+        unit: item.unit || 'kg',
+        defaultPrice: item.unitPrice || 0,
+        createdAt: serverTimestamp(),
+      });
+      toast(`Producto ${code} agregado al catálogo.`, 'ok');
+    } catch (e) {
+      toast(`No se pudo agregar al catálogo: ${(e as Error).message}`, 'bad');
+    } finally {
+      setCreatingCode(null);
+    }
+  }
 
   const expectedNum = form.items.length > 0 
     ? form.items.reduce((acc, it) => acc + (it.unit.toLowerCase() === 'kg' || it.unit.toLowerCase() === 'kilos' ? it.quantity : 0), 0)
@@ -394,6 +446,11 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
 
   return (
     <Modal title={purchase.createdAt ? 'Editar compra' : 'Nueva compra'} onClose={onClose} wide>
+      <datalist id="catalog-codes">
+        {products.filter(p => p.code).map(p => (
+          <option key={p.id} value={p.code}>{p.description}</option>
+        ))}
+      </datalist>
       <div className="form-grid">
         <Field label="Fecha">
           <input className="input boxed mono" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
@@ -453,7 +510,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
       <div style={{ marginTop: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h4 style={{ margin: 0, fontSize: 14 }}>Productos a Surtir</h4>
-          <button className="btn" type="button" onClick={() => set('items', [...form.items, { id: crypto.randomUUID(), description: '', quantity: 1, unit: 'kg', unitPrice: 0, amount: 0 }])}>
+          <button className="btn" type="button" onClick={() => set('items', [...form.items, { id: crypto.randomUUID(), code: '', description: '', quantity: 1, unit: 'kg', unitPrice: 0, amount: 0 }])}>
             + Agregar Producto
           </button>
         </div>
@@ -462,6 +519,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
             <table className="data-table" style={{ fontSize: 12 }}>
               <thead>
                 <tr>
+                  <th>Código</th>
                   <th>Cant.</th>
                   <th>U.M.</th>
                   <th>Descripción</th>
@@ -471,8 +529,33 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
                 </tr>
               </thead>
               <tbody>
-                {form.items.map((item, i) => (
+                {form.items.map((item, i) => {
+                  const code = (item.code ?? '').trim();
+                  const enCatalogo = code !== '' && products.some(p => (p.code ?? '').trim().toLowerCase() === code.toLowerCase());
+                  return (
                   <tr key={item.id}>
+                    <td style={{ padding: '6px 8px' }}>
+                      <input
+                        className="input boxed mono"
+                        style={{ width: 90, borderColor: code === '' ? undefined : (enCatalogo ? 'var(--ok)' : 'var(--warn)') }}
+                        list="catalog-codes"
+                        value={item.code ?? ''}
+                        placeholder="código"
+                        onChange={e => buscarPorCodigo(i, e.target.value)}
+                      />
+                      {code !== '' && !enCatalogo && (
+                        <button
+                          type="button"
+                          className="btn-small btn-warn"
+                          style={{ marginTop: 4, fontSize: 10, whiteSpace: 'nowrap' }}
+                          disabled={creatingCode === code}
+                          onClick={() => void altaRapidaProducto(i)}
+                          title="Este código no existe en el catálogo. Agrégalo con un clic."
+                        >
+                          {creatingCode === code ? 'Agregando…' : '+ Catálogo'}
+                        </button>
+                      )}
+                    </td>
                     <td style={{ padding: '6px 8px' }}><input className="input boxed mono" type="number" style={{ width: 70 }} value={item.quantity} onChange={e => {
                       const newItems = [...form.items];
                       newItems[i].quantity = Number(e.target.value);
@@ -498,7 +581,8 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
                     <td className="num mono" style={{ padding: '6px 8px' }}>{money(item.amount)}</td>
                     <td style={{ padding: '6px 8px', textAlign: 'right' }}><button type="button" className="btn-icon" onClick={() => set('items', form.items.filter(x => x.id !== item.id))}>✕</button></td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

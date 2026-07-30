@@ -161,10 +161,11 @@ export default function Orders() {
   return (
     <>
       <div className="page-head">
-        <h1>Órdenes</h1>
+        <h1>Expedientes</h1>
         <p>
-          Tabla en vivo de <code>purchaseOrders</code>. Haz clic en cualquier renglón para abrir la
-          ficha, corregir datos o registrar el cobro.
+          Una fila por expediente, con filtros por estatus de cobro. Haz clic en cualquier renglón
+          para abrir la ficha, corregir datos o registrar el cobro. ¿Buscas ver el avance de una
+          Orden de Compra con todas sus facturas juntas? Esa vista está en <strong>Por Orden de Compra</strong>.
         </p>
       </div>
 

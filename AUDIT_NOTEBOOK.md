@@ -6,6 +6,29 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 11 — 2026-07-30 — Menú sin confusión, Compras con código y catálogo por código
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/components/Layout.tsx` | 🟡 `/ordenes` ("Órdenes / Ventas") y `/oc` ("Seguimiento OC") leen exactamente la misma colección `purchaseOrders` — una es una fila por expediente, la otra los mismos expedientes agrupados por OC — pero los nombres del menú no dejaban ver la relación entre ambas. | Renombradas a **"Expedientes"** y **"Por Orden de Compra"**, puestas una junto a la otra en el menú, con una nota cruzada en cada pantalla que explica cuál usar para qué. |
+| `src/pages/Compras.tsx` | 🟡 El modelo `Purchase` ya declaraba `items?: PurchaseOrderItem[]` y la UI ya tenía una tabla de renglones, pero **sin ningún campo de código**: cada renglón era texto libre sin conexión al catálogo compartido con las ventas. | Columna de **código** por renglón, con `datalist` del catálogo (`useProducts`) para autocompletar. Al encontrar coincidencia, rellena descripción, unidad y precio automáticamente. Si el código no existe en el catálogo, aparece un botón **"+ Catálogo"** para darlo de alta sin salir del formulario. |
+| `src/pages/Catalog.tsx` | 🟡 El cruce entre catálogo y órdenes emparejaba por **texto exacto de la descripción** (`it.description === product.description`): un espacio de más o una mayúscula distinta rompía el match en silencio y el producto parecía sin historial sin serlo. | Emparejamiento por `code` cuando existe (identificador estable); la comparación por descripción se conserva solo como respaldo para renglones capturados antes de que el campo `code` existiera. |
+
+## ✅ Ciclo 10 — 2026-07-30 — Compilación local reparada, margen corregido, facturación desde entregas
+
+> El proyecto local tenía trabajo de otra sesión sin subir a Git, y esta vez **no compilaba**: dos errores de TypeScript y un lint bloqueante. Verificación: `tsc` limpio en raíz y functions, `eslint` con 0 errores, 15/15 pruebas, build completo.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Cobranza.tsx` | 🔴 **No compilaba.** `netCobradoReal` se declaraba con `let` dentro del callback de `runTransaction` y se usaba en el toast de éxito, fuera de ese alcance — bloqueaba cualquier build o despliegue. | Declarada a nivel de función, asignada dentro de la transacción, legible después. |
+| `src/pages/Compras.tsx` | 🔴 **Hook llamado condicionalmente.** `useToast()` se invocaba después de dos `return` tempranos (`loading` y `role !== 'admin'`): en el render donde el rol aún no resolvía, el hook no se llamaba; en el siguiente, si. Riesgo real de que React reviente el componente al pasar de "cargando" a "admin". | `useToast()` movido al inicio del componente, antes de cualquier return condicional. |
+| `src/pages/Seeder.tsx` | Lint: `let batch` nunca se reasignaba en el flujo principal (sí en el de borrado, que se dejó intacto). | Cambiado a `const` solo donde correspondía. |
+| `src/pages/Dashboard.tsx` | 🔴 **"Ganancia Comercial" seguía en $0.00.** El respaldo en vivo para este indicador usaba un campo inexistente (`materialCost`, el real es `costTotal`) y se disparaba también cuando "Ganancia por Cobros" estaba en cero — que es *correcto* mientras nada esté `collected`. Al dispararse de más, terminaba pisando un margen que el servidor ya calculaba bien. | Condiciones separadas por indicador; campo corregido a `costTotal`. El respaldo en vivo de "Ganancia por Cobros" se retiró: la consulta de `activeOrders` excluye a propósito el estatus `collected`, así que un recálculo en el navegador nunca vería las facturas que más importan para ese indicador — se confía siempre en el agregado del servidor. |
+| `src/pages/OrderModal.tsx` | El usuario tenía que sumar a mano los kilos entregados de cada renglón para armar la factura, con riesgo de transcribir mal el total. | Botón **"🧾 Facturar lo entregado"** en la pestaña Productos: suma `deliveredQuantity` de todos los renglones y arma la factura con el importe correcto. Muestra también el faltante contra lo pedido. |
+
+
+---
+
 ## ✅ Ciclo 22 — 2026-07-30 — Permiso de Limpieza de Bitácora para Administrador en Firestore Rules
 
 > Se diagnosticó y corrigió el error "🔒 Acceso denegado: No tienes permisos de administrador para realizar esta acción" al intentar borrar la bitácora desde la pantalla de Logs. La regla `firestore.rules` tenía declarada la inmutabilidad estricta con `allow update, delete: if false;` bloqueando a los administradores. Se actualizó la regla a `allow delete: if isSuperAdmin();` y se relajaron las restricciones excesivas de `email_verified` en las funciones de verificación de correo del propietario.

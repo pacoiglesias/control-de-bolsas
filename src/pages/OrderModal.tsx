@@ -825,6 +825,38 @@ export default function OrderModal({
     }
   };
 
+  /**
+   * Suma lo ENTREGADO (deliveredQuantity) de todos los renglones y arma la
+   * factura con esos kilos, en vez de que se sumen a mano fuera del sistema
+   * y se transcriban. Es donde se cuela un dígito mal tecleado sin que nadie
+   * se entere.
+   */
+  const kilosEntregados = form.items.reduce((acc, it) => acc + (Number(it.deliveredQuantity) || 0), 0);
+  const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  const kilosFaltantes = round2(kilosPedidos - kilosEntregados);
+
+  function facturarLoEntregado() {
+    if (kilosEntregados <= 0) {
+      toast('No hay cantidades entregadas capturadas en Productos todavía.', 'bad');
+      return;
+    }
+    const issue = new Date();
+    const due = addDays(issue, config.creditDays);
+    set('invoices', [
+      ...form.invoices,
+      {
+        id: Date.now().toString(),
+        folio: '',
+        kilos: kilosEntregados,
+        financials: computeFinancials(kilosEntregados, dynamicConfig),
+        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: '' },
+      },
+    ]);
+    setTab('facturas');
+    toast(`Factura armada con ${kilosEntregados.toLocaleString('es-MX')} kg entregados. Falta poner el folio y guardar.`, 'ok');
+  }
+
   return (
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
       <datalist id="catalog-products">
@@ -969,8 +1001,25 @@ export default function OrderModal({
         {/* PRODUCTOS */}
         {tab === 'productos' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h4>Detalle de Artículos (Partidas de la OC)</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h4 style={{ margin: 0 }}>Detalle de Artículos (Partidas de la OC)</h4>
+                {kilosPedidos > 0 && (
+                  <p className="hint" style={{ margin: '4px 0 0' }}>
+                    Entregado: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
+                    {kilosFaltantes > 0.01 && (
+                      <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>
+                    )}
+                  </p>
+                )}
+              </div>
+              {!readOnly && kilosEntregados > 0 && (
+                <button className="btn btn-primary" onClick={facturarLoEntregado}>
+                  🧾 Facturar lo entregado ({kilosEntregados.toLocaleString('es-MX')} kg)
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
               {!readOnly && (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn" onClick={() => {

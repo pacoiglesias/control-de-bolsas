@@ -129,7 +129,7 @@ Pago recibido 23 julio	76140.00`);
         throw new Error('La configuración financiera no tiene un precio de venta válido.');
       }
       addLog(`Precio por kilo con IVA: ${precioBrutoPorKg.toFixed(2)} (${config.salePricePerKg} + ${(config.ivaRate * 100).toFixed(0)}%)`);
-      let batch = writeBatch(db);
+      const batch = writeBatch(db);
       
       // Inyectar Contrarecibos
       crs.forEach((cr) => {

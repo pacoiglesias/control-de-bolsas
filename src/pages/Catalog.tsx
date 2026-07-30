@@ -17,7 +17,14 @@ export default function Catalog() {
 
       orders.forEach(o => {
         if (o.items) {
-          const match = o.items.find(it => it.description === product.description);
+          // Por codigo primero: es el identificador estable. La coincidencia
+          // por descripcion exacta se queda solo como respaldo para renglones
+          // viejos capturados antes de que existiera el campo `code` — un
+          // espacio de mas o una mayuscula distinta bastaba para que nunca
+          // hiciera match y el producto pareciera "sin historial" sin serlo.
+          const match = product.code
+            ? o.items.find(it => (it.code ?? '').trim().toLowerCase() === product.code!.trim().toLowerCase())
+            : o.items.find(it => it.description === product.description);
           if (match) {
             totalQty += match.quantity;
             // Usar la fecha de promesa si existe, sino la de proceso.

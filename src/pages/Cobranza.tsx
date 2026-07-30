@@ -206,6 +206,11 @@ export default function Cobranza() {
       (objetivo[o.id] ??= []).push(inv.id);
     }
 
+    // Declarado FUERA de la transaccion: el toast de exito de abajo necesita
+    // leerlo despues de que runTransaction termine, y una variable `let`
+    // declarada dentro del callback no existe fuera de el. Esto no compilaba.
+    let netCobradoReal = 0;
+
     try {
       // El movimiento de Caja Chica va DENTRO de la misma transaccion que el
       // cambio de estatus. Si se separaran, un fallo a la mitad podria dejar
@@ -223,7 +228,7 @@ export default function Cobranza() {
         // un complemento XML u otro usuario tocaban financials entre el render
         // y el clic, el ingreso inyectado en Caja Chica quedaba desactualizado
         // y nada lo detectaba despues.
-        let netCobradoReal = 0;
+        netCobradoReal = 0;
 
         refs.forEach(({ id, ref }, k) => {
           const snap = snaps[k];
@@ -268,7 +273,7 @@ export default function Cobranza() {
           createdAt: Timestamp.now(),
         });
       });
-      toast(`Contrarecibo ${crNumber} cobrado. Ingreso registrado en Caja Chica.`, 'ok');
+      toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a Caja Chica). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok');
     } catch (e) {
       toast(`Error al procesar la recolección en bloque: ${(e as Error).message}`, 'bad');
     }
@@ -1138,6 +1143,9 @@ export default function Cobranza() {
 
       {activeTab === 'recogidas' && (
         <Card title="Historial Completo: Contrarecibos Recogidos (Ingresados a Caja Chica)">
+          <div className="alert info" style={{ marginBottom: 16 }}>
+            ℹ️ <strong>Historial de Lotes Recogidos:</strong> Aquí se guardan todos los contrarecibos cuyo dinero ya ingresó a Caja Chica. Si recogiste un lote por error, presiona <strong>"↩️ Deshacer Recolección"</strong> para regresarlo a "Por Recoger Dinero" y revertir el movimiento en Caja Chica.
+          </div>
           {data.collected.length === 0 ? (
             <Empty>No hay contrarecibos recogidos aún en el historial.</Empty>
           ) : (

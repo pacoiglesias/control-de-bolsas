@@ -8,10 +8,15 @@ import { sound } from '../lib/sounds';
 const NAV = [
   { to: '/', icon: '📊', label: 'Panel Principal', end: true, roles: ['admin', 'manager', 'viewer'] },
   { to: '/subir', icon: '📥', label: 'Subir Órdenes', roles: ['admin', 'manager'] },
-  { to: '/ordenes', icon: '📋', label: 'Órdenes / Ventas', roles: ['admin', 'manager', 'viewer'] },
+  // "Expedientes" y "Por Orden de Compra" leen la MISMA coleccion
+  // (purchaseOrders): la primera es una fila por expediente, la segunda son
+  // los mismos expedientes agrupados por numero de OC con sus facturas
+  // desplegadas adentro. Antes se llamaban "Ordenes / Ventas" y "Seguimiento
+  // OC", sin relacion visible entre ambas ni pista de cual usar para que.
+  { to: '/ordenes', icon: '📋', label: 'Expedientes', roles: ['admin', 'manager', 'viewer'] },
+  { to: '/oc', icon: '📦', label: 'Por Orden de Compra', roles: ['admin', 'manager'] },
   { to: '/compras', icon: '🏭', label: 'Compras', roles: ['admin'] },
   { to: '/cobranza', icon: '💰', label: 'Contrarecibos / Cobranza', roles: ['admin', 'manager'] },
-  { to: '/oc', icon: '📦', label: 'Seguimiento OC', roles: ['admin', 'manager'] },
   { to: '/catalogo', icon: '🛍️', label: 'Catálogo', roles: ['admin', 'manager'] },
   { to: '/caja-chica', icon: '💵', label: 'Caja Chica', roles: ['admin'] },
   { to: '/respaldo', icon: '💾', label: 'Respaldo Local', roles: ['admin'] },
@@ -151,7 +156,7 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Control Bolsas v6.5.0 · Desarrollado por Paco Iglesias &copy; 2026<br/>
+            Control Bolsas v6.7.0 · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>

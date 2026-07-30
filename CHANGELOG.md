@@ -1,5 +1,27 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.7.0] - 30 Julio 2026 (Ciclo 11 — Menú claro, Compras con código de producto)
+
+### Cambiado
+- **Menú sin confusión entre `/ordenes` y `/oc`.** Renombradas a "Expedientes" y "Por Orden de Compra", con nota cruzada en cada pantalla: leen la misma colección, una es por expediente y la otra agrupa por número de OC.
+
+### Agregado
+- **Código de producto en Compras**, con búsqueda en el catálogo compartido: autocompleta descripción, unidad y precio al encontrar coincidencia, y ofrece dar de alta el código con un clic si no existe.
+
+### Corregido
+- **Catálogo emparejaba productos por texto exacto de la descripción.** Ahora empareja por código, que es estable; la descripción queda como respaldo solo para renglones antiguos sin código.
+
+## [v6.6.0] - 30 Julio 2026 (Ciclo 10 — Compilación reparada, margen corregido)
+
+### Corregido — crítico
+- **El proyecto local no compilaba.** Una variable fuera de alcance en `Cobranza.tsx` bloqueaba cualquier build.
+- **Hook llamado condicionalmente en `Compras.tsx`** (`useToast()` después de dos returns tempranos): riesgo de que React reviente el componente al resolver el rol de usuario.
+- **"Ganancia Comercial" seguía en $0.00.** El respaldo de cálculo en el navegador usaba un campo que no existe en el modelo (`materialCost` en vez de `costTotal`) y se disparaba de más, pisando un valor que el servidor ya calculaba bien.
+
+### Agregado
+- **Botón "Facturar lo entregado"** en el expediente: suma los kilos entregados de todos los renglones y arma la factura automáticamente, con aviso de faltante contra lo pedido.
+
+
 ## [v6.5.0] - 30 Julio 2026 (Ciclo 11-14 — Motor Dinámico, Pre-Factura CFDI 4.0 & Audio Sensorial)
 
 ### Agregado

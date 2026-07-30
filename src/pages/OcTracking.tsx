@@ -103,8 +103,12 @@ export default function OcTracking() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Seguimiento de OC</h1>
-        <p>Vista por Orden de Compra — cuánto se facturó, avance de entregas y estado de cobro. Haz clic en cualquier renglón para editar el expediente.</p>
+        <h1>Por Orden de Compra</h1>
+        <p>
+          Los mismos expedientes que <strong>Expedientes</strong>, agrupados por número de OC con sus
+          facturas desplegadas adentro: cuánto se facturó, avance de entregas y estado de cobro por
+          Orden de Compra. Haz clic en cualquier renglón para editar el expediente.
+        </p>
       </div>
 
       {/* Resumen rápido. Usa el mismo KpiCard que el resto del sistema: las
