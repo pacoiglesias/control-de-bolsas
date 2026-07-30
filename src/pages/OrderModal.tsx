@@ -323,7 +323,8 @@ export default function OrderModal({
             <div>Nombre y Firma de Recibido</div>
           </div>
           <script>
-            window.onload = () => { window.print(); window.setTimeout(() => window.close(), 500); }
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
           </script>
         </body>
       </html>
@@ -473,7 +474,8 @@ export default function OrderModal({
           </div>
 
           <script>
-            window.onload = () => { window.print(); window.setTimeout(() => window.close(), 500); }
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
           </script>
         </body>
       </html>

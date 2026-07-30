@@ -336,7 +336,8 @@ export default function Cobranza() {
           </div>
 
           <script>
-            window.onload = () => { window.print(); window.setTimeout(() => window.close(), 500); }
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
           </script>
         </body>
       </html>
