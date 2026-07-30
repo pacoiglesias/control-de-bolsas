@@ -12,16 +12,18 @@ import type { Invoice } from '../lib/types';
 import { db, PATHS } from '../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../lib/invoiceOps';
 import { useToast } from '../context/ToastContext';
+import { logAction } from '../lib/logger';
+import { sound } from '../lib/sounds';
 import type { PurchaseOrder } from '../lib/types';
 
 export default function Cobranza() {
+  const { role, user } = useAuth();
   const { orders, loading, error } = useOrders();
-  const { role } = useAuth();
   const { config } = useConfig();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas'>('pendientes');
+  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas'>('pendientes');
 
   // camposInvoices() y aplicarPorId() viven en lib/invoiceOps.ts: OrderModal
   // las necesita igual y antes tenia su propio camino para escribir
@@ -242,6 +244,185 @@ export default function Cobranza() {
     }
   }
 
+  async function revertCollectedContrareciboBlock(crNumber: string) {
+    if (!crNumber) return;
+    if (!window.confirm(`¿DESHACER RECOLECCIÓN del Contrarecibo ${crNumber}? El lote regresará a "Por Recoger Dinero" y se registrará un egreso de reversión en Caja Chica.`)) return;
+    
+    const invoicesToRevert = data.collected.filter(({ o, inv }) => 
+      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
+    );
+    
+    const objetivo: Record<string, string[]> = {};
+    let totalRevertir = 0;
+    for (const { o, inv } of invoicesToRevert) {
+      (objetivo[o.id] ??= []).push(inv.id);
+      const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * config.salePricePerKg * (1 + config.ivaRate));
+      const comision = inv.financials?.commission ?? (inv.kilos * config.salePricePerKg * config.commissionRate);
+      totalRevertir += (invTotal - comision);
+    }
+
+    if (Object.keys(objetivo).length === 0) {
+      toast('No se encontraron facturas recogidas para este contrarecibo.', 'bad');
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const refs = Object.keys(objetivo).map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+
+        refs.forEach(({ id, ref }, k) => {
+          const snap = snaps[k];
+          if (!snap.exists()) return;
+          let invoices: Invoice[] = snap.data().invoices ?? [];
+          for (const invoiceId of objetivo[id]) {
+            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
+              ...x,
+              creditCycle: { ...x.creditCycle, status: 'paid' },
+              collection: {
+                ...x.collection,
+                collectedAt: undefined,
+              },
+            }));
+            if (nuevas) invoices = nuevas;
+          }
+          tx.update(ref, camposInvoices(invoices));
+        });
+
+        tx.set(doc(collection(db, PATHS.expenses)), {
+          date: Timestamp.now(),
+          concept: `Reversión de Recolección Contrarecibo ${crNumber}`,
+          type: 'egreso',
+          amount: round2(totalRevertir),
+          createdAt: Timestamp.now(),
+        });
+      });
+
+      logAction(user?.email, 'Reversión de Recolección', { contrarecibo: crNumber, monto: totalRevertir });
+      sound.playPop();
+      toast(`↩️ Recolección del Contrarecibo ${crNumber} revertida. Regresado a "Por Recoger" y egreso por $${totalRevertir.toLocaleString('es-MX', {minimumFractionDigits:2})} registrado en Caja Chica.`, 'ok');
+    } catch (e) {
+      sound.playError();
+      toast(`Error al revertir la recolección: ${(e as Error).message}`, 'bad');
+    }
+  }
+
+  function printCobranzaGlobalReport() {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Reporte Global de Cobranza y Cuentas por Cobrar</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
+            .header { border-bottom: 3px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h1 { margin: 0; font-size: 20px; color: #0284c7; }
+            .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+            .kpi { background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 4px; }
+            .kpi-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; }
+            .kpi-val { font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+            th { background: #f1f5f9; font-weight: 700; }
+            .num { text-align: right; font-family: monospace; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>Reporte de Cobranza y Contrarecibos (PDF)</h1>
+              <div>Control Bolsas ERP · Grupo Textil Providencia</div>
+            </div>
+            <div>
+              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-title">TE DEBEN</div><div class="kpi-val">$${data.meDeben.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">VENCIDO</div><div class="kpi-val" style="color: #b91c1c;">$${data.vencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">COBRADO (CON CONTADOR)</div><div class="kpi-val" style="color: #047857;">$${data.cobrado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">COMISIONES</div><div class="kpi-val" style="color: #b45309;">$${data.comisiones.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+          </div>
+
+          <h3>1. Facturas Pendientes de Cobro (${data.open.length})</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Vencimiento</th><th class="num">Monto Venta</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.open.map(x => `
+                <tr>
+                  <td>${x.inv.folio || x.o.folio || '—'}</td>
+                  <td>${x.o.client || '—'}</td>
+                  <td>${x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—'}</td>
+                  <td>${fmtDate(x.inv.creditCycle.dueDate) || '—'}</td>
+                  <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <h3>2. Contrarecibos Cobrados (Por Recoger Efectivo - ${data.paid.length})</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th class="num">Utilidad a Ingresar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.paid.map(x => {
+                const cr = x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '';
+                const grp = cr ? data.listaCr.find(g => g.cr === cr) : null;
+                return `
+                  <tr>
+                    <td>${x.inv.folio || x.o.folio || '—'}</td>
+                    <td>${x.o.client || '—'}</td>
+                    <td>${cr || '—'}</td>
+                    <td class="num">$${(grp ? grp.netCobrado : (x.inv.financials?.invoiceTotal ?? 0)).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <h3>3. Historial de Recolecciones en Caja Chica (${data.collected.length})</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Estado</th><th class="num">Monto Venta</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.collected.map(x => `
+                <tr>
+                  <td>${x.inv.folio || x.o.folio || '—'}</td>
+                  <td>${x.o.client || '—'}</td>
+                  <td>${x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—'}</td>
+                  <td>Recogido (En Caja Chica)</td>
+                  <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <script>
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  }
+
   function printConsolidatedCr(grp: {
     cr: string;
     client: string;
@@ -363,6 +544,10 @@ export default function Cobranza() {
       (x) => x.inv.creditCycle.status === 'paid',
     );
 
+    const collected = allInvoices.filter(
+      (x) => x.inv.creditCycle.status === 'collected',
+    );
+
     const open = allInvoices.filter(
       (x) => x.inv.creditCycle.status === 'pending' || x.inv.creditCycle.status === 'overdue',
     );
@@ -470,6 +655,7 @@ export default function Cobranza() {
     return {
       open,
       paid,
+      collected,
       lista,
       listaCr,
       clientes,
@@ -512,12 +698,17 @@ export default function Cobranza() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>Contrarecibos / Cobranza</h1>
-        <p>
-          Lo que te deben, ordenado por antigüedad. Una orden deja de contar aquí en cuanto la
-          marcas como cobrada; la comisión de contabilidad ya viene descontada del flujo neto.
-        </p>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1>Contrarecibos / Cobranza</h1>
+          <p>
+            Lo que te deben, ordenado por antigüedad. Una orden deja de contar aquí en cuanto la
+            marcas como cobrada; la comisión de contabilidad ya viene descontada del flujo neto.
+          </p>
+        </div>
+        <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printCobranzaGlobalReport}>
+          🖨️ Reporte de Cobranza (PDF)
+        </button>
       </div>
 
       <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
@@ -525,7 +716,10 @@ export default function Cobranza() {
           Pendientes de Cobro ({data.open.length})
         </button>
         <button className={`tab ${activeTab === 'pagadas' ? 'active' : ''}`} onClick={() => setActiveTab('pagadas')}>
-          Historial: Ventas ya Pagadas (Por recoger) ({data.paid.length})
+          Por Recoger Efectivo ({data.paid.length})
+        </button>
+        <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')}>
+          Historial: Recogidos / En Caja Chica ({data.collected.length})
         </button>
       </div>
 
@@ -825,6 +1019,62 @@ export default function Cobranza() {
                         </td>
                         <td>
                           <StatusBadge status={inv.creditCycle.status} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === 'recogidas' && (
+        <Card title="Historial Completo: Contrarecibos Recogidos (Ingresados a Caja Chica)">
+          {data.collected.length === 0 ? (
+            <Empty>No hay contrarecibos recogidos aún en el historial.</Empty>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Folio</th>
+                    <th>Cliente</th>
+                    <th>Contrarecibo</th>
+                    <th className="num">Monto Venta</th>
+                    <th>Estado</th>
+                    <th>Acción Reversión</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.collected.map(({ o, inv }) => {
+                    const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
+                    const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+                    return (
+                      <tr key={inv.id}>
+                        <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
+                        <td>{o.client ?? '—'}</td>
+                        <td className="mono">{currentCr || '—'}</td>
+                        <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
+                          {money(invTotal)}
+                        </td>
+                        <td>
+                          <StatusBadge status={inv.creditCycle.status} />
+                        </td>
+                        <td>
+                          {currentCr && (
+                            <button
+                              className="btn-small btn-warn"
+                              style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                revertCollectedContrareciboBlock(currentCr);
+                              }}
+                            >
+                              ↩️ Deshacer Recolección
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

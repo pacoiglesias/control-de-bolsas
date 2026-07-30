@@ -6,6 +6,18 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 16 — 2026-07-30 — Historial de Recolecciones, Botón "↩️ Deshacer Recolección" y Generador de Reportes PDF Imprimibles
+
+> Se incorporó la pestaña de Historial de Contrarecibos Recogidos con botón de reversión (deshacer), registrando automáticamente el movimiento opuesto en Caja Chica y la bitácora de auditoría en `system_logs`. Además, se implementaron generadores vectoriales de Reportes PDF Imprimibles para Cobranza y Caja Chica.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Cobranza.tsx` | Al recoger un lote, los contrarecibos desaparecían sin dejar un historial accesible ni permitir corregir selecciones accidentales. | Creada la pestaña **Historial: Recogidos / En Caja Chica** con el botón **↩️ Deshacer Recolección**, regresando el estado a "Por Recoger", ajustando Caja Chica y auditando en `system_logs`. |
+| `src/pages/Cobranza.tsx` | Faltaban reportes ejecutivos impresos para documentación interna. | Agregado el generador **🖨️ Reporte de Cobranza (PDF)** que desglosa saldos te deben, vencidos, por recoger e historial de recolecciones. |
+| `src/pages/CajaChica.tsx` | El botón de imprimir usaba la vista nativa del navegador sin formato ejecutivo. | Reemplazado por **🖨️ Imprimir Reporte (PDF)** vectorial con KPIs de ingresos, egresos y saldo líquido. |
+
+---
+
 ## ✅ Ciclo 15 — 2026-07-30 — Botón "⚡ Facturar lo Entregado" y Banner Operativo de Entrega Faltante
 
 > Se agregaron las herramientas automatizadas solicitadas para eliminar operaciones manuales al facturar entregas reales y señalar discrepancias de kilaje contra la OC.

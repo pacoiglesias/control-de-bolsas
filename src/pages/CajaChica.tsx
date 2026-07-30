@@ -19,6 +19,79 @@ export default function CajaChica() {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
   }, 0);
 
+  function printCajaChicaReport() {
+    const totalIngresos = expenses.filter(e => e.type === 'ingreso').reduce((a, e) => a + e.amount, 0);
+    const totalEgresos = expenses.filter(e => e.type === 'egreso').reduce((a, e) => a + e.amount, 0);
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Reporte de Caja Chica - ERP Control Bolsas</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
+            .header { border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h1 { margin: 0; font-size: 20px; color: #2563eb; }
+            .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+            .kpi { background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 4px; }
+            .kpi-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; }
+            .kpi-val { font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+            th { background: #f1f5f9; font-weight: 700; }
+            .num { text-align: right; font-family: monospace; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>Reporte de Movimientos de Caja Chica</h1>
+              <div>Control Bolsas ERP · Grupo Textil Providencia</div>
+            </div>
+            <div>
+              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-title">TOTAL INGRESOS</div><div class="kpi-val" style="color: #047857;">+$${totalIngresos.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">TOTAL EGRESOS</div><div class="kpi-val" style="color: #b91c1c;">-$${totalEgresos.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">SALDO LÍQUIDO EN CAJA</div><div class="kpi-val" style="color: #2563eb;">$${saldo.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Concepto</th><th>Proveedor</th><th>Tipo</th><th class="num">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${expenses.map(e => `
+                <tr>
+                  <td>${fmtDate(e.date) || '—'}</td>
+                  <td>${e.concept || '—'}</td>
+                  <td>${e.provider || '—'}</td>
+                  <td>${e.type === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
+                  <td class="num" style="font-weight:700; color: ${e.type === 'ingreso' ? '#047857' : '#b91c1c'}">
+                    ${e.type === 'ingreso' ? '+' : '-'}$${e.amount.toLocaleString('es-MX', {minimumFractionDigits:2})}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <script>
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  }
+
   if (loading) return <Spinner />;
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
@@ -44,7 +117,7 @@ export default function CajaChica() {
               + Registrar Gasto / Ingreso
             </button>
             <span className="spacer" />
-            <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
+            <button className="btn no-print" onClick={printCajaChicaReport}>🖨️ Imprimir Reporte (PDF)</button>
           </>
         }
         title="Movimientos"
