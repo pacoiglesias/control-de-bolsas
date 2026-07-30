@@ -4,7 +4,7 @@ import { useConfig } from '../hooks/useConfig';
 import { Card, Empty, KpiCard, Skeleton, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../lib/finance';
-import { escapeHtml, fmtDate, money, toDate } from '../lib/format';
+import { escapeHtml, fmtDate, money, toDate, exportToCsv } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
@@ -24,6 +24,22 @@ export default function Cobranza() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas'>('pendientes');
+  const [search, setSearch] = useState('');
+
+  function exportCobranzaCsv() {
+    const headers = ['Folio', 'Cliente', 'Contrarecibo', 'Vencimiento', 'Días Atraso', 'Monto Venta con IVA', 'Estado'];
+    const rows = data.lista.map(x => [
+      x.inv.folio || x.o.folio || '',
+      x.o.client || '',
+      x.cr || '',
+      fmtDate(x.inv.creditCycle.dueDate),
+      x.d ?? 0,
+      (x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toFixed(2),
+      x.inv.creditCycle.status
+    ]);
+    exportToCsv(`Cobranza_Providencia_${new Date().toISOString().slice(0, 10)}`, headers, rows);
+    toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
+  }
 
   // camposInvoices() y aplicarPorId() viven en lib/invoiceOps.ts: OrderModal
   // las necesita igual y antes tenia su propio camino para escribir
@@ -675,6 +691,17 @@ export default function Cobranza() {
     };
   }, [orders, config]);
 
+  const filteredLista = useMemo(() => {
+    if (!search.trim()) return data.lista;
+    const q = search.toLowerCase();
+    return data.lista.filter(x => 
+      (x.inv.folio?.toLowerCase() || '').includes(q) ||
+      (x.o.folio?.toLowerCase() || '').includes(q) ||
+      (x.o.client?.toLowerCase() || '').includes(q) ||
+      (x.cr?.toLowerCase() || '').includes(q)
+    );
+  }, [data.lista, search]);
+
   if (loading) {
     return (
       <>
@@ -777,15 +804,32 @@ export default function Cobranza() {
         )}
       </Card>
 
-      <Card title="Qué cobrar primero" hint={`${data.lista.length}`}>
-        {data.lista.length === 0 ? (
-          <Empty>No hay nada pendiente de cobro.</Empty>
+      <Card 
+        title="Qué cobrar primero" 
+        hint={search.trim() ? `${filteredLista.length} coincidencia(s) de ${data.lista.length}` : `${data.lista.length}`}
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="input boxed"
+              placeholder="🔍 Buscar por Folio, Cliente o CR..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ padding: '6px 12px', fontSize: 13, minWidth: 260 }}
+            />
+            <button className="btn" style={{ background: 'var(--bg-card)', border: '1px solid var(--line)' }} onClick={exportCobranzaCsv}>
+              📥 Exportar Excel (CSV)
+            </button>
+          </div>
+        }
+      >
+        {filteredLista.length === 0 ? (
+          <Empty>{search.trim() ? `No se encontraron resultados para "${search}".` : 'No hay nada pendiente de cobro.'}</Empty>
         ) : (
           <>
           {/* Resumen rápido */}
           {(() => {
-            const sinCr = data.lista.filter(x => !x.hasCr);
-            const conCr = data.lista.filter(x => x.hasCr);
+            const sinCr = filteredLista.filter(x => !x.hasCr);
+            const conCr = filteredLista.filter(x => x.hasCr);
             const conCrVencidos = conCr.filter(x => (x.d ?? 0) > 0);
             return (
               <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -814,7 +858,7 @@ export default function Cobranza() {
                 </tr>
               </thead>
               <tbody>
-                {data.lista.map(({ o, inv, d, saldo, hasCr, cr: currentCr }) => {
+                {filteredLista.map(({ o, inv, d, saldo, hasCr, cr: currentCr }) => {
                   const isHovered = hoveredCr && hoveredCr === currentCr;
                   // Lógica de color de fila:
                   // Sin CR = fila roja (urgente)

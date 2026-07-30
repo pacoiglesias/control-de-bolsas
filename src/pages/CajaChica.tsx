@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
-import { fmtDate, money, toInputDate, fromInputDate } from '../lib/format';
+import { fmtDate, money, toInputDate, fromInputDate, exportToCsv } from '../lib/format';
 import type { Expense } from '../lib/types';
 
 export default function CajaChica() {
@@ -92,6 +92,21 @@ export default function CajaChica() {
     window.open(url, '_blank');
   }
 
+  const toast = useToast();
+
+  function exportCajaChicaCsv() {
+    const headers = ['Fecha', 'Concepto', 'Proveedor', 'Tipo', 'Monto'];
+    const rows = expenses.map(e => [
+      fmtDate(e.date),
+      e.concept || '',
+      e.provider || '',
+      e.type,
+      (e.type === 'ingreso' ? e.amount : -e.amount).toFixed(2)
+    ]);
+    exportToCsv(`CajaChica_Providencia_${new Date().toISOString().slice(0, 10)}`, headers, rows);
+    toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
+  }
+
   if (loading) return <Spinner />;
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
@@ -105,7 +120,7 @@ export default function CajaChica() {
 
       <Card
         actions={
-          <>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn btn-primary no-print" onClick={() => setSelected({
               id: doc(collection(db, PATHS.expenses)).id,
               date: Timestamp.fromDate(new Date()),
@@ -117,8 +132,9 @@ export default function CajaChica() {
               + Registrar Gasto / Ingreso
             </button>
             <span className="spacer" />
+            <button className="btn no-print" onClick={exportCajaChicaCsv}>📥 Exportar Excel (CSV)</button>
             <button className="btn no-print" onClick={printCajaChicaReport}>🖨️ Imprimir Reporte (PDF)</button>
-          </>
+          </div>
         }
         title="Movimientos"
         hint={`Saldo actual: ${money(saldo)}`}

@@ -6,6 +6,19 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 17 — 2026-07-30 — Búsqueda Rápida en Vivo, Exportador Universal a Excel (CSV con UTF-8 BOM) y Reporte de Estado de Cuenta de Proveedores
+
+> Se implementaron tres mejoras operativas de alta usabilidad solicitadas para agilizar la interacción diaria: filtro de búsqueda instantáneo en Cobranza, exportador universal a Microsoft Excel (CSV con soporte de caracteres especiales) en todos los módulos principales, y reporte impreso en PDF del Estado de Cuenta de Proveedores (Andrés).
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/lib/format.ts` | No existía una utilidad universal de exportación de datos a hojas de cálculo con codificación adecuada. | Creado `exportToCsv()` con prefijo `\uFEFF` (UTF-8 BOM) para apertura limpia en Microsoft Excel sin corrupción de acentos o moneda. |
+| `src/pages/Cobranza.tsx` | El usuario tenía que revisar manualmente todas las filas para encontrar un folio, cliente o contrarecibo específico. | Agregado el campo **🔍 Búsqueda Rápida en Vivo** y el botón **📥 Exportar Excel (CSV)**. |
+| `src/pages/CajaChica.tsx` | Faltaba la opción de exportar el libro de egresos e ingresos a Excel. | Agregado el botón **📥 Exportar Excel (CSV)**. |
+| `src/pages/Compras.tsx` | No existía un reporte impreso PDF ni exportación del libro mayor del proveedor Andrés. | Agregados los botones **📥 Exportar Excel (CSV)** y **🖨️ Imprimir Estado de Cuenta (PDF)**. |
+
+---
+
 ## ✅ Ciclo 16 — 2026-07-30 — Historial de Recolecciones, Botón "↩️ Deshacer Recolección" y Generador de Reportes PDF Imprimibles
 
 > Se incorporó la pestaña de Historial de Contrarecibos Recogidos con botón de reversión (deshacer), registrando automáticamente el movimiento opuesto en Caja Chica y la bitácora de auditoría en `system_logs`. Además, se implementaron generadores vectoriales de Reportes PDF Imprimibles para Cobranza y Caja Chica.

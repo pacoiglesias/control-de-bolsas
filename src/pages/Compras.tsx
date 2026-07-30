@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
-import { fmtDate, kilos, money, toInputDate, fromInputDate } from '../lib/format';
+import { fmtDate, kilos, money, toInputDate, fromInputDate, exportToCsv } from '../lib/format';
 import type { Purchase, PurchaseStatus } from '../lib/types';
 
 export default function Compras() {
@@ -58,7 +58,91 @@ export default function Compras() {
       abono: e.type === 'egreso' ? e.amount : 0, 
       source: 'expense' as const
     }))
-  ].sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
+  ];
+
+  const sortedLedger = ledger.sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
+  const toast = useToast();
+
+  function exportComprasCsv() {
+    const headers = ['Fecha', 'Concepto', 'Cargo (Material Sube Deuda)', 'Abono (Pagos / Adelantos)', 'Origen'];
+    const rows = sortedLedger.map(e => [
+      fmtDate(e.date),
+      e.concept,
+      e.cargo ? e.cargo.toFixed(2) : '0.00',
+      e.abono ? e.abono.toFixed(2) : '0.00',
+      e.source === 'purchase' ? 'Compra Material' : 'Caja Chica (Adelanto)'
+    ]);
+    exportToCsv(`Estado_Cuenta_Andres_${new Date().toISOString().slice(0, 10)}`, headers, rows);
+    toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
+  }
+
+  function printComprasReport() {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Estado de Cuenta Proveedor - Andrés</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
+            .header { border-bottom: 3px solid #b45309; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h1 { margin: 0; font-size: 20px; color: #b45309; }
+            .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+            .kpi { background: #fffbeb; border: 1px solid #fde68a; padding: 10px; border-radius: 4px; }
+            .kpi-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #92400e; }
+            .kpi-val { font-size: 16px; font-weight: 800; color: #78350f; margin-top: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+            th { background: #fef3c7; font-weight: 700; }
+            .num { text-align: right; font-family: monospace; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>Estado de Cuenta Proveedor: Andrés</h1>
+              <div>Control Bolsas ERP · Grupo Textil Providencia</div>
+            </div>
+            <div>
+              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-title">TOTAL COMPRAS REGISTRADAS</div><div class="kpi-val">$${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">TOTAL ABONADO / ADELANTOS</div><div class="kpi-val" style="color: #047857;">$${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">SALDO PENDIENTE CON ANDRÉS</div><div class="kpi-val" style="color: ${deudaReal > 0 ? '#b91c1c' : '#047857'};">$${deudaReal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+          </div>
+
+          <h3>Libro Mayor Cronológico</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (+)</th><th class="num">Abono (-)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedLedger.map(e => `
+                <tr>
+                  <td>${fmtDate(e.date) || '—'}</td>
+                  <td>${e.concept || '—'}</td>
+                  <td class="num" style="font-weight:700; color: #b91c1c">${e.cargo ? `$${e.cargo.toLocaleString('es-MX', {minimumFractionDigits:2})}` : '—'}</td>
+                  <td class="num" style="font-weight:700; color: #047857">${e.abono ? `$${e.abono.toLocaleString('es-MX', {minimumFractionDigits:2})}` : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <script>
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  }
 
   return (
     <>
@@ -102,7 +186,8 @@ export default function Compras() {
                 + Nuevo Pedido al Fabricante
               </button>
               <span className="spacer" />
-              <button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>
+              <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar Excel (CSV)</button>
+              <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado de Cuenta (PDF)</button>
             </>
           }
           title="Historial de Compras"
@@ -118,7 +203,6 @@ export default function Compras() {
                     <th className="num">Kilos Pedidos</th>
                     <th className="num">Kilos Entregados</th>
                     <th className="num">Costo Total</th>
-                    <th className="num">Pagado (Interno)</th>
                     <th>Estado</th>
                   </tr>
                 </thead>
@@ -129,7 +213,6 @@ export default function Compras() {
                       <td className="num mono">{kilos(p.expectedKilos)}</td>
                       <td className="num mono">{kilos(p.receivedKilos)}</td>
                       <td className="num mono">{money(p.totalAmount)}</td>
-                      <td className="num mono">{money(p.paidAmount)}</td>
                       <td>
                         <StatusBadge status={p.status === 'pedido' ? 'pending' : p.status === 'parcial' ? 'manual_review' : 'paid'} />
                       </td>
@@ -141,7 +224,15 @@ export default function Compras() {
           )}
         </Card>
       ) : (
-        <Card title={`Estado de Cuenta: ${selectedProvider}`} actions={<button className="btn no-print" onClick={() => window.print()}>🖨️ Imprimir</button>}>
+        <Card 
+          title={`Estado de Cuenta: ${selectedProvider}`} 
+          actions={
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar Excel (CSV)</button>
+              <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado de Cuenta (PDF)</button>
+            </div>
+          }
+        >
           {ledger.length === 0 ? (
             <Empty>No hay movimientos registrados para este proveedor.</Empty>
           ) : (
