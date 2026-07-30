@@ -6,6 +6,17 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 13 — 2026-07-30 — Módulo de Pre-Factura CFDI 4.0 y Registro de Entrega Real de Andrés (OC 120267114014)
+
+> Tras la entrega del material por parte del fabricante Andrés (2,964.16 kg totales), se sincronizaron los montos de facturación real ($161,606.00 con IVA) y se construyó el generador de Pre-Factura CFDI 4.0 vectorial en `OrderModal.tsx`.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/lib/seedData.ts` | La orden `120267114014` conservaba el estimado inicial de 3,000 kg ($141,000.00). Faltaba ajustar los importes a los 2,964.16 kg entregados por Andrés. | Actualizado `total: 161606.00` (Subtotal $139,315.52 + 16% IVA = $161,606.00) con las partidas desglosadas (983.46 kg + 1,000.00 kg + 980.70 kg). |
+| `src/pages/OrderModal.tsx` | El usuario no disponía de una herramienta para generar e imprimir de forma inmediata la Pre-Factura CFDI 4.0 con la información requerida por Providencia. | Creada la función `printPreFactura()` y el botón **📋 Pre-Factura CFDI 4.0 (PDF)**. Genera un documento con datos fiscales del receptor (GTP930115PU1), Clave SAT `24141500`, Unidad `KGM`, Método `PPD`, Forma `99` e instructivo de timbrado. |
+
+---
+
 ## ✅ Ciclo 12 — 2026-07-30 — Implementación del Motor Financiero Dinámico (Instructivo de Utilidad)
 
 > Se formalizó e implementó la función canónica `computeDynamicFinancials()` en `functions/src/shared/finance.core.ts` y re-exportada en `src/lib/finance.ts`, garantizando el cumplimiento estricto del instructivo de fórmulas matemáticas dinámicas.

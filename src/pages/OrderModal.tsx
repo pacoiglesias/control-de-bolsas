@@ -335,6 +335,140 @@ export default function OrderModal({
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
+  function printPreFactura() {
+    const rawItems = form.items && form.items.length > 0 ? form.items : [];
+    
+    const itemsList = rawItems.length > 0 ? rawItems.map(it => {
+      const k = Number(it.deliveredQuantity || it.quantity || 0);
+      const price = Number(it.unitPrice || dynamicConfig.salePricePerKg || 47);
+      const subtotal = round2(k * price);
+      return {
+        code: it.code || 'Bolsa',
+        desc: it.description || 'Bolsa Polietileno',
+        kilos: k,
+        price,
+        subtotal
+      };
+    }) : [{
+      code: 'Bolsa',
+      desc: 'Bolsa Polietileno',
+      kilos: kilosNum,
+      price: dynamicConfig.salePricePerKg || 47,
+      subtotal: round2(kilosNum * (dynamicConfig.salePricePerKg || 47))
+    }];
+
+    const subtotalTotal = round2(itemsList.reduce((sum, item) => sum + item.subtotal, 0));
+    const ivaTotal = round2(subtotalTotal * (dynamicConfig.ivaRate ?? 0.16));
+    const grandTotal = round2(subtotalTotal + ivaTotal);
+
+    const itemsRows = itemsList.map(it => `
+      <tr>
+        <td style="text-align: right; font-weight: 600;">${it.kilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+        <td><strong>${escapeHtml(it.code)}</strong> - ${escapeHtml(it.desc)}</td>
+        <td style="text-align: right;">$${it.price.toFixed(2)}</td>
+        <td style="text-align: right; font-weight: 600;">$${it.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <html>
+        <head>
+          <title>Pre-Factura CFDI 4.0 - ${escapeHtml(form.folio)}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 36px; color: #1e293b; background: #fff; }
+            .header { border-bottom: 3px solid #0284c7; padding-bottom: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h1 { margin: 0; color: #0284c7; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .header .badge { background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 9999px; font-weight: 700; font-size: 13px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; font-size: 13px; line-height: 1.6; }
+            .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+            .box-title { font-weight: 700; color: #0f172a; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+            th, td { border: 1px solid #cbd5e1; padding: 10px 12px; }
+            th { background: #f1f5f9; color: #334155; font-weight: 700; font-size: 12px; text-transform: uppercase; }
+            .totals-container { margin-top: 24px; display: flex; justify-content: flex-end; }
+            .totals-box { width: 320px; font-size: 14px; }
+            .totals-row { display: flex; justify-content: space-between; padding: 6px 0; }
+            .totals-row.grand { font-size: 18px; font-weight: 800; color: #0284c7; border-top: 2px solid #0284c7; padding-top: 10px; margin-top: 6px; }
+            .sat-info { margin-top: 32px; background: #fffbebf7; border: 1px solid #fef08a; border-radius: 8px; padding: 14px; font-size: 12px; color: #713f12; }
+            .sat-info strong { color: #854d0e; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>Pre-Factura CFDI 4.0</h1>
+              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Control Bolsas ERP · Documento Fiscal de Facturación</div>
+            </div>
+            <div class="badge">ORDEN / NOTA: ${escapeHtml(form.folio) || '120267114014'}</div>
+          </div>
+
+          <div class="grid">
+            <div class="box">
+              <div class="box-title">DATOS DEL RECEPTOR</div>
+              <strong>GRUPO TEXTIL PROVIDENCIA SA DE CV</strong><br>
+              <strong>RFC:</strong> GTP930115PU1<br>
+              <strong>Domicilio Fiscal:</strong> HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO<br>
+              <strong>Uso CFDI:</strong> G01 - Adquisición de mercancías
+            </div>
+            <div class="box">
+              <div class="box-title">ESPECIFICACIONES CFDI 4.0 / METADATOS</div>
+              <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}<br>
+              <strong>Método de Pago:</strong> PPD (Pago en parcialidades o diferido)<br>
+              <strong>Forma de Pago:</strong> 99 Por definir<br>
+              <strong>Clave Prod/Serv SAT:</strong> 24141500 (Bolsas de plástico)<br>
+              <strong>Clave Unidad SAT:</strong> KGM (Kilogramos)<br>
+              <strong>Nota en CFDI:</strong> OC ${escapeHtml(form.folio) || '120267114014'}
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 15%; text-align: right;">Kilos</th>
+                <th style="width: 50%;">Descripción / Código Producto</th>
+                <th style="width: 15%; text-align: right;">Precio ($/kg)</th>
+                <th style="width: 20%; text-align: right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <div class="totals-container">
+            <div class="totals-box">
+              <div class="totals-row">
+                <span>SUBTOTAL:</span>
+                <strong>$${subtotalTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+              </div>
+              <div class="totals-row">
+                <span>IVA (16%):</span>
+                <strong>$${ivaTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+              </div>
+              <div class="totals-row grand">
+                <span>TOTAL:</span>
+                <span>$${grandTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="sat-info">
+            <strong>📌 Instructivo para Facturación:</strong> Documento con el desglose exacto de entregas reales de Andrés (${kilosNum.toLocaleString('es-MX')} kg). Utiliza estos valores para timbrar la factura CFDI 4.0 en el portal del SAT o en tu sistema de facturación.
+          </div>
+
+          <script>
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
   function printConsolidatedPackage() {
 
     const totalKilos = Number(form.totalKilograms) || 0;
@@ -1302,6 +1436,7 @@ export default function OrderModal({
           </button>
         )}
         <button className="btn" onClick={printRemision} style={{ marginLeft: 12 }}>📄 Generar Remisión (PDF)</button>
+        <button className="btn" onClick={printPreFactura} style={{ marginLeft: 12, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}>📋 Pre-Factura CFDI 4.0 (PDF)</button>
         <span className="spacer" />
         <button className="btn" onClick={onClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
         {!readOnly && (

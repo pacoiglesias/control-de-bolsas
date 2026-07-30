@@ -202,11 +202,11 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     id: 'seed-FAC-120267114014',
     folio: '120267114014',
     client: 'GTP930115PU1 (Grupo Textil Providencia)',
-    total: 141000.00,
+    total: 161606.00,
     issueDateStr: '2026-07-23',
     dueDateStr: '2026-08-22',
     status: 'pedido',
-    notes: 'PEDIDO DE MATERIAL PARA PROGRAMAS COPPEL/WALMART/LIVERPOOL',
+    notes: 'PEDIDO DE MATERIAL PARA PROGRAMAS COPPEL/WALMART/LIVERPOOL · Andrés entregó 2,964.16 kg ($161,606.00 con IVA)',
     origin: 'base_inicial_ordenes',
     items: [
       {
@@ -217,7 +217,7 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
         deliveredQuantity: 983.46,
         unit: 'PZA',
         unitPrice: 47.00,
-        amount: 47000.00
+        amount: 46222.62
       },
       {
         id: 'item-2',
@@ -237,7 +237,7 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
         deliveredQuantity: 980.70,
         unit: 'PZA',
         unitPrice: 47.00,
-        amount: 47000.00
+        amount: 46092.90
       }
     ]
   }
