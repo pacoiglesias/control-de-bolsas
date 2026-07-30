@@ -110,6 +110,10 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
     }
 
+    match /stats/{statId} {
+      allow read: if isAuthenticatedUser();
+    }
+
     // Log de auditoría
     match /system_logs/{logId} {
       // Solo super admin lee los logs

@@ -122,6 +122,7 @@ export default function Dashboard() {
   const error = statsError?.message || activeError?.message;
 
   useEffect(() => {
+    if (role !== 'admin') return;
     const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(25));
     const unsub = onSnapshot(q, (snap: QuerySnapshot) => {
       const list: LiveLogEntry[] = [];
@@ -278,29 +279,31 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>
         
-        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--ok-bg)', color: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-            ⚡
+        {role === 'admin' && (
+          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--ok-bg)', color: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+              ⚡
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Último Movimiento (Live)</span>
+                <span className="badge badge-ok" style={{ fontSize: 10 }}>● En vivo</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
+                🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {liveLogs[0]?.action || 'Sistema iniciado'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
+                Por: {liveLogs[0]?.user || '—'}
+              </div>
+              <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
+                ⚡ Monitor Live de Movimientos
+              </button>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Último Movimiento (Live)</span>
-              <span className="badge badge-ok" style={{ fontSize: 10 }}>● En vivo</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
-              🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {liveLogs[0]?.action || 'Sistema iniciado'}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
-              Por: {liveLogs[0]?.user || '—'}
-            </div>
-            <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              ⚡ Monitor Live de Movimientos
-            </button>
-          </div>
-        </div>
+        )}
 
         <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
