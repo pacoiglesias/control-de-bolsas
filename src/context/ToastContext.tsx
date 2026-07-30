@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import { sound } from '../lib/sounds';
+
 type Tone = 'info' | 'ok' | 'bad';
 interface Toast {
   id: number;
@@ -29,6 +31,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((msg: string, tone: Tone = 'info') => {
     const sanitized = tone === 'bad' ? formatErrorMessage(msg) : msg;
     const id = Date.now() + Math.random();
+    
+    // Feedback sonoro sutil según el tono
+    if (tone === 'ok') sound.playSuccess();
+    else if (tone === 'bad') sound.playError();
+    else sound.playNotify();
+
     setToasts((t) => [...t, { id, msg: sanitized, tone }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   }, []);

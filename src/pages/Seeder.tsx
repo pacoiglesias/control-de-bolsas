@@ -57,25 +57,32 @@ Pago recibido 23 julio	76140.00`);
     try {
       addLog("Iniciando borrado maestro...");
       
-      let batch = writeBatch(db);
-      const ordersSnap = await getDocs(collection(db, PATHS.orders));
-      let count = 0;
-      ordersSnap.forEach((doc) => {
-        batch.delete(doc.ref);
-        count++;
-      });
-      await batch.commit();
-      addLog(`Eliminados ${count} expedientes de ventas.`);
+      const deleteInBatches = async (collName: string) => {
+        const snap = await getDocs(collection(db, collName));
+        let count = 0;
+        let batch = writeBatch(db);
+        let batchSize = 0;
+        for (const docSnap of snap.docs) {
+          batch.delete(docSnap.ref);
+          count++;
+          batchSize++;
+          if (batchSize >= 400) {
+            await batch.commit();
+            batch = writeBatch(db);
+            batchSize = 0;
+          }
+        }
+        if (batchSize > 0) {
+          await batch.commit();
+        }
+        return count;
+      };
 
-      batch = writeBatch(db);
-      const expensesSnap = await getDocs(collection(db, PATHS.expenses));
-      count = 0;
-      expensesSnap.forEach((doc) => {
-        batch.delete(doc.ref);
-        count++;
-      });
-      await batch.commit();
-      addLog(`Eliminados ${count} registros de Caja Chica.`);
+      const countOrders = await deleteInBatches(PATHS.orders);
+      addLog(`Eliminados ${countOrders} expedientes de ventas.`);
+
+      const countExpenses = await deleteInBatches(PATHS.expenses);
+      addLog(`Eliminados ${countExpenses} registros de Caja Chica.`);
 
       addLog("Sistema en cero. Analizando datos ingresados...");
       
@@ -122,8 +129,7 @@ Pago recibido 23 julio	76140.00`);
         throw new Error('La configuración financiera no tiene un precio de venta válido.');
       }
       addLog(`Precio por kilo con IVA: ${precioBrutoPorKg.toFixed(2)} (${config.salePricePerKg} + ${(config.ivaRate * 100).toFixed(0)}%)`);
-      addLog(`Se detectaron ${crs.length} contrarecibos y ${facturas.length} facturas pendientes.`);
-      batch = writeBatch(db);
+      let batch = writeBatch(db);
       
       // Inyectar Contrarecibos
       crs.forEach((cr) => {

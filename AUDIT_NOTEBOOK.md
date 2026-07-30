@@ -6,6 +6,17 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 11 — 2026-07-30 — Integración de Audio Sensorial y Chunking Seguro de Firestore Batches
+
+> En este ciclo se conectó el motor de audio sintético nativo (`sounds.ts`) con el sistema global de notificaciones (`ToastContext.tsx`), y se añadió chunking a los borrados masivos para prevenir límites de lote en Firestore.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/context/ToastContext.tsx` | Las notificaciones tipo `ok`, `bad` e `info` no ofrecían retroalimentación sonora a pesar de contar con `src/lib/sounds.ts`. | Integrado `sound.playSuccess()`, `sound.playError()` y `sound.playNotify()` en `ToastContext`. Todas las notificaciones del sistema ahora emiten micro-tonos sutiles sin librerías externas. |
+| `src/pages/Seeder.tsx` | El borrado maestro ejecutaba `batch.delete()` sobre toda la colección de golpe. Si la base crecía a más de 500 documentos, la operación fallaba con `InvalidArgumentError`. | Implementado helper `deleteInBatches()` con chunking de máximo 400 operaciones por commit en Firestore. |
+
+---
+
 ## ✅ Ciclo 10 — 2026-07-30 — Panel completo: margen, caja chica y cobros con contabilidad
 
 > Tras el Ciclo 9, "Te deben" ya mostraba **1,435,270.48**, que coincide al peso con la hoja del negocio. Faltaban tres indicadores en cero por causas distintas.
