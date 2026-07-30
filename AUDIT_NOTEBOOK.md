@@ -332,3 +332,18 @@ Los doce hallazgos del ciclo 3 fueron corregidos y verificados. Estado de la ver
 - **Problema:** El sufijo "d" (ej. "28d") en las columnas de cobranza y órdenes se confundía visualmente con un "0" para usuarios con dificultades visuales ("280").
 - **Solución:** Se eliminó el sufijo "d" o se reemplazó por la palabra "días" en `Orders.tsx` y `Cobranza.tsx` para máxima legibilidad.
 - **Estado:** ✅ Resuelto.
+
+### 2026-07-29 - firestore.rules y Dashboard.tsx - "Missing or insufficient permissions"
+- **Problema:** El nuevo bloque de agregación en `stats/dashboard` no tenía regla de lectura, bloqueando todo el frontend. Además, el Dashboard intentaba leer la bitácora `system_logs` sin importar el rol del usuario, colisionando con la regla de seguridad que lo reserva solo para super administradores.
+- **Solución:** Se agregó la regla `allow read: if isAuthenticatedUser();` para `stats` en Firestore. En el Dashboard se condicionó el stream de `system_logs` y la tarjeta de "Último Movimiento" para que se ejecuten y rendericen exclusivamente si `role === 'admin'`.
+- **Estado:** ✅ Resuelto y reglas desplegadas a producción.
+
+### 2026-07-29 - system_logs - Limpieza de bitácora
+- **Problema:** El usuario solicitó borrar los logs, pero debido al modelo Zero-Trust, el frontend tiene `allow delete: if false` para la colección `system_logs` previniendo manipulaciones.
+- **Solución:** Ejecución forzada vía terminal local (Firebase CLI / Admin) con el comando `firestore:delete system_logs -r -f`.
+- **Estado:** ✅ Resuelto.
+
+### 2026-07-29 - src/pages/Catalog.tsx - Columna de Código Faltante
+- **Problema:** El catálogo inteligente no mostraba el código de los productos a pesar de existir en el esquema de datos, complicando la identificación por SKU.
+- **Solución:** Inyección de la columna `Código` (`p.code`) en la tabla de `Catalog.tsx`, justo antes de la descripción.
+- **Estado:** ✅ Resuelto.
