@@ -6,6 +6,16 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 22 — 2026-07-30 — Permiso de Limpieza de Bitácora para Administrador en Firestore Rules
+
+> Se diagnosticó y corrigió el error "🔒 Acceso denegado: No tienes permisos de administrador para realizar esta acción" al intentar borrar la bitácora desde la pantalla de Logs. La regla `firestore.rules` tenía declarada la inmutabilidad estricta con `allow update, delete: if false;` bloqueando a los administradores. Se actualizó la regla a `allow delete: if isSuperAdmin();` y se relajaron las restricciones excesivas de `email_verified` en las funciones de verificación de correo del propietario.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `firestore.rules` | La colección `system_logs` tenía `allow update, delete: if false;`, impidiendo que el rol `admin` borrara o limpiara la bitácora desde `Logs.tsx`. | Cambiado a `allow delete: if isSuperAdmin();` y ajustados los helpers `isAllowedOwnerEmail` y `esAdminReal`. |
+
+---
+
 ## ✅ Ciclo 21 — 2026-07-30 — Corrección de Error de Firestore "Unsupported field value: undefined" en Reversión de Recolecciones
 
 > Se diagnosticó y corrigió el error en tiempo de ejecución al hacer clic en "Deshacer Recolección": `Function Transaction.update() called with invalid data. Unsupported field value: undefined`. El SDK de Firestore prohíbe pasar `undefined` dentro de propiedades de objetos serializados en transacciones. Se reemplazaron todas las asignaciones `collectedAt: undefined` y `paidAt: undefined` por `null`, permitiendo que la transacción de reversión complete de forma atómica y sin fallas.

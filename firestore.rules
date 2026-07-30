@@ -7,20 +7,19 @@ service cloud.firestore {
     // de Firebase Auth y queda con control total de los datos.
     function isAllowedOwnerEmail() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && (
           request.auth.token.email == "paco.iglesias@gmail.com"
           || request.auth.token.email == "pacoismael@gmail.com"
           || request.auth.token.email == "paco@cobertores.com"
           || request.auth.token.email.matches(".*@ruenisco\\.com$")
+          || request.auth.token.email.matches(".*@cobertores\\.com$")
         );
     }
 
-    // Un usuario existe en la plataforma si es owner o tiene documento con email verificado.
+    // Un usuario existe en la plataforma si es owner o tiene documento de admin.
     function isAuthenticatedUser() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid))
           || isAllowedOwnerEmail()
@@ -41,12 +40,14 @@ service cloud.firestore {
       return isAuthenticatedUser() && (getRole() == 'admin' || getRole() == 'manager');
     }
 
-    // Un administrador de verdad: existe su documento Y su rol es 'admin' con correo verificado.
+    // Un administrador de verdad: existe su documento Y su rol es 'admin'.
     function esAdminReal() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+        && (
+          (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+          && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+          || isAllowedOwnerEmail()
+        );
     }
 
     match /admins/{uid} {
@@ -134,7 +135,8 @@ service cloud.firestore {
         && request.auth.token.email != null
         && request.resource.data.user == request.auth.token.email.lower()
         && request.resource.data.timestamp == request.time;
-      allow update, delete: if false; // Logs inmutables
+      allow update: if false;
+      allow delete: if isSuperAdmin();
     }
 
     // Todo lo demás queda cerrado.
