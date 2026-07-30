@@ -290,6 +290,24 @@ export async function seedInitialDatabase() {
         paidAt: null,
         notes: item.notes ?? '',
       },
+      invoices: item.status !== 'pedido' ? [{
+        id: `inv-${item.id}`,
+        folio: item.folio,
+        kilos: kilos,
+        financials: computeFinancials(kilos, cfg),
+        creditCycle: {
+          status: item.status,
+          issueDate: Timestamp.fromDate(issueDate),
+          dueDate: Timestamp.fromDate(dueDate),
+        },
+        collection: {
+          contrareciboNumber: item.contrarecibo ?? '',
+          contrareciboDate: crDate ? Timestamp.fromDate(crDate) : null,
+          paidAmount: 0,
+          paidAt: null,
+        }
+      }] : [],
+      invoiceStatuses: item.status !== 'pedido' ? [item.status] : [],
       items: (item as any).items || [],
       processedAt: serverTimestamp(),
       origin: item.origin,
