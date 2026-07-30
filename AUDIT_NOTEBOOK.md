@@ -6,6 +6,17 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 14 — 2026-07-30 — Auditoría Integral del Libro Mayor y Flujo Físico de Caja Chica ($75,265.56)
+
+> Se auditó el desglose completo del archivo maestro del usuario. Se detectó que el concepto "Deuda con Andrés ($125,175.56)" es un Pasivo (Cuentas por Pagar) de Compras y NO una salida física de Caja Chica. Al excluirlo de los movimientos en efectivo, el saldo de Caja Chica cuadró al centavo con el total exacto del archivo maestro ($75,265.56).
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/lib/seedData.ts` | `INITIAL_EXPENSES` incluía la deuda técnica de Andrés ($125,175.56) como un egreso de caja física, distorsionando el saldo líquido. | Eliminada la entrada de pasivo de los egresos en efectivo. Los 4 movimientos líquidos ($-819.44 + $144,945.00 - $145,000.00 + $76,140.00) entregan el saldo neto exacto de **$75,265.56**, idéntico a la hoja maestra. |
+| `src/lib/seedData.ts` | TH-836 ($106,720.17) figuraba en la lista de facturas pendientes en lugar de su posición como Contrarecibo Generado. | Reubicado TH-836 como el 1.º de los 12 Contrarecibos, cuadrando el total de "ME DEBEN" a **$1,435,270.48** ($1,298,970.48 de contrarecibos + $136,300.00 de las 2 facturas en revisión). |
+
+---
+
 ## ✅ Ciclo 13 — 2026-07-30 — Módulo de Pre-Factura CFDI 4.0 y Registro de Entrega Real de Andrés (OC 120267114014)
 
 > Tras la entrega del material por parte del fabricante Andrés (2,964.16 kg totales), se sincronizaron los montos de facturación real ($161,606.00 con IVA) y se construyó el generador de Pre-Factura CFDI 4.0 vectorial en `OrderModal.tsx`.

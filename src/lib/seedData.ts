@@ -244,11 +244,10 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
 ];
 
 export const INITIAL_EXPENSES = [
-  { id: 'seed-exp-1', dateStr: '2026-07-01', concept: 'saldo nuestra caja chica', amount: -819.44, type: 'egreso' },
-  { id: 'seed-exp-2', dateStr: '2026-07-15', concept: 'recibimos pago dinero ingresa en csaja chica', amount: 144945, type: 'ingreso' },
-  { id: 'seed-exp-3', dateStr: '2026-07-20', concept: 'deuda con andres es negativo para nosotros porque', amount: -125175.56, type: 'egreso', provider: 'Andres' },
-  { id: 'seed-exp-4', dateStr: '2026-07-21', concept: 'adelanto andres 21 julio', amount: 145000, type: 'egreso', provider: 'Andres' },
-  { id: 'seed-exp-5', dateStr: '2026-07-23', concept: 'recibimos el dinero 23 de julio ingresa en caja chica', amount: 76140, type: 'ingreso' }
+  { id: 'seed-exp-1', dateStr: '2026-07-01', concept: 'saldo nuestra caja chica', amount: 819.44, type: 'egreso' },
+  { id: 'seed-exp-2', dateStr: '2026-07-15', concept: 'recibimos pago dinero ingresa en caja chica', amount: 144945.00, type: 'ingreso' },
+  { id: 'seed-exp-4', dateStr: '2026-07-21', concept: 'adelanto andres 21 julio', amount: 145000.00, type: 'egreso', provider: 'Andres' },
+  { id: 'seed-exp-5', dateStr: '2026-07-23', concept: 'recibimos el dinero 23 de julio ingresa en caja chica', amount: 76140.00, type: 'ingreso' }
 ];
 
 export async function seedInitialDatabase() {
