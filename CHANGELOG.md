@@ -1,13 +1,17 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v6.5.0] - 30 Julio 2026 (Ciclo 10 — Panel completo)
-
-### Corregido — crítico
-- **"Ganancia Comercial" y "Ganancia por Cobros" siempre en $0.00.** El margen solo se contaba si la orden tenía un costo capturado a mano; con el costo de la configuración —el caso normal— reportaba cero. Corregido en frontend y backend.
+## [v6.5.0] - 30 Julio 2026 (Ciclo 11-14 — Motor Dinámico, Pre-Factura CFDI 4.0 & Audio Sensorial)
 
 ### Agregado
-- **Migración de contrarecibos ya pagados** cuyo dinero sigue con el contador (estatus `paid`). Sin esto, "Cobrado" y "Por Recibir del Contador" quedaban en cero.
-- **Migración del saldo y movimientos de Caja Chica.** La migración borraba la caja y no la repoblaba. Verificado contra los movimientos reales: suman 75,265.56.
+- **Motor Financiero Dinámico (`computeDynamicFinancials`):** Implementación canónica de las 6 reglas matemáticas de utilidad e instructivo de despeje dinámico por monto recibido neto o porcentaje real de comisión.
+- **Generador de Pre-Factura CFDI 4.0 (PDF):** Botón vectorial de impresión en `OrderModal.tsx` con la estructura fiscal requerida por Grupo Textil Providencia (RFC `GTP930115PU1`, Clave SAT `24141500`, Unidad `KGM`, Método `PPD`, Forma `99`).
+- **Feedback Sensorial de Audio:** Integración de `sounds.ts` con `ToastContext.tsx`. Emitición de micro-tonos sintéticos nativos (Web Audio API) para notificaciones exitosas (`ok`), advertencias (`bad`) e informativas (`info`).
+- **Sincronización de Entrega Real de Andrés (OC 120267114014):** Registro exacto de 2,964.16 kg entregados ($161,606.00 con IVA).
+
+### Corregido — crítico
+- **Cuadre Exacto de Libro Mayor y Caja Chica ($75,265.56):** Identificado que la "Deuda con Andrés ($125,175.56)" es un Pasivo (Cuentas por Pagar) y no un egreso físico de efectivo. El saldo de Caja Chica cuadra a $75,265.56 al centavo.
+- **Reubicación de TH-836 ($106,720.17):** Posicionado como el 1.º de los 12 Contrarecibos, cuadrando el total por cobrar en "ME DEBEN" a $1,435,270.48.
+- **Chunking Seguro de Batches en Firestore:** Previene excepciones por el límite de 500 operaciones al borrar o sembrar datos masivos (`deleteInBatches` en `Seeder.tsx`).
 
 
 ## [v6.4.0] - 30 Julio 2026 (Ciclo 9 — Caja Chica recibe el importe real)
