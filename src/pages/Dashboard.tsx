@@ -562,7 +562,7 @@ export default function Dashboard() {
             sub="flujo líquido" onClick={() => nav('/caja-chica')} />
         )}
         <KpiCard tone={k.review.length ? 'warn' : undefined} label="Esperan captura manual"
-          value={k.review.length} sub="la IA no pudo leer el PDF"
+          value={k.review.length} sub="XML no subido o inválido"
           onClick={() => nav('/ordenes?filtro=manual_review')} />
       </div>
 

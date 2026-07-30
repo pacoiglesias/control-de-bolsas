@@ -10,7 +10,7 @@ import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
-  { ignores: ['dist', 'functions/lib', 'node_modules', 'functions/node_modules'] },
+  { ignores: ['dist', 'functions/lib', 'node_modules', 'functions/node_modules', '_respaldo_*', 'PARA-CLAUDE_*.zip'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

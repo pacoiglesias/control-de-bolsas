@@ -425,3 +425,13 @@ eadConfigCacheada provocaba condición de carrera si múltiples eventos se proce
 - **Problema:** El catálogo inteligente no mostraba el código de los productos a pesar de existir en el esquema de datos, complicando la identificación por SKU.
 - **Solución:** Inyección de la columna `Código` (`p.code`) en la tabla de `Catalog.tsx`, justo antes de la descripción.
 - **Estado:** ✅ Resuelto.
+
+### Intervención - 2026-07-30 (Fijación de Ceros y Limpieza de UI)
+- **Problema Reportado:** El panel mostraba 0 en todos los KPIs y seguía apareciendo el texto 'la IA no pudo leer el PDF'.
+- **Análisis Staff Engineer:**
+  1. Los ceros ocurrieron porque el backend (Cloud Functions) que contiene recalcDashboardStats aún no estaba desplegado en la nube tras la actualización local a v6.1.0.
+  2. El texto sobre la IA quedó obsoleto debido a la implementación del parser XML local (v6.1.0).
+- **Acciones Tomadas:**
+  - Se ejecutó firebase deploy --only functions para subir la función de siembra.
+  - Se modificó Dashboard.tsx cambiando la advertencia a 'XML no subido o inválido'.
+  - Se redactó el Plan de Implementación para el **Paso 3 (Subcolecciones)**, a la espera de aprobación para ejecutar.
