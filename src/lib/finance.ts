@@ -81,12 +81,8 @@ export function getOrderSummary(o: PurchaseOrder) {
   
   let kilosInvoiced = 0, invoiceTotal = 0, saleTotal = 0, commission = 0, netCashFlow = 0, paidAmount = 0;
   let hasOverdue = false, hasManual = false, hasPending = false, hasFacturado = false, allPaid = true, allPedido = true;
-  // 'collected' es el estado FINAL del ciclo: el contador ya entrego el
-  // efectivo. No estaba contemplado abajo, asi que una factura cobrada no
-  // encendia ninguna bandera, ponia allPaid en false y la cascada de if/else
-  // caia al valor de respaldo o.creditCycle.status (el campo legado de la
-  // raiz): un expediente totalmente cobrado volvia a mostrarse como pendiente.
   let hasCollected = false;
+  let maxDaysLate: number | null = null;
 
   for (const i of invoices) {
     kilosInvoiced += i.kilos;
@@ -102,9 +98,21 @@ export function getOrderSummary(o: PurchaseOrder) {
     if (s === 'pending') hasPending = true;
     if (s === 'facturado') hasFacturado = true;
     if (s === 'collected') hasCollected = true;
-    // Cobrada y recibida cuentan igual como "ya no se debe nada".
     if (s !== 'paid' && s !== 'collected') allPaid = false;
     if (s !== 'pedido') allPedido = false;
+
+    if (s === 'pending' || s === 'overdue') {
+      let dDate: Date | null = null;
+      if (i.creditCycle.dueDate) {
+        dDate = (i.creditCycle.dueDate as any).toDate ? (i.creditCycle.dueDate as any).toDate() : new Date(i.creditCycle.dueDate as any);
+      }
+      const d = daysLate(dDate);
+      if (d !== null) {
+        if (maxDaysLate === null || d > maxDaysLate) {
+          maxDaysLate = d;
+        }
+      }
+    }
   }
 
   kilosInvoiced = round2(kilosInvoiced);
@@ -121,9 +129,6 @@ export function getOrderSummary(o: PurchaseOrder) {
     else if (hasPending) status = 'pending';
     else if (hasFacturado) status = 'facturado';
     else if (allPaid) {
-      // Si todo esta liquidado pero faltan kilos por facturar, el expediente
-      // sigue abierto. Si ademas el efectivo ya se recibio, se distingue con
-      // 'collected' para no perder ese matiz en la tabla.
       if (kilosInvoiced < (o.totalKilograms || 0)) status = 'pending';
       else status = hasCollected ? 'collected' : 'paid';
     } else if (allPedido) {
@@ -141,6 +146,7 @@ export function getOrderSummary(o: PurchaseOrder) {
     commission,
     netCashFlow,
     paidAmount,
-    status
+    status,
+    maxDaysLate
   };
 }

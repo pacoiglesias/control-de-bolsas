@@ -140,6 +140,52 @@ export default function Cobranza() {
     }
   }
 
+  async function undoContrareciboBlock(crNumber: string) {
+    if (!crNumber) return;
+    if (!window.confirm(`¿Seguro que quieres DESHACER el cobro del Contrarecibo ${crNumber}? Las facturas volverán a pendientes.`)) return;
+    
+    const invoicesToUndo = data.paid.filter(({ o, inv }) => 
+      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
+    );
+    
+    const objetivo: Record<string, string[]> = {};
+    for (const { o, inv } of invoicesToUndo) {
+      (objetivo[o.id] ??= []).push(inv.id);
+    }
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const refs = Object.keys(objetivo).map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+
+        refs.forEach(({ id, ref }, k) => {
+          const snap = snaps[k];
+          if (!snap.exists()) return;
+          let invoices: Invoice[] = snap.data().invoices ?? [];
+          for (const invoiceId of objetivo[id]) {
+            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
+              ...x,
+              creditCycle: { ...x.creditCycle, status: 'pending' },
+              collection: {
+                ...x.collection,
+                paidAmount: 0,
+                paidAt: undefined,
+              },
+            }));
+            if (nuevas) invoices = nuevas;
+          }
+          tx.update(ref, camposInvoices(invoices));
+        });
+      });
+      toast(`Cobro del Contrarecibo ${crNumber} deshecho.`, 'ok');
+    } catch (e) {
+      toast(`Error al deshacer cobro: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   async function collectContrareciboBlock(crNumber: string, netUtilidad: number) {
     if (!crNumber) return;
     if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se inyectará un Ingreso por $${netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
@@ -605,9 +651,9 @@ export default function Cobranza() {
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">
                       {d === null ? '—' : hasCr ? (
-                        // Con Contrarecibo: mostrar cuenta regresiva, NO atraso
+                        // Con Contrarecibo
                         d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--warn)', color: '#333' }}>Cobrar ✓</span>
+                          <span className="badge" style={{ background: 'var(--bad)' }}>Vencido {d}d</span>
                         ) : d === 0 ? (
                           <span className="badge" style={{ background: 'var(--ok)' }}>Hoy</span>
                         ) : (
@@ -735,6 +781,16 @@ export default function Cobranza() {
                                 }}
                               >
                                 💰 Recoger Lote
+                              </button>
+                              <button 
+                                className="btn-small btn-warn" 
+                                style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '4px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  undoContrareciboBlock(currentCr);
+                                }}
+                              >
+                                ↩️ Deshacer Cobro
                               </button>
                             </div>
                           )}

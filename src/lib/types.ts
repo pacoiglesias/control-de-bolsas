@@ -72,6 +72,7 @@ export interface Invoice {
 
 export interface PurchaseOrderItem {
   id: string;
+  code?: string;
   quantity: number;
   deliveredQuantity?: number;
   unit: string;
@@ -83,6 +84,7 @@ export interface PurchaseOrderItem {
 export interface PurchaseOrder {
   id: string;
   fileName?: string;
+  fileHash?: string;
   client?: string;
   department?: string;
   provider?: string;
@@ -157,6 +159,7 @@ export const STATUS_TONE: Record<OrderStatus, string> = {
 
 export interface Product {
   id: string;
+  code?: string;
   description: string;
   unit: string;
   defaultPrice: number;

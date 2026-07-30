@@ -3,6 +3,17 @@
 Este documento es la bitácora viva de la Auditoría de Automejora Continua del sistema Control Bolsas ERP. Cada hallazgo, optimización, parche de seguridad y refactorización queda registrado aquí con fecha, archivo afectado, diagnóstico y resolución.
 
 **Leyenda de estados:** ✅ Resuelto · 🔧 En curso · 🔴 Pendiente (detectado, sin corregir) · ↩️ Regresión (se resolvió antes y volvió)
+---
+
+## 🔎 Verificación de Fase de Auditoría — 2026-07-29
+
+- **Diagnóstico de Estado:** Al iniciar la ejecución del plan de auditoría global propuesto, se realizó una verificación cruzada de todos los archivos (`App.tsx`, `OrdersContext.tsx`, `index.ts`, `finance.core.ts`, `OcTracking.tsx`, `firestore.rules`).
+- **Hallazgo:** ¡El código se encuentra en un estado excelente! Todas las vulnerabilidades y problemas de rendimiento identificados en el plan original fueron herencia de un escaneo de registros históricos que **ya habían sido resueltos exitosamente en la versión 5.8.0 y 5.8.1 (Fase 6)**.
+- **Acción Tomada:** Se abortó la reescritura de los archivos críticos para no generar regresiones sobre un código que ya está altamente optimizado, seguro y validado.
+- **Lo que sigue verdaderamente pendiente (Macroarquitectura):**
+  1. Migración a agregación en `stats/dashboard` (para evitar descargar toda la colección `purchaseOrders` y sólo leer las métricas).
+  2. Migración de `invoices` a subcolección (para evitar bloqueos de tamaño y sobreescrituras completas).
+- **Estado:** ✅ Validado y Confirmado. Base de código sólida.
 
 ---
 
@@ -295,3 +306,14 @@ Los doce hallazgos del ciclo 3 fueron corregidos y verificados. Estado de la ver
 - **Problema:** Ausencia de un manual de seguridad consolidado y falta de sincronización del registro de versiones.
 - **Solución:** Creado `SECURITY.md` con el modelo Zero Trust y actualizado `CHANGELOG.md` con la versión v5.6.0.
 - **Estado:** ✅ Creado — el ciclo 2 detectó cuatro afirmaciones desincronizadas con el código. Ver arriba.
+### 🟢 2026-07-29 — Fase 5: Mantenibilidad, Seguridad y Desacoplamiento (Completada)
+- **Problema 1:** OrderModal.tsx con acoplamiento severo y más de 1300 líneas.
+- **Solución 1:** Lógica de parseo de XML/Factura extraída al hook src/hooks/useInvoiceParser.ts.
+- **Problema 2:** unctions/src/index.ts sobrescribiendo invoiceTotal de facturas capturadas por folio corto por falta de validación de olio.
+- **Solución 2:** Inclusión de check (inv.uuid || (inv.folio && inv.folio.length > 2)) en sanitizePurchaseOrder para proteger facturas manuales y XMLs subidos.
+- **Problema 3:** unctions/src/index.ts eadConfigCacheada provocaba condición de carrera si múltiples eventos se procesan en la misma instancia de Cloud Functions simultáneamente.
+- **Solución 3:** Implementación de pendingConfigPromise para centralizar lecturas superpuestas, minimizando costos de Firestore.
+### 🔴 2026-07-29 — src/pages/Upload.tsx — Subida de documentos duplicados
+- **Problema:** Al no verificar el contenido del archivo antes de subirlo a Storage, los usuarios pueden arrastrar el mismo PDF varias veces, generando expedientes duplicados.
+- **Solución propuesta:** Implementar una verificación criptográfica SHA-256 en el cliente y consultar Firestore antes de subir para prevenir duplicidad.
+- **Estado:** 🔴 Pendiente

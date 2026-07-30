@@ -28,6 +28,9 @@ export default function Orders() {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
   useEffect(() => {
     const q = params.get('q');
@@ -70,6 +73,15 @@ export default function Orders() {
         .includes(q);
     });
   }, [conResumen, filter, search]);
+
+  const paginatedRows = useMemo(() => {
+    return rows.slice((page - 1) * pageSize, page * pageSize);
+  }, [rows, page]);
+
+  // Resetear página al cambiar filtro o búsqueda
+  useEffect(() => {
+    setPage(1);
+  }, [filter, search]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: conResumen.length };
@@ -207,7 +219,7 @@ export default function Orders() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Expediente</th><th>Cliente</th><th>Prov.</th>
+                  <th>Expediente / OC</th><th>Cliente</th><th>Prov.</th>
                   <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
                   <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
                   <th className="num">Deuda Restante</th>
@@ -215,7 +227,7 @@ export default function Orders() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ o, s: summary }) => {
+                {paginatedRows.map(({ o, s: summary }) => {
                   const st = summary.status;
                   const deuda = summary.invoiceTotal - summary.paidAmount;
                   return (
@@ -225,7 +237,22 @@ export default function Orders() {
                       onClick={() => setSelected(o)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="mono">{o.folio ?? <span className="hint">#{o.id.slice(0, 6)}</span>}</td>
+                      <td className="mono" style={{ lineHeight: '1.4' }}>
+                        <div>
+                          <strong>{o.oc || o.folio || 'Sin Folio'}</strong>
+                        </div>
+                        {o.oc && o.folio && o.oc !== o.folio && (
+                          <div className="hint" style={{ fontSize: '0.85em' }}>Folio: {o.folio}</div>
+                        )}
+                        {!o.oc && !o.folio && (
+                          <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
+                        )}
+                        {summary.invoices.some(i => i.collection?.contrareciboNumber) && (
+                          <div style={{ fontSize: '0.8em', color: 'var(--brand)', marginTop: '4px' }}>
+                            CR: {Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))).join(', ')}
+                          </div>
+                        )}
+                      </td>
                       <td>{o.client ?? '—'}</td>
                       <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
@@ -238,7 +265,14 @@ export default function Orders() {
                       <td className="num mono">{money(summary.paidAmount)}</td>
                       <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
                       <td>
-                        <StatusBadge status={st} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                          <StatusBadge status={st} />
+                          {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
+                            <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>
+                              {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate}d` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)}d`}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -258,6 +292,14 @@ export default function Orders() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        )}
+        
+        {rows.length > pageSize && (
+          <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+            <button className="btn" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Anterior</button>
+            <span style={{ padding: '4px 12px', fontSize: '0.9em' }}>Página {page} de {Math.ceil(rows.length / pageSize)}</span>
+            <button className="btn" disabled={page >= Math.ceil(rows.length / pageSize)} onClick={() => setPage(p => p + 1)}>Siguiente</button>
           </div>
         )}
       </Card>

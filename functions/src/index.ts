@@ -11,9 +11,6 @@ import {
   getFirestore,
   type QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
-import { genkit, z } from "genkit";
-import { googleAI } from "@genkit-ai/googleai";
-import { defineSecret } from "firebase-functions/params";
 import { XMLParser } from "fast-xml-parser";
 import { createHash } from "crypto";
 import {
@@ -27,11 +24,6 @@ initializeApp();
 
 // Configuración global apuntando a us-east1 para que coincida con tu Storage
 setGlobalOptions({ region: "us-east1", maxInstances: 10 });
-
-const apiKeySecret = defineSecret("GOOGLE_GENAI_API_KEY");
-
-/** Cámbialo si Google retira el modelo; el resto del código no se toca. */
-const MODEL = "googleai/gemini-2.0-flash";
 
 const UPLOAD_PREFIX = "uploads/";
 
@@ -55,29 +47,6 @@ const DEFAULTS = {
   commissionBase: "subtotal" as "subtotal" | "total",
 };
 
-const DocumentSchema = z.object({
-  docType: z.enum(["orden_compra", "factura", "contrarecibo"]).describe("Determina si el documento es Orden de Compra, Factura, o Contra Recibo."),
-  folio: z.string().describe("Número de folio del documento"),
-  uuid: z.string().optional().describe("Si es factura, el UUID (Folio Fiscal) de 36 caracteres."),
-  ocReference: z.string().optional().describe("Si es factura, el número de la OC a la que hace referencia."),
-  paymentDate: z.string().optional().describe("Si es contrarecibo, la fecha programada de pago (YYYY-MM-DD)"),
-  crInvoices: z.array(z.string()).optional().describe("Si es contrarecibo, lista de facturas que agrupa (solo los números)"),
-  totalKilograms: z.number().describe("Suma de Kilogramos totales del documento"),
-  totalAmount: z.number().optional().describe("Si es factura, el monto total (con IVA)."),
-  client: z.string().optional().describe("Nombre o clave del cliente"),
-  items: z.array(z.object({
-    quantity: z.number().describe("Cantidad numérica"),
-    unit: z.string().describe("Unidad de medida (ej. Kilos, Bulto, Millar, Pza)"),
-    description: z.string().describe("Descripción del artículo o concepto"),
-    unitPrice: z.number().describe("Precio unitario"),
-    amount: z.number().describe("Importe total de esta partida")
-  })).optional().describe("Lista detallada de artículos (partidas) del documento"),
-});
-
-/** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
-const docIdFor = (filePath: string) =>
-  createHash("sha1").update(filePath).digest("hex").slice(0, 20);
-
 async function readConfig(): Promise<FinanceConfigCore> {
   const snap = await getFirestore().collection("config").doc("financials").get();
   const c = snap.exists ? (snap.data() as Partial<typeof DEFAULTS>) : {};
@@ -95,48 +64,27 @@ async function readConfig(): Promise<FinanceConfigCore> {
  *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
  *  documento en cada invocacion. */
 let cacheConfig: { valor: FinanceConfigCore; expira: number } | null = null;
+let pendingConfigPromise: Promise<FinanceConfigCore> | null = null;
+
 async function readConfigCacheada(): Promise<FinanceConfigCore> {
   if (cacheConfig && Date.now() < cacheConfig.expira) return cacheConfig.valor;
-  const valor = await readConfig();
-  cacheConfig = { valor, expira: Date.now() + 60_000 };
-  return valor;
+  if (pendingConfigPromise) return pendingConfigPromise;
+  
+  pendingConfigPromise = readConfig().then(valor => {
+    cacheConfig = { valor, expira: Date.now() + 60_000 };
+    pendingConfigPromise = null;
+    return valor;
+  }).catch(err => {
+    pendingConfigPromise = null;
+    throw err;
+  });
+  
+  return pendingConfigPromise;
 }
 
-/**
- * Clasifica un fallo como transitorio o permanente.
- *
- * Sin esto, un 429 por cuota de Gemini y un PDF genuinamente ilegible
- * terminaban en el mismo sitio: manual_review, esperando intervencion humana.
- * Los transitorios se relanzan para que Eventarc los reintente con retroceso
- * exponencial; los permanentes se dan por perdidos de inmediato para no
- * quemar cuota reintentando algo que nunca va a funcionar.
- */
-function esTransitorio(error: unknown): boolean {
-  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  const codigo = Number((error as { code?: unknown })?.code ?? (error as { status?: unknown })?.status);
-  if (codigo === 429 || (codigo >= 500 && codigo <= 599)) return true;
-  return [
-    "429", "500", "502", "503", "504",
-    "quota", "rate limit", "resource exhausted", "resource_exhausted",
-    "deadline", "timeout", "etimedout", "econnreset", "socket hang up",
-    "unavailable", "internal error", "overloaded",
-  ].some((p) => msg.includes(p));
-}
-
-/** Tope de reintentos: pasado esto se deja en manual_review aunque el error
- *  parezca transitorio. Evita que un fallo permanente disfrazado de 503 se
- *  reintente durante dias. */
-const MAX_INTENTOS = 3;
-
-/** El cliente de Genkit se construia dentro del handler, en cada invocacion.
- *  Se crea una sola vez por instancia y se reutiliza mientras siga caliente. */
-let genkitCache: ReturnType<typeof genkit> | null = null;
-function obtenerGenkit() {
-  if (!genkitCache) {
-    genkitCache = genkit({ plugins: [googleAI({ apiKey: apiKeySecret.value() })] });
-  }
-  return genkitCache;
-}
+/** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
+const docIdFor = (filePath: string) =>
+  createHash("sha1").update(filePath).digest("hex").slice(0, 20);
 
 async function processStorageFile(filePath: string, bucketName?: string) {
   const db = getFirestore();
@@ -214,233 +162,30 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       }
       return;
     }
-
-    // Módulo PDF: Inteligencia Artificial
-    const pdfBuffer = fileBuffer;
-    const ai = obtenerGenkit();
-    const aiResponse = await ai.generate({
-      model: MODEL,
-      prompt: [
-        {
-          text:
-            "Eres un auditor contable experto. Clasifica este documento como 'orden_compra', 'factura' o 'contrarecibo'. " +
-            "Extrae el folio, cliente, y el total de kilogramos. " +
-            "Si es una factura, extrae también el UUID (Folio Fiscal), el monto total con IVA, y el número de la OC a la que hace referencia. " +
-            "Si es un contrarecibo, extrae la fecha de pago programada (paymentDate en YYYY-MM-DD) y TODOS los números de factura (crInvoices) que están siendo pagados o agrupados. " +
-            "MUY IMPORTANTE: En OC o Facturas, extrae el detalle de todos los artículos (partidas) en la tabla central " +
-            "con su cantidad, unidad de medida, descripción, precio unitario e importe total. " +
-            "Todos los números deben ir sin comas.",
-        },
-        {
-          media: {
-            contentType: "application/pdf",
-            url: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
-          },
-        },
-      ],
-      output: { schema: DocumentSchema },
-    });
-
-    const data = aiResponse.output;
-    if (!data) {
-      throw new Error("La IA no devolvió datos estructurados");
-    }
     
-    // Si no es contrarecibo, esperamos que tenga kilos válidos.
-    if (data.docType !== 'contrarecibo' && (!Number.isFinite(data.totalKilograms) || data.totalKilograms <= 0)) {
-      throw new Error("La IA no devolvió kilos válidos");
-    }
+    // Módulo PDF: Creación de expediente en blanco sin IA
+    const [metadata] = await bucket.file(filePath).getMetadata();
+    const fileHash = metadata?.metadata?.fileHash;
 
-    const cfg = await readConfig();
-    const issueDate = new Date();
-    const dueDate = new Date(issueDate);
-    dueDate.setDate(dueDate.getDate() + cfg.creditDays);
+    const newOrder = {
+      id: docIdFor(filePath),
+      fileName: filePath,
+      fileHash: fileHash ?? "",
+      status: "manual_review",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
 
-    if (data.docType === 'factura') {
-      const ocRefMatch = String(data.ocReference).replace(/\D/g, '');
-      let ocQuery = await db.collection(COL_ORDERS).where('folio', '==', data.ocReference).limit(1).get();
-      if (ocQuery.empty && ocRefMatch) {
-        // Fallback searching just by the digits
-        ocQuery = await db.collection(COL_ORDERS).where('folio', '==', ocRefMatch).limit(1).get();
-      }
-
-      if (ocQuery.empty) {
-        throw new Error(`Es factura pero no se encontró la OC original: ${data.ocReference}`);
-      }
-
-      const ocDoc = ocQuery.docs[0];
-      const ocData = ocDoc.data();
-      const invoices: any[] = Array.isArray(ocData.invoices) ? ocData.invoices : [];
-      const exists = invoices.some(inv => inv.folio === data.folio || (data.uuid && inv.uuid === data.uuid));
-
-      if (exists) {
-        logger.info(`Factura ${data.folio} ya existe en OC ${ocData.folio}. Se ignora.`);
-      } else {
-        const fin = computeFinancials(data.totalKilograms, cfg);
-        const newInvoice = {
-          id: docIdFor(filePath),
-          folio: data.folio,
-          uuid: data.uuid ?? "",
-          kilos: data.totalKilograms,
-          financials: {
-            ...fin,
-            invoiceTotal: data.totalAmount ?? fin.invoiceTotal
-          },
-          creditCycle: {
-            issueDate: Timestamp.fromDate(issueDate),
-            dueDate: Timestamp.fromDate(dueDate),
-            status: "pending",
-          }
-        };
-        const cleanFolio = String(data.folio).replace(/\D/g, '');
-        await ocDoc.ref.update({
-          invoices: FieldValue.arrayUnion(newInvoice),
-          invoiceStatuses: FieldValue.arrayUnion("pending"),
-          ...(cleanFolio ? { invoiceFolios: FieldValue.arrayUnion(cleanFolio) } : {}),
-          ...(data.uuid ? { invoiceUuids: FieldValue.arrayUnion(data.uuid.toUpperCase()) } : {}),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-        logger.info(`Factura ${data.folio} agregada a OC ${ocData.folio}`);
-      }
-    } else if (data.docType === 'contrarecibo') {
-      if (!data.crInvoices || data.crInvoices.length === 0) {
-        throw new Error("El contrarecibo no contiene números de factura identificables.");
-      }
-      
-      let encontradas = 0;
-      let dueDate: Date | null = null;
-      if (data.paymentDate) {
-        const parts = data.paymentDate.split("-");
-        if (parts.length === 3) {
-          dueDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
-        }
-      }
-
-      const targetFolios = data.crInvoices.map(f => String(f).replace(/\D/g, '')).filter(Boolean);
-      
-      // Búsqueda indexada por lotes (chunked) O(1) sin hacer Full Table Scan
-      const chunkSize = 30; // Límite de Firestore para array-contains-any
-      for (let i = 0; i < targetFolios.length; i += chunkSize) {
-        const chunk = targetFolios.slice(i, i + chunkSize);
-        const snapshot = await db.collection(COL_ORDERS).where('invoiceFolios', 'array-contains-any', chunk).get();
-        
-        for (const doc of snapshot.docs) {
-          const oData = doc.data();
-          const invoices = oData.invoices || [];
-          let modified = false;
-
-          for (const inv of invoices) {
-            const invFolio = String(inv.folio).replace(/\D/g, '');
-            if (invFolio && chunk.includes(invFolio)) {
-              if (!inv.collection) inv.collection = {};
-              inv.collection.contrareciboNumber = data.folio;
-              if (dueDate && !Number.isNaN(dueDate.getTime())) {
-                inv.creditCycle.dueDate = Timestamp.fromDate(dueDate);
-              }
-              modified = true;
-              encontradas++;
-            }
-          }
-
-          if (modified) {
-            await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
-          }
-        }
-      }
-
-      if (encontradas === 0) {
-        throw new Error(`Es el contrarecibo ${data.folio} pero no se halló en BD ninguna de estas facturas: ${data.crInvoices.join(', ')}`);
-      }
-      
-      logger.info(`Contrarecibo ${data.folio} procesado. Se vincularon ${encontradas} facturas.`);
-      
-      // Registrar el archivo procesado para evitar reprocesamiento y no ensuciar la base de órdenes con OCs falsas
-      await ref.set({
-        fileName: filePath,
-        folio: data.folio,
-        client: data.client ?? "",
-        docType: "contrarecibo",
-        aiError: FieldValue.delete(),
-        processedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    } else {
-      // Es Orden de Compra
-      await ref.set(
-        {
-          fileName: filePath,
-          folio: data.folio,
-          client: data.client ?? "",
-          totalKilograms: data.totalKilograms,
-          items: (data.items || []).map((it: any, i: number) => ({
-            id: Date.now().toString() + "-" + i,
-            quantity: it.quantity,
-            unit: it.unit,
-            description: it.description,
-            unitPrice: it.unitPrice,
-            amount: it.amount
-          })),
-          financials: computeFinancials(data.totalKilograms, cfg),
-          historicalConfig: cfg,
-          creditCycle: {
-            issueDate: Timestamp.fromDate(issueDate),
-            dueDate: Timestamp.fromDate(dueDate),
-            status: "pending",
-          },
-          invoiceStatuses: ["pending"],
-          processedAt: FieldValue.serverTimestamp(),
-          aiError: FieldValue.delete(),
-        },
-        { merge: true },
-      );
-      logger.info(`OK ${filePath} → OC folio ${data.folio}, ${data.totalKilograms} kg`);
-    }
+    logger.info(`Creado expediente vacío en revisión manual para PDF: ${filePath}`);
+    await ref.set(newOrder, { merge: true });
+    
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const transitorio = esTransitorio(error);
-
-    // Cuantos intentos lleva este archivo. Se guarda en el propio expediente
-    // para no depender de la memoria de la instancia, que muere entre
-    // invocaciones.
-    const previo = await ref.get();
-    const intentos = Number(previo.data()?.aiAttempts ?? 0) + 1;
-    const reintentable = transitorio && intentos < MAX_INTENTOS;
-
-    logger.error(
-      `Fallo de lectura en ${filePath} (intento ${intentos}/${MAX_INTENTOS}, ` +
-      `${transitorio ? "transitorio" : "permanente"}): ${message}`,
-    );
-
-    await ref.set(
-      {
-        fileName: filePath,
-        creditCycle: { status: "manual_review" },
-        aiError: reintentable
-          ? `Reintentando automaticamente (intento ${intentos} de ${MAX_INTENTOS}): ${message.slice(0, 400)}`
-          : message.slice(0, 500),
-        aiAttempts: intentos,
-        aiRetryable: reintentable,
-        processedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-
-    // Solo se relanza si vale la pena reintentar. Relanzar siempre, con
-    // retry activado, haria que un PDF ilegible se reprocesara durante dias
-    // quemando cuota de Gemini.
-    if (reintentable) throw error;
+    throw error;
   }
 }
 
-
 export const parseUploadedPDF = onObjectFinalized(
   {
-    secrets: [apiKeySecret],
-    memory: "1GiB",
-    timeoutSeconds: 300,
-    // retry activa el reintento con retroceso exponencial de Eventarc. Sin
-    // esto, el throw del catch solo dejaba rastro en los logs y nadie lo
-    // recogia: un 429 de Gemini condenaba el expediente a revision manual.
-    // processStorageFile solo relanza los errores transitorios y hasta
     // MAX_INTENTOS veces, asi que esto no dispara reintentos infinitos.
     retry: true,
   },
@@ -583,10 +328,8 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 
 /** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
 // Mismos recursos que parseUploadedPDF: ejecuta exactamente el mismo trabajo.
-// Con los valores por omision (256 MiB / 60 s) un PDF mediano se caia por
-// falta de memoria o por tiempo agotado.
 export const reprocessOrder = onCall(
-  { secrets: [apiKeySecret], memory: "1GiB", timeoutSeconds: 300 },
+  { memory: "256MiB", timeoutSeconds: 60 },
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
@@ -655,10 +398,11 @@ export const sanitizePurchaseOrder = onDocumentWritten(
       const kilos = Number(inv.kilos) || 0;
       const baseFin = computeFinancials(kilos, cfg);
 
-      // El total de una factura con UUID viene del CFDI timbrado, no de la
+      // El total de una factura con UUID o Folio viene del CFDI timbrado o captura real, no de la
       // formula. Sobrescribirlo con kilos x precio x IVA destruye el importe
       // fiscal real, que es justo el dato que no se puede recalcular.
-      const invoiceTotal = inv.uuid && Number(inv.financials?.invoiceTotal) > 0
+      const hasId = inv.uuid || (inv.folio && inv.folio.length > 2);
+      const invoiceTotal = hasId && Number(inv.financials?.invoiceTotal) > 0
         ? Number(inv.financials.invoiceTotal)
         : baseFin.invoiceTotal;
 
@@ -693,3 +437,5 @@ export const sanitizePurchaseOrder = onDocumentWritten(
     }
   },
 );
+
+export { syncDashboardStats } from "./stats";

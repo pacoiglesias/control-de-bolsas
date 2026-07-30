@@ -11,6 +11,7 @@ import { fromInputDate, money, toInputDate, kilos, toDate, percent } from '../li
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 import { useProducts } from '../hooks/useProducts';
+import { useInvoiceParser } from '../hooks/useInvoiceParser';
 
 export default function OrderModal({
   order,
@@ -172,8 +173,12 @@ export default function OrderModal({
           await Promise.all(
             form.items.map(async (it) => {
               if (!it.description.trim()) return;
-              const productId = it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+              const productId = it.code?.trim() 
+                ? it.code.trim().toUpperCase() 
+                : it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                
               await setDoc(doc(db, PATHS.products, productId), {
+                code: it.code?.trim() || null,
                 description: it.description.trim(),
                 unit: it.unit,
                 defaultPrice: it.unitPrice,
@@ -486,6 +491,17 @@ export default function OrderModal({
     if (field === 'description') {
       const matchedProd = products.find(p => p.description === value);
       if (matchedProd) {
+        next[index].code = matchedProd.code || '';
+        next[index].unit = matchedProd.unit;
+        next[index].unitPrice = matchedProd.defaultPrice;
+      }
+    }
+    
+    // Auto-fill from catalog if code matches exactly
+    if (field === 'code' && value) {
+      const matchedProd = products.find(p => p.code?.toUpperCase() === String(value).toUpperCase() || p.id === String(value).toUpperCase());
+      if (matchedProd) {
+        next[index].description = matchedProd.description;
         next[index].unit = matchedProd.unit;
         next[index].unitPrice = matchedProd.defaultPrice;
       }
@@ -676,7 +692,87 @@ export default function OrderModal({
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h4>Detalle de Artículos (Partidas de la OC)</h4>
-              {!readOnly && <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>}
+              {!readOnly && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" onClick={() => {
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF de la OC:");
+                    if (!text) return;
+                    
+                    const lines = text.split('\n');
+                    const newItems: any[] = [];
+                    
+                    for (const line of lines) {
+                      const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
+                      if (numsMatch) {
+                        const rawDesc = numsMatch[1].trim();
+                        const nums = numsMatch[2].trim().split(/\s+/).map(n => Number(n.replace(/,/g, '')));
+                        
+                        if (nums.length >= 3 && !rawDesc.toLowerCase().includes('subtotal') && !rawDesc.toLowerCase().includes('total')) {
+                          let code = '';
+                          let cleanDesc = rawDesc;
+                          const parts = cleanDesc.split(/\s+/);
+                          if (/^\d+$/.test(parts[0])) {
+                            parts.shift(); // Remove leading row number
+                          }
+                          // Check if first word looks like a product code (letters+numbers or hyphens, >4 chars)
+                          if (parts.length > 1 && /^[a-zA-Z0-9-]{5,}$/.test(parts[0])) {
+                            code = parts.shift() || '';
+                          }
+                          cleanDesc = parts.join(' ');
+
+                          newItems.push({
+                            id: Date.now().toString() + Math.random().toString().slice(2, 6),
+                            code: code,
+                            description: cleanDesc,
+                            quantity: nums[0],
+                            unitPrice: nums[1],
+                            amount: nums[nums.length - 1],
+                            unit: 'Kilos'
+                          });
+                        }
+                      }
+                    }
+
+                    let newFolio = form.folio;
+                    let newProvider = form.provider;
+                    let newClient = form.client;
+
+                    const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
+                    const folio2 = text.match(/CDB OC:\s*([^\n]+)/i);
+                    if (!newFolio) {
+                      if (folioMatch) newFolio = folioMatch[1].trim();
+                      else if (folio2) newFolio = folio2[1].trim();
+                    }
+
+                    const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
+                    if (!newProvider && providerMatch) {
+                      newProvider = providerMatch[1].trim();
+                    }
+
+                    if (!newClient && lines.length > 0) {
+                      const firstLine = lines[0].split('|')[0].trim();
+                      if (firstLine.length > 5 && firstLine.length < 100 && !firstLine.includes(':')) {
+                         newClient = firstLine;
+                      }
+                    }
+
+                    if (newItems.length > 0 || newFolio !== form.folio) {
+                      setForm(f => ({
+                        ...f,
+                        folio: newFolio,
+                        provider: newProvider,
+                        client: newClient,
+                        items: [...f.items, ...newItems],
+                        totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
+                      }));
+                      toast(`Detectado: ${newItems.length} artículos, Folio: ${newFolio || 'N/A'}.`, 'ok');
+                    } else {
+                      toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
+                    }
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 Pegar Texto OC</button>
+                  <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>
+                </div>
+              )}
             </div>
             {form.items.length === 0 ? (
               <p className="hint">No hay artículos detallados. La IA extrae estos datos automáticamente del PDF de la Orden de Compra.</p>
@@ -688,6 +784,7 @@ export default function OrderModal({
                       <th className="num">Cant. Pedida</th>
                       <th className="num">Cant. Entregada</th>
                       <th>Unidad</th>
+                      <th>Código</th>
                       <th>Descripción</th>
                       <th className="num">P. Unitario</th>
                       <th className="num">Importe</th>
@@ -709,15 +806,19 @@ export default function OrderModal({
                           </div>
                         </td>
                         <td>
-                          <input className="input boxed" type="text" style={{ width: 80 }}
+                          <input className="input boxed" type="text" style={{ width: 70 }}
                             defaultValue={it.unit} onBlur={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
+                        </td>
+                        <td>
+                          <input className="input boxed mono" type="text" style={{ width: 100 }} placeholder="Opcional"
+                            defaultValue={it.code || ''} onBlur={e => updateItem(i, 'code', e.target.value)} disabled={readOnly} />
                         </td>
                         <td>
                           <input className="input boxed" type="text" list="catalog-products" style={{ minWidth: 200 }}
                             defaultValue={it.description} onBlur={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
                         </td>
                         <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
                             defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
                         </td>
                         <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
@@ -802,14 +903,68 @@ export default function OrderModal({
         )}
 
         {/* FACTURAS */}
-        {tab === 'facturas' && (
+        {tab === 'facturas' && (() => {
+          
+          const { processFacturaText, processPagoText } = useInvoiceParser({
+            invoices: form.invoices,
+            setInvoices: (newInvoices: Invoice[]) => set('invoices', newInvoices),
+            config
+          });
+
+          return (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h4>Facturas y Cobranza Parcial</h4>
-              {!readOnly && <button className="btn btn-primary" onClick={addInvoice}>+ Agregar Factura</button>}
+              <h4>Registro de Facturas</h4>
+              {!readOnly && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {/* FACTURAS XML/TEXTO */}
+                  <label className="btn" style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)', cursor: 'pointer' }}>
+                    📂 XML Factura
+                    <input type="file" accept=".xml" style={{ display: 'none' }} onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        const text = String(evt.target?.result || '');
+                        processFacturaText(text);
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }} />
+                  </label>
+                  
+                  <button className="btn" onClick={() => {
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF o XML de la Factura:");
+                    if (text) processFacturaText(text);
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR FACTURA</button>
+                  
+                  {/* PAGOS XML/TEXTO */}
+                  <label className="btn" style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)', cursor: 'pointer' }}>
+                    📂 XML Pago
+                    <input type="file" accept=".xml" style={{ display: 'none' }} onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        const text = String(evt.target?.result || '');
+                        processPagoText(text);
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }} />
+                  </label>
+
+                  <button className="btn" onClick={() => {
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF del Complemento de Pago:");
+                    if (text) processPagoText(text);
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
+
+                  <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
+                </div>
+              )}
             </div>
             {form.invoices.length === 0 ? (
-              <p className="hint">No hay facturas registradas.</p>
+              <p className="hint">No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {computedInvoices.map(({ inv, fin, d, isLate }, i) => {
@@ -870,6 +1025,24 @@ export default function OrderModal({
                               <span style={{ background: 'var(--ok)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
                                 ✅ Recibida y en Caja Chica
                               </span>
+                            )}
+                            {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
+                              <button className="btn" style={{ background: 'var(--line)', color: '#333', borderColor: 'var(--line)', padding: '4px 10px', fontSize: 13 }}
+                                onClick={() => {
+                                  if (inv.creditCycle.status === 'collected') {
+                                    if (!window.confirm('Esta factura ya generó un ingreso en Caja Chica. Si deshaces el cobro, tendrás que ir a borrar el ingreso de Caja Chica manualmente. ¿Deseas continuar?')) return;
+                                  } else {
+                                    if (!window.confirm('¿Deshacer el cobro de esta factura? Volverá a estar pendiente de cobro.')) return;
+                                  }
+                                  updateInvoice(i, x => ({
+                                    ...x,
+                                    creditCycle: { ...x.creditCycle, status: 'pending' },
+                                    collection: { ...x.collection, paidAmount: 0, paidAt: undefined, collectedAt: undefined }
+                                  }));
+                                  toast('Cobro deshecho. No olvides Guardar el expediente.', 'ok');
+                                }}>
+                                ↩️ Deshacer Cobro
+                              </button>
                             )}
                             <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
                           </div>
@@ -1050,7 +1223,8 @@ export default function OrderModal({
               </div>
             )}
           </>
-        )}
+          );
+        })()}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
