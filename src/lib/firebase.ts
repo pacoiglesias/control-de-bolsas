@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -20,7 +20,7 @@ export const missingEnv = Object.entries(config)
 
 export const app = initializeApp(config);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'us-east1');
 
