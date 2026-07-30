@@ -6,6 +6,18 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 12 — 2026-07-30 — Implementación del Motor Financiero Dinámico (Instructivo de Utilidad)
+
+> Se formalizó e implementó la función canónica `computeDynamicFinancials()` en `functions/src/shared/finance.core.ts` y re-exportada en `src/lib/finance.ts`, garantizando el cumplimiento estricto del instructivo de fórmulas matemáticas dinámicas.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `functions/src/shared/finance.core.ts` | Faltaba la implementación explícita del motor dinámico según las 6 reglas y despejes flexibles del instructivo oficial (captura por monto recibido o porcentaje real de comisión). | Creadas e implementadas las interfaces `DynamicFinancialsInput`, `DynamicFinancialsResult` y la función `computeDynamicFinancials()`. |
+| `src/lib/finance.ts` | Se requería exponer la nueva función y tipos del motor financiero hacia todo el frontend. | Re-exportados `computeDynamicFinancials`, `DynamicFinancialsInput` y `DynamicFinancialsResult`. |
+| `src/lib/__tests__/finance.test.ts` | Faltaba la suite de pruebas automatizadas para el instructivo dinámico. | Agregada suite de pruebas `computeDynamicFinancials (Instructivo Motor Financiero)` validando despejes y cálculo de ganancia limpia por kilo (15/15 pasadas). |
+
+---
+
 ## ✅ Ciclo 11 — 2026-07-30 — Integración de Audio Sensorial y Chunking Seguro de Firestore Batches
 
 > En este ciclo se conectó el motor de audio sintético nativo (`sounds.ts`) con el sistema global de notificaciones (`ToastContext.tsx`), y se añadió chunking a los borrados masivos para prevenir límites de lote en Firestore.

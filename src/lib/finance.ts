@@ -13,12 +13,15 @@ import { round2 } from '../../functions/src/shared/finance.core';
 
 export {
   computeFinancials,
+  computeDynamicFinancials,
   configEfectiva,
   round2,
 } from '../../functions/src/shared/finance.core';
 export type {
   FinanceConfigCore,
   FinanceResultCore,
+  DynamicFinancialsInput,
+  DynamicFinancialsResult,
 } from '../../functions/src/shared/finance.core';
 
 export function addDays(date: Date, days: number): Date {

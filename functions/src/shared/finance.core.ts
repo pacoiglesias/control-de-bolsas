@@ -112,3 +112,84 @@ export function configEfectiva(
   if (Number.isFinite(comision) && comision >= 0) cfg.commissionRate = comision;
   return cfg;
 }
+
+/**
+ * MOTOR FINANCIERO DINAMICO — ESPECIFICACION EXACTA DEL MODELO DE UTILIDAD
+ * ======================================================================
+ * 1. precio_venta_final_kg = precio_venta_base_kg * (1 + tasa_adicional_pct)
+ * 2. kilos_vendidos = monto_facturado_total / precio_venta_final_kg
+ * 3. costo_total_compra = kilos_vendidos * costo_compra_kg
+ * 4. monto_comision_gestor = monto_facturado_total - monto_recibido_neto
+ *    porcentaje_comision_real = (monto_comision_gestor / monto_facturado_total) * 100
+ * 5. ganancia_limpia_total = monto_recibido_neto - costo_total_compra
+ * 6. ganancia_limpia_por_kg = ganancia_limpia_total / kilos_vendidos
+ */
+export interface DynamicFinancialsInput {
+  costo_compra_kg: number;
+  precio_venta_base_kg: number;
+  tasa_adicional_pct: number;
+  monto_facturado_total: number;
+  monto_recibido_neto?: number;
+  porcentaje_comision?: number;
+}
+
+export interface DynamicFinancialsResult {
+  precio_venta_final_kg: number;
+  kilos_vendidos: number;
+  costo_total_compra: number;
+  monto_comision_gestor: number;
+  porcentaje_comision_real: number;
+  monto_recibido_neto: number;
+  ganancia_limpia_total: number;
+  ganancia_limpia_por_kg: number;
+}
+
+export function computeDynamicFinancials(input: DynamicFinancialsInput): DynamicFinancialsResult {
+  const costo_compra_kg = Number(input.costo_compra_kg) || 0;
+  const precio_venta_base_kg = Number(input.precio_venta_base_kg) || 0;
+  const tasa_adicional_pct = Number(input.tasa_adicional_pct) || 0;
+  const monto_facturado_total = Number(input.monto_facturado_total) || 0;
+
+  // 1. Precio Final de Venta por Kilo
+  const precio_venta_final_kg = round2(precio_venta_base_kg * (1 + tasa_adicional_pct));
+
+  // 2. Kilos Vendidos (Calculados automáticamente)
+  const kilos_vendidos = precio_venta_final_kg > 0 ? round2(monto_facturado_total / precio_venta_final_kg) : 0;
+
+  // 3. Costo Total del Material
+  const costo_total_compra = round2(kilos_vendidos * costo_compra_kg);
+
+  // 4. Flexibilidad en Captura (Monto recibido o Porcentaje de comisión)
+  let monto_recibido_neto = 0;
+  let monto_comision_gestor = 0;
+  let porcentaje_comision_real = 0;
+
+  if (input.monto_recibido_neto !== undefined && input.monto_recibido_neto !== null) {
+    monto_recibido_neto = round2(Number(input.monto_recibido_neto));
+    monto_comision_gestor = round2(monto_facturado_total - monto_recibido_neto);
+    porcentaje_comision_real = monto_facturado_total > 0 ? round2((monto_comision_gestor / monto_facturado_total) * 100) : 0;
+  } else {
+    const pctComision = Number(input.porcentaje_comision) || 0;
+    monto_recibido_neto = round2(monto_facturado_total * (1 - pctComision));
+    monto_comision_gestor = round2(monto_facturado_total - monto_recibido_neto);
+    porcentaje_comision_real = round2(pctComision * 100);
+  }
+
+  // 5. Ganancia Limpia Total (Flujo Neto)
+  const ganancia_limpia_total = round2(monto_recibido_neto - costo_total_compra);
+
+  // 6. Ganancia Limpia por Kilo
+  const ganancia_limpia_por_kg = kilos_vendidos > 0 ? round2(ganancia_limpia_total / kilos_vendidos) : 0;
+
+  return {
+    precio_venta_final_kg,
+    kilos_vendidos,
+    costo_total_compra,
+    monto_comision_gestor,
+    porcentaje_comision_real,
+    monto_recibido_neto,
+    ganancia_limpia_total,
+    ganancia_limpia_por_kg,
+  };
+}
+

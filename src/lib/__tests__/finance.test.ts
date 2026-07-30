@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, configEfectiva, getOrderSummary, round2 } from '../finance';
+import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2 } from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
@@ -141,3 +141,39 @@ describe('getOrderSummary — derivación de estatus', () => {
     expect(s.invoiceTotal - s.paidAmount).toBe(5452);
   });
 });
+
+describe('computeDynamicFinancials (Instructivo Motor Financiero)', () => {
+  it('calcula los kilos, costo total y ganancia limpia según las reglas del instructivo', () => {
+    const input = {
+      costo_compra_kg: 42,
+      precio_venta_base_kg: 47,
+      tasa_adicional_pct: 0.16,
+      monto_facturado_total: 54520,
+      porcentaje_comision: 0.08,
+    };
+    const res = computeDynamicFinancials(input);
+    expect(res.precio_venta_final_kg).toBe(54.52);
+    expect(res.kilos_vendidos).toBe(1000);
+    expect(res.costo_total_compra).toBe(42000);
+    expect(res.monto_recibido_neto).toBe(50158.4);
+    expect(res.monto_comision_gestor).toBe(4361.6);
+    expect(res.porcentaje_comision_real).toBe(8);
+    expect(res.ganancia_limpia_total).toBe(8158.4);
+    expect(res.ganancia_limpia_por_kg).toBe(8.16);
+  });
+
+  it('despeja automáticamente el porcentaje de comisión real si el usuario ingresa monto_recibido_neto', () => {
+    const input = {
+      costo_compra_kg: 42,
+      precio_venta_base_kg: 47,
+      tasa_adicional_pct: 0.16,
+      monto_facturado_total: 100000,
+      monto_recibido_neto: 92000,
+    };
+    const res = computeDynamicFinancials(input);
+    expect(res.monto_comision_gestor).toBe(8000);
+    expect(res.porcentaje_comision_real).toBe(8);
+    expect(res.ganancia_limpia_total).toBe(14964.02);
+  });
+});
+
