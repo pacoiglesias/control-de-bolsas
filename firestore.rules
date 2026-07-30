@@ -78,9 +78,23 @@ service cloud.firestore {
       allow create, update, delete: if isManagerOrAdmin();
     }
 
-    // Copias completas del estado del respaldo HTML (un solo documento grande).
+    // Catalogo de productos. Se alimenta solo desde OrderModal al guardar las
+    // partidas de un expediente. Sin esta regla, la coleccion caia en el
+    // match /{document=**} final: la pantalla Catalogo no cargaba nunca y el
+    // guardado de cualquier expediente con partidas terminaba en error.
+    match /products/{productId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
+    }
+
+    // Copias completas del estado del respaldo HTML.
+    // El documento padre guarda solo metadatos; el contenido pesado vive en la
+    // subcoleccion blob/ para no descargarlo al listar.
     match /snapshots/{snapId} {
       allow read, write: if isSuperAdmin();
+      match /{document=**} {
+        allow read, write: if isSuperAdmin();
+      }
     }
 
     match /config/{docId} {
@@ -100,9 +114,22 @@ service cloud.firestore {
     match /system_logs/{logId} {
       // Solo super admin lee los logs
       allow read: if isSuperAdmin();
-      // El backend los genera o el cliente validado
+      // Append-only con identidad y sello de tiempo verificados.
+      //
+      // request.resource.data.timestamp == request.time SI funciona con
+      // serverTimestamp(): Firestore lo resuelve ANTES de evaluar las reglas y
+      // lo hace igual a request.time. Es el patron que documenta Firebase para
+      // forzar sellos del servidor. Lo que rompia antes era la comparacion de
+      // correo sin normalizar; ahora logger.ts envia el correo en minusculas.
+      //
+      // Sin la comparacion de identidad, hasAll() solo comprueba que las llaves
+      // existan: cualquier usuario podia firmar una entrada con el correo de
+      // otro y la bitacora dejaba de tener valor probatorio.
       allow create: if isAuthenticatedUser()
-        && request.resource.data.keys().hasAll(['user', 'action', 'timestamp']);
+        && request.resource.data.keys().hasAll(['user', 'action', 'timestamp'])
+        && request.auth.token.email != null
+        && request.resource.data.user == request.auth.token.email.lower()
+        && request.resource.data.timestamp == request.time;
       allow update, delete: if false; // Logs inmutables
     }
 

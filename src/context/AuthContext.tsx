@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   GoogleAuthProvider,
   signInWithPopup,
   type User,
@@ -62,16 +63,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let snap = await getDoc(adminRef);
 
         const email = u.email?.toLowerCase().trim() ?? '';
-        const isMasterUser = email === 'paco@cobertores.com';
 
-        if (!u.emailVerified && !isMasterUser) {
-          setError(`Por seguridad, debes verificar tu correo o iniciar sesión con Google.`);
+        // Sin excepciones por correo: firestore.rules exige email_verified en
+        // isAuthenticatedUser(), asi que dejar pasar aqui a un usuario sin
+        // verificar solo producia una app que carga y falla con
+        // permission-denied en absolutamente todas las consultas.
+        if (!u.emailVerified) {
+          try {
+            await sendEmailVerification(u);
+            setError(
+              `Tu correo ${u.email} todavía no está verificado. Te acabamos de enviar el enlace: ` +
+              `ábrelo y vuelve a iniciar sesión. Revisa también la carpeta de spam.`,
+            );
+          } catch {
+            setError(
+              `Tu correo ${u.email} todavía no está verificado. Pide al administrador que te reenvíe el enlace.`,
+            );
+          }
           setRole(null);
           setUser(null);
           await fbSignOut(auth);
           setLoading(false);
           return;
         }
+
+        const isMasterUser = email === 'paco@cobertores.com';
 
         const isOwnerEmail =
           isMasterUser ||

@@ -207,7 +207,12 @@ export default function Dashboard() {
     const proximos: { o: PurchaseOrder; inv: Invoice; d: number | null }[] = [];
 
     orders.forEach(o => {
-      const status = o.creditCycle?.status;
+      // Un solo calculo por expediente, y el estatus sale del resumen (misma
+      // fuente que la tabla de Ordenes y los badges del menu). Antes esto leia
+      // o.creditCycle.status de la raiz: los KPIs y el subtitulo "N ordenes
+      // abiertas" no cuadraban con los importes de la misma tarjeta.
+      const s = getOrderSummary(o);
+      const status = s.status;
       if (status === 'manual_review') review.push(o);
       else live.push(o);
 
@@ -216,7 +221,6 @@ export default function Dashboard() {
       if (status === 'paid') paid.push(o);
 
       if (status !== 'manual_review') {
-        const s = getOrderSummary(o);
         totalKilos += o.totalKilograms ?? 0;
         
         s.invoices.forEach(inv => {

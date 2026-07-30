@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db, PATHS, app } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, PATHS, functions } from '../lib/firebase';
 import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
@@ -79,7 +79,10 @@ export default function OrderModal({
       const isLate = (inv.creditCycle.status === 'overdue' || inv.creditCycle.status === 'pending') && d !== null && d > 0;
       return { inv, fin, d, isLate };
     });
-  }, [form.invoices, config]);
+    // ccp y ccr entran en dynamicConfig: sin ellos en las dependencias, al
+    // cambiar el costo variable los importes en pantalla no se actualizaban
+    // hasta que el usuario tocaba cualquier otro campo.
+  }, [form.invoices, config, ccp, ccr]);
 
   async function save() {
     if (kilosNum <= 0) {
@@ -153,19 +156,28 @@ export default function OrderModal({
         console.error("Error linking purchase", err);
       }
 
-      // Upsert products to catalog
+      // Alta en el catalogo de productos. Es una funcion accesoria: si falla
+      // (permisos, red) NO debe tumbar el guardado del expediente, que a estas
+      // alturas ya se escribio correctamente. Antes esto vivia fuera de un
+      // try/catch y un solo rechazo mostraba "No se pudo guardar" sobre un
+      // expediente que si se habia guardado.
       if (form.items && form.items.length > 0) {
-        const promises = form.items.map(async (it) => {
-          if (!it.description.trim()) return;
-          const productId = it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
-          await setDoc(doc(db, PATHS.products, productId), {
-            description: it.description.trim(),
-            unit: it.unit,
-            defaultPrice: it.unitPrice,
-            lastOrderDate: serverTimestamp(),
-          }, { merge: true });
-        });
-        await Promise.all(promises);
+        try {
+          await Promise.all(
+            form.items.map(async (it) => {
+              if (!it.description.trim()) return;
+              const productId = it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+              await setDoc(doc(db, PATHS.products, productId), {
+                description: it.description.trim(),
+                unit: it.unit,
+                defaultPrice: it.unitPrice,
+                lastOrderDate: serverTimestamp(),
+              }, { merge: true });
+            }),
+          );
+        } catch (err) {
+          console.warn('No se pudo actualizar el catalogo de productos:', err);
+        }
       }
 
       logAction(user?.email, 'Expediente Guardado', {
@@ -444,7 +456,8 @@ export default function OrderModal({
   async function retryAI() {
     setBusy(true);
     try {
-      const functions = getFunctions(app);
+      // Las funciones viven en us-east1 (ver lib/firebase.ts). Crear aqui una
+      // instancia sin region la mandaba a us-central1: fallaba siempre.
       const reprocess = httpsCallable(functions, 'reprocessOrder');
       await reprocess({ orderId: order.id });
       toast('Archivo reenviado a la IA exitosamente.', 'ok');

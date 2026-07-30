@@ -37,11 +37,14 @@ service firebase.storage {
         );
     }
 
-    // PDFs o XMLs, máximo 20 MB, solo administradores, solo bajo uploads/.
+    // PDFs o XMLs, maximo 5 MB, solo admin/manager, solo bajo uploads/.
+    // Los 5 MB son el limite real que procesa parseUploadedPDF (el PDF viaja a
+    // Gemini en base64). Si se cambia aqui, cambiar tambien MAX_UPLOAD_MB en
+    // functions/src/index.ts, MAX_MB en src/pages/Upload.tsx y SECURITY.md.
     match /uploads/{fileName} {
       allow read: if isManagerOrAdmin();
       allow create: if isManagerOrAdmin()
-        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.size < 5 * 1024 * 1024
         && (request.resource.contentType == 'application/pdf' || request.resource.contentType == 'application/xml' || request.resource.contentType == 'text/xml');
       allow update: if isManagerOrAdmin();
       allow delete: if isAdmin();

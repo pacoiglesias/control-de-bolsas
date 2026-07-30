@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 
-import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
-import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut as fbSignOut } from 'firebase/auth';
+import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
 import { db, config } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -72,9 +72,26 @@ export default function Users() {
         createdBy: 'admin_panel'
       });
 
+      // createUserWithEmailAndPassword deja la cuenta con emailVerified=false,
+      // y tanto AuthContext como firestore.rules exigen correo verificado. Sin
+      // este correo, el empleado recien dado de alta NUNCA podia entrar: se le
+      // cerraba la sesion al instante con un mensaje que no explicaba nada.
+      let avisoEnviado = true;
+      try {
+        await sendEmailVerification(userCredential.user);
+      } catch (err) {
+        avisoEnviado = false;
+        console.warn('No se pudo enviar el correo de verificacion:', err);
+      }
+
       await fbSignOut(secondaryAuth);
 
-      toast('Usuario creado con éxito', 'ok');
+      toast(
+        avisoEnviado
+          ? 'Usuario creado. Se le envió un correo de verificación: debe abrirlo antes de poder entrar.'
+          : 'Usuario creado, pero no se pudo enviar el correo de verificación. Pídele que use "¿Olvidaste tu contraseña?" para validarlo.',
+        avisoEnviado ? 'ok' : 'bad',
+      );
       setNewEmail('');
       setNewPassword('');
       setNewRole('viewer');
@@ -130,7 +147,7 @@ export default function Users() {
       {showModal && (
         <Modal title="Dar de Alta Nuevo Usuario" onClose={() => setShowModal(false)}>
           <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>
-            Al registrar a un empleado desde aquí, se le dará permiso automático para acceder con su correo y contraseña, sin necesidad de verificar el correo con Google.
+            Al registrar a un empleado se le crea la cuenta y su permiso en el sistema. Recibirá un correo de verificación: <strong>tiene que abrirlo antes de poder entrar</strong>. Es un requisito de las reglas de seguridad, no se puede saltar.
           </p>
           <form onSubmit={handleCreateUser}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>

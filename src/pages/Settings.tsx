@@ -6,6 +6,7 @@ import { useOrders } from '../hooks/useOrders';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
+import { getOrderSummary } from '../lib/finance';
 import { Card, Field, Spinner } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials } from '../lib/finance';
@@ -53,7 +54,7 @@ export default function Settings() {
    *  Solo toca las que no están cobradas: lo cobrado es historia. */
   async function recalcular() {
     const target = orders.filter(
-      (o) => o.creditCycle?.status !== 'paid' && (o.totalKilograms ?? 0) > 0,
+      (o) => getOrderSummary(o).status !== 'paid' && (o.totalKilograms ?? 0) > 0,
     );
     if (target.length === 0) {
       toast('No hay órdenes abiertas que recalcular.', 'bad');

@@ -28,6 +28,16 @@ const apiKeySecret = defineSecret("GOOGLE_GENAI_API_KEY");
 const MODEL = "googleai/gemini-2.0-flash";
 
 const UPLOAD_PREFIX = "uploads/";
+
+/**
+ * Tamano maximo real que procesa la IA. Este es el limite que manda:
+ * el PDF viaja a Gemini en base64 dentro del prompt.
+ * Debe coincidir con MAX_UPLOAD_MB en src/pages/Upload.tsx y con el limite
+ * de storage.rules. Antes habia cuatro cifras distintas (20 en la interfaz,
+ * 20 en las reglas, 5 aqui, 25 en SECURITY.md) y los archivos entre 5 y 20 MB
+ * se descartaban en silencio: toast verde y nunca aparecia el expediente.
+ */
+const MAX_UPLOAD_MB = 5;
 const COL_ORDERS = "purchaseOrders";
 
 const DEFAULTS = {
@@ -76,6 +86,35 @@ async function readConfig() {
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * Configuracion con la que hay que evaluar UN expediente concreto.
+ *
+ * El expediente puede traer costo y comision propios (funcion "Costos
+ * variables"): son decisiones de negocio legitimas, no manipulacion. Si no se
+ * aplican aqui, el sanitizador los ve como discrepancia y los revierte.
+ */
+function configEfectiva(data: FirebaseFirestore.DocumentData, base: typeof DEFAULTS) {
+  const cfg = { ...base };
+  if (Number.isFinite(Number(data.customCostPrice))) {
+    cfg.costPricePerKg = Number(data.customCostPrice);
+  }
+  if (Number.isFinite(Number(data.customCommissionRate))) {
+    cfg.commissionRate = Number(data.customCommissionRate);
+  }
+  return cfg;
+}
+
+/** Cache corto de config/financials: el sanitizador se dispara en cascada
+ *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
+ *  documento en cada invocacion. */
+let cacheConfig: { valor: typeof DEFAULTS; expira: number } | null = null;
+async function readConfigCacheada() {
+  if (cacheConfig && Date.now() < cacheConfig.expira) return cacheConfig.valor;
+  const valor = await readConfig();
+  cacheConfig = { valor, expira: Date.now() + 60_000 };
+  return valor;
+}
 
 /** Idéntica a src/lib/finance.ts en el frontend. Si cambias una, cambia la otra. */
 function computeFinancials(kilos: number, cfg: typeof DEFAULTS) {
@@ -386,14 +425,24 @@ export const parseUploadedPDF = onObjectFinalized(
       return;
     }
 
-    const size = Number(event.data.size) || 0;
-    if (size > 5 * 1024 * 1024) {
-      logger.warn(`Ignorado (archivo muy grande > 5MB): ${filePath}`);
-      return;
-    }
-
     const db = getFirestore();
     const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
+
+    const size = Number(event.data.size) || 0;
+    if (size > MAX_UPLOAD_MB * 1024 * 1024) {
+      // Deja constancia visible en la interfaz. Un logger.warn en Cloud no lo
+      // ve nunca quien subio el archivo.
+      const mb = (size / 1024 / 1024).toFixed(1);
+      logger.warn(`Ignorado (${mb} MB > ${MAX_UPLOAD_MB} MB): ${filePath}`);
+      await ref.set({
+        fileName: filePath,
+        creditCycle: { status: "manual_review" },
+        aiError: `El archivo pesa ${mb} MB y el maximo que se puede leer es ` +
+          `${MAX_UPLOAD_MB} MB. Comprimelo o divide el PDF y vuelve a subirlo.`,
+        processedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return;
+    }
 
     // Si ya se procesó este archivo, no lo volvemos a cobrar a la cuota de IA.
     const existing = await ref.get();
@@ -417,20 +466,24 @@ export const checkOverdueInvoices = onSchedule(
       .where("invoiceStatuses", "array-contains", "pending")
       .get();
 
-    // OJO: los expedientes creados ANTES de que existiera invoiceStatuses no
-    // tienen ese campo, y array-contains-any los deja fuera: quedarian sin
-    // vigilancia y sin dar error. Se cuentan aparte y se avisa en el log.
-    // migrarInvoiceStatuses() los repara de una pasada.
-    const sinCampo = await db.collection(COL_ORDERS)
-      .where("invoiceStatuses", "==", null)
-      .count()
-      .get()
-      .then((r) => r.data().count)
-      .catch(() => 0);
-    if (sinCampo > 0) {
+    // Los expedientes creados ANTES de que existiera invoiceStatuses no tienen
+    // ese campo y la consulta de arriba los deja fuera: quedan sin vigilancia y
+    // sin dar error. No se pueden contar con where(campo, "==", null): en
+    // Firestore esa consulta solo encuentra documentos con el campo presente y
+    // valor null EXPLICITO. Un campo ausente no aparece en ninguna consulta
+    // sobre ese campo, asi que el contador anterior devolvia siempre cero.
+    // La forma barata de detectarlos es comparar totales.
+    const [totalExpedientes, conCampo] = await Promise.all([
+      db.collection(COL_ORDERS).count().get()
+        .then((r) => r.data().count).catch(() => -1),
+      db.collection(COL_ORDERS).where("invoiceStatuses", "!=", null).count().get()
+        .then((r) => r.data().count).catch(() => -1),
+    ]);
+    if (totalExpedientes >= 0 && conCampo >= 0 && totalExpedientes > conCampo) {
       logger.warn(
-        `${sinCampo} expediente(s) sin invoiceStatuses quedan fuera de la ` +
-        `revision de vencidos. Ejecuta migrarInvoiceStatuses para repararlos.`,
+        `${totalExpedientes - conCampo} expediente(s) sin invoiceStatuses ` +
+        `quedan fuera de la revision de vencidos. Se reparan solos al abrirlos ` +
+        `y guardarlos una vez desde la interfaz.`,
       );
     }
 
@@ -493,44 +546,52 @@ export const checkOverdueInvoices = onSchedule(
   },
 );
 
-// migrarInvoiceStatuses eliminada para evitar conflicto IAM
-
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 
 /** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
-export const reprocessOrder = onCall({ secrets: [apiKeySecret] }, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
-  if (!req.auth?.token?.email_verified) throw new HttpsError("permission-denied", "Tu correo debe estar verificado.");
+// Mismos recursos que parseUploadedPDF: ejecuta exactamente el mismo trabajo.
+// Con los valores por omision (256 MiB / 60 s) un PDF mediano se caia por
+// falta de memoria o por tiempo agotado.
+export const reprocessOrder = onCall(
+  { secrets: [apiKeySecret], memory: "1GiB", timeoutSeconds: 300 },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
+    if (!req.auth?.token?.email_verified) throw new HttpsError("permission-denied", "Tu correo debe estar verificado.");
   
-  const db = getFirestore();
-  const admin = await db.collection("admins").doc(uid).get();
-  if (!admin.exists) throw new HttpsError("permission-denied", "Cuenta no autorizada.");
-  const rol = admin.data()?.role;
-  if (rol !== "admin" && rol !== "manager") {
-    throw new HttpsError("permission-denied", "Tu rol no permite reprocesar ordenes.");
-  }
+    const db = getFirestore();
+    const admin = await db.collection("admins").doc(uid).get();
+    if (!admin.exists) throw new HttpsError("permission-denied", "Cuenta no autorizada.");
+    const rol = admin.data()?.role;
+    if (rol !== "admin" && rol !== "manager") {
+      throw new HttpsError("permission-denied", "Tu rol no permite reprocesar ordenes.");
+    }
 
-  const orderId = String(req.data?.orderId ?? "");
-  if (!orderId) throw new HttpsError("invalid-argument", "Falta orderId.");
+    const orderId = String(req.data?.orderId ?? "");
+    if (!orderId) throw new HttpsError("invalid-argument", "Falta orderId.");
 
-  const snap = await db.collection(COL_ORDERS).doc(orderId).get();
-  if (!snap.exists) throw new HttpsError("not-found", "La orden no existe.");
+    const snap = await db.collection(COL_ORDERS).doc(orderId).get();
+    if (!snap.exists) throw new HttpsError("not-found", "La orden no existe.");
 
-  const fileName = snap.data()?.fileName;
-  if (!fileName) throw new HttpsError("failed-precondition", "La orden no tiene archivo asociado.");
+    const fileName = snap.data()?.fileName;
+    if (!fileName) throw new HttpsError("failed-precondition", "La orden no tiene archivo asociado.");
 
-  try {
-    await processStorageFile(fileName);
-    return { ok: true };
-  } catch (err: any) {
-    throw new HttpsError("internal", "Error al reprocesar: " + err.message);
-  }
-});
+    try {
+      await processStorageFile(fileName);
+      return { ok: true };
+    } catch (err: any) {
+      throw new HttpsError("internal", "Error al reprocesar: " + err.message);
+    }
+  },
+);
 
 /**
- * Trigger de Sanitización y Recálculo Server-Side Mandatorio.
- * Previene la manipulación de importes, comisiones o flujo neto enviadas desde el navegador (DevTools).
+ * Trigger de saneamiento y recalculo server-side.
+ *
+ * Impide que importes alterados desde las herramientas del navegador queden
+ * persistidos, PERO respeta dos cosas que si son datos legitimos:
+ *   - los costos y comisiones propios del expediente (Costos variables)
+ *   - el total real de una factura timbrada (viene del CFDI, no de la formula)
  */
 export const sanitizePurchaseOrder = onDocumentWritten(
   { document: `${COL_ORDERS}/{orderId}` },
@@ -539,45 +600,63 @@ export const sanitizePurchaseOrder = onDocumentWritten(
     const data = event.data.after.data();
     if (!data) return;
 
-    const cfg = data.historicalConfig ?? await readConfig();
+    // Salida temprana: si el arreglo de facturas no cambio, no hay nada que
+    // sanear. Sin esto, el trigger se dispara en cascada sobre sus propias
+    // escrituras y sobre los lotes de checkOverdueInvoices (hasta 400 docs).
+    const antes = event.data.before?.data();
+    if (antes && JSON.stringify(antes.invoices ?? null) === JSON.stringify(data.invoices ?? null)) {
+      return;
+    }
+
     const invoices = Array.isArray(data.invoices) ? data.invoices : [];
+    if (invoices.length === 0) return;
+
+    const base = data.historicalConfig ?? await readConfigCacheada();
+    // Los costos y comisiones propios del expediente son configuracion valida,
+    // no manipulacion: entran en la formula de referencia.
+    const cfg = configEfectiva(data, base);
+
     let modified = false;
 
     const sanitizedInvoices = invoices.map((inv: any) => {
       const kilos = Number(inv.kilos) || 0;
       const baseFin = computeFinancials(kilos, cfg);
-      const expectedCommission = baseFin.commission; // Validacion estricta (no confiar en el cliente)
-      const expectedNet = baseFin.invoiceTotal - baseFin.costTotal - expectedCommission;
 
-      if (
-        !inv.financials ||
-        inv.financials.saleTotal !== baseFin.saleTotal ||
-        inv.financials.costTotal !== baseFin.costTotal ||
-        inv.financials.commission !== expectedCommission ||
-        inv.financials.netCashFlow !== expectedNet
-      ) {
-        modified = true;
-        return {
-          ...inv,
-          financials: {
-            ...baseFin,
-            commission: expectedCommission,
-            netCashFlow: expectedNet,
-          },
-        };
-      }
-      return inv;
+      // El total de una factura con UUID viene del CFDI timbrado, no de la
+      // formula. Sobrescribirlo con kilos x precio x IVA destruye el importe
+      // fiscal real, que es justo el dato que no se puede recalcular.
+      const invoiceTotal = inv.uuid && Number(inv.financials?.invoiceTotal) > 0
+        ? Number(inv.financials.invoiceTotal)
+        : baseFin.invoiceTotal;
+
+      const esperado = {
+        ...baseFin,
+        invoiceTotal,
+        netCashFlow: round2(invoiceTotal - baseFin.costTotal - baseFin.commission),
+      };
+
+      const f = inv.financials;
+      const igual = !!f
+        && f.saleTotal === esperado.saleTotal
+        && f.costTotal === esperado.costTotal
+        && f.commission === esperado.commission
+        && f.invoiceTotal === esperado.invoiceTotal
+        && f.netCashFlow === esperado.netCashFlow;
+
+      if (igual) return inv;
+      modified = true;
+      return { ...inv, financials: esperado };
     });
 
     if (modified) {
-      logger.info(`Sanitizando importes de la orden ${event.params.orderId} contra manipulación de cliente.`);
+      logger.info(
+        `Importes recalculados en la orden ${event.params.orderId} ` +
+        `(costo ${cfg.costPricePerKg}, comision ${cfg.commissionRate}).`,
+      );
       await event.data.after.ref.update({
         invoices: sanitizedInvoices,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
-  }
+  },
 );
-
-
-

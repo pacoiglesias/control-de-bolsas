@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 
@@ -77,9 +77,55 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Quien abrio el modal recupera el foco al cerrarlo, y el fondo deja de
+    // hacer scroll detras. Sin esto, con teclado se podia tabular hacia los
+    // botones de la pantalla que quedaba tapada.
+    const previo = document.activeElement as HTMLElement | null;
+    const overflowPrevio = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusables = () =>
+      Array.from(
+        boxRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => el.offsetParent !== null);
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const lista = focusables();
+        if (lista.length === 0) return;
+        const primero = lista[0];
+        const ultimo = lista[lista.length - 1];
+        if (!e.shiftKey && document.activeElement === ultimo) {
+          e.preventDefault();
+          primero.focus();
+        } else if (e.shiftKey && document.activeElement === primero) {
+          e.preventDefault();
+          ultimo.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.body.style.overflow = overflowPrevio;
+      previo?.focus?.();
+    };
+  }, [onClose]);
+
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={boxRef} className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className="modal-head">
           <h3>{title}</h3>
           <button className="btn-icon" onClick={onClose} aria-label="Cerrar">
@@ -109,8 +155,13 @@ export function Field({
   );
 }
 
-export function Empty({ children }: { children: ReactNode }) {
-  return <div className="empty">{children}</div>;
+export function Empty({ children, icon }: { children: ReactNode; icon?: string }) {
+  return (
+    <div className="empty">
+      {icon ? <span className="empty-icon" aria-hidden="true">{icon}</span> : null}
+      {children}
+    </div>
+  );
 }
 
 export function Spinner({ label }: { label?: string }) {

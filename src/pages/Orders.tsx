@@ -48,57 +48,78 @@ export default function Orders() {
     }
   }, [params, setParams]);
 
+  // El resumen de cada expediente se calcula UNA vez y se reutiliza en el
+  // filtro, en los contadores, en la tabla y en los totales. Antes
+  // getOrderSummary corria ~10 veces por renglon en cada tecla escrita.
+  const conResumen = useMemo(
+    () => orders.map((o) => ({ o, s: getOrderSummary(o) })),
+    [orders],
+  );
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return orders.filter((o) => {
-      if (filter !== 'all' && o.creditCycle?.status !== filter) return false;
+    return conResumen.filter(({ o, s }) => {
+      // El estatus sale del resumen, igual que el contador del chip y que la
+      // columna Estado. Antes el filtro leia o.creditCycle.status (el campo
+      // viejo de la raiz): el chip decia "Vencidas (5)" y la tabla salia vacia.
+      if (filter !== 'all' && s.status !== filter) return false;
       if (!q) return true;
       return [o.folio, o.client, o.fileName, o.collection?.contrareciboNumber, String(o.totalKilograms ?? '')]
         .join(' ')
         .toLowerCase()
         .includes(q);
     });
-  }, [orders, filter, search]);
+  }, [conResumen, filter, search]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: orders.length };
-    orders.forEach((o) => {
-      const summary = getOrderSummary(o);
-      const s = summary.status;
-      c[s] = (c[s] ?? 0) + 1;
+    const c: Record<string, number> = { all: conResumen.length };
+    conResumen.forEach(({ s }) => {
+      c[s.status] = (c[s.status] ?? 0) + 1;
     });
     return c;
-  }, [orders]);
+  }, [conResumen]);
 
-  const totals = useMemo(
-    () => ({
-      kilos: rows.reduce((a, o) => a + (o.totalKilograms ?? 0), 0),
-      kilosEntregados: rows.reduce((a, o) => a + getOrderSummary(o).kilosDelivered, 0),
-      kilosPendientes: rows.reduce((a, o) => a + Math.max(0, (o.totalKilograms ?? 0) - getOrderSummary(o).kilosDelivered), 0),
-      kilosFacturados: rows.reduce((a, o) => a + getOrderSummary(o).kilosInvoiced, 0),
-      venta: rows.reduce((a, o) => a + getOrderSummary(o).invoiceTotal, 0),
-      cobrado: rows.reduce((a, o) => a + getOrderSummary(o).paidAmount, 0),
-      comision: rows.reduce((a, o) => a + getOrderSummary(o).commission, 0),
-      neto: rows.reduce((a, o) => a + getOrderSummary(o).netCashFlow, 0),
-    }),
-    [rows],
-  );
+  const totals = useMemo(() => {
+    const t = {
+      kilos: 0, kilosEntregados: 0, kilosPendientes: 0, kilosFacturados: 0,
+      venta: 0, cobrado: 0, comision: 0, neto: 0, deuda: 0,
+    };
+    for (const { o, s } of rows) {
+      const pedidos = o.totalKilograms ?? 0;
+      t.kilos += pedidos;
+      t.kilosEntregados += s.kilosDelivered;
+      t.kilosPendientes += Math.max(0, pedidos - s.kilosDelivered);
+      t.kilosFacturados += s.kilosInvoiced;
+      t.venta += s.invoiceTotal;
+      t.cobrado += s.paidAmount;
+      t.comision += s.commission;
+      t.neto += s.netCashFlow;
+      // La deuda se mide contra el total facturado con IVA, que es lo que el
+      // cliente debe. Asi el pie de tabla suma exactamente la columna.
+      t.deuda += s.invoiceTotal - s.paidAmount;
+    }
+    return t;
+  }, [rows]);
 
   function exportCSV() {
-    const head = ['Folio','Cliente','Archivo','Kilos Pedidos','Kilos Entregados','Kilos Facturados','Venta','Costo','Comision','Neto','Estado','Cobrado','Deuda'];
-    const lines = rows.map((o) => {
-      const summary = getOrderSummary(o);
-      return [
-        o.folio ?? '', o.client ?? '', o.fileName ?? '', o.totalKilograms ?? 0,
-        summary.kilosDelivered, summary.kilosInvoiced,
-        summary.saleTotal, 0, // Costo total might not be easily available if aggregated, but we can compute it if needed. Let's just put 0 or compute it inside finance.ts. Wait, we don't track aggregated costTotal yet. Let's keep it as 0 for now.
-        summary.commission, summary.netCashFlow,
-        summary.status, summary.paidAmount,
-        summary.saleTotal - summary.paidAmount,
-      ];
-    });
+    // Excel ejecuta como formula cualquier celda que empiece con = + - @. Los
+    // nombres de cliente los extrae la IA de PDFs de terceros, asi que se
+    // neutralizan antes de escribir el archivo.
+    const seguro = (v: unknown) => {
+      const txt = String(v ?? '');
+      return /^[=+\-@\t\r]/.test(txt) ? `'${txt}` : txt;
+    };
+    const head = ['Folio','Cliente','Archivo','Kilos Pedidos','Kilos Entregados','Kilos Facturados','Subtotal','Facturado c/IVA','Comision','Neto','Estado','Cobrado','Deuda'];
+    const lines = rows.map(({ o, s: summary }) => [
+      o.folio ?? '', o.client ?? '', o.fileName ?? '', o.totalKilograms ?? 0,
+      summary.kilosDelivered, summary.kilosInvoiced,
+      summary.saleTotal, summary.invoiceTotal,
+      summary.commission, summary.netCashFlow,
+      summary.status, summary.paidAmount,
+      summary.invoiceTotal - summary.paidAmount,
+    ]);
     const csv = [head, ...lines]
-      .map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .map((l) => l.map((c) => `"${seguro(c).replace(/"/g, '""')}"`).join(','))
       .join('\n');
     const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
@@ -194,8 +215,7 @@ export default function Orders() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((o) => {
-                  const summary = getOrderSummary(o);
+                {rows.map(({ o, s: summary }) => {
                   const st = summary.status;
                   const deuda = summary.invoiceTotal - summary.paidAmount;
                   return (
@@ -233,7 +253,7 @@ export default function Orders() {
                   <td className="num">{kilos(totals.kilosFacturados)}</td>
                   <td className="num">{money(totals.venta)}</td>
                   <td className="num">{money(totals.cobrado)}</td>
-                  <td className="num">{money(totals.venta - totals.cobrado)}</td>
+                  <td className="num">{money(totals.deuda)}</td>
                   <td />
                 </tr>
               </tfoot>

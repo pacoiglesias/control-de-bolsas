@@ -18,7 +18,9 @@ New-Item -ItemType Directory -Path $TempDir | Out-Null
 
 Write-Host "Copiando archivos (excluyendo node_modules, .env, .git...)"
 # robocopy devuelve códigos de error que no son necesariamente fallos (1-7 son éxito con archivos copiados)
-robocopy "$SourceDir" "$TempDir" /MIR /XD node_modules dist .git .firebase "functions\node_modules" /XF .env *.log firebase-debug.log
+# _respaldo_* y *.zip tambien fuera: sin esto, cada respaldo se llevaba
+# dentro una copia completa del respaldo anterior y los ZIP de parches.
+robocopy "$SourceDir" "$TempDir" /MIR /XD node_modules dist .git .firebase "functions\node_modules" "functions\lib" "_respaldo_*" /XF .env .env.local *.log *.zip *.tsbuildinfo
 if ($LASTEXITCODE -ge 8) {
     Write-Error "Error copiando archivos con robocopy. Código: $LASTEXITCODE"
 }

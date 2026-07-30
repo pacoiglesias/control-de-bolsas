@@ -19,7 +19,9 @@ interface Job {
   error?: string;
 }
 
-const MAX_MB = 20;
+// Debe coincidir con MAX_UPLOAD_MB en functions/src/index.ts y con el limite
+// de storage.rules. Es el tamano que la IA alcanza a leer.
+const MAX_MB = 5;
 
 /** Nombre seguro para Storage: sin acentos, espacios ni caracteres raros. */
 function safeName(name: string): string {

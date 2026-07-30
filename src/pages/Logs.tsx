@@ -72,6 +72,11 @@ export default function Logs() {
   }, [logs, search, actionFilter]);
 
   function exportCSV() {
+    // Excel ejecuta como formula cualquier celda que empiece con = + - @.
+    const seguroCSV = (v: unknown) => {
+      const txt = String(v ?? '');
+      return /^[=+\-@\t\r]/.test(txt) ? `'${txt}` : txt;
+    };
     const head = ['Fecha', 'Usuario', 'Acción', 'Detalles'];
     const rows = filtered.map((l) => [
       l.timestamp ? l.timestamp.toISOString() : '',
@@ -80,7 +85,7 @@ export default function Logs() {
       JSON.stringify(l.details ?? {}),
     ]);
     const csv = [head, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .map((r) => r.map((c) => `"${seguroCSV(c).replace(/"/g, '""')}"`).join(','))
       .join('\n');
     const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');

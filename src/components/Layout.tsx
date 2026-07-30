@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
+import { getOrderSummary } from '../lib/finance';
 
 const NAV = [
   { to: '/', icon: '📊', label: 'Panel Principal', end: true, roles: ['admin', 'manager', 'viewer'] },
@@ -66,8 +67,19 @@ export default function Layout() {
     };
   }, [nav]);
 
-  const overdue = orders.filter((o) => o.creditCycle?.status === 'overdue').length;
-  const review = orders.filter((o) => o.creditCycle?.status === 'manual_review').length;
+  // Los badges leen el mismo estatus derivado que la tabla de Ordenes. Antes
+  // usaban el campo viejo de la raiz y podian quedarse en cero teniendo
+  // facturas realmente vencidas.
+  const { overdue, review } = useMemo(() => {
+    let overdue = 0;
+    let review = 0;
+    for (const o of orders) {
+      const st = getOrderSummary(o).status;
+      if (st === 'overdue') overdue++;
+      else if (st === 'manual_review') review++;
+    }
+    return { overdue, review };
+  }, [orders]);
 
   return (
     <>

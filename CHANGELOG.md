@@ -1,5 +1,43 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v5.7.0] - 29 Julio 2026 (Auditoría de Automejora Continua — Ciclo 2)
+
+### Corregido — datos
+- **`sanitizePurchaseOrder` dejó de destruir datos legítimos.** El trigger revertía los costos y comisiones propios del expediente (función *Costos variables*, v5.5.0) porque los comparaba contra `historicalConfig`, que no los contiene, y los clasificaba como manipulación del cliente. Además sobrescribía el `invoiceTotal` real del CFDI con `kilos × precio × IVA`, borrando el importe fiscal timbrado. Ahora la fórmula de referencia aplica `customCostPrice` y `customCommissionRate`, y el total de una factura con UUID se preserva intacto.
+- **Guardar un expediente ya no reporta un error falso.** La colección `products` no tenía regla en Firestore, así que el alta en catálogo fallaba con `permission-denied` y —al estar fuera del `try/catch`— hacía aparecer «No se pudo guardar» sobre un expediente que sí se había guardado. Se agregó la regla y se aisló el alta de catálogo.
+- **La pantalla Catálogo vuelve a cargar** (mismo origen: faltaba la regla de `products`).
+
+### Corregido — seguridad
+- **Bitácora infalsificable.** La regla de `system_logs` sólo comprobaba que existieran las llaves `user`, `action` y `timestamp`, no su contenido: cualquier usuario autenticado podía firmar una entrada con el correo de otro. Ahora se exige `user == request.auth.token.email` en minúsculas y `timestamp == request.time`. `logger.ts` normaliza el correo antes de enviarlo.
+- **Exportaciones CSV saneadas** en Órdenes y Bitácora: se neutralizan las celdas que empiezan con `=`, `+`, `-` o `@` (los nombres de cliente los extrae la IA de PDFs de terceros).
+- **Borrado en Storage restringido a `admin`**; el límite de subida bajó a 5 MB, alineado con lo que realmente procesa la IA.
+
+### Corregido — funcionalidad
+- **«Reintentar IA» funciona.** La llamada se creaba con `getFunctions(app)` sin región, apuntando a `us-central1` mientras las funciones viven en `us-east1`: fallaba siempre.
+- **`reprocessOrder` corre con 1 GiB y 300 s**, los mismos recursos que `parseUploadedPDF`. Antes heredaba 256 MiB / 60 s y se caía con cualquier PDF mediano.
+- **Los usuarios dados de alta desde el panel ya pueden entrar.** Se les envía correo de verificación al crearlos, y `AuthContext` reenvía el enlace automáticamente con un mensaje que explica qué hacer. El texto de la pantalla de alta se corrigió: prometía lo contrario de lo que hacía el sistema.
+- **Archivos demasiado grandes dejan constancia visible.** Antes se descartaban con un `logger.warn` invisible para quien los subía: toast verde y el expediente nunca aparecía. Ahora quedan en `manual_review` con el motivo escrito.
+- **Detección de expedientes legacy corregida.** `where("invoiceStatuses", "==", null)` no encuentra campos ausentes en Firestore, sólo nulls explícitos: el contador daba siempre cero. Se sustituyó por comparación de totales.
+- **Los filtros de Órdenes ya no mienten.** El filtro leía `creditCycle.status` de la raíz mientras el contador y la columna Estado usaban el estatus derivado: el chip podía decir «Vencidas (5)» y la tabla salir vacía. Se unificó también en Dashboard, Layout y Configuración.
+- El pie de la tabla de Órdenes ahora suma exactamente la columna «Deuda» (se medía contra el subtotal en vez del total con IVA).
+
+### Rendimiento
+- **Órdenes: una sola pasada.** `getOrderSummary` se ejecutaba ~10 veces por renglón en cada tecla escrita (una en el contador, ocho en los totales, una en el render). Ahora se calcula una vez por expediente y se reutiliza.
+- **Respaldos en la nube: metadatos separados del contenido.** Listar o podar respaldos descargaba los cinco payloads completos (~1.5 MB por operación). El contenido se movió a `snapshots/{id}/blob/data` y se lee sólo al restaurar. Se agregó un aviso claro al acercarse al límite de 1 MiB por documento de Firestore.
+- **`sanitizePurchaseOrder` sale temprano** si el arreglo `invoices` no cambió, y cachea `config/financials` 60 s. Antes el lote nocturno podía encadenar hasta 400 invocaciones.
+- Corregido un `useMemo` con dependencias incompletas en `OrderModal`: al cambiar el costo variable, los importes en pantalla no se refrescaban hasta tocar otro campo.
+
+### Interfaz
+- Se agregaron `.btn-small`, `.btn-warn` y `.input-field`, invocadas por Cobranza y Usuarios pero inexistentes en la hoja de estilo: esos controles se dibujaban con el estilo crudo del navegador.
+- Encabezados de tabla pegajosos, cifras con `tabular-nums` (los dígitos ya no bailan al actualizarse), estado `:active` en botones, barras de scroll finas y color de selección de la paleta.
+- El modal atrapa el foco, cierra con `Escape`, bloquea el scroll de fondo y devuelve el foco al cerrarse.
+
+### Documentación
+- `SECURITY.md` sincronizado con el código: documentaba límites de 25 MB y 10 MB inexistentes, describía una validación de bitácora que no validaba nada y presentaba el sanitizador como garantía cuando era la causa de una pérdida de datos.
+- Versión unificada en `package.json`, `package-lock.json` y `functions/package.json`.
+- Se crearon los scripts referenciados que no existían en el repositorio: `DIAGNOSTICO.bat`, `CONECTAR_FIREBASE.bat`, `CONFIGURAR_CLAVE_GEMINI.bat`, `INSTALL_AND_DEPLOY.bat` y `PUSH_TO_GIT.bat`.
+- `AUDIT_NOTEBOOK.md` con el ciclo 2 completo.
+
 ## [v5.6.0] - 29 Julio 2026 (Auditoría de Automejora Continua & Perfeccionamiento de Cobranza)
 * **Cobranza sin Falsos Atrasos:** Las facturas con contrarecibo ya no muestran "días de atraso". Muestra cuenta regresiva visual `Faltan Xd`, `Hoy` o `Cobrar ✓` para contrarecibos vencidos.
 * **Alertas y Priorización en Cobranza:** Facturas sin contrarecibo se priorizan en rojo (`⚠ Xd sin CR`) arriba en la lista "Qué cobrar primero".
