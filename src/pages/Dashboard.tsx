@@ -261,12 +261,19 @@ export default function Dashboard() {
     // Dashboard entero reventaba con "porRecibir.reduce is not a function".
     const porRecibir: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
 
+    let criticos30 = 0;
+    let urgentes15 = 0;
+    let recientes1 = 0;
+
     activeOrders.forEach(o => {
       const invoices = o.invoices || [];
       invoices.forEach(inv => {
         if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
           const late = daysLate(toDate(inv.creditCycle.dueDate));
           if (late !== null && late > -8) proximos.push({ o, inv, d: late });
+          if (late !== null && late > 30) criticos30++;
+          else if (late !== null && late > 15) urgentes15++;
+          else if (late !== null && late > 0) recientes1++;
         }
         if (inv.creditCycle.status === 'paid') {
           const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
@@ -295,6 +302,9 @@ export default function Dashboard() {
       meses: mesesObj,
       mesesKeys,
       maxMes,
+      criticos30,
+      urgentes15,
+      recientes1,
       proximos
     };
   }, [statsDoc, activeOrders]);
@@ -396,6 +406,41 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Panel de Semáforo de Alertas Visuales - Control de Gestión */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
+        <div style={{ background: k.criticos30 > 0 ? 'rgba(239,68,68,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.criticos30 > 0 ? '#ef4444' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 22 }}>🔴</div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink-faint)' }}>Críticos (&gt;30 días)</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink)' }}>{k.criticos30} factura(s)</div>
+          </div>
+        </div>
+
+        <div style={{ background: k.urgentes15 > 0 ? 'rgba(249,115,22,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.urgentes15 > 0 ? '#f97316' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 22 }}>🟠</div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink-faint)' }}>Urgentes (16-30 días)</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink)' }}>{k.urgentes15} factura(s)</div>
+          </div>
+        </div>
+
+        <div style={{ background: k.recientes1 > 0 ? 'rgba(234,179,8,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.recientes1 > 0 ? '#eab308' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 22 }}>🟡</div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.recientes1 > 0 ? '#a16207' : 'var(--ink-faint)' }}>Recientes (1-15 días)</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: k.recientes1 > 0 ? '#a16207' : 'var(--ink)' }}>{k.recientes1} factura(s)</div>
+          </div>
+        </div>
+
+        <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 22 }}>🟢</div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#047857' }}>Por Recoger Contador</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#047857' }}>{k.porRecibir.length} contrarecibo(s)</div>
+          </div>
+        </div>
       </div>
 
       {(k.overdue.length > 0 || k.review.length > 0) && (

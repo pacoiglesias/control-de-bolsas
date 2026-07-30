@@ -6,6 +6,16 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 19 — 2026-07-30 — Consola del Semáforo de Control de Riesgo Operativo en Dashboard Principal
+
+> Se diseñó e incorporó el Panel Consola de Semáforo de Control de Riesgo en el Dashboard principal. Agrupa visualmente el estado del sistema en 4 niveles de riesgo operativo: Facturas Críticas (>30d en rojo), Urgentes (16-30d en naranja), Recientes (1-15d en amarillo) y Por Recoger del Contador (en verde).
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Dashboard.tsx` | Las alertas del Dashboard solo mostraban un número general de facturas vencidas sin desglosar su nivel de gravedad. | Diseñada la **Consola de Semáforo Visual de Riesgo Operativo** con 4 tarjetas indicadoras de severidad (🔴 Crítico, 🟠 Urgente, 🟡 Reciente, 🟢 Por Recoger). |
+
+---
+
 ## ✅ Ciclo 18 — 2026-07-30 — Módulo Avanzado de Control de Morosidad, Semáforo de Vencimientos, Proyección de Flujo a 7/15 Días y Copia de Recordatorios
 
 > Se diseñó e implementó la suite completa de control forense de contrarecibos vencidos: semáforo visual graduado por antigüedad de morosidad, chips de filtrado interactivo instantáneo, widget de proyección de ingresos a 7 y 15 días, y generador de avisos de recordatorio de cobro en 1 clic.
