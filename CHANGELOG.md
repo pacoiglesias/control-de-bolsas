@@ -1,5 +1,12 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.1.1] - 30 Julio 2026 (Ciclo 6 — Proveedores y Estado de Cuenta)
+
+### Nuevas Características y Correcciones Críticas
+- **Implementación del Estado de Cuenta de Proveedor**: Integración completa del proveedor "Andrés". Las órdenes de compra y los pagos desde la Caja Chica se consolidan cronológicamente.
+- **Sincronización Automática de Egresos**: Los pagos a proveedores ahora se ligan automáticamente y reducen el saldo deudor global exacto.
+- **Corrección en Siembra Inicial (Ceros en Dashboard)**: Se reparó un bug arquitectónico donde las facturas (`invoices`) de las órdenes históricas no eran inyectadas en la base de datos semilla. Esto provocaba que el `syncDashboardStats` sumara $0. Ahora `seedData.ts` inyecta las facturas correctamente para las operaciones del Excel.
+
 ## [v6.1.0] - 30 Julio 2026 (Ciclo 5 — Panel funcional, backfill y Ciclo 4 sobre v6)
 
 ### Corregido — el panel principal mostraba todo en cero

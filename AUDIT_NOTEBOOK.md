@@ -5,6 +5,18 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 **Leyenda de estados:** ✅ Resuelto · 🔧 En curso · 🔴 Pendiente (detectado, sin corregir) · ↩️ Regresión (se resolvió antes y volvió)
 ---
 
+## ✅ Ciclo 6 — 2026-07-30 — Estado de Cuenta de Proveedor y Fix Semilla
+
+> Verificación: `npm run build` exitoso. Despliegue en producción completado.
+
+### 🔴 Ceros persistentes en Dashboard al inyectar Base Inicial — causa raíz y corrección
+
+| Archivo | Problema | Optimización aplicada |
+|---|---|---|
+| `src/lib/seedData.ts` | Al actualizar la arquitectura a `invoices` en la v5.4.0, el script de siembra inicial seguía creando `purchaseOrders` sin el arreglo de facturas. `syncDashboardStats` sumaba cero para las ventas. | Se reestructuró la siembra para generar automáticamente el arreglo `invoices` de cada orden histórica inyectada, garantizando que el recálculo refleje $1.2M de ventas de los Excel. |
+| `src/lib/types.ts` | Inexistencia de vínculo formal entre un `Purchase` y un `Expense` de Caja Chica para el mismo proveedor. | Se añadió la propiedad `provider` a `Expense`, lo que habilitó el Libro Mayor (Estado de Cuenta) que consolida deuda y pagos. |
+
+
 ## ✅ Ciclo 5 — 2026-07-30 — Panel en ceros, backfill de agregación y Ciclo 4 sobre v6
 
 > Verificación: `tsc --noEmit` limpio en raíz y `functions`, `eslint .` con **0 errores y 0 advertencias**, 12/12 pruebas, `npm run build` completo.
