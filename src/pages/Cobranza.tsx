@@ -25,6 +25,20 @@ export default function Cobranza() {
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas'>('pendientes');
   const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
+
+  function copyReminder(order: PurchaseOrder, inv: Invoice, d: number | null) {
+    const folioStr = inv.folio || order.folio || '(sin folio)';
+    const crStr = inv.collection?.contrareciboNumber || order.collection?.contrareciboNumber || 'SIN-CR';
+    const monto = money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+    const dias = (d ?? 0) > 0 ? `${d} días de atraso` : 'próximo a vencer';
+
+    const msg = `Estimado cliente (${order.client || 'Cliente'}), le enviamos un cordial saludo. Le recordamos amablemente la factura / folio ${folioStr} (Contrarecibo: ${crStr}) por el monto de ${monto}, el cual cuenta con ${dias}. Agradecemos su confirmación de fecha de pago. Atentamente, Grupo Textil Providencia.`;
+
+    void navigator.clipboard.writeText(msg);
+    sound.playSuccess();
+    toast('📋 Recordatorio de cobro copiado al portapapeles. Listo para enviar por Correo/WhatsApp.', 'ok');
+  }
 
   function exportCobranzaCsv() {
     const headers = ['Folio', 'Cliente', 'Contrarecibo', 'Vencimiento', 'Días Atraso', 'Monto Venta con IVA', 'Estado'];
@@ -688,19 +702,41 @@ export default function Cobranza() {
       comisiones: allInvoices
         .filter((x) => x.inv.creditCycle.status === 'paid' || x.inv.creditCycle.status === 'collected')
         .reduce((a, x) => a + (x.inv.financials?.commission ?? (x.inv.kilos * config.salePricePerKg * config.commissionRate)), 0),
+      proyeccion7d: open
+        .filter((x) => {
+          const d = daysLate(toDate(x.inv.creditCycle.dueDate));
+          return d !== null && d <= 0 && d >= -7;
+        })
+        .reduce((a, x) => a + saldo(x.inv), 0),
+      proyeccion15d: open
+        .filter((x) => {
+          const d = daysLate(toDate(x.inv.creditCycle.dueDate));
+          return d !== null && d <= 0 && d >= -15;
+        })
+        .reduce((a, x) => a + saldo(x.inv), 0),
     };
   }, [orders, config]);
 
   const filteredLista = useMemo(() => {
-    if (!search.trim()) return data.lista;
+    let list = data.lista;
+    
+    if (filterType === 'vencidos') {
+      list = list.filter(x => (x.d ?? 0) > 0);
+    } else if (filterType === 'sincr') {
+      list = list.filter(x => !x.hasCr);
+    } else if (filterType === 'enplazo') {
+      list = list.filter(x => (x.d ?? 0) <= 0 && x.hasCr);
+    }
+
+    if (!search.trim()) return list;
     const q = search.toLowerCase();
-    return data.lista.filter(x => 
+    return list.filter(x => 
       (x.inv.folio?.toLowerCase() || '').includes(q) ||
       (x.o.folio?.toLowerCase() || '').includes(q) ||
       (x.o.client?.toLowerCase() || '').includes(q) ||
       (x.cr?.toLowerCase() || '').includes(q)
     );
-  }, [data.lista, search]);
+  }, [data.lista, search, filterType]);
 
   if (loading) {
     return (
@@ -753,13 +789,15 @@ export default function Cobranza() {
       {activeTab === 'pendientes' && (
         <>
           <div className="kpi-grid">
-        <KpiCard hero tone={data.meDeben > 0 ? 'warn' : 'ok'} label="TE DEBEN" value={money(data.meDeben)}
-          sub={`${data.open.length} órdenes abiertas`} />
-        <KpiCard tone={data.vencido > 0 ? 'bad' : undefined} label="De eso, vencido" value={money(data.vencido)} />
-        <KpiCard tone="cash" label="Ya cobrado" value={money(data.cobrado)} />
-        <KpiCard label="Comisiones pagadas" value={money(data.comisiones)}
-          sub={`${(config.commissionRate * 100).toFixed(1)}% sobre la venta`} />
-      </div>
+            <KpiCard hero tone={data.meDeben > 0 ? 'warn' : 'ok'} label="TE DEBEN" value={money(data.meDeben)}
+              sub={`${data.open.length} órdenes abiertas`} />
+            <KpiCard tone={data.vencido > 0 ? 'bad' : undefined} label="De eso, vencido" value={money(data.vencido)} />
+            <KpiCard tone="ok" label="Cobro a 7 Días" value={money(data.proyeccion7d)} sub="Proyección esta semana" />
+            <KpiCard tone="ok" label="Cobro a 15 Días" value={money(data.proyeccion15d)} sub="Proyección quincenal" />
+            <KpiCard tone="cash" label="Ya cobrado" value={money(data.cobrado)} />
+            <KpiCard label="Comisiones pagadas" value={money(data.comisiones)}
+              sub={`${(config.commissionRate * 100).toFixed(1)}% sobre la venta`} />
+          </div>
 
       <Card title="Antigüedad de saldos">
         {data.clientes.length === 0 ? (
@@ -826,26 +864,42 @@ export default function Cobranza() {
           <Empty>{search.trim() ? `No se encontraron resultados para "${search}".` : 'No hay nada pendiente de cobro.'}</Empty>
         ) : (
           <>
-          {/* Resumen rápido */}
+          {/* Resumen rápido e interactivo de filtros */}
           {(() => {
-            const sinCr = filteredLista.filter(x => !x.hasCr);
-            const conCr = filteredLista.filter(x => x.hasCr);
-            const conCrVencidos = conCr.filter(x => (x.d ?? 0) > 0);
+            const sinCrCount = data.lista.filter(x => !x.hasCr).length;
+            const vencidosCount = data.lista.filter(x => x.hasCr && (x.d ?? 0) > 0).length;
+            const enPlazoCount = data.lista.filter(x => x.hasCr && (x.d ?? 0) <= 0).length;
             return (
-              <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-                {sinCr.length > 0 && (
-                  <span className="badge" style={{ background: 'var(--bad)', fontSize: 12, padding: '4px 10px' }}>
-                    ⚠ {sinCr.length} factura(s) SIN contrarecibo — Requiere acción
-                  </span>
-                )}
-                {conCrVencidos.length > 0 && (
-                  <span className="badge" style={{ background: 'var(--warn)', color: '#333', fontSize: 12, padding: '4px 10px' }}>
-                    📅 {conCrVencidos.length} CR vencidos — Listo para cobrar
-                  </span>
-                )}
-                <span className="badge" style={{ background: 'var(--ok)', fontSize: 12, padding: '4px 10px' }}>
-                  ✓ {conCr.filter(x => (x.d ?? 0) <= 0).length} CR en plazo
-                </span>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Filtro rápido:</span>
+                <button
+                  className={`btn-small ${filterType === 'todos' ? 'btn-primary' : ''}`}
+                  onClick={() => setFilterType('todos')}
+                  style={{ padding: '4px 12px', fontSize: 12 }}
+                >
+                  Todos ({data.lista.length})
+                </button>
+                <button
+                  className={`btn-small`}
+                  onClick={() => setFilterType('vencidos')}
+                  style={{ padding: '4px 12px', fontSize: 12, background: filterType === 'vencidos' ? 'var(--warn)' : 'rgba(234,179,8,0.15)', color: filterType === 'vencidos' ? '#fff' : '#b45309', fontWeight: 600 }}
+                >
+                  🚨 Vencidos ({vencidosCount})
+                </button>
+                <button
+                  className={`btn-small`}
+                  onClick={() => setFilterType('sincr')}
+                  style={{ padding: '4px 12px', fontSize: 12, background: filterType === 'sincr' ? 'var(--bad)' : 'rgba(239,68,68,0.15)', color: filterType === 'sincr' ? '#fff' : '#b91c1c', fontWeight: 600 }}
+                >
+                  ⚠️ Sin Contrarecibo ({sinCrCount})
+                </button>
+                <button
+                  className={`btn-small`}
+                  onClick={() => setFilterType('enplazo')}
+                  style={{ padding: '4px 12px', fontSize: 12, background: filterType === 'enplazo' ? 'var(--ok)' : 'rgba(16,185,129,0.15)', color: filterType === 'enplazo' ? '#fff' : '#047857', fontWeight: 600 }}
+                >
+                  ✓ En Plazo ({enPlazoCount})
+                </button>
               </div>
             );
           })()}
@@ -854,16 +908,12 @@ export default function Cobranza() {
               <thead>
                 <tr>
                   <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Fecha Cobro</th>
-                  <th className="num">Plazo</th><th className="num">Saldo</th><th>Acción</th>
+                  <th className="num">Plazo / Semáforo</th><th className="num">Saldo</th><th>Acción</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLista.map(({ o, inv, d, saldo, hasCr, cr: currentCr }) => {
                   const isHovered = hoveredCr && hoveredCr === currentCr;
-                  // Lógica de color de fila:
-                  // Sin CR = fila roja (urgente)
-                  // Con CR vencido = fila naranja suave (listo para cobrar)
-                  // Con CR en plazo = fila normal
                   const rowClass = !hasCr 
                     ? 'row-bad' 
                     : (d !== null && d > 0) ? 'row-warn' : '';
@@ -909,18 +959,20 @@ export default function Cobranza() {
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">
                       {d === null ? '—' : hasCr ? (
-                        // Con Contrarecibo
-                        d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>Vencido {d}</span>
+                        d > 30 ? (
+                          <span className="badge" style={{ background: '#b91c1c', color: '#fff', fontWeight: 700 }}>🔴 +{d} días</span>
+                        ) : d > 15 ? (
+                          <span className="badge" style={{ background: '#ea580c', color: '#fff', fontWeight: 700 }}>🟠 +{d} días</span>
+                        ) : d > 0 ? (
+                          <span className="badge" style={{ background: 'var(--warn)', color: '#333', fontWeight: 700 }}>🟡 +{d} días</span>
                         ) : d === 0 ? (
                           <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>Vence hoy</span>
                         ) : (
-                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)}</span>
+                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)} d</span>
                         )
                       ) : (
-                        // Sin Contrarecibo: sí mostrar urgencia
                         d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d} días sin CR</span>
+                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d} d sin CR</span>
                         ) : (
                           <span style={{ color: 'var(--ink-faint)' }}>Recién emitida</span>
                         )
@@ -939,6 +991,16 @@ export default function Cobranza() {
                             REP: {inv.collection?.complementStatus === 'issued' ? 'Emitido' : 'Pendiente'}
                           </button>
                         )}
+                        <button
+                          className="btn-small"
+                          style={{ padding: '2px 6px', fontSize: '10px', background: 'var(--bg-card)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyReminder(o, inv, d);
+                          }}
+                        >
+                          ✉️ Recordatorio
+                        </button>
                       </div>
                     </td>
                   </tr>

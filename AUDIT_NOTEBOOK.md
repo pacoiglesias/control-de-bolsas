@@ -6,6 +6,19 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 18 — 2026-07-30 — Módulo Avanzado de Control de Morosidad, Semáforo de Vencimientos, Proyección de Flujo a 7/15 Días y Copia de Recordatorios
+
+> Se diseñó e implementó la suite completa de control forense de contrarecibos vencidos: semáforo visual graduado por antigüedad de morosidad, chips de filtrado interactivo instantáneo, widget de proyección de ingresos a 7 y 15 días, y generador de avisos de recordatorio de cobro en 1 clic.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Cobranza.tsx` | No existía una visualización clara del grado de mora ni proyecciones de cobro a corto plazo. | Agregadas las tarjetas **Cobro a 7 Días** y **Cobro a 15 Días** en la parrilla KPI. |
+| `src/pages/Cobranza.tsx` | No se podía aislar en 1 clic los vencidos o facturas sin contrarecibo. | Implementados los botones **Filter Chips interactivos** (`Todos`, `🚨 Vencidos`, `⚠️ Sin Contrarecibo`, `✓ En Plazo`). |
+| `src/pages/Cobranza.tsx` | La alerta de días de atraso era genérica. | Diseñado el **Semáforo de Morosidad Graduado** (🟡 Vencido 1-15d, 🟠 Urgente 16-30d, 🔴 Crítico +30d). |
+| `src/pages/Cobranza.tsx` | Redactar correos o mensajes de cobranza requería escribir datos manualmente. | Agregado el botón **`✉️ Recordatorio`**, que redacta la notificación con folios, contrarecibo y saldo exacto y la copia al portapapeles. |
+
+---
+
 ## ✅ Ciclo 17 — 2026-07-30 — Búsqueda Rápida en Vivo, Exportador Universal a Excel (CSV con UTF-8 BOM) y Reporte de Estado de Cuenta de Proveedores
 
 > Se implementaron tres mejoras operativas de alta usabilidad solicitadas para agilizar la interacción diaria: filtro de búsqueda instantáneo en Cobranza, exportador universal a Microsoft Excel (CSV con soporte de caracteres especiales) en todos los módulos principales, y reporte impreso en PDF del Estado de Cuenta de Proveedores (Andrés).
