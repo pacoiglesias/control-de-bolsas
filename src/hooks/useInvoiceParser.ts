@@ -60,7 +60,7 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
   };
 
   const processPagoText = (text: string) => {
-    const cleanText = text.replace(/[\s\-]/g, '').toUpperCase();
+    const cleanText = text.replace(/[\s-]/g, '').toUpperCase();
     const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     let updatedCount = 0;
     
@@ -94,7 +94,7 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
       }
 
       // 2. Formato SAT Complemento XML/PDF (UUID matching)
-      const cleanUuid = inv.folio.replace(/[\s\-]/g, '').toUpperCase();
+      const cleanUuid = inv.folio.replace(/[\s-]/g, '').toUpperCase();
       if (cleanUuid.length > 10 && cleanText.includes(cleanUuid)) {
         const regex = new RegExp(cleanUuid + '.*?IMP\\.?PAGADO\\$([\\d,]+\\.\\d{2})', 'i');
         const match = cleanText.match(regex);

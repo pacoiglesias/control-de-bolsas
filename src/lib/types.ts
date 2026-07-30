@@ -32,6 +32,10 @@ export interface OrderFinancials {
   costTotal?: number;
   commission?: number;
   netCashFlow: number;
+  /** Margen bruto de la operacion: venta sin IVA menos costo. Lo calcula
+   *  computeFinancials() en finance.core.ts y lo leen tanto el resumen del
+   *  frontend como la agregacion de stats.ts, pero faltaba declararlo aqui. */
+  tradeMargin?: number;
 }
 
 export interface CreditCycle {

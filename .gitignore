@@ -9,8 +9,6 @@ functions/lib
 .env
 .env.local
 .firebase
-serviceAccountKey*.json
-*-service-account*.json
 
 # Respaldos que crea INSTALAR_ACTUALIZACION.bat
 _respaldo_*/

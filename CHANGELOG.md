@@ -1,26 +1,34 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v5.9.0] - 30 Julio 2026 (Auditoría de Automejora Continua — Ciclo 4)
+## [v6.0.0] - 30 Julio 2026 (Arquitectura O(1), retiro de la IA, y reparación para que compile)
 
-### Corregido — seguridad
-- **HTML sin escapar en el paquete consolidado de Cobranza.** `printConsolidatedCr` interpolaba `cr`, `client`, `folios` y `status` sin escapar en una plantilla abierta como Blob URL con el mismo origen que la app y la sesión de Firebase viva. `escapeHtml()` se centralizó en `lib/format.ts` y se aplicó a los tres constructores de impresión del sistema (antes vivía duplicada dos veces solo dentro de `OrderModal.tsx`).
-- **Fuga de memoria en cada impresión.** Los tres `Blob`/`URL.createObjectURL` de remisión, paquete consolidado y contrarecibo consolidado no se liberaban nunca. Ahora se revocan a los 10 segundos de abrir la ventana de impresión.
+> Esta versión se desarrolló en una sesión previa pero **nunca llegó a compilar**: quedó a medio terminar en la carpeta local, sin subir a Git. Esta entrega la deja funcionando por primera vez, con `tsc`, `eslint`, pruebas y build en verde.
 
-### Corregido — concurrencia e integridad financiera
-- **`OrderModal.save()` ya no sobrescribe cambios concurrentes en silencio.** Migrado a `runTransaction` con concurrencia optimista: compara el `updatedAt` capturado al abrir el modal contra el del servidor y aborta con aviso explícito si alguien más (Cobranza, el saneador nocturno, un complemento XML) escribió el expediente mientras tanto. Usa el mismo `camposInvoices()` que Cobranza, ahora extraído a `lib/invoiceOps.ts`, así que `invoices`/`invoiceStatuses`/`updatedAt` viajan siempre juntos sin importar qué pantalla escribe.
-- **`collectContrareciboBlock` recalcula el importe dentro de la transacción.** El ingreso que se inyecta en Caja Chica al recoger un Contrarecibo se recomputaba fuera de la transacción, desde el snapshot que se le mostró al usuario en pantalla. Ahora se recalcula con las facturas recién leídas dentro de la propia transacción y se aborta si difiere en más de $1 de lo confirmado en pantalla.
+### Arquitectura (de la sesión previa)
+- **Agregación server-side** (`functions/src/stats.ts`): el trigger `syncDashboardStats` mantiene un documento singleton, de modo que el Dashboard deja de leer la colección completa. Cierra uno de los pendientes de fondo del Ciclo 3.
+- **Paginación en tiempo real** en el historial de órdenes.
+- **Deshacer cobros en bloque**: devuelve lotes enteros de contrarecibos al estado "Por cobrar".
 
-### Rendimiento
-- **Bundle principal de 582 kB → 36.7 kB.** Las 13 pantallas pasaron a `React.lazy()` con `<Suspense>`; Recharts (382 kB), usado solo por el Dashboard, salió a su propio chunk.
-- **`useExpenses`/`usePurchases` ordenan en el servidor** (`orderBy('date','desc')`) en vez de traer la colección completa y ordenarla en el cliente en cada snapshot.
+### Retiro de la IA de Gemini (de la sesión previa)
+- Los PDF ya no se envían a Gemini: se crea un expediente vacío en `manual_review` y la captura es manual.
+- **Los XML de CFDI se procesan nativamente** con `fast-xml-parser`. Para complementos de pago esto es preferible a la IA, porque el resultado es determinista: se leen los `IdDocumento` de los `DoctoRelacionado` y se marcan las facturas correspondientes como `issued`.
+- Nuevo `src/hooks/useInvoiceParser.ts`: parser de facturas y pagos del lado del cliente, por expresiones regulares, a partir de texto pegado o de un XML.
 
-### UI / Audio
-- **Feedback sonoro unificado.** Todo `toast()` dispara automáticamente el sonido de éxito o error correspondiente desde `ToastContext`, con una opción de silencio para los flujos que ya reproducen un sonido más específico (cobro en efectivo, aviso de IA terminada). Pantallas que nunca tuvieron sonido lo ganan gratis. Interruptor 🔊/🔇 persistente en `localStorage`, con valor inicial silenciado si el sistema pide `prefers-reduced-motion`.
-- **`.tabs`/`.tab`/`.tab.active` definidas.** Cobranza las usaba desde hacía tiempo sin que existieran en la hoja de estilos.
+### Corregido — para que la versión compilara
+- **Violación de las Reglas de Hooks en `OrderModal.tsx`.** `useInvoiceParser` se invocaba dentro de un IIFE que solo se ejecuta en la pestaña "facturas". Al cambiar de pestaña, React encontraba distinta cantidad de hooks entre renders y el modal reventaba con *"Rendered more hooks than during the previous render"*. Movido al nivel del componente.
+- **Importe `NaN` en la compra al fabricante.** El upsert de la compra a Andrés multiplicaba por `ccp`, que vale `undefined` cuando no se captura un costo propio, y guardaba `pricePerKg` y `totalAmount` inválidos. Ahora usa el costo efectivo resuelto por `configEfectiva` y redondea con `round2`.
+- `tradeMargin` faltaba en la interfaz `OrderFinancials`, pese a que `computeFinancials()` lo calcula y tanto `finance.ts` como `stats.ts` lo leen.
+- Comparación imposible en `finance.ts`: `customCostPrice !== ''` sobre un campo tipado como número.
+- Escapes redundantes en dos expresiones regulares de `useInvoiceParser.ts`.
+- `catch (error) { throw error; }` en `processStorageFile`: ahora registra qué archivo falló antes de relanzar, para que el reintento de `onObjectFinalized` deje rastro útil.
 
-### Mantenibilidad
-- `add_admin.js` y `check_orders.js` (scripts locales de un solo uso, con una ruta de Windows incrustada) salen del paquete de despliegue de Functions vía `firebase.json`; patrón `serviceAccountKey*.json` bloqueado en `.gitignore` como defensa adicional.
-- `import { onDocumentWritten }` en `functions/src/index.ts` subido a la cabecera del archivo.
+### Limpieza
+- Eliminados del árbol `OrderModal.backup.tsx` (64 KB), `fix_dashboard.cjs` y `functions/firebase-debug.log` (207 KB). Ninguno estaba referenciado.
+- Versión sincronizada en `package.json`, `package-lock.json` (raíz y functions) y en las dos menciones de `Layout.tsx`, que seguían anunciando v5.8.1.
+
+### Pendiente
+- Las dependencias de Gemini (`genkit`, `@genkit-ai/*`) siguen instaladas en `functions/package.json` sin usarse.
+- Los tres fixes críticos del Ciclo 4 (escape de HTML en la impresión de Cobranza, `runTransaction` en `OrderModal.save`, recálculo del importe dentro de la transacción en Cobranza) están pendientes de reaplicar sobre esta base.
 
 ## [v5.8.1] - 29 Julio 2026 (Corrección del instalador)
 

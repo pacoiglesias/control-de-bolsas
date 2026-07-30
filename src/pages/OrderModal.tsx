@@ -1,17 +1,17 @@
 import { useState, useMemo } from 'react';
-import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, PATHS, functions } from '../lib/firebase';
 import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate } from '../lib/finance';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
+import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate, round2 } from '../lib/finance';
+import { fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 import { useProducts } from '../hooks/useProducts';
-import { camposInvoices } from '../lib/invoiceOps';
+import { useInvoiceParser } from '../hooks/useInvoiceParser';
 
 export default function OrderModal({
   order,
@@ -34,15 +34,6 @@ export default function OrderModal({
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
 
-  // Sello de tiempo del expediente al ABRIR el modal, no en cada render: el
-  // prop `order` se refresca solo con la suscripcion en vivo de OrdersContext
-  // (los datos frescos entran cuando cualquier otra pantalla escribe), pero
-  // `form` se inicializa una sola vez con useState. Comparar este valor
-  // congelado contra lo que haya en el servidor al momento de guardar es lo
-  // que permite detectar si alguien mas (Cobranza, el saneador nocturno, un
-  // complemento XML) toco el expediente mientras seguia abierto aqui.
-  const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
-
   const [form, setForm] = useState({
     folio: order.folio ?? '',
     client: order.client ?? '',
@@ -55,6 +46,7 @@ export default function OrderModal({
     invoices: initialSummary.invoices,
     items: order.items ?? [],
     customCostPrice: order.customCostPrice !== undefined ? String(order.customCostPrice) : '',
+    customSellPrice: order.customSellPrice !== undefined ? String(order.customSellPrice) : '',
     customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
   });
 
@@ -63,18 +55,30 @@ export default function OrderModal({
   const kilosNum = Number(form.totalKilograms) || 0;
 
   const fallbackCost = form.invoices[0]?.financials?.costPricePerKg ?? config.costPricePerKg;
+  const fallbackSale = form.invoices[0]?.financials?.salePricePerKg ?? config.salePricePerKg;
   const fallbackComm = form.invoices[0]?.financials?.commissionRate ?? config.commissionRate;
+  const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : fallbackSale;
   const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : fallbackCost;
   const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) / 100 : fallbackComm;
   // Misma funcion que usa el trigger de saneamiento en el backend. Cuando
   // esto era un objeto literal aparte, la resolucion de costos variables
   // existia dos veces con dos nombres distintos y podia divergir.
   const dynamicConfig = useMemo(
-    () => configEfectiva(config, { customCostPrice: ccp, customCommissionRate: ccr }),
-    [config, ccp, ccr],
+    () => configEfectiva(config, { customCostPrice: ccp, customSellPrice: csp, customCommissionRate: ccr }),
+    [config, ccp, csp, ccr],
   );
 
-  // Calculate live summary based on form state
+  // Este hook estaba dentro del bloque `{tab === 'facturas' && (() => {...})()}`,
+  // es decir, solo se ejecutaba en una de las pestanas. Un hook condicional
+  // rompe las Reglas de Hooks: al cambiar de pestana React ve un numero
+  // distinto de hooks entre renders y revienta con "Rendered more hooks than
+  // during the previous render". Va aqui arriba, incondicional, como el resto.
+  const { processFacturaText, processPagoText } = useInvoiceParser({
+    invoices: form.invoices,
+    setInvoices: (newInvoices: Invoice[]) => set('invoices', newInvoices),
+    config,
+  });
+
   const liveSummary = useMemo(() => {
     // We construct a fake order object to pass to getOrderSummary
     const tempOrder: PurchaseOrder = {
@@ -83,9 +87,11 @@ export default function OrderModal({
       totalKilograms: kilosNum,
       deliveries: form.deliveries,
       invoices: form.invoices,
+      customCostPrice: form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined,
+      customSellPrice: form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined,
     };
     return getOrderSummary(tempOrder);
-  }, [order, form.folio, kilosNum, form.deliveries, form.invoices]);
+  }, [order, form.folio, kilosNum, form.deliveries, form.invoices, form.customCostPrice, form.customSellPrice]);
 
   const computedInvoices = useMemo(() => {
     return form.invoices.map((inv) => {
@@ -102,13 +108,24 @@ export default function OrderModal({
 
   async function save() {
     if (kilosNum <= 0) {
+      sound.playError();
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
       return;
     }
+    const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined;
+    const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined;
+    const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) : undefined;
+
+    if ((ccp !== undefined && isNaN(ccp)) || (csp !== undefined && isNaN(csp)) || (ccr !== undefined && isNaN(ccr))) {
+      sound.playError();
+      toast('Por favor, ingresa solo números válidos en Costo, Precio o Comisión.', 'bad');
+      return;
+    }
+
     setBusy(true);
     try {
       const ref = doc(db, PATHS.orders, order.id);
-
+      
       // Compute financials for all invoices just in case
       // Recalculate financials using historical snapshot if available to prevent history tampering
       const updatedInvoices = form.invoices.map(inv => {
@@ -127,55 +144,38 @@ export default function OrderModal({
         };
       });
 
-      // El guardado completo del expediente ahora corre en una transaccion:
-      // antes era un setDoc a ciegas desde la copia local del formulario, asi
-      // que un cobro registrado en Cobranza mientras este modal seguia
-      // abierto se revertia en silencio al guardar aqui. La transaccion
-      // relee el documento y aborta si `updatedAt` ya no coincide con lo que
-      // habia cuando se abrio el modal — camposInvoices() es la misma
-      // funcion que usa Cobranza, asi que invoices/invoiceStatuses/updatedAt
-      // viajan juntos por un solo camino en todo el sistema.
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
-
-        const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
-        if (
-          baselineUpdatedAt &&
-          freshUpdatedAt &&
-          freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()
-        ) {
-          throw new Error(
-            'Este expediente fue modificado por otra persona mientras lo editabas. ' +
-            'Ciérralo y vuelve a abrirlo para ver los cambios más recientes antes de guardar.',
-          );
-        }
-
-        tx.set(ref, {
-          folio: form.folio.trim(),
-          client: form.client.trim(),
-          department: form.department.trim(),
-          provider: form.provider.trim(),
-          totalKilograms: kilosNum,
-          estimatedDeliveryDate: form.estimatedDeliveryDate,
-          deliveries: form.deliveries,
-          items: form.items,
-          processedAt: order.processedAt ?? serverTimestamp(),
-          customCostPrice: ccp,
-          customCommissionRate: ccr,
-          ...camposInvoices(updatedInvoices),
-        }, { merge: true });
-      });
+      await setDoc(ref, {
+        folio: form.folio.trim(),
+        client: form.client.trim(),
+        department: form.department.trim(),
+        provider: form.provider.trim(),
+        totalKilograms: kilosNum,
+        estimatedDeliveryDate: form.estimatedDeliveryDate,
+        deliveries: form.deliveries,
+        invoices: updatedInvoices,
+        invoiceStatuses: updatedInvoices.map(i => i.creditCycle.status),
+        items: form.items,
+        updatedAt: serverTimestamp(),
+        processedAt: order.processedAt ?? serverTimestamp(),
+        customCostPrice: ccp,
+        customSellPrice: csp,
+        customCommissionRate: ccr,
+      }, { merge: true });
 
       // Upsert Purchase for Andrés
       try {
+        // Precio efectivo, NO el override opcional: `ccp` vale undefined
+        // siempre que el usuario no capture un costo propio, y entonces
+        // `kilosNum * ccp` daba NaN y se guardaba una compra con importe
+        // invalido. dynamicConfig ya resuelve override -> configuracion base.
+        const costoEfectivo = dynamicConfig.costPricePerKg;
         const purchaseRef = doc(db, PATHS.purchases, order.id);
         const purchaseSnap = await getDoc(purchaseRef);
         if (purchaseSnap.exists()) {
           await updateDoc(purchaseRef, {
             expectedKilos: kilosNum,
-            pricePerKg: ccp,
-            totalAmount: kilosNum * ccp,
+            pricePerKg: costoEfectivo,
+            totalAmount: round2(kilosNum * costoEfectivo),
           });
         } else {
           await setDoc(purchaseRef, {
@@ -183,8 +183,8 @@ export default function OrderModal({
             provider: form.provider.trim() || 'Andrés',
             expectedKilos: kilosNum,
             receivedKilos: 0,
-            pricePerKg: ccp,
-            totalAmount: kilosNum * ccp,
+            pricePerKg: costoEfectivo,
+            totalAmount: round2(kilosNum * costoEfectivo),
             paidAmount: 0,
             status: 'pedido',
             createdAt: serverTimestamp()
@@ -204,8 +204,12 @@ export default function OrderModal({
           await Promise.all(
             form.items.map(async (it) => {
               if (!it.description.trim()) return;
-              const productId = it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+              const productId = it.code?.trim() 
+                ? it.code.trim().toUpperCase() 
+                : it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                
               await setDoc(doc(db, PATHS.products, productId), {
+                code: it.code?.trim() || null,
                 description: it.description.trim(),
                 unit: it.unit,
                 defaultPrice: it.unitPrice,
@@ -225,9 +229,11 @@ export default function OrderModal({
         facturas: updatedInvoices.length,
         cobrado: liveSummary.paidAmount,
       });
+      sound.playSuccess();
       toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {
+      sound.playError();
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
     } finally {
       setBusy(false);
@@ -242,6 +248,18 @@ export default function OrderModal({
   }
 
   function printRemision() {
+    function escapeHtml(str: string) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+          }[tag] || tag)
+      );
+    }
+
     const html = `
       <html>
         <head>
@@ -296,10 +314,15 @@ export default function OrderModal({
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function printConsolidatedPackage() {
+    function escapeHtml(str: string) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
     const totalKilos = Number(form.totalKilograms) || 0;
     const invList = form.invoices ?? [];
     const delList = form.deliveries ?? [];
@@ -446,7 +469,6 @@ export default function OrderModal({
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   async function remove() {
@@ -500,6 +522,17 @@ export default function OrderModal({
     if (field === 'description') {
       const matchedProd = products.find(p => p.description === value);
       if (matchedProd) {
+        next[index].code = matchedProd.code || '';
+        next[index].unit = matchedProd.unit;
+        next[index].unitPrice = matchedProd.defaultPrice;
+      }
+    }
+    
+    // Auto-fill from catalog if code matches exactly
+    if (field === 'code' && value) {
+      const matchedProd = products.find(p => p.code?.toUpperCase() === String(value).toUpperCase() || p.id === String(value).toUpperCase());
+      if (matchedProd) {
+        next[index].description = matchedProd.description;
         next[index].unit = matchedProd.unit;
         next[index].unitPrice = matchedProd.defaultPrice;
       }
@@ -576,14 +609,14 @@ export default function OrderModal({
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => setTab('resumen')}>Resumen</button>
-        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => setTab('productos')}>
+        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('resumen'); }}>Resumen</button>
+        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('productos'); }}>
           Productos <span className="badge">{form.items.length}</span>
         </button>
-        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => setTab('entregas')}>
+        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('entregas'); }}>
           Entregas <span className="badge">{form.deliveries.length}</span>
         </button>
-        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => setTab('facturas')}>
+        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('facturas'); }}>
           Facturas <span className="badge">{form.invoices.length}</span>
         </button>
         <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
@@ -625,13 +658,17 @@ export default function OrderModal({
                 <button className="btn" onClick={emailClient} style={{ background: 'var(--info)', color: '#fff', borderColor: 'var(--info)' }}>✉️ Notificar al cliente</button>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <Field label={`Costo de Compra (Andrés) $/kg (Histórico/Global: $${fallbackCost})`}>
-                  <input className="input boxed mono" type="number" step="0.01" value={form.customCostPrice}
-                    onChange={(e) => set('customCostPrice', e.target.value)} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
+                <Field label={`Precio Venta Acordado $/kg`}>
+                  <input className="input boxed mono" type="number" step="0.01" 
+                    onBlur={(e) => set('customSellPrice', e.target.value)} defaultValue={form.customSellPrice} disabled={readOnly} placeholder={`Ej. ${fallbackSale}`} />
                 </Field>
-                <Field label={`Comisión Contabilidad % (Histórico/Global: ${fallbackComm * 100}%)`}>
-                  <input className="input boxed mono" type="number" step="0.01" value={form.customCommissionRate}
-                    onChange={(e) => set('customCommissionRate', e.target.value)} disabled={readOnly} placeholder={`Ej. ${fallbackComm * 100}`} />
+                <Field label={`Costo Compra (Andrés) $/kg`}>
+                  <input className="input boxed mono" type="number" step="0.01" 
+                    onBlur={(e) => set('customCostPrice', e.target.value)} defaultValue={form.customCostPrice} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
+                </Field>
+                <Field label={`Comisión Contabilidad %`}>
+                  <input className="input boxed mono" type="number" step="0.01" 
+                    onBlur={(e) => set('customCommissionRate', e.target.value)} defaultValue={form.customCommissionRate} disabled={readOnly} placeholder={`Ej. ${fallbackComm * 100}`} />
                 </Field>
               </div>
             </div>
@@ -677,6 +714,23 @@ export default function OrderModal({
                   {money(liveSummary.invoiceTotal - liveSummary.paidAmount)}
                 </span>
               </div>
+              
+              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
+              
+              <div className="calc-line">
+                <span>Ganancia Comercial (Devengada)</span>
+                {form.customCostPrice && form.customSellPrice ? (
+                  <span className="mono" style={{ color: 'var(--ok)' }}>{money(liveSummary.tradeMargin)}</span>
+                ) : (
+                  <span className="mono" style={{ color: 'var(--warn)', fontSize: '0.85em' }}>Falta costo/venta</span>
+                )}
+              </div>
+              <div className="calc-line">
+                <span>Ganancia por Cobros (Realizada)</span>
+                <span className="mono" style={{ color: liveSummary.realizedProfit > 0 ? 'var(--ok)' : 'inherit' }}>
+                  {money(liveSummary.realizedProfit)}
+                </span>
+              </div>
             </div>
             
             <div style={{ marginTop: 16 }}>
@@ -690,7 +744,87 @@ export default function OrderModal({
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h4>Detalle de Artículos (Partidas de la OC)</h4>
-              {!readOnly && <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>}
+              {!readOnly && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" onClick={() => {
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF de la OC:");
+                    if (!text) return;
+                    
+                    const lines = text.split('\n');
+                    const newItems: any[] = [];
+                    
+                    for (const line of lines) {
+                      const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
+                      if (numsMatch) {
+                        const rawDesc = numsMatch[1].trim();
+                        const nums = numsMatch[2].trim().split(/\s+/).map(n => Number(n.replace(/,/g, '')));
+                        
+                        if (nums.length >= 3 && !rawDesc.toLowerCase().includes('subtotal') && !rawDesc.toLowerCase().includes('total')) {
+                          let code = '';
+                          let cleanDesc = rawDesc;
+                          const parts = cleanDesc.split(/\s+/);
+                          if (/^\d+$/.test(parts[0])) {
+                            parts.shift(); // Remove leading row number
+                          }
+                          // Check if first word looks like a product code (letters+numbers or hyphens, >4 chars)
+                          if (parts.length > 1 && /^[a-zA-Z0-9-]{5,}$/.test(parts[0])) {
+                            code = parts.shift() || '';
+                          }
+                          cleanDesc = parts.join(' ');
+
+                          newItems.push({
+                            id: Date.now().toString() + Math.random().toString().slice(2, 6),
+                            code: code,
+                            description: cleanDesc,
+                            quantity: nums[0],
+                            unitPrice: nums[1],
+                            amount: nums[nums.length - 1],
+                            unit: 'Kilos'
+                          });
+                        }
+                      }
+                    }
+
+                    let newFolio = form.folio;
+                    let newProvider = form.provider;
+                    let newClient = form.client;
+
+                    const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
+                    const folio2 = text.match(/CDB OC:\s*([^\n]+)/i);
+                    if (!newFolio) {
+                      if (folioMatch) newFolio = folioMatch[1].trim();
+                      else if (folio2) newFolio = folio2[1].trim();
+                    }
+
+                    const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
+                    if (!newProvider && providerMatch) {
+                      newProvider = providerMatch[1].trim();
+                    }
+
+                    if (!newClient && lines.length > 0) {
+                      const firstLine = lines[0].split('|')[0].trim();
+                      if (firstLine.length > 5 && firstLine.length < 100 && !firstLine.includes(':')) {
+                         newClient = firstLine;
+                      }
+                    }
+
+                    if (newItems.length > 0 || newFolio !== form.folio) {
+                      setForm(f => ({
+                        ...f,
+                        folio: newFolio,
+                        provider: newProvider,
+                        client: newClient,
+                        items: [...f.items, ...newItems],
+                        totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
+                      }));
+                      toast(`Detectado: ${newItems.length} artículos, Folio: ${newFolio || 'N/A'}.`, 'ok');
+                    } else {
+                      toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
+                    }
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 Pegar Texto OC</button>
+                  <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>
+                </div>
+              )}
             </div>
             {form.items.length === 0 ? (
               <p className="hint">No hay artículos detallados. La IA extrae estos datos automáticamente del PDF de la Orden de Compra.</p>
@@ -702,6 +836,7 @@ export default function OrderModal({
                       <th className="num">Cant. Pedida</th>
                       <th className="num">Cant. Entregada</th>
                       <th>Unidad</th>
+                      <th>Código</th>
                       <th>Descripción</th>
                       <th className="num">P. Unitario</th>
                       <th className="num">Importe</th>
@@ -723,15 +858,19 @@ export default function OrderModal({
                           </div>
                         </td>
                         <td>
-                          <input className="input boxed" type="text" style={{ width: 80 }}
+                          <input className="input boxed" type="text" style={{ width: 70 }}
                             defaultValue={it.unit} onBlur={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
+                        </td>
+                        <td>
+                          <input className="input boxed mono" type="text" style={{ width: 100 }} placeholder="Opcional"
+                            defaultValue={it.code || ''} onBlur={e => updateItem(i, 'code', e.target.value)} disabled={readOnly} />
                         </td>
                         <td>
                           <input className="input boxed" type="text" list="catalog-products" style={{ minWidth: 200 }}
                             defaultValue={it.description} onBlur={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
                         </td>
                         <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
+                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
                             defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
                         </td>
                         <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
@@ -819,11 +958,57 @@ export default function OrderModal({
         {tab === 'facturas' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h4>Facturas y Cobranza Parcial</h4>
-              {!readOnly && <button className="btn btn-primary" onClick={addInvoice}>+ Agregar Factura</button>}
+              <h4>Registro de Facturas</h4>
+              {!readOnly && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {/* FACTURAS XML/TEXTO */}
+                  <label className="btn" style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)', cursor: 'pointer' }}>
+                    📂 XML Factura
+                    <input type="file" accept=".xml" style={{ display: 'none' }} onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        const text = String(evt.target?.result || '');
+                        processFacturaText(text);
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }} />
+                  </label>
+                  
+                  <button className="btn" onClick={() => {
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF o XML de la Factura:");
+                    if (text) processFacturaText(text);
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR FACTURA</button>
+                  
+                  {/* PAGOS XML/TEXTO */}
+                  <label className="btn" style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)', cursor: 'pointer' }}>
+                    📂 XML Pago
+                    <input type="file" accept=".xml" style={{ display: 'none' }} onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        const text = String(evt.target?.result || '');
+                        processPagoText(text);
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }} />
+                  </label>
+
+                  <button className="btn" onClick={() => {
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF del Complemento de Pago:");
+                    if (text) processPagoText(text);
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
+
+                  <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
+                </div>
+              )}
             </div>
             {form.invoices.length === 0 ? (
-              <p className="hint">No hay facturas registradas.</p>
+              <p className="hint">No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {computedInvoices.map(({ inv, fin, d, isLate }, i) => {
@@ -844,7 +1029,7 @@ export default function OrderModal({
                                     creditCycle: { ...x.creditCycle, status: 'paid' },
                                     collection: { ...x.collection, paidAmount: invTotal, paidAt: Timestamp.now() }
                                   }));
-                                  toast('✅ Marcada como cobrada por el cliente. Pendiente de recibir del contador.', 'ok', { silent: true });
+                                  toast('✅ Marcada como cobrada por el cliente. Pendiente de recibir del contador.', 'ok');
                                 }}>
                                 💰 Cobrada por Cliente
                               </button>
@@ -872,7 +1057,7 @@ export default function OrderModal({
                                       notes: `Factura: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
                                       createdAt: serverTimestamp(),
                                     });
-                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a Caja Chica.`, 'ok', { silent: true });
+                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a Caja Chica.`, 'ok');
                                   } catch {
                                     toast('Factura marcada, pero error al registrar en Caja Chica.', 'bad');
                                   }
@@ -884,6 +1069,24 @@ export default function OrderModal({
                               <span style={{ background: 'var(--ok)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
                                 ✅ Recibida y en Caja Chica
                               </span>
+                            )}
+                            {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
+                              <button className="btn" style={{ background: 'var(--line)', color: '#333', borderColor: 'var(--line)', padding: '4px 10px', fontSize: 13 }}
+                                onClick={() => {
+                                  if (inv.creditCycle.status === 'collected') {
+                                    if (!window.confirm('Esta factura ya generó un ingreso en Caja Chica. Si deshaces el cobro, tendrás que ir a borrar el ingreso de Caja Chica manualmente. ¿Deseas continuar?')) return;
+                                  } else {
+                                    if (!window.confirm('¿Deshacer el cobro de esta factura? Volverá a estar pendiente de cobro.')) return;
+                                  }
+                                  updateInvoice(i, x => ({
+                                    ...x,
+                                    creditCycle: { ...x.creditCycle, status: 'pending' },
+                                    collection: { ...x.collection, paidAmount: 0, paidAt: undefined, collectedAt: undefined }
+                                  }));
+                                  toast('Cobro deshecho. No olvides Guardar el expediente.', 'ok');
+                                }}>
+                                ↩️ Deshacer Cobro
+                              </button>
                             )}
                             <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
                           </div>
@@ -929,11 +1132,9 @@ export default function OrderModal({
                               <option value="overdue">Vencida</option>
                               <option value="manual_review">Revisión manual</option>
                           </select>
-                          {isLate && (
-                            <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4 }}>
-                              ⚠️ {d} días de atraso
-                            </div>
-                          )}
+                          <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4, minHeight: 18, visibility: isLate ? 'visible' : 'hidden' }}>
+                            {isLate ? `⚠️ ${d} días de atraso` : ' '}
+                          </div>
                         </Field>
                         <Field label="Emisión">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.issueDate) || ''}

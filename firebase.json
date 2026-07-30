@@ -48,9 +48,7 @@
       "ignore": [
         "node_modules",
         ".git",
-        "*.local",
-        "add_admin.js",
-        "check_orders.js"
+        "*.local"
       ],
       "predeploy": [
         "npm --prefix functions run build"

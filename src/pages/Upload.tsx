@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable } from 'firebase/storage';
-import { storage, PATHS } from '../lib/firebase';
+import { storage, PATHS, db } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
@@ -41,7 +42,7 @@ export default function Upload() {
 
   const upload = useCallback(
     (files: FileList | File[]) => {
-      Array.from(files).forEach((file) => {
+      Array.from(files).forEach(async (file) => {
         if (file.type !== 'application/pdf') {
           toast(`${file.name} no es un PDF, se omitió.`, 'bad');
           return;
@@ -50,12 +51,28 @@ export default function Upload() {
           toast(`${file.name} pesa más de ${MAX_MB} MB.`, 'bad');
           return;
         }
+
+        // 1. Calcular Hash SHA-256
+        const buffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // 2. Verificar duplicidad en Firestore
+        const duplicateQuery = query(collection(db, PATHS.orders), where('fileHash', '==', fileHash));
+        const duplicateSnap = await getDocs(duplicateQuery);
+        if (!duplicateSnap.empty) {
+          toast(`El archivo ${file.name} ya fue subido previamente (Duplicado).`, 'bad');
+          return;
+        }
+
         const path = `${PATHS.uploadsPrefix}/${Date.now()}-${safeName(file.name)}`;
         const id = path;
         setJobs((j) => [{ id, name: file.name, path, progress: 0, state: 'subiendo' }, ...j]);
 
         const task = uploadBytesResumable(ref(storage, path), file, {
           contentType: 'application/pdf',
+          customMetadata: { fileHash },
         });
         task.on(
           'state_changed',
@@ -74,7 +91,7 @@ export default function Upload() {
               j.map((x) => (x.id === id ? { ...x, progress: 100, state: 'procesando' } : x)),
             );
             logAction(user?.email, 'Subida de Orden (PDF)', { filename: file.name });
-            toast(`${file.name} subido. La IA lo está leyendo…`, 'ok');
+            toast(`${file.name} subido. Creando expediente…`, 'ok');
           },
         );
       });
@@ -95,7 +112,7 @@ export default function Upload() {
           played = true; // Solo sonar una vez si procesó en bloque
         }
         setJobs(prev => prev.map(x => x.id === j.id ? { ...x, state: 'completado' } : x));
-        toast(`La IA ha terminado de procesar ${j.name}`, 'ok', { silent: true });
+        toast(`La IA ha terminado de procesar ${j.name}`, 'ok');
       }
     });
   }, [orders, jobs, matched, toast]);

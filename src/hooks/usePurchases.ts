@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Purchase } from '../lib/types';
 
@@ -9,13 +9,12 @@ export function usePurchases() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mismo criterio que useExpenses.ts: orderBy en el query en vez de
-    // ordenar en el cliente en cada snapshot.
-    const q = query(collection(db, PATHS.purchases), orderBy('date', 'desc'));
+    const q = query(collection(db, PATHS.purchases));
     const unsub = onSnapshot(
       q,
       (snap) => {
         const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Purchase);
+        rows.sort((a, b) => (b.date?.toMillis() ?? 0) - (a.date?.toMillis() ?? 0));
         setPurchases(rows);
         setLoading(false);
         setError(null);

@@ -1,25 +1,6 @@
-const MUTE_STORAGE_KEY = 'cb-sound-muted';
-
-/**
- * Estado inicial del silencio: respeta lo que el usuario haya elegido antes
- * (persistido en localStorage) y, si nunca lo ha decidido, arranca en
- * silencio para quien pidió al sistema operativo menos movimiento/estímulo
- * (prefers-reduced-motion) — quien pide eso suele querer menos ruido también.
- */
-function initialMuted(): boolean {
-  try {
-    const saved = localStorage.getItem(MUTE_STORAGE_KEY);
-    if (saved === '1') return true;
-    if (saved === '0') return false;
-  } catch {
-    /* localStorage inaccesible (modo privado, etc.): seguir con el default */
-  }
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-}
-
 class SoundEngine {
   private ctx: AudioContext | null = null;
-  private muted = initialMuted();
+  private muted = false;
 
   private getCtx() {
     if (!this.ctx) {
@@ -33,11 +14,6 @@ class SoundEngine {
 
   setMuted(m: boolean) {
     this.muted = m;
-    try {
-      localStorage.setItem(MUTE_STORAGE_KEY, m ? '1' : '0');
-    } catch {
-      /* si no se puede persistir, el silencio sigue funcionando en esta sesión */
-    }
   }
 
   isMuted() {
@@ -132,6 +108,29 @@ class SoundEngine {
       
       osc.start();
       osc.stop(ctx.currentTime + 0.4);
+    } catch { /* ignore */ }
+  }
+
+  playPop() {
+    if (this.muted) return;
+    try {
+      const ctx = this.getCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.05);
+      
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
     } catch { /* ignore */ }
   }
 }

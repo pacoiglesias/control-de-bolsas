@@ -94,7 +94,10 @@ export function getOrderSummary(o: PurchaseOrder) {
     paidAmount += i.collection?.paidAmount || 0;
     
     // Si la orden no tiene captura manual, el tradeMargin es 0 (no inflamos historico)
-    const hasCustomCost = o.customCostPrice !== undefined && o.customCostPrice !== null && o.customCostPrice !== '';
+    // customCostPrice es number|undefined en PurchaseOrder: comparar contra ''
+    // era herencia de cuando el valor llegaba crudo del formulario como texto.
+    // Los dos guardas de arriba ya cubren todos los casos posibles del tipo.
+    const hasCustomCost = o.customCostPrice !== undefined && o.customCostPrice !== null;
     const invMargin = hasCustomCost ? (i.financials?.tradeMargin || 0) : 0;
     tradeMargin += invMargin;
 
