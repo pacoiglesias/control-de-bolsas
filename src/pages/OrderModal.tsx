@@ -1289,7 +1289,7 @@ export default function OrderModal({
                                   updateInvoice(i, x => ({
                                     ...x,
                                     creditCycle: { ...x.creditCycle, status: 'pending' },
-                                    collection: { ...x.collection, paidAmount: 0, paidAt: undefined, collectedAt: undefined }
+                                    collection: { ...x.collection, paidAmount: 0, paidAt: null, collectedAt: null }
                                   }));
                                   toast('Cobro deshecho. No olvides Guardar el expediente.', 'ok');
                                 }}>
@@ -1388,7 +1388,7 @@ export default function OrderModal({
                             onChange={e => {
                               const cd = fromInputDate(e.target.value);
                               updateInvoice(i, x => ({
-                                ...x, collection: { ...x.collection, contrareciboDate: cd ? Timestamp.fromDate(cd) : undefined }
+                                ...x, collection: { ...x.collection, contrareciboDate: cd ? Timestamp.fromDate(cd) : null }
                               }))
                             }} />
                         </Field>
@@ -1405,7 +1405,7 @@ export default function OrderModal({
                             onChange={e => {
                               const pa = fromInputDate(e.target.value);
                               updateInvoice(i, x => ({
-                                ...x, collection: { ...x.collection, paidAt: pa ? Timestamp.fromDate(pa) : undefined }
+                                ...x, collection: { ...x.collection, paidAt: pa ? Timestamp.fromDate(pa) : null }
                               }))
                             }} />
                         </Field>

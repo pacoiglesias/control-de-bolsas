@@ -179,7 +179,7 @@ export default function Cobranza() {
               collection: {
                 ...x.collection,
                 paidAmount: 0,
-                paidAt: undefined,
+                paidAt: null,
               },
             }));
             if (nuevas) invoices = nuevas;
@@ -314,7 +314,7 @@ export default function Cobranza() {
               creditCycle: { ...x.creditCycle, status: 'paid' },
               collection: {
                 ...x.collection,
-                collectedAt: undefined,
+                collectedAt: null,
               },
             }));
             if (nuevas) invoices = nuevas;

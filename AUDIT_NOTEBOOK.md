@@ -6,6 +6,17 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 21 — 2026-07-30 — Corrección de Error de Firestore "Unsupported field value: undefined" en Reversión de Recolecciones
+
+> Se diagnosticó y corrigió el error en tiempo de ejecución al hacer clic en "Deshacer Recolección": `Function Transaction.update() called with invalid data. Unsupported field value: undefined`. El SDK de Firestore prohíbe pasar `undefined` dentro de propiedades de objetos serializados en transacciones. Se reemplazaron todas las asignaciones `collectedAt: undefined` y `paidAt: undefined` por `null`, permitiendo que la transacción de reversión complete de forma atómica y sin fallas.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Cobranza.tsx` | `revertCollectedContrareciboBlock` y `payContrareciboBlock` asignaban `collectedAt: undefined` y `paidAt: undefined`, haciendo fallar la transacción con error de Firestore SDK. | Reemplazado `undefined` por `null` en los campos de fecha de cobranza. |
+| `src/pages/OrderModal.tsx` | Al deshacer cobros o limpiar fechas se asignaban campos `undefined` en el objeto `collection`. | Reemplazado `undefined` por `null`. |
+
+---
+
 ## ✅ Ciclo 20 — 2026-07-30 — Corrección de Desestructuración $0.00 en Ganancia Comercial y Ganancia por Cobros
 
 > Se diagnosticó y corrigió el bug que mostraba $0.00 en las tarjetas KPI de "Ganancia Comercial" y "Ganancia por Cobros" en el Dashboard. Se detectó una inconsistencia de desestructuración (`k.kpis?.margenTotal` en lugar de `k.margenTotal`) y se incorporó un cálculo de respaldo en tiempo real sobre las órdenes activas para cuando el agregador asíncrono no haya emitido el snapshot.
