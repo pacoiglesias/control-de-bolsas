@@ -1,5 +1,27 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v5.9.0] - 30 Julio 2026 (Auditoría de Automejora Continua — Ciclo 4)
+
+### Corregido — seguridad
+- **HTML sin escapar en el paquete consolidado de Cobranza.** `printConsolidatedCr` interpolaba `cr`, `client`, `folios` y `status` sin escapar en una plantilla abierta como Blob URL con el mismo origen que la app y la sesión de Firebase viva. `escapeHtml()` se centralizó en `lib/format.ts` y se aplicó a los tres constructores de impresión del sistema (antes vivía duplicada dos veces solo dentro de `OrderModal.tsx`).
+- **Fuga de memoria en cada impresión.** Los tres `Blob`/`URL.createObjectURL` de remisión, paquete consolidado y contrarecibo consolidado no se liberaban nunca. Ahora se revocan a los 10 segundos de abrir la ventana de impresión.
+
+### Corregido — concurrencia e integridad financiera
+- **`OrderModal.save()` ya no sobrescribe cambios concurrentes en silencio.** Migrado a `runTransaction` con concurrencia optimista: compara el `updatedAt` capturado al abrir el modal contra el del servidor y aborta con aviso explícito si alguien más (Cobranza, el saneador nocturno, un complemento XML) escribió el expediente mientras tanto. Usa el mismo `camposInvoices()` que Cobranza, ahora extraído a `lib/invoiceOps.ts`, así que `invoices`/`invoiceStatuses`/`updatedAt` viajan siempre juntos sin importar qué pantalla escribe.
+- **`collectContrareciboBlock` recalcula el importe dentro de la transacción.** El ingreso que se inyecta en Caja Chica al recoger un Contrarecibo se recomputaba fuera de la transacción, desde el snapshot que se le mostró al usuario en pantalla. Ahora se recalcula con las facturas recién leídas dentro de la propia transacción y se aborta si difiere en más de $1 de lo confirmado en pantalla.
+
+### Rendimiento
+- **Bundle principal de 582 kB → 36.7 kB.** Las 13 pantallas pasaron a `React.lazy()` con `<Suspense>`; Recharts (382 kB), usado solo por el Dashboard, salió a su propio chunk.
+- **`useExpenses`/`usePurchases` ordenan en el servidor** (`orderBy('date','desc')`) en vez de traer la colección completa y ordenarla en el cliente en cada snapshot.
+
+### UI / Audio
+- **Feedback sonoro unificado.** Todo `toast()` dispara automáticamente el sonido de éxito o error correspondiente desde `ToastContext`, con una opción de silencio para los flujos que ya reproducen un sonido más específico (cobro en efectivo, aviso de IA terminada). Pantallas que nunca tuvieron sonido lo ganan gratis. Interruptor 🔊/🔇 persistente en `localStorage`, con valor inicial silenciado si el sistema pide `prefers-reduced-motion`.
+- **`.tabs`/`.tab`/`.tab.active` definidas.** Cobranza las usaba desde hacía tiempo sin que existieran en la hoja de estilos.
+
+### Mantenibilidad
+- `add_admin.js` y `check_orders.js` (scripts locales de un solo uso, con una ruta de Windows incrustada) salen del paquete de despliegue de Functions vía `firebase.json`; patrón `serviceAccountKey*.json` bloqueado en `.gitignore` como defensa adicional.
+- `import { onDocumentWritten }` en `functions/src/index.ts` subido a la cabecera del archivo.
+
 ## [v5.8.1] - 29 Julio 2026 (Corrección del instalador)
 
 ### Corregido — crítico

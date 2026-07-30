@@ -3,17 +3,31 @@
 Este documento es la bitácora viva de la Auditoría de Automejora Continua del sistema Control Bolsas ERP. Cada hallazgo, optimización, parche de seguridad y refactorización queda registrado aquí con fecha, archivo afectado, diagnóstico y resolución.
 
 **Leyenda de estados:** ✅ Resuelto · 🔧 En curso · 🔴 Pendiente (detectado, sin corregir) · ↩️ Regresión (se resolvió antes y volvió)
+
 ---
 
-## 🔎 Verificación de Fase de Auditoría — 2026-07-29
+## ✅ Ciclo 4 — 2026-07-30 (auditoría sobre `main` @ `208234d`, versión 5.8.1 → 5.9.0)
 
-- **Diagnóstico de Estado:** Al iniciar la ejecución del plan de auditoría global propuesto, se realizó una verificación cruzada de todos los archivos (`App.tsx`, `OrdersContext.tsx`, `index.ts`, `finance.core.ts`, `OcTracking.tsx`, `firestore.rules`).
-- **Hallazgo:** ¡El código se encuentra en un estado excelente! Todas las vulnerabilidades y problemas de rendimiento identificados en el plan original fueron herencia de un escaneo de registros históricos que **ya habían sido resueltos exitosamente en la versión 5.8.0 y 5.8.1 (Fase 6)**.
-- **Acción Tomada:** Se abortó la reescritura de los archivos críticos para no generar regresiones sobre un código que ya está altamente optimizado, seguro y validado.
-- **Lo que sigue verdaderamente pendiente (Macroarquitectura):**
-  1. Migración a agregación en `stats/dashboard` (para evitar descargar toda la colección `purchaseOrders` y sólo leer las métricas).
-  2. Migración de `invoices` a subcolección (para evitar bloqueos de tamaño y sobreescrituras completas).
-- **Estado:** ✅ Validado y Confirmado. Base de código sólida.
+> Verificación previa: repositorio clonado limpio, `npm ci` en raíz y en `functions`, `tsc --noEmit` en los dos, `eslint .`, `vitest run` (12/12) y `npm run build` completo (frontend + functions), todo en verde antes de tocar nada. Los doce hallazgos del ciclo 3 se confirmaron ya resueltos en el código y no se retocan.
+
+| Hallazgo | Archivo(s) | Resolución |
+|---|---|---|
+| Inyección de HTML sin escapar en el paquete consolidado | `Cobranza.tsx` | `escapeHtml()` centralizado en `lib/format.ts`; aplicado a `cr`, `client`, `folios` y `status` en `printConsolidatedCr`. El blob se abre con `window.open` y hereda el origen de la app — datos venidos de PDFs leídos por Gemini no son de confianza. |
+| `escapeHtml` duplicado dos veces en el mismo archivo | `OrderModal.tsx` | Ambas copias eliminadas; las tres plantillas de impresión (`printRemision`, `printConsolidatedPackage`, y la de Cobranza) usan la misma función de `lib/format.ts`. |
+| Fuga de memoria por cada impresión | `Cobranza.tsx`, `OrderModal.tsx` (×2) | Los tres `URL.createObjectURL` ahora se revocan 10s después de abrir la ventana de impresión. |
+| `OrderModal.save()` sobrescribía cambios concurrentes en silencio | `OrderModal.tsx` | Migrado a `runTransaction` con **concurrencia optimista**: se captura `updatedAt` al abrir el modal y se aborta si el servidor tiene un valor distinto al guardar, con mensaje explícito pidiendo recargar. Usa `camposInvoices()` (ahora compartido) para que `invoices`/`invoiceStatuses`/`updatedAt` viajen juntos, igual que en Cobranza. |
+| `camposInvoices()`/`aplicarPorId()` solo existían dentro de Cobranza | `lib/invoiceOps.ts` (nuevo) | Extraídas a módulo compartido; Cobranza y OrderModal importan la misma implementación en vez de mantener caminos paralelos para escribir facturas. |
+| Importe caduco inyectado en Caja Chica | `Cobranza.tsx` (`collectContrareciboBlock`) | `netUtilidad` se recalcula **dentro de la transacción**, desde las facturas recién leídas, y se aborta con mensaje si difiere en más de $1 del importe confirmado en pantalla. Antes viajaba tal cual desde el render. |
+| `.tabs`/`.tab`/`.tab.active` sin definir | `index.css` | Definidas junto al resto de variantes de `.btn`, mismo patrón que la nota ya existente sobre `.btn-warn`/`.btn-small`. |
+| Feedback sonoro repartido a mano, sin interruptor ni persistencia | `context/ToastContext.tsx`, `lib/sounds.ts`, `components/Layout.tsx` | Todo toast pasa por `ToastContext`, que ahora dispara `playSuccess`/`playError` automáticamente según el tono — con opción `{silent:true}` para los flujos que ya reproducen un sonido más específico (`playCash` al marcar cobros, `playNotify` cuando la IA termina un PDF), evitando el sonido doble. `SoundEngine` persiste el silencio en `localStorage` y arranca silenciado si el sistema pide `prefers-reduced-motion`. Botón 🔊/🔇 agregado en la barra superior y en el pie de la barra lateral. Pantallas que nunca tuvieron sonido (CajaChica, Compras, Settings, Users, eliminar/reintentar en OrderModal) lo ganan gratis al pasar por el mismo punto. |
+| `useExpenses`/`usePurchases` ordenaban en cliente | `hooks/useExpenses.ts`, `hooks/usePurchases.ts` | `orderBy('date','desc')` en el propio query; se verificó que todo camino de escritura de ambas colecciones siempre fija `date`, así que ningún documento queda fuera de la consulta. |
+| Bundle principal de 582 kB con Recharts incluido en todas las rutas | `App.tsx`, `vite.config.ts` | Las 13 pantallas pasan a `React.lazy()` con `<Suspense>` y fallback visual; `recharts` (382 kB) sale a su propio `manualChunk` — solo Dashboard lo descarga. El chunk principal bajó de 582 kB a **36.7 kB**. |
+| `add_admin.js`/`check_orders.js` viajaban en el paquete de Functions | `firebase.json` | Agregados al arreglo `ignore` de la codebase de functions. `check_orders.js` referencia una ruta local a `serviceAccountKey.json`: ese patrón se bloqueó también en `.gitignore` (`serviceAccountKey*.json`, `*-service-account*.json`) como defensa adicional; ninguno de los dos scripts se borró del repositorio. |
+| `import { onDocumentWritten }` a mitad de archivo | `functions/src/index.ts` | Subido a la cabecera junto con el resto de imports de `firebase-functions`. |
+
+### 🔴 Lo que queda abierto (consciente, no olvidado)
+
+Sin cambios respecto al ciclo 3: agregación en `stats/dashboard`, `invoices` como subcolección, y expedientes fantasma en `manual_review` en vez de una colección `failedUploads` propia. Siguen siendo cambios de modelo de datos que merecen su propia rama.
 
 ---
 
@@ -306,44 +320,3 @@ Los doce hallazgos del ciclo 3 fueron corregidos y verificados. Estado de la ver
 - **Problema:** Ausencia de un manual de seguridad consolidado y falta de sincronización del registro de versiones.
 - **Solución:** Creado `SECURITY.md` con el modelo Zero Trust y actualizado `CHANGELOG.md` con la versión v5.6.0.
 - **Estado:** ✅ Creado — el ciclo 2 detectó cuatro afirmaciones desincronizadas con el código. Ver arriba.
-### 🟢 2026-07-29 — Fase 5: Mantenibilidad, Seguridad y Desacoplamiento (Completada)
-- **Problema 1:** OrderModal.tsx con acoplamiento severo y más de 1300 líneas.
-- **Solución 1:** Lógica de parseo de XML/Factura extraída al hook src/hooks/useInvoiceParser.ts.
-- **Problema 2:** unctions/src/index.ts sobrescribiendo invoiceTotal de facturas capturadas por folio corto por falta de validación de olio.
-- **Solución 2:** Inclusión de check (inv.uuid || (inv.folio && inv.folio.length > 2)) en sanitizePurchaseOrder para proteger facturas manuales y XMLs subidos.
-- **Problema 3:** unctions/src/index.ts eadConfigCacheada provocaba condición de carrera si múltiples eventos se procesan en la misma instancia de Cloud Functions simultáneamente.
-- **Solución 3:** Implementación de pendingConfigPromise para centralizar lecturas superpuestas, minimizando costos de Firestore.
-### 🔴 2026-07-29 — src/pages/Upload.tsx — Subida de documentos duplicados
-- **Problema:** Al no verificar el contenido del archivo antes de subirlo a Storage, los usuarios pueden arrastrar el mismo PDF varias veces, generando expedientes duplicados.
-- **Solución propuesta:** Implementar una verificación criptográfica SHA-256 en el cliente y consultar Firestore antes de subir para prevenir duplicidad.
-- **Estado:** 🔴 Pendiente
-
-### 2026-07-29 - src/pages/OrderModal.tsx - Lag extremo de renderizado (Monolito)
-- **Problema:** Múltiples text inputs usaban el evento `onChange` para mutar un estado de formulario gigante y recalcular sumarios costosos (O(N)), causando severo input lag en cada pulsación.
-- **Solución:** Refactor de los eventos críticos en `OrderModal.tsx` (customCostPrice, customCommissionRate) para usar `defaultValue` y el evento `onBlur`, resolviendo el problema de lag sin desmantelar la estructura del modal completo prematuramente.
-- **Estado:** ✅ Resuelto y compilación verificada.
-
-### 2026-07-29 - src/pages/Orders.tsx, src/pages/Cobranza.tsx - A11y en tablas
-- **Problema:** Las filas interactivas en las tablas de expedientes y cobranza dependían únicamente del evento `onClick`, impidiendo la navegación por teclado para usuarios de accesibilidad o power users.
-- **Solución:** Se añadió `role="button"`, `tabIndex={0}` y `onKeyDown` (Enter/Espacio) a todas las filas clicables (`<tr>`) en `Orders.tsx` y `Cobranza.tsx`.
-- **Estado:** ✅ Resuelto.
-
-### 2026-07-29 - UI - Ajuste visual en Días de Atraso
-- **Problema:** El sufijo "d" (ej. "28d") en las columnas de cobranza y órdenes se confundía visualmente con un "0" para usuarios con dificultades visuales ("280").
-- **Solución:** Se eliminó el sufijo "d" o se reemplazó por la palabra "días" en `Orders.tsx` y `Cobranza.tsx` para máxima legibilidad.
-- **Estado:** ✅ Resuelto.
-
-### 2026-07-29 - firestore.rules y Dashboard.tsx - "Missing or insufficient permissions"
-- **Problema:** El nuevo bloque de agregación en `stats/dashboard` no tenía regla de lectura, bloqueando todo el frontend. Además, el Dashboard intentaba leer la bitácora `system_logs` sin importar el rol del usuario, colisionando con la regla de seguridad que lo reserva solo para super administradores.
-- **Solución:** Se agregó la regla `allow read: if isAuthenticatedUser();` para `stats` en Firestore. En el Dashboard se condicionó el stream de `system_logs` y la tarjeta de "Último Movimiento" para que se ejecuten y rendericen exclusivamente si `role === 'admin'`.
-- **Estado:** ✅ Resuelto y reglas desplegadas a producción.
-
-### 2026-07-29 - system_logs - Limpieza de bitácora
-- **Problema:** El usuario solicitó borrar los logs, pero debido al modelo Zero-Trust, el frontend tiene `allow delete: if false` para la colección `system_logs` previniendo manipulaciones.
-- **Solución:** Ejecución forzada vía terminal local (Firebase CLI / Admin) con el comando `firestore:delete system_logs -r -f`.
-- **Estado:** ✅ Resuelto.
-
-### 2026-07-29 - src/pages/Catalog.tsx - Columna de Código Faltante
-- **Problema:** El catálogo inteligente no mostraba el código de los productos a pesar de existir en el esquema de datos, complicando la identificación por SKU.
-- **Solución:** Inyección de la columna `Código` (`p.code`) en la tabla de `Catalog.tsx`, justo antes de la descripción.
-- **Estado:** ✅ Resuelto.

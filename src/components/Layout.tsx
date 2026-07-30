@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { getOrderSummary } from '../lib/finance';
+import { sound } from '../lib/sounds';
 
 const NAV = [
   { to: '/', icon: '📊', label: 'Panel Principal', end: true, roles: ['admin', 'manager', 'viewer'] },
@@ -30,9 +31,16 @@ export default function Layout() {
   const { orders } = useOrders();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
+  const [soundMuted, setSoundMuted] = useState(() => sound.isMuted());
   const location = useLocation();
   const nav = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  function toggleSound() {
+    const next = !soundMuted;
+    sound.setMuted(next);
+    setSoundMuted(next);
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -97,6 +105,15 @@ export default function Layout() {
         </div>
         <button
           className="icon-btn"
+          onClick={toggleSound}
+          aria-label={soundMuted ? 'Activar sonido' : 'Silenciar sonido'}
+          aria-pressed={soundMuted}
+          title={soundMuted ? 'Sonido desactivado' : 'Sonido activado'}
+        >
+          {soundMuted ? '🔇' : '🔊'}
+        </button>
+        <button
+          className="icon-btn"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           aria-label="Cambiar tema"
           title="Ctrl+K para Buscar"
@@ -109,7 +126,7 @@ export default function Layout() {
         <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
           <div className="brand">
             <div className="brand-mark">CONTROL BOLSAS</div>
-            <div className="brand-sub">Master Track · v5.8.1 ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
+            <div className="brand-sub">Master Track · v5.9.0 ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
           </div>
           <nav className="nav">
             {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => (
@@ -134,6 +151,9 @@ export default function Layout() {
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               ◐ {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             </button>
+            <button onClick={toggleSound}>
+              {soundMuted ? '🔇 Activar sonido' : '🔊 Silenciar sonido'}
+            </button>
             <span className="who">{user?.email}</span>
             <button onClick={() => void signOut()}>⏻ Cerrar sesión</button>
           </div>
@@ -144,7 +164,7 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Control Bolsas v5.8.1 · Desarrollado por Paco Iglesias &copy; 2026<br/>
+            Control Bolsas v5.9.0 · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>

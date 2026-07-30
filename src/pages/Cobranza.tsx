@@ -3,14 +3,15 @@ import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { Card, Empty, KpiCard, Skeleton, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
-import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, type AgingKey } from '../lib/finance';
-import { fmtDate, money, toDate } from '../lib/format';
+import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../lib/finance';
+import { escapeHtml, fmtDate, money, toDate } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { doc, Timestamp, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
 import type { Invoice } from '../lib/types';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
+import { camposInvoices, aplicarPorId } from '../lib/invoiceOps';
 import type { PurchaseOrder } from '../lib/types';
 
 export default function Cobranza() {
@@ -22,35 +23,9 @@ export default function Cobranza() {
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas'>('pendientes');
 
-  /**
-   * Los tres campos que SIEMPRE deben viajar juntos al escribir facturas.
-   *
-   * invoiceStatuses es el arreglo desnormalizado que sostiene la consulta del
-   * barrido nocturno. Solo OrderModal.save lo reescribia: las rutas de cobro
-   * de esta pantalla actualizaban invoices y lo dejaban atras, asi que
-   * facturas ya cobradas seguian figurando como "pending" en el indice y el
-   * barrido diario las volvia a traer indefinidamente.
-   */
-  function camposInvoices(invoices: Invoice[]) {
-    return {
-      invoices,
-      invoiceStatuses: invoices.map((i) => i.creditCycle?.status ?? 'pending'),
-      updatedAt: serverTimestamp(),
-    };
-  }
-
-  /** Aplica un cambio sobre UNA factura identificada por id, no por indice. */
-  function aplicarPorId(
-    invoices: Invoice[],
-    invoiceId: string,
-    cambio: (inv: Invoice) => Invoice,
-  ): Invoice[] | null {
-    const i = invoices.findIndex((x) => x.id === invoiceId);
-    if (i < 0) return null;
-    const copia = [...invoices];
-    copia[i] = cambio(copia[i]);
-    return copia;
-  }
+  // camposInvoices() y aplicarPorId() ahora viven en lib/invoiceOps.ts:
+  // OrderModal.save() las necesita exactamente igual y antes tenía su propio
+  // camino para escribir invoiceStatuses, con riesgo de divergir de este.
 
   async function toggleComplementStatus(orderId: string, invoiceId: string) {
     const o = orders.find(x => x.id === orderId);
@@ -140,52 +115,6 @@ export default function Cobranza() {
     }
   }
 
-  async function undoContrareciboBlock(crNumber: string) {
-    if (!crNumber) return;
-    if (!window.confirm(`¿Seguro que quieres DESHACER el cobro del Contrarecibo ${crNumber}? Las facturas volverán a pendientes.`)) return;
-    
-    const invoicesToUndo = data.paid.filter(({ o, inv }) => 
-      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
-    );
-    
-    const objetivo: Record<string, string[]> = {};
-    for (const { o, inv } of invoicesToUndo) {
-      (objetivo[o.id] ??= []).push(inv.id);
-    }
-
-    try {
-      await runTransaction(db, async (tx) => {
-        const refs = Object.keys(objetivo).map((id) => ({
-          id,
-          ref: doc(db, PATHS.orders, id),
-        }));
-        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
-
-        refs.forEach(({ id, ref }, k) => {
-          const snap = snaps[k];
-          if (!snap.exists()) return;
-          let invoices: Invoice[] = snap.data().invoices ?? [];
-          for (const invoiceId of objetivo[id]) {
-            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
-              ...x,
-              creditCycle: { ...x.creditCycle, status: 'pending' },
-              collection: {
-                ...x.collection,
-                paidAmount: 0,
-                paidAt: undefined,
-              },
-            }));
-            if (nuevas) invoices = nuevas;
-          }
-          tx.update(ref, camposInvoices(invoices));
-        });
-      });
-      toast(`Cobro del Contrarecibo ${crNumber} deshecho.`, 'ok');
-    } catch (e) {
-      toast(`Error al deshacer cobro: ${(e as Error).message}`, 'bad');
-    }
-  }
-
   async function collectContrareciboBlock(crNumber: string, netUtilidad: number) {
     if (!crNumber) return;
     if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se inyectará un Ingreso por $${netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
@@ -210,11 +139,26 @@ export default function Cobranza() {
         }));
         const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
 
+        // netUtilidad se recalcula AQUI, con los datos que se acaban de leer
+        // dentro de la transaccion, en vez de usar el parametro que llega
+        // desde el render. Antes viajaba tal cual desde la pantalla: si el
+        // saneador nocturno, un complemento XML o otro usuario tocaban
+        // financials entre el render y el clic, el ingreso que se inyectaba
+        // en Caja Chica quedaba desactualizado y nada lo detectaba despues.
+        let netUtilidadReal = 0;
+
         refs.forEach(({ id, ref }, k) => {
           const snap = snaps[k];
           if (!snap.exists()) return;
           let invoices: Invoice[] = snap.data().invoices ?? [];
           for (const invoiceId of objetivo[id]) {
+            const inv = invoices.find((x) => x.id === invoiceId);
+            if (inv) {
+              const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * config.salePricePerKg * (1 + config.ivaRate));
+              const costAndres = inv.financials?.costTotal ?? (inv.kilos * config.costPricePerKg);
+              const comm = inv.financials?.commission ?? (inv.kilos * config.salePricePerKg * config.commissionRate);
+              netUtilidadReal += invTotal - costAndres - comm;
+            }
             const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
               ...x,
               creditCycle: { ...x.creditCycle, status: 'collected' },
@@ -225,11 +169,22 @@ export default function Cobranza() {
           tx.update(ref, camposInvoices(invoices));
         });
 
+        netUtilidadReal = round2(netUtilidadReal);
+
+        // Un peso de tolerancia por redondeo; mas que eso significa que algo
+        // cambio de verdad entre el render y el clic.
+        if (Math.abs(netUtilidadReal - netUtilidad) > 1) {
+          throw new Error(
+            `El importe cambió desde que se mostró en pantalla ($${netUtilidad.toFixed(2)} → $${netUtilidadReal.toFixed(2)}). ` +
+            `Cierra este cuadro, revisa el Contrarecibo ${crNumber} y vuelve a intentarlo.`,
+          );
+        }
+
         tx.set(doc(collection(db, PATHS.expenses)), {
           date: Timestamp.now(),
           concept: `Ingreso por Utilidad del Contrarecibo ${crNumber}`,
           type: 'ingreso',
-          amount: netUtilidad,
+          amount: netUtilidadReal,
           createdAt: Timestamp.now(),
         });
       });
@@ -255,7 +210,7 @@ export default function Cobranza() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Paquete Consolidado CR - ${grp.cr}</title>
+          <title>Paquete Consolidado CR - ${escapeHtml(grp.cr)}</title>
           <style>
             body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; line-height: 1.4; }
             .header { border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
@@ -275,7 +230,7 @@ export default function Cobranza() {
           <div class="header">
             <div>
               <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
-              <div>Control Bolsas ERP · Contrarecibo ${grp.cr}</div>
+              <div>Control Bolsas ERP · Contrarecibo ${escapeHtml(grp.cr)}</div>
             </div>
             <div style="text-align:right;">
               <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}
@@ -284,14 +239,14 @@ export default function Cobranza() {
 
           <div class="meta-grid">
             <div>
-              <strong>Contrarecibo (CR):</strong> ${grp.cr}<br>
-              <strong>Cliente:</strong> ${grp.client}<br>
-              <strong>Factura(s):</strong> ${grp.folios.map(f => '#' + f).join(', ') || '—'}
+              <strong>Contrarecibo (CR):</strong> ${escapeHtml(grp.cr)}<br>
+              <strong>Cliente:</strong> ${escapeHtml(grp.client)}<br>
+              <strong>Factura(s):</strong> ${grp.folios.map(f => '#' + escapeHtml(f)).join(', ') || '—'}
             </div>
             <div style="text-align:right;">
               <strong>Proveedor Fabricante:</strong> Andrés (Sin Mermas)<br>
               <strong>Kilos Entregados:</strong> ${grp.totalKilos.toLocaleString('es-MX')} kg<br>
-              <strong>Estado Cobro:</strong> ${grp.status}
+              <strong>Estado Cobro:</strong> ${escapeHtml(grp.status)}
             </div>
           </div>
 
@@ -308,7 +263,7 @@ export default function Cobranza() {
             </thead>
             <tbody>
               <tr>
-                <td>Contrarecibo ${grp.cr} (${grp.folios.map(f => '#' + f).join(', ')})</td>
+                <td>Contrarecibo ${escapeHtml(grp.cr)} (${grp.folios.map(f => '#' + escapeHtml(f)).join(', ')})</td>
                 <td style="text-align:right;">${grp.totalKilos.toLocaleString('es-MX')} kg</td>
                 <td style="text-align:right;">$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 <td style="text-align:right;color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
@@ -319,7 +274,7 @@ export default function Cobranza() {
           </table>
 
           <div class="summary-box">
-            <div class="summary-line"><span>Total Facturado a Cliente (${grp.client}):</span><strong>$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
+            <div class="summary-line"><span>Total Facturado a Cliente (${escapeHtml(grp.client)}):</span><strong>$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
             <div class="summary-line"><span>Costo Directo Fabricante Andrés (Sin mermas):</span><span style="color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line"><span>Comisión Contador / Contabilidad:</span><span style="color:#B23A2E;">-$${grp.comisionContador.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line total">
@@ -342,6 +297,10 @@ export default function Cobranza() {
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    // El blob queda vivo en memoria hasta que se revoca a mano o se recarga
+    // la pestaña. Un pequeño margen para que la ventana nueva alcance a
+    // cargarlo antes de liberarlo.
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   const data = useMemo(() => {
@@ -615,11 +574,7 @@ export default function Cobranza() {
                     : (d !== null && d > 0) ? 'row-warn' : '';
                   return (
                   <tr key={inv.id} className={`${rowClass} ${isHovered ? 'row-hovered-cr' : ''}`}
-                    onClick={() => setSelected(o)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
-                    role="button"
-                    tabIndex={0}
-                    style={{ cursor: 'pointer' }}>
+                    onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
                     <td className="mono">
                       {inv.folio ?? o.folio ?? '—'}
                       {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
@@ -655,18 +610,18 @@ export default function Cobranza() {
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">
                       {d === null ? '—' : hasCr ? (
-                        // Con Contrarecibo
+                        // Con Contrarecibo: mostrar cuenta regresiva, NO atraso
                         d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>Vencido {d}</span>
+                          <span className="badge" style={{ background: 'var(--warn)', color: '#333' }}>Cobrar ✓</span>
                         ) : d === 0 ? (
-                          <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>Vence hoy</span>
+                          <span className="badge" style={{ background: 'var(--ok)' }}>Hoy</span>
                         ) : (
-                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)}</span>
+                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)}d</span>
                         )
                       ) : (
                         // Sin Contrarecibo: sí mostrar urgencia
                         d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d} días sin CR</span>
+                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d}d sin CR</span>
                         ) : (
                           <span style={{ color: 'var(--ink-faint)' }}>Recién emitida</span>
                         )
@@ -764,12 +719,7 @@ export default function Cobranza() {
                     const isHovered = hoveredCr && hoveredCr === currentCr;
                     
                     return (
-                      <tr key={inv.id} className={isHovered ? 'row-hovered-cr' : ''} 
-                        onClick={() => setSelected(o)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
-                        role="button"
-                        tabIndex={0}
-                        style={{ cursor: 'pointer' }}>
+                      <tr key={inv.id} className={isHovered ? 'row-hovered-cr' : ''} onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
                         <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
                         <td>{o.client ?? '—'}</td>
                         <td className="mono" onMouseEnter={() => currentCr ? setHoveredCr(currentCr) : null} onMouseLeave={() => setHoveredCr(null)}>
@@ -790,16 +740,6 @@ export default function Cobranza() {
                                 }}
                               >
                                 💰 Recoger Lote
-                              </button>
-                              <button 
-                                className="btn-small btn-warn" 
-                                style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '4px' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  undoContrareciboBlock(currentCr);
-                                }}
-                              >
-                                ↩️ Deshacer Cobro
                               </button>
                             </div>
                           )}

@@ -100,6 +100,16 @@ for /f "tokens=1-6 delims=/: " %%a in ("%DATE% %TIME%") do set "SELLO=%%c%%b%%a_
 set "SELLO=!SELLO: =0!"
 set "BACKUP=!PROYECTO!\_respaldo_!SELLO!"
 
+REM NOTA: se probo el prefijo de rutas largas de Windows ("\\?\") para
+REM cubrir el caso de un node_modules muy anidado, pero robocopy lo maneja
+REM mal como ORIGEN en este entorno (ERROR 67 "no se encuentra el nombre de
+REM red" sobre una ruta local perfectamente valida - es un problema conocido
+REM de robocopy con ese prefijo, no de esta carpeta). Se retira por completo
+REM y se vuelve al patron de rutas planas que ya usan el resto de los .bat
+REM de este proyecto (INSTALL_AND_DEPLOY.bat, PUSH_TO_GIT.bat) sobre esta
+REM misma carpeta, y que ya sabemos que funciona.
+set "BACKUP_LOG=%TEMP%\cb_respaldo_log.txt"
+
 if exist "!PROYECTO!\.gitignore" (
   findstr /c:"_respaldo_" "!PROYECTO!\.gitignore" >nul 2>nul
   if errorlevel 1 (
@@ -114,11 +124,28 @@ echo  [..] Respaldando tu proyecto completo en:
 echo       _respaldo_!SELLO!
 REM Rutas COMPLETAS en /XD: un nombre suelto como "lib" excluye esa carpeta
 REM en CUALQUIER nivel (asi se perdio src\lib en un incidente anterior,
-REM ver AUDIT_NOTEBOOK.md). Aqui van con ruta completa a proposito.
-robocopy "!PROYECTO!" "!BACKUP!" /E /XD "!PROYECTO!\node_modules" "!PROYECTO!\dist" "!PROYECTO!\.git" "!PROYECTO!\.firebase" "!PROYECTO!\functions\node_modules" "!PROYECTO!\functions\lib" "!PROYECTO!\_respaldo_*" /NFL /NDL /NJH /NJS /NC /NS >nul
+REM ver AUDIT_NOTEBOOK.md). Aqui van con ruta completa a proposito, EXCEPTO
+REM "_respaldo_*", que va como nombre suelto porque robocopy no acepta
+REM comodines en una ruta completa de /XD.
+REM /R:2 /W:2 en vez de los valores por omision de robocopy (hasta un millon
+REM de reintentos, 30s de espera cada uno): si un archivo esta bloqueado
+REM (antivirus, OneDrive, el propio editor), falla rapido y visible en vez
+REM de quedarse colgado horas en silencio. /LOG (sin /NFL /NDL) deja registro
+REM completo de que archivo fallo y por que, para diagnosticar sin adivinar.
+robocopy "!PROYECTO!" "!BACKUP!" /E /XD "!PROYECTO!\node_modules" "!PROYECTO!\dist" "!PROYECTO!\.git" "!PROYECTO!\.firebase" "!PROYECTO!\functions\node_modules" "!PROYECTO!\functions\lib" _respaldo_* /R:2 /W:2 /LOG:"!BACKUP_LOG!"
 if errorlevel 8 (
   color 0C
   echo  [X] Fallo el respaldo. NO instalo nada para no arriesgar tus datos.
+  echo.
+  echo      Ultimas lineas del registro ^(!BACKUP_LOG!^):
+  echo      ------------------------------------------------------------
+  powershell -NoProfile -Command "Get-Content -Tail 20 '!BACKUP_LOG!'" 2>nul
+  echo      ------------------------------------------------------------
+  echo.
+  echo      Causas mas comunes: un archivo abierto en otro programa,
+  echo      OneDrive sincronizando la carpeta Descargas, o el antivirus
+  echo      revisando node_modules en ese instante. Cierra lo que tengas
+  echo      abierto del proyecto y vuelve a intentarlo.
   rd /s /q "!TMPDIR!" >nul 2>nul
   pause & exit /b 1
 )
@@ -129,14 +156,20 @@ REM /IS /IT: sin esto, robocopy compara fecha/tamano y SE SALTA EN SILENCIO
 REM cualquier archivo que en el destino "parezca" igual o mas nuevo. Si tu
 REM copia local tiene fecha mas reciente que la del paquete, la correccion
 REM nunca llegaria. /IS fuerza a copiar tambien los que se ven "iguales".
+set "MERGE_LOG=%TEMP%\cb_instalacion_log.txt"
 echo  [..] Instalando los archivos del Ciclo 4...
 echo.
-robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" /NFL /NDL /NJH /NJS /NC /NS
+robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" /R:2 /W:2 /LOG:"!MERGE_LOG!"
 set RC=%ERRORLEVEL%
 if !RC! GEQ 8 (
   color 0C
   echo  [X] Hubo errores al copiar. Tu respaldo esta intacto en:
   echo      !BACKUP!
+  echo.
+  echo      Ultimas lineas del registro ^(!MERGE_LOG!^):
+  echo      ------------------------------------------------------------
+  powershell -NoProfile -Command "Get-Content -Tail 20 '!MERGE_LOG!'" 2>nul
+  echo      ------------------------------------------------------------
   rd /s /q "!TMPDIR!" >nul 2>nul
   pause & exit /b 1
 )

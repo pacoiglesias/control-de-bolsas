@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Expense } from '../lib/types';
 
@@ -9,12 +9,15 @@ export function useExpenses() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, PATHS.expenses));
+    // orderBy en el propio query: antes se traía la colección completa y se
+    // ordenaba con .sort() en el cliente en cada snapshot. Firestore ya sabe
+    // ordenar por índice; ordenar 40 renglones a mano no dolía, pero seguía
+    // siendo trabajo redundante en cada actualización en vivo.
+    const q = query(collection(db, PATHS.expenses), orderBy('date', 'desc'));
     const unsub = onSnapshot(
       q,
       (snap) => {
         const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense);
-        rows.sort((a, b) => (b.date?.toMillis() ?? 0) - (a.date?.toMillis() ?? 0));
         setExpenses(rows);
         setLoading(false);
         setError(null);

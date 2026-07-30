@@ -136,6 +136,12 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
    en esta hoja: esos controles se dibujaban con el estilo crudo del navegador. */
 .btn-warn{background:var(--warn);color:#fff;border-color:var(--warn)}
 .btn-warn:hover:not(:disabled){filter:brightness(1.08);color:#fff}
+/* Mismo caso: Cobranza.tsx renderiza .tabs/.tab desde hace tiempo y tampoco
+   existian aqui. Los botones se veian sin marco ni estado activo. */
+.tabs{display:flex;gap:6px;border-bottom:2px solid var(--line-soft)}
+.tab{border:none;background:transparent;color:var(--ink-soft);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;position:relative;top:2px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--accent-deep);border-bottom-color:var(--accent)}
 .btn-small{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--field);color:var(--ink);padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap;line-height:1.55;transition:all .18s cubic-bezier(.2,.8,.2,1)}
 .btn-small:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
 .btn-small:active:not(:disabled){transform:scale(.95)}
