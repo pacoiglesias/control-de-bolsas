@@ -103,6 +103,7 @@ export interface PurchaseOrder {
   items?: PurchaseOrderItem[];
   
   customCostPrice?: number;
+  customSellPrice?: number;
   customCommissionRate?: number;
 
   processedAt?: Timestamp | null;

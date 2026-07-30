@@ -20,9 +20,10 @@ function monthKey(d: Date): string {
 
 function extractStats(data: any): Record<string, any> {
   let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
-  const meses: Record<string, { venta: number; cobrado: number; ganancia: number }> = {};
+  let margen = 0, gananciaRealizada = 0;
+  const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   
-  if (!data) return { kilos, vendido, neto, porCobrar, vencido, cobrado, netoCobrado, porRecibir, meses, isPending: 0, isOverdue: 0, isManual: 0 };
+  if (!data) return { kilos, vendido, neto, porCobrar, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
@@ -60,6 +61,18 @@ function extractStats(data: any): Record<string, any> {
       const paidAmt = Number(inv.collection?.paidAmount || 0);
       const saldo = Math.max(invTotal - paidAmt, 0);
       
+      const hasCustomCost = data.customCostPrice !== undefined && data.customCostPrice !== null && data.customCostPrice !== '';
+      const invMargin = hasCustomCost ? Number(inv.financials?.tradeMargin || 0) : 0;
+      const invCommission = Number(inv.financials?.commission || 0);
+      
+      margen += invMargin;
+      
+      let invRealized = 0;
+      if (invTotal > 0 && paidAmt > 0) {
+         invRealized = (paidAmt / invTotal) * (hasCustomCost ? (invMargin - invCommission) : 0);
+      }
+      gananciaRealizada += invRealized;
+      
       vendido += invTotal;
       neto += invNet;
       
@@ -77,9 +90,11 @@ function extractStats(data: any): Record<string, any> {
       const d = toDate(inv.creditCycle?.issueDate) ?? toDate(data.processedAt);
       if (d) {
         const key = monthKey(d);
-        if (!meses[key]) meses[key] = { venta: 0, cobrado: 0, ganancia: 0 };
+        if (!meses[key]) meses[key] = { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
         meses[key].venta += invTotal;
         meses[key].ganancia += invNet;
+        meses[key].margen += invMargin;
+        meses[key].gananciaRealizada += invRealized;
         if (s === 'paid') meses[key].cobrado += invTotal;
       }
     }
@@ -87,6 +102,7 @@ function extractStats(data: any): Record<string, any> {
 
   return {
     kilos, vendido, neto, porCobrar, vencido, cobrado, netoCobrado, porRecibir,
+    margen, gananciaRealizada,
     meses,
     isPending: status === 'pending' ? 1 : 0,
     isOverdue: status === 'overdue' ? 1 : 0,
@@ -117,6 +133,8 @@ export const syncDashboardStats = onDocumentWritten(
     addDelta("totalKilos", before.kilos, after.kilos);
     addDelta("totalVendido", before.vendido, after.vendido);
     addDelta("netoTotal", before.neto, after.neto);
+    addDelta("margenTotal", before.margen || 0, after.margen || 0);
+    addDelta("gananciaRealizadaTotal", before.gananciaRealizada || 0, after.gananciaRealizada || 0);
     addDelta("porCobrar", before.porCobrar, after.porCobrar);
     addDelta("vencido", before.vencido, after.vencido);
     addDelta("cobrado", before.cobrado, after.cobrado);
@@ -130,16 +148,20 @@ export const syncDashboardStats = onDocumentWritten(
     // Meses
     const allMonths = new Set([...Object.keys(before.meses), ...Object.keys(after.meses)]);
     allMonths.forEach(m => {
-      const b = before.meses[m] || { venta: 0, cobrado: 0, ganancia: 0 };
-      const a = after.meses[m] || { venta: 0, cobrado: 0, ganancia: 0 };
+      const b = before.meses[m] || { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
+      const a = after.meses[m] || { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
       
       const dVenta = a.venta - b.venta;
       const dCobrado = a.cobrado - b.cobrado;
       const dGanancia = a.ganancia - b.ganancia;
+      const dMargen = (a.margen || 0) - (b.margen || 0);
+      const dRealizada = (a.gananciaRealizada || 0) - (b.gananciaRealizada || 0);
       
       if (Math.abs(dVenta) > 0.001) updates[`histograms.${m}.venta`] = FieldValue.increment(dVenta);
       if (Math.abs(dCobrado) > 0.001) updates[`histograms.${m}.cobrado`] = FieldValue.increment(dCobrado);
       if (Math.abs(dGanancia) > 0.001) updates[`histograms.${m}.ganancia`] = FieldValue.increment(dGanancia);
+      if (Math.abs(dMargen) > 0.001) updates[`histograms.${m}.margen`] = FieldValue.increment(dMargen);
+      if (Math.abs(dRealizada) > 0.001) updates[`histograms.${m}.gananciaRealizada`] = FieldValue.increment(dRealizada);
     });
 
     if (Object.keys(updates).length > 0) {

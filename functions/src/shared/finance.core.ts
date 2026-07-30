@@ -43,6 +43,7 @@ export interface FinanceResultCore {
   costTotal: number;
   commission: number;
   netCashFlow: number;
+  tradeMargin: number;
 }
 
 export function round2(n: number): number {
@@ -68,6 +69,7 @@ export function computeFinancials(
     costTotal,
     commission,
     netCashFlow: round2(invoiceTotal - costTotal - commission),
+    tradeMargin: round2(saleTotal - costTotal),
   };
 }
 
@@ -86,11 +88,26 @@ export function computeFinancials(
  */
 export function configEfectiva(
   base: FinanceConfigCore,
-  custom: { customCostPrice?: unknown; customCommissionRate?: unknown },
+  custom: { customSellPrice?: unknown; customCostPrice?: unknown; customCommissionRate?: unknown },
 ): FinanceConfigCore {
   const cfg: FinanceConfigCore = { ...base };
-  const costo = Number(custom.customCostPrice);
-  if (Number.isFinite(costo) && costo > 0) cfg.costPricePerKg = costo;
+  
+  if (custom.customSellPrice !== undefined && custom.customSellPrice !== null && custom.customSellPrice !== '') {
+    const venta = Number(custom.customSellPrice);
+    if (Number.isFinite(venta) && venta >= 0) cfg.salePricePerKg = venta;
+  }
+  
+  if (custom.customCostPrice !== undefined && custom.customCostPrice !== null && custom.customCostPrice !== '') {
+    const costo = Number(custom.customCostPrice);
+    if (Number.isFinite(costo) && costo >= 0) cfg.costPricePerKg = costo;
+  } else {
+    // Si no hay customCostPrice, forzamos que el costo sea igual a la venta para que el margen devengado empiece en $0
+    // (a menos que quieran usar el historico base de $42, pero acordamos que el historico empieza hoy con $0 ganancia si no hay captura).
+    // cfg.costPricePerKg = cfg.salePricePerKg; // Descomentar si se quiere anular la ganancia historica.
+    // Actualmente conservamos el fallback de base (42) para que el netCashFlow viejo no colapse, 
+    // pero la nueva metrica se guiara por la captura real.
+  }
+  
   const comision = Number(custom.customCommissionRate);
   if (Number.isFinite(comision) && comision >= 0) cfg.commissionRate = comision;
   return cfg;

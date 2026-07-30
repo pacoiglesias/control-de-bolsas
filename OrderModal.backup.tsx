@@ -46,7 +46,6 @@ export default function OrderModal({
     invoices: initialSummary.invoices,
     items: order.items ?? [],
     customCostPrice: order.customCostPrice !== undefined ? String(order.customCostPrice) : '',
-    customSellPrice: order.customSellPrice !== undefined ? String(order.customSellPrice) : '',
     customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
   });
 
@@ -55,19 +54,18 @@ export default function OrderModal({
   const kilosNum = Number(form.totalKilograms) || 0;
 
   const fallbackCost = form.invoices[0]?.financials?.costPricePerKg ?? config.costPricePerKg;
-  const fallbackSale = form.invoices[0]?.financials?.salePricePerKg ?? config.salePricePerKg;
   const fallbackComm = form.invoices[0]?.financials?.commissionRate ?? config.commissionRate;
-  const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : fallbackSale;
   const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : fallbackCost;
   const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) / 100 : fallbackComm;
   // Misma funcion que usa el trigger de saneamiento en el backend. Cuando
   // esto era un objeto literal aparte, la resolucion de costos variables
   // existia dos veces con dos nombres distintos y podia divergir.
   const dynamicConfig = useMemo(
-    () => configEfectiva(config, { customCostPrice: ccp, customSellPrice: csp, customCommissionRate: ccr }),
-    [config, ccp, csp, ccr],
+    () => configEfectiva(config, { customCostPrice: ccp, customCommissionRate: ccr }),
+    [config, ccp, ccr],
   );
 
+  // Calculate live summary based on form state
   const liveSummary = useMemo(() => {
     // We construct a fake order object to pass to getOrderSummary
     const tempOrder: PurchaseOrder = {
@@ -76,11 +74,9 @@ export default function OrderModal({
       totalKilograms: kilosNum,
       deliveries: form.deliveries,
       invoices: form.invoices,
-      customCostPrice: form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined,
-      customSellPrice: form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined,
     };
     return getOrderSummary(tempOrder);
-  }, [order, form.folio, kilosNum, form.deliveries, form.invoices, form.customCostPrice, form.customSellPrice]);
+  }, [order, form.folio, kilosNum, form.deliveries, form.invoices]);
 
   const computedInvoices = useMemo(() => {
     return form.invoices.map((inv) => {
@@ -137,7 +133,6 @@ export default function OrderModal({
         updatedAt: serverTimestamp(),
         processedAt: order.processedAt ?? serverTimestamp(),
         customCostPrice: ccp,
-        customSellPrice: csp,
         customCommissionRate: ccr,
       }, { merge: true });
 
@@ -632,17 +627,13 @@ export default function OrderModal({
                 <button className="btn" onClick={emailClient} style={{ background: 'var(--info)', color: '#fff', borderColor: 'var(--info)' }}>✉️ Notificar al cliente</button>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <Field label={`Precio Venta Acordado $/kg`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
-                    onBlur={(e) => set('customSellPrice', e.target.value)} defaultValue={form.customSellPrice} disabled={readOnly} placeholder={`Ej. ${fallbackSale}`} />
+                <Field label={`Costo de Compra (Andrés) $/kg (Histórico/Global: $${fallbackCost})`}>
+                  <input className="input boxed mono" type="number" step="0.01" value={form.customCostPrice}
+                    onChange={(e) => set('customCostPrice', e.target.value)} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
                 </Field>
-                <Field label={`Costo Compra (Andrés) $/kg`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
-                    onBlur={(e) => set('customCostPrice', e.target.value)} defaultValue={form.customCostPrice} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
-                </Field>
-                <Field label={`Comisión Contabilidad %`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
-                    onBlur={(e) => set('customCommissionRate', e.target.value)} defaultValue={form.customCommissionRate} disabled={readOnly} placeholder={`Ej. ${fallbackComm * 100}`} />
+                <Field label={`Comisión Contabilidad % (Histórico/Global: ${fallbackComm * 100}%)`}>
+                  <input className="input boxed mono" type="number" step="0.01" value={form.customCommissionRate}
+                    onChange={(e) => set('customCommissionRate', e.target.value)} disabled={readOnly} placeholder={`Ej. ${fallbackComm * 100}`} />
                 </Field>
               </div>
             </div>
@@ -686,23 +677,6 @@ export default function OrderModal({
                 <span>Deuda Restante</span>
                 <span className="mono" style={{ color: liveSummary.invoiceTotal - liveSummary.paidAmount > 0 ? 'var(--bad)' : 'inherit' }}>
                   {money(liveSummary.invoiceTotal - liveSummary.paidAmount)}
-                </span>
-              </div>
-              
-              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
-              
-              <div className="calc-line">
-                <span>Ganancia Comercial (Devengada)</span>
-                {form.customCostPrice && form.customSellPrice ? (
-                  <span className="mono" style={{ color: 'var(--ok)' }}>{money(liveSummary.tradeMargin)}</span>
-                ) : (
-                  <span className="mono" style={{ color: 'var(--warn)', fontSize: '0.85em' }}>Falta costo/venta</span>
-                )}
-              </div>
-              <div className="calc-line">
-                <span>Ganancia por Cobros (Realizada)</span>
-                <span className="mono" style={{ color: liveSummary.realizedProfit > 0 ? 'var(--ok)' : 'inherit' }}>
-                  {money(liveSummary.realizedProfit)}
                 </span>
               </div>
             </div>

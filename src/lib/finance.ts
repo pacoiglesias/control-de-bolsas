@@ -80,6 +80,7 @@ export function getOrderSummary(o: PurchaseOrder) {
   const kilosDelivered = round2(deliveries.reduce((a, d) => a + d.kilos, 0));
   
   let kilosInvoiced = 0, invoiceTotal = 0, saleTotal = 0, commission = 0, netCashFlow = 0, paidAmount = 0;
+  let tradeMargin = 0, realizedProfit = 0;
   let hasOverdue = false, hasManual = false, hasPending = false, hasFacturado = false, allPaid = true, allPedido = true;
   let hasCollected = false;
   let maxDaysLate: number | null = null;
@@ -91,6 +92,20 @@ export function getOrderSummary(o: PurchaseOrder) {
     commission += i.financials?.commission || 0;
     netCashFlow += i.financials?.netCashFlow || 0;
     paidAmount += i.collection?.paidAmount || 0;
+    
+    // Si la orden no tiene captura manual, el tradeMargin es 0 (no inflamos historico)
+    const hasCustomCost = o.customCostPrice !== undefined && o.customCostPrice !== null && o.customCostPrice !== '';
+    const invMargin = hasCustomCost ? (i.financials?.tradeMargin || 0) : 0;
+    tradeMargin += invMargin;
+
+    // Ganancia por cobros: si pagaron algo, la proporcion pagada de (Margen - Comision).
+    // Si no tiene costo custom, el margen real devengado es 0 para ambas metricas.
+    const invTotal = i.financials?.invoiceTotal || 0;
+    const invPaid = i.collection?.paidAmount || 0;
+    if (invTotal > 0 && invPaid > 0) {
+      const invCommission = i.financials?.commission || 0;
+      realizedProfit += (invPaid / invTotal) * (hasCustomCost ? (invMargin - invCommission) : 0);
+    }
 
     const s = i.creditCycle.status;
     if (s === 'overdue') hasOverdue = true;
@@ -121,6 +136,8 @@ export function getOrderSummary(o: PurchaseOrder) {
   commission = round2(commission);
   netCashFlow = round2(netCashFlow);
   paidAmount = round2(paidAmount);
+  tradeMargin = round2(tradeMargin);
+  realizedProfit = round2(realizedProfit);
 
   let status: OrderStatus = o.creditCycle?.status ?? 'pedido';
   if (invoices.length > 0) {
@@ -145,6 +162,8 @@ export function getOrderSummary(o: PurchaseOrder) {
     saleTotal,
     commission,
     netCashFlow,
+    tradeMargin,
+    realizedProfit,
     paidAmount,
     status,
     maxDaysLate

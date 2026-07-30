@@ -214,7 +214,7 @@ export default function Dashboard() {
 
   const k = useMemo(() => {
     const st = statsDoc || {};
-    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, porCobrar: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: [] };
+    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: [] };
     const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0 };
     const mesesObj = st.histograms || {};
 
@@ -475,8 +475,12 @@ export default function Dashboard() {
         <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.totalVendido} />}
           sub={`${kilos(k.totalKilos)} procesados en ${k.totalOrders} órdenes`} />
         {role !== 'viewer' && (
-          <KpiCard tone="ok" label="Ganancia neta (flujo)" value={<ResponsiveMoney value={k.netoTotal} />}
-            sub="venta − costo − comisión" />
+          <>
+            <KpiCard tone="ok" label="Ganancia Comercial" value={<ResponsiveMoney value={k.kpis?.margenTotal || 0} />}
+              sub="Venta - Costo (Devengada)" />
+            <KpiCard tone="ok" label="Ganancia por Cobros" value={<ResponsiveMoney value={k.kpis?.gananciaRealizadaTotal || 0} />}
+              sub="Flujo real (Cobrado)" />
+          </>
         )}
         <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
           sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}
@@ -503,20 +507,19 @@ export default function Dashboard() {
                 <tr>
                   <th>Mes de Emisión</th>
                   <th className="num">Venta Facturada</th>
-                  <th className="num">Ganancia Neta Estimada</th>
-                  <th className="num">Margen de Utilidad</th>
+                  <th className="num">Ganancia Comercial</th>
+                  <th className="num">Ganancia por Cobros</th>
                 </tr>
               </thead>
               <tbody>
                 {k.mesesKeys.map((m: any) => {
                   const data = k.meses[m];
-                  const margen = data.venta > 0 ? (data.ganancia / data.venta) * 100 : 0;
                   return (
                     <tr key={m}>
                       <td style={{ fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel(m)}</td>
                       <td className="num mono">{money(data.venta)}</td>
-                      <td className="num mono" style={{ color: 'var(--ok)', fontWeight: 700 }}>{money(data.ganancia)}</td>
-                      <td className="num mono">{margen.toFixed(1)}%</td>
+                      <td className="num mono" style={{ color: 'var(--ok)' }}>{money(data.margen || 0)}</td>
+                      <td className="num mono" style={{ color: 'var(--ok)' }}>{money(data.gananciaRealizada || 0)}</td>
                     </tr>
                   );
                 })}

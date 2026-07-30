@@ -235,6 +235,9 @@ export default function Orders() {
                       key={o.id}
                       className={st === 'overdue' ? 'row-bad' : st === 'manual_review' ? 'row-warn' : st === 'paid' ? 'row-done' : ''}
                       onClick={() => setSelected(o)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
+                      role="button"
+                      tabIndex={0}
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="mono" style={{ lineHeight: '1.4' }}>
@@ -269,7 +272,7 @@ export default function Orders() {
                           <StatusBadge status={st} />
                           {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
                             <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                              {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate}d` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)}d`}
+                              {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate} días` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)} días`}
                             </span>
                           )}
                         </div>

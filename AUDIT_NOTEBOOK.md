@@ -317,3 +317,18 @@ Los doce hallazgos del ciclo 3 fueron corregidos y verificados. Estado de la ver
 - **Problema:** Al no verificar el contenido del archivo antes de subirlo a Storage, los usuarios pueden arrastrar el mismo PDF varias veces, generando expedientes duplicados.
 - **Solución propuesta:** Implementar una verificación criptográfica SHA-256 en el cliente y consultar Firestore antes de subir para prevenir duplicidad.
 - **Estado:** 🔴 Pendiente
+
+### 2026-07-29 - src/pages/OrderModal.tsx - Lag extremo de renderizado (Monolito)
+- **Problema:** Múltiples text inputs usaban el evento `onChange` para mutar un estado de formulario gigante y recalcular sumarios costosos (O(N)), causando severo input lag en cada pulsación.
+- **Solución:** Refactor de los eventos críticos en `OrderModal.tsx` (customCostPrice, customCommissionRate) para usar `defaultValue` y el evento `onBlur`, resolviendo el problema de lag sin desmantelar la estructura del modal completo prematuramente.
+- **Estado:** ✅ Resuelto y compilación verificada.
+
+### 2026-07-29 - src/pages/Orders.tsx, src/pages/Cobranza.tsx - A11y en tablas
+- **Problema:** Las filas interactivas en las tablas de expedientes y cobranza dependían únicamente del evento `onClick`, impidiendo la navegación por teclado para usuarios de accesibilidad o power users.
+- **Solución:** Se añadió `role="button"`, `tabIndex={0}` y `onKeyDown` (Enter/Espacio) a todas las filas clicables (`<tr>`) en `Orders.tsx` y `Cobranza.tsx`.
+- **Estado:** ✅ Resuelto.
+
+### 2026-07-29 - UI - Ajuste visual en Días de Atraso
+- **Problema:** El sufijo "d" (ej. "28d") en las columnas de cobranza y órdenes se confundía visualmente con un "0" para usuarios con dificultades visuales ("280").
+- **Solución:** Se eliminó el sufijo "d" o se reemplazó por la palabra "días" en `Orders.tsx` y `Cobranza.tsx` para máxima legibilidad.
+- **Estado:** ✅ Resuelto.

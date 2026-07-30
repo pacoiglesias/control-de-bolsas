@@ -615,7 +615,11 @@ export default function Cobranza() {
                     : (d !== null && d > 0) ? 'row-warn' : '';
                   return (
                   <tr key={inv.id} className={`${rowClass} ${isHovered ? 'row-hovered-cr' : ''}`}
-                    onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
+                    onClick={() => setSelected(o)} 
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
+                    role="button"
+                    tabIndex={0}
+                    style={{ cursor: 'pointer' }}>
                     <td className="mono">
                       {inv.folio ?? o.folio ?? '—'}
                       {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
@@ -653,16 +657,16 @@ export default function Cobranza() {
                       {d === null ? '—' : hasCr ? (
                         // Con Contrarecibo
                         d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>Vencido {d}d</span>
+                          <span className="badge" style={{ background: 'var(--bad)' }}>Vencido {d}</span>
                         ) : d === 0 ? (
-                          <span className="badge" style={{ background: 'var(--ok)' }}>Hoy</span>
+                          <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>Vence hoy</span>
                         ) : (
-                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)}d</span>
+                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)}</span>
                         )
                       ) : (
                         // Sin Contrarecibo: sí mostrar urgencia
                         d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d}d sin CR</span>
+                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d} días sin CR</span>
                         ) : (
                           <span style={{ color: 'var(--ink-faint)' }}>Recién emitida</span>
                         )
@@ -760,7 +764,12 @@ export default function Cobranza() {
                     const isHovered = hoveredCr && hoveredCr === currentCr;
                     
                     return (
-                      <tr key={inv.id} className={isHovered ? 'row-hovered-cr' : ''} onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
+                      <tr key={inv.id} className={isHovered ? 'row-hovered-cr' : ''} 
+                        onClick={() => setSelected(o)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
+                        role="button"
+                        tabIndex={0}
+                        style={{ cursor: 'pointer' }}>
                         <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
                         <td>{o.client ?? '—'}</td>
                         <td className="mono" onMouseEnter={() => currentCr ? setHoveredCr(currentCr) : null} onMouseLeave={() => setHoveredCr(null)}>
