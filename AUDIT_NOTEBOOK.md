@@ -6,6 +6,28 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 10 — 2026-07-30 — Panel completo: margen, caja chica y cobros con contabilidad
+
+> Tras el Ciclo 9, "Te deben" ya mostraba **1,435,270.48**, que coincide al peso con la hoja del negocio. Faltaban tres indicadores en cero por causas distintas.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/lib/finance.ts`, `functions/src/stats.ts` | 🔴 **"Ganancia Comercial" siempre en $0.00.** El margen solo se sumaba `if (hasCustomCost)`, es decir únicamente cuando la orden tenía un costo escrito a mano. Todo expediente que usara el costo de la configuración —prácticamente todos— reportaba margen cero. Lo mismo afectaba a "Ganancia por Cobros". | Quitado el condicional en frontend y backend. `computeFinancials` ya resuelve el costo efectivo (override si existe, configuración si no), así que `tradeMargin` siempre trae un valor válido. Con los 13 expedientes abiertos el margen esperado es ≈131,627.89. |
+| `src/pages/Seeder.tsx` | La migración no tenía forma de cargar **contrarecibos ya pagados cuyo dinero sigue con el contador**. TR_3583 (GT-570, 182,250.55) no existía en el sistema, así que "Cobrado" y "Por Recibir del Contador" quedaban en cero. | Nueva sección **3. CONTRARECIBOS PAGADOS**, que crea el expediente con estatus `paid`, `paidAmount` completo y `complementStatus: 'issued'`. Verificado: deposita 169,681.55 contra los 169,682.02 de la hoja. |
+| `src/pages/Seeder.tsx` | La migración **borra Caja Chica y no la repuebla**, así que el saldo quedaba en $0.00 aunque el negocio tuviera saldo y movimientos reales. | Nueva sección **4. CAJA CHICA**, con el saldo inicial y los movimientos. Importe negativo = egreso. Verificado: los cuatro movimientos reales suman **75,265.56**, exactamente el saldo de la hoja. |
+
+### 📌 Nota de despliegue (no es código)
+
+Las funciones invocables (`recalcDashboardStats`, `reprocessOrder`) fallaban con "interna". El registro mostró que **Cloud Run rechazaba la petición antes de ejecutar nada** (*Empty Authorization header*): faltaba el permiso de invocación pública en el servicio. Es la configuración normal de Firebase: la autenticación real ocurre dentro de la función (sesión + correo verificado + rol admin), no en la capa de red.
+
+### 🟡 Sigue pendiente
+
+- No se distingue **facturado sin contrarecibo** (136,300.00) de **contrarecibo generado** (1,298,970.48); el panel los suma en `porCobrar`.
+- No hay campo propio para la **referencia de transferencia** (TR_3583); hoy va en las notas del cobro.
+- Un solo precio por expediente: si una OC mezcla precios por renglón, los importes saldrían mal.
+
+---
+
 ## ✅ Ciclo 9 — 2026-07-30 — Comisión real confirmada y Caja Chica recibiendo el importe correcto
 
 > **Regla del negocio, confirmada con tres cobros reales:** el cliente (TH/GT) paga la **factura completa**; el contador descuenta **8% del subtotal** por la gestión de cobro. El cobro de 153,381.00 cuadra al centavo: subtotal 132,225.00 × 0.08 = 10,578.00 de honorario, y 132,225.00 × 1.08 = 142,803.00 depositados. Regla práctica: **depósito = subtotal × 1.08**.

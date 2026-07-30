@@ -62,15 +62,17 @@ export function extractStats(data: any): Record<string, any> {
       const paidAmt = Number(inv.collection?.paidAmount || 0);
       const saldo = Math.max(invTotal - paidAmt, 0);
       
-      const hasCustomCost = data.customCostPrice !== undefined && data.customCostPrice !== null && data.customCostPrice !== '';
-      const invMargin = hasCustomCost ? Number(inv.financials?.tradeMargin || 0) : 0;
+      // Margen SIEMPRE, no solo cuando hay costo capturado a mano: si no,
+      // "Ganancia Comercial" queda en cero para todo expediente que use el
+      // costo de la configuracion, que son practicamente todos.
+      const invMargin = Number(inv.financials?.tradeMargin || 0);
       const invCommission = Number(inv.financials?.commission || 0);
       
       margen += invMargin;
       
       let invRealized = 0;
       if (invTotal > 0 && paidAmt > 0) {
-         invRealized = (paidAmt / invTotal) * (hasCustomCost ? (invMargin - invCommission) : 0);
+         invRealized = (paidAmt / invTotal) * (invMargin - invCommission);
       }
       gananciaRealizada += invRealized;
       

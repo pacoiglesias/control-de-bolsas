@@ -1,28 +1,27 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title Control Bolsas - Instalar v6.4.0 - Ciclo 7
+title Control Bolsas - Instalar v6.5.0 - Ciclo 7
 color 0B
 cls
 echo.
 echo  ============================================================
-echo    INSTALAR v6.4.0  -  CICLO 9 (carga inicial)
+echo    INSTALAR v6.5.0  -  CICLO 10 (carga inicial)
 echo  ============================================================
 echo.
 echo   Este instalador NO BORRA NADA. Lo unico que hace es:
 echo     - respaldar tu proyecto completo antes de tocar un archivo
-echo     - copiar el proyecto v6.4.0 completo
+echo     - copiar el proyecto v6.5.0 completo
 echo     - respetar lo tuyo: .env, .firebaserc, node_modules,
 echo       dist, .git y cualquier archivo que no venga en el ZIP
 echo.
-echo   CICLO 9 - Caja Chica recibe el importe REAL:
-echo     - El cobro en bloque registraba la UTILIDAD en vez
-echo       del deposito. Restaba el costo del material, que
-echo       ya se paga a Andres por separado desde Compras.
-echo       En un contrarecibo real: 140,398 de diferencia.
-echo     - Los dos caminos de cobro no coincidian entre si.
-echo     - Comision ajustada: 8%% del subtotal, verificada
-echo       contra tres cobros reales (uno cuadra al centavo).
+echo   CICLO 10 - Panel completo:
+echo     - "Ganancia Comercial" salia siempre en 0: el margen
+echo       solo contaba si el costo se escribia a mano.
+echo     - La migracion ahora carga tambien el saldo y los
+echo       movimientos de Caja Chica (borraba y no repoblaba).
+echo     - Y los contrarecibos ya pagados cuyo dinero sigue
+echo       con el contador, para "Por Recibir del Contador".
 echo.
 echo   [!] Despues de instalar, revisa CONFIGURACION: manda lo
 echo       guardado en Firestore, no el valor por omision.
@@ -67,7 +66,7 @@ if !CUANTOS!==0 (
   color 0C
   echo.
   echo  [X] No encontre ningun .zip junto a este .bat.
-  echo      Deja "control-bolsas-v6.4.0.zip" en esta misma carpeta.
+  echo      Deja "control-bolsas-v6.5.0.zip" en esta misma carpeta.
   pause & exit /b 1
 )
 if !CUANTOS! GTR 1 (
@@ -83,7 +82,7 @@ if !CUANTOS! GTR 1 (
 for %%f in ("!ZIPFILE!") do echo  [OK] Paquete: %%~nxf
 
 REM ---------- 3. Descomprimir a temporal ----------
-set "TMPDIR=%TEMP%\cb_v64_%RANDOM%"
+set "TMPDIR=%TEMP%\cb_v65_%RANDOM%"
 echo  [..] Descomprimiendo...
 powershell -NoProfile -Command "try{ Expand-Archive -LiteralPath '!ZIPFILE!' -DestinationPath '!TMPDIR!' -Force; exit 0 }catch{ exit 1 }"
 if errorlevel 1 (
@@ -164,7 +163,7 @@ REM cualquier archivo que en el destino "parezca" igual o mas nuevo. Si tu
 REM copia local tiene fecha mas reciente que la del paquete, la correccion
 REM nunca llegaria. /IS fuerza a copiar tambien los que se ven "iguales".
 set "MERGE_LOG=%TEMP%\cb_instalacion_log.txt"
-echo  [..] Instalando la v6.4.0...
+echo  [..] Instalando la v6.5.0...
 echo.
 robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" /R:2 /W:2 /LOG:"!MERGE_LOG!"
 set RC=%ERRORLEVEL%
@@ -217,7 +216,7 @@ echo  [OK] Typecheck limpio
 color 0A
 echo.
 echo  ============================================================
-echo    v6.4.0 INSTALADA  -  CICLO 9
+echo    v6.5.0 INSTALADA  -  CICLO 10
 echo.
 echo    Se respeto: .env, .firebaserc, node_modules, dist, .git
 echo    Tu version anterior completa quedo en:

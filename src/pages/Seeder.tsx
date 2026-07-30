@@ -27,6 +27,19 @@ export default function Seeder() {
 11	GT-597	15/06/2026	15/07/2026	107,420.76
 12	GT-535	01/06/2026	01/07/2026	196,482.30`);
 
+  // Contrarecibos YA PAGADOS por el cliente, cuyo dinero todavia tiene el
+  // contador. Van con estatus 'paid': el sistema los muestra en "Por Recibir
+  // del Contador" con el deposito neto (factura menos su 8%).
+  // Columnas: CR, Fecha pago, Importe, Referencia de transferencia
+  const [pagadosData, setPagadosData] = useState(`GT-570	27/07/2026	182250.55	TR_3583`);
+
+  // Saldo inicial y movimientos de Caja Chica. Importe NEGATIVO = egreso.
+  // Columnas: Concepto, Importe
+  const [cajaData, setCajaData] = useState(`Saldo inicial	-819.44
+Pago recibido de cliente	144945.00
+Adelanto a Andres 21 julio	-145000.00
+Pago recibido 23 julio	76140.00`);
+
   const [facturasData, setFacturasData] = useState(`1	GTP930115PU1	120267113902	4.0	I	6098	2026-07-27T10:14:53	27/Julio/2026	27,260.00
 2	GTP930115PU1	120267113870	4.0	I	6097	2026-07-27T10:13:06	27/Julio/2026	109,040.00`);
 
@@ -187,8 +200,92 @@ export default function Seeder() {
         batch.set(doc(db, PATHS.orders, crKey), pendingOrder);
       }
 
+      // --- Contrarecibos ya pagados (dinero con el contador) ---
+      const pagados = pagadosData.trim().split('\n').filter(Boolean).map(line => {
+        const p = line.split('\t').map(x => x.trim());
+        if (p.length < 3) return null;
+        const f = p[1].split('/');
+        const fecha = f.length === 3
+          ? new Date(parseInt(f[2]), parseInt(f[1]) - 1, parseInt(f[0]))
+          : new Date();
+        return {
+          cr: p[0],
+          fecha,
+          amount: parseFloat(p[2].replace(/,/g, '').replace(/\$/g, '')),
+          ref: p[3] ?? '',
+        };
+      }).filter((x): x is NonNullable<typeof x> => x !== null && !isNaN(x.amount));
+
+      pagados.forEach((pg) => {
+        const kilosPg = pg.amount / precioBrutoPorKg;
+        const key = `CR-${pg.cr}`;
+        const fin = { ...computeFinancials(kilosPg, config), invoiceTotal: pg.amount };
+        const ord: PurchaseOrder = {
+          id: key,
+          folio: pg.cr,
+          client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+          fileName: 'MIGRACION_PAGADOS',
+          totalKilograms: kilosPg,
+          financials: fin,
+          creditCycle: {
+            status: 'paid',
+            issueDate: Timestamp.fromDate(pg.fecha),
+            dueDate: Timestamp.fromDate(pg.fecha),
+          },
+          invoices: [{
+            id: `${key}-inv-0`,
+            folio: pg.cr,
+            oc: 'MIGRACION',
+            kilos: kilosPg,
+            financials: fin,
+            creditCycle: {
+              status: 'paid',
+              issueDate: Timestamp.fromDate(pg.fecha),
+              dueDate: Timestamp.fromDate(pg.fecha),
+            },
+            // paidAmount = importe completo: el cliente pago la factura entera.
+            // Lo que descuenta el contador se refleja al pasar a 'collected'.
+            collection: {
+              contrareciboNumber: pg.cr,
+              contrareciboDate: Timestamp.fromDate(pg.fecha),
+              paidAmount: pg.amount,
+              paidAt: Timestamp.fromDate(pg.fecha),
+              complementStatus: 'issued',
+              notes: pg.ref ? `Transferencia ${pg.ref}` : '',
+            },
+          }],
+          invoiceStatuses: ['paid'],
+          processedAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
+        batch.set(doc(db, PATHS.orders, key), ord);
+      });
+
+      // --- Saldo inicial y movimientos de Caja Chica ---
+      const movs = cajaData.trim().split('\n').filter(Boolean).map(line => {
+        const p = line.split('\t').map(x => x.trim());
+        if (p.length < 2) return null;
+        return {
+          concepto: p[0],
+          monto: parseFloat(p[1].replace(/,/g, '').replace(/\$/g, '')),
+        };
+      }).filter((x): x is NonNullable<typeof x> => x !== null && !isNaN(x.monto));
+
+      movs.forEach((m, i) => {
+        batch.set(doc(collection(db, PATHS.expenses)), {
+          date: Timestamp.now(),
+          concept: m.concepto,
+          // Importe negativo en la captura = egreso. En Firestore el monto
+          // siempre va positivo y el signo lo lleva el campo `type`.
+          type: m.monto < 0 ? 'egreso' : 'ingreso',
+          amount: Math.abs(m.monto),
+          notes: `Migración inicial (renglón ${i + 1})`,
+          createdAt: Timestamp.now(),
+        });
+      });
+
       await batch.commit();
-      addLog(`Migrados ${crs.length} contrarecibos y ${facturas.length} facturas.`);
+      addLog(`Migrados ${crs.length} contrarecibos, ${facturas.length} facturas, ${pagados.length} pagados con contabilidad y ${movs.length} movimientos de Caja Chica.`);
 
       // Recalcular indicadores AQUI mismo. syncDashboardStats solo reacciona a
       // escrituras posteriores a su despliegue y ademas ignora los writeBatch
@@ -234,6 +331,28 @@ export default function Seeder() {
             style={{ width: '100%', height: 250, fontFamily: 'monospace', padding: 12, marginBottom: 20 }}
             value={facturasData} 
             onChange={(e) => setFacturasData(e.target.value)} 
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 400px' }}>
+          <p><strong>3. CONTRARECIBOS PAGADOS (dinero con el contador)</strong><br/>
+          (4 columnas: CR, Fecha pago, Importe, Referencia)</p>
+          <textarea
+            style={{ width: '100%', height: 120, fontFamily: 'monospace', padding: 12, marginBottom: 20 }}
+            value={pagadosData}
+            onChange={(e) => setPagadosData(e.target.value)}
+          />
+        </div>
+
+        <div style={{ flex: '1 1 400px' }}>
+          <p><strong>4. CAJA CHICA — saldo inicial y movimientos</strong><br/>
+          (2 columnas: Concepto, Importe. Negativo = egreso)</p>
+          <textarea
+            style={{ width: '100%', height: 120, fontFamily: 'monospace', padding: 12, marginBottom: 20 }}
+            value={cajaData}
+            onChange={(e) => setCajaData(e.target.value)}
           />
         </div>
       </div>

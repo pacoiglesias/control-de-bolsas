@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.5.0] - 30 Julio 2026 (Ciclo 10 — Panel completo)
+
+### Corregido — crítico
+- **"Ganancia Comercial" y "Ganancia por Cobros" siempre en $0.00.** El margen solo se contaba si la orden tenía un costo capturado a mano; con el costo de la configuración —el caso normal— reportaba cero. Corregido en frontend y backend.
+
+### Agregado
+- **Migración de contrarecibos ya pagados** cuyo dinero sigue con el contador (estatus `paid`). Sin esto, "Cobrado" y "Por Recibir del Contador" quedaban en cero.
+- **Migración del saldo y movimientos de Caja Chica.** La migración borraba la caja y no la repoblaba. Verificado contra los movimientos reales: suman 75,265.56.
+
+
 ## [v6.4.0] - 30 Julio 2026 (Ciclo 9 — Caja Chica recibe el importe real)
 
 ### Corregido — crítico

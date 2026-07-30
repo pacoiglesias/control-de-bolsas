@@ -93,21 +93,22 @@ export function getOrderSummary(o: PurchaseOrder) {
     netCashFlow += i.financials?.netCashFlow || 0;
     paidAmount += i.collection?.paidAmount || 0;
     
-    // Si la orden no tiene captura manual, el tradeMargin es 0 (no inflamos historico)
-    // customCostPrice es number|undefined en PurchaseOrder: comparar contra ''
-    // era herencia de cuando el valor llegaba crudo del formulario como texto.
-    // Los dos guardas de arriba ya cubren todos los casos posibles del tipo.
-    const hasCustomCost = o.customCostPrice !== undefined && o.customCostPrice !== null;
-    const invMargin = hasCustomCost ? (i.financials?.tradeMargin || 0) : 0;
+    // El margen se calcula SIEMPRE. Antes estaba condicionado a que la orden
+    // tuviera un costo capturado a mano (`customCostPrice`), asi que cualquier
+    // expediente que usara el costo de la configuracion reportaba margen CERO.
+    // Resultado: "Ganancia Comercial" salia en $0.00 salvo que se escribiera
+    // el costo manualmente en cada orden. computeFinancials ya resuelve el
+    // costo efectivo (override si existe, configuracion si no), asi que
+    // tradeMargin siempre trae un valor correcto.
+    const invMargin = i.financials?.tradeMargin ?? 0;
     tradeMargin += invMargin;
 
     // Ganancia por cobros: si pagaron algo, la proporcion pagada de (Margen - Comision).
-    // Si no tiene costo custom, el margen real devengado es 0 para ambas metricas.
     const invTotal = i.financials?.invoiceTotal || 0;
     const invPaid = i.collection?.paidAmount || 0;
     if (invTotal > 0 && invPaid > 0) {
       const invCommission = i.financials?.commission || 0;
-      realizedProfit += (invPaid / invTotal) * (hasCustomCost ? (invMargin - invCommission) : 0);
+      realizedProfit += (invPaid / invTotal) * (invMargin - invCommission);
     }
 
     const s = i.creditCycle.status;
