@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, PATHS, functions } from '../lib/firebase';
@@ -91,7 +91,7 @@ export default function OrderModal({
     customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
   });
 
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const set = useCallback(<K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v })), []);
 
   // Sello de tiempo del expediente al ABRIR el modal, no en cada render:
   // compararlo contra el del servidor al guardar es lo que permite detectar si
@@ -942,46 +942,9 @@ export default function OrderModal({
   }
 
 
-  return (
-    <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
-      <datalist id="catalog-products">
-        {products.map(p => (
-          <option key={p.id} value={p.description} />
-        ))}
-      </datalist>
-      <datalist id="known-clients">
-        {knownClients.map(c => <option key={c} value={c} />)}
-      </datalist>
-      <datalist id="known-providers">
-        {knownProviders.map(p => <option key={p} value={p} />)}
-      </datalist>
-      <datalist id="known-client-emails">
-        {knownClientEmails.map(e => <option key={e} value={e} />)}
-      </datalist>
-      
-      {/* Tabs */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('resumen'); }}>Resumen</button>
-        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('productos'); }}>
-          Productos <span className="badge">{form.items.length}</span>
-        </button>
-        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('entregas'); }}>
-          Entregas <span className="badge">{form.deliveries.length}</span>
-        </button>
-        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('facturas'); }}>
-          Facturas <span className="badge">{form.invoices.length}</span>
-        </button>
-        <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
-          🖨️ Paquete Consolidado (PDF)
-        </button>
-      </div>
 
-      {/* TABS CONTENT */}
-      <div style={{ minHeight: '50vh', maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
-        
-        {/* RESUMEN */}
-        {tab === 'resumen' && (
-          <>
+  const resumenTabJSX = useMemo(() => (
+    <>
             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
               <button className="btn" onClick={parseOCAndFill} style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', fontWeight: 600 }}>
                 📋 Pegar Texto de OC (Autollenado)
@@ -1098,11 +1061,11 @@ export default function OrderModal({
               <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
             </div>
           </>
-        )}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [form.folio, form.client, form.clientEmail, form.department, form.provider, form.oc, form.totalKilograms, form.estimatedDeliveryDate, form.customCostPrice, form.customSellPrice, form.customCommissionRate, liveSummary.status, readOnly, fallbackCost, fallbackSale, fallbackComm]);
 
-        {/* PRODUCTOS */}
-        {tab === 'productos' && (
-          <>
+  const productosTabJSX = useMemo(() => (
+    <>
             {kilosEntregados > 0 && form.deliveries.some((d) => !d.invoiced) && (
               <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
                 <strong>📝 Hay una entrega sin facturar.</strong> Ve a la pestaña <strong>Entregas</strong> para
@@ -1279,11 +1242,11 @@ export default function OrderModal({
               </div>
             )}
           </>
-        )}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [form.items, form.folio, form.provider, form.client, form.deliveries, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, readOnly]);
 
-        {/* ENTREGAS */}
-        {tab === 'entregas' && (
-          <>
+  const entregasTabJSX = useMemo(() => (
+    <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
                 <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
@@ -1366,11 +1329,11 @@ export default function OrderModal({
               </div>
             )}
           </>
-        )}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [form.deliveries, kilosPedidos, form.items, readOnly]);
 
-        {/* FACTURAS */}
-        {tab === 'facturas' && (
-          <>
+  const facturasTabJSX = useMemo(() => (
+    <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
                 <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
@@ -1658,7 +1621,57 @@ export default function OrderModal({
               </div>
             )}
           </>
-        )}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [form.invoices, computedInvoices, config, readOnly]);
+
+  return (
+    <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
+      <datalist id="catalog-products">
+        {products.map(p => (
+          <option key={p.id} value={p.description} />
+        ))}
+      </datalist>
+      <datalist id="known-clients">
+        {knownClients.map(c => <option key={c} value={c} />)}
+      </datalist>
+      <datalist id="known-providers">
+        {knownProviders.map(p => <option key={p} value={p} />)}
+      </datalist>
+      <datalist id="known-client-emails">
+        {knownClientEmails.map(e => <option key={e} value={e} />)}
+      </datalist>
+      
+      {/* Tabs */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('resumen'); }}>Resumen</button>
+        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('productos'); }}>
+          Productos <span className="badge">{form.items.length}</span>
+        </button>
+        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('entregas'); }}>
+          Entregas <span className="badge">{form.deliveries.length}</span>
+        </button>
+        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('facturas'); }}>
+          Facturas <span className="badge">{form.invoices.length}</span>
+        </button>
+        <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
+          🖨️ Paquete Consolidado (PDF)
+        </button>
+      </div>
+
+      {/* TABS CONTENT */}
+      <div style={{ minHeight: '50vh', maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
+        
+        {/* RESUMEN */}
+        {tab === 'resumen' && resumenTabJSX}
+
+        {/* PRODUCTOS */}
+        {tab === 'productos' && productosTabJSX}
+
+        {/* ENTREGAS */}
+        {tab === 'entregas' && entregasTabJSX}
+
+        {/* FACTURAS */}
+        {tab === 'facturas' && facturasTabJSX}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>

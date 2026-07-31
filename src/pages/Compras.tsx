@@ -39,8 +39,6 @@ export default function Compras() {
   const toast = useToast();
   const { config } = useConfig();
 
-  if (errorP || errorE) return <div className="alert bad">{errorP || errorE}</div>;
-  if (!loadingP && !loadingE && role !== 'admin') return <Navigate to="/" replace />;
   const isLoading = loadingP || loadingE;
 
   const orderById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
@@ -115,11 +113,28 @@ export default function Compras() {
   }, [provPurchases, provExpenses, currentCostPerKg, orderById]);
 
   // Compute accumulated balance
-  let currentBalance = 0;
-  const ledgerWithBalance = ledger.map(e => {
-    currentBalance += (e.cargo - e.abono);
-    return { ...e, balance: currentBalance };
-  });
+  let currentBalance = -deudaHistorica;
+  
+  const historicalEntry = deudaHistorica !== 0 ? [{
+    id: 'historical',
+    date: null,
+    concept: 'Saldo Histórico (Antes del Sistema)',
+    cargo: deudaHistorica < 0 ? -deudaHistorica : 0,
+    abono: deudaHistorica > 0 ? deudaHistorica : 0,
+    balance: -deudaHistorica,
+    source: 'historical' as const
+  }] : [];
+
+  const ledgerWithBalance = [
+    ...historicalEntry,
+    ...ledger.map(e => {
+      currentBalance += (e.cargo - e.abono);
+      return { ...e, balance: currentBalance };
+    })
+  ];
+
+  if (errorP || errorE) return <div className="alert bad">{errorP || errorE}</div>;
+  if (!loadingP && !loadingE && role !== 'admin') return <Navigate to="/" replace />;
 
   function exportComprasCsv() {
     const headers = ['Fecha', 'Concepto', 'Valor Entregado (Material)', 'Pagos/Adelantos', 'Origen'];

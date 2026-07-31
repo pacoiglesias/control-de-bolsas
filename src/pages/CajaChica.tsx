@@ -30,7 +30,8 @@ export default function CajaChica() {
   const currentCostPerKg = config?.costPricePerKg || 42;
   const totalPurchasesCost = Number((totalReceivedKilos * currentCostPerKg).toFixed(2));
   
-  const totalPagado = expenses.reduce((acc, e) => {
+  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === 'andres');
+  const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount;
     if (e.type === 'ingreso') return acc - e.amount;
     return acc;

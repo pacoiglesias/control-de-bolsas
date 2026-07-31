@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { saveConfig, useConfig } from '../hooks/useConfig';
 import { useOrders } from '../hooks/useOrders';
@@ -20,8 +20,33 @@ export default function Settings() {
   const toast = useToast();
   const [form, setForm] = useState<FinancialConfig>(config);
   const [busy, setBusy] = useState(false);
+  const [initialCash, setInitialCash] = useState<string>('169000');
 
   useEffect(() => setForm(config), [config]);
+
+  async function seedInitialCash() {
+    if (busy) return;
+    const amount = Number(initialCash);
+    if (isNaN(amount) || amount === 0) return toast('Ingresa un monto válido', 'bad');
+    if (!confirm(`¿Confirmas registrar un Saldo Inicial en Caja Chica por $${amount.toLocaleString('es-MX')}?`)) return;
+    setBusy(true);
+    try {
+      await addDoc(collection(db, PATHS.expenses), {
+        date: Date.now(),
+        concept: 'Saldo Inicial (Arranque)',
+        provider: '',
+        type: amount > 0 ? 'ingreso' : 'egreso',
+        amount: Math.abs(amount)
+      });
+      await logAction(user?.email, `Registró saldo inicial en caja chica por $${amount}`, { amount });
+      toast('Saldo inicial registrado correctamente en Caja Chica');
+    } catch (e: any) {
+      toast(e.message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
 
   const preview = computeFinancials(1000, form);
   const dirty = JSON.stringify(form) !== JSON.stringify(config);
@@ -171,13 +196,6 @@ export default function Settings() {
                 <option value="total">el total facturado (con IVA)</option>
               </select>
             </Field>
-            <Field label="Deuda Histórica inicial con Andrés ($)">
-              <input className="input boxed mono" type="number" step="0.01" value={form.historicalDebtAndres ?? 0}
-                onChange={(e) => setForm({ ...form, historicalDebtAndres: Number(e.target.value) })} />
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Valores negativos indican que le debes (pasivo).
-              </div>
-            </Field>
             <Field label="Tolerancia de Peso Entregado (%)">
               <input className="input boxed mono" type="number" step="0.1" value={form.weightTolerancePercentage ?? 2}
                 onChange={(e) => setForm({ ...form, weightTolerancePercentage: Number(e.target.value) })} />
@@ -195,6 +213,37 @@ export default function Settings() {
             <div className="calc-line"><span>Comisión {percent(form.commissionRate)}</span><span className="mono">− {money(preview.commission)}</span></div>
             <div className="calc-line total"><span>Flujo neto por cada 1,000 kg</span><span className="mono">{money(preview.netCashFlow)}</span></div>
             <div className="calc-line"><span>Margen sobre venta</span><span className="mono">{((preview.netCashFlow / preview.saleTotal) * 100).toFixed(2)}%</span></div>
+          </div>
+        </div>
+      </Card>
+
+
+      <Card title="Saldos Iniciales (Arranque)">
+        <div style={{ padding: 16 }}>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Configura los valores con los que arranca la empresa. Evita editar estos valores a menos que estés inicializando el sistema.
+          </p>
+          <div className="form-grid">
+            <Field label="Deuda Histórica inicial con Andrés ($)">
+              <input className="input boxed mono" type="number" step="0.01" value={form.historicalDebtAndres ?? 0}
+                onChange={(e) => setForm({ ...form, historicalDebtAndres: Number(e.target.value) })} />
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Valores positivos indican que le debes (pasivo). Si pones 102670.28, le debes eso a Andrés.
+              </div>
+            </Field>
+            
+            <div style={{ borderLeft: '2px solid var(--border)', paddingLeft: 16 }}>
+              <Field label="Efectivo en Caja Chica ($)">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="input boxed mono" type="number" step="0.01" value={initialCash}
+                    onChange={(e) => setInitialCash(e.target.value)} style={{ flex: 1 }} />
+                  <button className="btn" onClick={() => void seedInitialCash()} disabled={busy}>Inyectar Saldo</button>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                  Esto creará un registro de Ingreso en Caja Chica. Solo presionar al inicio.
+                </div>
+              </Field>
+            </div>
           </div>
         </div>
       </Card>

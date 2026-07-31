@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder } from '../lib/types';
 
@@ -31,7 +31,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, PATHS.orders), orderBy('processedAt', 'desc'));
+    const q = query(collection(db, PATHS.orders), orderBy('processedAt', 'desc'), limit(500));
     const unsub = onSnapshot(
       q,
       (snap) => {

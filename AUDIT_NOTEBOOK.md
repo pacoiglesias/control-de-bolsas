@@ -149,6 +149,21 @@ Riesgo: 🟢 Bajo — contenido informativo, sin lógica.
 Commit: `docs(Dashboard): completar Bitácora de Parches hasta v6.18.0`
 Estado: ✅ Verificado.
 
+---
+
+## ✅ Ciclo 40 — 2026-07-31 — Prevención de Full Collection Scan en Contexto Global y Fix de Hooks en Compras
+
+[Fecha] 2026-07-31
+Archivo: \`src/context/OrdersContext.tsx\`, \`src/pages/Compras.tsx\`
+Problema: \`OrdersContext.tsx\` mantenía una consulta \`query(collection(db, PATHS.orders), orderBy('processedAt', 'desc'))\` **sin límite**, lo cual descargaba todo el historial de expedientes de Firestore, causando un Full Collection Scan `O(N)` costoso y perjudicial para la memoria en cada carga inicial. Además, al auditar \`Compras.tsx\`, el linter de React falló debido a un retorno prematuro (early return) posicionado *antes* de las declaraciones de hooks (useMemo), violando las reglas de Hooks de React.
+Impacto: Alto costo de Firestore en cada inicio de sesión y posible desbordamiento de memoria por almacenar localmente miles de órdenes obsoletas. Errores de React debido a estado inestable en la tabla de compras si fallaba la carga.
+Solución: 
+1. Se añadió \`limit(500)\` a la consulta de órdenes globales en \`OrdersContext.tsx\`, delegando la reducción de descargas a la base de datos (se alinea con las soluciones previas en compras y caja).
+2. Se reubicaron los retornos tempranos en \`Compras.tsx\` al final del bloque de hooks (justo antes de las funciones auxiliares) restaurando la integridad del linter.
+Riesgo: 🟡 Medio — Limitar a 500 expedientes previene el full scan pero significa que historiales extremadamente antiguos no cargarán en las listas por defecto del cliente; sin embargo, esto previene colapsar la app.
+Commit: \`fix: add limit to OrdersContext and fix rules-of-hooks early return in Compras\`
+Estado: ✅ Verificado — \`tsc\` limpio, \`eslint\` 1 warning, 0 errores, build completo.
+
 ### 📌 Para no repetir esto una tercera vez
 
 `SYSTEM_CHANGELOG` sigue siendo una lista mantenida a mano, separada de `CHANGELOG.md`. Cada ciclo que se cierre de aquí en adelante debe actualizar **los dos archivos a la vez** — está anotado aquí como recordatorio explícito, no solo confiado a la memoria de la sesión.
