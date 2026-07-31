@@ -1,5 +1,13 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.18.0] - 31 Julio 2026 (Ciclo 30 — Adelantos a proveedor visibles otra vez)
+
+### Corregido — crítico
+- **El adelanto a Andrés no aparecía en su Estado de Cuenta.** La migración inicial de CAJA nunca guardó el campo `provider` en sus movimientos, así que el filtro por proveedor los ignoraba por completo — el saldo mostraba deuda de más, por el monto exacto del adelanto perdido.
+- Nueva herramienta en `/seed`: **"🔧 Reparar movimientos sin proveedor"**, que completa el campo faltante en los movimientos ya existentes sin tocar montos ni fechas.
+- La migración ahora detecta el proveedor automáticamente por el concepto, para que esto no se repita en cargas futuras.
+
+
 ## [v6.17.0] - 31 Julio 2026 (Ciclo 29 — Panel reordenado, CAJA, catálogo editable)
 
 ### Corregido — crítico

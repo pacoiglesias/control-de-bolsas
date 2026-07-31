@@ -6,6 +6,20 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 30 — 2026-07-31 — Adelantos a Andrés invisibles en su Estado de Cuenta por falta del campo `provider`
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Seeder.tsx`
+Problema: El usuario reportó ver "🔴 Saldo con Andrés $145,000" en rojo, exactamente el monto completo de su adelanto del 21 de julio. La migración inicial de movimientos de CAJA (`Seeder.tsx`) nunca escribía el campo `provider` en los movimientos, aunque el concepto mencionara explícitamente "Adelanto a Andres...". El "Estado de Cuenta" de `Compras.tsx` filtra los movimientos por `provider` exacto: sin ese campo, el adelanto afectaba el saldo general de CAJA correctamente, pero era invisible específicamente para el cálculo de cuánto se le ha pagado a ese proveedor — el sistema veía la deuda pero no veía que ya se había abonado.
+Impacto: Deuda con proveedor mostrada de más, por el monto exacto de cualquier adelanto capturado sin el campo `provider`.
+Solución: La migración ahora detecta automáticamente el proveedor mencionado en el concepto (`PROVIDER_NAMES`, lista explícita y corta a propósito) y lo guarda. Se agregó una herramienta de reparación puntual en `/seed`: busca movimientos de CAJA existentes sin `provider` cuyo concepto sí mencione uno conocido, y completa únicamente ese campo — no toca montos, fechas ni conceptos.
+Riesgo: 🟢 Bajo — la reparación es aditiva (solo completa un campo faltante), nunca sobrescribe ni borra.
+Commit: `fix(Seeder): completar provider en movimientos de CAJA migrados sin ese campo`
+Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, build completo. Pendiente que el usuario ejecute la reparación sobre sus datos reales y confirme que el saldo con Andrés se corrige.
+
+
+---
+
 ## ✅ Ciclo 29 — 2026-07-31 — Panel reordenado, CAJA, catálogo editable, y el bug real de "Notificar al cliente"
 
 [Fecha] 2026-07-31

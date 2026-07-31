@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, doc, writeBatch, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, doc, writeBatch, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useConfig } from '../hooks/useConfig';
@@ -8,6 +8,13 @@ import type { PurchaseOrder } from '../lib/types';
 
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+
+// Proveedores conocidos del negocio, para detectar automaticamente a quien
+// corresponde un movimiento de CAJA por su concepto (ver migracion mas
+// abajo). Lista corta y explicita a proposito: mejor pedirle al usuario que
+// la actualice si aparece un proveedor nuevo, que adivinar con logica mas
+// compleja sobre texto libre.
+const PROVIDER_NAMES = ['Andres'];
 
 export default function Seeder() {
   const { role } = useAuth();
@@ -44,6 +51,45 @@ Pago recibido 23 julio	76140.00`);
 2	GTP930115PU1	120267113870	4.0	I	6097	2026-07-27T10:13:06	27/Julio/2026	109,040.00`);
 
   const addLog = (msg: string) => setLog(prev => [...prev, msg]);
+
+  /**
+   * Reparacion de un solo uso: los movimientos de CAJA migrados antes del
+   * Ciclo 30 no tenian `provider`, aunque su concepto mencionara a Andres
+   * (ej. "Adelanto a Andres 21 julio"). Eso los hacia invisibles para el
+   * "Estado de Cuenta" de Compras, que filtra por ese campo — el saldo con
+   * Andres salia mal por el monto completo del movimiento perdido.
+   * No toca nada mas: solo completa un campo que faltaba.
+   */
+  const [reparando, setReparando] = useState(false);
+  const handleRepararProveedores = async () => {
+    setReparando(true);
+    setLog([]);
+    try {
+      addLog('Buscando movimientos de CAJA sin proveedor asignado…');
+      const snap = await getDocs(collection(db, PATHS.expenses));
+      const sinProveedor = snap.docs.filter((d) => {
+        const data = d.data();
+        return !data.provider;
+      });
+      addLog(`${sinProveedor.length} movimientos sin proveedor de ${snap.size} totales.`);
+
+      let reparados = 0;
+      for (const d of sinProveedor) {
+        const concept: string = d.data().concept || '';
+        const proveedorDetectado = PROVIDER_NAMES.find((p) => concept.toLowerCase().includes(p.toLowerCase()));
+        if (proveedorDetectado) {
+          await updateDoc(doc(db, PATHS.expenses, d.id), { provider: proveedorDetectado });
+          addLog(`  ✓ "${concept}" → proveedor: ${proveedorDetectado}`);
+          reparados++;
+        }
+      }
+      addLog(`✅ Reparados ${reparados} movimientos. Los demás sin proveedor no mencionan a ningún proveedor conocido en su concepto — se dejaron igual.`);
+    } catch (e) {
+      addLog(`⚠️ Error: ${(e as Error).message}`);
+    } finally {
+      setReparando(false);
+    }
+  };
 
   const handleRun = async () => {
     const word = window.prompt("⚠️ PELIGRO ⚠️\nEsto borrará TODAS las órdenes, facturas y flujo de caja (CAJA).\n\nPara continuar, escribe exactamente la palabra: PROVIDENCIA");
@@ -278,6 +324,13 @@ Pago recibido 23 julio	76140.00`);
       }).filter((x): x is NonNullable<typeof x> => x !== null && !isNaN(x.monto));
 
       movs.forEach((m, i) => {
+        // El concepto se cruza contra los proveedores ya conocidos (deriva
+        // de los mismos expedientes, igual que knownProviders en
+        // OrderModal.tsx). Sin esto, un movimiento como "Adelanto a Andres
+        // 21 julio" se guardaba SIN provider — afectaba el saldo general de
+        // CAJA correctamente, pero era invisible para el "Estado de Cuenta"
+        // de ese proveedor especifico, que filtra por ese campo exacto.
+        const proveedorDetectado = PROVIDER_NAMES.find((p) => m.concepto.toLowerCase().includes(p.toLowerCase()));
         batch.set(doc(collection(db, PATHS.expenses)), {
           date: Timestamp.now(),
           concept: m.concepto,
@@ -285,6 +338,7 @@ Pago recibido 23 julio	76140.00`);
           // siempre va positivo y el signo lo lleva el campo `type`.
           type: m.monto < 0 ? 'egreso' : 'ingreso',
           amount: Math.abs(m.monto),
+          provider: proveedorDetectado || null,
           notes: `Migración inicial (renglón ${i + 1})`,
           createdAt: Timestamp.now(),
         });
@@ -370,6 +424,22 @@ Pago recibido 23 julio	76140.00`);
       >
         {running ? "Procesando..." : configLoading ? "Cargando configuración..." : "BORRAR TODO E INYECTAR DATOS"}
       </button>
+
+      <div style={{ marginTop: 24, padding: 16, border: '1px solid var(--line)', borderRadius: 8 }}>
+        <h4 style={{ margin: '0 0 8px' }}>🔧 Reparación puntual: movimientos de CAJA sin proveedor</h4>
+        <p className="hint" style={{ margin: '0 0 12px' }}>
+          No borra ni cambia montos. Busca movimientos de CAJA que mencionan a un proveedor conocido en su concepto
+          (ej. "Adelanto a Andres…") pero que se guardaron sin el campo de proveedor — por eso no aparecían en su
+          Estado de Cuenta. Completa ese campo, nada más.
+        </p>
+        <button
+          className="btn"
+          onClick={handleRepararProveedores}
+          disabled={reparando || running}
+        >
+          {reparando ? 'Reparando…' : '🔧 Reparar movimientos sin proveedor'}
+        </button>
+      </div>
 
       <div style={{ marginTop: 40, background: '#f5f5f5', padding: 20, borderRadius: 8, fontFamily: 'monospace' }}>
         <h3>Log de Operaciones:</h3>
