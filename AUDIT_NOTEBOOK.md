@@ -6,6 +6,33 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 31 — 2026-07-31 — "Vencido" no contaba por fecha, y la Bitácora de Parches volvió a quedarse atrás
+
+[Fecha] 2026-07-31
+Archivo: `functions/src/stats.ts`
+Problema: 🔴 El usuario reportó tener varios contrarecibos ya vencidos, pero la tarjeta "Vencido" del panel mostraba $0.00. Causa: el estatus `overdue` de una factura solo lo escribe `checkOverdueInvoices`, un job programado que corre **una vez al día** ("every day 00:00"). Entre una corrida y la siguiente, una factura vencida por calendario seguía guardada como `pending`, y `extractStats()` solo contaba el estatus guardado — nunca la fecha real. `Cobranza.tsx`, en cambio, sí calcula vencidos en vivo con `daysLate()`, por eso el usuario veía vencidos ahí pero no en el panel: dos caminos de cálculo desalineados.
+Impacto: Cifra de "Vencido" invisible o subestimada en el panel principal hasta la siguiente medianoche, mientras el resto del sistema (Cobranza) ya mostraba la realidad correcta.
+Solución: Nuevo helper `estaVencidaEnVivo()` en `extractStats()`: una factura `pending` con `dueDate` ya pasado se trata como vencida para las estadísticas, sin esperar al job diario ni modificar el estatus guardado (eso lo sigue haciendo `checkOverdueInvoices`, que es quien debe persistirlo para el resto de la interfaz).
+Riesgo: 🟢 Bajo — solo afecta el cálculo de agregación, no las escrituras de datos.
+Commit: `fix(stats): contar vencidos por fecha en vivo, no solo por el job diario`
+Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Dashboard.tsx`
+Problema: La "Bitácora de Parches" visible en el sistema (`SYSTEM_CHANGELOG`) se quedó congelada en v6.8.0 — **10 versiones sin registrar** (v6.9.0 a v6.18.0), pese a que el badge de versión ya se corrigió en el Ciclo 13 para leer `package.json` en tiempo real. Es la misma clase de error que motivó el Ciclo 13, repetida: arreglar el número no basta si el historial narrativo se sigue llenando a mano y se olvida.
+Impacto: El usuario no podía confiar en la bitácora del propio sistema para saber qué se había corregido.
+Solución: Agregadas las 10 entradas faltantes, resumidas desde `CHANGELOG.md`.
+Riesgo: 🟢 Bajo — contenido informativo, sin lógica.
+Commit: `docs(Dashboard): completar Bitácora de Parches hasta v6.18.0`
+Estado: ✅ Verificado.
+
+### 📌 Para no repetir esto una tercera vez
+
+`SYSTEM_CHANGELOG` sigue siendo una lista mantenida a mano, separada de `CHANGELOG.md`. Cada ciclo que se cierre de aquí en adelante debe actualizar **los dos archivos a la vez** — está anotado aquí como recordatorio explícito, no solo confiado a la memoria de la sesión.
+
+
+---
+
 ## ✅ Ciclo 30 — 2026-07-31 — Adelantos a Andrés invisibles en su Estado de Cuenta por falta del campo `provider`
 
 [Fecha] 2026-07-31

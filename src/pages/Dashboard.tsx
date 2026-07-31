@@ -38,6 +38,100 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.18.0',
+    date: '31 de Julio de 2026',
+    time: '05:00 AM',
+    summary: 'Adelanto a proveedor visible otra vez; vencidos por fecha corregidos en el panel.',
+    highlights: [
+      'Corregida la migración inicial: los movimientos de CAJA no guardaban a qué proveedor correspondían',
+      'Nueva herramienta en /seed para reparar movimientos existentes sin proveedor',
+      '"Vencido" en el panel ahora cuenta por fecha en vivo, no solo por el job diario de medianoche',
+    ]
+  },
+  {
+    version: 'v6.17.0',
+    date: '31 de Julio de 2026',
+    time: '04:49 AM',
+    summary: 'Panel reordenado en secciones, "Caja Chica" renombrado a CAJA, catálogo editable, y el botón "Notificar al cliente" reparado.',
+    highlights: [
+      'Corregido "Notificar al cliente": el mailto no tenía ningún destinatario',
+      'Panel principal reagrupado en Ventas y Ganancias / Cobranza / Caja y Operación',
+      '"Total Vendido" ahora aclara que es acumulado sin límite de fecha',
+      'Catálogo con alta, edición y borrado de productos',
+    ]
+  },
+  {
+    version: 'v6.16.0',
+    date: '31 de Julio de 2026',
+    time: '04:19 AM',
+    summary: 'Compras con folio, cliente y fecha de entrega; registro de entregas compartido con el expediente.',
+    highlights: [
+      'Lógica de entregas extraída a un módulo compartido entre Compras y el expediente',
+      'Tarjeta de "Entregas Atrasadas de Andrés" y buscador por folio/cliente',
+      'Botón para registrar una entrega sin salir de Compras',
+    ]
+  },
+  {
+    version: 'v6.15.0',
+    date: '31 de Julio de 2026',
+    time: '01:47 AM',
+    summary: 'Seguridad en el Reporte Global de Cobranza.',
+    highlights: [
+      'HTML sin escapar y fuga de memoria corregidas en printCobranzaGlobalReport',
+    ]
+  },
+  {
+    version: 'v6.14.0',
+    date: '31 de Julio de 2026',
+    time: '01:33 AM',
+    summary: 'Entregas como eventos con fecha y productos: fin del riesgo de doble factura.',
+    highlights: [
+      'Cada entrega ahora es un evento con fecha y cantidad por producto, no un acumulado',
+      'Una entrega ya facturada no puede volver a facturarse — protección estructural',
+      'Migración automática de expedientes viejos sin perder historial',
+    ]
+  },
+  {
+    version: 'v6.13.0',
+    date: '31 de Julio de 2026',
+    time: '00:16 AM',
+    summary: 'Versión del sistema sincronizada de raíz; saldo con Andrés más claro.',
+    highlights: [
+      'La versión ya no se escribe a mano: se toma de package.json en cada compilación',
+      'receivedKilos sincronizado con lo entregado realmente',
+    ]
+  },
+  {
+    version: 'v6.12.0',
+    date: '31 de Julio de 2026',
+    time: '00:57 AM',
+    summary: 'Eliminada la implementación duplicada y con bug de "Facturar lo Entregado".',
+    highlights: [
+      'Quitado el camino que podía facturar mercancía no entregada',
+      'Autocompletado de Cliente/Proveedor y validación de campos obligatorios',
+      'Cero tipos "any" en OrderModal.tsx y Dashboard.tsx',
+    ]
+  },
+  {
+    version: 'v6.10.0',
+    date: '30 de Julio de 2026',
+    time: '11:56 PM',
+    summary: 'Deuda con Andrés reconocida sobre lo entregado, no sobre lo pedido.',
+    highlights: [
+      'Confirmado por el usuario: la deuda sube solo con lo que Andrés entrega de verdad',
+    ]
+  },
+  {
+    version: 'v6.9.0',
+    date: '30 de Julio de 2026',
+    time: '11:39 PM',
+    summary: '"Pendiente de Facturar" visible en panel, filtro y expediente.',
+    highlights: [
+      'Nueva tarjeta en el panel con enlace directo al filtro',
+      'Aviso en la pestaña Productos cuando hay algo entregado sin facturar',
+    ]
+  },
+  {
     version: 'v6.8.0',
     date: '30 de Julio de 2026',
     time: '11:50 PM',

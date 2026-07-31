@@ -19,10 +19,30 @@ function monthKey(d: Date): string {
   return `${d.getFullYear()}-${m < 10 ? '0' : ''}${m}`;
 }
 
+/**
+ * El estatus "overdue" que se guarda en cada factura solo lo escribe
+ * checkOverdueInvoices, un job programado que corre UNA VEZ AL DIA
+ * ("every day 00:00"). Entre una corrida y la siguiente, una factura ya
+ * vencida por fecha sigue guardada como "pending" — y las estadisticas
+ * (incluida la tarjeta "Vencido" del panel) solo contaban el estatus
+ * guardado, nunca la fecha real. Resultado: contrarecibos genuinamente
+ * vencidos se sumaban a "Te deben" en vez de a "Vencido", mostrando $0.00
+ * aunque hubiera varios vencidos de verdad.
+ * Este helper trata un "pending" con fecha ya pasada como vencido para las
+ * estadisticas, sin esperar al job programado ni tocar el estatus guardado
+ * (eso lo sigue haciendo checkOverdueInvoices, que es quien debe persistirlo).
+ */
+function estaVencidaEnVivo(cc: { status?: string; dueDate?: any } | undefined, ahora: number): boolean {
+  if (!cc || cc.status !== 'pending' || !cc.dueDate) return false;
+  const due = toDate(cc.dueDate);
+  return !!due && due.getTime() < ahora;
+}
+
 export function extractStats(data: any): Record<string, any> {
   let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, porCobrarSinCR = 0, porCobrarConCR = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
   let margen = 0, gananciaRealizada = 0;
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
+  const ahora = Date.now();
   
   if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
 
@@ -36,7 +56,7 @@ export function extractStats(data: any): Record<string, any> {
 
   for (const inv of invoices) {
     const s = inv.creditCycle?.status;
-    if (s === 'overdue') hasOverdue = true;
+    if (s === 'overdue' || estaVencidaEnVivo(inv.creditCycle, ahora)) hasOverdue = true;
     if (s === 'manual_review') hasManual = true;
     if (s === 'pending') hasPending = true;
     if (s === 'collected') hasCollected = true;
@@ -93,7 +113,11 @@ export function extractStats(data: any): Record<string, any> {
         // hoja de calculo; el sistema las mezclaba en un solo numero.
         const tieneCr = !!(inv.collection?.contrareciboNumber || data.collection?.contrareciboNumber);
         if (tieneCr) porCobrarConCR += saldo; else porCobrarSinCR += saldo;
-        if (s === 'overdue') vencido += saldo;
+        // "vencido" cuenta por FECHA, no solo por el estatus guardado: sin
+        // esta comprobacion en vivo, un contrarecibo vencido por calendario
+        // pero que el job diario ("every day 00:00") aun no habia procesado
+        // se quedaba invisible en "Vencido" y mezclado dentro de "Te deben".
+        if (s === 'overdue' || estaVencidaEnVivo(inv.creditCycle, ahora)) vencido += saldo;
       }
       
       const d = toDate(inv.creditCycle?.issueDate) ?? toDate(data.processedAt);

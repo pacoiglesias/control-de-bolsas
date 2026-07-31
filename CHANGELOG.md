@@ -1,5 +1,12 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.19.0] - 31 Julio 2026 (Ciclo 31 — Vencidos por fecha, bitácora al día)
+
+### Corregido — crítico
+- **"Vencido" no contaba contrarecibos realmente vencidos.** Dependía únicamente del job diario que corre a medianoche; entre una corrida y la siguiente, facturas vencidas por calendario seguían contando como "pendientes" en el panel, aunque Cobranza ya las mostrara correctamente. Ahora las estadísticas comparan la fecha en vivo, sin esperar al job.
+- **"Bitácora de Parches" del sistema desactualizada**: se quedó en v6.8.0 pese a llevar 10 versiones más. Completada hasta v6.18.0.
+
+
 ## [v6.18.0] - 31 Julio 2026 (Ciclo 30 — Adelantos a proveedor visibles otra vez)
 
 ### Corregido — crítico
