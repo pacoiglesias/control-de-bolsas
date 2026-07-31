@@ -51,6 +51,50 @@ export default function OrderModal({
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
 
+  /**
+   * Migracion de expedientes viejos al modelo de entregas por evento.
+   *
+   * Antes de este cambio, "cuanto se entrego" vivia como un numero suelto
+   * por renglon (`item.deliveredQuantity`) sin fecha ni evento. Si el
+   * expediente ya tenia entregas en el formato nuevo (con `items[]`), se
+   * dejan tal cual. Si no, se arma UNA sola entrega historica con lo que ya
+   * habia — marcada como ya facturada si el expediente ya tiene facturas,
+   * para no ofrecer facturarla otra vez y duplicar lo que ya se cobro.
+   */
+  const migratedDeliveries = useMemo(() => {
+    const yaFormatoNuevo = initialSummary.deliveries.some((d) => Array.isArray(d.items) && d.items.length > 0);
+    if (yaFormatoNuevo) return initialSummary.deliveries;
+
+    const items = order.items ?? [];
+    const totalLegacy = items.reduce((acc, it) => acc + (Number(it.deliveredQuantity) || 0), 0);
+
+    if (totalLegacy > 0) {
+      return [{
+        id: `legacy-${order.id}`,
+        date: order.processedAt ?? Timestamp.now(),
+        kilos: round2(totalLegacy),
+        items: items.map((it) => ({ itemId: it.id, quantity: Number(it.deliveredQuantity) || 0 })),
+        invoiced: (order.invoices?.length ?? 0) > 0,
+        notes: 'Migrado automáticamente del formato anterior (sin evento de entrega individual).',
+      }];
+    }
+
+    // Expedientes muy viejos, de antes de que existiera items[]: no hay a
+    // que producto atribuirle los kilos, pero se conserva el total para no
+    // perder el historial silenciosamente.
+    if ((order.totalKilograms ?? 0) > 0 && (order.invoices?.length ?? 0) > 0) {
+      return [{
+        id: `legacy-${order.id}`,
+        date: order.processedAt ?? Timestamp.now(),
+        kilos: round2(order.totalKilograms ?? 0),
+        invoiced: true,
+        notes: 'Migrado automáticamente: expediente sin desglose por producto.',
+      }];
+    }
+
+    return [];
+  }, [initialSummary.deliveries, order]);
+
   const [form, setForm] = useState({
     folio: order.folio ?? '',
     client: order.client ?? '',
@@ -59,7 +103,7 @@ export default function OrderModal({
     oc: order.oc ?? '',
     totalKilograms: String(order.totalKilograms ?? ''),
     estimatedDeliveryDate: order.estimatedDeliveryDate ?? null,
-    deliveries: initialSummary.deliveries,
+    deliveries: migratedDeliveries,
     invoices: initialSummary.invoices,
     items: order.items ?? [],
     customCostPrice: order.customCostPrice !== undefined ? String(order.customCostPrice) : '',
@@ -402,7 +446,7 @@ export default function OrderModal({
     const rawItems = form.items && form.items.length > 0 ? form.items : [];
     
     const itemsList = rawItems.length > 0 ? rawItems.map(it => {
-      const k = Number(it.deliveredQuantity || it.quantity || 0);
+      const k = Number(deliveredByItem[it.id] ?? it.deliveredQuantity ?? it.quantity ?? 0);
       const price = Number(it.unitPrice || dynamicConfig.salePricePerKg || 47);
       const subtotal = round2(k * price);
       return {
@@ -768,7 +812,16 @@ export default function OrderModal({
   const addDelivery = () => {
     set('deliveries', [
       ...form.deliveries,
-      { id: Date.now().toString(), date: Timestamp.now(), kilos: 0, notes: '' }
+      {
+        id: Date.now().toString(),
+        date: Timestamp.now(),
+        kilos: 0,
+        // Un renglon por cada producto de la OC, en 0: el usuario captura
+        // cuanto llego de cada uno EN ESTA entrega especifica.
+        items: form.items.map((it) => ({ itemId: it.id, quantity: 0 })),
+        invoiced: false,
+        notes: '',
+      },
     ]);
   };
   const updateDelivery = <F extends keyof Delivery>(index: number, field: F, value: Delivery[F]) => {
@@ -776,7 +829,23 @@ export default function OrderModal({
     next[index] = { ...next[index], [field]: value };
     set('deliveries', next);
   };
+  const updateDeliveryItemQty = (deliveryIndex: number, itemId: string, quantity: number) => {
+    const next = [...form.deliveries];
+    const d = next[deliveryIndex];
+    const items = [...(d.items ?? [])];
+    const idx = items.findIndex((x) => x.itemId === itemId);
+    if (idx >= 0) items[idx] = { ...items[idx], quantity };
+    else items.push({ itemId, quantity });
+    const kilosTotal = round2(items.reduce((a, x) => a + (Number(x.quantity) || 0), 0));
+    next[deliveryIndex] = { ...d, items, kilos: kilosTotal };
+    set('deliveries', next);
+  };
   const removeDelivery = (index: number) => {
+    const d = form.deliveries[index];
+    if (d?.invoiced) {
+      toast('Esta entrega ya generó una factura. Elimina primero la factura ligada, en la pestaña Facturas, si de verdad quieres deshacerla.', 'bad');
+      return;
+    }
     if (window.confirm('¿Eliminar esta entrega?')) {
       const next = [...form.deliveries];
       next.splice(index, 1);
@@ -806,43 +875,89 @@ export default function OrderModal({
   };
   const removeInvoice = (index: number) => {
     if (window.confirm('¿Eliminar esta factura?')) {
-      const next = [...form.invoices];
-      next.splice(index, 1);
-      set('invoices', next);
+      const invoiceId = form.invoices[index]?.id;
+      const nextInvoices = [...form.invoices];
+      nextInvoices.splice(index, 1);
+      // Si esta factura vino de una entrega (facturarEntrega la liga por
+      // invoiceId), esa entrega vuelve a quedar "pendiente de facturar" en
+      // vez de quedar bloqueada para siempre con invoiced:true sin factura
+      // real detras.
+      const nextDeliveries = form.deliveries.map((d) =>
+        d.invoiceId === invoiceId ? { ...d, invoiced: false, invoiceId: undefined } : d,
+      );
+      setForm((f) => ({ ...f, invoices: nextInvoices, deliveries: nextDeliveries }));
     }
   };
 
   /**
-   * Suma lo ENTREGADO (deliveredQuantity) de todos los renglones y arma la
-   * factura con esos kilos, en vez de que se sumen a mano fuera del sistema
-   * y se transcriban. Es donde se cuela un dígito mal tecleado sin que nadie
-   * se entere.
+   * Lo entregado se deriva de los EVENTOS de entrega (form.deliveries), no de
+   * un numero que se edita a mano por renglon. Antes existian dos sistemas
+   * de "entregas" sin conexion: la pestana Entregas (fecha, sin producto) y
+   * el campo deliveredQuantity de Productos (cantidad, sin fecha ni evento).
+   * Con esto solo hay UNA fuente de verdad.
    */
-  const kilosEntregados = form.items.reduce((acc, it) => acc + (Number(it.deliveredQuantity) || 0), 0);
+  const deliveredByItem = useMemo(() => {
+    const map: Record<string, number> = {};
+    form.deliveries.forEach((d) => {
+      (d.items ?? []).forEach((di) => {
+        map[di.itemId] = (map[di.itemId] ?? 0) + (Number(di.quantity) || 0);
+      });
+    });
+    return map;
+  }, [form.deliveries]);
+
+  const kilosEntregados = round2(
+    form.deliveries.reduce((acc, d) => {
+      const sumItems = (d.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0);
+      // Si la entrega no tiene desglose por producto (expedientes muy viejos,
+      // de antes de items[]), se cuenta su total tal cual.
+      return acc + (sumItems > 0 ? sumItems : (Number(d.kilos) || 0));
+    }, 0),
+  );
   const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
   const kilosFaltantes = round2(kilosPedidos - kilosEntregados);
 
-  function facturarLoEntregado() {
-    if (kilosEntregados <= 0) {
-      toast('No hay cantidades entregadas capturadas en Productos todavía.', 'bad');
+  /**
+   * Factura UNA entrega especifica, no el acumulado. Antes "Facturar lo
+   * entregado" siempre facturaba el TOTAL acumulado a la fecha: si Andres
+   * entregaba en dos momentos y se facturaba despues de cada uno, la primera
+   * entrega quedaba facturada dos veces (una sola vez de mas por cada
+   * repeticion), inflando venta, comision y deuda con Andres en cascada.
+   * Ahora cada entrega se factura una sola vez porque, una vez facturada,
+   * `invoiced: true` le quita el boton — es estructural, no depende de que
+   * nadie se acuerde de no volver a apretarlo.
+   */
+  function facturarEntrega(deliveryIndex: number) {
+    const delivery = form.deliveries[deliveryIndex];
+    if (!delivery || delivery.invoiced) return;
+    const kilosDeEstaEntrega = round2(
+      (delivery.items ?? []).reduce((acc, di) => acc + (Number(di.quantity) || 0), 0) || delivery.kilos || 0,
+    );
+    if (kilosDeEstaEntrega <= 0) {
+      toast('Esta entrega no tiene cantidades capturadas todavía.', 'bad');
       return;
     }
     const issue = new Date();
     const due = addDays(issue, config.creditDays);
-    set('invoices', [
+    const newInvoiceId = Date.now().toString();
+    const nextInvoices = [
       ...form.invoices,
       {
-        id: Date.now().toString(),
+        id: newInvoiceId,
         folio: '',
-        kilos: kilosEntregados,
-        financials: computeFinancials(kilosEntregados, dynamicConfig),
-        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-        collection: { paidAmount: 0, contrareciboNumber: '', notes: '' },
+        kilos: kilosDeEstaEntrega,
+        financials: computeFinancials(kilosDeEstaEntrega, dynamicConfig),
+        creditCycle: { status: 'pending' as const, issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: `Entrega del ${toInputDate(delivery.date) || '—'}` },
       },
-    ]);
+    ];
+    const nextDeliveries = [...form.deliveries];
+    nextDeliveries[deliveryIndex] = { ...delivery, invoiced: true, invoiceId: newInvoiceId };
+    setForm((f) => ({ ...f, invoices: nextInvoices, deliveries: nextDeliveries }));
     setTab('facturas');
-    toast(`Factura armada con ${kilosEntregados.toLocaleString('es-MX')} kg entregados. Falta poner el folio y guardar.`, 'ok');
+    toast(`Factura armada con ${kilosDeEstaEntrega.toLocaleString('es-MX')} kg de esta entrega. Falta poner el folio y guardar.`, 'ok');
   }
+
 
   return (
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
@@ -993,11 +1108,10 @@ export default function OrderModal({
         {/* PRODUCTOS */}
         {tab === 'productos' && (
           <>
-            {kilosEntregados > 0 && form.invoices.length === 0 && (
+            {kilosEntregados > 0 && form.deliveries.some((d) => !d.invoiced) && (
               <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
-                <strong>📝 Esto ya se puede facturar.</strong> Registraste {kilosEntregados.toLocaleString('es-MX')} kg
-                entregados y este expediente todavía no tiene ninguna factura. Usa el botón
-                "🧾 Facturar lo entregado" de aquí abajo, o ve a la pestaña Facturas si prefieres capturarla a mano.
+                <strong>📝 Hay una entrega sin facturar.</strong> Ve a la pestaña <strong>Entregas</strong> para
+                revisar las cantidades y presionar "Facturar esta entrega".
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
@@ -1009,14 +1123,10 @@ export default function OrderModal({
                     {kilosFaltantes > 0.01 && (
                       <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>
                     )}
+                    {' · '}se captura en la pestaña <strong>Entregas</strong>.
                   </p>
                 )}
               </div>
-              {!readOnly && kilosEntregados > 0 && (
-                <button className="btn btn-primary" onClick={facturarLoEntregado}>
-                  🧾 Facturar lo entregado ({kilosEntregados.toLocaleString('es-MX')} kg)
-                </button>
-              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
               {!readOnly && (
@@ -1126,10 +1236,14 @@ export default function OrderModal({
                             defaultValue={it.quantity} onBlur={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
                         </td>
                         <td className="num">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <input className="input boxed mono" type="number" step="0.01" style={{ width: 70, borderColor: (it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 ? 'var(--ok)' : 'var(--line)' }}
-                              defaultValue={it.deliveredQuantity || ''} placeholder="0" onBlur={e => updateItem(i, 'deliveredQuantity', Number(e.target.value))} disabled={readOnly} />
-                            {(it.deliveredQuantity ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                            {/* Solo lectura: se captura en la pestaña Entregas, no aquí. Antes
+                                este campo era editable y era la mitad del sistema duplicado que
+                                no se enteraba de la pestaña Entregas. */}
+                            <span className="mono" title="Se captura en la pestaña Entregas">
+                              {(deliveredByItem[it.id] ?? 0).toLocaleString('es-MX')}
+                            </span>
+                            {(deliveredByItem[it.id] ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
                           </div>
                         </td>
                         <td>
@@ -1176,55 +1290,85 @@ export default function OrderModal({
         {tab === 'entregas' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h4>Registro de Entregas Parciales</h4>
-              {!readOnly && <button className="btn btn-primary" onClick={addDelivery}>+ Agregar Entrega</button>}
+              <div>
+                <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
+                <p className="hint" style={{ margin: '4px 0 0' }}>
+                  Cada vez que Andrés entrega, se captura como un evento con fecha y cantidades por producto.
+                  Entregado en total: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
+                  {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
+                </p>
+              </div>
+              {!readOnly && form.items.length > 0 && <button className="btn btn-primary" onClick={addDelivery}>+ Nueva Entrega</button>}
             </div>
-            {form.deliveries.length === 0 ? (
+            {form.items.length === 0 ? (
+              <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>
+            ) : form.deliveries.length === 0 ? (
               <p className="hint">No hay entregas registradas.</p>
             ) : (
-              <table className="data-table" style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th className="num">Kilos</th>
-                    <th>Notas</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.deliveries.map((d, i) => (
-                    <tr key={d.id}>
-                      <td>
-                        <input className="input boxed mono" type="date" 
-                          defaultValue={toInputDate(d.date) || ''} 
-                          onBlur={e => {
-                            const date = fromInputDate(e.target.value);
-                            updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
-                          }}
-                          disabled={readOnly}
-                        />
-                      </td>
-                      <td className="num">
-                        <input className="input boxed mono" type="number" step="0.01" 
-                          defaultValue={d.kilos} 
-                          onBlur={e => updateDelivery(i, 'kilos', Number(e.target.value))}
-                          disabled={readOnly}
-                        />
-                      </td>
-                      <td>
-                        <input className="input boxed" type="text" 
-                          defaultValue={d.notes || ''} 
-                          onBlur={e => updateDelivery(i, 'notes', e.target.value)}
-                          disabled={readOnly}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {!readOnly && <button className="btn btn-danger" onClick={() => removeDelivery(i)}>X</button>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {form.deliveries.map((d, i) => {
+                  const kilosDeEsta = round2((d.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
+                  return (
+                    <div key={d.id} style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <input className="input boxed mono" type="date"
+                            defaultValue={toInputDate(d.date) || ''}
+                            onBlur={e => {
+                              const date = fromInputDate(e.target.value);
+                              updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
+                            }}
+                            disabled={readOnly || d.invoiced}
+                          />
+                          {d.invoiced ? (
+                            <span className="badge badge-ok">✅ Facturada</span>
+                          ) : (
+                            <span className="badge badge-warn">📝 Pendiente de facturar</span>
+                          )}
+                          <strong className="mono">{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {!readOnly && !d.invoiced && kilosDeEsta > 0 && (
+                            <button className="btn btn-primary" onClick={() => facturarEntrega(i)}>🧾 Facturar esta entrega</button>
+                          )}
+                          {!readOnly && !d.invoiced && (
+                            <button className="btn btn-danger" onClick={() => removeDelivery(i)}>Eliminar</button>
+                          )}
+                        </div>
+                      </div>
+                      <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
+                        <thead>
+                          <tr><th>Producto</th><th className="num">Pedido</th><th className="num">Entregado (esta vez)</th></tr>
+                        </thead>
+                        <tbody>
+                          {form.items.map((it) => {
+                            const qtyEnEsta = (d.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
+                            return (
+                              <tr key={it.id}>
+                                <td>{it.description || it.code || '(sin descripción)'}</td>
+                                <td className="num mono">{it.quantity.toLocaleString('es-MX')}</td>
+                                <td className="num">
+                                  <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
+                                    defaultValue={qtyEnEsta}
+                                    onBlur={e => updateDeliveryItemQty(i, it.id, Number(e.target.value))}
+                                    disabled={readOnly || d.invoiced}
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <input className="input boxed" type="text" style={{ width: '100%', marginTop: 8 }}
+                        placeholder="Notas de esta entrega (opcional)"
+                        defaultValue={d.notes || ''}
+                        onBlur={e => updateDelivery(i, 'notes', e.target.value)}
+                        disabled={readOnly || d.invoiced}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </>
         )}

@@ -6,6 +6,24 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 26 — 2026-07-31 — Entregas como eventos: fin del riesgo de doble factura
+
+[Fecha] 2026-07-31
+Archivo: `src/lib/types.ts`, `src/pages/OrderModal.tsx`
+Problema: Existían dos sistemas de "entregas" sin conexión entre sí: la pestaña Entregas (fecha, sin producto) y el campo `deliveredQuantity` por renglón en Productos (cantidad acumulada, sin fecha ni evento). El botón "Facturar lo entregado" facturaba siempre el TOTAL acumulado: si una OC recibía más de una entrega y se facturaba después de cada una, la primera entrega quedaba facturada dos veces, inflando venta, comisión y deuda con Andrés en cascada. Documentado primero en `FLUJO_COMPLETO_CONTROL_BOLSAS.md`, entregado al usuario para revisión antes de tocar código.
+Impacto: Riesgo financiero real y creciente conforme se use más el seguimiento de entregas parciales, confirmado como prioridad de negocio por el usuario.
+Solución: `Delivery` ahora es un evento completo: fecha, `items[]` (qué y cuánto de cada producto en ESA entrega), `invoiced` e `invoiceId`. La pestaña Entregas captura eventos, no un acumulado. "Facturar esta entrega" factura solo ese evento y lo marca `invoiced: true` — una entrega facturada estructuralmente deja de tener botón para volver a facturarse, la protección no depende de que nadie se acuerde. El campo `deliveredQuantity` de Productos pasó a ser de solo lectura, derivado de la suma de eventos (`deliveredByItem`), eliminando el segundo sistema desconectado. Se migran automáticamente los expedientes existentes: si no tienen entregas en formato nuevo, se arma UNA entrega histórica con lo que ya había, marcada como ya facturada si el expediente ya tenía facturas (para no ofrecer facturarla otra vez). Cubre también expedientes muy viejos sin `items[]`. Si se borra una factura ligada a una entrega, esa entrega vuelve a quedar disponible para facturarse.
+Riesgo: 🟡 Medio — cambio de modelo de datos con lógica de migración; mitigado con verificación exhaustiva (`tsc`, `eslint`, build) y trazado manual de un caso de dos entregas parciales confirmando que no se duplica ningún kilo ni factura.
+Commit: `feat(OrderModal): entregas como eventos con fecha y productos, elimina riesgo de doble factura`
+Estado: ✅ Verificado — `tsc` limpio en raíz y functions, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+### 🟡 Pendiente consciente
+
+No se agregó una prueba automatizada dedicada para el flujo de entregas-por-evento: la lógica vive dentro del componente `OrderModal.tsx`, no en `lib/`, así que no es unitariamente testeable sin antes extraerla a funciones puras. Se verificó manualmente con un caso trazado a mano (dos entregas parciales, dos facturas, totales correctos). Extraer esta lógica a `lib/deliveries.ts` con sus propias pruebas es candidato para un ciclo futuro si el flujo de entregas parciales se usa con frecuencia.
+
+
+---
+
 ## ✅ Ciclo 25 — 2026-07-31 — Reintegrado "Pendiente de Facturar" (se había perdido al sincronizar con GitHub)
 
 [Fecha] 2026-07-31

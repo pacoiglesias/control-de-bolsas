@@ -92,7 +92,28 @@ export interface CollectionInfo {
 export interface Delivery {
   id: string;
   date: Timestamp | null;
+  /**
+   * TOTAL de esta entrega (suma de `items`, cuando existe). Se conserva por
+   * compatibilidad con expedientes viejos migrados como "entrega historica
+   * unica" (ver migrarEntregasLegacy en OrderModal.tsx) y como respaldo si
+   * `items` viniera vacio.
+   */
   kilos: number;
+  /**
+   * Qué se entregó en ESTE evento, renglón por renglón. Sin esto, "cuánto se
+   * ha entregado" era un solo número acumulado sin saber ni la fecha ni qué
+   * llegó cada vez — dos entregas de la misma OC eran indistinguibles.
+   */
+  items?: { itemId: string; quantity: number }[];
+  /**
+   * Si esta entrega YA generó una factura. Es lo que impide facturar la
+   * misma entrega dos veces: una entrega con `invoiced: true` no vuelve a
+   * mostrar el botón de facturar. La proteccion es estructural, no depende
+   * de que nadie se acuerde de no volver a apretar el boton.
+   */
+  invoiced?: boolean;
+  /** A qué factura quedó ligada, una vez facturada. */
+  invoiceId?: string;
   notes?: string;
 }
 
