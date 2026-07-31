@@ -15,7 +15,7 @@ const NAV = [
   // OC", sin relacion visible entre ambas ni pista de cual usar para que.
   { to: '/ordenes', icon: '📋', label: 'Expedientes', roles: ['admin', 'manager', 'viewer'] },
   { to: '/oc', icon: '📦', label: 'Por Orden de Compra', roles: ['admin', 'manager'] },
-  { to: '/compras', icon: '🏭', label: 'Compras', roles: ['admin'] },
+  { to: '/compras', icon: '🏭', label: 'Proveedor (Andrés)', roles: ['admin'] },
   { to: '/cobranza', icon: '💰', label: 'Contrarecibos / Cobranza', roles: ['admin', 'manager'] },
   { to: '/catalogo', icon: '🛍️', label: 'Catálogo', roles: ['admin', 'manager'] },
   { to: '/caja-chica', icon: '💵', label: 'CAJA', roles: ['admin'] },

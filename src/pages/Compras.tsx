@@ -31,7 +31,7 @@ export default function Compras() {
   const [deliveryOrder, setDeliveryOrder] = useState<PurchaseOrder | null>(null);
   const [pagarModal, setPagarModal] = useState(false);
   const [ajusteModal, setAjusteModal] = useState(false);
-  const [tab, setTab] = useState<'ordenes' | 'facturar' | 'revision' | 'estado'>('ordenes');
+  const [tab, setTab] = useState<'ordenes' | 'pagos' | 'facturar' | 'revision' | 'estado'>('ordenes');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'activas'|'completadas'|'todas'>('activas');
   const selectedProvider = 'Andres';
@@ -40,6 +40,38 @@ export default function Compras() {
   const { config } = useConfig();
 
   const isLoading = loadingP || loadingE;
+
+  
+
+  const [pagoAbono, setPagoAbono] = useState({ amount: '', concept: 'Abono a Cuenta / Anticipo', date: toInputDate(new Date()) });
+  const [busyPago, setBusyPago] = useState(false);
+
+  async function registrarAbono() {
+    if (busyPago) return;
+    const val = Number(pagoAbono.amount);
+    if (isNaN(val) || val <= 0) return toast('El monto debe ser mayor a cero.', 'bad');
+    if (!pagoAbono.concept.trim()) return toast('El concepto es obligatorio.', 'bad');
+    
+    if (!confirm(`¿Confirmas registrar un abono de $${val.toLocaleString('es-MX')} a Andrés?`)) return;
+    
+    setBusyPago(true);
+    try {
+      await addDoc(collection(db, PATHS.expenses), {
+        amount: val,
+        concept: pagoAbono.concept.trim(),
+        date: fromInputDate(pagoAbono.date)?.getTime() || Date.now(),
+        provider: 'Andrés', // Hardcoded provider to guarantee consistency
+        type: 'egreso' // Dinero que sale de caja
+      });
+      setPagarModal(false);
+      setPagoAbono({ amount: '', concept: 'Abono a Cuenta / Anticipo', date: toInputDate(new Date()) });
+      toast(`Abono por $${val.toLocaleString('es-MX')} registrado correctamente.`, 'ok');
+    } catch (e: any) {
+      toast(e.message, 'bad');
+    } finally {
+      setBusyPago(false);
+    }
+  }
 
   const orderById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
 
@@ -239,6 +271,7 @@ export default function Compras() {
         <p>Control financiero: Anticipos, entregas físicas, saldo y pre-facturación.</p>
         <div className="tabs" style={{ marginTop: 16 }}>
           <button className={tab === 'ordenes' ? 'active' : ''} onClick={() => setTab('ordenes')}>Órdenes (Avance)</button>
+          <button className={tab === 'pagos' ? 'active' : ''} onClick={() => setTab('pagos')}>💳 Pagos a Andrés</button>
           <button className={tab === 'facturar' ? 'active' : ''} onClick={() => setTab('facturar')}>Pendiente por Facturar</button>
           <button className={tab === 'revision' ? 'active' : ''} onClick={() => setTab('revision')}>Facturas en Revisión</button>
           <button className={tab === 'estado' ? 'active' : ''} onClick={() => setTab('estado')}>Auditoría Financiera</button>
@@ -388,7 +421,50 @@ export default function Compras() {
         </Card>
       )}
 
-      {tab === 'facturar' && (
+      
+        {tab === 'pagos' && (
+          <div className="tab-content active">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <p className="hint" style={{ margin: 0 }}>Historial de abonos y anticipos entregados a Andrés. Estos movimientos salen de Caja Chica.</p>
+              <button className="btn btn-primary" onClick={() => setPagarModal(true)}>💵 Registrar Abono a Andrés</button>
+            </div>
+            
+            {provExpenses.length === 0 ? (
+              <Empty>No hay abonos registrados para Andrés.</Empty>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Concepto</th>
+                      <th>Tipo</th>
+                      <th className="num">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {provExpenses.sort((a, b) => (b.date?.toMillis() ?? 0) - (a.date?.toMillis() ?? 0)).map(e => (
+                      <tr key={e.id}>
+                        <td className="mono">{fmtDate(e.date)}</td>
+                        <td>{e.concept}</td>
+                        <td>
+                          <span className={`badge ${e.type === 'ingreso' ? 'badge-ok' : 'badge-bad'}`}>
+                            {e.type === 'ingreso' ? 'Devolución (Entra)' : 'Pago (Sale)'}
+                          </span>
+                        </td>
+                        <td className="num mono">
+                          <strong>{money(e.amount)}</strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'facturar' && (
         <Card 
           title="Pendiente por Facturar (Pre-factura)"
           actions={
@@ -575,6 +651,32 @@ export default function Compras() {
       {selected && <OrderModal purchase={selected} onClose={() => setSelected(null)} costPricePerKg={currentCostPerKg} />}
       {pagarModal && <RegistrarPagoModal selectedProvider={selectedProvider} onClose={() => setPagarModal(false)} />}
       {ajusteModal && <AjusteModal selectedProvider={selectedProvider} onClose={() => setAjusteModal(false)} />}
+      
+      {pagarModal && (
+        <Modal title="Registrar Abono a Andrés" onClose={() => setPagarModal(false)}>
+          <div style={{ display: 'grid', gap: 16 }}>
+            <p className="hint" style={{ marginTop: 0 }}>
+              Este pago saldrá automáticamente de <strong>Caja Chica</strong> y se abonará al saldo de Andrés.
+            </p>
+            <Field label="Fecha del Abono">
+              <input type="date" className="input boxed mono" value={pagoAbono.date} onChange={e => setPagoAbono({...pagoAbono, date: e.target.value})} />
+            </Field>
+            <Field label="Concepto / Razón">
+              <input type="text" className="input boxed" placeholder="Ej. Anticipo Folio 10" value={pagoAbono.concept} onChange={e => setPagoAbono({...pagoAbono, concept: e.target.value})} />
+            </Field>
+            <Field label="Monto ($)">
+              <input type="number" step="0.01" className="input boxed mono" placeholder="0.00" value={pagoAbono.amount} onChange={e => setPagoAbono({...pagoAbono, amount: e.target.value})} />
+            </Field>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn" onClick={() => setPagarModal(false)} disabled={busyPago}>Cancelar</button>
+              <button className="btn btn-primary" onClick={registrarAbono} disabled={busyPago}>
+                {busyPago ? 'Registrando...' : '💳 Registrar Abono'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {deliveryOrder && <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} costPricePerKg={currentCostPerKg} />}
     </>
   );
