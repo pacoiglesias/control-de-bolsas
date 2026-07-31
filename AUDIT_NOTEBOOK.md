@@ -6,6 +6,33 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 32 — 2026-07-31 — Registrar Entrega en Compras nunca actualizaba la deuda con Andrés, y una regresión revirtió el Ciclo 14
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Compras.tsx`
+Problema: 🔴 El usuario reportó "Saldo con Andrés $0" en producción, debiendo ser ~$102,670. `RegistrarEntregaModal.guardar()` (agregado en el Ciclo 28) solo escribía el arreglo `deliveries` del expediente — **nunca actualizaba el registro de compra vinculado**. Ese paso solo existía dentro de `OrderModal.save()`. Si una entrega se capturaba con el atajo nuevo de Compras (que es justo lo que se construyó para que fuera más fácil), la deuda con Andrés simplemente no se enteraba.
+Impacto: Deuda con proveedor invisible o desactualizada para cualquier entrega registrada desde Compras en vez del expediente completo.
+Solución: Lógica de "crear o actualizar la compra a Andrés" extraída a `upsertAndresPurchase()` en `lib/deliveries.ts`. Los dos caminos (`OrderModal.save()` y `RegistrarEntregaModal.guardar()`) llaman ahora a la misma función — no pueden volver a divergir porque no hay dos copias que mantener sincronizadas.
+Riesgo: 🟡 Medio — toca escritura de datos financieros; mitigado por reutilizar exactamente la misma lógica ya verificada, en vez de escribir una tercera copia.
+Commit: `fix(deliveries): unificar el upsert de la compra a Andres entre OrderModal y Compras`
+Estado: ✅ Verificado.
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/OrderModal.tsx`
+Problema: ↩️ **Regresión.** El Ciclo 14 fijó que la deuda con Andrés se reconoce sobre `kilosEntregados` (lo entregado), confirmado explícitamente por el usuario. Durante el refactor de entregas por evento del Ciclo 26, la línea `totalAmount: round2(kilosNum * costoEfectivo)` volvió a usar `kilosNum` (lo **pedido**) sin que nadie lo notara — probablemente al reconciliar el bloque durante la extracción a funciones compartidas.
+Impacto: La deuda con Andrés podía reconocerse de golpe por el total pedido en vez de crecer solo con lo entregado, revirtiendo silenciosamente una decisión de negocio ya confirmada.
+Solución: Corregido de vuelta a `kilosEntregados`, ahora dentro de `upsertAndresPurchase()` (única copia), documentado explícitamente para que quede imposible de revertir sin que el comentario lo señale.
+Riesgo: 🟢 Bajo — corrección de una constante en una fórmula ya probada.
+Commit: `fix(deliveries): revertir regresion que volvia a calcular la deuda sobre lo pedido`
+Estado: ✅ Verificado — `tsc` limpio en raíz y functions, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+### 📌 Sobre las otras dos cifras en $0 que reportó el usuario (Pendiente de Facturar, Vencido)
+
+No se encontró ningún bug de código adicional para estas dos — la explicación más probable, y la única que se puede afirmar sin inventar datos que este entorno no puede verificar, es que **los contadores agregados en `stats/dashboard` no se han recalculado** desde que se agregaron `pedidoOrders` (Ciclo 15/25) y la corrección de `vencido` por fecha en vivo (Ciclo 31). El trigger incremental solo aplica *deltas* a partir del momento en que un campo empieza a existir; los expedientes creados antes de esos ciclos nunca sumaron su contribución a esos campos nuevos, y solo un recálculo completo (botón "Recalcular Indicadores") vuelve a sumar todo desde cero. Queda pendiente de que el usuario lo ejecute y confirme si las cifras coinciden con lo esperado; si no coinciden, se investiga con el dato real en la mano, no por adelantado.
+
+
+---
+
 ## ✅ Ciclo 31 — 2026-07-31 — "Vencido" no contaba por fecha, y la Bitácora de Parches volvió a quedarse atrás
 
 [Fecha] 2026-07-31

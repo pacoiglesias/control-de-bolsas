@@ -38,6 +38,27 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.20.0',
+    date: '31 de Julio de 2026',
+    time: '05:33 AM',
+    summary: 'Saldo con Andrés corregido: "Registrar Entrega" en Compras nunca actualizaba la deuda, y una regresión había vuelto a calcularla sobre lo pedido.',
+    highlights: [
+      'Unificado el registro de compra a Andrés en una sola función compartida entre el expediente y Compras',
+      'Revertida una regresión silenciosa del Ciclo 26 que volvía a usar kilos pedidos en vez de entregados',
+      'Recuerda presionar "Recalcular Indicadores" después de instalar esta versión',
+    ]
+  },
+  {
+    version: 'v6.19.0',
+    date: '31 de Julio de 2026',
+    time: '05:10 AM',
+    summary: '"Vencido" ahora cuenta por fecha en vivo; Bitácora de Parches completada.',
+    highlights: [
+      'Los contrarecibos vencidos por calendario ya no esperan al proceso de medianoche para contar',
+      'Esta misma bitácora, que llevaba 10 versiones sin actualizarse, quedó al día',
+    ]
+  },
+  {
     version: 'v6.18.0',
     date: '31 de Julio de 2026',
     time: '05:00 AM',

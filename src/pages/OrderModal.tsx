@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, PATHS, functions } from '../lib/firebase';
 import { logAction } from '../lib/logger';
@@ -16,6 +16,7 @@ import {
   buildInvoiceFromDelivery,
   unmarkDeliveriesByInvoiceId,
   migrateLegacyDeliveries,
+  upsertAndresPurchase,
 } from '../lib/deliveries';
 import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
@@ -268,40 +269,20 @@ export default function OrderModal({
         }, { merge: true });
       });
 
-      // Upsert Purchase for Andrés
+      // Upsert Purchase for Andrés — delega a lib/deliveries.ts, la misma
+      // funcion que usa el atajo "Registrar Entrega" de Compras.tsx.
       try {
         // Precio efectivo, NO el override opcional: `ccp` vale undefined
         // siempre que el usuario no capture un costo propio, y entonces
         // `kilosNum * ccp` daba NaN y se guardaba una compra con importe
         // invalido. dynamicConfig ya resuelve override -> configuracion base.
-        const costoEfectivo = dynamicConfig.costPricePerKg;
-        const purchaseRef = doc(db, PATHS.purchases, order.id);
-        const purchaseSnap = await getDoc(purchaseRef);
-        // receivedKilos SIEMPRE se sincroniza con lo entregado de verdad
-        // (suma de deliveredQuantity en Productos). Antes quedaba en 0 al
-        // crear la compra y nunca se tocaba al actualizar: "Kilos Recibidos
-        // (Entregas parciales)" en Compras nunca reflejaba el avance real,
-        // aunque en el expediente sí se hubiera capturado la entrega.
-        if (purchaseSnap.exists()) {
-          await updateDoc(purchaseRef, {
-            expectedKilos: kilosNum,
-            receivedKilos: kilosEntregados,
-            pricePerKg: costoEfectivo,
-            totalAmount: round2(kilosNum * costoEfectivo),
-          });
-        } else {
-          await setDoc(purchaseRef, {
-            date: serverTimestamp(),
-            provider: form.provider.trim() || 'Andrés',
-            expectedKilos: kilosNum,
-            receivedKilos: kilosEntregados,
-            pricePerKg: costoEfectivo,
-            totalAmount: round2(kilosNum * costoEfectivo),
-            paidAmount: 0,
-            status: 'pedido',
-            createdAt: serverTimestamp()
-          });
-        }
+        await upsertAndresPurchase({
+          orderId: order.id,
+          provider: form.provider.trim(),
+          expectedKilos: kilosNum,
+          receivedKilos: kilosEntregados,
+          costPerKg: dynamicConfig.costPricePerKg,
+        });
       } catch (err) {
         console.error("Error linking purchase", err);
       }

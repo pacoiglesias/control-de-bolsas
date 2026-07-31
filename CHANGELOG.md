@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.20.0] - 31 Julio 2026 (Ciclo 32 — Saldo con Andrés corregido: dos bugs reales)
+
+### Corregido — crítico
+- **"Registrar Entrega" en Compras nunca actualizaba la deuda con Andrés.** Solo escribía las entregas del expediente; el registro de compra vinculado se quedaba sin tocar. Unificado con `OrderModal.save()` en una sola función compartida (`upsertAndresPurchase`).
+- **Regresión revertida:** el cálculo de la deuda había vuelto a usar kilos pedidos en vez de kilos entregados durante el refactor de entregas del Ciclo 26, revirtiendo silenciosamente lo confirmado en el Ciclo 14.
+
+### ⚠️ Requiere acción
+Después de instalar y desplegar, presiona **"Recalcular Indicadores"** en el panel. Los contadores nuevos de ciclos recientes (Pendiente de Facturar, Vencido por fecha) solo se completan retroactivamente con un recálculo completo — el trigger incremental no vuelve a sumar expedientes que ya existían antes de que esos campos se agregaran.
+
+
 ## [v6.19.0] - 31 Julio 2026 (Ciclo 31 — Vencidos por fecha, bitácora al día)
 
 ### Corregido — crítico

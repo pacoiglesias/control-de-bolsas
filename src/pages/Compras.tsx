@@ -5,6 +5,7 @@ import { usePurchases } from '../hooks/usePurchases';
 import { useProducts } from '../hooks/useProducts';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
+import { useConfig } from '../hooks/useConfig';
 import { Card, Empty, Field, Modal, Spinner, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -18,6 +19,7 @@ import {
   updateDeliveryItemQuantity,
   computeDeliveredTotals,
   migrateLegacyDeliveries,
+  upsertAndresPurchase,
 } from '../lib/deliveries';
 import type { Purchase, PurchaseStatus, PurchaseOrder } from '../lib/types';
 
@@ -713,6 +715,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
  */
 function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClose: () => void }) {
   const toast = useToast();
+  const { config } = useConfig();
   const [busy, setBusy] = useState(false);
   const items = order.items ?? [];
 
@@ -746,6 +749,7 @@ function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClo
     setBusy(true);
     try {
       const ref = doc(db, PATHS.orders, order.id);
+      const nuevasDeliveries = [...existingDeliveries, nueva];
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists()) throw new Error('El expediente ya no existe.');
@@ -753,8 +757,29 @@ function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClo
         if (baselineUpdatedAt && freshUpdatedAt && freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()) {
           throw new Error('Este expediente fue modificado por otra persona justo ahora. Ciérralo y vuelve a intentarlo.');
         }
-        tx.set(ref, { deliveries: [...existingDeliveries, nueva], updatedAt: serverTimestamp() }, { merge: true });
+        tx.set(ref, { deliveries: nuevasDeliveries, updatedAt: serverTimestamp() }, { merge: true });
       });
+      // Antes esta funcion terminaba aqui: la entrega quedaba guardada en el
+      // expediente pero la deuda con Andres nunca se actualizaba, porque ese
+      // paso solo vivia dentro de OrderModal.save(). Misma funcion
+      // compartida que usa el expediente, para que los dos caminos nunca
+      // vuelvan a divergir.
+      const { kilosEntregados: totalEntregadoAhora } = computeDeliveredTotals(nuevasDeliveries);
+      try {
+        await upsertAndresPurchase({
+          orderId: order.id,
+          provider: order.provider || 'Andrés',
+          expectedKilos: kilosPedidos,
+          receivedKilos: totalEntregadoAhora,
+          // Costo real: respeta el override del expediente si existe, si no
+          // usa la configuracion — ya no un 42 fijo sin relacion con lo
+          // configurado.
+          costPerKg: order.customCostPrice ?? config.costPricePerKg,
+        });
+      } catch (err) {
+        console.error('Error al actualizar la compra a Andrés', err);
+        toast('La entrega se guardó, pero hubo un error al actualizar la deuda con Andrés. Ábrela desde Expedientes para corregirlo.', 'bad');
+      }
       toast(`Entrega de ${kilosDeEsta.toLocaleString('es-MX')} kg registrada en ${order.folio || order.id}.`, 'ok');
       onClose();
     } catch (e) {

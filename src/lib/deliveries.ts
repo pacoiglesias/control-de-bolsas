@@ -1,4 +1,5 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, PATHS } from './firebase';
 import { computeFinancials, addDays, round2 } from './finance';
 import type { Delivery, Invoice, PurchaseOrder, PurchaseOrderItem, FinancialConfig } from './types';
 
@@ -176,4 +177,45 @@ export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries
   }
 
   return [];
+}
+
+/**
+ * Crea o actualiza el registro de compra a Andres ligado a un expediente
+ * (mismo id en las dos colecciones). Antes esta escritura solo vivia dentro
+ * de OrderModal.save(): cuando se agrego el atajo "Registrar Entrega" en
+ * Compras.tsx (Ciclo 28) para capturar entregas sin abrir el expediente
+ * completo, ese camino nunca llamaba a esto — la entrega quedaba guardada
+ * en el expediente, pero la deuda con Andres jamas se actualizaba. Ahora
+ * los dos caminos llaman a esta MISMA funcion, en vez de mantener dos
+ * copias que puedan volver a divergir.
+ *
+ * El costo se reconoce sobre lo ENTREGADO (receivedKilos), no lo pedido:
+ * decision de negocio confirmada explicitamente por el usuario (Ciclo 14).
+ */
+export async function upsertAndresPurchase(params: {
+  orderId: string;
+  provider: string;
+  expectedKilos: number;
+  receivedKilos: number;
+  costPerKg: number;
+}): Promise<void> {
+  const { orderId, provider, expectedKilos, receivedKilos, costPerKg } = params;
+  const purchaseRef = doc(db, PATHS.purchases, orderId);
+  const purchaseSnap = await getDoc(purchaseRef);
+  const totalAmount = round2(receivedKilos * costPerKg);
+  if (purchaseSnap.exists()) {
+    await updateDoc(purchaseRef, { expectedKilos, receivedKilos, pricePerKg: costPerKg, totalAmount });
+  } else {
+    await setDoc(purchaseRef, {
+      date: serverTimestamp(),
+      provider: provider || 'Andrés',
+      expectedKilos,
+      receivedKilos,
+      pricePerKg: costPerKg,
+      totalAmount,
+      paidAmount: 0,
+      status: 'pedido',
+      createdAt: serverTimestamp(),
+    });
+  }
 }
