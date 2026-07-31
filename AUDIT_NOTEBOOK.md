@@ -6,6 +6,20 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 38 — 2026-07-31 — Auditoría Técnica, Semáforos y KPIs Caja Chica
+
+[Fecha] 2026-07-31
+Archivos: `src/pages/Dashboard.tsx`, `src/pages/CajaChica.tsx`, `auditoria_erp_elemental.md`
+Problema: Falta de visibilidad rápida del saldo líquido, deuda con Andrés, alertas visuales de morosidad y un diagnóstico técnico de la arquitectura.
+Impacto: Mejor control financiero y visual para el operador del ERP.
+Solución: 
+- Eliminación del botón de WhatsApp en `Dashboard.tsx` a favor de semáforos de mora (🔴>30, 🟡>15, 🟢<15 días).
+- Refactorización de la cabecera en `CajaChica.tsx` para mostrar SALDO EN CAJA y DEUDA CON ANDRÉS en formato KPI gigante, cruzando datos de `expenses` y `purchases` en tiempo real.
+- Redacción de la Auditoría Técnica profunda evaluando candados de peso, pagos en tránsito e inmutabilidad.
+Riesgo: 🟢 Bajo. 
+Commit: `feat: Add Dashboard traffic lights, update CajaChica UI, and save Audit Report`
+Estado: ✅ Verificado — Desplegado en Firebase y auditado exitosamente.
+
 ## ✅ Ciclo 37 — 2026-07-31 — Hotfix React Error #310 en Compras
 
 [Fecha] 2026-07-31
