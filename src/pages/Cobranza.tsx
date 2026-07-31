@@ -398,9 +398,9 @@ export default function Cobranza() {
             <tbody>
               ${data.open.map(x => `
                 <tr>
-                  <td>${x.inv.folio || x.o.folio || '—'}</td>
-                  <td>${x.o.client || '—'}</td>
-                  <td>${x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—'}</td>
+                  <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
+                  <td>${escapeHtml(x.o.client || '—')}</td>
+                  <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
                   <td>${fmtDate(x.inv.creditCycle.dueDate) || '—'}</td>
                   <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 </tr>
@@ -421,9 +421,9 @@ export default function Cobranza() {
                 const grp = cr ? data.listaCr.find(g => g.cr === cr) : null;
                 return `
                   <tr>
-                    <td>${x.inv.folio || x.o.folio || '—'}</td>
-                    <td>${x.o.client || '—'}</td>
-                    <td>${cr || '—'}</td>
+                    <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
+                    <td>${escapeHtml(x.o.client || '—')}</td>
+                    <td>${escapeHtml(cr || '—')}</td>
                     <td class="num">$${(grp ? grp.netCobrado : (x.inv.financials?.invoiceTotal ?? 0)).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                   </tr>
                 `;
@@ -441,9 +441,9 @@ export default function Cobranza() {
             <tbody>
               ${data.collected.map(x => `
                 <tr>
-                  <td>${x.inv.folio || x.o.folio || '—'}</td>
-                  <td>${x.o.client || '—'}</td>
-                  <td>${x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—'}</td>
+                  <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
+                  <td>${escapeHtml(x.o.client || '—')}</td>
+                  <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
                   <td>Recogido (En Caja Chica)</td>
                   <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 </tr>
@@ -461,6 +461,9 @@ export default function Cobranza() {
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    // Mismo patron que las otras tres plantillas de impresion: sin esto el
+    // blob queda vivo en memoria hasta recargar la pestana.
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function printConsolidatedCr(grp: {

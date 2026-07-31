@@ -6,6 +6,20 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 27 — 2026-07-31 — HTML sin escapar y fuga de memoria en el Reporte Global de Cobranza
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Cobranza.tsx`
+Problema: `printCobranzaGlobalReport()` interpolaba `client`, `folio` y `contrareciboNumber` sin `escapeHtml()` en sus tres tablas, y no revocaba su Blob URL — exactamente los dos defectos ya corregidos en `printConsolidatedCr` y las plantillas de `OrderModal.tsx` en ciclos anteriores. Es evidencia de que una corrección hecha en un lugar no se propaga sola a funciones nuevas escritas después, en sesiones distintas.
+Impacto: Mismo riesgo ya documentado — un blob abierto con `window.open` hereda el origen de la app con la sesión de Firebase viva; `client` es texto libre capturado por el usuario. Fuga de memoria en cada impresión del reporte.
+Solución: `escapeHtml()` aplicado a las 9 interpolaciones de `client`/`folio`/`cr` en las tres tablas del reporte. Blob URL revocado 10 segundos después de abrir la ventana, mismo patrón que las otras tres plantillas.
+Riesgo: 🟢 Bajo — mismo patrón ya probado tres veces en este sistema.
+Commit: `fix(Cobranza): escapar HTML y revocar blob URL en el reporte global`
+Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+
+---
+
 ## ✅ Ciclo 26 — 2026-07-31 — Entregas como eventos: fin del riesgo de doble factura
 
 [Fecha] 2026-07-31
