@@ -6,6 +6,24 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 25 — 2026-07-31 — Reintegrado "Pendiente de Facturar" (se había perdido al sincronizar con GitHub)
+
+[Fecha] 2026-07-31
+Archivo: `functions/src/stats.ts`, `src/pages/Orders.tsx`, `src/pages/Dashboard.tsx`, `src/pages/OrderModal.tsx`
+Problema: La función "📝 Pendiente de Facturar" (tarjeta en el panel, filtro renombrado, aviso en el expediente) se había entregado antes en un ZIP, pero nunca se subió a GitHub con `PUSH_TO_GIT.bat`. Al auditar y empaquetar el Ciclo 24 desde el estado real de GitHub, esa función no estaba — y al fusionar el paquete v6.12.0 sobre la copia local, quedó fuera de la versión instalada. Se confirmó la ausencia con `grep` sobre el ZIP de verificación que el usuario subió después de instalar.
+Impacto: El usuario volvió a perder de vista dónde ver lo pendiente de facturar — el mismo problema reportado ya una vez.
+Solución: Reconstruida la función completa: contador `pedidoOrders`/`isPedido` en la agregación del servidor (trigger incremental y recálculo), filtro "Pedidos" renombrado a "📝 Pendiente de Facturar" en Expedientes, tarjeta nueva en el Panel Principal con enlace directo al filtro, y aviso explícito en la pestaña Productos del expediente cuando hay kilos entregados sin ninguna factura creada.
+Riesgo: 🟢 Bajo — mismo código ya probado en una entrega anterior, ahora aplicado sobre la base correcta (post Ciclo 24, sin la implementación duplicada de "Facturar lo Entregado").
+Commit: `feat: reintegrar Pendiente de Facturar (panel, filtro y aviso en expediente)`
+Estado: ✅ Verificado — `tsc` limpio en raíz y functions, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+### 📌 Lección para no repetir esto
+
+Esta es la **segunda vez** que un cambio entregado en un ZIP se pierde por no subirse a GitHub antes de la siguiente auditoría. La regla ya existía (memoria del usuario: "cada sesión termina con PUSH_TO_GIT.bat"), pero no se está cumpliendo de forma consistente. Recomendación: subir a GitHub inmediatamente después de instalar y verificar cada paquete, antes de pedir la siguiente mejora.
+
+
+---
+
 ## ✅ Ciclo 24 — 2026-07-31 — Datalist de Cliente/Proveedor, validaciones anti-fallos y tipado sin `any`
 
 [Fecha] 2026-07-31

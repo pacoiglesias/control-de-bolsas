@@ -993,6 +993,13 @@ export default function OrderModal({
         {/* PRODUCTOS */}
         {tab === 'productos' && (
           <>
+            {kilosEntregados > 0 && form.invoices.length === 0 && (
+              <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
+                <strong>📝 Esto ya se puede facturar.</strong> Registraste {kilosEntregados.toLocaleString('es-MX')} kg
+                entregados y este expediente todavía no tiene ninguna factura. Usa el botón
+                "🧾 Facturar lo entregado" de aquí abajo, o ve a la pestaña Facturas si prefieres capturarla a mano.
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h4 style={{ margin: 0 }}>Detalle de Artículos (Partidas de la OC)</h4>
