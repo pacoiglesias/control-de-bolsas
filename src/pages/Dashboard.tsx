@@ -449,7 +449,7 @@ export default function Dashboard() {
 
   const k = useMemo(() => {
     const st = statsDoc || {};
-    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0 };
+    const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0 };
     const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 };
     const mesesObj = st.histograms || {};
 
@@ -527,6 +527,11 @@ export default function Dashboard() {
     // servidor, que si recorre todos los expedientes.
     const liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
+    const deudaTotalProvidencia = (kpis.porCobrar || 0) + (kpis.montoPendienteFacturar || 0);
+    const subtotalDeudaProvidencia = deudaTotalProvidencia / (1 + (config.ivaRate || 0.16));
+    const comisionContable = subtotalDeudaProvidencia * (config.commissionRate || 0.08);
+    const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
+
     return {
       ...kpis,
       margenTotal: round2(liveMargenTotal),
@@ -544,7 +549,10 @@ export default function Dashboard() {
       criticos30,
       urgentes15,
       recientes1,
-      proximos
+      proximos,
+      deudaTotalProvidencia,
+      comisionContable,
+      dineroRealARecibir
     };
   }, [statsDoc, activeOrders, config]);
 
@@ -828,8 +836,13 @@ export default function Dashboard() {
       <div className="kpi-section-title">📋 Cobranza</div>
       <div className="kpi-grid">
         <KpiCard tone={k.pedidoPendiente.length > 0 ? 'warn' : 'ok'} label="📝 Pendiente de Facturar"
-          value={<span className="num">{k.pedidoPendiente.length}</span>}
-          sub="Expedientes ya capturados, sin ninguna factura creada todavía"
+          value={<ResponsiveMoney value={k.montoPendienteFacturar || 0} />}
+          sub={
+            <>
+              {k.pedidoPendiente.length} expediente(s) con kilos entregados sin facturar
+              <br /><span style={{ opacity: 0.75 }}>Incluye IVA</span>
+            </>
+          }
           onClick={() => nav('/ordenes?filtro=pedido')} />
         <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
           sub={
@@ -844,6 +857,21 @@ export default function Dashboard() {
             </>
           }
           onClick={() => nav('/cobranza')} />
+        
+        {role !== 'viewer' && (
+          <>
+            <KpiCard tone="ok" label="Deuda Total Providencia" value={<ResponsiveMoney value={k.deudaTotalProvidencia} />}
+              sub={
+                <>
+                  Todo lo que te deben + Pendiente de Facturar
+                  <br /><span style={{ opacity: 0.75 }}>({money(k.comisionContable)} de comisión contable)</span>
+                </>
+              } />
+            <KpiCard tone="cash" label="Dinero Real a Recibir" value={<ResponsiveMoney value={k.dineroRealARecibir} />}
+              sub="Deuda Total menos comisiones contables" />
+          </>
+        )}
+
         <KpiCard tone={k.overdue.length ? 'bad' : undefined} label="Vencido" value={<ResponsiveMoney value={k.vencido} />}
           sub={`${k.overdue.length} factura${k.overdue.length === 1 ? '' : 's'} pasada${k.overdue.length === 1 ? '' : 's'} de fecha`}
           onClick={() => nav('/cobranza')} />

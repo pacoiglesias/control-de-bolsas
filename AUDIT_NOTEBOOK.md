@@ -6,6 +6,21 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 34 — 2026-07-31 — Sprint 1: Alineación Financiera Exacta (Dashboard y Compras vs Excel)
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Dashboard.tsx`, `src/pages/Compras.tsx`
+Problema: El Dashboard tenía fragmentados los datos de `Deuda Total de Providencia` y `Dinero Real a Recibir`. En Compras, el "Saldo con Andrés" solo mostraba el neto, pero el Excel financiero del usuario maneja el desglose de "Saldo a Favor", "Kilos Entregados" y "Deuda al Día de Hoy".
+Impacto: Fricción cognitiva: el usuario tenía que sumar mentalmente las tarjetas del sistema para que le cuadraran con su modelo financiero en Excel.
+Solución: 
+1. **Dashboard**: Se agregaron dos nuevas tarjetas KPI (`Deuda Total Providencia` y `Dinero Real a Recibir`). Se programó la sustracción del 8% de comisión contable dinámicamente (`deudaTotalProvidencia / 1.16 * 0.08`).
+2. **Compras**: Se desglosó la tarjeta de saldo para mostrar exactamente los 3 renglones de la hoja de cálculo del usuario, calculando y mostrando explícitamente el `totalPagado` como *Saldo a favor* y el `totalPurchasesCost` como *Kilos entregados*.
+Riesgo: 🟢 Bajo — solo ajustes de UI y lecturas derivadas sobre el estado existente, no toca escrituras de DB.
+Commit: `feat(ui): alineacion de KPIs financieros con excel (deuda total, dinero real y desglose andres)`
+Estado: ✅ Verificado — `tsc` limpio, build completo.
+
+---
+
 ## ✅ Ciclo 33 — 2026-07-31 — "Vencido" incluía facturas sin contrarecibo ($136,300 de más)
 
 [Fecha] 2026-07-31

@@ -278,7 +278,10 @@ export default function Cobranza() {
           createdAt: Timestamp.now(),
         });
       });
-      toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok');
+      toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok', {
+        label: '↩️ Deshacer',
+        onClick: () => revertCollectedContrareciboBlock(crNumber)
+      });
     } catch (e) {
       toast(`Error al procesar la recolección en bloque: ${(e as Error).message}`, 'bad');
     }

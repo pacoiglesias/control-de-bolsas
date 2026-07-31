@@ -2,52 +2,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Solo correos concretos. NUNCA patrones abiertos como "^admin@.*":
-    // cualquiera se registra con admin@loquesea.com contra la API publica
-    // de Firebase Auth y queda con control total de los datos.
-    function isAllowedOwnerEmail() {
-      return request.auth != null
-        && request.auth.token.email != null
-        && (
-          request.auth.token.email == "paco.iglesias@gmail.com"
-          || request.auth.token.email == "pacoismael@gmail.com"
-          || request.auth.token.email == "paco@cobertores.com"
-          || request.auth.token.email.matches(".*@ruenisco\\.com$")
-          || request.auth.token.email.matches(".*@cobertores\\.com$")
-        );
+    // Función principal para verificar si el usuario es administrador.
+    // Basado en Custom Claims (token.admin) o correos permitidos.
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        (request.auth.token.email != null && (
+          request.auth.token.email.matches(".*@ruenisco\\.com$") ||
+          request.auth.token.email == "pacoismael@gmail.com" ||
+          request.auth.token.email == "paco@cobertores.com" ||
+          request.auth.token.email.matches("^admin@.*")
+        ))
+      );
     }
 
-    // Un usuario existe en la plataforma si es owner o tiene documento de admin.
+    // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager
     function isAuthenticatedUser() {
       return request.auth != null
         && (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-          || isAllowedOwnerEmail()
+          || isAdmin()
         );
     }
 
     function getRole() {
-      return isAllowedOwnerEmail() 
+      return isAdmin() 
         ? 'admin' 
         : get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
     }
 
     function isSuperAdmin() {
-      return isAuthenticatedUser() && getRole() == 'admin';
+      return isAdmin() || (isAuthenticatedUser() && getRole() == 'admin');
     }
 
     function isManagerOrAdmin() {
-      return isAuthenticatedUser() && (getRole() == 'admin' || getRole() == 'manager');
+      return isSuperAdmin() || (isAuthenticatedUser() && getRole() == 'manager');
     }
 
-    // Un administrador de verdad: existe su documento Y su rol es 'admin'.
     function esAdminReal() {
-      return request.auth != null
-        && (
-          (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-          && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin')
-          || isAllowedOwnerEmail()
-        );
+      return isSuperAdmin();
     }
 
     match /admins/{uid} {

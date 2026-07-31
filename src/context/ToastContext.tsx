@@ -3,13 +3,18 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { sound } from '../lib/sounds';
 
 type Tone = 'info' | 'ok' | 'bad';
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 interface Toast {
   id: number;
   msg: string;
   tone: Tone;
+  action?: ToastAction;
 }
 
-const Ctx = createContext<(msg: string, tone?: Tone) => void>(() => {});
+const Ctx = createContext<(msg: string, tone?: Tone, action?: ToastAction) => void>(() => {});
 
 function formatErrorMessage(msg: string): string {
   if (!msg) return 'Ocurrió un error inesperado.';
@@ -28,7 +33,7 @@ function formatErrorMessage(msg: string): string {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const push = useCallback((msg: string, tone: Tone = 'info') => {
+  const push = useCallback((msg: string, tone: Tone = 'info', action?: ToastAction) => {
     const sanitized = tone === 'bad' ? formatErrorMessage(msg) : msg;
     const id = Date.now() + Math.random();
     
@@ -37,8 +42,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     else if (tone === 'bad') sound.playError();
     else sound.playNotify();
 
-    setToasts((t) => [...t, { id, msg: sanitized, tone }]);
-    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
+    setToasts((t) => [...t, { id, msg: sanitized, tone, action }]);
+    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000); // Dar más tiempo si hay acción (6s)
   }, []);
 
   const value = useMemo(() => push, [push]);
@@ -49,7 +54,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div className="toast-root">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.tone}`} role="status">
-            {t.msg}
+            <span>{t.msg}</span>
+            {t.action && (
+              <button 
+                onClick={() => { t.action!.onClick(); setToasts(current => current.filter(x => x.id !== t.id)); }}
+                style={{ marginLeft: 12, padding: '4px 10px', fontSize: 12, borderRadius: 4, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

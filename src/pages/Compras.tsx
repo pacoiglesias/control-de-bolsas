@@ -81,6 +81,7 @@ export default function Compras() {
   
   // Cálculo exacto de la deuda basado en el Libro Mayor
   const totalPurchasesCost = provPurchases.reduce((acc, p) => acc + p.totalAmount, 0);
+  const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
   const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount; // Le pagamos (abono a la deuda)
     if (e.type === 'ingreso') return acc - e.amount; // Nos devolvió (cargo a la deuda)
@@ -219,17 +220,21 @@ export default function Compras() {
               : 'Ninguna OC abierta ha pasado su fecha de entrega estimada.'}
           </p>
         </Card>
-        <Card title={`${deudaReal < 0 ? '🟢' : deudaReal > 0 ? '🔴' : '⚪'} Saldo con ${selectedProvider}`}>
-          <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
-            {deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}
+        <Card title={`${deudaReal < 0 ? '🟢' : deudaReal > 0 ? '🔴' : '⚪'} Deuda al día de hoy con ${selectedProvider}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ok)' }}>
+              <span>Saldo a favor (Total Pagado/Adelantos)</span>
+              <strong>{money(totalPagado)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+              <span>Kilos entregados ({kilos(totalReceivedKilos)})</span>
+              <strong>{money(totalPurchasesCost)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', paddingTop: '4px', color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
+              <span>Deuda Real</span>
+              <span>{deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}</span>
+            </div>
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
-            {deudaReal < 0
-              ? `A tu favor: le pagaste por adelantado más de lo que te ha facturado. Se consume solo, kilo a kilo, en cuanto guardas cada expediente con lo entregado.`
-              : deudaReal > 0
-                ? `Le debes a ${selectedProvider}: lo que te ha entregado/facturado supera lo que le has pagado.`
-                : `Cuenta saldada: lo pagado coincide con lo entregado.`}
-          </p>
         </Card>
       </div>
 

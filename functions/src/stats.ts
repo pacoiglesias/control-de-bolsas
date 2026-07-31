@@ -2,6 +2,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { round2 } from "./shared/finance.core";
 
 const COL_ORDERS = "purchaseOrders";
 const STATS_DOC = "stats/dashboard";
@@ -91,17 +92,29 @@ export function extractStats(data: any): Record<string, any> {
       const paidAmt = Number(inv.collection?.paidAmount || 0);
       const saldo = Math.max(invTotal - paidAmt, 0);
       
-      // Margen SIEMPRE, no solo cuando hay costo capturado a mano: si no,
-      // "Ganancia Comercial" queda en cero para todo expediente que use el
-      // costo de la configuracion, que son practicamente todos.
-      const invMargin = Number(inv.financials?.tradeMargin || 0);
+      // Margen SIEMPRE, no solo cuando hay costo capturado a mano.
+      // Si falta en la BD (expedientes viejos), se calcula al vuelo.
+      let invMargin = Number(inv.financials?.tradeMargin);
+      if (isNaN(invMargin) || invMargin === 0) {
+        const saleT = Number(inv.financials?.saleTotal || (invTotal / 1.16));
+        const costT = Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * 42)); // fallback a $42
+        invMargin = round2(saleT - costT);
+      }
       const invCommission = Number(inv.financials?.commission || 0);
       
       margen += invMargin;
       
       let invRealized = 0;
       if (invTotal > 0 && paidAmt > 0) {
-         invRealized = (paidAmt / invTotal) * (invMargin - invCommission);
+         // Ganancia realizada = (Porcentaje cobrado) * (Margen - Comision)
+         // Ojo: Si el IVA es ganancia, el usuario espera ver el flujo neto real.
+         // Segun el comentario de finance.core.ts, el IVA es ganancia. 
+         // Pero para mantener la consistencia con "Venta - Costo", usamos el margen comercial (sin IVA) 
+         // o netCashFlow (con IVA). Como Dashboard usa "margenTotal", seguimos sumando invMargin.
+         // Sin embargo, para gananciaRealizada, el flujo neto real incluye el IVA cobrado.
+         // Calcularemos la proporcion del netCashFlow.
+         const invNetCash = Number(inv.financials?.netCashFlow) || (invTotal - Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * 42)) - invCommission);
+         invRealized = (paidAmt / invTotal) * invNetCash;
       }
       gananciaRealizada += invRealized;
       
@@ -142,9 +155,22 @@ export function extractStats(data: any): Record<string, any> {
     }
   }
 
+  // Monto pendiente por facturar (kilos entregados - kilos facturados)
+  let kilosPendientesFacturar = 0;
+  if (status !== 'manual_review') {
+    let kilosFacturados = 0;
+    for (const inv of invoices) {
+      kilosFacturados += Number(inv.kilos || 0);
+    }
+    const entregados = Number(data.totalKilograms || 0);
+    const faltantes = Math.max(0, entregados - kilosFacturados);
+    kilosPendientesFacturar = faltantes;
+  }
+  const montoPendienteFacturar = round2(kilosPendientesFacturar * 47 * 1.16);
+
   return {
     kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir,
-    margen, gananciaRealizada,
+    margen, gananciaRealizada, montoPendienteFacturar,
     meses,
     isPending: status === 'pending' ? 1 : 0,
     isOverdue: status === 'overdue' ? 1 : 0,
@@ -188,6 +214,7 @@ export const syncDashboardStats = onDocumentWritten(
     addDelta("cobrado", before.cobrado, after.cobrado);
     addDelta("netoCobrado", before.netoCobrado, after.netoCobrado);
     addDelta("porRecibir", before.porRecibir, after.porRecibir);
+    addDelta("montoPendienteFacturar", before.montoPendienteFacturar || 0, after.montoPendienteFacturar || 0);
 
     addCounterDelta("pendingOrders", before.isPending, after.isPending);
     addCounterDelta("pedidoOrders", before.isPedido, after.isPedido);
