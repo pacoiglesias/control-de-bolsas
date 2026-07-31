@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.11.0] - 30 Julio 2026 (Ciclo 15 — "Pendiente de Facturar" visible)
+
+### Agregado
+- **Tarjeta "📝 Pendiente de Facturar"** en el panel principal, con conteo en vivo, enlazando directo al listado filtrado.
+- **Aviso en la pestaña Productos** del expediente: en cuanto hay kilos entregados sin ninguna factura, aparece un recuadro explícito con el siguiente paso.
+
+### Cambiado
+- El filtro "Pedidos" en Expedientes se renombró a **"Pendiente de Facturar"** — ya existía y hacía exactamente eso, pero el nombre no lo decía.
+
+
 ## [v6.10.0] - 30 Julio 2026 (Ciclo 14 — Deuda con Andrés sobre lo entregado)
 
 ### Cambiado — decisión de negocio confirmada por el usuario

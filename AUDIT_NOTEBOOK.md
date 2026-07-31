@@ -6,6 +6,22 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 15 — 2026-07-30 — "Pendiente de Facturar" visible en todo el flujo
+
+> El usuario reportó haber perdido de vista dónde ver lo pendiente de facturar. El filtro **ya existía** (`status === 'pedido'`, un expediente sin ninguna factura creada) — el problema era de nombre y de visibilidad, no de lógica faltante.
+
+| Archivo | Cambio |
+|---|---|
+| `src/pages/Orders.tsx` | El filtro se llamaba **"Pedidos"**, que no dice "esto es lo que falta por facturar". Renombrado a **"📝 Pendiente de Facturar"**. |
+| `functions/src/stats.ts` | Nuevo contador `pedidoOrders` (flag `isPedido`), propagado por el trigger incremental y el recálculo completo — no existía ningún conteo agregado de este estatus específico. |
+| `src/pages/Dashboard.tsx` | Nueva tarjeta **"📝 Pendiente de Facturar"** en el panel principal, con el conteo en vivo, que lleva directo a `/ordenes?filtro=pedido` al hacer clic. |
+| `src/pages/OrderModal.tsx` | Aviso explícito en la pestaña Productos: en cuanto hay kilos entregados y el expediente no tiene ninguna factura, aparece un recuadro que dice literalmente "esto ya se puede facturar", con el botón justo debajo. Antes había que notar el botón por cuenta propia. |
+
+**El flujo completo, para que quede documentado:** 1) se sube o captura la OC (queda en estatus `pedido`) → 2) se registra lo que Andrés entrega en la pestaña Productos (`deliveredQuantity` por renglón) → 3) el sistema avisa que ya se puede facturar y ofrece el botón "Facturar lo entregado" → 4) al facturar, el expediente pasa a `facturado`/`pending` y desaparece de "Pendiente de Facturar".
+
+
+---
+
 ## ✅ Ciclo 14 — 2026-07-30 — Deuda con Andrés reconocida sobre lo entregado
 
 > Decisión de negocio confirmada explícitamente por el usuario: la deuda se reconoce sobre lo que Andrés **entrega**, no sobre lo que se **pide**. A veces entrega mercancía sin anticipo, y el saldo debe reflejar eso exacto.
