@@ -92,7 +92,7 @@ export default function Compras() {
   }, 0);
   
   const deudaHistorica = config?.historicalDebtAndres || 0;
-  const deudaReal = totalPurchasesCost - totalPagado - deudaHistorica;
+  const deudaReal = totalPurchasesCost - totalPagado + deudaHistorica;
 
   // Filter Logic
   const searchedPurchases = search.trim()

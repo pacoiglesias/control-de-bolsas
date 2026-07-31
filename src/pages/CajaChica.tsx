@@ -38,7 +38,7 @@ export default function CajaChica() {
   }, 0);
   
   const deudaHistorica = config?.historicalDebtAndres || 0;
-  const deudaReal = totalPurchasesCost - totalPagado - deudaHistorica;
+  const deudaReal = totalPurchasesCost - totalPagado + deudaHistorica;
 
   // Calc dinero en tránsito (estatus 'paid')
   const dineroEnTransito = orders.reduce((acc, o) => {
