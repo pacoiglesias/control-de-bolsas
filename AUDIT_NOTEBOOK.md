@@ -6,6 +6,32 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 13 — 2026-07-30 — Versión desincronizada, saldo con Andrés, claridad visual
+
+> Verificación: `tsc` limpio en raíz y `functions`, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+### 🔴 La versión mostrada no coincidía con la real — causa raíz
+
+| Archivo | Problema | Corrección |
+|---|---|---|
+| `src/components/Layout.tsx` | El número de versión estaba escrito **a mano en dos lugares del mismo archivo**, y no coincidían entre sí (`v6.1.0` en un lugar, `v6.8.0` en otro) — ninguno de los dos reflejaba la versión real de `package.json`. | `vite.config.ts` ahora inyecta `__APP_VERSION__` leyendo `package.json` en tiempo de compilación, igual que ya hacía con `__BUILD_DATE__`. Las dos menciones en `Layout.tsx` usan esa constante — un solo lugar donde vive el número, para siempre. |
+| `src/pages/Dashboard.tsx` | `SYSTEM_CHANGELOG`, el arreglo que alimenta la tarjeta "Versión del Sistema" y el modal "📜 Bitácora Histórica de Cambios del Sistema", estaba congelado en v6.0.0 — nunca se actualizó en los ocho ciclos siguientes. La bitácora que ve el usuario no coincidía ni con `CHANGELOG.md` ni con la versión real instalada. | Agregadas las entradas v6.1.0 a v6.8.0. La insignia de versión en la tarjeta superior ahora lee `__APP_VERSION__` directamente en vez de `SYSTEM_CHANGELOG[0].version`, así que aunque `SYSTEM_CHANGELOG` vuelva a quedarse atrás algún día, al menos el número de versión no miente. |
+
+### 🟡 Saldo con Andrés — bug de sincronización real
+
+| Archivo | Problema | Corrección |
+|---|---|---|
+| `src/pages/OrderModal.tsx` | El upsert automático de la compra a Andrés (al guardar cualquier expediente) escribía `receivedKilos: 0` al crear el registro y **nunca lo tocaba al actualizar**. "Kilos Recibidos (Entregas parciales)" en Compras nunca reflejaba lo realmente entregado, aunque sí se hubiera capturado en la pestaña Productos del expediente. | `receivedKilos` ahora se sincroniza con `kilosEntregados` (la misma suma de `deliveredQuantity` que ya usa el botón "Facturar lo entregado") en cada guardado. |
+| `src/pages/Compras.tsx` | La tarjeta de saldo no explicaba qué significa el signo ni cómo se ajusta con las entregas — el usuario preguntó dónde verlo y qué pasaba con un adelanto al recibir mercancía. | Icono (🟢/🔴/⚪), leyenda explícita de quién debe a quién, y una línea que explica que el saldo se ajusta solo, expediente por expediente, sin ninguna acción manual adicional. |
+
+**Pendiente de decisión del usuario, no corregido unilateralmente:** hoy la deuda con Andrés se reconoce sobre los **kilos pedidos** (`expectedKilos`/`kilosNum`) en cuanto se guarda el expediente, no sobre los kilos efectivamente entregados. Es una política contable legítima (reconocer el pasivo al comprometerse, no al recibir la mercancía), pero es una decisión de negocio, no un error de código — se le preguntó al usuario cuál prefiere antes de tocarla.
+
+### 🎨 Mejoras visuales
+- Tarjetas de Compras con iconos de estado y texto explicativo, en vez de solo una cifra con color.
+
+
+---
+
 ## ✅ Ciclo 12 — 2026-07-30 — Lista de sugerencias implementada
 
 > Verificación: `tsc` limpio en raíz y `functions`, `eslint` 0 errores, 15/15 pruebas, build completo.

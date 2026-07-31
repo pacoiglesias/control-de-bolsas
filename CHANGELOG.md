@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.9.0] - 30 Julio 2026 (Ciclo 13 — Versión sincronizada, saldo con Andrés)
+
+### Corregido — crítico
+- **La versión mostrada en el sistema no coincidía consigo misma.** `Layout.tsx` tenía el número escrito a mano en dos lugares que ya no coincidían entre sí, y la "Bitácora Histórica" del Dashboard estaba congelada en v6.0.0 desde hace ocho ciclos. `vite.config.ts` ahora inyecta la versión real de `package.json` en tiempo de compilación — un solo lugar donde vive el número, para siempre.
+- **`receivedKilos` nunca se sincronizaba** en la compra automática a Andrés: "Kilos Recibidos (Entregas parciales)" en Compras no reflejaba lo realmente entregado. Ahora se sincroniza con cada guardado del expediente.
+
+### Agregado
+- Historial completo v6.1.0–v6.8.0 agregado a la Bitácora Histórica del sistema.
+- Tarjeta de saldo con Andrés en Compras, con icono y explicación de quién debe a quién y cómo se ajusta.
+
+### Pendiente de decisión
+- La deuda con Andrés se reconoce sobre lo pedido, no sobre lo entregado. Es una decisión de negocio, se dejó pendiente de confirmación del usuario.
+
+
 ## [v6.8.0] - 30 Julio 2026 (Ciclo 12 — Lista de sugerencias)
 
 ### Agregado

@@ -7,3 +7,6 @@
  * línea.
  */
 declare const __BUILD_DATE__: string;
+
+/** Version real de package.json, inyectada en build. Ver vite.config.ts. */
+declare const __APP_VERSION__: string;

@@ -162,13 +162,21 @@ export default function Compras() {
       </div>
 
       <div className="kpi-grid">
-        <Card title={`Kilos pendientes (${selectedProvider})`}>
+        <Card title={`Kilos pendientes de entregar (${selectedProvider})`}>
           <div className="num" style={{ fontSize: 24 }}>{kilos(pendientesKilos)}</div>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Pedido menos lo entregado, sumado de todas las OC abiertas.</p>
         </Card>
-        <Card title={deudaReal < 0 ? `Saldo a Favor (${selectedProvider})` : `Deuda Exacta (${selectedProvider})`}>
-          <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--info)' : 'var(--bad)' }}>
+        <Card title={`${deudaReal < 0 ? '🟢' : deudaReal > 0 ? '🔴' : '⚪'} Saldo con ${selectedProvider}`}>
+          <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
             {deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}
           </div>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
+            {deudaReal < 0
+              ? `A tu favor: le pagaste por adelantado más de lo que te ha facturado. Se consume solo, kilo a kilo, en cuanto guardas cada expediente con lo entregado.`
+              : deudaReal > 0
+                ? `Le debes a ${selectedProvider}: lo que te ha entregado/facturado supera lo que le has pagado.`
+                : `Cuenta saldada: lo pagado coincide con lo entregado.`}
+          </p>
         </Card>
       </div>
 

@@ -1,10 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 export default defineConfig({
   define: {
-    __BUILD_DATE__: JSON.stringify(new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }))
+    __BUILD_DATE__: JSON.stringify(new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })),
+    // Version REAL de package.json, inyectada en tiempo de build. Antes
+    // Layout.tsx y el modal "Bitacora Historica" en Dashboard.tsx tenian la
+    // version escrita a mano en dos (y hasta tres) lugares distintos, y se
+    // desincronizaban en cuanto se subia una version sin acordarse de tocar
+    // las tres. Con esto solo hay un lugar donde vive el numero: package.json.
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [
     react(),

@@ -275,9 +275,15 @@ export default function OrderModal({
         const costoEfectivo = dynamicConfig.costPricePerKg;
         const purchaseRef = doc(db, PATHS.purchases, order.id);
         const purchaseSnap = await getDoc(purchaseRef);
+        // receivedKilos SIEMPRE se sincroniza con lo entregado de verdad
+        // (suma de deliveredQuantity en Productos). Antes quedaba en 0 al
+        // crear la compra y nunca se tocaba al actualizar: "Kilos Recibidos
+        // (Entregas parciales)" en Compras nunca reflejaba el avance real,
+        // aunque en el expediente sí se hubiera capturado la entrega.
         if (purchaseSnap.exists()) {
           await updateDoc(purchaseRef, {
             expectedKilos: kilosNum,
+            receivedKilos: kilosEntregados,
             pricePerKg: costoEfectivo,
             totalAmount: round2(kilosNum * costoEfectivo),
           });
@@ -286,7 +292,7 @@ export default function OrderModal({
             date: serverTimestamp(),
             provider: form.provider.trim() || 'Andrés',
             expectedKilos: kilosNum,
-            receivedKilos: 0,
+            receivedKilos: kilosEntregados,
             pricePerKg: costoEfectivo,
             totalAmount: round2(kilosNum * costoEfectivo),
             paidAmount: 0,

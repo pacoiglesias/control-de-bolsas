@@ -34,6 +34,93 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.8.0',
+    date: '30 de Julio de 2026',
+    time: '11:50 PM',
+    summary: 'Vulnerabilidad alta en producción eliminada, sin CR / con CR separado, datos SAT, referencia de transferencia.',
+    highlights: [
+      'Dependencia muerta de la IA retirada eliminada: functions pasó de 12 vulnerabilidades altas a 0',
+      '"Te deben" separado en facturado-sin-contrarecibo y contrarecibo-generado',
+      'Referencia de transferencia para conciliar el depósito del contador contra el banco',
+      'Datos SAT (clave, unidad, método y forma de pago) en Configuración, conectados a la remisión',
+      'Aviso de vencimientos diario, buscable desde /logs',
+    ]
+  },
+  {
+    version: 'v6.7.0',
+    date: '30 de Julio de 2026',
+    time: '11:30 PM',
+    summary: 'Menú sin confusión entre Expedientes y Por Orden de Compra; código de producto en Compras.',
+    highlights: [
+      '"Órdenes / Ventas" y "Seguimiento OC" renombradas a Expedientes y Por Orden de Compra, con nota cruzada',
+      'Código de producto en Compras con búsqueda en el catálogo y alta rápida si no existe',
+      'Catálogo empareja productos por código en vez de texto exacto de la descripción',
+    ]
+  },
+  {
+    version: 'v6.6.0',
+    date: '30 de Julio de 2026',
+    time: '11:00 PM',
+    summary: 'Compilación local reparada, Ganancia Comercial corregida, facturación desde entregas.',
+    highlights: [
+      'Reparados dos errores que impedían compilar (variable fuera de alcance, Hook condicional)',
+      '"Ganancia Comercial" corregida: usaba un campo inexistente y pisaba el valor correcto del servidor',
+      'Botón "Facturar lo entregado": arma la factura sumando los kilos entregados por renglón',
+    ]
+  },
+  {
+    version: 'v6.5.0',
+    date: '30 de Julio de 2026',
+    time: '10:00 PM',
+    summary: 'Panel completo: margen, Caja Chica y cobros con contabilidad ya cargan.',
+    highlights: [
+      'Corregido el candado que dejaba "Ganancia Comercial" siempre en $0.00',
+      'Migración de contrarecibos ya pagados cuyo dinero sigue con el contador',
+      'Migración del saldo y movimientos reales de Caja Chica',
+    ]
+  },
+  {
+    version: 'v6.4.0',
+    date: '30 de Julio de 2026',
+    time: '08:00 PM',
+    summary: 'Caja Chica recibe el depósito real del cobro, no la utilidad.',
+    highlights: [
+      'El cobro en bloque restaba también el costo del material: se contaba dos veces',
+      'Unificados los dos caminos de cobro, que depositaban montos distintos',
+      'Comisión ajustada a 8% del subtotal, verificada contra tres cobros reales',
+    ]
+  },
+  {
+    version: 'v6.3.0',
+    date: '30 de Julio de 2026',
+    time: '06:00 PM',
+    summary: 'Base de comisión corregida tras verificar contra cobros reales del contador.',
+    highlights: [
+      'Comisión calculada sobre el subtotal en vez del total con IVA (era la causa del descuadre)',
+    ]
+  },
+  {
+    version: 'v6.2.0',
+    date: '30 de Julio de 2026',
+    time: '04:00 PM',
+    summary: 'La migración inicial dejaba de nuevo el sistema vacío: corregido.',
+    highlights: [
+      'La migración no escribía invoiceStatuses: los registros quedaban invisibles para todo el sistema',
+      'La migración ahora recalcula los indicadores del panel al terminar',
+    ]
+  },
+  {
+    version: 'v6.1.0',
+    date: '30 de Julio de 2026',
+    time: '01:00 PM',
+    summary: 'Ciclo 4 reaplicado sobre v6: seguridad en impresión y concurrencia en cobros.',
+    highlights: [
+      'Escape de HTML en la impresión consolidada de Cobranza',
+      'OrderModal.save() migrado a transacción con detección de conflictos de edición simultánea',
+      'Bundle principal reducido de 598 kB a 34.9 kB con carga diferida por ruta',
+    ]
+  },
+  {
     version: 'v6.0.0',
     date: '29 de Julio de 2026',
     time: '11:00 PM',
@@ -403,13 +490,13 @@ export default function Dashboard() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Versión del Sistema</span>
-              <span className="badge badge-ok" style={{ fontSize: 10 }}>{SYSTEM_CHANGELOG[0].version}</span>
+              <span className="badge badge-ok" style={{ fontSize: 10 }}>v{__APP_VERSION__}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
-              📅 {SYSTEM_CHANGELOG[0].date}
+              📅 {SYSTEM_CHANGELOG[0]?.date ?? '—'}
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {SYSTEM_CHANGELOG[0].summary}
+              {SYSTEM_CHANGELOG[0]?.summary ?? ''}
             </div>
             <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
               📜 Bitácora de Parches
