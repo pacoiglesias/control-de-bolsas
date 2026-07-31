@@ -6,6 +6,21 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 14 — 2026-07-30 — Deuda con Andrés reconocida sobre lo entregado
+
+> Decisión de negocio confirmada explícitamente por el usuario: la deuda se reconoce sobre lo que Andrés **entrega**, no sobre lo que se **pide**. A veces entrega mercancía sin anticipo, y el saldo debe reflejar eso exacto.
+
+| Archivo | Cambio |
+|---|---|
+| `src/pages/OrderModal.tsx` | El upsert automático de la compra a Andrés ahora calcula `totalAmount = kilosEntregados × costoEfectivo`, no `kilosNum` (lo pedido). La deuda sube exactamente en la proporción de lo que Andrés vaya entregando, no de golpe al capturar la OC completa. |
+
+### ⚠️ Efecto de un solo golpe al desplegar esto
+
+Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con la fórmula VIEJA (sobre lo pedido). En cuanto alguien vuelva a **guardar** cada uno de esos expedientes (aunque sea sin cambiar nada), su compra en Andrés se recalculará con la fórmula nueva y el `totalAmount` puede **bajar** de golpe si ese expediente tiene entregas parciales — eso es correcto, no un error, pero el saldo en "Estado de Cuenta" se va a mover visiblemente la primera vez que cada expediente se vuelva a guardar. No hace falta hacer nada especial: se corrige solo, expediente por expediente, conforme se van abriendo y guardando con el trabajo normal del día a día.
+
+
+---
+
 ## ✅ Ciclo 13 — 2026-07-30 — Versión desincronizada, saldo con Andrés, claridad visual
 
 > Verificación: `tsc` limpio en raíz y `functions`, `eslint` 0 errores, 15/15 pruebas, build completo.

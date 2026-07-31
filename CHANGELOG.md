@@ -1,5 +1,12 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.10.0] - 30 Julio 2026 (Ciclo 14 — Deuda con Andrés sobre lo entregado)
+
+### Cambiado — decisión de negocio confirmada por el usuario
+- **La deuda con Andrés se reconoce sobre lo entregado, no sobre lo pedido.** Antes, guardar un expediente registraba de golpe la deuda por toda la OC. Ahora sube en la proporción exacta de lo que Andrés va entregando — refleja que a veces entrega sin anticipo y el saldo debe ajustarse a eso.
+- **Efecto de un solo golpe:** los expedientes existentes recalculan su compra a Andrés la próxima vez que se guarden. El saldo en "Estado de Cuenta" se moverá visiblemente la primera vez que cada uno se reabra — es la corrección tomando efecto, no un error.
+
+
 ## [v6.9.0] - 30 Julio 2026 (Ciclo 13 — Versión sincronizada, saldo con Andrés)
 
 ### Corregido — crítico
