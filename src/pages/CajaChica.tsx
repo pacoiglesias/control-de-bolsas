@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
+import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -15,6 +16,7 @@ import type { Expense } from '../lib/types';
 export default function CajaChica() {
   const { role } = useAuth();
   const { expenses, loading, error } = useExpenses();
+  const { orders } = useOrders();
   const { purchases: provPurchases } = usePurchases();
   const { config } = useConfig();
   const [selected, setSelected] = useState<Expense | null>(null);
@@ -36,6 +38,19 @@ export default function CajaChica() {
   
   const deudaHistorica = config?.historicalDebtAndres || 0;
   const deudaReal = totalPurchasesCost - totalPagado - deudaHistorica;
+
+  // Calc dinero en tránsito (estatus 'paid')
+  const dineroEnTransito = orders.reduce((acc, o) => {
+    if (!o.invoices) return acc;
+    return acc + o.invoices.reduce((sum, inv) => {
+      if (inv.creditCycle.status === 'paid') {
+        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 47) * 1.16);
+        const comision = inv.financials?.commission ?? (totalFactura / 1.16 * (config?.commissionRate ?? 0.08));
+        return sum + (totalFactura - comision);
+      }
+      return sum;
+    }, 0);
+  }, 0);
 
   function printCajaChicaReport() {
     const totalIngresos = expenses.filter(e => e.type === 'ingreso').reduce((a, e) => a + e.amount, 0);
@@ -158,6 +173,13 @@ export default function CajaChica() {
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Efectivo disponible actualmente.</p>
         </Card>
         
+        <Card title="🚚 DINERO EN TRÁNSITO">
+          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)' }}>
+            {money(dineroEnTransito)}
+          </div>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>En manos de los contadores, listo para recoger.</p>
+        </Card>
+
         <Card title="⚖️ DEUDA CON ANDRÉS">
           <div className="num" style={{ fontSize: 36, fontWeight: 800, color: deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
             {deudaReal < 0 ? `- ${money(Math.abs(deudaReal))}` : money(deudaReal)}

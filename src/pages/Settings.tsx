@@ -178,6 +178,13 @@ export default function Settings() {
                 Valores negativos indican que le debes (pasivo).
               </div>
             </Field>
+            <Field label="Tolerancia de Peso Entregado (%)">
+              <input className="input boxed mono" type="number" step="0.1" value={form.weightTolerancePercentage ?? 2}
+                onChange={(e) => setForm({ ...form, weightTolerancePercentage: Number(e.target.value) })} />
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Ej. 2% permite que Andrés entregue hasta un 2% más de los kilos pedidos en la OC sin bloquear el sistema.
+              </div>
+            </Field>
           </div>
 
           <div className="calc-box" style={{ marginTop: 16 }}>

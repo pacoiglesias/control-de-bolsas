@@ -206,6 +206,17 @@ export default function OrderModal({
       return;
     }
 
+    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries);
+    const kilosPedidosActuales = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+    const tol = (dynamicConfig as any).weightTolerancePercentage ?? 2;
+    const maxKilos = kilosPedidosActuales * (1 + tol / 100);
+    
+    if (kilosEntregadosActuales > maxKilos && kilosPedidosActuales > 0) {
+      sound.playError();
+      toast(`No se puede guardar: has registrado ${kilosEntregadosActuales.toLocaleString('es-MX')} kg entregados, superando el límite de tolerancia (${tol}%) sobre los ${kilosPedidosActuales.toLocaleString('es-MX')} kg pedidos (Máximo permitido: ${maxKilos.toLocaleString('es-MX')} kg).`, 'bad');
+      return;
+    }
+
     setBusy(true);
     try {
       const ref = doc(db, PATHS.orders, order.id);
@@ -1621,16 +1632,24 @@ export default function OrderModal({
                       </div>
                       <div className="calc-box" style={{ marginTop: 12 }}>
                         <div className="calc-line">
-                          <span>Factura #{inv.folio || '?'}</span>
+                          <span>Venta (Total Factura)</span>
                           <span className="mono">{money(fin.invoiceTotal)}</span>
+                        </div>
+                        <div className="calc-line">
+                          <span>Costo de Compra (Kilos a Andrés)</span>
+                          <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.costTotal)}</span>
+                        </div>
+                        <div className="calc-line" style={{ borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
+                          <strong>Utilidad Bruta</strong>
+                          <strong className="mono">{money(fin.invoiceTotal - fin.costTotal)}</strong>
                         </div>
                         <div className="calc-line">
                           <span>Comisión del Contador</span>
                           <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.commission)}</span>
                         </div>
-                        <div className="calc-line total">
-                          <span>Neto a recibir del contador</span>
-                          <span className="mono" style={{ color: 'var(--ok)' }}>{money(fin.invoiceTotal - fin.commission)}</span>
+                        <div className="calc-line total" style={{ borderTop: '2px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
+                          <span>💰 UTILIDAD NETA (Ganancia Real)</span>
+                          <span className="mono" style={{ color: 'var(--ok)' }}>{money(fin.invoiceTotal - fin.costTotal - fin.commission)}</span>
                         </div>
                       </div>
                     </div>

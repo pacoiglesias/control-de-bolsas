@@ -89,7 +89,7 @@ export default function Compras() {
   });
 
   // Ledger for State of Account
-  type LedgerEntry = { id: string; date: Timestamp | null; concept: string; cargo: number; abono: number; source: 'purchase' | 'expense' };
+  type LedgerEntry = { id: string; date: Timestamp | null; concept: string; cargo: number; abono: number; balance: number; source: 'purchase' | 'expense' };
   
   const ledger: LedgerEntry[] = useMemo(() => {
     return [
@@ -99,6 +99,7 @@ export default function Compras() {
         concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
         cargo: round2(p.receivedKilos * currentCostPerKg), // Sube la deuda
         abono: 0,
+        balance: 0,
         source: 'purchase' as const
       })).filter(x => x.cargo > 0),
       ...provExpenses.map(e => ({
@@ -107,10 +108,18 @@ export default function Compras() {
         concept: e.concept,
         cargo: e.type === 'ingreso' ? e.amount : 0, 
         abono: e.type === 'egreso' ? e.amount : 0, 
+        balance: 0,
         source: 'expense' as const
       }))
     ].sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
   }, [provPurchases, provExpenses, currentCostPerKg, orderById]);
+
+  // Compute accumulated balance
+  let currentBalance = 0;
+  const ledgerWithBalance = ledger.map(e => {
+    currentBalance += (e.cargo - e.abono);
+    return { ...e, balance: currentBalance };
+  });
 
   function exportComprasCsv() {
     const headers = ['Fecha', 'Concepto', 'Valor Entregado (Material)', 'Pagos/Adelantos', 'Origen'];
@@ -181,16 +190,17 @@ export default function Compras() {
           <table>
             <thead>
               <tr>
-                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (Sube Deuda)</th><th class="num">Abono (Baja Deuda)</th>
+                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (Sube Deuda)</th><th class="num">Abono (Baja Deuda)</th><th class="num">Saldo Acumulado</th>
               </tr>
             </thead>
             <tbody>
-              ${ledger.map(e => `
+              ${ledgerWithBalance.map(e => `
                 <tr>
                   <td>${fmtDate(e.date) || '—'}</td>
                   <td>${e.concept || '—'}</td>
                   <td class="num" style="font-weight:700; color: #b91c1c">${e.cargo ? `$${e.cargo.toLocaleString('es-MX', {minimumFractionDigits:2})}` : '—'}</td>
                   <td class="num" style="font-weight:700; color: #047857">${e.abono ? `$${e.abono.toLocaleString('es-MX', {minimumFractionDigits:2})}` : '—'}</td>
+                  <td class="num" style="font-weight:700; color: ${e.balance > 0 ? '#b91c1c' : '#047857'}">$${e.balance.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -510,12 +520,13 @@ export default function Compras() {
                         <th>Fecha</th>
                         <th>Origen</th>
                         <th>Movimiento / Concepto</th>
-                        <th className="num">Cargo (Aumenta Deuda)</th>
-                        <th className="num">Abono (Disminuye Deuda)</th>
+                        <th className="num">Cargo (Sube Deuda)</th>
+                        <th className="num">Abono (Baja Deuda)</th>
+                        <th className="num">Saldo Acumulado</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {ledger.map((e, i) => (
+                      {ledgerWithBalance.map((e, i) => (
                         <tr key={`${e.id}-${i}`}>
                           <td className="mono">{fmtDate(e.date)}</td>
                           <td>
@@ -531,6 +542,9 @@ export default function Compras() {
                           </td>
                           <td className="num mono" style={{ color: e.abono ? 'var(--ok)' : 'inherit', fontWeight: e.abono ? 600 : 'normal' }}>
                             {e.abono ? money(e.abono) : '—'}
+                          </td>
+                          <td className="num mono" style={{ color: e.balance > 0 ? 'var(--bad)' : 'var(--ok)', fontWeight: 700 }}>
+                            {money(e.balance)}
                           </td>
                         </tr>
                       ))}

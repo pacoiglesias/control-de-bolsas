@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
-import { kilos, money, monthLabel, percent, toDate, fmtDate } from '../lib/format';
+import { kilos, money, monthLabel, toDate, fmtDate } from '../lib/format';
 import { daysLate, round2 } from '../lib/finance';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder, Invoice } from '../lib/types';
@@ -373,6 +373,7 @@ export default function Dashboard() {
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
+  const [deptFilter, setDeptFilter] = useState<'ALL' | 'TH' | 'GT'>('ALL');
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -500,10 +501,11 @@ return () => unsub();
     // Memoizado: `(x as T[]) || []` crea un arreglo nuevo en cada render
     // cuando activeOrdersDoc es undefined, y eso invalidaba el useMemo de
     // abajo en cada ciclo, recalculando todos los KPIs sin necesidad.
-    const activeOrders = useMemo(
-      () => (activeOrdersDoc as PurchaseOrder[]) ?? [],
-      [activeOrdersDoc],
-    );
+    const activeOrders = useMemo(() => {
+      const all = (activeOrdersDoc as PurchaseOrder[]) ?? [];
+      if (deptFilter === 'ALL') return all;
+      return all.filter(o => o.department === deptFilter);
+    }, [activeOrdersDoc, deptFilter]);
 
   const k = useMemo(() => {
     const st = statsDoc || {};
@@ -674,8 +676,13 @@ return () => unsub();
   return (
     <>
       <div className="page-head">
-        <h1>Panel Principal</h1>
-        <p>Centro de mando operativo y financiero. {role !== 'viewer' && `Precio de venta ${money(config.salePricePerKg)}/kg, costo ${money(config.costPricePerKg)}/kg, comisión ${percent(config.commissionRate)}.`}</p>
+        <h1>Dashboard Maestro</h1>
+        <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
+        <div className="tabs" style={{ marginTop: 16 }}>
+          <button className={deptFilter === 'ALL' ? 'active' : ''} onClick={() => setDeptFilter('ALL')}>🏢 Toda la Empresa</button>
+          <button className={deptFilter === 'TH' ? 'active' : ''} onClick={() => setDeptFilter('TH')}>🔵 TH (Textil Hogar)</button>
+          <button className={deptFilter === 'GT' ? 'active' : ''} onClick={() => setDeptFilter('GT')}>🟢 GT (Grupo Textil)</button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>

@@ -13,6 +13,7 @@ export interface FinancialConfig {
   commissionBase: 'subtotal' | 'total';
   /** Deuda histórica que nosotros tenemos con Andrés (en negativo si es pasivo nuestro) */
   historicalDebtAndres?: number;
+  weightTolerancePercentage?: number;
   /** Clave de producto/servicio del SAT (catálogo c_ClaveProdServ). */
   satClaveProdServ?: string;
   /** Clave de unidad de medida del SAT (catálogo c_ClaveUnidad). */

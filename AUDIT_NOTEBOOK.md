@@ -6,6 +6,20 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 39 — 2026-07-31 — Tolerancia de Peso y Fixes TypeScript
+[Fecha] 2026-07-31
+Archivos: `src/pages/OrderModal.tsx`, `src/pages/Compras.tsx`, `src/pages/Dashboard.tsx`, `src/pages/CajaChica.tsx`
+Problema: Falta de validación de tolerancia de kilos (porcentaje permitido para recibir de más vs la orden original). Bugs de tipado fuerte de TS post-refactor.
+Impacto: Las recepciones de material debían estar limitadas por configuración global; si no, Andrés podría entregar mercancía de sobra.
+Solución:
+- Validación de `weightTolerancePercentage` agregada a `OrderModal.tsx` en la acción de guardar.
+- Fix de TS en `Compras.tsx` (agregada prop `balance` al tipo `LedgerEntry`), en `Dashboard.tsx` (imports) y en `CajaChica.tsx` (uso correcto de `config`).
+- Build y despliegue exitoso (`npm run build`).
+Riesgo: 🟢 Bajo.
+Estado: ✅ Verificado — Desplegado en Firebase y auditado exitosamente.
+
+---
+
 ## ✅ Ciclo 38 — 2026-07-31 — Auditoría Técnica, Semáforos y KPIs Caja Chica
 
 [Fecha] 2026-07-31
