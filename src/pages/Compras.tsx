@@ -44,6 +44,7 @@ export default function Compras() {
   // en el siguiente render, cuando ya lo era, si. React ve un numero
   // distinto de hooks entre renders y revienta el componente.
   const toast = useToast();
+  const { config } = useConfig();
 
   if (loadingP || loadingE) return <Spinner />;
   if (role !== 'admin') return <Navigate to="/" replace />;
@@ -80,8 +81,6 @@ export default function Compras() {
 
   const pendientesKilos = provPurchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
   
-  const { config } = useConfig();
-
   // Cálculo exacto de la deuda basado en Kilos reales y Costo actual
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
   const totalPurchasesCost = round2(totalReceivedKilos * (config?.costPricePerKg || 42));

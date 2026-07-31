@@ -6,6 +6,19 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 37 — 2026-07-31 — Hotfix React Error #310 en Compras
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Compras.tsx`
+Problema: Error "Rendered more hooks than during the previous render" (Error #310). El hook `useConfig` estaba siendo invocado de manera condicional, después de múltiples sentencias `if (loadingP) return...` o `if (role !== 'admin') return...`. Esto rompe las reglas de hooks de React.
+Impacto: 🔴 Bloqueo total del panel de compras (pantalla en blanco o crash).
+Solución: Se movió la invocación `const { config } = useConfig();` a la parte superior del componente, garantizando que siempre se llame en el mismo orden independientemente del estado de carga o rol.
+Riesgo: 🟢 Bajo. Resuelve el crash inmediato.
+Commit: `fix(compras): mover useConfig arriba de retornos tempranos para arreglar React #310`
+Estado: ✅ Verificado — Crash resuelto.
+
+---
+
 ## ✅ Ciclo 36 — 2026-07-31 — Prevención de Full Collection Scan en Compras
 
 [Fecha] 2026-07-31
