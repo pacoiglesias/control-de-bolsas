@@ -11,6 +11,7 @@ import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent }
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 import { useProducts } from '../hooks/useProducts';
+import { useOrders } from '../hooks/useOrders';
 import { camposInvoices } from '../lib/invoiceOps';
 import { useInvoiceParser } from '../hooks/useInvoiceParser';
 
@@ -25,13 +26,28 @@ export default function OrderModal({
   config: FinancialConfig;
   onClose: () => void;
   readOnly?: boolean;
-  initialTab?: 'resumen' | 'entregas' | 'facturas';
+  initialTab?: 'resumen' | 'productos' | 'entregas' | 'facturas';
 }) {
   const toast = useToast();
   const { user } = useAuth();
   const { products } = useProducts();
+  // useOrders() lee del mismo <OrdersProvider> ya montado en App.tsx: no abre
+  // una segunda suscripcion, solo reutiliza la que ya esta viva. No existia
+  // ningun catalogo de clientes ni proveedores -- a diferencia de Productos,
+  // que ya tiene el suyo -- asi que se deriva de los expedientes existentes.
+  const { orders: allOrders } = useOrders();
+  const knownClients = useMemo(() => {
+    const set = new Set<string>();
+    allOrders.forEach((o) => { if (o.client?.trim()) set.add(o.client.trim()); });
+    return Array.from(set).sort();
+  }, [allOrders]);
+  const knownProviders = useMemo(() => {
+    const set = new Set<string>();
+    allOrders.forEach((o) => { if (o.provider?.trim()) set.add(o.provider.trim()); });
+    return Array.from(set).sort();
+  }, [allOrders]);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'resumen' | 'productos' | 'entregas' | 'facturas'>(initialTab as any);
+  const [tab, setTab] = useState<'resumen' | 'productos' | 'entregas' | 'facturas'>(initialTab);
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
 
@@ -51,7 +67,7 @@ export default function OrderModal({
     customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
   });
 
-  const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   // Sello de tiempo del expediente al ABRIR el modal, no en cada render:
   // compararlo contra el del servidor al guardar es lo que permite detectar si
@@ -109,90 +125,52 @@ export default function OrderModal({
     });
   }, [form.invoices, dynamicConfig]);
 
-  const totalDeliveredKilos = useMemo(() => {
-    if (form.items && form.items.length > 0) {
-      return round2(form.items.reduce((sum, it) => sum + (Number(it.deliveredQuantity || it.quantity || 0)), 0));
-    }
-    if (form.deliveries && form.deliveries.length > 0) {
-      return round2(form.deliveries.reduce((sum, d) => sum + (Number(d.kilos) || 0), 0));
-    }
-    return kilosNum;
-  }, [form.items, form.deliveries, kilosNum]);
-
-  const orderedKilos = kilosNum;
-  const pendingKilos = useMemo(() => {
-    return round2(Math.max(0, orderedKilos - totalDeliveredKilos));
-  }, [orderedKilos, totalDeliveredKilos]);
-
-  const pendingSaleValueSubtotal = useMemo(() => {
-    return round2(pendingKilos * (dynamicConfig.salePricePerKg || 47));
-  }, [pendingKilos, dynamicConfig.salePricePerKg]);
-
-  const pendingSaleValueWithIVA = useMemo(() => {
-    return round2(pendingSaleValueSubtotal * (1 + (dynamicConfig.ivaRate ?? 0.16)));
-  }, [pendingSaleValueSubtotal, dynamicConfig.ivaRate]);
-
-  const addDeliveredInvoice = () => {
-    const issue = new Date();
-    const due = addDays(issue, config.creditDays);
-    const kDelivered = totalDeliveredKilos;
-    
-    sound.playSuccess();
-    set('invoices', [
-      ...form.invoices,
-      { 
-        id: Date.now().toString(), 
-        folio: form.folio ? `FACT-${form.folio}` : 'FACT-NUEVA', 
-        oc: form.folio || '',
-        kilos: kDelivered, 
-        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-        collection: { paidAmount: 0, contrareciboNumber: '', notes: `Factura generada automáticamente por entrega de ${kDelivered.toLocaleString('es-MX')} kg` }
-      }
-    ]);
-    toast(`⚡ Factura generada automáticamente por ${kDelivered.toLocaleString('es-MX')} kg entregados`, 'ok');
-  };
-
-  const renderDeliveryAlertBanner = () => {
-    if (pendingKilos <= 0.01 || totalDeliveredKilos <= 0) return null;
-    return (
-      <div style={{
-        background: 'rgba(234, 179, 8, 0.12)',
-        border: '1px solid rgba(234, 179, 8, 0.4)',
-        borderRadius: 'var(--radius)',
-        padding: '12px 16px',
-        marginBottom: 16,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 12,
-        fontSize: 13,
-        lineHeight: 1.5,
-        color: 'var(--ink)'
-      }}>
-        <div>
-          <strong>⚠️ Aviso de Entrega Faltante (Tolerancia Operativa):</strong> La OC pedía <strong>{orderedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</strong> y Andrés entregó <strong>{totalDeliveredKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</strong>.
-          <br />
-          Quedan <strong style={{ color: '#b45309' }}>{pendingKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg pendientes</strong> (${pendingSaleValueSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} subtotal neto / ${pendingSaleValueWithIVA.toLocaleString('es-MX', { minimumFractionDigits: 2 })} con IVA de venta).
-        </div>
-        {!readOnly && (
-          <button
-            className="btn"
-            style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontSize: 12, padding: '6px 14px', whiteSpace: 'nowrap', fontWeight: 600 }}
-            onClick={addDeliveredInvoice}
-          >
-            ⚡ Facturar {totalDeliveredKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados
-          </button>
-        )}
-      </div>
-    );
-  };
+  // NOTA (2026-07-31): existia una segunda implementacion de "facturar lo
+  // entregado" aqui (totalDeliveredKilos / addDeliveredInvoice /
+  // renderDeliveryAlertBanner), construida en otra sesion sin ver la que ya
+  // habia en la pestana Productos (kilosEntregados / facturarLoEntregado,
+  // mas abajo en este archivo). Se retiro por dos motivos:
+  //   1) BUG REAL: `it.deliveredQuantity || it.quantity || 0` trataba un
+  //      renglon sin entrega capturada (0/undefined) como si se hubiera
+  //      entregado COMPLETO, dejando facturar mercancia que Andres no habia
+  //      entregado.
+  //   2) Las dos versiones no se enteraban una de la otra: nada impedia
+  //      facturar la misma entrega dos veces si el usuario usaba primero un
+  //      boton y despues el otro.
+  // Se conserva solo la version de la pestana Productos, que cuenta 0 cuando
+  // no hay entrega capturada, sin caer al total pedido.
 
   async function save() {
     if (kilosNum <= 0) {
       sound.playError();
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
       return;
+    }
+    if (!form.client.trim()) {
+      sound.playError();
+      toast('Falta el nombre del cliente. No se puede guardar un expediente sin él.', 'bad');
+      return;
+    }
+    if (!form.provider.trim()) {
+      sound.playError();
+      toast('Falta el nombre del proveedor. No se puede guardar un expediente sin él.', 'bad');
+      return;
+    }
+    // Aviso (no bloqueo) de folio repetido: no existia ninguna comprobacion.
+    // Copiar y pegar dos veces la misma OC creaba dos expedientes identicos
+    // sin que nada lo detectara. Solo avisa -- puede haber folios legitimos
+    // repetidos (reenvios, correcciones) y no conviene bloquear el guardado
+    // por eso.
+    const folioTrim = form.folio.trim();
+    if (folioTrim) {
+      const duplicado = allOrders.find((o) => o.id !== order.id && (o.folio ?? '').trim() === folioTrim);
+      if (duplicado) {
+        const continuar = window.confirm(
+          `Ya existe otro expediente con el folio "${folioTrim}" (cliente: ${duplicado.client || '—'}). ` +
+          `¿Seguro que quieres guardar de todos modos?`,
+        );
+        if (!continuar) return;
+      }
     }
     const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined;
     const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined;
@@ -275,19 +253,17 @@ export default function OrderModal({
         const costoEfectivo = dynamicConfig.costPricePerKg;
         const purchaseRef = doc(db, PATHS.purchases, order.id);
         const purchaseSnap = await getDoc(purchaseRef);
-        // La deuda se reconoce sobre lo ENTREGADO, no sobre lo pedido.
-        // Decision del usuario, confirmada expresamente: Andres a veces
-        // entrega sin anticipo, y la deuda debe reflejar exactamente lo que
-        // ya recibiste de el -- no la OC completa desde el momento en que se
-        // captura el expediente, que inflaria la deuda antes de que la
-        // mercancia siquiera llegara.
-        const totalAmountReal = round2(kilosEntregados * costoEfectivo);
+        // receivedKilos SIEMPRE se sincroniza con lo entregado de verdad
+        // (suma de deliveredQuantity en Productos). Antes quedaba en 0 al
+        // crear la compra y nunca se tocaba al actualizar: "Kilos Recibidos
+        // (Entregas parciales)" en Compras nunca reflejaba el avance real,
+        // aunque en el expediente sí se hubiera capturado la entrega.
         if (purchaseSnap.exists()) {
           await updateDoc(purchaseRef, {
             expectedKilos: kilosNum,
             receivedKilos: kilosEntregados,
             pricePerKg: costoEfectivo,
-            totalAmount: totalAmountReal,
+            totalAmount: round2(kilosNum * costoEfectivo),
           });
         } else {
           await setDoc(purchaseRef, {
@@ -296,7 +272,7 @@ export default function OrderModal({
             expectedKilos: kilosNum,
             receivedKilos: kilosEntregados,
             pricePerKg: costoEfectivo,
-            totalAmount: totalAmountReal,
+            totalAmount: round2(kilosNum * costoEfectivo),
             paidAmount: 0,
             status: 'pedido',
             createdAt: serverTimestamp()
@@ -751,7 +727,7 @@ export default function OrderModal({
       { id: Date.now().toString(), quantity: 0, unit: 'Kilos', description: '', unitPrice: config.salePricePerKg, amount: 0 }
     ]);
   };
-  const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
+  const updateItem = <F extends keyof PurchaseOrderItem>(index: number, field: F, value: PurchaseOrderItem[F]) => {
     const next = [...form.items];
     next[index] = { ...next[index], [field]: value };
     
@@ -795,7 +771,7 @@ export default function OrderModal({
       { id: Date.now().toString(), date: Timestamp.now(), kilos: 0, notes: '' }
     ]);
   };
-  const updateDelivery = (index: number, field: keyof Delivery, value: any) => {
+  const updateDelivery = <F extends keyof Delivery>(index: number, field: F, value: Delivery[F]) => {
     const next = [...form.deliveries];
     next[index] = { ...next[index], [field]: value };
     set('deliveries', next);
@@ -875,6 +851,12 @@ export default function OrderModal({
           <option key={p.id} value={p.description} />
         ))}
       </datalist>
+      <datalist id="known-clients">
+        {knownClients.map(c => <option key={c} value={c} />)}
+      </datalist>
+      <datalist id="known-providers">
+        {knownProviders.map(p => <option key={p} value={p} />)}
+      </datalist>
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
@@ -899,16 +881,15 @@ export default function OrderModal({
         {/* RESUMEN */}
         {tab === 'resumen' && (
           <>
-            {renderDeliveryAlertBanner()}
             <div className="form-grid">
               <Field label="Folio Interno del Pedido">
                 <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Cliente">
-                <input className="input boxed" defaultValue={form.client} onBlur={(e) => set('client', e.target.value)} disabled={readOnly} />
+                <input className="input boxed" list="known-clients" defaultValue={form.client} onBlur={(e) => set('client', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Proveedor">
-                <input className="input boxed" defaultValue={form.provider} onBlur={(e) => set('provider', e.target.value)} disabled={readOnly} />
+                <input className="input boxed" list="known-providers" defaultValue={form.provider} onBlur={(e) => set('provider', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Kilos Pedidos (Total)">
                 <input className="input boxed mono" type="number" step="0.01" defaultValue={form.totalKilograms}
@@ -1012,13 +993,6 @@ export default function OrderModal({
         {/* PRODUCTOS */}
         {tab === 'productos' && (
           <>
-            {kilosEntregados > 0 && form.invoices.length === 0 && (
-              <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
-                <strong>📝 Esto ya se puede facturar.</strong> Registraste {kilosEntregados.toLocaleString('es-MX')} kg
-                entregados y este expediente todavía no tiene ninguna factura. Usa el botón
-                "🧾 Facturar lo entregado" de aquí abajo, o ve a la pestaña Facturas si prefieres capturarla a mano.
-              </div>
-            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h4 style={{ margin: 0 }}>Detalle de Artículos (Partidas de la OC)</h4>
@@ -1045,7 +1019,7 @@ export default function OrderModal({
                     if (!text) return;
                     
                     const lines = text.split('\n');
-                    const newItems: any[] = [];
+                    const newItems: PurchaseOrderItem[] = [];
                     
                     for (const line of lines) {
                       const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
@@ -1251,7 +1225,6 @@ export default function OrderModal({
         {/* FACTURAS */}
         {tab === 'facturas' && (
           <>
-            {renderDeliveryAlertBanner()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
                 <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
@@ -1270,15 +1243,6 @@ export default function OrderModal({
                   }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
 
                   <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
-                  {totalDeliveredKilos > 0 && (
-                    <button
-                      className="btn"
-                      style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}
-                      onClick={addDeliveredInvoice}
-                    >
-                      ⚡ Facturar {totalDeliveredKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados
-                    </button>
-                  )}
                 </div>
               )}
             </div>

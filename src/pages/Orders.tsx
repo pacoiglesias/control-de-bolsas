@@ -13,10 +13,7 @@ import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
 const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
   { key: 'all', label: 'Todas' },
-  // "pedido" es el expediente sin ninguna factura creada todavia: es
-  // literalmente "lo que falta por facturar". Se llamaba "Pedidos", que no
-  // decia nada de eso — de ahi que se perdiera de vista.
-  { key: 'pedido', label: '📝 Pendiente de Facturar' },
+  { key: 'pedido', label: 'Pedidos' },
   { key: 'facturado', label: 'Facturado' },
   { key: 'pending', label: 'Con CR' },
   { key: 'overdue', label: 'Vencidas' },

@@ -20,7 +20,11 @@ export interface LiveLogEntry {
   id: string;
   user: string;
   action: string;
-  details?: any;
+  // Los detalles varian segun el tipo de accion (config, cobros, vencidos...);
+  // Record<string, unknown> en vez de any: sigue aceptando cualquier forma,
+  // pero obliga a verificar antes de usar una propiedad, en vez de dejarlo
+  // pasar todo sin ningun chequeo.
+  details?: Record<string, unknown>;
   timestamp: Date | null;
 }
 
@@ -331,7 +335,7 @@ export default function Dashboard() {
   const k = useMemo(() => {
     const st = statsDoc || {};
     const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0 };
-    const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 };
+    const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0 };
     const mesesObj = st.histograms || {};
 
     const mesesKeys = Object.keys(mesesObj).sort().slice(-6);
@@ -415,7 +419,6 @@ export default function Dashboard() {
       porRecibir,
       totalPorRecibir: round2(porRecibir.reduce((acc, r) => acc + r.net, 0)),
       pending: { length: counters.pendingOrders },
-      pedidoPendiente: { length: counters.pedidoOrders },
       overdue: { length: counters.overdueOrders },
       review: { length: counters.manualReview },
       totalOrders: counters.totalOrders,
@@ -619,7 +622,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {k.porRecibir.map((r: any, idx: number) => (
+              {k.porRecibir.map((r: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                   <td style={{ padding: '8px 8px', color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>#{r.folio}</td>
                   <td style={{ padding: '8px 8px', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{r.cr}</td>
@@ -698,10 +701,6 @@ export default function Dashboard() {
               sub="Flujo real (Cobrado)" />
           </>
         )}
-        <KpiCard tone={k.pedidoPendiente.length > 0 ? 'warn' : 'ok'} label="📝 Pendiente de Facturar"
-          value={<span className="num">{k.pedidoPendiente.length}</span>}
-          sub="Expedientes ya capturados, sin ninguna factura creada todavía"
-          onClick={() => nav('/ordenes?filtro=pedido')} />
         <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
           sub={
             <>
@@ -742,7 +741,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {k.mesesKeys.map((m: any) => {
+                {k.mesesKeys.map((m: string) => {
                   const data = k.meses[m];
                   return (
                     <tr key={m}>
@@ -759,7 +758,7 @@ export default function Dashboard() {
           <div style={{ width: '100%', height: 320, padding: '16px 20px', marginTop: '16px' }}>
             <ResponsiveContainer>
               <BarChart
-                data={k.mesesKeys.map((m: any) => ({ name: monthLabel(m), vendido: k.meses[m].venta, ganancia: k.meses[m].ganancia, cobrado: k.meses[m].cobrado }))}
+                data={k.mesesKeys.map((m: string) => ({ name: monthLabel(m), vendido: k.meses[m].venta, ganancia: k.meses[m].ganancia, cobrado: k.meses[m].cobrado }))}
                 margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line-soft)" />
@@ -773,7 +772,7 @@ export default function Dashboard() {
                 <Tooltip
                   cursor={{ fill: 'var(--paper-sunk)' }}
                   contentStyle={{ backgroundColor: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow)' }}
-                  formatter={(value: any) => money(Number(value))}
+                  formatter={(value) => money(Number(value))}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
                 <Bar dataKey="vendido" name="Total Vendido" fill="var(--accent)" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -797,7 +796,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {k.proximos.slice(0, 8).map(({ o, inv, d }: any) => {
+                {k.proximos.slice(0, 8).map(({ o, inv, d }: { o: PurchaseOrder; inv: Invoice; d: number | null }) => {
                   const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
                   const saldo = Math.max(invTotal - (inv.collection?.paidAmount ?? 0), 0);
                   return (

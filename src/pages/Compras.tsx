@@ -376,6 +376,7 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
 
   async function save() {
     if (expectedNum <= 0) return toast('Kilos inválidos', 'bad');
+    if (!form.provider.trim()) return toast('Falta el nombre del proveedor.', 'bad');
 
     setBusy(true);
     try {

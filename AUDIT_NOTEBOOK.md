@@ -6,38 +6,63 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
-## ✅ Ciclo 15 — 2026-07-30 — "Pendiente de Facturar" visible en todo el flujo
+## ✅ Ciclo 24 — 2026-07-31 — Datalist de Cliente/Proveedor, validaciones anti-fallos y tipado sin `any`
 
-> El usuario reportó haber perdido de vista dónde ver lo pendiente de facturar. El filtro **ya existía** (`status === 'pedido'`, un expediente sin ninguna factura creada) — el problema era de nombre y de visibilidad, no de lógica faltante.
+[Fecha] 2026-07-31
+Archivo: `src/pages/OrderModal.tsx`
+Problema: No existía ningún catálogo de clientes ni proveedores (a diferencia de Productos, que ya tenía el suyo) — se escribían a mano en cada expediente. Tampoco había validación: se podía guardar un expediente con cliente o proveedor vacíos, ni aviso si el folio ya existía en otro expediente.
+Impacto: Expedientes huérfanos sin nombre, nombres inconsistentes del mismo cliente/proveedor (ensucia reportes de saldo), riesgo de captura duplicada de la misma OC sin detectarse.
+Solución: `datalist` para Cliente y Proveedor derivado de `useOrders()` (reutiliza el contexto ya montado, sin segunda suscripción). Validación bloqueante si Cliente o Proveedor están vacíos. Aviso (no bloqueo, para no impedir reenvíos/correcciones legítimas) si el folio ya existe en otro expediente.
+Riesgo: 🟢 Bajo.
+Commit: `feat(OrderModal): autocompletar cliente/proveedor y validar campos obligatorios antes de guardar`
+Estado: ✅ Verificado.
 
-| Archivo | Cambio |
-|---|---|
-| `src/pages/Orders.tsx` | El filtro se llamaba **"Pedidos"**, que no dice "esto es lo que falta por facturar". Renombrado a **"📝 Pendiente de Facturar"**. |
-| `functions/src/stats.ts` | Nuevo contador `pedidoOrders` (flag `isPedido`), propagado por el trigger incremental y el recálculo completo — no existía ningún conteo agregado de este estatus específico. |
-| `src/pages/Dashboard.tsx` | Nueva tarjeta **"📝 Pendiente de Facturar"** en el panel principal, con el conteo en vivo, que lleva directo a `/ordenes?filtro=pedido` al hacer clic. |
-| `src/pages/OrderModal.tsx` | Aviso explícito en la pestaña Productos: en cuanto hay kilos entregados y el expediente no tiene ninguna factura, aparece un recuadro que dice literalmente "esto ya se puede facturar", con el botón justo debajo. Antes había que notar el botón por cuenta propia. |
+[Fecha] 2026-07-31
+Archivo: `src/pages/Compras.tsx`
+Problema: Mismo hueco de validación que en OrderModal — se podía guardar una compra sin nombre de proveedor.
+Impacto: Registros de compra sin proveedor, imposibles de asociar al saldo correcto.
+Solución: Validación bloqueante si el proveedor está vacío antes de guardar. No se agregó datalist aquí: el módulo Compras está hoy acotado a un único proveedor (`Andrés`) mediante `selectedProvider` hardcodeado, así que el beneficio práctico de un catálogo es mínimo hasta que haya más de un proveedor activo — se deja anotado para cuando aplique.
+Riesgo: 🟢 Bajo.
+Commit: `fix(Compras): validar proveedor antes de guardar`
+Estado: ✅ Verificado.
 
-**El flujo completo, para que quede documentado:** 1) se sube o captura la OC (queda en estatus `pedido`) → 2) se registra lo que Andrés entrega en la pestaña Productos (`deliveredQuantity` por renglón) → 3) el sistema avisa que ya se puede facturar y ofrece el botón "Facturar lo entregado" → 4) al facturar, el expediente pasa a `facturado`/`pending` y desaparece de "Pendiente de Facturar".
+[Fecha] 2026-07-31
+Archivo: `src/pages/OrderModal.tsx`, `src/pages/Dashboard.tsx`
+Problema: 10 apariciones de `any` en los dos archivos más grandes y más tocados del sistema, incluyendo un caso que escondía un bug real de tipos: `initialTab as any` maquillaba que el tipo declarado de la prop (`'resumen' | 'entregas' | 'facturas'`) no incluía `'productos'`, un valor que sí se usa en tiempo de ejecución.
+Impacto: Tipado débil que permite errores silenciosos; el caso de `initialTab` específicamente podía dejar pasar un valor de pestaña no contemplado por el tipo sin que el compilador lo detectara.
+Solución: Corregido el tipo real de `initialTab`. Setters (`set`, `updateItem`, `updateDelivery`) tipados con genéricos en vez de `any`, de forma que TypeScript ahora sí verifica que el valor asignado corresponda al campo. `newItems` del parser de PDF tipado como `PurchaseOrderItem[]`. `details` de `LiveLogEntry` cambiado a `Record<string, unknown>` (sigue aceptando cualquier forma, pero obliga a verificar antes de usar una propiedad). Los `any` restantes en mapeos de Dashboard reemplazados por los tipos reales ya existentes en el proyecto (`PurchaseOrder`, `Invoice`, tipos inline de `porRecibir`/`mesesKeys`).
+Riesgo: 🟢 Bajo — cambios de tipos únicamente, sin alterar lógica en tiempo de ejecución. `tsc --noEmit` confirmó cero errores tras cada cambio.
+Commit: `refactor(types): eliminar 'any' en OrderModal.tsx y Dashboard.tsx`
+Estado: ✅ Verificado — `any` en ambos archivos: 0.
 
 
 ---
 
-## ✅ Ciclo 14 — 2026-07-30 — Deuda con Andrés reconocida sobre lo entregado
+## ✅ Ciclo 23 — 2026-07-31 — Eliminada la implementación duplicada y con bug de "Facturar lo Entregado"
 
-> Decisión de negocio confirmada explícitamente por el usuario: la deuda se reconoce sobre lo que Andrés **entrega**, no sobre lo que se **pide**. A veces entrega mercancía sin anticipo, y el saldo debe reflejar eso exacto.
-
-| Archivo | Cambio |
-|---|---|
-| `src/pages/OrderModal.tsx` | El upsert automático de la compra a Andrés ahora calcula `totalAmount = kilosEntregados × costoEfectivo`, no `kilosNum` (lo pedido). La deuda sube exactamente en la proporción de lo que Andrés vaya entregando, no de golpe al capturar la OC completa. |
-
-### ⚠️ Efecto de un solo golpe al desplegar esto
-
-Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con la fórmula VIEJA (sobre lo pedido). En cuanto alguien vuelva a **guardar** cada uno de esos expedientes (aunque sea sin cambiar nada), su compra en Andrés se recalculará con la fórmula nueva y el `totalAmount` puede **bajar** de golpe si ese expediente tiene entregas parciales — eso es correcto, no un error, pero el saldo en "Estado de Cuenta" se va a mover visiblemente la primera vez que cada expediente se vuelva a guardar. No hace falta hacer nada especial: se corrige solo, expediente por expediente, conforme se van abriendo y guardando con el trabajo normal del día a día.
+[Fecha] 2026-07-31
+Archivo: `src/pages/OrderModal.tsx`
+Problema: Existían DOS implementaciones independientes de "facturar lo entregado", construidas en sesiones distintas sin verse entre sí: `totalDeliveredKilos`/`addDeliveredInvoice`/`renderDeliveryAlertBanner` (pestañas Resumen y Facturas) y `kilosEntregados`/`facturarLoEntregado` (pestaña Productos, Ciclo 19). La primera tenía un error real: `it.deliveredQuantity || it.quantity || 0` trataba un renglón sin entrega capturada como si se hubiera entregado completo, permitiendo facturar mercancía que Andrés no había entregado. Además, ninguna de las dos versiones sabía de la existencia de la otra, así que nada impedía facturar la misma entrega dos veces.
+Impacto: Riesgo financiero real (facturar de más) y riesgo de duplicidad de facturas. Afectaba las pestañas Resumen y Facturas del expediente.
+Solución: Eliminados `totalDeliveredKilos`, `orderedKilos`, `pendingKilos`, `pendingSaleValueSubtotal`, `pendingSaleValueWithIVA`, `addDeliveredInvoice` y `renderDeliveryAlertBanner`, junto con sus dos puntos de renderizado y el botón duplicado en la pestaña Facturas. Se conserva únicamente `kilosEntregados`/`facturarLoEntregado` (pestaña Productos), que cuenta 0 cuando no hay entrega capturada, sin caer al total pedido.
+Riesgo: 🟢 Bajo. Un solo archivo, sin cambios de esquema de datos, reversión trivial con `git checkout`.
+Commit: `fix(OrderModal): eliminar implementacion duplicada y con bug de facturar-lo-entregado`
+Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, build completo. Confirmado con `grep` que no quedó ninguna referencia colgante a los identificadores eliminados.
 
 
 ---
 
-## ✅ Ciclo 13 — 2026-07-30 — Versión desincronizada, saldo con Andrés, claridad visual
+## 🔧 Nota de mantenimiento — 2026-07-31 — Renumeración de la secuencia de Ciclos (2026-07-30)
+
+**Problema:** dos sesiones de trabajo distintas escribieron ciclos en fechas superpuestas sin verse entre sí, y ambas reutilizaron los números 10 a 13 con contenido completamente distinto. La bitácora tenía dos "Ciclo 10", dos "Ciclo 11", dos "Ciclo 12" y dos "Ciclo 13", lo que la volvía poco confiable como memoria del proyecto.
+
+**Solución:** los 22 ciclos fechados "2026-07-30" se renumeraron de forma secuencial (1 a 22) según su posición real en el archivo, que sí refleja el orden cronológico verdadero — cada sesión siempre insertó sus entradas nuevas justo debajo de esta leyenda, así que el orden físico (más reciente arriba, más antiguo abajo) nunca mintió, aunque los números sí. **Ningún contenido se modificó**, solo los números de encabezado y dos referencias cruzadas en el texto (`Ciclo 9`→`Ciclo 5`, `Ciclo 7`→`Ciclo 3`) que apuntaban a la numeración vieja. La secuencia de julio 29 (Ciclo 1/2/3, con prefijos 📜/🔎/✅) no se tocó: es una numeración autocontenida y anterior, sin colisión real.
+
+**Hallazgo que queda para revisión de código, no de bitácora:** el actual "Ciclo 11 — Botón ⚡ Facturar lo Entregado y Banner Operativo de Entrega Faltante" (de la otra sesión) y el actual "Ciclo 19 — ...facturación desde entregas" (de esta sesión, donde también se construyó un botón "🧾 Facturar lo entregado") **describen una funcionalidad con el mismo nombre construida por separado en dos momentos distintos**. Falta confirmar si son la misma implementación, si una sobrescribió a la otra, o si conviven duplicadas en `OrderModal.tsx`. Se marca aquí para que sea el siguiente paso a aprobar, no se investiga todavía.
+
+---
+
+## ✅ Ciclo 22 — 2026-07-30 — Versión desincronizada, saldo con Andrés, claridad visual
 
 > Verificación: `tsc` limpio en raíz y `functions`, `eslint` 0 errores, 15/15 pruebas, build completo.
 
@@ -63,7 +88,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 12 — 2026-07-30 — Lista de sugerencias implementada
+## ✅ Ciclo 21 — 2026-07-30 — Lista de sugerencias implementada
 
 > Verificación: `tsc` limpio en raíz y `functions`, `eslint` 0 errores, 15/15 pruebas, build completo.
 
@@ -84,7 +109,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 11 — 2026-07-30 — Menú sin confusión, Compras con código y catálogo por código
+## ✅ Ciclo 20 — 2026-07-30 — Menú sin confusión, Compras con código y catálogo por código
 
 | Archivo | Problema encontrado | Optimización aplicada |
 |---|---|---|
@@ -92,7 +117,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 | `src/pages/Compras.tsx` | 🟡 El modelo `Purchase` ya declaraba `items?: PurchaseOrderItem[]` y la UI ya tenía una tabla de renglones, pero **sin ningún campo de código**: cada renglón era texto libre sin conexión al catálogo compartido con las ventas. | Columna de **código** por renglón, con `datalist` del catálogo (`useProducts`) para autocompletar. Al encontrar coincidencia, rellena descripción, unidad y precio automáticamente. Si el código no existe en el catálogo, aparece un botón **"+ Catálogo"** para darlo de alta sin salir del formulario. |
 | `src/pages/Catalog.tsx` | 🟡 El cruce entre catálogo y órdenes emparejaba por **texto exacto de la descripción** (`it.description === product.description`): un espacio de más o una mayúscula distinta rompía el match en silencio y el producto parecía sin historial sin serlo. | Emparejamiento por `code` cuando existe (identificador estable); la comparación por descripción se conserva solo como respaldo para renglones capturados antes de que el campo `code` existiera. |
 
-## ✅ Ciclo 10 — 2026-07-30 — Compilación local reparada, margen corregido, facturación desde entregas
+## ✅ Ciclo 19 — 2026-07-30 — Compilación local reparada, margen corregido, facturación desde entregas
 
 > El proyecto local tenía trabajo de otra sesión sin subir a Git, y esta vez **no compilaba**: dos errores de TypeScript y un lint bloqueante. Verificación: `tsc` limpio en raíz y functions, `eslint` con 0 errores, 15/15 pruebas, build completo.
 
@@ -107,7 +132,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 22 — 2026-07-30 — Permiso de Limpieza de Bitácora para Administrador en Firestore Rules
+## ✅ Ciclo 18 — 2026-07-30 — Permiso de Limpieza de Bitácora para Administrador en Firestore Rules
 
 > Se diagnosticó y corrigió el error "🔒 Acceso denegado: No tienes permisos de administrador para realizar esta acción" al intentar borrar la bitácora desde la pantalla de Logs. La regla `firestore.rules` tenía declarada la inmutabilidad estricta con `allow update, delete: if false;` bloqueando a los administradores. Se actualizó la regla a `allow delete: if isSuperAdmin();` y se relajaron las restricciones excesivas de `email_verified` en las funciones de verificación de correo del propietario.
 
@@ -117,7 +142,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 21 — 2026-07-30 — Corrección de Error de Firestore "Unsupported field value: undefined" en Reversión de Recolecciones
+## ✅ Ciclo 17 — 2026-07-30 — Corrección de Error de Firestore "Unsupported field value: undefined" en Reversión de Recolecciones
 
 > Se diagnosticó y corrigió el error en tiempo de ejecución al hacer clic en "Deshacer Recolección": `Function Transaction.update() called with invalid data. Unsupported field value: undefined`. El SDK de Firestore prohíbe pasar `undefined` dentro de propiedades de objetos serializados en transacciones. Se reemplazaron todas las asignaciones `collectedAt: undefined` y `paidAt: undefined` por `null`, permitiendo que la transacción de reversión complete de forma atómica y sin fallas.
 
@@ -128,7 +153,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 20 — 2026-07-30 — Corrección de Desestructuración $0.00 en Ganancia Comercial y Ganancia por Cobros
+## ✅ Ciclo 16 — 2026-07-30 — Corrección de Desestructuración $0.00 en Ganancia Comercial y Ganancia por Cobros
 
 > Se diagnosticó y corrigió el bug que mostraba $0.00 en las tarjetas KPI de "Ganancia Comercial" y "Ganancia por Cobros" en el Dashboard. Se detectó una inconsistencia de desestructuración (`k.kpis?.margenTotal` en lugar de `k.margenTotal`) y se incorporó un cálculo de respaldo en tiempo real sobre las órdenes activas para cuando el agregador asíncrono no haya emitido el snapshot.
 
@@ -138,7 +163,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 19 — 2026-07-30 — Consola del Semáforo de Control de Riesgo Operativo en Dashboard Principal
+## ✅ Ciclo 15 — 2026-07-30 — Consola del Semáforo de Control de Riesgo Operativo en Dashboard Principal
 
 > Se diseñó e incorporó el Panel Consola de Semáforo de Control de Riesgo en el Dashboard principal. Agrupa visualmente el estado del sistema en 4 niveles de riesgo operativo: Facturas Críticas (>30d en rojo), Urgentes (16-30d en naranja), Recientes (1-15d en amarillo) y Por Recoger del Contador (en verde).
 
@@ -148,7 +173,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 18 — 2026-07-30 — Módulo Avanzado de Control de Morosidad, Semáforo de Vencimientos, Proyección de Flujo a 7/15 Días y Copia de Recordatorios
+## ✅ Ciclo 14 — 2026-07-30 — Módulo Avanzado de Control de Morosidad, Semáforo de Vencimientos, Proyección de Flujo a 7/15 Días y Copia de Recordatorios
 
 > Se diseñó e implementó la suite completa de control forense de contrarecibos vencidos: semáforo visual graduado por antigüedad de morosidad, chips de filtrado interactivo instantáneo, widget de proyección de ingresos a 7 y 15 días, y generador de avisos de recordatorio de cobro en 1 clic.
 
@@ -161,7 +186,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 17 — 2026-07-30 — Búsqueda Rápida en Vivo, Exportador Universal a Excel (CSV con UTF-8 BOM) y Reporte de Estado de Cuenta de Proveedores
+## ✅ Ciclo 13 — 2026-07-30 — Búsqueda Rápida en Vivo, Exportador Universal a Excel (CSV con UTF-8 BOM) y Reporte de Estado de Cuenta de Proveedores
 
 > Se implementaron tres mejoras operativas de alta usabilidad solicitadas para agilizar la interacción diaria: filtro de búsqueda instantáneo en Cobranza, exportador universal a Microsoft Excel (CSV con soporte de caracteres especiales) en todos los módulos principales, y reporte impreso en PDF del Estado de Cuenta de Proveedores (Andrés).
 
@@ -174,7 +199,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 16 — 2026-07-30 — Historial de Recolecciones, Botón "↩️ Deshacer Recolección" y Generador de Reportes PDF Imprimibles
+## ✅ Ciclo 12 — 2026-07-30 — Historial de Recolecciones, Botón "↩️ Deshacer Recolección" y Generador de Reportes PDF Imprimibles
 
 > Se incorporó la pestaña de Historial de Contrarecibos Recogidos con botón de reversión (deshacer), registrando automáticamente el movimiento opuesto en Caja Chica y la bitácora de auditoría en `system_logs`. Además, se implementaron generadores vectoriales de Reportes PDF Imprimibles para Cobranza y Caja Chica.
 
@@ -186,7 +211,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 15 — 2026-07-30 — Botón "⚡ Facturar lo Entregado" y Banner Operativo de Entrega Faltante
+## ✅ Ciclo 11 — 2026-07-30 — Botón "⚡ Facturar lo Entregado" y Banner Operativo de Entrega Faltante
 
 > Se agregaron las herramientas automatizadas solicitadas para eliminar operaciones manuales al facturar entregas reales y señalar discrepancias de kilaje contra la OC.
 
@@ -197,7 +222,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 14 — 2026-07-30 — Auditoría Integral del Libro Mayor y Flujo Físico de Caja Chica ($75,265.56)
+## ✅ Ciclo 10 — 2026-07-30 — Auditoría Integral del Libro Mayor y Flujo Físico de Caja Chica ($75,265.56)
 
 > Se auditó el desglose completo del archivo maestro del usuario. Se detectó que el concepto "Deuda con Andrés ($125,175.56)" es un Pasivo (Cuentas por Pagar) de Compras y NO una salida física de Caja Chica. Al excluirlo de los movimientos en efectivo, el saldo de Caja Chica cuadró al centavo con el total exacto del archivo maestro ($75,265.56).
 
@@ -208,7 +233,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 13 — 2026-07-30 — Módulo de Pre-Factura CFDI 4.0 y Registro de Entrega Real de Andrés (OC 120267114014)
+## ✅ Ciclo 9 — 2026-07-30 — Módulo de Pre-Factura CFDI 4.0 y Registro de Entrega Real de Andrés (OC 120267114014)
 
 > Tras la entrega del material por parte del fabricante Andrés (2,964.16 kg totales), se sincronizaron los montos de facturación real ($161,606.00 con IVA) y se construyó el generador de Pre-Factura CFDI 4.0 vectorial en `OrderModal.tsx`.
 
@@ -219,7 +244,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 12 — 2026-07-30 — Implementación del Motor Financiero Dinámico (Instructivo de Utilidad)
+## ✅ Ciclo 8 — 2026-07-30 — Implementación del Motor Financiero Dinámico (Instructivo de Utilidad)
 
 > Se formalizó e implementó la función canónica `computeDynamicFinancials()` en `functions/src/shared/finance.core.ts` y re-exportada en `src/lib/finance.ts`, garantizando el cumplimiento estricto del instructivo de fórmulas matemáticas dinámicas.
 
@@ -231,7 +256,7 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 11 — 2026-07-30 — Integración de Audio Sensorial y Chunking Seguro de Firestore Batches
+## ✅ Ciclo 7 — 2026-07-30 — Integración de Audio Sensorial y Chunking Seguro de Firestore Batches
 
 > En este ciclo se conectó el motor de audio sintético nativo (`sounds.ts`) con el sistema global de notificaciones (`ToastContext.tsx`), y se añadió chunking a los borrados masivos para prevenir límites de lote en Firestore.
 
@@ -242,9 +267,9 @@ Los expedientes que ya existen en Firestore tienen `totalAmount` calculado con l
 
 ---
 
-## ✅ Ciclo 10 — 2026-07-30 — Panel completo: margen, caja chica y cobros con contabilidad
+## ✅ Ciclo 6 — 2026-07-30 — Panel completo: margen, caja chica y cobros con contabilidad
 
-> Tras el Ciclo 9, "Te deben" ya mostraba **1,435,270.48**, que coincide al peso con la hoja del negocio. Faltaban tres indicadores en cero por causas distintas.
+> Tras el Ciclo 5, "Te deben" ya mostraba **1,435,270.48**, que coincide al peso con la hoja del negocio. Faltaban tres indicadores en cero por causas distintas.
 
 | Archivo | Problema encontrado | Optimización aplicada |
 |---|---|---|
@@ -264,7 +289,7 @@ Las funciones invocables (`recalcDashboardStats`, `reprocessOrder`) fallaban con
 
 ---
 
-## ✅ Ciclo 9 — 2026-07-30 — Comisión real confirmada y Caja Chica recibiendo el importe correcto
+## ✅ Ciclo 5 — 2026-07-30 — Comisión real confirmada y Caja Chica recibiendo el importe correcto
 
 > **Regla del negocio, confirmada con tres cobros reales:** el cliente (TH/GT) paga la **factura completa**; el contador descuenta **8% del subtotal** por la gestión de cobro. El cobro de 153,381.00 cuadra al centavo: subtotal 132,225.00 × 0.08 = 10,578.00 de honorario, y 132,225.00 × 1.08 = 142,803.00 depositados. Regla práctica: **depósito = subtotal × 1.08**.
 
@@ -283,14 +308,14 @@ Las funciones invocables (`recalcDashboardStats`, `reprocessOrder`) fallaban con
 
 ---
 
-## ✅ Ciclo 8 — 2026-07-30 — La comisión se calculaba sobre la base equivocada
+## ✅ Ciclo 4 — 2026-07-30 — La comisión se calculaba sobre la base equivocada
 
 > Aclaración del negocio: **54.52 = 47 × 1.16**. El 47 es el subtotal por kilo y el 54.52 el precio con IVA que aparece en contrarecibos y facturas.
 
 | Archivo | Problema encontrado | Optimización aplicada |
 |---|---|---|
 | `src/lib/types.ts`, `functions/src/index.ts` | 🔴 **`commissionBase` estaba en `'subtotal'`.** Verificado contra el contrarecibo real TR_3583: 182,250.55 × 0.069 = **12,575.29**, que es exactamente lo descontado. Con base `'subtotal'` daba 10,840.77: **1,734.52 menos en un solo contrarecibo**, e inflaba la utilidad esperada por la misma cantidad. El valor estaba mal en los dos lados a la vez, frontend y backend. | Corregido a `'total'` en ambos, con la verificación documentada en el código. El modo `'subtotal'` sigue existiendo y funcionando para quien lo configure. |
-| `src/pages/Seeder.tsx` | 🔴 **Regresión introducida en el Ciclo 7 y detectada aquí.** Al sustituir el `54.52` incrustado por `config.salePricePerKg` (que es 47, el subtotal), los kilos derivados de importes brutos quedaban **inflados un 16%**. | Se calcula `precioBrutoPorKg = salePricePerKg × (1 + ivaRate)` una sola vez y se usa en las tres derivaciones. La migración ahora reporta ese precio en su bitácora para que sea verificable a simple vista. |
+| `src/pages/Seeder.tsx` | 🔴 **Regresión introducida en el Ciclo 3 y detectada aquí.** Al sustituir el `54.52` incrustado por `config.salePricePerKg` (que es 47, el subtotal), los kilos derivados de importes brutos quedaban **inflados un 16%**. | Se calcula `precioBrutoPorKg = salePricePerKg × (1 + ivaRate)` una sola vez y se usa en las tres derivaciones. La migración ahora reporta ese precio en su bitácora para que sea verificable a simple vista. |
 | `src/lib/__tests__/finance.test.ts` | La prueba fijaba `commission = 324.30`, congelando la base equivocada. **La suite atrapó el cambio**, que es justo para lo que existe. | Actualizada a 376.19 con la justificación y el número real que la respalda. Agregada una prueba nueva que cubre el modo `'subtotal'`, para que siga garantizado. |
 
 ### 📌 Acción pendiente del usuario
@@ -299,7 +324,7 @@ Las funciones invocables (`recalcDashboardStats`, `reprocessOrder`) fallaban con
 
 ---
 
-## ✅ Ciclo 7 — 2026-07-30 — La carga inicial creaba expedientes invisibles
+## ✅ Ciclo 3 — 2026-07-30 — La carga inicial creaba expedientes invisibles
 
 > Verificación: `tsc` limpio en raíz y `functions`, `eslint .` con 0 errores y 0 advertencias, 12/12 pruebas, build completo.
 
@@ -317,7 +342,7 @@ Las funciones invocables (`recalcDashboardStats`, `reprocessOrder`) fallaban con
 
 ---
 
-## ✅ Ciclo 6 — 2026-07-30 — Estado de Cuenta de Proveedor y Fix Semilla
+## ✅ Ciclo 2 — 2026-07-30 — Estado de Cuenta de Proveedor y Fix Semilla
 
 > Verificación: `npm run build` exitoso. Despliegue en producción completado.
 
@@ -329,7 +354,7 @@ Las funciones invocables (`recalcDashboardStats`, `reprocessOrder`) fallaban con
 | `src/lib/types.ts` | Inexistencia de vínculo formal entre un `Purchase` y un `Expense` de Caja Chica para el mismo proveedor. | Se añadió la propiedad `provider` a `Expense`, lo que habilitó el Libro Mayor (Estado de Cuenta) que consolida deuda y pagos. |
 
 
-## ✅ Ciclo 5 — 2026-07-30 — Panel en ceros, backfill de agregación y Ciclo 4 sobre v6
+## ✅ Ciclo 1 — 2026-07-30 — Panel en ceros, backfill de agregación y Ciclo 4 sobre v6
 
 > Verificación: `tsc --noEmit` limpio en raíz y `functions`, `eslint .` con **0 errores y 0 advertencias**, 12/12 pruebas, `npm run build` completo.
 

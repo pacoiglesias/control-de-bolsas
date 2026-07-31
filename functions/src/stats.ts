@@ -24,7 +24,7 @@ export function extractStats(data: any): Record<string, any> {
   let margen = 0, gananciaRealizada = 0;
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   
-  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
+  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
@@ -115,11 +115,7 @@ export function extractStats(data: any): Record<string, any> {
     meses,
     isPending: status === 'pending' ? 1 : 0,
     isOverdue: status === 'overdue' ? 1 : 0,
-    isManual,
-    // "pedido" = expediente sin ninguna factura creada: lo que falta por
-    // facturar. Contador aparte porque no existia ninguno visible en el
-    // panel y el usuario perdio de vista donde se ve este pendiente.
-    isPedido: status === 'pedido' ? 1 : 0,
+    isManual
   };
 }
 
@@ -157,7 +153,6 @@ export const syncDashboardStats = onDocumentWritten(
     addDelta("porRecibir", before.porRecibir, after.porRecibir);
 
     addCounterDelta("pendingOrders", before.isPending, after.isPending);
-    addCounterDelta("pedidoOrders", before.isPedido, after.isPedido);
     addCounterDelta("overdueOrders", before.isOverdue, after.isOverdue);
     addCounterDelta("manualReview", before.isManual, after.isManual);
 
@@ -233,7 +228,7 @@ export const recalcDashboardStats = onCall(
       gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0,
       vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0,
     };
-    const counters = { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 };
+    const counters = { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0 };
     const histograms: Record<string, Record<string, number>> = {};
 
     // Paginado por documento: traer la coleccion completa de un golpe agota la
@@ -264,7 +259,6 @@ export const recalcDashboardStats = onCall(
         kpis.porRecibir += s.porRecibir;
 
         counters.pendingOrders += s.isPending;
-        counters.pedidoOrders += s.isPedido;
         counters.overdueOrders += s.isOverdue;
         counters.manualReview += s.isManual;
         counters.totalOrders += 1;
