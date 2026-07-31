@@ -242,7 +242,13 @@ Pago recibido 23 julio	76140.00`);
             oc: f.oc,
             kilos: f.amount / precioBrutoPorKg,
             financials: { ...computeFinancials(f.amount / precioBrutoPorKg, config), invoiceTotal: f.amount },
-            creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date), dueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date) },
+            // dueDate en null a proposito: estas facturas estan EN REVISION,
+            // todavia sin contrarecibo. El plazo de credito arranca cuando
+            // Providencia emite el CR, no al enviar la factura. Antes se
+            // guardaba dueDate = fecha de emision, y eso las hacia aparecer
+            // como vencidas al dia siguiente, inflando "Vencido" por el
+            // monto completo de las facturas aun sin contrarecibo.
+            creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(isNaN(f.date.getTime()) ? new Date() : f.date), dueDate: null },
             collection: { contrareciboNumber: '' }
           })),
           invoiceStatuses: facturas.map(() => 'pending'),

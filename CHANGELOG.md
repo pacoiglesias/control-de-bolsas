@@ -1,5 +1,12 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.21.0] - 31 Julio 2026 (Ciclo 33 — Vencido corregido)
+
+### Corregido — crítico
+- **"Vencido" incluía las facturas en revisión.** Mostraba $834,434.46 cuando la suma real de contrarecibos vencidos es $698,134.46 — la diferencia era exactamente el monto de las facturas aún sin contrarecibo. Ahora una factura sin CR no cuenta como vencida: el plazo de crédito arranca al emitirse el contrarecibo, no al enviar la factura.
+- La migración ya no asigna una fecha de vencimiento ficticia a las facturas en revisión.
+
+
 ## [v6.20.0] - 31 Julio 2026 (Ciclo 32 — Saldo con Andrés corregido: dos bugs reales)
 
 ### Corregido — crítico

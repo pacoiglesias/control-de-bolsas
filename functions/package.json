@@ -1,6 +1,6 @@
 {
   "name": "control-bolsas-functions",
-  "version": "6.20.0",
+  "version": "6.21.0",
   "main": "lib/index.js",
   "engines": {
     "node": "22"

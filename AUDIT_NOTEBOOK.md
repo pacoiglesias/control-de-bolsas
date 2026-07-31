@@ -6,6 +6,20 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 33 — 2026-07-31 — "Vencido" incluía facturas sin contrarecibo ($136,300 de más)
+
+[Fecha] 2026-07-31
+Archivo: `functions/src/stats.ts`, `src/pages/Seeder.tsx`
+Problema: 🔴 El usuario reportó "Vencido: $834,434.46" cuando la suma real de sus 6 contrarecibos vencidos es **$698,134.46**. La diferencia resultó ser exactamente **$136,300.00** — el monto íntegro de sus "Facturas en Revisión" (folios 6097 y 6098). Dos causas encadenadas: (1) la migración guardaba esas facturas con `dueDate` igual a su fecha de emisión (27/07/2026), así que al día siguiente ya figuraban como vencidas por calendario; (2) el chequeo en vivo del Ciclo 31 no distinguía si la factura tenía contrarecibo, y las contaba.
+Impacto: Cifra de "Vencido" inflada por el monto completo de las facturas aún sin contrarecibo — justo las que el usuario lleva separadas en su propia hoja precisamente porque son otra etapa del proceso.
+Solución: Regla de negocio explícita en `estaVencidaEnVivo()`: **una factura sin contrarecibo no puede estar vencida**, porque el plazo de crédito arranca cuando Providencia emite el CR, no al enviar la factura a revisión. Corregida además la causa de origen: la migración ya no asigna un `dueDate` ficticio a facturas en revisión (queda en `null` hasta que exista contrarecibo).
+Riesgo: 🟢 Bajo — afecta solo el cálculo de agregación y la migración inicial.
+Commit: `fix(stats): una factura sin contrarecibo no puede estar vencida`
+Estado: ✅ Verificado — `tsc` limpio en raíz y functions, `eslint` 0 errores, 15/15 pruebas.
+
+
+---
+
 ## ✅ Ciclo 32 — 2026-07-31 — Registrar Entrega en Compras nunca actualizaba la deuda con Andrés, y una regresión revirtió el Ciclo 14
 
 [Fecha] 2026-07-31
