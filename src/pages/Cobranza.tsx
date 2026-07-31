@@ -99,6 +99,9 @@ export default function Cobranza() {
     if (!crNumber) return;
     if (!window.confirm(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`)) return;
     
+    const doctoSap = window.prompt('Docto. SAP (Opcional):') || '';
+    const doctoPago = window.prompt('Docto. Pago (Opcional, ej. TR_3583):') || '';
+
     const invoicesToPay = data.open.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
     );
@@ -134,6 +137,8 @@ export default function Cobranza() {
                 ...x.collection,
                 paidAmount: x.financials?.invoiceTotal ?? x.financials?.saleTotal ?? 0,
                 paidAt: Timestamp.now(),
+                sapDocument: doctoSap,
+                paymentDocument: doctoPago
               },
             }));
             if (nuevas) invoices = nuevas;
@@ -357,29 +362,43 @@ export default function Cobranza() {
     const html = `
       <!DOCTYPE html>
       <html>
-        <head>
+        <head>\n          <meta charset="UTF-8">
           <title>Reporte Global de Cobranza y Cuentas por Cobrar</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
-            .header { border-bottom: 3px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .header h1 { margin: 0; font-size: 20px; color: #0284c7; }
-            .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-            .kpi { background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 4px; }
-            .kpi-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; }
-            .kpi-val { font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
-            th { background: #f1f5f9; font-weight: 700; }
-            .num { text-align: right; font-family: monospace; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
           <div class="header">
-            <div>
+            <div class="header-brand">
               <h1>Reporte de Cobranza y Contrarecibos (PDF)</h1>
-              <div>Control Bolsas ERP · Grupo Textil Providencia</div>
+              <div class="header-subtitle">Control Bolsas ERP · Grupo Textil Providencia</div>
             </div>
-            <div>
+            <div class="header-meta">
               <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
           </div>
@@ -485,21 +504,34 @@ export default function Cobranza() {
     const html = `
       <!DOCTYPE html>
       <html>
-        <head>
+        <head>\n          <meta charset="UTF-8">
           <title>Paquete Consolidado CR - ${escapeHtml(grp.cr)}</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; line-height: 1.4; }
-            .header { border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; }
-            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f8f8f8; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #eee; font-weight: 700; }
-            .summary-box { background: #eef7f2; border: 1px solid #2F7A52; padding: 15px; border-radius: 6px; margin-top: 20px; }
-            .summary-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-            .summary-line.total { border-top: 2px solid #2F7A52; font-weight: 800; font-size: 16px; color: #2F7A52; padding-top: 8px; margin-top: 6px; }
-            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-            .sig-box { text-align: center; border-top: 1px solid #000; padding-top: 8px; font-weight: 600; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
@@ -1077,76 +1109,81 @@ export default function Cobranza() {
       )}
 
       {activeTab === 'pagadas' && (
-        <Card title="Contrarecibos Cobrados (Por recoger Dinero)">
+        <Card title="Pagos Registrados pero AÚN CON CONTABILIDAD (Por Recolectar)">
+          <div className="alert warn" style={{ marginBottom: 16 }}>
+            ⚠️ <strong>Recuerda:</strong> Estos montos te los entregarán <strong>quitando la comisión</strong>.
+          </div>
           {data.paid.length === 0 ? (
-            <Empty>No hay lotes pendientes de recoger efectivo.</Empty>
+            <Empty>No hay pagos pendientes de recolectar.</Empty>
           ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Folio</th><th>Cliente</th><th>Contrarecibo</th>
-                    <th className="num">Utilidad (A ingresar)</th><th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.paid.map(({ o, inv }) => {
-                    const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
-                    const crGroup = currentCr ? data.listaCr.find(g => g.cr === currentCr) : null;
-                    const isHovered = hoveredCr && hoveredCr === currentCr;
-                    
-                    return (
-                      <tr key={inv.id} className={isHovered ? 'row-hovered-cr' : ''} 
-                        onClick={() => setSelected(o)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
-                        role="button"
-                        tabIndex={0}
-                        style={{ cursor: 'pointer' }}>
-                        <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
-                        <td>{o.client ?? '—'}</td>
-                        <td className="mono" onMouseEnter={() => currentCr ? setHoveredCr(currentCr) : null} onMouseLeave={() => setHoveredCr(null)}>
-                          {currentCr ? (
-                            <div className="cr-chip">
-                              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-3.31-2.69-6-6-6S3 1.69 3 5v12.5c0 3.86 3.14 7 7 7s7-3.14 7-7V6h-1.5z"/></svg>
-                              {currentCr}
-                            </div>
-                          ) : '—'}
-                          {currentCr && crGroup && data.paid.findIndex(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === currentCr) === data.paid.findIndex(x => x.inv.id === inv.id) && (
-                            <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', marginLeft: 6 }}>
-                              <button 
-                                className="btn-small btn-ok" 
-                                style={{ padding: '2px 6px', fontSize: '10px' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  collectContrareciboBlock(currentCr, crGroup.netCobrado);
-                                }}
-                              >
-                                💰 Recoger Lote
-                              </button>
-                              <button 
-                                className="btn-small btn-warn" 
-                                style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '4px' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  undoContrareciboBlock(currentCr);
-                                }}
-                              >
-                                ↩️ Deshacer Cobro
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
-                          {crGroup ? money(crGroup.netUtilidad) : '—'}
-                        </td>
-                        <td>
-                          <StatusBadge status={inv.creditCycle.status} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {data.listaCr.filter(g => data.paid.some(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === g.cr)).map(crGroup => {
+                const groupInvoices = data.paid.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === crGroup.cr);
+                const doctoPago = groupInvoices[0]?.inv.collection?.paymentDocument || groupInvoices[0]?.inv.collection?.transferRef || 'Sin Ref';
+                
+                return (
+                  <div key={crGroup.cr} style={{ border: '2px solid #b91c1c', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ background: '#f8fafc', padding: '8px 12px', borderBottom: '2px solid #b91c1c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 13, color: '#333' }}>
+                        <span>PAGO: <strong>{doctoPago}</strong></span>
+                        <span style={{ marginLeft: 16 }}>TRANSFERENCIA / CR: <strong>{crGroup.cr}</strong></span>
+                        <span style={{ marginLeft: 16 }}>IMPORTE BRUTO: <strong>{money(crGroup.totalVenta)} MXN</strong></span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn-small btn-ok" onClick={() => collectContrareciboBlock(crGroup.cr, crGroup.netCobrado)}>
+                          💰 Recoger (Neto: {money(crGroup.netUtilidad)})
+                        </button>
+                        <button className="btn-small btn-warn" onClick={() => undoContrareciboBlock(crGroup.cr)}>
+                          ↩️ Deshacer Cobro
+                        </button>
+                      </div>
+                    </div>
+                    <table className="data-table" style={{ margin: 0, border: 'none' }}>
+                      <thead style={{ background: '#2563eb', color: '#fff' }}>
+                        <tr>
+                          <th style={{ color: '#fff', border: 'none' }}>Docto. SAP</th>
+                          <th style={{ color: '#fff', border: 'none' }}>Docto. Pago</th>
+                          <th style={{ color: '#fff', border: 'none' }}>Factura</th>
+                          <th style={{ color: '#fff', border: 'none' }}>Detalle</th>
+                          <th style={{ color: '#fff', border: 'none' }}>Fecha Pago</th>
+                          <th className="num" style={{ color: '#fff', border: 'none' }}>Importe</th>
+                          <th style={{ color: '#fff', border: 'none' }}>Moneda</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupInvoices.map(({ o, inv }) => (
+                          <tr key={inv.id}>
+                            <td className="mono" style={{ borderLeft: 'none' }}>{inv.collection?.sapDocument || '—'}</td>
+                            <td className="mono">{inv.collection?.paymentDocument || '—'}</td>
+                            <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
+                            <td>{o.client ?? '—'}</td>
+                            <td className="mono">{fmtDate(inv.collection?.paidAt)}</td>
+                            <td className="num mono">{(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                            <td style={{ borderRight: 'none' }}>MXN</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold', border: 'none' }}>TOTAL:</td>
+                          <td className="num mono" style={{ fontWeight: 'bold', border: 'none' }}>{money(crGroup.totalVenta)}</td>
+                          <td style={{ border: 'none' }}></td>
+                        </tr>
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold', color: '#b91c1c', border: 'none' }}>- COMISIÓN:</td>
+                          <td className="num mono" style={{ fontWeight: 'bold', color: '#b91c1c', border: 'none' }}>-{money(crGroup.comisionContador)}</td>
+                          <td style={{ border: 'none' }}></td>
+                        </tr>
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold', color: '#047857', border: 'none' }}>NETO A RECIBIR:</td>
+                          <td className="num mono" style={{ fontWeight: 'bold', color: '#047857', border: 'none' }}>{money(crGroup.netUtilidad)}</td>
+                          <td style={{ border: 'none' }}></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

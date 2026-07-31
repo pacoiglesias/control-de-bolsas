@@ -5,6 +5,8 @@ import { useExpenses } from '../hooks/useExpenses';
 import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { usePurchases } from '../hooks/usePurchases';
+import { useConfig } from '../hooks/useConfig';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate, exportToCsv } from '../lib/format';
@@ -13,11 +15,27 @@ import type { Expense } from '../lib/types';
 export default function CajaChica() {
   const { role } = useAuth();
   const { expenses, loading, error } = useExpenses();
+  const { purchases: provPurchases } = usePurchases();
+  const { config } = useConfig();
   const [selected, setSelected] = useState<Expense | null>(null);
 
   const saldo = expenses.reduce((acc, e) => {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
   }, 0);
+
+  // Calc deuda real con Andrés
+  const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
+  const currentCostPerKg = config?.costPricePerKg || 42;
+  const totalPurchasesCost = Number((totalReceivedKilos * currentCostPerKg).toFixed(2));
+  
+  const totalPagado = expenses.reduce((acc, e) => {
+    if (e.type === 'egreso') return acc + e.amount;
+    if (e.type === 'ingreso') return acc - e.amount;
+    return acc;
+  }, 0);
+  
+  const deudaHistorica = config?.historicalDebtAndres || 0;
+  const deudaReal = totalPurchasesCost - totalPagado - deudaHistorica;
 
   function printCajaChicaReport() {
     const totalIngresos = expenses.filter(e => e.type === 'ingreso').reduce((a, e) => a + e.amount, 0);
@@ -26,29 +44,43 @@ export default function CajaChica() {
     const html = `
       <!DOCTYPE html>
       <html>
-        <head>
+        <head>\n          <meta charset="UTF-8">
           <title>Reporte de CAJA - ERP Control Bolsas</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
-            .header { border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .header h1 { margin: 0; font-size: 20px; color: #2563eb; }
-            .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-            .kpi { background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 4px; }
-            .kpi-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; }
-            .kpi-val { font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
-            th { background: #f1f5f9; font-weight: 700; }
-            .num { text-align: right; font-family: monospace; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
           <div class="header">
-            <div>
+            <div class="header-brand">
               <h1>Reporte de Movimientos de CAJA</h1>
-              <div>Control Bolsas ERP · Grupo Textil Providencia</div>
+              <div class="header-subtitle">Control Bolsas ERP · Grupo Textil Providencia</div>
             </div>
-            <div>
+            <div class="header-meta">
               <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
           </div>
@@ -114,8 +146,26 @@ export default function CajaChica() {
   return (
     <>
       <div className="page-head">
-        <h1>CAJA</h1>
-        <p>Control de gastos internos y reposiciones de caja.</p>
+        <h1>CAJA CHICA</h1>
+        <p>Control de efectivo, gastos internos y relación con proveedores.</p>
+      </div>
+
+      <div className="kpi-grid" style={{ marginBottom: 24 }}>
+        <Card title="💰 SALDO EN CAJA">
+          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)' }}>
+            {money(saldo)}
+          </div>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Efectivo disponible actualmente.</p>
+        </Card>
+        
+        <Card title="⚖️ DEUDA CON ANDRÉS">
+          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
+            {deudaReal < 0 ? `- ${money(Math.abs(deudaReal))}` : money(deudaReal)}
+          </div>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
+            {deudaReal > 0 ? 'Saldo a favor de Andrés (le debes).' : deudaReal < 0 ? 'Saldo a tu favor (Andrés te debe).' : 'Cuentas saldadas.'}
+          </p>
+        </Card>
       </div>
 
       <Card

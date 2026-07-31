@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Card, Empty, Spinner } from '../components/ui';
+import CierreMesModal from '../components/CierreMesModal';
 import { fmtDateTime } from '../lib/format';
 import { useToast } from '../context/ToastContext';
 
@@ -27,6 +28,7 @@ export default function Logs() {
   const [actionFilter, setActionFilter] = useState<string>('TODAS');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [clearing, setClearing] = useState(false);
+  const [showCierre, setShowCierre] = useState(false);
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -125,10 +127,15 @@ export default function Logs() {
     <>
       <div className="page-head">
         <h1>Bitácora del sistema</h1>
-        <p>
-          Quién hizo qué y cuándo: subidas, expedientes, compras, caja chica, configuración y
-          respaldos. Cada acción sensible queda aquí, ordenada de la más reciente a la más vieja.
-        </p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <p style={{ flex: 1 }}>
+            Quién hizo qué y cuándo: subidas, expedientes, compras, caja chica, configuración y
+            respaldos. Cada acción sensible queda aquí, ordenada de la más reciente a la más vieja.
+          </p>
+          <button className="btn btn-primary" onClick={() => setShowCierre(true)}>
+            📦 Cierre de Mes (ZIP)
+          </button>
+        </div>
       </div>
 
       <Card
@@ -208,6 +215,8 @@ export default function Logs() {
           </div>
         )}
       </Card>
+      
+      {showCierre && <CierreMesModal onClose={() => setShowCierre(false)} />}
     </>
   );
 }

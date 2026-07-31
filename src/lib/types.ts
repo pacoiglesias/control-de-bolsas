@@ -88,6 +88,8 @@ export interface CollectionInfo {
    * puede conciliar el depósito contra el estado de cuenta bancario.
    */
   transferRef?: string;
+  sapDocument?: string;
+  paymentDocument?: string;
   notes?: string;
   complementStatus?: 'pending' | 'issued' | 'na';
 }

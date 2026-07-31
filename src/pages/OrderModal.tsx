@@ -352,17 +352,34 @@ export default function OrderModal({
 
     const html = `
       <html>
-        <head>
+        <head>\n          <meta charset="UTF-8">
           <title>Remisión de Entrega - ${escapeHtml(form.folio)}</title>
           <style>
-            body { font-family: sans-serif; padding: 40px; color: #111; }
-            h1 { border-bottom: 2px solid #000; padding-bottom: 10px; }
-            .meta { margin-bottom: 40px; display: grid; grid-template-columns: 1fr 1fr; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ccc; padding: 12px; text-align: left; }
-            th { background: #eee; }
-            .signature { margin-top: 80px; text-align: center; width: 300px; }
-            .signature div { border-top: 1px solid #000; padding-top: 8px; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
@@ -448,25 +465,34 @@ export default function OrderModal({
 
     const html = `
       <html>
-        <head>
+        <head>\n          <meta charset="UTF-8">
           <title>Pre-Factura CFDI 4.0 - ${escapeHtml(form.folio)}</title>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 36px; color: #1e293b; background: #fff; }
-            .header { border-bottom: 3px solid #0284c7; padding-bottom: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .header h1 { margin: 0; color: #0284c7; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px; }
-            .header .badge { background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 9999px; font-weight: 700; font-size: 13px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; font-size: 13px; line-height: 1.6; }
-            .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
-            .box-title { font-weight: 700; color: #0f172a; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-            th, td { border: 1px solid #cbd5e1; padding: 10px 12px; }
-            th { background: #f1f5f9; color: #334155; font-weight: 700; font-size: 12px; text-transform: uppercase; }
-            .totals-container { margin-top: 24px; display: flex; justify-content: flex-end; }
-            .totals-box { width: 320px; font-size: 14px; }
-            .totals-row { display: flex; justify-content: space-between; padding: 6px 0; }
-            .totals-row.grand { font-size: 18px; font-weight: 800; color: #0284c7; border-top: 2px solid #0284c7; padding-top: 10px; margin-top: 6px; }
-            .sat-info { margin-top: 32px; background: #fffbebf7; border: 1px solid #fef08a; border-radius: 8px; padding: 14px; font-size: 12px; color: #713f12; }
-            .sat-info strong { color: #854d0e; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
@@ -594,23 +620,34 @@ export default function OrderModal({
     const html = `
       <!DOCTYPE html>
       <html>
-        <head>
+        <head>\n          <meta charset="UTF-8">
           <title>Paquete Consolidado - ${escapeHtml(form.client)} (OC ${escapeHtml(form.oc || '—')})</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; line-height: 1.4; }
-            .header { border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; }
-            .header .sub { font-size: 12px; color: #555; }
-            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f8f8f8; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 20px; }
-            .section-title { font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #ccc; padding-bottom: 4px; margin-top: 25px; margin-bottom: 10px; color: #333; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #eee; font-weight: 700; }
-            .summary-box { background: #eef7f2; border: 1px solid #2F7A52; padding: 15px; border-radius: 6px; margin-top: 20px; }
-            .summary-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-            .summary-line.total { border-top: 2px solid #2F7A52; font-weight: 800; font-size: 16px; color: #2F7A52; padding-top: 8px; margin-top: 6px; }
-            .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-            .sig-box { text-align: center; border-top: 1px solid #000; padding-top: 8px; font-weight: 600; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
@@ -716,6 +753,40 @@ export default function OrderModal({
     } finally {
       setBusy(false);
     }
+  }
+
+
+  function parseOCAndFill() {
+    const text = prompt('Pega aquí el texto completo copiado de la Orden de Compra (OC):');
+    if (!text) return;
+
+    const folioMatch = text.match(/CDB OC:\s*([\w]+)/i) || text.match(/No\.\s*Ord\.\s*de\s*Compra:\s*([^\s\n\r]+)/i);
+    const folio = folioMatch ? folioMatch[1].trim() : '';
+
+    const isProvidencia = text.match(/PROVIDENCIA/i);
+    const client = isProvidencia ? 'GRUPO TEXTIL PROVIDENCIA SA DE CV' : '';
+
+    // Buscar líneas de artículos que típicamente terminan en "1,000.0000 47.0000 0.0000 47,000.0000"
+    // Extracting the first number in that sequence (Quantity)
+    const itemsMatch = [...text.matchAll(/([\d,]+(?:\.\d+)?)\s+[\d,]+(?:\.\d+)?\s+[\d,]+(?:\.\d+)?\s+[\d,]+(?:\.\d+)?/g)];
+    let kilos = 0;
+    if (itemsMatch.length > 0) {
+      itemsMatch.forEach(m => kilos += Number(m[1].replace(/,/g, '')));
+    } else {
+      // Fallback: look for lines starting with number and having "BOLSA" or "BULTO"
+      const altMatch = text.match(/(?:BOLSA|BULTO)[^\n\r]*?([\d,]+(?:\.\d+)?)/i);
+      if (altMatch) kilos = Number(altMatch[1].replace(/,/g, ''));
+    }
+
+    setForm(f => ({
+      ...f,
+      folio: folio || f.folio,
+      client: client || f.client,
+      totalKilograms: kilos > 0 ? kilos.toString() : f.totalKilograms,
+      provider: 'Andrés'
+    }));
+
+    toast(`OC procesada. Folio: ${folio || '?'}, Kilos: ${kilos > 0 ? kilos : '?'}`, 'ok');
   }
 
   async function retryAI() {
@@ -900,6 +971,11 @@ export default function OrderModal({
         {/* RESUMEN */}
         {tab === 'resumen' && (
           <>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+              <button className="btn" onClick={parseOCAndFill} style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', fontWeight: 600 }}>
+                📋 Pegar Texto de OC (Autollenado)
+              </button>
+            </div>
             <div className="form-grid">
               <Field label="Folio Interno del Pedido">
                 <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />

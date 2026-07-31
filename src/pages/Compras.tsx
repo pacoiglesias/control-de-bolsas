@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp, addDoc, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from '../hooks/usePurchases';
-import { useProducts } from '../hooks/useProducts';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
-import { Card, Empty, Field, Modal, Spinner, StatusBadge } from '../components/ui';
+import { Card, Empty, Field, Modal, Skeleton } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
@@ -21,57 +20,67 @@ import {
   migrateLegacyDeliveries,
   upsertAndresPurchase,
 } from '../lib/deliveries';
-import type { Purchase, PurchaseStatus, PurchaseOrder } from '../lib/types';
+import type { Purchase, PurchaseOrder } from '../lib/types';
 
 export default function Compras() {
   const { role } = useAuth();
   const { purchases, loading: loadingP, error: errorP } = usePurchases();
   const { expenses, loading: loadingE, error: errorE } = useExpenses();
-  // useOrders() lee del <OrdersProvider> ya montado en App.tsx: no abre una
-  // segunda suscripcion. Antes Compras no sabia NADA de los expedientes —
-  // ni folio, ni cliente, ni fecha de entrega — solo veia los registros de
-  // compra a secas, cinco columnas de numeros sin contexto.
   const { orders } = useOrders();
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [deliveryOrder, setDeliveryOrder] = useState<PurchaseOrder | null>(null);
   const [pagarModal, setPagarModal] = useState(false);
-  const [tab, setTab] = useState<'ordenes' | 'estado'>('ordenes');
+  const [ajusteModal, setAjusteModal] = useState(false);
+  const [tab, setTab] = useState<'ordenes' | 'facturar' | 'revision' | 'estado'>('ordenes');
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'activas'|'completadas'|'todas'>('activas');
   const selectedProvider = 'Andres';
-  // Todos los hooks van ANTES de cualquier return condicional. Estaba
-  // despues de dos returns tempranos: en el render donde role aun no es
-  // 'admin' (llega asincrono de AuthContext) este hook nunca se llamaba, y
-  // en el siguiente render, cuando ya lo era, si. React ve un numero
-  // distinto de hooks entre renders y revienta el componente.
+
   const toast = useToast();
   const { config } = useConfig();
 
-  if (loadingP || loadingE) return <Spinner />;
-  if (role !== 'admin') return <Navigate to="/" replace />;
   if (errorP || errorE) return <div className="alert bad">{errorP || errorE}</div>;
+  if (!loadingP && !loadingE && role !== 'admin') return <Navigate to="/" replace />;
+  const isLoading = loadingP || loadingE;
 
-  // Purchase.id === PurchaseOrder.id: son el mismo documento en dos
-  // colecciones (el upsert en OrderModal.save() los liga por id). Con este
-  // mapa, cada renglon de compra puede mostrar folio, cliente y fecha de
-  // entrega estimada sin ninguna consulta extra.
-  const orderById = new Map(orders.map((o) => [o.id, o]));
+  const orderById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
 
-  // Filtrado por proveedor actual
-  const provPurchases = purchases.filter(p => p.provider.toLowerCase() === selectedProvider.toLowerCase());
-  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === selectedProvider.toLowerCase());
+  const provPurchases = useMemo(() => purchases.filter(p => p.provider.toLowerCase() === selectedProvider.toLowerCase()), [purchases, selectedProvider]);
+  const provExpenses = useMemo(() => expenses.filter(e => e.provider?.toLowerCase() === selectedProvider.toLowerCase()), [expenses, selectedProvider]);
 
+  const hoy = Date.now();
+  
+  // Financial logic (Dinero)
+  const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
+  const currentCostPerKg = config?.costPricePerKg || 42;
+  const totalPurchasesCost = round2(totalReceivedKilos * currentCostPerKg); // Valor Entregado
+  
+  const totalPagado = provExpenses.reduce((acc, e) => {
+    if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos
+    if (e.type === 'ingreso') return acc - e.amount; // Devoluciones o Ajustes a favor
+    return acc;
+  }, 0);
+  
+  const deudaHistorica = config?.historicalDebtAndres || 0;
+  const deudaReal = totalPurchasesCost - totalPagado - deudaHistorica;
+
+  // Filter Logic
   const searchedPurchases = search.trim()
     ? provPurchases.filter((p) => {
         const o = orderById.get(p.id);
         const q = search.trim().toLowerCase();
-        return (o?.folio ?? '').toLowerCase().includes(q) || (o?.client ?? '').toLowerCase().includes(q);
+        return (o?.folio ?? '').toLowerCase().includes(q) || (o?.client ?? '').toLowerCase().includes(q) || (p.id.toLowerCase().includes(q));
       })
     : provPurchases;
 
-  // Proactivo: OC con fecha de entrega ya vencida y todavia con kilos
-  // pendientes. Antes esto no se veia en ningun lado de Compras — habia que
-  // abrir cada expediente uno por uno para saber si Andres iba tarde.
-  const hoy = Date.now();
+  const filteredPurchases = searchedPurchases.filter(p => {
+    const montoOC = p.totalAmount || 0;
+    const isCompleted = montoOC > 0 && p.receivedKilos * currentCostPerKg >= montoOC;
+    if (filter === 'activas') return !isCompleted;
+    if (filter === 'completadas') return isCompleted;
+    return true;
+  });
+
   const entregasAtrasadas = provPurchases.filter((p) => {
     const o = orderById.get(p.id);
     if (!o?.estimatedDeliveryDate) return false;
@@ -79,50 +88,38 @@ export default function Compras() {
     return kilosFaltan > 0.01 && o.estimatedDeliveryDate.toMillis() < hoy;
   });
 
-  const pendientesKilos = provPurchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
-  
-  // Cálculo exacto de la deuda basado en Kilos reales y Costo actual
-  const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
-  const totalPurchasesCost = round2(totalReceivedKilos * (config?.costPricePerKg || 42));
-  const totalPagado = provExpenses.reduce((acc, e) => {
-    if (e.type === 'egreso') return acc + e.amount; // Le pagamos (abono a la deuda)
-    if (e.type === 'ingreso') return acc - e.amount; // Nos devolvió (cargo a la deuda)
-    return acc;
-  }, 0);
-  const deudaReal = totalPurchasesCost - totalPagado - (config?.historicalDebtAndres || 0);
-
-  // Generación del Libro Mayor Cronológico
+  // Ledger for State of Account
   type LedgerEntry = { id: string; date: Timestamp | null; concept: string; cargo: number; abono: number; source: 'purchase' | 'expense' };
   
-  const ledger: LedgerEntry[] = [
-    ...provPurchases.map(p => ({
-      id: p.id,
-      date: p.date,
-      concept: `Compra de Material`,
-      cargo: p.totalAmount, // Sube la deuda
-      abono: 0,
-      source: 'purchase' as const
-    })),
-    ...provExpenses.map(e => ({
-      id: e.id,
-      date: e.date,
-      concept: e.concept,
-      cargo: e.type === 'ingreso' ? e.amount : 0, 
-      abono: e.type === 'egreso' ? e.amount : 0, 
-      source: 'expense' as const
-    }))
-  ];
-
-  const sortedLedger = ledger.sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
+  const ledger: LedgerEntry[] = useMemo(() => {
+    return [
+      ...provPurchases.map(p => ({
+        id: p.id,
+        date: p.date,
+        concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
+        cargo: round2(p.receivedKilos * currentCostPerKg), // Sube la deuda
+        abono: 0,
+        source: 'purchase' as const
+      })).filter(x => x.cargo > 0),
+      ...provExpenses.map(e => ({
+        id: e.id,
+        date: e.date,
+        concept: e.concept,
+        cargo: e.type === 'ingreso' ? e.amount : 0, 
+        abono: e.type === 'egreso' ? e.amount : 0, 
+        source: 'expense' as const
+      }))
+    ].sort((a, b) => (a.date?.toMillis() ?? 0) - (b.date?.toMillis() ?? 0));
+  }, [provPurchases, provExpenses, currentCostPerKg, orderById]);
 
   function exportComprasCsv() {
-    const headers = ['Fecha', 'Concepto', 'Cargo (Material Sube Deuda)', 'Abono (Pagos / Adelantos)', 'Origen'];
-    const rows = sortedLedger.map(e => [
+    const headers = ['Fecha', 'Concepto', 'Valor Entregado (Material)', 'Pagos/Adelantos', 'Origen'];
+    const rows = ledger.map(e => [
       fmtDate(e.date),
       e.concept,
       e.cargo ? e.cargo.toFixed(2) : '0.00',
       e.abono ? e.abono.toFixed(2) : '0.00',
-      e.source === 'purchase' ? 'Compra Material' : 'CAJA (Adelanto)'
+      e.source === 'purchase' ? 'Entrega Material' : 'CAJA (Adelanto)'
     ]);
     exportToCsv(`Estado_Cuenta_Andres_${new Date().toISOString().slice(0, 10)}`, headers, rows);
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
@@ -133,47 +130,62 @@ export default function Compras() {
       <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="UTF-8">
           <title>Estado de Cuenta Proveedor - Andrés</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
-            .header { border-bottom: 3px solid #b45309; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .header h1 { margin: 0; font-size: 20px; color: #b45309; }
-            .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-            .kpi { background: #fffbeb; border: 1px solid #fde68a; padding: 10px; border-radius: 4px; }
-            .kpi-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #92400e; }
-            .kpi-val { font-size: 16px; font-weight: 800; color: #78350f; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-            th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
-            th { background: #fef3c7; font-weight: 700; }
-            .num { text-align: right; font-family: monospace; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
+            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .header-brand { display: flex; flex-direction: column; gap: 4px; }
+            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
+            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .header-meta { text-align: right; color: #475569; }
+            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+            .badge-ok { background: #dcfce7; color: #166534; }
+            .badge-warn { background: #fef9c3; color: #854d0e; }
+            .badge-bad { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+            @media print { body { padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
           <div class="header">
-            <div>
+            <div class="header-brand">
               <h1>Estado de Cuenta Proveedor: Andrés</h1>
-              <div>Control Bolsas ERP · Grupo Textil Providencia</div>
+              <div class="header-subtitle">Control Bolsas ERP · Grupo Textil Providencia</div>
             </div>
-            <div>
+            <div class="header-meta">
               <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
           </div>
 
           <div class="kpis">
-            <div class="kpi"><div class="kpi-title">TOTAL COMPRAS REGISTRADAS</div><div class="kpi-val">$${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">TOTAL ABONADO / ADELANTOS</div><div class="kpi-val" style="color: #047857;">$${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">SALDO PENDIENTE CON ANDRÉS</div><div class="kpi-val" style="color: ${deudaReal > 0 ? '#b91c1c' : '#047857'};">$${deudaReal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">💰 TOTAL ADELANTADO</div><div class="kpi-val" style="color: #047857;">$${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">📦 VALOR ENTREGADO</div><div class="kpi-val">$${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">⚖️ SALDO PENDIENTE</div><div class="kpi-val" style="color: ${deudaReal > 0 ? '#b91c1c' : '#047857'};">$${deudaReal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
           </div>
 
           <h3>Libro Mayor Cronológico</h3>
           <table>
             <thead>
               <tr>
-                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (+)</th><th class="num">Abono (-)</th>
+                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (Sube Deuda)</th><th class="num">Abono (Baja Deuda)</th>
               </tr>
             </thead>
             <tbody>
-              ${sortedLedger.map(e => `
+              ${ledger.map(e => `
                 <tr>
                   <td>${fmtDate(e.date) || '—'}</td>
                   <td>${e.concept || '—'}</td>
@@ -183,7 +195,6 @@ export default function Compras() {
               `).join('')}
             </tbody>
           </table>
-
           <script>
             window.onafterprint = () => window.close();
             window.onload = () => { window.print(); }
@@ -200,78 +211,73 @@ export default function Compras() {
     <>
       <div className="page-head">
         <h1>Compras y Proveedores</h1>
-        <p>Control de pedidos a proveedores, anticipos, recepciones parciales y saldos.</p>
+        <p>Control financiero: Anticipos, entregas físicas, saldo y pre-facturación.</p>
         <div className="tabs" style={{ marginTop: 16 }}>
-          <button className={tab === 'ordenes' ? 'active' : ''} onClick={() => setTab('ordenes')}>Órdenes de Compra</button>
-          <button className={tab === 'estado' ? 'active' : ''} onClick={() => setTab('estado')}>Estado de Cuenta</button>
+          <button className={tab === 'ordenes' ? 'active' : ''} onClick={() => setTab('ordenes')}>Órdenes (Avance)</button>
+          <button className={tab === 'facturar' ? 'active' : ''} onClick={() => setTab('facturar')}>Pendiente por Facturar</button>
+          <button className={tab === 'revision' ? 'active' : ''} onClick={() => setTab('revision')}>Facturas en Revisión</button>
+          <button className={tab === 'estado' ? 'active' : ''} onClick={() => setTab('estado')}>Auditoría Financiera</button>
         </div>
       </div>
 
       <div className="kpi-grid">
-        <Card title={`Kilos pendientes de entregar (${selectedProvider})`}>
-          <div className="num" style={{ fontSize: 24 }}>{kilos(pendientesKilos)}</div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Pedido menos lo entregado, sumado de todas las OC abiertas.</p>
+        <Card title="💰 Total Adelantado (Caja)">
+          {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
+            <div className="num" style={{ fontSize: 24, color: 'var(--ok)' }}>{money(totalPagado)}</div>
+          )}
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Dinero pagado a Andrés.</p>
         </Card>
-        <Card title={entregasAtrasadas.length > 0 ? '⚠️ Entregas Atrasadas de Andrés' : '✅ Entregas al Día'}>
-          <div className="num" style={{ fontSize: 24, color: entregasAtrasadas.length > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-            {entregasAtrasadas.length}
-          </div>
+        <Card title="📦 Valor Entregado (Kilos)">
+          {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
+            <div className="num" style={{ fontSize: 24 }}>{money(totalPurchasesCost)}</div>
+          )}
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>{kilos(totalReceivedKilos)} entregados a ${currentCostPerKg}/kg.</p>
+        </Card>
+        <Card title="⚖️ Balance Final (Deuda)">
+          {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
+            <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--ok)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
+              {deudaReal < 0 ? `- ${money(Math.abs(deudaReal))}` : money(deudaReal)}
+            </div>
+          )}
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
-            {entregasAtrasadas.length > 0
-              ? 'OC que ya pasaron su fecha de entrega estimada sin completarse.'
-              : 'Ninguna OC abierta ha pasado su fecha de entrega estimada.'}
+             {deudaReal < 0 ? 'A tu favor (Andrés te debe bolsas).' : deudaReal > 0 ? 'Le debes dinero a Andrés.' : 'Saldos cuadrados al centavo.'}
           </p>
         </Card>
-        <Card title={`${deudaReal < 0 ? '🟢' : deudaReal > 0 ? '🔴' : '⚪'} Deuda al día de hoy con ${selectedProvider}`}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ok)' }}>
-              <span>Saldo a favor (Total Pagado/Adelantos)</span>
-              <strong>{money(totalPagado)}</strong>
+        <Card title={entregasAtrasadas.length > 0 ? '⚠️ Entregas Atrasadas' : '✅ Entregas al Día'}>
+          {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
+            <div className="num" style={{ fontSize: 24, color: entregasAtrasadas.length > 0 ? 'var(--bad)' : 'var(--ink)' }}>
+              {entregasAtrasadas.length} OCs
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-              <span>Kilos entregados ({kilos(totalReceivedKilos)})</span>
-              <strong>{money(totalPurchasesCost)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px', color: (config?.historicalDebtAndres || 0) < 0 ? 'var(--bad)' : 'var(--ok)' }}>
-              <span>Deuda Histórica (Pasivo)</span>
-              <strong>{money(config?.historicalDebtAndres || 0)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', paddingTop: '4px', borderTop: '1px solid var(--border)', marginTop: '4px', color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
-              <span>Deuda Real Actualizada</span>
-              <span>{deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}</span>
-            </div>
-          </div>
+          )}
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Órdenes que pasaron su fecha estimada.</p>
         </Card>
       </div>
 
-      {tab === 'ordenes' ? (
+      {tab === 'ordenes' && (
         <Card
           actions={
             <>
+              <button className="btn btn-primary no-print" onClick={() => setPagarModal(true)}>💸 Registrar Anticipo / Pago</button>
               <button className="btn btn-primary no-print" onClick={() => setSelected({
                 id: doc(collection(db, PATHS.purchases)).id,
                 date: Timestamp.fromDate(new Date()),
                 provider: selectedProvider,
                 expectedKilos: 0,
                 receivedKilos: 0,
-                pricePerKg: 42,
+                pricePerKg: currentCostPerKg,
                 totalAmount: 0,
                 paidAmount: 0,
                 status: 'pedido',
                 createdAt: null,
                 items: [],
               } as unknown as Purchase)}>
-                + Nuevo Pedido al Fabricante
+                + Nueva OC
               </button>
-              <button className="btn btn-primary no-print" onClick={() => setPagarModal(true)}>💸 Registrar Pago / Adelanto</button>
-              <span className="spacer" />
-              <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar Excel (CSV)</button>
-              <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado de Cuenta (PDF)</button>
             </>
           }
-          title="Historial de Compras"
+          title="Órdenes de Compra (Dinero vs Avance Físico)"
         >
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <input
               className="input boxed"
               style={{ maxWidth: 320 }}
@@ -279,9 +285,21 @@ export default function Compras() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <div className="btn-group">
+              <button className={`btn-small ${filter === 'activas' ? 'active' : ''}`} onClick={() => setFilter('activas')}>Activas</button>
+              <button className={`btn-small ${filter === 'completadas' ? 'active' : ''}`} onClick={() => setFilter('completadas')}>Completadas</button>
+              <button className={`btn-small ${filter === 'todas' ? 'active' : ''}`} onClick={() => setFilter('todas')}>Todas</button>
+            </div>
           </div>
-          {searchedPurchases.length === 0 ? (
-            <Empty>{search ? 'Sin resultados para esa búsqueda.' : `No hay compras registradas para ${selectedProvider}.`}</Empty>
+          
+          {isLoading ? (
+            <div style={{ display: 'grid', gap: 12 }}>
+               <Skeleton style={{ height: 40 }} />
+               <Skeleton style={{ height: 40 }} />
+               <Skeleton style={{ height: 40 }} />
+            </div>
+          ) : filteredPurchases.length === 0 ? (
+            <Empty>No hay órdenes en este estado.</Empty>
           ) : (
             <div className="table-scroll">
               <table className="data-table">
@@ -289,38 +307,48 @@ export default function Compras() {
                   <tr>
                     <th>Folio / OC</th>
                     <th>Cliente</th>
-                    <th>Fecha</th>
-                    <th>Entrega estimada</th>
-                    <th className="num">Kilos Pedidos</th>
-                    <th className="num">Kilos Entregados</th>
-                    <th className="num">Costo Total</th>
-                    <th>Estado</th>
+                    <th>Fecha OC</th>
+                    <th className="num">Anticipo (Monto OC)</th>
+                    <th className="num">Valor Entregado</th>
+                    <th className="num">Saldo (Dinero)</th>
+                    <th>Progreso (Kilos)</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {searchedPurchases.map((p) => {
+                  {filteredPurchases.map((p) => {
                     const o = orderById.get(p.id);
-                    const kilosFaltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
-                    const atrasado = !!o?.estimatedDeliveryDate && kilosFaltan > 0.01 && o.estimatedDeliveryDate.toMillis() < hoy;
+                    const montoOC = p.totalAmount || 0;
+                    const valorEntregado = round2(p.receivedKilos * currentCostPerKg);
+                    const saldoOC = montoOC - valorEntregado;
+                    
+                    const progress = montoOC > 0 ? Math.min(100, Math.round((valorEntregado / montoOC) * 100)) : 0;
+                    const isCompleted = progress >= 100;
+                    
                     return (
-                      <tr key={p.id} style={atrasado ? { background: 'rgba(220,38,38,0.06)' } : undefined}>
+                      <tr key={p.id} style={isCompleted ? { opacity: 0.6 } : undefined}>
                         <td className="mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{o?.folio || '—'}</td>
                         <td style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{o?.client || '—'}</td>
                         <td className="mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{fmtDate(p.date)}</td>
-                        <td className="mono" style={{ color: atrasado ? 'var(--bad)' : undefined, fontWeight: atrasado ? 700 : undefined }}>
-                          {o?.estimatedDeliveryDate ? fmtDate(o.estimatedDeliveryDate) : '—'}
-                          {atrasado && ' ⚠️'}
+                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>
+                          <strong>{money(montoOC)}</strong>
                         </td>
-                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{kilos(p.expectedKilos)}</td>
-                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{kilos(p.receivedKilos)}</td>
-                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{money(p.totalAmount)}</td>
+                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{money(valorEntregado)}</td>
+                        <td className="num mono" style={{ cursor: 'pointer', color: saldoOC > 0 ? 'var(--bad)' : 'var(--ok)' }} onClick={() => setSelected(p)}>
+                          {money(saldoOC)}
+                        </td>
                         <td style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>
-                          <StatusBadge status={p.status === 'pedido' ? 'pending' : p.status === 'parcial' ? 'manual_review' : 'paid'} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ flex: 1, height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                              <div style={{ width: `${progress}%`, height: '100%', background: isCompleted ? 'var(--ok)' : 'var(--info)' }} />
+                            </div>
+                            <span className="mono" style={{ fontSize: 11, width: 35, textAlign: 'right' }}>{progress}%</span>
+                          </div>
+                          <div className="hint" style={{ fontSize: 10, marginTop: 2 }}>{kilos(p.receivedKilos)} de {kilos(p.expectedKilos)}</div>
                         </td>
                         <td>
-                          {o && (
-                            <button className="btn-small" onClick={() => setDeliveryOrder(o)} title="Registrar una entrega de Andrés para esta OC, sin abrir el expediente completo">
+                          {!isCompleted && o && (
+                            <button className="btn-small" onClick={(e) => { e.stopPropagation(); setDeliveryOrder(o); }} title="Registrar una entrega de Andrés" style={{ background: 'var(--ok)', color: '#fff', fontWeight: 600, border: 'none' }}>
                               📦 Registrar Entrega
                             </button>
                           )}
@@ -333,204 +361,229 @@ export default function Compras() {
             </div>
           )}
         </Card>
-      ) : (
+      )}
+
+      {tab === 'facturar' && (
         <Card 
-          title={`Estado de Cuenta: ${selectedProvider}`} 
+          title="Pendiente por Facturar (Pre-factura)"
           actions={
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button className="btn btn-primary no-print" onClick={() => setPagarModal(true)}>💸 Registrar Pago / Adelanto</button>
-              <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar Excel (CSV)</button>
-              <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado de Cuenta (PDF)</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+               <button className="btn" onClick={() => {
+                 const text = `Facturación Proveedor\n\nMétodo de Pago: PPD\nForma de Pago: 99\nClave SAT: 24141500 (Películas de plástico)\nUnidad SAT: KGM\nUso CFDI: G01\n\nKilos Totales: ${totalReceivedKilos.toFixed(2)}\nPrecio Unitario: $${currentCostPerKg.toFixed(2)}\n\nSubtotal: $${totalPurchasesCost.toFixed(2)}\nIVA: $${(totalPurchasesCost * 0.16).toFixed(2)}\nTOTAL: $${(totalPurchasesCost * 1.16).toFixed(2)}`;
+                 navigator.clipboard.writeText(text);
+                 toast('Datos SAT copiados al portapapeles', 'ok');
+               }} disabled={isLoading} style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', fontWeight: 600 }}>📋 Copiar Resumen SAT</button>
+               <button className="btn" onClick={() => window.print()} disabled={isLoading}>🖨️ Imprimir Pre-Factura</button>
             </div>
           }
         >
-          {ledger.length === 0 ? (
-            <Empty>No hay movimientos registrados para este proveedor.</Empty>
-          ) : (
-            <div className="table-scroll">
+          {isLoading ? <Skeleton style={{ height: 200 }} /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p className="hint">Consolidación de las entregas de mercancía pendientes de facturar por parte de {selectedProvider}.</p>
+              
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Fecha</th>
-                    <th>Concepto</th>
-                    <th className="num">Cargo (+)</th>
-                    <th className="num">Abono (-)</th>
-                    <th className="num">Saldo</th>
+                    <th>Descripción</th>
+                    <th className="num">Kilos Entregados</th>
+                    <th className="num">Precio Unit.</th>
+                    <th className="num">Importe Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(() => {
-                    let runningBalance = 0;
-                    return ledger.map((entry, idx) => {
-                      runningBalance += (entry.cargo - entry.abono);
-                      return (
-                        <tr key={entry.id + idx}>
-                          <td className="mono">{fmtDate(entry.date)}</td>
-                          <td>
-                            {entry.concept}
-                            {entry.source === 'purchase' && <span className="badge pending" style={{marginLeft: 8}}>Compra</span>}
-                          </td>
-                          <td className="num mono" style={{ color: entry.cargo > 0 ? 'var(--bad)' : 'inherit' }}>
-                            {entry.cargo > 0 ? money(entry.cargo) : '-'}
-                          </td>
-                          <td className="num mono" style={{ color: entry.abono > 0 ? 'var(--ok)' : 'inherit' }}>
-                            {entry.abono > 0 ? money(entry.abono) : '-'}
-                          </td>
-                          <td className="num mono" style={{ fontWeight: 600 }}>
-                            {money(runningBalance)}
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })()}
+                  <tr>
+                    <td>Bolsas de línea (Consolidado a fecha)</td>
+                    <td className="num mono">{kilos(totalReceivedKilos)}</td>
+                    <td className="num mono">${currentCostPerKg.toFixed(2)}</td>
+                    <td className="num mono"><strong>{money(totalPurchasesCost)}</strong></td>
+                  </tr>
                 </tbody>
               </table>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, marginTop: 16 }}>
+                <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                   <h4 style={{ margin: '0 0 12px 0', fontSize: 13, color: 'var(--ink)' }}>Datos para la Factura (SAT)</h4>
+                   <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 8, fontSize: 13 }}>
+                     <strong>Método de Pago:</strong> <span>PPD (Pago en Parcialidades o Diferido)</span>
+                     <strong>Forma de Pago:</strong> <span>99 (Por definir)</span>
+                     <strong>Clave SAT:</strong> <span className="mono">24141500 (Películas o láminas de plástico)</span>
+                     <strong>Unidad SAT:</strong> <span className="mono">KGM (Kilogramo)</span>
+                     <strong>Uso CFDI:</strong> <span>G01 (Adquisición de mercancías)</span>
+                   </div>
+                </div>
+                
+                <div style={{ padding: 16, border: '2px solid #e2e8f0', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span>Subtotal:</span>
+                    <span className="mono">{money(totalPurchasesCost)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span>IVA (16%):</span>
+                    <span className="mono">{money(totalPurchasesCost * 0.16)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border)', paddingTop: 12, fontSize: 18, fontWeight: 'bold' }}>
+                    <span>TOTAL:</span>
+                    <span className="mono">{money(totalPurchasesCost * 1.16)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </Card>
       )}
 
-      {selected && (
-        <PurchaseModal purchase={selected} onClose={() => setSelected(null)} />
+      {tab === 'revision' && (
+        <Card title="Facturas en Revisión (Bandeja)">
+           {isLoading ? <Skeleton style={{ height: 150 }} /> : (
+              <Empty icon="📂">Aún no has subido facturas en revisión para este proveedor. Esta área servirá para validar los XML/PDF contra los Kilos Entregados.</Empty>
+           )}
+        </Card>
       )}
 
-      {deliveryOrder && (
-        <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} />
+      {tab === 'estado' && (
+        <Card
+          title="Auditoría Financiera y Libro Mayor"
+          actions={
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn btn-primary no-print" onClick={() => setAjusteModal(true)}>⚖️ Registrar Ajuste Manual</button>
+              <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar CSV</button>
+              <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado</button>
+            </div>
+          }
+        >
+          {isLoading ? <Skeleton style={{ height: 300 }} /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 16 }}>
+                 <h4 style={{ margin: '0 0 12px 0', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                   <span>🕵️‍♂️</span> Fórmula de Auditoría Financiera
+                 </h4>
+                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, textAlign: 'center' }}>
+                   <div>
+                     <div className="hint" style={{ fontSize: 11 }}>1. Kilos Recibidos</div>
+                     <div className="mono" style={{ fontSize: 16 }}>{totalReceivedKilos.toLocaleString()} kg</div>
+                   </div>
+                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>×</div>
+                   <div>
+                     <div className="hint" style={{ fontSize: 11 }}>2. Costo Actual</div>
+                     <div className="mono" style={{ fontSize: 16 }}>${currentCostPerKg.toFixed(2)}</div>
+                   </div>
+                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>=</div>
+                   <div>
+                     <div className="hint" style={{ fontSize: 11 }}>3. Valor Entregado</div>
+                     <div className="mono" style={{ fontSize: 16, fontWeight: 'bold' }}>{money(totalPurchasesCost)}</div>
+                   </div>
+                 </div>
+                 
+                 <div style={{ borderTop: '1px dashed #fecaca', margin: '16px 0' }} />
+                 
+                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, textAlign: 'center' }}>
+                   <div>
+                     <div className="hint" style={{ fontSize: 11 }}>3. Valor Entregado</div>
+                     <div className="mono" style={{ fontSize: 16 }}>{money(totalPurchasesCost)}</div>
+                   </div>
+                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>-</div>
+                   <div>
+                     <div className="hint" style={{ fontSize: 11 }}>4. Total Pagado</div>
+                     <div className="mono" style={{ fontSize: 16 }}>{money(totalPagado)}</div>
+                   </div>
+                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>=</div>
+                   <div>
+                     <div className="hint" style={{ fontSize: 11 }}>Deuda Matemática</div>
+                     <div className="mono" style={{ fontSize: 18, fontWeight: 'bold' }}>{money(totalPurchasesCost - totalPagado)}</div>
+                   </div>
+                 </div>
+                 {deudaHistorica !== 0 && (
+                   <p className="hint" style={{ marginTop: 12, textAlign: 'center', color: '#991b1b' }}>
+                     * Nota: Existe una deuda/ajuste histórico configurado por {money(deudaHistorica)} que afecta el balance final.
+                   </p>
+                 )}
+              </div>
+
+              {ledger.length === 0 ? (
+                <Empty>No hay movimientos registrados.</Empty>
+              ) : (
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Origen</th>
+                        <th>Movimiento / Concepto</th>
+                        <th className="num">Cargo (Aumenta Deuda)</th>
+                        <th className="num">Abono (Disminuye Deuda)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledger.map((e, i) => (
+                        <tr key={`${e.id}-${i}`}>
+                          <td className="mono">{fmtDate(e.date)}</td>
+                          <td>
+                            {e.source === 'purchase' ? (
+                              <span className="badge b-ok">Entregado</span>
+                            ) : (
+                              <span className="badge b-warn">Pago</span>
+                            )}
+                          </td>
+                          <td>{e.concept}</td>
+                          <td className="num mono" style={{ color: e.cargo ? 'var(--bad)' : 'inherit', fontWeight: e.cargo ? 600 : 'normal' }}>
+                            {e.cargo ? money(e.cargo) : '—'}
+                          </td>
+                          <td className="num mono" style={{ color: e.abono ? 'var(--ok)' : 'inherit', fontWeight: e.abono ? 600 : 'normal' }}>
+                            {e.abono ? money(e.abono) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
       )}
 
-      {pagarModal && (
-        <RegistrarPagoModal onClose={() => setPagarModal(false)} selectedProvider={selectedProvider} />
-      )}
+      {selected && <OrderModal purchase={selected} onClose={() => setSelected(null)} costPricePerKg={currentCostPerKg} />}
+      {pagarModal && <RegistrarPagoModal selectedProvider={selectedProvider} onClose={() => setPagarModal(false)} />}
+      {ajusteModal && <AjusteModal selectedProvider={selectedProvider} onClose={() => setAjusteModal(false)} />}
+      {deliveryOrder && <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} costPricePerKg={currentCostPerKg} />}
     </>
   );
 }
 
-
-function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () => void }) {
-  const { user } = useAuth();
+function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Purchase, onClose: () => void, costPricePerKg: number }) {
   const toast = useToast();
-  const { products } = useProducts();
   const [busy, setBusy] = useState(false);
-  const [creatingCode, setCreatingCode] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    date: toInputDate(purchase.date),
-    provider: purchase.provider,
-    expectedKilos: String(purchase.expectedKilos || ''),
-    receivedKilos: String(purchase.receivedKilos || ''),
-    pricePerKg: String(purchase.pricePerKg || '42'),
-    totalAmount: String(purchase.totalAmount || ''),
-    paidAmount: String(purchase.paidAmount || ''),
-    status: purchase.status,
-    notes: purchase.notes ?? '',
-    items: purchase.items ?? [],
-  });
-
-  const set = (k: keyof typeof form, v: any) => setForm((f) => ({ ...f, [k]: v }));
-
-  /**
-   * Busca el codigo en el catalogo compartido (el mismo que usa OrderModal
-   * para las ventas) y autocompleta descripcion, unidad y precio. Antes
-   * Compras no tenia ningun campo de codigo: cada renglon era texto libre
-   * sin conexion al catalogo, asi que nunca se sabia si "BOLSA 77X55" de una
-   * compra era el mismo articulo que "Bolsa Polietileno 77 CM X 55 CM" de
-   * una venta.
-   */
-  function buscarPorCodigo(i: number, code: string) {
-    const newItems = [...form.items];
-    newItems[i] = { ...newItems[i], code };
-    const prod = products.find(p => (p.code ?? '').trim().toLowerCase() === code.trim().toLowerCase());
-    if (prod && code.trim()) {
-      newItems[i].description = prod.description;
-      newItems[i].unit = prod.unit || newItems[i].unit;
-      if (!newItems[i].unitPrice) {
-        newItems[i].unitPrice = prod.defaultPrice;
-        newItems[i].amount = newItems[i].quantity * prod.defaultPrice;
-      }
-    }
-    set('items', newItems);
-  }
-
-  async function altaRapidaProducto(i: number) {
-    const item = form.items[i];
-    const code = (item.code ?? '').trim();
-    if (!code) return;
-    setCreatingCode(code);
-    try {
-      await addDoc(collection(db, PATHS.products), {
-        code,
-        description: item.description || code,
-        unit: item.unit || 'kg',
-        defaultPrice: item.unitPrice || 0,
-        createdAt: serverTimestamp(),
-      });
-      toast(`Producto ${code} agregado al catálogo.`, 'ok');
-    } catch (e) {
-      toast(`No se pudo agregar al catálogo: ${(e as Error).message}`, 'bad');
-    } finally {
-      setCreatingCode(null);
-    }
-  }
-
-  const expectedNum = form.items.length > 0 
-    ? form.items.reduce((acc, it) => acc + (it.unit.toLowerCase() === 'kg' || it.unit.toLowerCase() === 'kilos' ? it.quantity : 0), 0)
-    : (Number(form.expectedKilos) || 0);
-  const priceNum = Number(form.pricePerKg) || 0;
-  const totalAmountCalc = form.items.length > 0
-    ? form.items.reduce((acc, it) => acc + it.amount, 0)
-    : (Number(form.totalAmount) || 0);
+  const [montoOC, setMontoOC] = useState(purchase.totalAmount > 0 ? String(purchase.totalAmount) : '');
+  const [fecha, setFecha] = useState(toInputDate(purchase.date ?? Timestamp.now()) || '');
+  
+  // No products needed in this specific simplified logic, they are in the order if anything
+  const monto = Number(montoOC) || 0;
+  const kilosCalculados = monto / costPricePerKg;
 
   async function save() {
-    if (expectedNum <= 0) return toast('Kilos inválidos', 'bad');
-    if (!form.provider.trim()) return toast('Falta el nombre del proveedor.', 'bad');
-
+    if (!monto || monto <= 0) return toast('El monto debe ser mayor a 0', 'bad');
     setBusy(true);
     try {
-      const d = fromInputDate(form.date) ?? new Date();
-      const newPaidAmount = Number(form.paidAmount) || 0;
-      const oldPaidAmount = purchase.paidAmount || 0;
-      const diffPaid = newPaidAmount - oldPaidAmount;
-
+      const d = fromInputDate(fecha) ?? new Date();
       await setDoc(doc(db, PATHS.purchases, purchase.id), {
         date: Timestamp.fromDate(d),
-        provider: form.provider.trim(),
-        expectedKilos: expectedNum,
-        receivedKilos: Number(form.receivedKilos) || 0,
-        pricePerKg: priceNum,
-        totalAmount: totalAmountCalc,
-        paidAmount: newPaidAmount,
-        status: form.status,
-        notes: form.notes.trim(),
-        items: form.items,
+        provider: purchase.provider,
+        expectedKilos: kilosCalculados,
+        receivedKilos: purchase.receivedKilos ?? 0,
+        pricePerKg: costPricePerKg,
+        totalAmount: monto,
+        paidAmount: purchase.paidAmount ?? 0,
+        status: purchase.status ?? 'pedido',
         createdAt: purchase.createdAt ?? serverTimestamp(),
       }, { merge: true });
       
-      await logAction(user?.email, purchase.createdAt ? 'Compra Editada' : 'Compra Creada', {
+      await logAction('Sistema', purchase.createdAt ? 'Edición de Anticipo/OC a Andrés' : 'Nuevo Anticipo/OC a Andrés', {
         id: purchase.id,
-        provider: form.provider.trim(),
-        totalAmount: totalAmountCalc
+        montoOC: monto
       });
 
-      // Crear egreso en Caja Chica por el nuevo pago/anticipo
-      if (diffPaid > 0) {
-        try {
-          await setDoc(doc(collection(db, PATHS.expenses)), {
-            date: Timestamp.now(),
-            concept: `Pago/Anticipo a Proveedor ${form.provider.trim()}`,
-            amount: diffPaid,
-            type: 'egreso',
-            notes: `Asociado al registro de compra ID: ${purchase.id}. Costo Total de OC: $${totalAmountCalc.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
-            provider: form.provider.trim() || null,
-            createdAt: serverTimestamp(),
-          });
-          toast(`Se ha registrado un Egreso en CAJA por $${diffPaid.toLocaleString('es-MX', {minimumFractionDigits:2})} de forma automática.`, 'ok');
-        } catch (e) {
-          console.error("Error creating expense:", e);
-          toast('Compra guardada, pero hubo un error al registrar en CAJA.', 'bad');
-        }
-      } else {
-        toast('Guardado', 'ok');
-      }
-      
+      toast('Orden guardada correctamente', 'ok');
       onClose();
     } catch (e) {
       toast(`Error: ${(e as Error).message}`, 'bad');
@@ -540,16 +593,11 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
   }
 
   async function remove() {
-    if (!window.confirm('¿Borrar este pedido de compra?')) return;
+    if (!window.confirm('¿Borrar esta orden?')) return;
     setBusy(true);
     try {
       await deleteDoc(doc(db, PATHS.purchases, purchase.id));
-      await logAction(user?.email, 'Compra Eliminada', {
-        id: purchase.id,
-        provider: purchase.provider,
-        totalAmount: purchase.totalAmount
-      });
-      toast('Borrado', 'ok');
+      toast('Borrada', 'ok');
       onClose();
     } catch (e) {
       toast(`Error: ${(e as Error).message}`, 'bad');
@@ -559,193 +607,54 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
   }
 
   return (
-    <Modal title={purchase.createdAt ? 'Editar compra' : 'Nueva compra'} onClose={onClose} wide>
-      <datalist id="catalog-codes">
-        {products.filter(p => p.code).map(p => (
-          <option key={p.id} value={p.code}>{p.description}</option>
-        ))}
-      </datalist>
-      <div className="form-grid">
+    <Modal title={purchase.createdAt ? 'Editar Anticipo / OC' : 'Nueva Orden (Anticipo)'} onClose={onClose}>
+      <div style={{ display: 'grid', gap: 16 }}>
         <Field label="Fecha">
-          <input className="input boxed mono" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
+          <input className="input boxed mono" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
         </Field>
-        <Field label="Proveedor">
-          <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} />
+        
+        <Field label="Monto Anticipado / OC ($)">
+          <input 
+            className="input boxed mono" 
+            type="number" 
+            step="0.01" 
+            value={montoOC} 
+            onChange={(e) => setMontoOC(e.target.value)} 
+            placeholder="Ej. 145000"
+            style={{ fontSize: 20, padding: 12, width: '100%' }}
+          />
         </Field>
-        <Field label="Kilos Pedidos (Esperados)">
-          <input className="input boxed mono" type="number" step="0.01" 
-             value={form.items.length > 0 ? expectedNum : form.expectedKilos} 
-             disabled={form.items.length > 0}
-             onChange={(e) => {
-               const kg = e.target.value;
-               const total = kg === '' ? '' : String(Number(kg) * Number(form.pricePerKg));
-               setForm(f => ({ ...f, expectedKilos: kg, totalAmount: total }));
-             }} />
-        </Field>
-        <Field label="Kilos Recibidos (Entregas parciales)">
-          <input className="input boxed mono" type="number" step="0.01" value={form.receivedKilos} onChange={(e) => set('receivedKilos', e.target.value)} />
-        </Field>
-        <Field label="Precio Costo por Kg">
-          <input className="input boxed mono" type="number" step="0.01" 
-             value={form.pricePerKg} 
-             onChange={(e) => {
-               const p = e.target.value;
-               const total = p === '' || form.expectedKilos === '' ? '' : String(Number(form.expectedKilos) * Number(p));
-               setForm(f => ({ ...f, pricePerKg: p, totalAmount: total }));
-             }} />
-        </Field>
-        <Field label="Costo Total Esperado">
-          <input className="input boxed mono" type="number" step="0.01" 
-             value={form.items.length > 0 ? totalAmountCalc : form.totalAmount} 
-             disabled={form.items.length > 0}
-             onChange={(e) => {
-               const total = e.target.value;
-               const p = Number(form.pricePerKg);
-               const kg = total === '' || p === 0 ? '' : String(Number((Number(total) / p).toFixed(2)));
-               setForm(f => ({ ...f, totalAmount: total, expectedKilos: kg }));
-             }} />
-        </Field>
-        <Field label="Anticipos o Pagos (Abonado)">
-          <input className="input boxed mono" type="number" step="0.01" value={form.paidAmount} onChange={(e) => set('paidAmount', e.target.value)} />
-        </Field>
-        <Field label="Estado">
-          <select className="input boxed" value={form.status} onChange={(e) => set('status', e.target.value as PurchaseStatus)}>
-            <option value="pedido">Pedido</option>
-            <option value="parcial">Entrega Parcial</option>
-            <option value="entregado">Entregado Completo</option>
-          </select>
-        </Field>
-        <Field label="Notas" full>
-          <textarea className="input boxed" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-        </Field>
-      </div>
-      
-      {/* Submenú de Productos */}
-      <div style={{ marginTop: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, fontSize: 14 }}>Productos a Surtir</h4>
-          <button className="btn" type="button" onClick={() => set('items', [...form.items, { id: crypto.randomUUID(), code: '', description: '', quantity: 1, unit: 'kg', unitPrice: 0, amount: 0 }])}>
-            + Agregar Producto
-          </button>
-        </div>
-        {form.items.length > 0 && (
-          <div className="table-scroll">
-            <table className="data-table" style={{ fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Cant.</th>
-                  <th>U.M.</th>
-                  <th>Descripción</th>
-                  <th className="num">P. Unit</th>
-                  <th className="num">Importe</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {form.items.map((item, i) => {
-                  const code = (item.code ?? '').trim();
-                  const enCatalogo = code !== '' && products.some(p => (p.code ?? '').trim().toLowerCase() === code.toLowerCase());
-                  return (
-                  <tr key={item.id}>
-                    <td style={{ padding: '6px 8px' }}>
-                      <input
-                        className="input boxed mono"
-                        style={{ width: 90, borderColor: code === '' ? undefined : (enCatalogo ? 'var(--ok)' : 'var(--warn)') }}
-                        list="catalog-codes"
-                        value={item.code ?? ''}
-                        placeholder="código"
-                        onChange={e => buscarPorCodigo(i, e.target.value)}
-                      />
-                      {code !== '' && !enCatalogo && (
-                        <button
-                          type="button"
-                          className="btn-small btn-warn"
-                          style={{ marginTop: 4, fontSize: 10, whiteSpace: 'nowrap' }}
-                          disabled={creatingCode === code}
-                          onClick={() => void altaRapidaProducto(i)}
-                          title="Este código no existe en el catálogo. Agrégalo con un clic."
-                        >
-                          {creatingCode === code ? 'Agregando…' : '+ Catálogo'}
-                        </button>
-                      )}
-                    </td>
-                    <td style={{ padding: '6px 8px' }}><input className="input boxed mono" type="number" style={{ width: 70 }} value={item.quantity} onChange={e => {
-                      const newItems = [...form.items];
-                      newItems[i].quantity = Number(e.target.value);
-                      newItems[i].amount = newItems[i].quantity * newItems[i].unitPrice;
-                      set('items', newItems);
-                    }} /></td>
-                    <td style={{ padding: '6px 8px' }}><input className="input boxed" style={{ width: 60 }} value={item.unit} onChange={e => {
-                      const newItems = [...form.items];
-                      newItems[i].unit = e.target.value;
-                      set('items', newItems);
-                    }} /></td>
-                    <td style={{ padding: '6px 8px' }}><input className="input boxed" style={{ width: '100%', minWidth: 200 }} value={item.description} onChange={e => {
-                      const newItems = [...form.items];
-                      newItems[i].description = e.target.value;
-                      set('items', newItems);
-                    }} /></td>
-                    <td style={{ padding: '6px 8px' }}><input className="input boxed mono" type="number" style={{ width: 85 }} value={item.unitPrice} onChange={e => {
-                      const newItems = [...form.items];
-                      newItems[i].unitPrice = Number(e.target.value);
-                      newItems[i].amount = newItems[i].quantity * newItems[i].unitPrice;
-                      set('items', newItems);
-                    }} /></td>
-                    <td className="num mono" style={{ padding: '6px 8px' }}>{money(item.amount)}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right' }}><button type="button" className="btn-icon" onClick={() => set('items', form.items.filter(x => x.id !== item.id))}>✕</button></td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        
+        <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, border: '1px dashed var(--border)' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--ink)' }}>
+            💡 Con el costo actual de <strong>${costPricePerKg.toFixed(2)}/kg</strong>, este monto ampara automáticamente:
+          </p>
+          <div className="mono" style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--ok)', marginTop: 8 }}>
+            {kilosCalculados > 0 ? kilosCalculados.toLocaleString('es-MX', { maximumFractionDigits: 2 }) : '0.00'} kg
           </div>
-        )}
-      </div>
-      
-      <div className="calc-box" style={{ marginTop: 12 }}>
-        <div className="calc-line total">
-          <span>{form.items.length > 0 ? `Costo Total de ${form.items.length} productos (Kilos: ${kilos(expectedNum)})` : `Costo Total Esperado`}</span>
-          <span className="mono">{money(totalAmountCalc)}</span>
         </div>
       </div>
-
+      
       <div className="modal-actions" style={{ marginTop: 24 }}>
-        {purchase.createdAt && (
-          <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>Eliminar</button>
-        )}
+        {purchase.createdAt && <button className="btn btn-danger" onClick={remove} disabled={busy}>Eliminar</button>}
         <span className="spacer" />
         <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
-        <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
-          {busy ? 'Guardando…' : 'Guardar'}
-        </button>
+        <button className="btn btn-primary" onClick={save} disabled={busy || monto <= 0}>Guardar</button>
       </div>
     </Modal>
   );
 }
 
-/**
- * Registra una entrega de Andres sin salir de Compras. Usa exactamente la
- * misma logica que la pestana Entregas del expediente (lib/deliveries.ts):
- * un solo lugar donde vive el modelo de "entrega como evento", capturable
- * desde dos pantallas sin que diverjan entre si.
- */
-function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClose: () => void }) {
+function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { order: PurchaseOrder, onClose: () => void, costPricePerKg: number }) {
   const toast = useToast();
-  const { config } = useConfig();
   const [busy, setBusy] = useState(false);
-  const items = order.items ?? [];
-
-  // Mismo baseline de concurrencia que usa OrderModal.save(): si alguien mas
-  // toco el expediente mientras esta ventana estaba abierta, se aborta en
-  // vez de sobreescribir en silencio.
   const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
   const [existingDeliveries] = useState(() => migrateLegacyDeliveries(order, order.deliveries ?? []));
-  const [nueva, setNueva] = useState(() => newDeliveryEvent(items));
-
-  const { kilosEntregados, deliveredByItem } = computeDeliveredTotals(existingDeliveries);
-  const kilosPedidos = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  const [nueva, setNueva] = useState(() => newDeliveryEvent(order.items ?? []));
+  const { kilosEntregados } = computeDeliveredTotals(existingDeliveries);
+  
   const kilosDeEsta = round2((nueva.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0));
+  const kilosPedidos = (order.items ?? []).reduce((a, x) => a + x.quantity, 0);
 
   function setQty(itemId: string, qty: number) {
     const nextList = updateDeliveryItemQuantity([nueva], 0, itemId, qty);
@@ -759,10 +668,7 @@ function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClo
   }
 
   async function guardar() {
-    if (kilosDeEsta <= 0) {
-      toast('Captura al menos una cantidad mayor a cero.', 'bad');
-      return;
-    }
+    if (kilosDeEsta <= 0) return toast('Captura al menos una cantidad mayor a cero.', 'bad');
     setBusy(true);
     try {
       const ref = doc(db, PATHS.orders, order.id);
@@ -772,32 +678,22 @@ function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClo
         if (!snap.exists()) throw new Error('El expediente ya no existe.');
         const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
         if (baselineUpdatedAt && freshUpdatedAt && freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()) {
-          throw new Error('Este expediente fue modificado por otra persona justo ahora. Ciérralo y vuelve a intentarlo.');
+          throw new Error('Este expediente fue modificado. Ciérralo y vuelve a intentarlo.');
         }
         tx.set(ref, { deliveries: nuevasDeliveries, updatedAt: serverTimestamp() }, { merge: true });
       });
-      // Antes esta funcion terminaba aqui: la entrega quedaba guardada en el
-      // expediente pero la deuda con Andres nunca se actualizaba, porque ese
-      // paso solo vivia dentro de OrderModal.save(). Misma funcion
-      // compartida que usa el expediente, para que los dos caminos nunca
-      // vuelvan a divergir.
+      
       const { kilosEntregados: totalEntregadoAhora } = computeDeliveredTotals(nuevasDeliveries);
-      try {
-        await upsertAndresPurchase({
-          orderId: order.id,
-          provider: order.provider || 'Andrés',
-          expectedKilos: kilosPedidos,
-          receivedKilos: totalEntregadoAhora,
-          // Costo real: respeta el override del expediente si existe, si no
-          // usa la configuracion — ya no un 42 fijo sin relacion con lo
-          // configurado.
-          costPerKg: order.customCostPrice ?? config.costPricePerKg,
-        });
-      } catch (err) {
-        console.error('Error al actualizar la compra a Andrés', err);
-        toast('La entrega se guardó, pero hubo un error al actualizar la deuda con Andrés. Ábrela desde Expedientes para corregirlo.', 'bad');
-      }
-      toast(`Entrega de ${kilosDeEsta.toLocaleString('es-MX')} kg registrada en ${order.folio || order.id}.`, 'ok');
+      
+      await upsertAndresPurchase({
+        orderId: order.id,
+        provider: order.provider || 'Andrés',
+        expectedKilos: kilosPedidos,
+        receivedKilos: totalEntregadoAhora,
+        costPerKg: order.customCostPrice ?? costPricePerKg,
+      });
+      
+      toast(`Entrega de ${kilosDeEsta} kg registrada.`, 'ok');
       onClose();
     } catch (e) {
       toast(`No se pudo registrar: ${(e as Error).message}`, 'bad');
@@ -808,52 +704,32 @@ function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClo
 
   return (
     <Modal title={`Registrar Entrega — ${order.folio || '(sin folio)'}`} onClose={onClose}>
-      <p className="hint">
-        Cliente: <strong>{order.client || '—'}</strong> · Entregado a la fecha: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
-      </p>
-
+      <p className="hint">Entregado a la fecha: {kilosEntregados} kg de {kilosPedidos} kg pedidos</p>
       <Field label="Fecha de esta entrega">
-        <input className="input boxed mono" type="date" defaultValue={toInputDate(nueva.date) || ''} onChange={(e) => setFecha(e.target.value)} />
+        <input type="date" className="input boxed mono" defaultValue={toInputDate(nueva.date) || ''} onChange={e => setFecha(e.target.value)} />
       </Field>
-
-      {items.length === 0 ? (
-        <p className="hint">Este expediente no tiene productos capturados; no se puede registrar una entrega por renglón.</p>
-      ) : (
+      
+      {(order.items ?? []).length === 0 ? <Empty>Este expediente no tiene productos capturados.</Empty> : (
         <table className="data-table" style={{ width: '100%', marginTop: 12 }}>
-          <thead>
-            <tr><th>Producto</th><th className="num">Pedido</th><th className="num">Entregado a la fecha</th><th className="num">Esta entrega</th></tr>
-          </thead>
+          <thead><tr><th>Producto</th><th className="num">Esta entrega (kg)</th></tr></thead>
           <tbody>
-            {items.map((it) => {
+            {(order.items ?? []).map(it => {
               const qty = (nueva.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
               return (
                 <tr key={it.id}>
-                  <td>{it.description || it.code || '(sin descripción)'}</td>
-                  <td className="num mono">{it.quantity.toLocaleString('es-MX')}</td>
-                  <td className="num mono">{(deliveredByItem[it.id] ?? 0).toLocaleString('es-MX')}</td>
+                  <td>{it.description || it.code}</td>
                   <td className="num">
-                    <input
-                      className="input boxed mono"
-                      type="number"
-                      step="0.01"
-                      style={{ width: 90 }}
-                      defaultValue={qty || ''}
-                      placeholder="0"
-                      onBlur={(e) => setQty(it.id, Number(e.target.value))}
-                    />
+                    <input className="input boxed mono" type="number" step="0.01" style={{ width: 100 }} defaultValue={qty || ''} placeholder="0" onBlur={e => setQty(it.id, Number(e.target.value))} />
                   </td>
                 </tr>
-              );
+              )
             })}
           </tbody>
         </table>
       )}
-
       <div className="modal-actions" style={{ marginTop: 16 }}>
         <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
-        <button className="btn btn-primary" onClick={() => void guardar()} disabled={busy || kilosDeEsta <= 0}>
-          {busy ? 'Guardando…' : `Guardar entrega (${kilosDeEsta.toLocaleString('es-MX')} kg)`}
-        </button>
+        <button className="btn btn-primary" onClick={guardar} disabled={busy || kilosDeEsta <= 0}>Guardar {kilosDeEsta} kg</button>
       </div>
     </Modal>
   );
@@ -868,17 +744,16 @@ function RegistrarPagoModal({ onClose, selectedProvider }: { onClose: () => void
 
   async function guardar() {
     const amount = Number(monto);
-    if (!amount || amount <= 0) return toast('Ingresa un monto válido mayor a 0.', 'bad');
+    if (!amount || amount <= 0) return toast('Ingresa un monto válido.', 'bad');
     if (!concepto.trim()) return toast('El concepto es obligatorio.', 'bad');
 
     setBusy(true);
     try {
-      const d = fromInputDate(fecha) ?? new Date();
       await addDoc(collection(db, PATHS.expenses), {
-        date: Timestamp.fromDate(d),
+        date: Timestamp.fromDate(fromInputDate(fecha) ?? new Date()),
         concept: concepto.trim(),
         amount,
-        type: 'egreso',
+        type: 'egreso', // Salida de dinero hacia el proveedor
         category: 'proveedores',
         provider: selectedProvider,
         createdAt: serverTimestamp(),
@@ -886,7 +761,7 @@ function RegistrarPagoModal({ onClose, selectedProvider }: { onClose: () => void
       toast(`Pago de ${money(amount)} a ${selectedProvider} registrado en Caja.`, 'ok');
       onClose();
     } catch (e) {
-      toast(`No se pudo registrar el pago: ${(e as Error).message}`, 'bad');
+      toast(`Error: ${(e as Error).message}`, 'bad');
     } finally {
       setBusy(false);
     }
@@ -894,30 +769,61 @@ function RegistrarPagoModal({ onClose, selectedProvider }: { onClose: () => void
 
   return (
     <Modal title={`Registrar Pago a ${selectedProvider}`} onClose={onClose}>
-      <p className="hint" style={{ marginBottom: 16 }}>
-        Este pago se reflejará automáticamente en la <strong>Caja Chica</strong> como un egreso y abonará al saldo de {selectedProvider}.
-      </p>
-
+      <p className="hint" style={{ marginBottom: 16 }}>Este pago se reflejará automáticamente en la <strong>Caja Chica</strong> como un egreso y abonará al saldo de {selectedProvider}.</p>
       <div style={{ display: 'grid', gap: 12 }}>
-        <Field label="Monto a pagar ($)">
-          <input className="input boxed mono" type="number" step="0.01" value={monto} onChange={e => setMonto(e.target.value)} placeholder="0.00" />
-        </Field>
-        
-        <Field label="Concepto">
-          <input className="input boxed" type="text" value={concepto} onChange={e => setConcepto(e.target.value)} placeholder="Ej. Adelanto transferencia" />
-        </Field>
-
-        <Field label="Fecha del movimiento">
-          <input className="input boxed mono" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-        </Field>
+        <Field label="Monto a pagar ($)"><input className="input boxed mono" type="number" step="0.01" value={monto} onChange={e => setMonto(e.target.value)} placeholder="0.00" /></Field>
+        <Field label="Concepto"><input className="input boxed" type="text" value={concepto} onChange={e => setConcepto(e.target.value)} placeholder="Ej. Adelanto transferencia" /></Field>
+        <Field label="Fecha"><input className="input boxed mono" type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></Field>
       </div>
+      <div className="modal-actions" style={{ marginTop: 24 }}><button className="btn" onClick={onClose} disabled={busy}>Cancelar</button><button className="btn btn-primary" onClick={guardar} disabled={busy}>Registrar Pago</button></div>
+    </Modal>
+  );
+}
 
-      <div className="modal-actions" style={{ marginTop: 24 }}>
-        <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
-        <button className="btn btn-primary" onClick={() => void guardar()} disabled={busy}>
-          {busy ? 'Guardando…' : 'Registrar Pago'}
-        </button>
+function AjusteModal({ onClose, selectedProvider }: { onClose: () => void, selectedProvider: string }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [monto, setMonto] = useState('');
+  const [tipo, setTipo] = useState<'favor'|'contra'>('favor');
+  const [concepto, setConcepto] = useState('Ajuste de conciliación');
+
+  async function guardar() {
+    const amount = Number(monto);
+    if (!amount || amount <= 0) return toast('Monto inválido', 'bad');
+    setBusy(true);
+    try {
+      await addDoc(collection(db, PATHS.expenses), {
+        date: Timestamp.now(),
+        concept: `[AJUSTE] ${concepto.trim()}`,
+        amount,
+        type: tipo === 'favor' ? 'ingreso' : 'egreso', // Ingreso virtual baja la deuda (a favor nuestro).
+        category: 'ajuste',
+        provider: selectedProvider,
+        createdAt: serverTimestamp(),
+      });
+      toast('Ajuste registrado con éxito', 'ok');
+      onClose();
+    } catch (e) {
+      toast('Error al guardar el ajuste', 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Ajuste de Saldo Manual" onClose={onClose}>
+      <p className="hint" style={{ marginBottom: 16 }}>Inyecta un movimiento de conciliación para cuadrar el saldo por diferencias, mermas o devoluciones.</p>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <Field label="Tipo de Ajuste">
+          <select className="input boxed" value={tipo} onChange={e => setTipo(e.target.value as 'favor'|'contra')}>
+            <option value="favor">A nuestro favor (Baja nuestra deuda con el proveedor)</option>
+            <option value="contra">En contra (Sube nuestra deuda con el proveedor)</option>
+          </select>
+        </Field>
+        <Field label="Monto del Ajuste ($)"><input className="input boxed mono" type="number" value={monto} onChange={e => setMonto(e.target.value)} placeholder="Ej. 3500" /></Field>
+        <Field label="Justificación"><input className="input boxed" value={concepto} onChange={e => setConcepto(e.target.value)} /></Field>
       </div>
+      <div className="modal-actions" style={{ marginTop: 24 }}><button className="btn" onClick={onClose} disabled={busy}>Cancelar</button><button className="btn btn-primary" onClick={guardar} disabled={busy}>Guardar Ajuste</button></div>
     </Modal>
   );
 }

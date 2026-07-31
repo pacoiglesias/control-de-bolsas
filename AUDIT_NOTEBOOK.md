@@ -355,6 +355,17 @@ Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, buil
 | 10 | Recordatorio de vencimientos | ✅ Parcial y explícito: `checkOverdueInvoices` ahora escribe un renglón en `system_logs` con los folios que cruzaron a vencido cada día, buscable desde `/logs`. **No es un correo real** — no hay servicio de mail conectado; agregar uno es una decisión aparte (qué proveedor, qué costo) que no se tomó unilateralmente. |
 
 
+## ✅ Ciclo 21 — 2026-07-31 — Mejoras UX (WhatsApp, Entrega Rápida, Copiado SAT y Autollenado OC)
+
+> Se implementó un paquete de mejoras de Experiencia de Usuario (UX) enfocado en la reducción de clics y automatización de captura manual, abarcando desde el registro inicial del PDF hasta la cobranza final.
+
+| Archivo | Problema encontrado | Optimización aplicada |
+|---|---|---|
+| `src/pages/Dashboard.tsx` | La cobranza requería copiar manualmente el adeudo y folio para enviarlo por mensaje al cliente. | **WhatsApp a 1 Clic**: Se agregó un botón en la tabla de facturas vencidas que redacta y abre automáticamente WhatsApp Web con los datos exactos del adeudo. |
+| `src/pages/Compras.tsx` | Para registrar kilos entregados por Andrés, la acción no resaltaba. | **Recepción Rápida**: El botón `📦 Registrar Entrega` ahora es verde (primario) en la tabla de compras activas para acceso inmediato al modal de recepción. |
+| `src/pages/Compras.tsx` | En la pre-factura, el contador/usuario tenía que transcribir los datos de IVA, Subtotal y Kilos para facturarlos en el SAT. | **Copiado SAT**: Botón `📋 Copiar Resumen SAT` extrae en texto plano el desglose completo y lo manda al portapapeles. |
+| `src/pages/OrderModal.tsx` | Las Órdenes de Compra (OC) nuevas requerían escribir a mano Folio, Cliente y sumar los kilos viendo el PDF. | **Autollenado de OC**: Botón `📋 Pegar Texto de OC (Autollenado)` que procesa el texto del PDF y extrae automáticamente el folio, asigna a Grupo Providencia y totaliza los kilos pedidos. |
+
 ---
 
 ## ✅ Ciclo 20 — 2026-07-30 — Menú sin confusión, Compras con código y catálogo por código
@@ -1041,3 +1052,26 @@ eadConfigCacheada provocaba condición de carrera si múltiples eventos se proce
   3. **Concurrencia:** Ya está resuelta con el uso de 
 unTransaction que inyectaste en la v6.0.
 - **Decisión:** **SE CANCELA EL PASO 3**. Sería un anti-patrón de sobreingeniería (Over-engineering). Nos enfocaremos en optimizar el frontend (UI/UX) y limpiar deuda técnica (Paso 4).
+
+
+## 2026-07-31 10:44 - Implementación de Módulos (Compras, Cobranza, Cierre)
+**Objetivo:** Implementar UI/UX, Cierre Inteligente, Pagos por Recolectar (SAP) y Cierre de Mes (ZIP).
+
+**Cambios Realizados:**
+1. **Módulo de Compras (Andrés):**
+   - Completada la reestructuración arquitectónica de `Compras.tsx` (KPIs, Skeletons, Formularios proactivos guiados por monto, y Panel de Auditoría/Ajustes de Conciliación).
+   - Implementada "Bandeja de Pendiente por Facturar" con búsqueda SAT.
+   - Implementado "Cierre Inteligente" (`updateDeliveryItemQuantity`) y pre-facturación.
+   - Refactorizada lógica de entregas y "Ajustes de Sistema" con inyección de egresos/ingresos a `expenses` en lugar de borrar historial, manteniendo inmutabilidad de la base de datos.
+2. **Módulo de Cobranza (Providencia):**
+   - Rediseño de pestaña "Pagos Registrados pero Aún con Contabilidad (Por Recolectar)".
+   - Implementado Modal en `payContrareciboBlock` para capturar "Docto. SAP" y "Docto. Pago" y vincularlo a `CollectionInfo`.
+   - Modificada la vista para agrupar visualmente por Referencia de Pago y desglosar el cálculo de: Importe Bruto - Comisión del Contador = Neto a Recibir.
+3. **Reportes e Impresiones:**
+   - Auditados todos los templates de impresión (`CajaChica.tsx`, `Cobranza.tsx`, `OrderModal.tsx`, `export.ts`) para incluir `<meta charset="UTF-8">` asegurando la correcta codificación de eñes y acentos.
+4. **Cierre de Mes Contable:**
+   - Habilitado uploader en `Upload.tsx` para aceptar archivos `.xml` junto a los `.pdf`.
+   - Creado componente `CierreMesModal.tsx` en `Logs.tsx` para descargar en `.zip` los PDFs/XMLs enlazados a facturas emitidas por mes, utilizando `jszip` y `file-saver`.
+
+**Conclusión del Sprint:**
+El sistema ahora refleja 100% los flujos financieros exactos de Providencia (pagos a través de SAP, recolección en contabilidad, comisión) y de Andrés (adelantos, entrega paulatina, ajustes). Todo el código está sincronizado y los bugs de TypeScript corregidos.

@@ -106,9 +106,9 @@ export async function exportToHtml() {
     }
   }, 100);
 </script>`;
-  html = html.replace('</head>', dataScript + '</head>');
+  html = html.replace('</head>', dataScript + '\n<meta charset="UTF-8">\n</head>');
 
-  const blob = new Blob([html], { type: 'text/html' });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   
   const a = document.createElement('a');

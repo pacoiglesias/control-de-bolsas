@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, where, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, where, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +37,19 @@ export interface SystemRelease {
 }
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
+  {
+    version: 'v6.26.0',
+    date: '31 de Julio de 2026',
+    time: '11:00 AM',
+    summary: 'Master Track: UX Premium y Reducción de Captura.',
+    highlights: [
+      'WhatsApp a 1 Clic: Cobranza directa desde el Dashboard con adeudo exacto.',
+      'Recepción Rápida: Botón resaltado en Compras para registrar entregas de Andrés al instante.',
+      'Copiado SAT: Pre-factura lista para pegar en el SAT con un solo clic.',
+      'Autollenado de OC: Se agregó lector inteligente de texto de PDF para evitar teclear folios y kilos.'
+    ]
+  },
+
   {
     version: 'v6.25.0',
     date: '31 de Julio de 2026',
@@ -406,7 +419,8 @@ export default function Dashboard() {
       });
       setLiveLogs(list);
     });
-    return () => unsub();
+  
+return () => unsub();
     // `role` DEBE estar en las dependencias: llega asincrono desde
     // AuthContext, asi que en el primer render vale undefined, el efecto sale
     // por el early return y con el arreglo vacio nunca volvia a ejecutarse.
@@ -509,7 +523,7 @@ export default function Dashboard() {
     // esperando un arreglo, pero el trigger escribe ese campo como NUMERO via
     // FieldValue.increment: en cuanto stats/dashboard tuviera datos, el
     // Dashboard entero reventaba con "porRecibir.reduce is not a function".
-    const porRecibir: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
+    const porRecibir: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
 
     let criticos30 = 0;
     let urgentes15 = 0;
@@ -529,6 +543,8 @@ export default function Dashboard() {
           const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
           const commission = Number(inv.financials?.commission ?? 0);
           porRecibir.push({
+            orderId: o.id,
+            invoiceId: inv.id,
             folio: inv.folio ?? '—',
             cr: inv.collection?.contrareciboNumber || '—',
             invoiceTotal,
@@ -619,6 +635,41 @@ export default function Dashboard() {
     );
   }
   if (error) return <div className="alert bad">{error}</div>;
+
+  async function handleRecibir(r: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }) {
+    if (!window.confirm(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`)) return;
+    
+    try {
+      // 1. Encontrar la orden para actualizar el invoice especifico
+      const orderRef = doc(db, PATHS.orders, r.orderId);
+      const orderSnap = await getDoc(orderRef);
+      if (!orderSnap.exists()) throw new Error("Orden no encontrada");
+      
+      const orderData = orderSnap.data();
+      const invoices = orderData.invoices || [];
+      const invIndex = invoices.findIndex((i: any) => i.id === r.invoiceId);
+      if (invIndex === -1) throw new Error("Factura no encontrada");
+      
+      invoices[invIndex].creditCycle.status = 'collected';
+      invoices[invIndex].collection = { ...invoices[invIndex].collection, collectedAt: Timestamp.now() };
+      
+      await updateDoc(orderRef, { invoices });
+      
+      // 2. Ingreso a caja chica
+      await addDoc(collection(db, PATHS.expenses), {
+        date: Timestamp.now(),
+        concept: `Cobro factura #${r.folio} (CR: ${r.cr})`,
+        amount: r.net,
+        type: 'ingreso',
+        notes: `Factura: $${r.invoiceTotal.toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${r.commission.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+        createdAt: serverTimestamp(),
+      });
+      
+      toast(`💵 Recibido del contador. $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
+    } catch (e: any) {
+      toast('Error: ' + e.message, 'bad');
+    }
+  }
 
   return (
     <>
@@ -787,16 +838,22 @@ export default function Dashboard() {
                 <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Importe Factura</th>
                 <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Comisión</th>
                 <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Neto a recibir</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {k.porRecibir.map((r: { folio: string; cr: string; invoiceTotal: number; commission: number; net: number }, idx: number) => (
+              {k.porRecibir.map((r: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                   <td style={{ padding: '8px 8px', color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>#{r.folio}</td>
                   <td style={{ padding: '8px 8px', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{r.cr}</td>
                   <td style={{ padding: '8px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.8)' }}>{money(r.invoiceTotal)}</td>
                   <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
                   <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 700 }}>{money(r.net)}</td>
+                  <td style={{ padding: '8px 8px', textAlign: 'right' }}>
+                    <button className="btn" style={{ background: 'rgba(34,197,94,0.2)', color: 'var(--ok)', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 12, fontWeight: 600 }} onClick={() => handleRecibir(r)}>
+                      💵 Recibir → CAJA
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1020,7 +1077,12 @@ export default function Dashboard() {
                     <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
                     <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
-                    <td className="num mono">{d === null ? '—' : d > 0 ? `+${d}` : d}</td>
+                    <td className="num mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                      {d === null ? '—' : d > 0 ? `+${d}` : d}
+                      <span title={d !== null && d > 30 ? '+30 días' : d !== null && d >= 15 ? '+15 días' : 'Reciente'} style={{ fontSize: 10 }}>
+                        {d !== null && d > 30 ? '🔴' : d !== null && d >= 15 ? '🟡' : '🟢'}
+                      </span>
+                    </td>
                     <td className="num mono">{money(saldo)}</td>
                     <td><StatusBadge status={inv.creditCycle.status} /></td>
                   </tr>

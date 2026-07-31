@@ -45,8 +45,8 @@ export default function Upload() {
   const upload = useCallback(
     (files: FileList | File[]) => {
       Array.from(files).forEach(async (file) => {
-        if (file.type !== 'application/pdf') {
-          toast(`${file.name} no es un PDF, se omitió.`, 'bad');
+        if (file.type !== 'application/pdf' && file.type !== 'text/xml' && !file.name.endsWith('.xml')) {
+          toast(`${file.name} no es un PDF ni XML, se omitió.`, 'bad');
           return;
         }
         if (file.size > MAX_MB * 1024 * 1024) {
@@ -73,7 +73,7 @@ export default function Upload() {
         setJobs((j) => [{ id, name: file.name, path, progress: 0, state: 'subiendo' }, ...j]);
 
         const task = uploadBytesResumable(ref(storage, path), file, {
-          contentType: 'application/pdf',
+          contentType: file.type || (file.name.endsWith('.xml') ? 'text/xml' : 'application/pdf'),
           customMetadata: { fileHash },
         });
         task.on(
@@ -165,12 +165,12 @@ export default function Upload() {
             onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
           >
             <div className="dz-icon">⭱</div>
-            <div className="dz-title">Suelta aquí tus PDFs</div>
+            <div className="dz-title">Suelta aquí tus PDFs y XMLs</div>
             <div className="dz-sub">o haz clic para elegirlos · máximo {MAX_MB} MB por archivo</div>
             <input
               ref={inputRef}
               type="file"
-              accept="application/pdf"
+              accept="application/pdf, text/xml, .xml"
               multiple
               hidden
               onChange={(e) => {
