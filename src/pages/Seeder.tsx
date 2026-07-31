@@ -46,7 +46,7 @@ Pago recibido 23 julio	76140.00`);
   const addLog = (msg: string) => setLog(prev => [...prev, msg]);
 
   const handleRun = async () => {
-    const word = window.prompt("⚠️ PELIGRO ⚠️\nEsto borrará TODAS las órdenes, facturas y flujo de caja (Caja Chica).\n\nPara continuar, escribe exactamente la palabra: PROVIDENCIA");
+    const word = window.prompt("⚠️ PELIGRO ⚠️\nEsto borrará TODAS las órdenes, facturas y flujo de caja (CAJA).\n\nPara continuar, escribe exactamente la palabra: PROVIDENCIA");
     if (word !== "PROVIDENCIA") {
       alert("Palabra de seguridad incorrecta. Operación cancelada.");
       return;
@@ -82,7 +82,7 @@ Pago recibido 23 julio	76140.00`);
       addLog(`Eliminados ${countOrders} expedientes de ventas.`);
 
       const countExpenses = await deleteInBatches(PATHS.expenses);
-      addLog(`Eliminados ${countExpenses} registros de Caja Chica.`);
+      addLog(`Eliminados ${countExpenses} registros de CAJA.`);
 
       addLog("Sistema en cero. Analizando datos ingresados...");
       
@@ -291,7 +291,7 @@ Pago recibido 23 julio	76140.00`);
       });
 
       await batch.commit();
-      addLog(`Migrados ${crs.length} contrarecibos, ${facturas.length} facturas, ${pagados.length} pagados con contabilidad y ${movs.length} movimientos de Caja Chica.`);
+      addLog(`Migrados ${crs.length} contrarecibos, ${facturas.length} facturas, ${pagados.length} pagados con contabilidad y ${movs.length} movimientos de CAJA.`);
 
       // Recalcular indicadores AQUI mismo. syncDashboardStats solo reacciona a
       // escrituras posteriores a su despliegue y ademas ignora los writeBatch

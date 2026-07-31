@@ -144,6 +144,9 @@ export interface PurchaseOrder {
   fileName?: string;
   fileHash?: string;
   client?: string;
+  /** Correo del cliente, opcional. Sin esto, "Notificar al cliente" no tenia
+   *  ningun destinatario que precargar (ver Ciclo 29 en AUDIT_NOTEBOOK.md). */
+  clientEmail?: string;
   department?: string;
   provider?: string;
   oc?: string;

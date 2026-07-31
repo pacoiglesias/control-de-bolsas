@@ -117,7 +117,7 @@ export default function Compras() {
       e.concept,
       e.cargo ? e.cargo.toFixed(2) : '0.00',
       e.abono ? e.abono.toFixed(2) : '0.00',
-      e.source === 'purchase' ? 'Compra Material' : 'Caja Chica (Adelanto)'
+      e.source === 'purchase' ? 'Compra Material' : 'CAJA (Adelanto)'
     ]);
     exportToCsv(`Estado_Cuenta_Andres_${new Date().toISOString().slice(0, 10)}`, headers, rows);
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
@@ -503,10 +503,10 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
             provider: form.provider.trim() || null,
             createdAt: serverTimestamp(),
           });
-          toast(`Se ha registrado un Egreso en Caja Chica por $${diffPaid.toLocaleString('es-MX', {minimumFractionDigits:2})} de forma automática.`, 'ok');
+          toast(`Se ha registrado un Egreso en CAJA por $${diffPaid.toLocaleString('es-MX', {minimumFractionDigits:2})} de forma automática.`, 'ok');
         } catch (e) {
           console.error("Error creating expense:", e);
-          toast('Compra guardada, pero hubo un error al registrar en Caja Chica.', 'bad');
+          toast('Compra guardada, pero hubo un error al registrar en CAJA.', 'bad');
         }
       } else {
         toast('Guardado', 'ok');

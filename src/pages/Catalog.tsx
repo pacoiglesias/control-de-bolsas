@@ -1,12 +1,20 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { addDoc, collection, doc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Spinner } from '../components/ui';
-import { money } from '../lib/format';
+import { Card, Field, Spinner } from '../components/ui';
+import { useToast } from '../context/ToastContext';
 
 export default function Catalog() {
   const { products, loading: pLoad, error: pErr } = useProducts();
   const { orders, loading: oLoad, error: oErr } = useOrders();
+  const toast = useToast();
+  // Antes esta pantalla era solo de analisis: se podia editar el codigo de
+  // un producto haciendo clic, pero no habia forma de dar de alta uno nuevo
+  // ni de corregir descripcion, unidad o precio sin ir a otra pantalla.
+  const [nuevo, setNuevo] = useState({ code: '', description: '', unit: 'kg', defaultPrice: '' });
+  const [creando, setCreando] = useState(false);
 
   const analytics = useMemo(() => {
     if (!products || !orders) return [];
@@ -88,6 +96,48 @@ export default function Catalog() {
         <p>Análisis predictivo de demanda basado en tu historial de pedidos.</p>
       </div>
 
+      <Card title="Agregar producto nuevo">
+        <div className="form-grid">
+          <Field label="Código">
+            <input className="input boxed mono" value={nuevo.code} onChange={(e) => setNuevo({ ...nuevo, code: e.target.value })} placeholder="ej. enbo000006-sc" />
+          </Field>
+          <Field label="Descripción">
+            <input className="input boxed" value={nuevo.description} onChange={(e) => setNuevo({ ...nuevo, description: e.target.value })} placeholder="ej. Bolsa Polietileno 77 CM X 55 CM" />
+          </Field>
+          <Field label="Unidad">
+            <input className="input boxed" value={nuevo.unit} onChange={(e) => setNuevo({ ...nuevo, unit: e.target.value })} />
+          </Field>
+          <Field label="Precio sugerido">
+            <input className="input boxed mono" type="number" step="0.01" value={nuevo.defaultPrice} onChange={(e) => setNuevo({ ...nuevo, defaultPrice: e.target.value })} placeholder="0.00" />
+          </Field>
+        </div>
+        <button
+          className="btn btn-primary"
+          style={{ marginTop: 12 }}
+          disabled={creando || !nuevo.description.trim()}
+          onClick={async () => {
+            setCreando(true);
+            try {
+              await addDoc(collection(db, PATHS.products), {
+                code: nuevo.code.trim(),
+                description: nuevo.description.trim(),
+                unit: nuevo.unit.trim() || 'kg',
+                defaultPrice: Number(nuevo.defaultPrice) || 0,
+                createdAt: serverTimestamp(),
+              });
+              toast(`Producto "${nuevo.description}" agregado al catálogo.`, 'ok');
+              setNuevo({ code: '', description: '', unit: 'kg', defaultPrice: '' });
+            } catch (e) {
+              toast(`No se pudo agregar: ${(e as Error).message}`, 'bad');
+            } finally {
+              setCreando(false);
+            }
+          }}
+        >
+          {creando ? 'Agregando…' : '+ Agregar Producto'}
+        </button>
+      </Card>
+
       <Card title="Productos Registrados">
         {analytics.length === 0 ? (
           <p className="hint">Aún no hay productos en tu catálogo. Se agregarán automáticamente al guardar nuevas órdenes.</p>
@@ -105,6 +155,7 @@ export default function Catalog() {
                   <th>Último Pedido</th>
                   <th className="num">Frecuencia</th>
                   <th>Próximo Esperado</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -117,32 +168,95 @@ export default function Catalog() {
                       {p.status === 'unknown' && <span title="Faltan datos para predecir (sólo 1 pedido)" style={{ fontSize: 20 }}>⚪</span>}
                     </td>
                     <td className="mono">
-                      <input 
-                        className="input boxed mono" 
-                        style={{ width: '100px', fontSize: '12px' }} 
-                        defaultValue={p.code || ''} 
+                      <input
+                        className="input boxed mono"
+                        style={{ width: '100px', fontSize: '12px' }}
+                        defaultValue={p.code || ''}
                         placeholder="Sin código"
                         onBlur={async (e) => {
                           if (e.target.value !== (p.code || '')) {
                             try {
-                              const { doc, updateDoc } = await import('firebase/firestore');
-                              const { db } = await import('../lib/firebase');
-                              await updateDoc(doc(db, 'products', p.id), { code: e.target.value });
+                              await updateDoc(doc(db, PATHS.products, p.id), { code: e.target.value.trim() });
                             } catch (err) {
-                              console.error('Error al guardar código:', err);
+                              toast(`No se pudo guardar el código: ${(err as Error).message}`, 'bad');
                             }
                           }
                         }}
                       />
                     </td>
-                    <td style={{ fontWeight: 600 }}>{p.description}</td>
-                    <td className="num mono">{money(p.defaultPrice)} <span style={{fontSize:10, color:'#666'}}>/{p.unit}</span></td>
+                    <td>
+                      <input
+                        className="input boxed"
+                        style={{ minWidth: 220, fontWeight: 600 }}
+                        defaultValue={p.description}
+                        onBlur={async (e) => {
+                          if (e.target.value.trim() && e.target.value !== p.description) {
+                            try {
+                              await updateDoc(doc(db, PATHS.products, p.id), { description: e.target.value.trim() });
+                            } catch (err) {
+                              toast(`No se pudo guardar la descripción: ${(err as Error).message}`, 'bad');
+                            }
+                          }
+                        }}
+                      />
+                    </td>
+                    <td className="num mono">
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <input
+                          className="input boxed mono"
+                          style={{ width: 80 }}
+                          type="number" step="0.01"
+                          defaultValue={p.defaultPrice}
+                          onBlur={async (e) => {
+                            const v = Number(e.target.value);
+                            if (!isNaN(v) && v !== p.defaultPrice) {
+                              try {
+                                await updateDoc(doc(db, PATHS.products, p.id), { defaultPrice: v });
+                              } catch (err) {
+                                toast(`No se pudo guardar el precio: ${(err as Error).message}`, 'bad');
+                              }
+                            }
+                          }}
+                        />
+                        <input
+                          className="input boxed"
+                          style={{ width: 50, fontSize: 11 }}
+                          defaultValue={p.unit}
+                          onBlur={async (e) => {
+                            if (e.target.value.trim() && e.target.value !== p.unit) {
+                              try {
+                                await updateDoc(doc(db, PATHS.products, p.id), { unit: e.target.value.trim() });
+                              } catch (err) {
+                                toast(`No se pudo guardar la unidad: ${(err as Error).message}`, 'bad');
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </td>
                     <td className="num">{p.orderCount}</td>
                     <td className="num">{p.totalQty.toLocaleString('es-MX')} {p.unit}</td>
                     <td className="mono">{p.lastDate ? p.lastDate.toLocaleDateString('es-MX') : '—'}</td>
                     <td className="num">{p.avgDays > 0 ? `Cada ${Math.round(p.avgDays)} días` : '—'}</td>
                     <td className="mono" style={{ fontWeight: p.status === 'red' ? 700 : 400, color: p.status === 'red' ? 'var(--bad)' : 'inherit' }}>
                       {p.nextDate ? p.nextDate.toLocaleDateString('es-MX') : '—'}
+                    </td>
+                    <td>
+                      <button
+                        className="btn-icon"
+                        title="Eliminar del catálogo (no borra el historial de pedidos)"
+                        onClick={async () => {
+                          if (!window.confirm(`¿Eliminar "${p.description}" del catálogo?`)) return;
+                          try {
+                            await deleteDoc(doc(db, PATHS.products, p.id));
+                            toast('Producto eliminado del catálogo.', 'ok');
+                          } catch (err) {
+                            toast(`No se pudo eliminar: ${(err as Error).message}`, 'bad');
+                          }
+                        }}
+                      >
+                        ✕
+                      </button>
                     </td>
                   </tr>
                 ))}

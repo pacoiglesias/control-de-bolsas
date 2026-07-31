@@ -56,6 +56,11 @@ export default function OrderModal({
     allOrders.forEach((o) => { if (o.provider?.trim()) set.add(o.provider.trim()); });
     return Array.from(set).sort();
   }, [allOrders]);
+  const knownClientEmails = useMemo(() => {
+    const set = new Set<string>();
+    allOrders.forEach((o) => { if (o.clientEmail?.trim()) set.add(o.clientEmail.trim()); });
+    return Array.from(set).sort();
+  }, [allOrders]);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'resumen' | 'productos' | 'entregas' | 'facturas'>(initialTab);
 
@@ -71,6 +76,7 @@ export default function OrderModal({
   const [form, setForm] = useState({
     folio: order.folio ?? '',
     client: order.client ?? '',
+    clientEmail: order.clientEmail ?? '',
     department: order.department ?? '',
     provider: order.provider ?? '',
     oc: order.oc ?? '',
@@ -247,6 +253,7 @@ export default function OrderModal({
         tx.set(ref, {
           folio: form.folio.trim(),
           client: form.client.trim(),
+          clientEmail: form.clientEmail.trim(),
           department: form.department.trim(),
           provider: form.provider.trim(),
           totalKilograms: kilosNum,
@@ -346,10 +353,18 @@ export default function OrderModal({
   }
 
   function emailClient() {
+    const correo = form.clientEmail.trim();
+    if (!correo) {
+      toast('Este cliente no tiene correo capturado. Agrégalo en la pestaña Resumen para poder notificarlo.', 'bad');
+      return;
+    }
     const dateStr = form.estimatedDeliveryDate ? form.estimatedDeliveryDate.toDate().toLocaleDateString() : '(por definir)';
     const subject = encodeURIComponent(`Confirmación de Entrega - Pedido #${form.folio || 'S/N'}`);
     const body = encodeURIComponent(`Estimado cliente,\n\nLe informamos que su pedido #${form.folio || 'S/N'} por la cantidad de ${kilosNum} kg tiene una fecha estimada de entrega para el ${dateStr}.\n\nSaludos,\nProvidencia`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    // Antes decia "mailto:?subject=..." — sin ningun correo antes del "?".
+    // Si no habia un programa de correo configurado por defecto, el boton no
+    // hacia nada visible; si lo habia, se abria con el destinatario en blanco.
+    window.location.href = `mailto:${encodeURIComponent(correo)}?subject=${subject}&body=${body}`;
   }
 
   function printRemision() {
@@ -684,7 +699,7 @@ export default function OrderModal({
 
           <div class="signatures">
             <div class="sig-box">Firma y Sello de Recepción Cliente</div>
-            <div class="sig-box">Autorización de Cobro y Caja Chica</div>
+            <div class="sig-box">Autorización de Cobro y CAJA</div>
           </div>
 
           <script>
@@ -877,6 +892,9 @@ export default function OrderModal({
       <datalist id="known-providers">
         {knownProviders.map(p => <option key={p} value={p} />)}
       </datalist>
+      <datalist id="known-client-emails">
+        {knownClientEmails.map(e => <option key={e} value={e} />)}
+      </datalist>
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
@@ -907,6 +925,10 @@ export default function OrderModal({
               </Field>
               <Field label="Cliente">
                 <input className="input boxed" list="known-clients" defaultValue={form.client} onBlur={(e) => set('client', e.target.value)} disabled={readOnly} />
+              </Field>
+              <Field label="Correo del cliente (opcional)">
+                <input className="input boxed" type="email" list="known-client-emails" placeholder="correo@cliente.com"
+                  defaultValue={form.clientEmail} onBlur={(e) => set('clientEmail', e.target.value)} disabled={readOnly} />
               </Field>
               <Field label="Proveedor">
                 <input className="input boxed" list="known-providers" defaultValue={form.provider} onBlur={(e) => set('provider', e.target.value)} disabled={readOnly} />
@@ -1352,24 +1374,24 @@ export default function OrderModal({
                                       notes: `Factura: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
                                       createdAt: serverTimestamp(),
                                     });
-                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a Caja Chica.`, 'ok');
+                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
                                   } catch {
-                                    toast('Factura marcada, pero error al registrar en Caja Chica.', 'bad');
+                                    toast('Factura marcada, pero error al registrar en CAJA.', 'bad');
                                   }
                                 }}>
-                                💵 Recibida del Contador → Caja Chica
+                                💵 Recibida del Contador → CAJA
                               </button>
                             )}
                             {inv.creditCycle.status === 'collected' && (
                               <span style={{ background: 'var(--ok)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
-                                ✅ Recibida y en Caja Chica
+                                ✅ Recibida y en CAJA
                               </span>
                             )}
                             {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
                               <button className="btn" style={{ background: 'var(--line)', color: '#333', borderColor: 'var(--line)', padding: '4px 10px', fontSize: 13 }}
                                 onClick={() => {
                                   if (inv.creditCycle.status === 'collected') {
-                                    if (!window.confirm('Esta factura ya generó un ingreso en Caja Chica. Si deshaces el cobro, tendrás que ir a borrar el ingreso de Caja Chica manualmente. ¿Deseas continuar?')) return;
+                                    if (!window.confirm('Esta factura ya generó un ingreso en CAJA. Si deshaces el cobro, tendrás que ir a borrar el ingreso de CAJA manualmente. ¿Deseas continuar?')) return;
                                   } else {
                                     if (!window.confirm('¿Deshacer el cobro de esta factura? Volverá a estar pendiente de cobro.')) return;
                                   }

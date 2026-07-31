@@ -27,7 +27,7 @@ export default function CajaChica() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Reporte de Caja Chica - ERP Control Bolsas</title>
+          <title>Reporte de CAJA - ERP Control Bolsas</title>
           <style>
             body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; font-size: 12px; }
             .header { border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
@@ -45,7 +45,7 @@ export default function CajaChica() {
         <body>
           <div class="header">
             <div>
-              <h1>Reporte de Movimientos de Caja Chica</h1>
+              <h1>Reporte de Movimientos de CAJA</h1>
               <div>Control Bolsas ERP · Grupo Textil Providencia</div>
             </div>
             <div>
@@ -114,7 +114,7 @@ export default function CajaChica() {
   return (
     <>
       <div className="page-head">
-        <h1>Caja Chica</h1>
+        <h1>CAJA</h1>
         <p>Control de gastos internos y reposiciones de caja.</p>
       </div>
 

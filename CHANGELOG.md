@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.17.0] - 31 Julio 2026 (Ciclo 29 — Panel reordenado, CAJA, catálogo editable)
+
+### Corregido — crítico
+- **"Notificar al cliente" generaba un `mailto:` sin destinatario.** Faltaba el correo antes del `?`. Nuevo campo opcional "Correo del cliente", con autocompletado; el botón avisa claramente si el cliente no tiene correo capturado en vez de fallar en silencio.
+
+### Cambiado
+- **Panel principal reordenado en tres secciones** (Ventas y Ganancias / Cobranza / Caja y Operación), en vez de nueve tarjetas sueltas.
+- **"Total Vendido" ahora indica que es acumulado de todo el historial**, sin límite de fecha — confirmado en el código, no había ningún filtro temporal.
+- **"Caja Chica" renombrado a "CAJA"** en toda la interfaz (26 textos: menú, botones, confirmaciones, reportes). La ruta y el nombre interno del componente no cambiaron.
+
+### Agregado
+- **Catálogo editable**: alta de productos nuevos, edición de descripción/unidad/precio, y borrado — antes solo se podía editar el código.
+
+
 ## [v6.16.0] - 31 Julio 2026 (Ciclo 28 — Compras con contexto real y entregas compartidas)
 
 ### Agregado

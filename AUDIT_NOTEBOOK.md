@@ -6,6 +6,45 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 29 — 2026-07-31 — Panel reordenado, CAJA, catálogo editable, y el bug real de "Notificar al cliente"
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Dashboard.tsx`, `src/index.css`
+Problema: Las 9 tarjetas del panel principal vivían en una sola cuadrícula plana sin agrupar, sin jerarquía visual entre "lo que vendiste", "lo que te deben" y "tu caja". "Total Vendido" no indicaba que es un acumulado de TODO el historial sin límite de fecha — confirmado al rastrear `extractStats()` en `functions/src/stats.ts`, que recorre todos los expedientes sin ningún filtro temporal.
+Impacto: Panel difícil de leer de un vistazo; cifra de ventas ambigua sobre su rango.
+Solución: Tarjetas reagrupadas en tres secciones con encabezado (💰 Ventas y Ganancias, 📋 Cobranza, 🏦 Caja y Operación). "Total Vendido" ahora indica explícitamente "Acumulado de todo el historial, sin límite de fecha".
+Riesgo: 🟢 Bajo — solo reordenamiento visual, ningún cálculo cambió.
+Commit: `style(Dashboard): reagrupar KPIs en secciones y aclarar el rango de Total Vendido`
+Estado: ✅ Verificado.
+
+[Fecha] 2026-07-31
+Archivo: `src/components/Layout.tsx`, `src/pages/Cobranza.tsx`, `src/pages/OrderModal.tsx`, `src/pages/Compras.tsx`, `src/pages/CajaChica.tsx`, `src/pages/Seeder.tsx`
+Problema: El usuario pidió renombrar "Caja Chica" a "CAJA" en toda la interfaz — el nombre contable no reflejaba cómo la usa de verdad ("es mi caja real").
+Solución: 26 cadenas de texto visibles al usuario renombradas (menú, botones, confirmaciones, reportes impresos). Ruta (`/caja-chica`) y nombre del componente (`CajaChica.tsx`) sin tocar, a propósito: cambiarlos no aporta beneficio y agrega riesgo. Los comentarios internos del código se dejaron igual — no los ve el usuario.
+Riesgo: 🟢 Bajo — cambio de texto únicamente.
+Commit: `style: renombrar "Caja Chica" a "CAJA" en toda la interfaz`
+Estado: ✅ Verificado.
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/OrderModal.tsx`
+Problema: 🔴 El botón "Notificar al cliente" generaba `mailto:?subject=...` — **sin ninguna dirección de correo antes del signo de interrogación**. Sin un programa de correo configurado por defecto, el botón no hacía nada visible; con uno, abría con el destinatario en blanco. No existía ningún campo de correo del cliente en todo el sistema.
+Impacto: Función percibida como rota ("no sirve"), sin ningún aviso de qué fallaba.
+Solución: Nuevo campo opcional "Correo del cliente" en la pestaña Resumen, con autocompletado derivado del historial (mismo patrón que Cliente/Proveedor). `emailClient()` corregido para incluir el destinatario real y avisar explícitamente si el cliente no tiene correo capturado, en vez de fallar en silencio.
+Riesgo: 🟢 Bajo — campo nuevo opcional, no rompe expedientes existentes.
+Commit: `fix(OrderModal): corregir mailto sin destinatario en "Notificar al cliente"`
+Estado: ✅ Verificado.
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Catalog.tsx`
+Problema: El catálogo era de solo análisis — se podía editar el código de un producto, pero no crear uno nuevo, ni editar descripción, unidad o precio. Los productos solo nacían "de paso" desde otras pantallas.
+Solución: Formulario "+ Agregar Producto" para dar de alta directamente. Descripción, unidad y precio ahora editables inline (mismo patrón `onBlur` que ya tenía el código). Botón para eliminar un producto del catálogo (no borra su historial de pedidos, que vive en los expedientes). Reemplazados los `import()` dinámicos sueltos por las importaciones estáticas ya usadas en el resto del archivo.
+Riesgo: 🟢 Bajo — pantalla de catálogo, sin relación con cálculos financieros.
+Commit: `feat(Catalog): catálogo editable — alta, edición y borrado de productos`
+Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+
+---
+
 ## ✅ Ciclo 28 — 2026-07-31 — Compras con contexto real, proactivo, y entregas compartidas con OrderModal
 
 [Fecha] 2026-07-31

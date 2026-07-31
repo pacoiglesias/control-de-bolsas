@@ -18,7 +18,7 @@ const NAV = [
   { to: '/compras', icon: '🏭', label: 'Compras', roles: ['admin'] },
   { to: '/cobranza', icon: '💰', label: 'Contrarecibos / Cobranza', roles: ['admin', 'manager'] },
   { to: '/catalogo', icon: '🛍️', label: 'Catálogo', roles: ['admin', 'manager'] },
-  { to: '/caja-chica', icon: '💵', label: 'Caja Chica', roles: ['admin'] },
+  { to: '/caja-chica', icon: '💵', label: 'CAJA', roles: ['admin'] },
   { to: '/respaldo', icon: '💾', label: 'Respaldo Local', roles: ['admin'] },
   { to: '/usuarios', icon: '👥', label: 'Usuarios', roles: ['admin'] },
   { to: '/logs', icon: '📝', label: 'Bitácora', roles: ['admin'] },

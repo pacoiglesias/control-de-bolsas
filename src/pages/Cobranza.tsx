@@ -195,7 +195,7 @@ export default function Cobranza() {
 
   async function collectContrareciboBlock(crNumber: string, netCobrado: number) {
     if (!crNumber) return;
-    if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en Caja Chica.`)) return;
+    if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en CAJA.`)) return;
 
     // Referencia de la transferencia (ej. "TR_3583"), distinta del numero de
     // contrarecibo (ej. "GT-570"): sin ella no se puede conciliar el deposito
@@ -278,7 +278,7 @@ export default function Cobranza() {
           createdAt: Timestamp.now(),
         });
       });
-      toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a Caja Chica). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok');
+      toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok');
     } catch (e) {
       toast(`Error al procesar la recolección en bloque: ${(e as Error).message}`, 'bad');
     }
@@ -286,7 +286,7 @@ export default function Cobranza() {
 
   async function revertCollectedContrareciboBlock(crNumber: string) {
     if (!crNumber) return;
-    if (!window.confirm(`¿DESHACER RECOLECCIÓN del Contrarecibo ${crNumber}? El lote regresará a "Por Recoger Dinero" y se registrará un egreso de reversión en Caja Chica.`)) return;
+    if (!window.confirm(`¿DESHACER RECOLECCIÓN del Contrarecibo ${crNumber}? El lote regresará a "Por Recoger Dinero" y se registrará un egreso de reversión en CAJA.`)) return;
     
     const invoicesToRevert = data.collected.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
@@ -343,7 +343,7 @@ export default function Cobranza() {
 
       logAction(user?.email, 'Reversión de Recolección', { contrarecibo: crNumber, monto: totalRevertir });
       sound.playPop();
-      toast(`↩️ Recolección del Contrarecibo ${crNumber} revertida. Regresado a "Por Recoger" y egreso por $${totalRevertir.toLocaleString('es-MX', {minimumFractionDigits:2})} registrado en Caja Chica.`, 'ok');
+      toast(`↩️ Recolección del Contrarecibo ${crNumber} revertida. Regresado a "Por Recoger" y egreso por $${totalRevertir.toLocaleString('es-MX', {minimumFractionDigits:2})} registrado en CAJA.`, 'ok');
     } catch (e) {
       sound.playError();
       toast(`Error al revertir la recolección: ${(e as Error).message}`, 'bad');
@@ -431,7 +431,7 @@ export default function Cobranza() {
             </tbody>
           </table>
 
-          <h3>3. Historial de Recolecciones en Caja Chica (${data.collected.length})</h3>
+          <h3>3. Historial de Recolecciones en CAJA (${data.collected.length})</h3>
           <table>
             <thead>
               <tr>
@@ -444,7 +444,7 @@ export default function Cobranza() {
                   <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
                   <td>${escapeHtml(x.o.client || '—')}</td>
                   <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
-                  <td>Recogido (En Caja Chica)</td>
+                  <td>Recogido (En CAJA)</td>
                   <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 </tr>
               `).join('')}
@@ -559,7 +559,7 @@ export default function Cobranza() {
 
           <div class="signatures">
             <div class="sig-box">Firma y Sello de Recepción Cliente</div>
-            <div class="sig-box">Autorización de Cobro y Entrada Caja Chica</div>
+            <div class="sig-box">Autorización de Cobro y Entrada CAJA</div>
           </div>
 
           <script>
@@ -795,7 +795,7 @@ export default function Cobranza() {
           Por Recoger Efectivo ({data.paid.length})
         </button>
         <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')}>
-          Historial: Recogidos / En Caja Chica ({data.collected.length})
+          Historial: Recogidos / En CAJA ({data.collected.length})
         </button>
       </div>
 
@@ -1150,9 +1150,9 @@ export default function Cobranza() {
       )}
 
       {activeTab === 'recogidas' && (
-        <Card title="Historial Completo: Contrarecibos Recogidos (Ingresados a Caja Chica)">
+        <Card title="Historial Completo: Contrarecibos Recogidos (Ingresados a CAJA)">
           <div className="alert info" style={{ marginBottom: 16 }}>
-            ℹ️ <strong>Historial de Lotes Recogidos:</strong> Aquí se guardan todos los contrarecibos cuyo dinero ya ingresó a Caja Chica. Si recogiste un lote por error, presiona <strong>"↩️ Deshacer Recolección"</strong> para regresarlo a "Por Recoger Dinero" y revertir el movimiento en Caja Chica.
+            ℹ️ <strong>Historial de Lotes Recogidos:</strong> Aquí se guardan todos los contrarecibos cuyo dinero ya ingresó a CAJA. Si recogiste un lote por error, presiona <strong>"↩️ Deshacer Recolección"</strong> para regresarlo a "Por Recoger Dinero" y revertir el movimiento en CAJA.
           </div>
           {data.collected.length === 0 ? (
             <Empty>No hay contrarecibos recogidos aún en el historial.</Empty>

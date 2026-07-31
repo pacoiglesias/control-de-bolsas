@@ -93,6 +93,7 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .page-head p{margin:0;color:var(--ink-soft);font-size:13px;max-width:720px;line-height:1.55}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:22px}
+.kpi-section-title{font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 10px 2px;display:flex;align-items:center;gap:6px}
 .kpi-card{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:var(--radius);padding:15px 16px 14px;box-shadow:var(--shadow);transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);animation:fadeInCard 0.4s ease-out backwards}
 .kpi-card.clickable{cursor:pointer}
 .kpi-card.clickable:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-hover)}

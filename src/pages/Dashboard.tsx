@@ -691,9 +691,15 @@ export default function Dashboard() {
         </div>
       )}
 
+      <div className="kpi-section-title">💰 Ventas y Ganancias</div>
       <div className="kpi-grid">
         <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.totalVendido} />}
-          sub={`${kilos(k.totalKilos)} procesados en ${k.totalOrders} órdenes`} />
+          sub={
+            <>
+              {kilos(k.totalKilos)} procesados en {k.totalOrders} órdenes
+              <br /><span style={{ opacity: 0.75 }}>Acumulado de todo el historial, sin límite de fecha</span>
+            </>
+          } />
         {role !== 'viewer' && (
           <>
             <KpiCard tone="ok" label="Ganancia Comercial" value={<ResponsiveMoney value={k.margenTotal || 0} />}
@@ -702,6 +708,10 @@ export default function Dashboard() {
               sub="Flujo real (Cobrado)" />
           </>
         )}
+      </div>
+
+      <div className="kpi-section-title">📋 Cobranza</div>
+      <div className="kpi-grid">
         <KpiCard tone={k.pedidoPendiente.length > 0 ? 'warn' : 'ok'} label="📝 Pendiente de Facturar"
           value={<span className="num">{k.pedidoPendiente.length}</span>}
           sub="Expedientes ya capturados, sin ninguna factura creada todavía"
@@ -724,8 +734,12 @@ export default function Dashboard() {
           onClick={() => nav('/cobranza')} />
         <KpiCard tone="cash" label="Cobrado" value={<ResponsiveMoney value={k.cobrado} />}
           sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />
+      </div>
+
+      <div className="kpi-section-title">🏦 Caja y Operación</div>
+      <div className="kpi-grid">
         {role === 'admin' && (
-          <KpiCard tone={saldoCaja < 0 ? "bad" : "ok"} label="Caja Chica" value={<ResponsiveMoney value={saldoCaja} />}
+          <KpiCard tone={saldoCaja < 0 ? "bad" : "ok"} label="CAJA" value={<ResponsiveMoney value={saldoCaja} />}
             sub="flujo líquido" onClick={() => nav('/caja-chica')} />
         )}
         <KpiCard tone={k.review.length ? 'warn' : undefined} label="Esperan captura manual"
