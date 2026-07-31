@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Product } from '../lib/types';
 
@@ -9,7 +9,11 @@ export function useProducts() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, PATHS.products), orderBy('description', 'asc'));
+    const q = query(
+      collection(db, PATHS.products),
+      orderBy('description', 'asc'),
+      limit(500)
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {

@@ -6,6 +6,32 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 36 — 2026-07-31 — Prevención de Full Collection Scan en Compras
+
+[Fecha] 2026-07-31
+Archivo: `src/hooks/usePurchases.ts`
+Problema: Al igual que en Caja Chica, `usePurchases` ejecutaba `onSnapshot` sin límites, delegando el ordenamiento cronológico al cliente tras descargar toda la colección de compras.
+Impacto: 🔴 Riesgo financiero directo y pérdida de rendimiento en memoria a medida que crezca el historial.
+Solución: Se movió el ordenamiento a Firestore con `orderBy('date', 'desc')` y se agregó una cota dura de seguridad con `limit(150)`.
+Riesgo: 🟢 Bajo.
+Commit: `perf(purchases): detener full collection scan y delegar ordenamiento a firestore`
+Estado: ✅ Verificado — `tsc` limpio.
+
+---
+
+## ✅ Ciclo 35 — 2026-07-31 — Prevención de Full Collection Scan en Caja Chica
+
+[Fecha] 2026-07-31
+Archivo: `src/hooks/useExpenses.ts`
+Problema: `onSnapshot` de Firestore sin límites (`limit()`) en la colección completa de `expenses`, seguido de un ordenamiento en el cliente (`rows.sort(...)`). A medida que la caja chica creciera, causaría sobrecostos por lecturas en Firestore y uso de memoria excesivo en el navegador.
+Impacto: 🔴 Riesgo financiero directo (facturación O(N) de lecturas de Firestore) y degradación de rendimiento.
+Solución: Se movió el ordenamiento a Firestore con `orderBy('date', 'desc')` y se agregó una guarda de seguridad con `limit(150)`, cortando de tajo las descargas ilimitadas.
+Riesgo: 🟢 Bajo. Solo optimización de queries.
+Commit: `perf(expenses): detener full collection scan y delegar ordenamiento a firestore`
+Estado: ✅ Verificado — `tsc` limpio.
+
+---
+
 ## ✅ Ciclo 34 — 2026-07-31 — Sprint 1: Alineación Financiera Exacta (Dashboard y Compras vs Excel)
 
 [Fecha] 2026-07-31

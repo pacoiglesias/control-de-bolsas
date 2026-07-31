@@ -38,6 +38,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.25.0',
+    date: '31 de Julio de 2026',
+    time: '10:05 AM',
+    summary: 'Rendimiento y Escalabilidad: Prevención de Scans Masivos.',
+    highlights: [
+      'Caja Chica (useExpenses): Se previno el full collection scan. Ahora consulta con límite de 150 registros y delega el ordenamiento a Firebase, mejorando memoria y reduciendo costos.',
+      'Compras (usePurchases): Misma prevención de full collection scan y delegación de ordenamiento a la base de datos.',
+      'Productos (useProducts): Se aplicó una cota dura de 500 registros para evitar desbordamientos de memoria.',
+    ]
+  },
+  {
     version: 'v6.24.0',
     date: '31 de Julio de 2026',
     time: '09:50 AM',
