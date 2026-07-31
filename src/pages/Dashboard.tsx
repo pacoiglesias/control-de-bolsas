@@ -38,6 +38,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.22.0',
+    date: '31 de Julio de 2026',
+    time: '09:20 AM',
+    summary: 'Consolidación de Flujo de Efectivo, recálculo en vivo de deudas y mejoras de nomenclatura.',
+    highlights: [
+      'Tarjeta "Cascada Financiera": Flujo de efectivo unificado y desglosado en un solo módulo',
+      'La Deuda con Andrés en Compras ahora se calcula 100% en vivo usando costo real, ignorando historial sucio',
+      'Corrección de alertas: Ahora advierte sobre "contrarecibos" en lugar de "facturas" vencidas',
+    ]
+  },
+  {
     version: 'v6.20.0',
     date: '31 de Julio de 2026',
     time: '05:33 AM',
@@ -696,7 +707,7 @@ export default function Dashboard() {
             <div className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 20 }}>⚠️</span>
               <div style={{ flex: 1 }}>
-                <strong>Atención:</strong> Tienes {k.overdue.length} factura{k.overdue.length > 1 ? 's' : ''} vencida{k.overdue.length > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
+                <strong>Atención:</strong> Tienes {k.overdue.length} contrarecibo{k.overdue.length > 1 ? 's' : ''} vencido{k.overdue.length > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
               </div>
               <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
             </div>
@@ -844,36 +855,46 @@ export default function Dashboard() {
             </>
           }
           onClick={() => nav('/ordenes?filtro=pedido')} />
-        <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
-          sub={
-            <>
-              {k.pending.length + k.overdue.length} órdenes abiertas
-              {(k.porCobrarSinCR ?? 0) > 0 && (
-                <><br /><span style={{ color: 'var(--warn)' }}>{money(k.porCobrarSinCR ?? 0)} sin CR</span></>
-              )}
-              {(k.porCobrarConCR ?? 0) > 0 && (
-                <><br />{money(k.porCobrarConCR ?? 0)} con CR</>
-              )}
-            </>
-          }
-          onClick={() => nav('/cobranza')} />
-        
-        {role !== 'viewer' && (
-          <>
-            <KpiCard tone="ok" label="Deuda Total Providencia" value={<ResponsiveMoney value={k.deudaTotalProvidencia} />}
-              sub={
-                <>
-                  Todo lo que te deben + Pendiente de Facturar
-                  <br /><span style={{ opacity: 0.75 }}>({money(k.comisionContable)} de comisión contable)</span>
-                </>
-              } />
-            <KpiCard tone="cash" label="Dinero Real a Recibir" value={<ResponsiveMoney value={k.dineroRealARecibir} />}
-              sub="Deuda Total menos comisiones contables" />
-          </>
+        {role !== 'viewer' ? (
+          <div className="card stat-card" style={{ padding: '20px', gridColumn: 'span 2', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', border: '1px solid #334155', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>Flujo de Efectivo Providencia</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#cbd5e1' }}>Facturado (Te Deben)</span>
+                <strong>{money(k.porCobrar)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#cbd5e1' }}>Pendiente de Facturar</span>
+                <strong>{money(k.montoPendienteFacturar ?? 0)}</strong>
+              </div>
+              <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 16 }}>
+                <span style={{ color: '#e2e8f0' }}>Deuda Total Providencia</span>
+                <strong>{money(k.deudaTotalProvidencia)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#f87171' }}>
+                <span>(-) Comisión Contable (8%)</span>
+                <strong>-{money(k.comisionContable)}</strong>
+              </div>
+              <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 20, color: 'var(--ok)' }}>
+                <span style={{ fontWeight: 700 }}>Dinero Real a Recibir</span>
+                <span style={{ fontWeight: 800 }}>{money(k.dineroRealARecibir)}</span>
+              </div>
+            </div>
+            <div style={{ marginTop: 16, fontSize: 12, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+              <span>{(k.porCobrarSinCR ?? 0) > 0 ? `${money(k.porCobrarSinCR ?? 0)} sin CR` : ''}</span>
+              <span>{(k.porCobrarConCR ?? 0) > 0 ? `${money(k.porCobrarConCR ?? 0)} con CR` : ''}</span>
+            </div>
+          </div>
+        ) : (
+          <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
+            sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}
+            onClick={() => nav('/cobranza')} />
         )}
 
         <KpiCard tone={k.overdue.length ? 'bad' : undefined} label="Vencido" value={<ResponsiveMoney value={k.vencido} />}
-          sub={`${k.overdue.length} factura${k.overdue.length === 1 ? '' : 's'} pasada${k.overdue.length === 1 ? '' : 's'} de fecha`}
+          sub={`${k.overdue.length} contrarecibo${k.overdue.length === 1 ? '' : 's'} pasado${k.overdue.length === 1 ? '' : 's'} de fecha`}
           onClick={() => nav('/cobranza')} />
         <KpiCard tone="cash" label="Cobrado" value={<ResponsiveMoney value={k.cobrado} />}
           sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />

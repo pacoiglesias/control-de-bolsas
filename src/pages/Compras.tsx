@@ -79,9 +79,11 @@ export default function Compras() {
 
   const pendientesKilos = provPurchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
   
-  // Cálculo exacto de la deuda basado en el Libro Mayor
-  const totalPurchasesCost = provPurchases.reduce((acc, p) => acc + p.totalAmount, 0);
+  const { config } = useConfig();
+
+  // Cálculo exacto de la deuda basado en Kilos reales y Costo actual
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
+  const totalPurchasesCost = round2(totalReceivedKilos * (config?.costPricePerKg || 42));
   const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount; // Le pagamos (abono a la deuda)
     if (e.type === 'ingreso') return acc - e.amount; // Nos devolvió (cargo a la deuda)
