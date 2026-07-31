@@ -1,23 +1,39 @@
 import { useState } from 'react';
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp, addDoc } from 'firebase/firestore';
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp, addDoc, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from '../hooks/usePurchases';
 import { useProducts } from '../hooks/useProducts';
 import { useExpenses } from '../hooks/useExpenses';
+import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, Field, Modal, Spinner, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, kilos, money, toInputDate, fromInputDate, exportToCsv } from '../lib/format';
-import type { Purchase, PurchaseStatus } from '../lib/types';
+import { round2 } from '../lib/finance';
+import {
+  newDeliveryEvent,
+  updateDeliveryField,
+  updateDeliveryItemQuantity,
+  computeDeliveredTotals,
+  migrateLegacyDeliveries,
+} from '../lib/deliveries';
+import type { Purchase, PurchaseStatus, PurchaseOrder } from '../lib/types';
 
 export default function Compras() {
   const { role } = useAuth();
   const { purchases, loading: loadingP, error: errorP } = usePurchases();
   const { expenses, loading: loadingE, error: errorE } = useExpenses();
+  // useOrders() lee del <OrdersProvider> ya montado en App.tsx: no abre una
+  // segunda suscripcion. Antes Compras no sabia NADA de los expedientes —
+  // ni folio, ni cliente, ni fecha de entrega — solo veia los registros de
+  // compra a secas, cinco columnas de numeros sin contexto.
+  const { orders } = useOrders();
   const [selected, setSelected] = useState<Purchase | null>(null);
+  const [deliveryOrder, setDeliveryOrder] = useState<PurchaseOrder | null>(null);
   const [tab, setTab] = useState<'ordenes' | 'estado'>('ordenes');
+  const [search, setSearch] = useState('');
   const selectedProvider = 'Andres';
   // Todos los hooks van ANTES de cualquier return condicional. Estaba
   // despues de dos returns tempranos: en el render donde role aun no es
@@ -30,9 +46,34 @@ export default function Compras() {
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (errorP || errorE) return <div className="alert bad">{errorP || errorE}</div>;
 
+  // Purchase.id === PurchaseOrder.id: son el mismo documento en dos
+  // colecciones (el upsert en OrderModal.save() los liga por id). Con este
+  // mapa, cada renglon de compra puede mostrar folio, cliente y fecha de
+  // entrega estimada sin ninguna consulta extra.
+  const orderById = new Map(orders.map((o) => [o.id, o]));
+
   // Filtrado por proveedor actual
   const provPurchases = purchases.filter(p => p.provider.toLowerCase() === selectedProvider.toLowerCase());
   const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === selectedProvider.toLowerCase());
+
+  const searchedPurchases = search.trim()
+    ? provPurchases.filter((p) => {
+        const o = orderById.get(p.id);
+        const q = search.trim().toLowerCase();
+        return (o?.folio ?? '').toLowerCase().includes(q) || (o?.client ?? '').toLowerCase().includes(q);
+      })
+    : provPurchases;
+
+  // Proactivo: OC con fecha de entrega ya vencida y todavia con kilos
+  // pendientes. Antes esto no se veia en ningun lado de Compras — habia que
+  // abrir cada expediente uno por uno para saber si Andres iba tarde.
+  const hoy = Date.now();
+  const entregasAtrasadas = provPurchases.filter((p) => {
+    const o = orderById.get(p.id);
+    if (!o?.estimatedDeliveryDate) return false;
+    const kilosFaltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
+    return kilosFaltan > 0.01 && o.estimatedDeliveryDate.toMillis() < hoy;
+  });
 
   const pendientesKilos = provPurchases.reduce((acc, p) => acc + (p.expectedKilos - p.receivedKilos), 0);
   
@@ -166,6 +207,16 @@ export default function Compras() {
           <div className="num" style={{ fontSize: 24 }}>{kilos(pendientesKilos)}</div>
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Pedido menos lo entregado, sumado de todas las OC abiertas.</p>
         </Card>
+        <Card title={entregasAtrasadas.length > 0 ? '⚠️ Entregas Atrasadas de Andrés' : '✅ Entregas al Día'}>
+          <div className="num" style={{ fontSize: 24, color: entregasAtrasadas.length > 0 ? 'var(--bad)' : 'var(--ok)' }}>
+            {entregasAtrasadas.length}
+          </div>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
+            {entregasAtrasadas.length > 0
+              ? 'OC que ya pasaron su fecha de entrega estimada sin completarse.'
+              : 'Ninguna OC abierta ha pasado su fecha de entrega estimada.'}
+          </p>
+        </Card>
         <Card title={`${deudaReal < 0 ? '🟢' : deudaReal > 0 ? '🔴' : '⚪'} Saldo con ${selectedProvider}`}>
           <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
             {deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}
@@ -206,32 +257,63 @@ export default function Compras() {
           }
           title="Historial de Compras"
         >
-          {provPurchases.length === 0 ? (
-            <Empty>No hay compras registradas para {selectedProvider}.</Empty>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              className="input boxed"
+              style={{ maxWidth: 320 }}
+              placeholder="Buscar por folio o cliente…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {searchedPurchases.length === 0 ? (
+            <Empty>{search ? 'Sin resultados para esa búsqueda.' : `No hay compras registradas para ${selectedProvider}.`}</Empty>
           ) : (
             <div className="table-scroll">
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th>Folio / OC</th>
+                    <th>Cliente</th>
                     <th>Fecha</th>
+                    <th>Entrega estimada</th>
                     <th className="num">Kilos Pedidos</th>
                     <th className="num">Kilos Entregados</th>
                     <th className="num">Costo Total</th>
                     <th>Estado</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {provPurchases.map((p) => (
-                    <tr key={p.id} onClick={() => setSelected(p)} style={{ cursor: 'pointer' }}>
-                      <td className="mono">{fmtDate(p.date)}</td>
-                      <td className="num mono">{kilos(p.expectedKilos)}</td>
-                      <td className="num mono">{kilos(p.receivedKilos)}</td>
-                      <td className="num mono">{money(p.totalAmount)}</td>
-                      <td>
-                        <StatusBadge status={p.status === 'pedido' ? 'pending' : p.status === 'parcial' ? 'manual_review' : 'paid'} />
-                      </td>
-                    </tr>
-                  ))}
+                  {searchedPurchases.map((p) => {
+                    const o = orderById.get(p.id);
+                    const kilosFaltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
+                    const atrasado = !!o?.estimatedDeliveryDate && kilosFaltan > 0.01 && o.estimatedDeliveryDate.toMillis() < hoy;
+                    return (
+                      <tr key={p.id} style={atrasado ? { background: 'rgba(220,38,38,0.06)' } : undefined}>
+                        <td className="mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{o?.folio || '—'}</td>
+                        <td style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{o?.client || '—'}</td>
+                        <td className="mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{fmtDate(p.date)}</td>
+                        <td className="mono" style={{ color: atrasado ? 'var(--bad)' : undefined, fontWeight: atrasado ? 700 : undefined }}>
+                          {o?.estimatedDeliveryDate ? fmtDate(o.estimatedDeliveryDate) : '—'}
+                          {atrasado && ' ⚠️'}
+                        </td>
+                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{kilos(p.expectedKilos)}</td>
+                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{kilos(p.receivedKilos)}</td>
+                        <td className="num mono" style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>{money(p.totalAmount)}</td>
+                        <td style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>
+                          <StatusBadge status={p.status === 'pedido' ? 'pending' : p.status === 'parcial' ? 'manual_review' : 'paid'} />
+                        </td>
+                        <td>
+                          {o && (
+                            <button className="btn-small" onClick={() => setDeliveryOrder(o)} title="Registrar una entrega de Andrés para esta OC, sin abrir el expediente completo">
+                              📦 Registrar Entrega
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -295,6 +377,10 @@ export default function Compras() {
 
       {selected && (
         <PurchaseModal purchase={selected} onClose={() => setSelected(null)} />
+      )}
+
+      {deliveryOrder && (
+        <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} />
       )}
     </>
   );
@@ -613,6 +699,118 @@ function PurchaseModal({ purchase, onClose }: { purchase: Purchase; onClose: () 
         <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
         <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
           {busy ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Registra una entrega de Andres sin salir de Compras. Usa exactamente la
+ * misma logica que la pestana Entregas del expediente (lib/deliveries.ts):
+ * un solo lugar donde vive el modelo de "entrega como evento", capturable
+ * desde dos pantallas sin que diverjan entre si.
+ */
+function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClose: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const items = order.items ?? [];
+
+  // Mismo baseline de concurrencia que usa OrderModal.save(): si alguien mas
+  // toco el expediente mientras esta ventana estaba abierta, se aborta en
+  // vez de sobreescribir en silencio.
+  const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
+  const [existingDeliveries] = useState(() => migrateLegacyDeliveries(order, order.deliveries ?? []));
+  const [nueva, setNueva] = useState(() => newDeliveryEvent(items));
+
+  const { kilosEntregados, deliveredByItem } = computeDeliveredTotals(existingDeliveries);
+  const kilosPedidos = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  const kilosDeEsta = round2((nueva.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0));
+
+  function setQty(itemId: string, qty: number) {
+    const nextList = updateDeliveryItemQuantity([nueva], 0, itemId, qty);
+    setNueva(nextList[0]);
+  }
+
+  function setFecha(v: string) {
+    const date = fromInputDate(v);
+    const nextList = updateDeliveryField([nueva], 0, 'date', date ? Timestamp.fromDate(date) : null);
+    setNueva(nextList[0]);
+  }
+
+  async function guardar() {
+    if (kilosDeEsta <= 0) {
+      toast('Captura al menos una cantidad mayor a cero.', 'bad');
+      return;
+    }
+    setBusy(true);
+    try {
+      const ref = doc(db, PATHS.orders, order.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+        const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
+        if (baselineUpdatedAt && freshUpdatedAt && freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()) {
+          throw new Error('Este expediente fue modificado por otra persona justo ahora. Ciérralo y vuelve a intentarlo.');
+        }
+        tx.set(ref, { deliveries: [...existingDeliveries, nueva], updatedAt: serverTimestamp() }, { merge: true });
+      });
+      toast(`Entrega de ${kilosDeEsta.toLocaleString('es-MX')} kg registrada en ${order.folio || order.id}.`, 'ok');
+      onClose();
+    } catch (e) {
+      toast(`No se pudo registrar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Registrar Entrega — ${order.folio || '(sin folio)'}`} onClose={onClose}>
+      <p className="hint">
+        Cliente: <strong>{order.client || '—'}</strong> · Entregado a la fecha: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
+      </p>
+
+      <Field label="Fecha de esta entrega">
+        <input className="input boxed mono" type="date" defaultValue={toInputDate(nueva.date) || ''} onChange={(e) => setFecha(e.target.value)} />
+      </Field>
+
+      {items.length === 0 ? (
+        <p className="hint">Este expediente no tiene productos capturados; no se puede registrar una entrega por renglón.</p>
+      ) : (
+        <table className="data-table" style={{ width: '100%', marginTop: 12 }}>
+          <thead>
+            <tr><th>Producto</th><th className="num">Pedido</th><th className="num">Entregado a la fecha</th><th className="num">Esta entrega</th></tr>
+          </thead>
+          <tbody>
+            {items.map((it) => {
+              const qty = (nueva.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
+              return (
+                <tr key={it.id}>
+                  <td>{it.description || it.code || '(sin descripción)'}</td>
+                  <td className="num mono">{it.quantity.toLocaleString('es-MX')}</td>
+                  <td className="num mono">{(deliveredByItem[it.id] ?? 0).toLocaleString('es-MX')}</td>
+                  <td className="num">
+                    <input
+                      className="input boxed mono"
+                      type="number"
+                      step="0.01"
+                      style={{ width: 90 }}
+                      defaultValue={qty || ''}
+                      placeholder="0"
+                      onBlur={(e) => setQty(it.id, Number(e.target.value))}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <div className="modal-actions" style={{ marginTop: 16 }}>
+        <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+        <button className="btn btn-primary" onClick={() => void guardar()} disabled={busy || kilosDeEsta <= 0}>
+          {busy ? 'Guardando…' : `Guardar entrega (${kilosDeEsta.toLocaleString('es-MX')} kg)`}
         </button>
       </div>
     </Modal>

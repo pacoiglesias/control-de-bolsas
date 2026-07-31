@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.16.0] - 31 Julio 2026 (Ciclo 28 — Compras con contexto real y entregas compartidas)
+
+### Agregado
+- `lib/deliveries.ts`: lógica de entregas-por-evento extraída a funciones puras, compartida entre `OrderModal.tsx` y `Compras.tsx`.
+- **Compras** ahora muestra Folio, Cliente y Fecha de Entrega Estimada por cada compra (cruzado con el expediente real).
+- Tarjeta **"⚠️ Entregas Atrasadas de Andrés"**: cuenta OC con fecha de entrega vencida y kilos pendientes.
+- Buscador por folio/cliente en el historial de compras.
+- Botón **"📦 Registrar Entrega"** por renglón: captura una entrega sin salir de Compras, con la misma protección contra ediciones simultáneas que ya usa el expediente.
+
+
 ## [v6.9.0] - 30 Julio 2026 (Ciclo 13 — Versión sincronizada, saldo con Andrés)
 
 ### Corregido — crítico

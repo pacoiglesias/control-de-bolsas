@@ -6,6 +6,29 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## ✅ Ciclo 28 — 2026-07-31 — Compras con contexto real, proactivo, y entregas compartidas con OrderModal
+
+[Fecha] 2026-07-31
+Archivo: `src/lib/deliveries.ts` (nuevo)
+Problema: La lógica de "entregas como eventos" (Ciclo 26) vivía solo dentro de `OrderModal.tsx`. Para que `Compras.tsx` pudiera registrar entregas también, había dos caminos: reimplementarla ahí (el mismo error que ya causó el bug de "Facturar lo Entregado" duplicado en el Ciclo 23), o compartirla.
+Impacto: Ninguno todavía — se adelantó el riesgo antes de que ocurriera.
+Solución: Extraída a `lib/deliveries.ts` como funciones puras (`newDeliveryEvent`, `updateDeliveryField`, `updateDeliveryItemQuantity`, `removeDeliveryAt`, `computeDeliveredTotals`, `buildInvoiceFromDelivery`, `unmarkDeliveriesByInvoiceId`, `migrateLegacyDeliveries`). `OrderModal.tsx` se reescribió para delegar a estas funciones en vez de tener su propia copia — mismo comportamiento, verificado con la suite completa antes de construir nada nuevo encima. De regalo, esta lógica queda lista para pruebas automatizadas propias (pendiente anotado en el Ciclo 26).
+Riesgo: 🟢 Bajo — es mover código, no cambiar su comportamiento. Verificado con `tsc`, `eslint` y build antes de seguir al siguiente archivo.
+Commit: `refactor(deliveries): extraer logica de entregas a lib/deliveries.ts, compartida entre OrderModal y Compras`
+Estado: ✅ Verificado.
+
+[Fecha] 2026-07-31
+Archivo: `src/pages/Compras.tsx`
+Problema: La pantalla no usaba `useOrders()` en absoluto — la tabla de compras mostraba solo fecha, kilos y costo, sin folio, sin cliente, sin fecha de entrega estimada. No había forma de saber si Andrés iba tarde sin abrir cada expediente uno por uno. No se podía registrar una entrega sin salir a `Expedientes` y abrir el modal completo.
+Impacto: Panel poco útil para decisiones rápidas; fricción para capturar entregas desde la pantalla donde de hecho se está trabajando con Andrés.
+Solución: Cruce por `id` entre `Purchase` y `PurchaseOrder` (mismo documento, dos colecciones) para mostrar Folio, Cliente y Fecha de Entrega Estimada en la tabla. Nueva tarjeta proactiva **"⚠️ Entregas Atrasadas de Andrés"**, contando OC con fecha de entrega vencida y kilos aún pendientes — resaltadas también en la tabla. Buscador por folio/cliente. Botón **"📦 Registrar Entrega"** por renglón, que abre un modal ligero (`RegistrarEntregaModal`) usando exactamente la misma lógica de `lib/deliveries.ts` que la pestaña Entregas del expediente — con la misma protección de concurrencia optimista (`updatedAt`) que ya usa `OrderModal.save()`.
+Riesgo: 🟡 Medio — escribe directamente al mismo documento de expediente que edita `OrderModal`; mitigado reutilizando el patrón de concurrencia ya probado y la misma lógica de entregas ya verificada en el Ciclo 26.
+Commit: `feat(Compras): folio/cliente/fecha de entrega, alerta de atrasos, buscador y registro de entregas`
+Estado: ✅ Verificado — `tsc` limpio, `eslint` 0 errores, 15/15 pruebas, build completo.
+
+
+---
+
 ## ✅ Ciclo 27 — 2026-07-31 — HTML sin escapar y fuga de memoria en el Reporte Global de Cobranza
 
 [Fecha] 2026-07-31

@@ -7,6 +7,16 @@ import { useAuth } from '../context/AuthContext';
 import { Field, Modal, StatusBadge } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate, round2 } from '../lib/finance';
+import {
+  newDeliveryEvent,
+  updateDeliveryField as updateDeliveryFieldLib,
+  updateDeliveryItemQuantity,
+  removeDeliveryAt,
+  computeDeliveredTotals,
+  buildInvoiceFromDelivery,
+  unmarkDeliveriesByInvoiceId,
+  migrateLegacyDeliveries,
+} from '../lib/deliveries';
 import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
@@ -51,49 +61,12 @@ export default function OrderModal({
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
 
-  /**
-   * Migracion de expedientes viejos al modelo de entregas por evento.
-   *
-   * Antes de este cambio, "cuanto se entrego" vivia como un numero suelto
-   * por renglon (`item.deliveredQuantity`) sin fecha ni evento. Si el
-   * expediente ya tenia entregas en el formato nuevo (con `items[]`), se
-   * dejan tal cual. Si no, se arma UNA sola entrega historica con lo que ya
-   * habia — marcada como ya facturada si el expediente ya tiene facturas,
-   * para no ofrecer facturarla otra vez y duplicar lo que ya se cobro.
-   */
-  const migratedDeliveries = useMemo(() => {
-    const yaFormatoNuevo = initialSummary.deliveries.some((d) => Array.isArray(d.items) && d.items.length > 0);
-    if (yaFormatoNuevo) return initialSummary.deliveries;
-
-    const items = order.items ?? [];
-    const totalLegacy = items.reduce((acc, it) => acc + (Number(it.deliveredQuantity) || 0), 0);
-
-    if (totalLegacy > 0) {
-      return [{
-        id: `legacy-${order.id}`,
-        date: order.processedAt ?? Timestamp.now(),
-        kilos: round2(totalLegacy),
-        items: items.map((it) => ({ itemId: it.id, quantity: Number(it.deliveredQuantity) || 0 })),
-        invoiced: (order.invoices?.length ?? 0) > 0,
-        notes: 'Migrado automáticamente del formato anterior (sin evento de entrega individual).',
-      }];
-    }
-
-    // Expedientes muy viejos, de antes de que existiera items[]: no hay a
-    // que producto atribuirle los kilos, pero se conserva el total para no
-    // perder el historial silenciosamente.
-    if ((order.totalKilograms ?? 0) > 0 && (order.invoices?.length ?? 0) > 0) {
-      return [{
-        id: `legacy-${order.id}`,
-        date: order.processedAt ?? Timestamp.now(),
-        kilos: round2(order.totalKilograms ?? 0),
-        invoiced: true,
-        notes: 'Migrado automáticamente: expediente sin desglose por producto.',
-      }];
-    }
-
-    return [];
-  }, [initialSummary.deliveries, order]);
+  // La migracion de entregas viejas ahora vive en lib/deliveries.ts,
+  // compartida con Compras.tsx — ver migrateLegacyDeliveries.
+  const migratedDeliveries = useMemo(
+    () => migrateLegacyDeliveries(order, initialSummary.deliveries),
+    [order, initialSummary.deliveries],
+  );
 
   const [form, setForm] = useState({
     folio: order.folio ?? '',
@@ -808,48 +781,24 @@ export default function OrderModal({
     }
   };
 
-  // --- Handlers for Deliveries ---
+  // --- Handlers for Deliveries (delegan a lib/deliveries.ts) ---
   const addDelivery = () => {
-    set('deliveries', [
-      ...form.deliveries,
-      {
-        id: Date.now().toString(),
-        date: Timestamp.now(),
-        kilos: 0,
-        // Un renglon por cada producto de la OC, en 0: el usuario captura
-        // cuanto llego de cada uno EN ESTA entrega especifica.
-        items: form.items.map((it) => ({ itemId: it.id, quantity: 0 })),
-        invoiced: false,
-        notes: '',
-      },
-    ]);
+    set('deliveries', [...form.deliveries, newDeliveryEvent(form.items)]);
   };
   const updateDelivery = <F extends keyof Delivery>(index: number, field: F, value: Delivery[F]) => {
-    const next = [...form.deliveries];
-    next[index] = { ...next[index], [field]: value };
-    set('deliveries', next);
+    set('deliveries', updateDeliveryFieldLib(form.deliveries, index, field, value));
   };
   const updateDeliveryItemQty = (deliveryIndex: number, itemId: string, quantity: number) => {
-    const next = [...form.deliveries];
-    const d = next[deliveryIndex];
-    const items = [...(d.items ?? [])];
-    const idx = items.findIndex((x) => x.itemId === itemId);
-    if (idx >= 0) items[idx] = { ...items[idx], quantity };
-    else items.push({ itemId, quantity });
-    const kilosTotal = round2(items.reduce((a, x) => a + (Number(x.quantity) || 0), 0));
-    next[deliveryIndex] = { ...d, items, kilos: kilosTotal };
-    set('deliveries', next);
+    set('deliveries', updateDeliveryItemQuantity(form.deliveries, deliveryIndex, itemId, quantity));
   };
   const removeDelivery = (index: number) => {
-    const d = form.deliveries[index];
-    if (d?.invoiced) {
-      toast('Esta entrega ya generó una factura. Elimina primero la factura ligada, en la pestaña Facturas, si de verdad quieres deshacerla.', 'bad');
+    const result = removeDeliveryAt(form.deliveries, index);
+    if ('error' in result) {
+      toast(result.error, 'bad');
       return;
     }
     if (window.confirm('¿Eliminar esta entrega?')) {
-      const next = [...form.deliveries];
-      next.splice(index, 1);
-      set('deliveries', next);
+      set('deliveries', result.deliveries);
     }
   };
 
@@ -878,84 +827,40 @@ export default function OrderModal({
       const invoiceId = form.invoices[index]?.id;
       const nextInvoices = [...form.invoices];
       nextInvoices.splice(index, 1);
-      // Si esta factura vino de una entrega (facturarEntrega la liga por
-      // invoiceId), esa entrega vuelve a quedar "pendiente de facturar" en
-      // vez de quedar bloqueada para siempre con invoiced:true sin factura
-      // real detras.
-      const nextDeliveries = form.deliveries.map((d) =>
-        d.invoiceId === invoiceId ? { ...d, invoiced: false, invoiceId: undefined } : d,
-      );
+      // Si esta factura vino de una entrega, esa entrega vuelve a quedar
+      // "pendiente de facturar" en vez de quedar bloqueada para siempre.
+      const nextDeliveries = unmarkDeliveriesByInvoiceId(form.deliveries, invoiceId);
       setForm((f) => ({ ...f, invoices: nextInvoices, deliveries: nextDeliveries }));
     }
   };
 
-  /**
-   * Lo entregado se deriva de los EVENTOS de entrega (form.deliveries), no de
-   * un numero que se edita a mano por renglon. Antes existian dos sistemas
-   * de "entregas" sin conexion: la pestana Entregas (fecha, sin producto) y
-   * el campo deliveredQuantity de Productos (cantidad, sin fecha ni evento).
-   * Con esto solo hay UNA fuente de verdad.
-   */
-  const deliveredByItem = useMemo(() => {
-    const map: Record<string, number> = {};
-    form.deliveries.forEach((d) => {
-      (d.items ?? []).forEach((di) => {
-        map[di.itemId] = (map[di.itemId] ?? 0) + (Number(di.quantity) || 0);
-      });
-    });
-    return map;
-  }, [form.deliveries]);
-
-  const kilosEntregados = round2(
-    form.deliveries.reduce((acc, d) => {
-      const sumItems = (d.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0);
-      // Si la entrega no tiene desglose por producto (expedientes muy viejos,
-      // de antes de items[]), se cuenta su total tal cual.
-      return acc + (sumItems > 0 ? sumItems : (Number(d.kilos) || 0));
-    }, 0),
+  // Lo entregado se deriva de los EVENTOS de entrega (form.deliveries), via
+  // lib/deliveries.ts — la misma fuente que usa Compras.tsx.
+  const { deliveredByItem, kilosEntregados } = useMemo(
+    () => computeDeliveredTotals(form.deliveries),
+    [form.deliveries],
   );
   const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
   const kilosFaltantes = round2(kilosPedidos - kilosEntregados);
 
   /**
-   * Factura UNA entrega especifica, no el acumulado. Antes "Facturar lo
-   * entregado" siempre facturaba el TOTAL acumulado a la fecha: si Andres
-   * entregaba en dos momentos y se facturaba despues de cada uno, la primera
-   * entrega quedaba facturada dos veces (una sola vez de mas por cada
-   * repeticion), inflando venta, comision y deuda con Andres en cascada.
-   * Ahora cada entrega se factura una sola vez porque, una vez facturada,
-   * `invoiced: true` le quita el boton — es estructural, no depende de que
-   * nadie se acuerde de no volver a apretarlo.
+   * Factura UNA entrega especifica, no el acumulado — ver Ciclo 26 en
+   * AUDIT_NOTEBOOK.md. La logica vive en lib/deliveries.ts; aqui solo se
+   * conecta al estado del formulario y al toast.
    */
   function facturarEntrega(deliveryIndex: number) {
     const delivery = form.deliveries[deliveryIndex];
-    if (!delivery || delivery.invoiced) return;
-    const kilosDeEstaEntrega = round2(
-      (delivery.items ?? []).reduce((acc, di) => acc + (Number(di.quantity) || 0), 0) || delivery.kilos || 0,
-    );
-    if (kilosDeEstaEntrega <= 0) {
-      toast('Esta entrega no tiene cantidades capturadas todavía.', 'bad');
+    if (!delivery) return;
+    const result = buildInvoiceFromDelivery(delivery, dynamicConfig);
+    if ('error' in result) {
+      toast(result.error, 'bad');
       return;
     }
-    const issue = new Date();
-    const due = addDays(issue, config.creditDays);
-    const newInvoiceId = Date.now().toString();
-    const nextInvoices = [
-      ...form.invoices,
-      {
-        id: newInvoiceId,
-        folio: '',
-        kilos: kilosDeEstaEntrega,
-        financials: computeFinancials(kilosDeEstaEntrega, dynamicConfig),
-        creditCycle: { status: 'pending' as const, issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-        collection: { paidAmount: 0, contrareciboNumber: '', notes: `Entrega del ${toInputDate(delivery.date) || '—'}` },
-      },
-    ];
     const nextDeliveries = [...form.deliveries];
-    nextDeliveries[deliveryIndex] = { ...delivery, invoiced: true, invoiceId: newInvoiceId };
-    setForm((f) => ({ ...f, invoices: nextInvoices, deliveries: nextDeliveries }));
+    nextDeliveries[deliveryIndex] = result.updatedDelivery;
+    setForm((f) => ({ ...f, invoices: [...f.invoices, result.invoice], deliveries: nextDeliveries }));
     setTab('facturas');
-    toast(`Factura armada con ${kilosDeEstaEntrega.toLocaleString('es-MX')} kg de esta entrega. Falta poner el folio y guardar.`, 'ok');
+    toast(`Factura armada con ${result.kilos.toLocaleString('es-MX')} kg de esta entrega. Falta poner el folio y guardar.`, 'ok');
   }
 
 
