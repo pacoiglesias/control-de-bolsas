@@ -8,9 +8,10 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
-import { fmtDateTime, kilos, money } from '../lib/format';
+import { fmtDateTime } from '../lib/format';
 import { sound } from '../lib/sounds';
-
+import OrderModal from './OrderModal';
+import { useConfig } from '../hooks/useConfig';
 interface Job {
   id: string;
   name: string;
@@ -38,6 +39,7 @@ export default function Upload() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { orders } = useOrders();
   const { role, user } = useAuth();
+  const { config } = useConfig();
   const toast = useToast();
 
   const upload = useCallback(
@@ -117,133 +119,145 @@ export default function Upload() {
     });
   }, [orders, jobs, matched, toast]);
 
+  const manualReviewOrders = orders.filter(o => o.creditCycle?.status === 'manual_review');
+  const [tab, setTab] = useState<'upload' | 'review'>('upload');
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+
   if (role === 'viewer') return <Navigate to="/" replace />;
 
   return (
     <>
       <div className="page-head">
-        <h1>Subir órdenes de compra</h1>
-        <p>
-          Arrastra los PDFs aquí. Se guardan en <code>{PATHS.uploadsPrefix}/</code> y una Cloud
-          Function los lee con Gemini para sacar folio y kilos. Si el PDF viene ilegible, la orden
-          queda marcada para captura manual en vez de perderse.
-        </p>
+        <h1>Bandeja de Entrada de PDFs</h1>
+        <div className="tabs" style={{ marginTop: 10 }}>
+          <button className={`tab ${tab === 'upload' ? 'active' : ''}`} onClick={() => setTab('upload')}>
+            Subir Documentos
+          </button>
+          <button className={`tab ${tab === 'review' ? 'active' : ''}`} onClick={() => setTab('review')}>
+            Bandeja de Revisión {manualReviewOrders.length > 0 && <span className="badge b-bad">{manualReviewOrders.length}</span>}
+          </button>
+        </div>
       </div>
 
-      <div
-        className={`dropzone ${dragging ? 'over' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          upload(e.dataTransfer.files);
-        }}
-        onClick={() => inputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-      >
-        <div className="dz-icon">⭱</div>
-        <div className="dz-title">Suelta aquí tus PDFs</div>
-        <div className="dz-sub">o haz clic para elegirlos · máximo {MAX_MB} MB por archivo</div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="application/pdf"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files) upload(e.target.files);
-            e.target.value = '';
-          }}
-        />
-      </div>
+      {tab === 'upload' ? (
+        <>
+          <div className="page-head" style={{ marginTop: -20, marginBottom: 20 }}>
+            <p>
+              Arrastra los PDFs aquí. Se guardan en <code>{PATHS.uploadsPrefix}/</code>. La orden
+              queda en tu <strong>Bandeja de Revisión</strong> para que valides los datos y la apruebes manualmente.
+            </p>
+          </div>
+          <div
+            className={`dropzone ${dragging ? 'over' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              upload(e.dataTransfer.files);
+            }}
+            onClick={() => inputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+          >
+            <div className="dz-icon">⭱</div>
+            <div className="dz-title">Suelta aquí tus PDFs</div>
+            <div className="dz-sub">o haz clic para elegirlos · máximo {MAX_MB} MB por archivo</div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf"
+              multiple
+              hidden
+              onChange={(e) => {
+                if (e.target.files) upload(e.target.files);
+                e.target.value = '';
+              }}
+            />
+          </div>
 
-      <Card title="Archivos de esta sesión" hint={`${jobs.length}`}>
-        {jobs.length === 0 ? (
-          <Empty>Todavía no has subido nada en esta sesión.</Empty>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Archivo</th><th>Avance</th><th>Folio detectado</th>
-                  <th className="num">Kilos</th><th className="num">Neto</th><th>Resultado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((j) => {
-                  const order = matched(j.path);
-                  return (
-                    <tr key={j.id}>
-                      <td>{j.name}</td>
-                      <td style={{ minWidth: 150 }}>
-                        {j.state === 'error' ? (
-                          <span className="badge b-bad">Error</span>
-                        ) : (
-                          <div className="progress">
-                            <div className="progress-fill" style={{ width: `${j.progress}%` }} />
-                          </div>
-                        )}
-                      </td>
-                      <td className="mono">{order?.folio ?? '—'}</td>
-                      <td className="num mono">
-                        {order?.totalKilograms ? kilos(order.totalKilograms) : '—'}
-                      </td>
-                      <td className="num mono">
-                        {order?.financials ? money(order.financials.netCashFlow) : '—'}
-                      </td>
-                      <td>
-                        {order ? (
-                          <StatusBadge status={order.creditCycle?.status ?? 'pending'} />
-                        ) : j.state === 'error' ? (
-                          <span className="hint">{j.error}</span>
-                        ) : (
-                          <span className="badge b-mute">
-                            <span className="spinner sm" /> procesando
-                          </span>
-                        )}
-                      </td>
+          <Card title="Archivos subiendo" hint={`${jobs.length}`}>
+            {jobs.length === 0 ? (
+              <Empty>No hay subidas activas.</Empty>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Archivo</th><th>Avance</th><th>Folio</th>
+                      <th>Resultado</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <Card title="Últimas órdenes procesadas">
-        {orders.length === 0 ? (
-          <Empty>Aún no hay órdenes en la base de datos.</Empty>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Procesada</th><th>Folio</th><th className="num">Kilos</th>
-                  <th className="num">Neto</th><th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.slice(0, 6).map((o) => (
-                  <tr key={o.id}>
-                    <td className="mono">{fmtDateTime(o.processedAt)}</td>
-                    <td className="mono">{o.folio ?? '—'}</td>
-                    <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
-                    <td className="num mono">{money(o.financials?.netCashFlow)}</td>
-                    <td><StatusBadge status={o.creditCycle?.status ?? 'pending'} /></td>
+                  </thead>
+                  <tbody>
+                    {jobs.map((j) => {
+                      const order = matched(j.path);
+                      return (
+                        <tr key={j.id}>
+                          <td>{j.name}</td>
+                          <td style={{ minWidth: 150 }}>
+                            {j.state === 'error' ? (
+                              <span className="badge b-bad">Error</span>
+                            ) : (
+                              <div className="progress">
+                                <div className="progress-fill" style={{ width: `${j.progress}%` }} />
+                              </div>
+                            )}
+                          </td>
+                          <td className="mono">{order?.folio ?? '—'}</td>
+                          <td>
+                            {order ? (
+                              <StatusBadge status={order.creditCycle?.status ?? 'pending'} />
+                            ) : j.state === 'error' ? (
+                              <span className="hint">{j.error}</span>
+                            ) : (
+                              <span className="badge b-mute">
+                                <span className="spinner sm" /> procesando
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      ) : (
+        <Card title="Documentos por validar" hint={`${manualReviewOrders.length}`}>
+          {manualReviewOrders.length === 0 ? (
+            <Empty>No tienes documentos pendientes de revisión.</Empty>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table selectable">
+                <thead>
+                  <tr>
+                    <th>Fecha Alta</th><th>Archivo</th><th>Estado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+                </thead>
+                <tbody>
+                  {manualReviewOrders.map((o) => (
+                    <tr key={o.id} onClick={() => setSelectedOrder(o)}>
+                      <td className="mono">{fmtDateTime(o.processedAt)}</td>
+                      <td className="mono" style={{ color: 'var(--info)' }}>{o.fileName?.split('/').pop() || 'Archivo sin nombre'}</td>
+                      <td><StatusBadge status={o.creditCycle?.status ?? 'manual_review'} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {selectedOrder && (
+        <OrderModal order={selectedOrder} config={config} onClose={() => setSelectedOrder(null)} />
+      )}
     </>
   );
 }

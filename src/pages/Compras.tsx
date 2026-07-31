@@ -34,6 +34,7 @@ export default function Compras() {
   const { orders } = useOrders();
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [deliveryOrder, setDeliveryOrder] = useState<PurchaseOrder | null>(null);
+  const [pagarModal, setPagarModal] = useState(false);
   const [tab, setTab] = useState<'ordenes' | 'estado'>('ordenes');
   const [search, setSearch] = useState('');
   const selectedProvider = 'Andres';
@@ -263,6 +264,7 @@ export default function Compras() {
               } as unknown as Purchase)}>
                 + Nuevo Pedido al Fabricante
               </button>
+              <button className="btn btn-primary no-print" onClick={() => setPagarModal(true)}>💸 Registrar Pago / Adelanto</button>
               <span className="spacer" />
               <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar Excel (CSV)</button>
               <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado de Cuenta (PDF)</button>
@@ -337,6 +339,7 @@ export default function Compras() {
           title={`Estado de Cuenta: ${selectedProvider}`} 
           actions={
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn btn-primary no-print" onClick={() => setPagarModal(true)}>💸 Registrar Pago / Adelanto</button>
               <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar Excel (CSV)</button>
               <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado de Cuenta (PDF)</button>
             </div>
@@ -394,6 +397,10 @@ export default function Compras() {
 
       {deliveryOrder && (
         <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} />
+      )}
+
+      {pagarModal && (
+        <RegistrarPagoModal onClose={() => setPagarModal(false)} selectedProvider={selectedProvider} />
       )}
     </>
   );
@@ -847,6 +854,69 @@ function RegistrarEntregaModal({ order, onClose }: { order: PurchaseOrder; onClo
         <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
         <button className="btn btn-primary" onClick={() => void guardar()} disabled={busy || kilosDeEsta <= 0}>
           {busy ? 'Guardando…' : `Guardar entrega (${kilosDeEsta.toLocaleString('es-MX')} kg)`}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function RegistrarPagoModal({ onClose, selectedProvider }: { onClose: () => void, selectedProvider: string }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [monto, setMonto] = useState('');
+  const [concepto, setConcepto] = useState('Pago / Adelanto');
+  const [fecha, setFecha] = useState(toInputDate(Timestamp.now()) || '');
+
+  async function guardar() {
+    const amount = Number(monto);
+    if (!amount || amount <= 0) return toast('Ingresa un monto válido mayor a 0.', 'bad');
+    if (!concepto.trim()) return toast('El concepto es obligatorio.', 'bad');
+
+    setBusy(true);
+    try {
+      const d = fromInputDate(fecha) ?? new Date();
+      await addDoc(collection(db, PATHS.expenses), {
+        date: Timestamp.fromDate(d),
+        concept: concepto.trim(),
+        amount,
+        type: 'egreso',
+        category: 'proveedores',
+        provider: selectedProvider,
+        createdAt: serverTimestamp(),
+      });
+      toast(`Pago de ${money(amount)} a ${selectedProvider} registrado en Caja.`, 'ok');
+      onClose();
+    } catch (e) {
+      toast(`No se pudo registrar el pago: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Registrar Pago a ${selectedProvider}`} onClose={onClose}>
+      <p className="hint" style={{ marginBottom: 16 }}>
+        Este pago se reflejará automáticamente en la <strong>Caja Chica</strong> como un egreso y abonará al saldo de {selectedProvider}.
+      </p>
+
+      <div style={{ display: 'grid', gap: 12 }}>
+        <Field label="Monto a pagar ($)">
+          <input className="input boxed mono" type="number" step="0.01" value={monto} onChange={e => setMonto(e.target.value)} placeholder="0.00" />
+        </Field>
+        
+        <Field label="Concepto">
+          <input className="input boxed" type="text" value={concepto} onChange={e => setConcepto(e.target.value)} placeholder="Ej. Adelanto transferencia" />
+        </Field>
+
+        <Field label="Fecha del movimiento">
+          <input className="input boxed mono" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+        </Field>
+      </div>
+
+      <div className="modal-actions" style={{ marginTop: 24 }}>
+        <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+        <button className="btn btn-primary" onClick={() => void guardar()} disabled={busy}>
+          {busy ? 'Guardando…' : 'Registrar Pago'}
         </button>
       </div>
     </Modal>

@@ -38,6 +38,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.24.0',
+    date: '31 de Julio de 2026',
+    time: '09:50 AM',
+    summary: 'Eficiencia Operativa: Bandeja de Validación y Control Interconectado de Andrés.',
+    highlights: [
+      'Bandeja de Validación de PDFs: Ahora los PDFs se listan en una bandeja dedicada para que los revises fácilmente, separando la cola de la base de datos.',
+      'Mejoras en Compras (Andrés): Rediseño para ver el historial y alertas de entregas atrasadas.',
+      'Pagos Directos a Proveedor: Botón en Compras para registrar abonos directos que impactan Caja Chica inmediatamente.',
+    ]
+  },
+  {
     version: 'v6.23.0',
     date: '31 de Julio de 2026',
     time: '10:00 AM',
