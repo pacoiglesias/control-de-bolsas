@@ -1,9 +1,10 @@
-# Radiografía del Sistema: Control Bolsas ERP (v5.7.0)
+# Radiografía del Sistema: Control Bolsas ERP (v6.23.0)
 
 Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio.
 
 ## Arquitectura Base
-*   **Frontend:** React (Vite) + TypeScript. Aplicación web progresiva (PWA) instalable. Interfaz modular, con estado global manejado a través de Contextos (AuthContext, ToastContext).
+*   **Frontend:** React (Vite) + TypeScript. Aplicación web progresiva (PWA) instalable.
+*   **Capacidad Offline (v6.23.0):** El módulo `src/lib/export.ts` inyecta toda la base de datos de Firestore dentro de un archivo local `control-bolsas-offline.html` (o `Respaldo_ERP.xlsx`), permitiendo llevar el sistema en USB y funcionar 100% sin conexión (Standalone Mode).
 *   **Backend:** Firebase (Firestore para base de datos, Storage para PDFs/XMLs, Authentication para usuarios, Hosting para la web).
 *   **Administración Local:** Orquestación y despliegue a través de `CONTROL_MAESTRO.bat` para evitar errores humanos.
 *   **Cloud Functions (Node.js):** 

@@ -38,6 +38,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v6.23.0',
+    date: '31 de Julio de 2026',
+    time: '10:00 AM',
+    summary: 'Mejora integral (Offline + Analítica) y Corrección Histórica.',
+    highlights: [
+      'Descarga de Paquete Offline: El ERP ahora se puede llevar a Excel o en un archivo HTML portable con los datos integrados.',
+      'UX Premium en Cobranza: Renovación visual para que el cuadro de cobranza y antigüedades sea claro e intuitivo.',
+      'Deuda Histórica: Se incorporó la configuración de un saldo histórico para que la deuda real de compras coincida con contabilidad.',
+    ]
+  },
+  {
     version: 'v6.22.0',
     date: '31 de Julio de 2026',
     time: '09:20 AM',

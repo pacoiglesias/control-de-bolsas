@@ -89,7 +89,7 @@ export default function Compras() {
     if (e.type === 'ingreso') return acc - e.amount; // Nos devolvió (cargo a la deuda)
     return acc;
   }, 0);
-  const deudaReal = totalPurchasesCost - totalPagado;
+  const deudaReal = totalPurchasesCost - totalPagado - (config?.historicalDebtAndres || 0);
 
   // Generación del Libro Mayor Cronológico
   type LedgerEntry = { id: string; date: Timestamp | null; concept: string; cargo: number; abono: number; source: 'purchase' | 'expense' };
@@ -232,8 +232,12 @@ export default function Compras() {
               <span>Kilos entregados ({kilos(totalReceivedKilos)})</span>
               <strong>{money(totalPurchasesCost)}</strong>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', paddingTop: '4px', color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
-              <span>Deuda Real</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px', color: (config?.historicalDebtAndres || 0) < 0 ? 'var(--bad)' : 'var(--ok)' }}>
+              <span>Deuda Histórica (Pasivo)</span>
+              <strong>{money(config?.historicalDebtAndres || 0)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', paddingTop: '4px', borderTop: '1px solid var(--border)', marginTop: '4px', color: deudaReal < 0 ? 'var(--info)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
+              <span>Deuda Real Actualizada</span>
               <span>{deudaReal < 0 ? `+ ${money(Math.abs(deudaReal))}` : money(deudaReal)}</span>
             </div>
           </div>

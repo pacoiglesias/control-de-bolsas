@@ -171,6 +171,13 @@ export default function Settings() {
                 <option value="total">el total facturado (con IVA)</option>
               </select>
             </Field>
+            <Field label="Deuda Histórica inicial con Andrés ($)">
+              <input className="input boxed mono" type="number" step="0.01" value={form.historicalDebtAndres ?? 0}
+                onChange={(e) => setForm({ ...form, historicalDebtAndres: Number(e.target.value) })} />
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Valores negativos indican que le debes (pasivo).
+              </div>
+            </Field>
           </div>
 
           <div className="calc-box" style={{ marginTop: 16 }}>
@@ -217,6 +224,28 @@ export default function Settings() {
             <button className="btn" onClick={() => setForm(config)} disabled={!dirty || busy}>Descartar</button>
             <button className="btn btn-primary" onClick={() => void onSave().then(tocarConfig)} disabled={!dirty || busy}>
               {busy ? 'Guardando…' : 'Guardar configuración'}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Respaldos y Paquete Offline (v6.23.0)">
+        <div style={{ padding: 16 }}>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Genera copias locales de toda la base de datos de Firebase. Ideal para auditorías, análisis avanzado o continuar operando sin internet.
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+            <button className="btn" onClick={async () => {
+              const { exportToExcel } = await import('../lib/export');
+              await exportToExcel();
+            }} disabled={busy}>
+              📊 Exportar a Excel (Todas las Colecciones)
+            </button>
+            <button className="btn btn-primary" onClick={async () => {
+              const { exportToHtml } = await import('../lib/export');
+              await exportToHtml();
+            }} disabled={busy}>
+              🌐 Descargar ERP Offline (.html)
             </button>
           </div>
         </div>

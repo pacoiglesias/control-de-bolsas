@@ -11,6 +11,8 @@ export interface FinancialConfig {
   ivaRate: number;
   /** Sobre qué importe cobra su comisión contabilidad. */
   commissionBase: 'subtotal' | 'total';
+  /** Deuda histórica que nosotros tenemos con Andrés (en negativo si es pasivo nuestro) */
+  historicalDebtAndres?: number;
   /** Clave de producto/servicio del SAT (catálogo c_ClaveProdServ). */
   satClaveProdServ?: string;
   /** Clave de unidad de medida del SAT (catálogo c_ClaveUnidad). */
@@ -41,6 +43,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    * honorario que cobra el contador por gestionar la cobranza.
    */
   commissionBase: 'subtotal',
+  historicalDebtAndres: -123175.56,
   // Tomados de una OC real del negocio; editables en Configuracion.
   satClaveProdServ: '24141500',
   satClaveUnidad: 'KGM',
