@@ -37,6 +37,11 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
       return;
     }
 
+    if (finalFolio.toUpperCase().startsWith('GT') || finalFolio.toUpperCase().startsWith('TH')) {
+      toast('Error: TH y GT son numeraciones exclusivas de un CONTRARECIBO. No se pueden registrar como número de Factura.', 'bad');
+      return;
+    }
+
     // Creating object that strictly satisfies the Invoice interface
     const newInvoice: Invoice = {
       id: Date.now().toString(),

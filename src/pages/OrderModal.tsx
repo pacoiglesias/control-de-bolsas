@@ -644,7 +644,7 @@ export default function OrderModal({
           <div class="header">
             <div>
               <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
-              <div class="sub">Bolsas Elemental ERP · Remisión + Contrarecibo + Factura</div>
+              <div class="sub">Bolsas Elemental ERP · Pre-Factura CFDI</div>
             </div>
             <div style="text-align:right;">
               <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}<br>
@@ -679,7 +679,7 @@ export default function OrderModal({
             </table>
           ` : ''}
 
-          <div class="section-title">📄 2. DETALLE DE FACTURAS Y CONTRARECIBOS (GT/TH)</div>
+          <div class="section-title">📄 2. DETALLE DE FACTURAS (CFDI) Y CONTRARECIBOS (GT/TH)</div>
           <table>
             <thead>
               <tr>
@@ -1422,7 +1422,15 @@ export default function OrderModal({
                       <div className="form-grid">
                         <Field label="Folio">
                           <input className="input boxed mono" defaultValue={inv.folio || ''} 
-                            onBlur={e => updateInvoice(i, x => ({...x, folio: e.target.value}))} disabled={readOnly} />
+                            onBlur={e => {
+                              const val = e.target.value.trim().toUpperCase();
+                              if (val.startsWith('GT') || val.startsWith('TH')) {
+                                toast('Error: TH y GT son exclusivas de Contrarecibo. Ingresa un número de factura válido.', 'bad');
+                                e.target.value = inv.folio || '';
+                                return;
+                              }
+                              updateInvoice(i, x => ({...x, folio: e.target.value}));
+                            }} disabled={readOnly} />
                         </Field>
                         <Field label="Kilos Facturados">
                           <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.kilos} 
