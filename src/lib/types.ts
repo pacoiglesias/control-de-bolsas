@@ -22,6 +22,10 @@ export interface FinancialConfig {
   satMetodoPago?: string;
   /** Forma de pago SAT (catálogo c_FormaPago). "99" = Por definir. */
   satFormaPago?: string;
+  
+  /** Identidad Corporativa */
+  companyName?: string;
+  companyLogoUrl?: string;
 }
 
 export const DEFAULT_CONFIG: FinancialConfig = {
@@ -46,10 +50,12 @@ export const DEFAULT_CONFIG: FinancialConfig = {
   commissionBase: 'subtotal',
   historicalDebtAndres: -123175.56,
   // Tomados de una OC real del negocio; editables en Configuracion.
-  satClaveProdServ: '24141500',
+  satClaveProdServ: '24111500',
   satClaveUnidad: 'KGM',
-  satMetodoPago: 'PPF',
+  satMetodoPago: 'PPD',
   satFormaPago: '99',
+  companyName: 'Elemental Denim Bolsas',
+  companyLogoUrl: '',
 };
 
 export interface OrderFinancials {

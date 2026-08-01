@@ -220,6 +220,7 @@ Pago recibido 23 julio	76140.00`);
         const newOrder: PurchaseOrder = {
           id: crKey,
           folio: cr.folio,
+          department: cr.folio.startsWith('TH') ? 'TH' : (cr.folio.startsWith('GT') ? 'GT' : undefined),
           client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
           fileName: 'MIGRACION_MAESTRA',
           totalKilograms: totalKilos,
@@ -313,6 +314,7 @@ Pago recibido 23 julio	76140.00`);
         const ord: PurchaseOrder = {
           id: key,
           folio: pg.cr,
+          department: pg.cr.startsWith('TH') ? 'TH' : (pg.cr.startsWith('GT') ? 'GT' : undefined),
           client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
           fileName: 'MIGRACION_PAGADOS',
           totalKilograms: kilosPg,

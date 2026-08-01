@@ -7,8 +7,9 @@ import Settings from './Settings';
 import Users from './Users';
 import Respaldo from './Respaldo';
 import Logs from './Logs';
+import Seeder from './Seeder';
 
-type Tab = 'settings' | 'users' | 'backup' | 'logs';
+type Tab = 'settings' | 'users' | 'backup' | 'logs' | 'seeder';
 
 export default function ControlCenter() {
   const { role } = useAuth();
@@ -54,6 +55,13 @@ export default function ControlCenter() {
         >
           📝 Auditoría (Logs)
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'seeder' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('seeder')}
+          style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'seeder' ? '2px solid var(--brand)' : '2px solid transparent', cursor: 'pointer', fontWeight: activeTab === 'seeder' ? 600 : 400, color: activeTab === 'seeder' ? 'var(--brand)' : 'var(--text-light)' }}
+        >
+          🗄️ Base de Datos (Seeder)
+        </button>
       </div>
 
       <div className="tab-content" style={{ padding: '0 8px' }}>
@@ -61,6 +69,7 @@ export default function ControlCenter() {
         {activeTab === 'users' && <Users />}
         {activeTab === 'backup' && <Respaldo />}
         {activeTab === 'logs' && <Logs />}
+        {activeTab === 'seeder' && <Seeder />}
       </div>
     </>
   );

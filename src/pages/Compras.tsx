@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
-import { fmtDate, kilos, money, toInputDate, fromInputDate, exportToCsv } from '../lib/format';
+import { fmtDate, money, exportToCsv, getPrintHeaderHtml, kilos, toInputDate, fromInputDate } from '../lib/format';
 import { round2 } from '../lib/finance';
 import {
   newDeliveryEvent,
@@ -198,19 +198,7 @@ export default function Compras() {
           <meta charset="UTF-8">
           <title>Estado de Cuenta Proveedor - Andrés</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
-            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .header-brand { display: flex; flex-direction: column; gap: 4px; }
-            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
-            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-            .header-meta { text-align: right; color: #475569; }
-            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
             table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
             th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
             th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
@@ -218,23 +206,16 @@ export default function Compras() {
             tr:nth-child(even) { background-color: #fafaf9; }
             .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
             .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-ok { background: #dcfce7; color: #166534; }
-            .badge-warn { background: #fef9c3; color: #854d0e; }
-            .badge-bad { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { padding: 0; } .no-print { display: none; } }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <div class="header-brand">
-              <h1>Estado de Cuenta Proveedor: Andrés</h1>
-              <div class="header-subtitle">Control Bolsas ERP · Grupo Textil Providencia</div>
-            </div>
-            <div class="header-meta">
-              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-          </div>
+          ${getPrintHeaderHtml(config, "Estado de Cuenta Proveedor: Fabricante de Bolsas")}
+
 
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">💰 TOTAL ADELANTADO</div><div class="kpi-val" style="color: #047857;">$${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>

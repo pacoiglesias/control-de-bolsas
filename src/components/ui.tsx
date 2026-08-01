@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
+import { useConfig } from '../hooks/useConfig';
 
 export function KpiCard({
   label,
@@ -191,5 +192,38 @@ export function ResponsiveKilos({ value }: { value: number }) {
       <span className="hide-mobile">{kilos(value)}</span>
       <span className="show-mobile" title={kilos(value)}>{compactKilos(value)}</span>
     </>
+  );
+}
+
+export function PrintHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  const { config } = useConfig();
+  const date = new Date().toLocaleDateString('es-MX', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+
+  return (
+    <div className="print-header only-print">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, borderBottom: '2px solid #0f172a', paddingBottom: 12 }}>
+        {config.companyLogoUrl ? (
+          <img src={config.companyLogoUrl} alt="Logo" style={{ width: 100, height: 100, objectFit: 'contain' }} />
+        ) : null}
+        <div style={{ flex: 1 }}>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#0f172a' }}>
+            {config.companyName || 'Bolsas Elemental'}
+          </h2>
+          <div style={{ fontSize: 16, color: '#475569', fontWeight: 600, marginTop: 4 }}>
+            {title}
+          </div>
+          {subtitle && (
+            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{subtitle}</div>
+          )}
+        </div>
+        <div style={{ textAlign: 'right', fontSize: 11, color: '#64748b', alignSelf: 'flex-start' }}>
+          Documento generado el:<br />
+          <strong>{date}</strong>
+        </div>
+      </div>
+    </div>
   );
 }

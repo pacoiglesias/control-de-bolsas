@@ -3,8 +3,9 @@ import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import OrderModal from './OrderModal';
 import { KpiCard, Skeleton } from '../components/ui';
+import { useToast } from '../context/ToastContext';
 // money vivia duplicada aqui con su propia implementacion. Una sola.
-import { money } from '../lib/format';
+import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -23,6 +24,7 @@ interface OcGroup {
 }
 
 export default function OcTracking() {
+  const toast = useToast();
   const { orders, loading, error } = useOrders();
   const { config } = useConfig();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -78,6 +80,94 @@ export default function OcTracking() {
     (acc, g) => acc + g.invoices.reduce((s, i) => s + i.amount, 0), 0
   );
 
+  function getManifiestoHtml(pendingOrders: any[]) {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Manifiesto de Entregas</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
+            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+            tr:last-child td { border-bottom: none; }
+            tr:nth-child(even) { background-color: #fafaf9; }
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+            .check-box { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 4px; display: inline-block; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 80px; text-align: center; font-weight: 600; color: #475569; }
+            .sig-box { border-top: 1px solid #94a3b8; width: 250px; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          ${getPrintHeaderHtml(config, "Manifiesto de Entregas (Chofer / Logística)")}
+          
+          <h3 style="margin-top: 20px;">Órdenes Pendientes de Entregar (${pendingOrders.length})</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>OC</th><th>Cliente</th><th class="num">Pedida (kg)</th><th class="num">Entregada (kg)</th><th class="num">Faltante (kg)</th><th style="width: 80px; text-align: center;">Completado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pendingOrders.length > 0 ? pendingOrders.map(g => {
+                const pedidos = g.order?.totalKilograms ?? 0;
+                const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
+                const faltante = pedidos - entregados;
+                return `
+                  <tr>
+                    <td><strong>${escapeHtml(g.oc)}</strong></td>
+                    <td>${escapeHtml(g.order?.client || '—')}</td>
+                    <td class="num">${pedidos.toLocaleString('es-MX')}</td>
+                    <td class="num">${entregados.toLocaleString('es-MX')}</td>
+                    <td class="num" style="color: #b91c1c; font-weight: bold;">${faltante.toLocaleString('es-MX')}</td>
+                    <td style="text-align: center;"><div class="check-box"></div></td>
+                  </tr>
+                `;
+              }).join('') : '<tr><td colspan="6" style="text-align: center; padding: 20px;">No hay órdenes pendientes de entrega</td></tr>'}
+            </tbody>
+          </table>
+
+          <div class="signatures">
+            <div class="sig-box">Firma de Salida (Almacén)</div>
+            <div class="sig-box">Firma de Entrega (Chofer)</div>
+          </div>
+
+          <script>
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+  }
+
+  function printManifiesto() {
+    const pendingOrders = ocGroups.filter(g => {
+      const pedidos = g.order?.totalKilograms ?? 0;
+      const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
+      return pedidos > 0 && entregados < pedidos;
+    });
+
+    const html = getManifiestoHtml(pendingOrders);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
+  async function shareManifiesto() {
+    const pendingOrders = ocGroups.filter(g => {
+      const pedidos = g.order?.totalKilograms ?? 0;
+      const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
+      return pedidos > 0 && entregados < pedidos;
+    });
+
+    const html = getManifiestoHtml(pendingOrders);
+    toast('Generando PDF, por favor espera...', 'ok');
+    await shareHtmlAsPdf(html, `Manifiesto_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
+
   // Antes esta pantalla ignoraba `loading`: durante la carga afirmaba
   // "OCs activas: 0" y "Total facturado: $0.00" como si fueran cifras reales,
   // y despues saltaba a los valores correctos moviendo todo el contenido.
@@ -109,6 +199,16 @@ export default function OcTracking() {
           facturas desplegadas adentro: cuánto se facturó, avance de entregas y estado de cobro por
           Orden de Compra. Haz clic en cualquier renglón para editar el expediente.
         </p>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareManifiesto}>
+              <span className="icon">📤</span> Compartir PDF
+            </button>
+            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printManifiesto}>
+              📈 Imprimir Manifiesto
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Resumen rápido. Usa el mismo KpiCard que el resto del sistema: las
@@ -142,7 +242,7 @@ export default function OcTracking() {
           }
 
           const kilosPedidos = group.order?.totalKilograms ?? 0;
-          const kilosEntregados = group.order?.deliveries?.reduce((a, b) => a + b.kilos, 0) ?? 0;
+          const kilosEntregados = group.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
 
           return (
             <div

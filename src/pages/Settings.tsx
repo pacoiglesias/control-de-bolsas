@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc } from 'firebase/firestore';
-import { db, PATHS } from '../lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db, PATHS, storage } from '../lib/firebase';
 import { saveConfig, useConfig } from '../hooks/useConfig';
 import { useOrders } from '../hooks/useOrders';
 import { useAuth } from '../context/AuthContext';
@@ -75,6 +76,34 @@ export default function Settings() {
     }
   }
 
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      return toast('Por favor sube un archivo de imagen (PNG, JPG, etc).', 'bad');
+    }
+    setBusy(true);
+    toast('Subiendo logotipo...', 'ok');
+    try {
+      const path = `identidad/logo-${Date.now()}-${file.name}`;
+      const storageRef = ref(storage, path);
+      const task = uploadBytesResumable(storageRef, file);
+      
+      task.on('state_changed', undefined, (err) => {
+        toast(`Error subiendo logo: ${err.message}`, 'bad');
+        setBusy(false);
+      }, async () => {
+        const url = await getDownloadURL(task.snapshot.ref);
+        setForm(f => ({ ...f, companyLogoUrl: url }));
+        toast('Logotipo subido. No olvides dar clic en Guardar Configuración.', 'ok');
+        setBusy(false);
+      });
+    } catch (err: any) {
+      toast(`Falló la subida: ${err.message}`, 'bad');
+      setBusy(false);
+    }
+  }
+
   /** Recalcula órdenes ya procesadas con los precios actuales.
    *  Solo toca las que no están cobradas: lo cobrado es historia. */
   async function recalcular() {
@@ -140,6 +169,39 @@ export default function Settings() {
           {money(DEFAULT_CONFIG.costPricePerKg)}/{percent(DEFAULT_CONFIG.commissionRate)}).
         </div>
       )}
+
+      <Card title="Identidad Corporativa">
+        <div style={{ padding: 16 }}>
+          <div className="form-grid">
+            <Field label="Nombre Comercial de la Empresa">
+              <input className="input boxed" type="text" value={form.companyName ?? ''}
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })} 
+                placeholder="Ej. Elemental Denim Bolsas" />
+            </Field>
+            
+            <Field label="Logotipo Oficial">
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div style={{ width: 80, height: 80, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {form.companyLogoUrl ? (
+                    <img src={form.companyLogoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: 24 }}>🏢</span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label className="btn btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer', marginBottom: 8 }}>
+                    🖼️ Cambiar Logotipo
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} disabled={busy} />
+                  </label>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    Este logotipo se usará en todos los reportes, PDF y pantallas principales del sistema.
+                  </div>
+                </div>
+              </div>
+            </Field>
+          </div>
+        </div>
+      </Card>
 
       <Card title="Reglas financieras">
         <div style={{ padding: 16 }}>

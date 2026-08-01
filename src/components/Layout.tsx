@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
+import { useConfig } from '../hooks/useConfig';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 
@@ -40,6 +41,7 @@ function initTheme(): 'light' | 'dark' {
 export default function Layout() {
   const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
+  const { config } = useConfig();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
@@ -54,7 +56,7 @@ export default function Layout() {
   useEffect(() => {
     setNavOpen(false);
     const item = NAV.find((n) => n.to && (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
-    document.title = item ? `${item.label} · Control Bolsas` : 'Control Bolsas ERP';
+    document.title = item ? `${item.label} · Bolsas Elemental` : 'Bolsas Elemental ERP';
   }, [location.pathname]);
 
   useEffect(() => {
@@ -103,11 +105,11 @@ export default function Layout() {
     <>
       <div className={`scrim ${navOpen ? 'show' : ''}`} onClick={() => setNavOpen(false)} />
 
-      <header className="topbar">
+      <header className="topbar no-print">
         <button className="icon-btn" onClick={() => setNavOpen((v) => !v)} aria-label="Abrir menú">
           ☰
         </button>
-        <span className="t-title">Control Bolsas</span>
+        <span className="t-title">{config.companyName || 'Bolsas Elemental'}</span>
         <span className="spacer" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
@@ -124,10 +126,13 @@ export default function Layout() {
       </header>
 
       <div className="app-shell">
-        <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
-          <div className="brand">
-            <div className="brand-mark">CONTROL BOLSAS</div>
-            <div className="brand-sub">Master Track · v{__APP_VERSION__} ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
+        <aside className={`sidebar no-print ${navOpen ? 'open' : ''}`}>
+          <div className="brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 16px' }}>
+            <img src={config.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 80, height: 80, objectFit: 'contain', borderRadius: 8, background: '#fff', padding: 4 }} />
+            <div style={{ textAlign: 'center' }}>
+              <div className="brand-mark" style={{ fontSize: 16, lineHeight: 1.2 }}>{config.companyName || 'BOLSAS ELEMENTAL'}</div>
+              <div className="brand-sub">ERP · v{__APP_VERSION__} ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
+            </div>
           </div>
           <nav className="nav">
             {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
@@ -171,7 +176,7 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Control Bolsas v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
+            Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Elver Gonzalez &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>

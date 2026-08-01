@@ -39,10 +39,10 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
         <div className="brand-mark" style={{ color: 'var(--ink)' }}>
-          CONTROL BOLSAS
+          BOLSAS ELEMENTAL
         </div>
         <div className="brand-sub" style={{ color: 'var(--ink-faint)', marginBottom: 22 }}>
-          Master Track · acceso restringido
+          ERP · acceso restringido
         </div>
 
         {missingEnv.length > 0 && (

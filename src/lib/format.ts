@@ -107,3 +107,87 @@ export function exportToCsv(filename: string, headers: string[], rows: (string |
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+export function getPrintHeaderHtml(config: any, title: string, subtitle?: string) {
+  const logoUrl = config.companyLogoUrl || '/logo.png';
+  const logoHtml = `<img src="${logoUrl}" alt="Logo" style="width: 100px; height: 100px; object-fit: contain;" />`;
+
+  return `
+    <div style="display: flex; align-items: center; border-bottom: 2px solid #cbd5e1; padding-bottom: 16px; margin-bottom: 24px;">
+      ${logoHtml}
+      <div>
+        <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${config.companyName || 'Bolsas Elemental'}</div>
+        <div style="font-size: 14px; font-weight: 600; color: #475569;">${title}</div>
+        ${subtitle ? `<div style="font-size: 13px; color: #64748b; margin-top: 4px;">${subtitle}</div>` : ''}
+      </div>
+      <div style="margin-left: auto; text-align: right; font-size: 12px; color: #64748b;">
+        Fecha de Emisión: ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}<br>
+        Generado desde Bolsas Elemental ERP
+      </div>
+    </div>
+  `;
+}
+
+export async function shareHtmlAsPdf(htmlString: string, filename: string = 'documento.pdf') {
+  const container = document.createElement('div');
+  
+  // Extract body content and styles
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, 'text/html');
+  
+  const styles = Array.from(doc.querySelectorAll('style')).map(s => s.outerHTML).join('\\n');
+  const bodyHtml = doc.body.innerHTML;
+  
+  container.innerHTML = styles + bodyHtml;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.width = '800px'; 
+  container.style.padding = '20px';
+  container.style.background = '#fff';
+  
+  document.body.appendChild(container);
+
+  try {
+    // @ts-ignore
+    const html2pdf = (await import('html2pdf.js')).default;
+    const opt: any = {
+      margin:       10,
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
+    };
+
+    const pdfBlob = await html2pdf().set(opt).from(container).output('blob');
+    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: filename,
+        text: 'Te comparto este documento PDF generado desde Bolsas Elemental.',
+        files: [file],
+      });
+    } else {
+      // Fallback
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  } catch (error) {
+    console.error('Error sharing PDF:', error);
+    // Fallback: print
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(htmlString);
+      w.document.close();
+      w.focus();
+    }
+  } finally {
+    document.body.removeChild(container);
+  }
+}

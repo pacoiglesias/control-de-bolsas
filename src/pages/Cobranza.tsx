@@ -4,7 +4,7 @@ import { useConfig } from '../hooks/useConfig';
 import { Card, Empty, KpiCard, Skeleton, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../lib/finance';
-import { escapeHtml, fmtDate, money, toDate, exportToCsv } from '../lib/format';
+import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
@@ -358,26 +358,15 @@ export default function Cobranza() {
     }
   }
 
-  function printCobranzaGlobalReport() {
-    const html = `
+  function getCobranzaGlobalHtml() {
+    return `
       <!DOCTYPE html>
       <html>
-        <head>\n          <meta charset="UTF-8">
-          <title>Reporte Global de Cobranza y Cuentas por Cobrar</title>
+        <head>
+          <meta charset="UTF-8">
+          <title>Reporte Global de Cobranza</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
-            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .header-brand { display: flex; flex-direction: column; gap: 4px; }
-            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
-            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-            .header-meta { text-align: right; color: #475569; }
-            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
             table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
             th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
             th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
@@ -385,24 +374,16 @@ export default function Cobranza() {
             tr:nth-child(even) { background-color: #fafaf9; }
             .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
             .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-ok { background: #dcfce7; color: #166534; }
-            .badge-warn { background: #fef9c3; color: #854d0e; }
-            .badge-bad { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { padding: 0; } .no-print { display: none; } }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <div class="header-brand">
-              <h1>Reporte de Cobranza y Contrarecibos (PDF)</h1>
-              <div class="header-subtitle">Control Bolsas ERP · Grupo Textil Providencia</div>
-            </div>
-            <div class="header-meta">
-              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-          </div>
-
+          ${getPrintHeaderHtml(config, "Reporte Global de Cobranza y Cuentas por Cobrar")}
+          
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">TE DEBEN</div><div class="kpi-val">$${data.meDeben.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
             <div class="kpi"><div class="kpi-title">VENCIDO</div><div class="kpi-val" style="color: #b91c1c;">$${data.vencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
@@ -474,82 +455,139 @@ export default function Cobranza() {
           </table>
 
           <script>
-            window.onafterprint = () => window.close();
             window.onload = () => { window.print(); }
           </script>
         </body>
       </html>
     `;
+  }
+
+  function printCobranzaGlobalReport() {
+    const html = getCobranzaGlobalHtml();
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-    // Mismo patron que las otras tres plantillas de impresion: sin esto el
-    // blob queda vivo en memoria hasta recargar la pestana.
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
-  function printConsolidatedCr(grp: {
-    cr: string;
-    client: string;
-    folios: string[];
-    totalKilos: number;
-    totalVenta: number;
-    costoAndres: number;
-    comisionContador: number;
-    netUtilidad: number;
-    netCobrado: number;
-    margenPct: number;
-    status: string;
-  }) {
-    const html = `
+  async function shareCobranzaGlobalReport() {
+    const html = getCobranzaGlobalHtml();
+    toast('Generando PDF, por favor espera...', 'ok');
+    await shareHtmlAsPdf(html, `CobranzaGlobal_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
+
+  function getCarteraVencidaHtml(overdueItems: any[], totalVencido: number) {
+    return `
       <!DOCTYPE html>
       <html>
-        <head>\n          <meta charset="UTF-8">
-          <title>Paquete Consolidado CR - ${escapeHtml(grp.cr)}</title>
+        <head>
+          <meta charset="UTF-8">
+          <title>Reporte de Cartera Vencida</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
-            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .header-brand { display: flex; flex-direction: column; gap: 4px; }
-            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
-            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-            .header-meta { text-align: right; color: #475569; }
-            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
             table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
             th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
             th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
             tr:last-child td { border-bottom: none; }
             tr:nth-child(even) { background-color: #fafaf9; }
             .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-ok { background: #dcfce7; color: #166534; }
-            .badge-warn { background: #fef9c3; color: #854d0e; }
-            .badge-bad { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { padding: 0; } .no-print { display: none; } }
+            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+            .kpi { flex: 1; min-width: 150px; background: #fef2f2; border: 1px solid #fca5a5; padding: 16px 20px; border-radius: 8px; }
+            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #991b1b; letter-spacing: 0.05em; margin-bottom: 8px; }
+            .kpi-val { font-size: 22px; font-weight: 800; color: #7f1d1d; letter-spacing: -0.02em; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <div>
-              <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
-              <div>Control Bolsas ERP · Contrarecibo ${escapeHtml(grp.cr)}</div>
-            </div>
-            <div style="text-align:right;">
-              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}
-            </div>
+          ${getPrintHeaderHtml(config, "Reporte de Cartera Vencida (Alarma)")}
+          
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-title">TOTAL VENCIDO</div><div class="kpi-val">$${totalVencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">FACTURAS VENCIDAS</div><div class="kpi-val">${overdueItems.length}</div></div>
           </div>
+
+          <h3>Detalle de Cuentas Atrasadas</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Días Atraso</th><th class="num">Monto Vencido</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${overdueItems.length > 0 ? overdueItems.map(x => `
+                <tr>
+                  <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
+                  <td><strong>${escapeHtml(x.o.client || '—')}</strong></td>
+                  <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
+                  <td style="color: #b91c1c; font-weight: 600;">Hace ${daysLate(toDate(x.inv.creditCycle.dueDate))} días</td>
+                  <td class="num" style="color: #b91c1c; font-weight: bold;">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="5" style="text-align: center;">No hay cartera vencida</td></tr>'}
+            </tbody>
+          </table>
+
+          <script>
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+  }
+
+  function printCarteraVencida() {
+    const overdueItems = data.open.filter(x => {
+      const late = daysLate(toDate(x.inv.creditCycle.dueDate));
+      return late !== null && late > 0;
+    });
+    const totalVencido = overdueItems.reduce((sum, x) => sum + (x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0);
+
+    const html = getCarteraVencidaHtml(overdueItems, totalVencido);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
+  async function shareCarteraVencida() {
+    const overdueItems = data.open.filter(x => {
+      const late = daysLate(toDate(x.inv.creditCycle.dueDate));
+      return late !== null && late > 0;
+    });
+    const totalVencido = overdueItems.reduce((sum, x) => sum + (x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0);
+
+    const html = getCarteraVencidaHtml(overdueItems, totalVencido);
+    toast('Generando PDF, por favor espera...', 'ok');
+    await shareHtmlAsPdf(html, `CarteraVencida_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
+
+  function getConsolidatedCrHtml(grp: any) {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Cobro - CR ${escapeHtml(grp.cr)}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 14px; line-height: 1.5; background: #fff; }
+            table { width: 100%; border-collapse: collapse; margin: 30px 0; font-size: 14px; }
+            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #cbd5e1; }
+            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+            .summary-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 40px; width: 400px; margin-left: auto; }
+            .summary-line { display: flex; justify-content: space-between; margin-bottom: 12px; }
+            .summary-line.total { border-top: 2px solid #94a3b8; padding-top: 12px; font-weight: 800; font-size: 18px; color: #0f172a; }
+            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 14px; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 80px; text-align: center; font-weight: 600; color: #475569; }
+            .sig-box { border-top: 1px solid #94a3b8; width: 250px; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          ${getPrintHeaderHtml(config, "Notificación de Cobro y Liquidación Comercial", `Contrarecibo: ${escapeHtml(grp.cr)} - Cliente: ${escapeHtml(grp.client)}`)}
 
           <div class="meta-grid">
             <div>
               <strong>Contrarecibo (CR):</strong> ${escapeHtml(grp.cr)}<br>
               <strong>Cliente:</strong> ${escapeHtml(grp.client)}<br>
-              <strong>Factura(s):</strong> ${grp.folios.map(f => '#' + escapeHtml(f)).join(', ') || '—'}
+              <strong>Factura(s):</strong> ${grp.folios.map((f: any) => '#' + escapeHtml(f)).join(', ') || '—'}
             </div>
             <div style="text-align:right;">
               <strong>Proveedor Fabricante:</strong> Andrés (Sin Mermas)<br>
@@ -571,7 +609,7 @@ export default function Cobranza() {
             </thead>
             <tbody>
               <tr>
-                <td>Contrarecibo ${escapeHtml(grp.cr)} (${grp.folios.map(f => '#' + escapeHtml(f)).join(', ')})</td>
+                <td>Contrarecibo ${escapeHtml(grp.cr)} (${grp.folios.map((f: any) => '#' + escapeHtml(f)).join(', ')})</td>
                 <td style="text-align:right;">${grp.totalKilos.toLocaleString('es-MX')} kg</td>
                 <td style="text-align:right;">$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 <td style="text-align:right;color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
@@ -598,17 +636,25 @@ export default function Cobranza() {
           </div>
 
           <script>
-            window.onafterprint = () => window.close();
             window.onload = () => { window.print(); }
           </script>
         </body>
       </html>
     `;
+  }
+
+  function printConsolidatedCr(grp: any) {
+    const html = getConsolidatedCrHtml(grp);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-    // El blob queda vivo en memoria hasta recargar si no se revoca a mano.
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
+  async function shareConsolidatedCr(grp: any) {
+    const html = getConsolidatedCrHtml(grp);
+    toast('Generando PDF, por favor espera...', 'ok');
+    await shareHtmlAsPdf(html, `Contrarecibo_${grp.cr}_${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
   const data = useMemo(() => {
@@ -817,9 +863,24 @@ export default function Cobranza() {
             marcas como cobrada; la comisión de contabilidad ya viene descontada del flujo neto.
           </p>
         </div>
-        <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printCobranzaGlobalReport}>
-          🖨️ Reporte de Cobranza (PDF)
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCarteraVencida}>
+              <span className="icon">📤</span> PDF (Cartera Vencida)
+            </button>
+            <button className="btn" style={{ background: '#b91c1c', color: '#fff', borderColor: '#b91c1c', fontWeight: 600 }} onClick={printCarteraVencida}>
+              🚨 Cartera Vencida (Imprimir)
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCobranzaGlobalReport}>
+              <span className="icon">📤</span> Compartir PDF
+            </button>
+            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printCobranzaGlobalReport}>
+              📈 Imprimir Todo (General)
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
@@ -1083,7 +1144,7 @@ export default function Cobranza() {
                   <tr key={grp.cr}>
                     <td className="mono" style={{ fontWeight: 700 }}>{grp.cr}</td>
                     <td>{grp.client}</td>
-                    <td className="mono">{grp.folios.map(f => '#' + f).join(', ') || '—'}</td>
+                    <td className="mono">{grp.folios.map((f: any) => '#' + f).join(', ') || '—'}</td>
                     <td className="num mono">{grp.totalKilos.toLocaleString('es-MX')} kg</td>
                     <td className="num mono">{money(grp.totalVenta)}</td>
                     <td className="num mono" style={{ color: 'var(--accent-deep)' }}>-{money(grp.costoAndres)}</td>
@@ -1091,9 +1152,14 @@ export default function Cobranza() {
                     <td className="num mono" style={{ fontWeight: 800, color: 'var(--ok)' }}>{money(grp.netUtilidad)}</td>
                     <td className="num mono" style={{ fontWeight: 700, color: grp.margenPct >= 10 ? 'var(--ok)' : 'var(--warn)' }}>{grp.margenPct.toFixed(1)}%</td>
                     <td className="num">
-                      <button className="btn" onClick={() => printConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px' }}>
-                        🖨️ Imprimir
-                      </button>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn" onClick={() => shareConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px' }}>
+                          📤 PDF
+                        </button>
+                        <button className="btn" onClick={() => printConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px' }}>
+                          🖨️ Imprimir Liquidación
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

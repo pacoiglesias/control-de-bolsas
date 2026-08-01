@@ -18,7 +18,7 @@ import {
   migrateLegacyDeliveries,
   upsertAndresPurchase,
 } from '../lib/deliveries';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent } from '../lib/format';
+import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent, getPrintHeaderHtml } from '../lib/format';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 import { useProducts } from '../hooks/useProducts';
@@ -360,44 +360,25 @@ export default function OrderModal({
   }
 
   function printRemision() {
-
     const html = `
       <html>
-        <head>\n          <meta charset="UTF-8">
+        <head>
+          <meta charset="UTF-8">
           <title>Remisión de Entrega - ${escapeHtml(form.folio)}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
-            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .header-brand { display: flex; flex-direction: column; gap: 4px; }
-            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
-            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-            .header-meta { text-align: right; color: #475569; }
-            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-            tr:last-child td { border-bottom: none; }
-            tr:nth-child(even) { background-color: #fafaf9; }
-            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-ok { background: #dcfce7; color: #166534; }
-            .badge-warn { background: #fef9c3; color: #854d0e; }
-            .badge-bad { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { padding: 0; } .no-print { display: none; } }
+            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px; text-align: left; }
+            th { background: #f8fafc; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 13px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 15px; }
+            .signature { margin-top: 80px; text-align: center; font-weight: 600; border-top: 1px solid #cbd5e1; padding-top: 10px; width: 300px; margin-left: auto; margin-right: auto; }
           </style>
         </head>
         <body>
-          <h1>REMISIÓN DE ENTREGA</h1>
-          <div class="meta">
+          ${getPrintHeaderHtml(dynamicConfig, "Remisión de Entrega", `Folio de Expediente: ${escapeHtml(form.folio) || '(Sin folio)'}`)}
+          
+          <div class="grid" style="margin-top: 20px;">
             <div>
-              <strong>Folio:</strong> ${escapeHtml(form.folio) || '(Sin folio)'}<br>
               <strong>Cliente:</strong> ${escapeHtml(form.client)}<br>
               <strong>Departamento:</strong> ${escapeHtml(form.department) || '—'}<br>
             </div>
@@ -423,7 +404,6 @@ export default function OrderModal({
             </tbody>
           </table>
           <div class="signature">
-            <br><br><br>
             <div>Nombre y Firma de Recibido</div>
           </div>
           <script>
@@ -476,14 +456,10 @@ export default function OrderModal({
 
     const html = `
       <html>
-        <head>\n          <meta charset="UTF-8">
+        <head>
+          <meta charset="UTF-8">
           <title>Pre-Factura CFDI 4.0 - ${escapeHtml(form.folio)}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
-            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .header-brand { display: flex; flex-direction: column; gap: 4px; }
-            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
             .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
             .header-meta { text-align: right; color: #475569; }
             .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
@@ -510,7 +486,7 @@ export default function OrderModal({
           <div class="header">
             <div>
               <h1>Pre-Factura CFDI 4.0</h1>
-              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Control Bolsas ERP · Documento Fiscal de Facturación</div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Bolsas Elemental ERP · Documento Fiscal de Facturación</div>
             </div>
             <div class="badge">ORDEN / NOTA: ${escapeHtml(form.folio) || '120267114014'}</div>
           </div>
@@ -665,7 +641,7 @@ export default function OrderModal({
           <div class="header">
             <div>
               <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
-              <div class="sub">Control Bolsas ERP · Remisión + Contrarecibo + Factura</div>
+              <div class="sub">Bolsas Elemental ERP · Remisión + Contrarecibo + Factura</div>
             </div>
             <div style="text-align:right;">
               <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}<br>
@@ -1451,10 +1427,19 @@ export default function OrderModal({
                         </Field>
                         <Field label="Contrarecibo (CR)">
                           <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''} 
-                            onBlur={e => updateInvoice(i, x => ({
-                              ...x, 
-                              collection: { ...x.collection, contrareciboNumber: e.target.value }
-                            }))} disabled={readOnly} />
+                            disabled={readOnly}
+                            onBlur={e => {
+                              let val = e.target.value.trim().toUpperCase();
+                              if (val) {
+                                if (val.startsWith('TH-') || val.startsWith('GT-')) val = val.substring(3);
+                                val = `${order.department || 'TH'}-${val}`;
+                              }
+                              e.target.value = val;
+                              updateInvoice(i, x => ({
+                                ...x, 
+                                collection: { ...x.collection, contrareciboNumber: val }
+                              }));
+                            }} />
                         </Field>
                         <Field label="Vencimiento (Promesa)">
                           <input className="input boxed mono" type="date" 
@@ -1514,13 +1499,6 @@ export default function OrderModal({
                                 }));
                               }
                             }} />
-                        </Field>
-                        <Field label="Contrarecibo">
-                          <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''}
-                            disabled={readOnly}
-                            onBlur={e => updateInvoice(i, x => ({
-                              ...x, collection: { ...x.collection, contrareciboNumber: e.target.value }
-                            }))} />
                         </Field>
                         <Field label="Fecha Contrarecibo">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.contrareciboDate) || ''}
