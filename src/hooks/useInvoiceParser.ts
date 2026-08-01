@@ -8,9 +8,10 @@ interface UseInvoiceParserProps {
   invoices: Invoice[];
   setInvoices: (invoices: Invoice[]) => void;
   config: FinanceConfigCore;
+  allOrders?: any[];
 }
 
-export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoiceParserProps) {
+export function useInvoiceParser({ invoices, setInvoices, config, allOrders = [] }: UseInvoiceParserProps) {
   const toast = useToast();
 
   const processFacturaText = (text: string) => {
@@ -42,6 +43,22 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
       return;
     }
 
+    // Validación Antiduplicados
+    const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
+    if (currentInvoicesFolios.includes(finalFolio.toUpperCase())) {
+      toast(`La Factura #${finalFolio} ya existe en este mismo expediente.`, 'bad');
+      return;
+    }
+    if (allOrders && allOrders.length > 0) {
+      const duplicadoGlobal = allOrders.find(o => 
+        (o.invoices || []).some((i: any) => i.folio?.trim().toUpperCase() === finalFolio.toUpperCase())
+      );
+      if (duplicadoGlobal) {
+        toast(`La Factura #${finalFolio} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
+        return;
+      }
+    }
+
     // Creating object that strictly satisfies the Invoice interface
     const newInvoice: Invoice = {
       id: Date.now().toString(),
@@ -68,6 +85,7 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
     const cleanText = text.replace(/[\s-]/g, '').toUpperCase();
     const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     let updatedCount = 0;
+    let skippedCount = 0;
     
     // Buscar si el texto menciona un número de Contrarecibo explícito (GT-12345 o TH-12345)
     const crMatch = text.match(/((?:GT|TH)-\d+)/i);
@@ -84,6 +102,11 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
           const amtMatch = rawLines[i+3].replace(/[$,]/g, '').match(/^(\d+(\.\d{2})?)$/);
           if (dateMatch && amtMatch) {
             const pagado = Number(amtMatch[1]);
+            const currentPaid = inv.collection?.paidAmount || 0;
+            if (currentPaid >= pagado) {
+              skippedCount++;
+              return inv;
+            }
             updatedCount++;
             return {
               ...inv,
@@ -105,6 +128,11 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
         const match = cleanText.match(regex);
         if (match) {
           const pagado = Number(match[1].replace(/,/g, ''));
+          const currentPaid = inv.collection?.paidAmount || 0;
+          if (currentPaid >= pagado) {
+            skippedCount++;
+            return inv;
+          }
           updatedCount++;
           return {
             ...inv,
@@ -117,13 +145,38 @@ export function useInvoiceParser({ invoices, setInvoices, config }: UseInvoicePa
           };
         }
       }
+
+      // 3. Formato Providencia (Una sola línea plana: ej. TR_3640 5950 TH-680 31/07/2026 80,970.38)
+      const singleLineRegex = new RegExp(`${invFolioUpper}\\s+((?:GT|TH)-\\d+)?\\s*(\\d{1,2}\\/\\d{1,2}\\/\\d{4})\\s+([\\d,]+\\.\\d{2})`, 'i');
+      const singleLineMatch = text.match(singleLineRegex);
+      if (singleLineMatch) {
+        const pagado = Number(singleLineMatch[3].replace(/,/g, ''));
+        const detectedCR = singleLineMatch[1] || crNumber;
+        const currentPaid = inv.collection?.paidAmount || 0;
+        if (currentPaid >= pagado) {
+          skippedCount++;
+          return inv;
+        }
+        updatedCount++;
+        return {
+          ...inv,
+          collection: {
+            ...(inv.collection || {}),
+            paidAmount: pagado,
+            contrareciboDate: Timestamp.now(),
+            ...(detectedCR ? { contrareciboNumber: detectedCR } : {})
+          }
+        };
+      }
       
       return inv;
     });
     
     if (updatedCount > 0) {
       setInvoices(nextInvoices);
-      toast(`Se actualizó el cobro de ${updatedCount} factura(s) con éxito.`, 'ok');
+      toast(`Se actualizó el cobro de ${updatedCount} factura(s) con éxito.${skippedCount > 0 ? ` Se omitieron ${skippedCount} pago(s) duplicado(s).` : ''}`, 'ok');
+    } else if (skippedCount > 0) {
+      toast(`Se omitieron ${skippedCount} pago(s) porque ya estaban registrados previamente.`, 'bad');
     } else {
       toast('No se encontró ningún Folio/UUID que coincida con las facturas de este expediente, o no se detectó el importe.', 'bad');
     }

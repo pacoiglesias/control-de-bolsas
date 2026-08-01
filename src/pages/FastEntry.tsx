@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Card } from '../components/ui';
+import { Card, Skeleton } from '../components/ui';
 import { useOrders } from '../hooks/useOrders';
 import { Invoice } from '../lib/types';
 import { db, PATHS } from '../lib/firebase';
@@ -163,7 +163,20 @@ export function FastEntry() {
     }
   };
 
-  if (loading) return <div style={{ padding: 32 }}>Cargando datos...</div>;
+  if (loading) {
+    return (
+      <div className="page-container" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <div>
+            <Skeleton style={{ width: 200, height: 28, marginBottom: 8 }} />
+            <Skeleton style={{ width: 350, height: 16 }} />
+          </div>
+          <Skeleton style={{ width: 140, height: 40 }} />
+        </div>
+        <Skeleton style={{ height: 400, borderRadius: 16 }} />
+      </div>
+    );
+  }
 
   
 

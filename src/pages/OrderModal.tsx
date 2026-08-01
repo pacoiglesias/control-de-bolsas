@@ -126,6 +126,7 @@ export default function OrderModal({
     invoices: form.invoices,
     setInvoices: (newInvoices: Invoice[]) => set('invoices', newInvoices),
     config,
+    allOrders,
   });
 
   const liveSummary = useMemo(() => {

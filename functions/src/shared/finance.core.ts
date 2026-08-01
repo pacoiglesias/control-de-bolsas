@@ -24,6 +24,8 @@
  * El neto se calcula sobre el SUBTOTAL sin IVA porque el IVA no debe mezclarse
  * con la utilidad real del negocio.
  */
+import Decimal from 'decimal.js-light';
+Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP });
 
 export interface FinanceConfigCore {
   salePricePerKg: number;
@@ -47,7 +49,7 @@ export interface FinanceResultCore {
 }
 
 export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+  return new Decimal(n).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
 }
 
 export function computeFinancials(
@@ -55,11 +57,14 @@ export function computeFinancials(
   cfg: FinanceConfigCore,
 ): FinanceResultCore {
   const k = Number.isFinite(kilos) ? kilos : 0;
-  const saleTotal = round2(k * cfg.salePricePerKg);
-  const invoiceTotal = round2(saleTotal * (1 + (cfg.ivaRate ?? 0)));
-  const costTotal = round2(k * cfg.costPricePerKg);
+  
+  const saleTotal = round2(new Decimal(k).times(cfg.salePricePerKg).toNumber());
+  const invoiceTotal = round2(new Decimal(saleTotal).times(new Decimal(1).plus(cfg.ivaRate ?? 0)).toNumber());
+  const costTotal = round2(new Decimal(k).times(cfg.costPricePerKg).toNumber());
+  
   const base = cfg.commissionBase === 'total' ? invoiceTotal : saleTotal;
-  const commission = round2(base * cfg.commissionRate);
+  const commission = round2(new Decimal(base).times(cfg.commissionRate).toNumber());
+  
   return {
     salePricePerKg: cfg.salePricePerKg,
     costPricePerKg: cfg.costPricePerKg,
@@ -68,15 +73,15 @@ export function computeFinancials(
     invoiceTotal,
     costTotal,
     commission,
-    netCashFlow: round2(saleTotal - costTotal - commission),
-    tradeMargin: round2(saleTotal - costTotal),
+    netCashFlow: round2(new Decimal(saleTotal).minus(costTotal).minus(commission).toNumber()),
+    tradeMargin: round2(new Decimal(saleTotal).minus(costTotal).toNumber()),
   };
 }
 
 export function computeCommissionFromInvoiceTotal(invoiceTotal: number, cfg: FinanceConfigCore): number {
-  const saleTotal = invoiceTotal / (1 + (cfg.ivaRate ?? 0));
+  const saleTotal = new Decimal(invoiceTotal).dividedBy(new Decimal(1).plus(cfg.ivaRate ?? 0)).toNumber();
   const base = cfg.commissionBase === 'total' ? invoiceTotal : saleTotal;
-  return round2(base * (cfg.commissionRate ?? 0));
+  return round2(new Decimal(base).times(cfg.commissionRate ?? 0).toNumber());
 }
 
 /**
@@ -157,13 +162,13 @@ export function computeDynamicFinancials(input: DynamicFinancialsInput): Dynamic
   const monto_facturado_total = Number(input.monto_facturado_total) || 0;
 
   // 1. Precio Final de Venta por Kilo
-  const precio_venta_final_kg = round2(precio_venta_base_kg * (1 + tasa_adicional_pct));
+  const precio_venta_final_kg = round2(new Decimal(precio_venta_base_kg).times(new Decimal(1).plus(tasa_adicional_pct)).toNumber());
 
   // 2. Kilos Vendidos (Calculados automáticamente)
-  const kilos_vendidos = precio_venta_final_kg > 0 ? round2(monto_facturado_total / precio_venta_final_kg) : 0;
+  const kilos_vendidos = precio_venta_final_kg > 0 ? round2(new Decimal(monto_facturado_total).dividedBy(precio_venta_final_kg).toNumber()) : 0;
 
   // 3. Costo Total del Material
-  const costo_total_compra = round2(kilos_vendidos * costo_compra_kg);
+  const costo_total_compra = round2(new Decimal(kilos_vendidos).times(costo_compra_kg).toNumber());
 
   // 4. Flexibilidad en Captura (Monto recibido o Porcentaje de comisión)
   let monto_recibido_neto = 0;
@@ -172,20 +177,20 @@ export function computeDynamicFinancials(input: DynamicFinancialsInput): Dynamic
 
   if (input.monto_recibido_neto !== undefined && input.monto_recibido_neto !== null) {
     monto_recibido_neto = round2(Number(input.monto_recibido_neto));
-    monto_comision_gestor = round2(monto_facturado_total - monto_recibido_neto);
-    porcentaje_comision_real = monto_facturado_total > 0 ? round2((monto_comision_gestor / monto_facturado_total) * 100) : 0;
+    monto_comision_gestor = round2(new Decimal(monto_facturado_total).minus(monto_recibido_neto).toNumber());
+    porcentaje_comision_real = monto_facturado_total > 0 ? round2(new Decimal(monto_comision_gestor).dividedBy(monto_facturado_total).times(100).toNumber()) : 0;
   } else {
     const pctComision = Number(input.porcentaje_comision) || 0;
-    monto_recibido_neto = round2(monto_facturado_total * (1 - pctComision));
-    monto_comision_gestor = round2(monto_facturado_total - monto_recibido_neto);
-    porcentaje_comision_real = round2(pctComision * 100);
+    monto_recibido_neto = round2(new Decimal(monto_facturado_total).times(new Decimal(1).minus(pctComision)).toNumber());
+    monto_comision_gestor = round2(new Decimal(monto_facturado_total).minus(monto_recibido_neto).toNumber());
+    porcentaje_comision_real = round2(new Decimal(pctComision).times(100).toNumber());
   }
 
   // 5. Ganancia Limpia Total (Flujo Neto)
-  const ganancia_limpia_total = round2(monto_recibido_neto - costo_total_compra);
+  const ganancia_limpia_total = round2(new Decimal(monto_recibido_neto).minus(costo_total_compra).toNumber());
 
   // 6. Ganancia Limpia por Kilo
-  const ganancia_limpia_por_kg = kilos_vendidos > 0 ? round2(ganancia_limpia_total / kilos_vendidos) : 0;
+  const ganancia_limpia_por_kg = kilos_vendidos > 0 ? round2(new Decimal(ganancia_limpia_total).dividedBy(kilos_vendidos).toNumber()) : 0;
 
   return {
     precio_venta_final_kg,

@@ -764,6 +764,26 @@ return () => unsub();
         </div>
       </div>
 
+      {role !== 'viewer' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, marginTop: 16 }}>
+          <button className="btn" onClick={() => nav('/subir')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper-sunk)', border: '2px dashed var(--accent)', color: 'var(--ink)' }}>
+            <span style={{ fontSize: 28 }}>📥</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Subir OC (PDF)</span>
+            <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Órdenes de Compra</span>
+          </button>
+          <button className="btn" onClick={() => nav('/captura-rapida')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper-sunk)', border: '2px dashed var(--ok)', color: 'var(--ink)' }}>
+            <span style={{ fontSize: 28 }}>⚡</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Pegar Facturas / Pagos</span>
+            <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Extraer texto de PDFs</span>
+          </button>
+          <button className="btn" onClick={() => nav('/ordenes?nueva=1')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
+            <span style={{ fontSize: 28 }}>🛒</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Venta Manual</span>
+            <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Crear sin PDF</span>
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>
         
         {role === 'admin' && (
@@ -970,14 +990,6 @@ return () => unsub();
 
       {role !== 'viewer' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-          <button className="btn" onClick={() => nav('/subir')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-            <span style={{ fontSize: 24 }}>📥</span>
-            <span style={{ fontWeight: 600 }}>Subir PDF</span>
-          </button>
-          <button className="btn" onClick={() => nav('/ordenes?nueva=1')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-            <span style={{ fontSize: 24 }}>🛒</span>
-            <span style={{ fontWeight: 600 }}>Nueva Venta Manual</span>
-          </button>
           {role === 'admin' && (
             <button className="btn" onClick={() => nav('/compras')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
               <span style={{ fontSize: 24 }}>🏭</span>

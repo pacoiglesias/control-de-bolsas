@@ -8,6 +8,7 @@ import type { PurchaseOrder } from '../lib/types';
 
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 
 // Proveedores conocidos del negocio, para detectar automaticamente a quien
 // corresponde un movimiento de CAJA por su concepto (ver migracion mas
@@ -19,6 +20,7 @@ const PROVIDER_NAMES = ['Andres'];
 export default function Seeder() {
   const { role } = useAuth();
   const { config, loading: configLoading } = useConfig();
+  const toast = useToast();
   const [log, setLog] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [rawData, setRawData] = useState(`1	TH-836	27/07/2026	26/08/2026	106,720.17
@@ -126,7 +128,7 @@ Pago recibido 23 julio	76140.00`);
   const handleRun = async () => {
     const word = window.prompt("⚠️ PELIGRO ⚠️\nEsto borrará TODAS las órdenes, facturas y flujo de caja (CAJA).\n\nPara continuar, escribe exactamente la palabra: PROVIDENCIA");
     if (word !== "PROVIDENCIA") {
-      alert("Palabra de seguridad incorrecta. Operación cancelada.");
+      toast("Palabra de seguridad incorrecta. Operación cancelada.", "bad");
       return;
     }
     
