@@ -189,7 +189,8 @@ export interface PorRecibirItem {
 }
 
 export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
-  const proximos: { o: PurchaseOrder; inv: Invoice; d: number }[] = [];
+  const vencidas: { o: PurchaseOrder; inv: Invoice; d: number }[] = [];
+  const proximas: { o: PurchaseOrder; inv: Invoice; d: number }[] = [];
   const porRecibir: PorRecibirItem[] = [];
   let criticos30 = 0;
   let urgentes15 = 0;
@@ -207,7 +208,10 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
           dDate = (inv.creditCycle.dueDate as any).toDate ? (inv.creditCycle.dueDate as any).toDate() : new Date(inv.creditCycle.dueDate as any);
         }
         const late = daysLate(dDate);
-        if (late !== null && late > -8) proximos.push({ o, inv, d: late });
+        if (late !== null) {
+          if (late > 0) vencidas.push({ o, inv, d: late });
+          else if (late >= -7) proximas.push({ o, inv, d: late });
+        }
         if (late !== null && late > 30) criticos30++;
         else if (late !== null && late > 15) urgentes15++;
         else if (late !== null && late > 0) recientes1++;
@@ -236,7 +240,7 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
     });
   });
 
-  return { proximos, criticos30, urgentes15, recientes1, porRecibir, proyeccion7d, proyeccion15d };
+  return { vencidas, proximas, criticos30, urgentes15, recientes1, porRecibir, proyeccion7d, proyeccion15d };
 }
 
 export function calculateLiveMargenTotal(activeOrders: PurchaseOrder[], defaultCostPricePerKg: number): number {

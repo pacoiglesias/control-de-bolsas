@@ -107,6 +107,7 @@ export default function Settings() {
       }, async () => {
         const url = await getDownloadURL(task.snapshot.ref);
         setSysForm(f => ({ ...f, companyLogoUrl: url }));
+        setForm(f => ({ ...f, companyLogoUrl: url }));
         toast('Logotipo subido. No olvides dar clic en Guardar Configuración.', 'ok');
         setBusy(false);
       });
@@ -187,7 +188,10 @@ export default function Settings() {
           <div className="form-grid">
             <Field label="Nombre Comercial de la Empresa">
               <input className="input boxed" type="text" value={sysForm.companyName ?? ''}
-                onChange={(e) => setSysForm({ ...sysForm, companyName: e.target.value })} 
+                onChange={(e) => {
+                  setSysForm({ ...sysForm, companyName: e.target.value });
+                  setForm({ ...form, companyName: e.target.value });
+                }} 
                 placeholder="Ej. Elemental Denim Bolsas" />
             </Field>
             

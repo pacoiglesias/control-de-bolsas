@@ -513,7 +513,8 @@ return () => unsub();
     const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => mesesObj[m].venta)) : 1;
 
     const alerts = extractDashboardAlerts(activeOrders);
-    const proximos = alerts.proximos;
+    const vencidas = alerts.vencidas;
+    const proximas = alerts.proximas;
     const porRecibir = alerts.porRecibir;
     const criticos30 = alerts.criticos30;
     const urgentes15 = alerts.urgentes15;
@@ -572,7 +573,8 @@ return () => unsub();
       criticos30,
       urgentes15,
       recientes1,
-      proximos,
+      vencidas,
+      proximas,
       deudaTotalProvidencia,
       comisionContable,
       dineroRealARecibir,
@@ -1140,9 +1142,9 @@ return () => unsub();
         </Card>
       )}
 
-      <Card title="Qué vence pronto o ya venció" hint={`${k.proximos.length}`}>
-        {k.proximos.length === 0 ? (
-          <Empty>Nada urgente por cobrar.</Empty>
+      <Card title="Facturas Vencidas" hint={`${k.vencidas.length}`}>
+        {k.vencidas.length === 0 ? (
+          <Empty>Ninguna factura atrasada.</Empty>
         ) : (
           <div className="table-scroll">
             <table className="data-table">
@@ -1153,7 +1155,7 @@ return () => unsub();
                 </tr>
               </thead>
               <tbody>
-                {k.proximos.slice(0, 8).map(({ o, inv, d }: { o: PurchaseOrder; inv: Invoice; d: number | null }) => {
+                {k.vencidas.slice(0, 8).map(({ o, inv, d }: { o: PurchaseOrder; inv: Invoice; d: number | null }) => {
                   const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
                   const saldo = Math.max(invTotal - (inv.collection?.paidAmount ?? 0), 0);
                   return (

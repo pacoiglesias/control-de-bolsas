@@ -25,6 +25,7 @@ const NAV: NavItem[] = [
 
   { type: 'group', label: '-- FLUJO FINANCIERO --', roles: ['admin', 'manager'] },
   { type: 'link', to: '/cobranza', icon: '💰', label: 'CxC: Clientes', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida', roles: ['admin', 'manager'] },
   { type: 'link', to: '/compras', icon: '🏭', label: 'CxP: Fabricante', roles: ['admin'] },
   { type: 'link', to: '/caja-chica', icon: '🏦', label: 'CAJA', roles: ['admin'] },
 
