@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
-import { useConfig } from '../hooks/useConfig';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 
@@ -41,7 +41,7 @@ function initTheme(): 'light' | 'dark' {
 export default function Layout() {
   const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
-  const { config } = useConfig();
+  const { settings } = useSystemSettings();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
@@ -109,7 +109,7 @@ export default function Layout() {
         <button className="icon-btn" onClick={() => setNavOpen((v) => !v)} aria-label="Abrir menú">
           ☰
         </button>
-        <span className="t-title">{config.companyName || 'Bolsas Elemental'}</span>
+        <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
         <span className="spacer" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
@@ -128,9 +128,9 @@ export default function Layout() {
       <div className="app-shell">
         <aside className={`sidebar no-print ${navOpen ? 'open' : ''}`}>
           <div className="brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 16px' }}>
-            <img src={config.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 80, height: 80, objectFit: 'contain', borderRadius: 8, background: '#fff', padding: 4 }} />
+            <img src={settings.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 80, height: 80, objectFit: 'contain', borderRadius: 8, background: '#fff', padding: 4 }} />
             <div style={{ textAlign: 'center' }}>
-              <div className="brand-mark" style={{ fontSize: 16, lineHeight: 1.2 }}>{config.companyName || 'BOLSAS ELEMENTAL'}</div>
+              <div className="brand-mark" style={{ fontSize: 16, lineHeight: 1.2 }}>{settings.companyName || 'BOLSAS ELEMENTAL'}</div>
               <div className="brand-sub">ERP · v{__APP_VERSION__} ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
             </div>
           </div>

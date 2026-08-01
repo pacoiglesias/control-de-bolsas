@@ -19,6 +19,7 @@ import {
   upsertAndresPurchase,
 } from '../lib/deliveries';
 import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent, getPrintHeaderHtml } from '../lib/format';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
 import { sound } from '../lib/sounds';
 import { useProducts } from '../hooks/useProducts';
@@ -42,6 +43,7 @@ export default function OrderModal({
   const toast = useToast();
   const { user } = useAuth();
   const { products } = useProducts();
+  const { settings } = useSystemSettings();
   // useOrders() lee del mismo <OrdersProvider> ya montado en App.tsx: no abre
   // una segunda suscripcion, solo reutiliza la que ya esta viva. No existia
   // ningun catalogo de clientes ni proveedores -- a diferencia de Productos,
@@ -287,6 +289,7 @@ export default function OrderModal({
         // siempre que el usuario no capture un costo propio, y entonces
         // `kilosNum * ccp` daba NaN y se guardaba una compra con importe
         // invalido. dynamicConfig ya resuelve override -> configuracion base.
+        const { kilosEntregados } = computeDeliveredTotals(form.deliveries);
         await upsertAndresPurchase({
           orderId: order.id,
           provider: form.provider.trim(),
@@ -375,7 +378,7 @@ export default function OrderModal({
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(dynamicConfig, "Remisión de Entrega", `Folio de Expediente: ${escapeHtml(form.folio) || '(Sin folio)'}`)}
+          ${getPrintHeaderHtml(settings, "Remisión de Entrega", `Folio de Expediente: ${escapeHtml(form.folio) || '(Sin folio)'}`)}
           
           <div class="grid" style="margin-top: 20px;">
             <div>

@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
@@ -20,6 +21,7 @@ export default function CajaChica() {
   const { orders } = useOrders();
   const { purchases: provPurchases } = usePurchases();
   const { config } = useConfig();
+  const { settings } = useSystemSettings();
   const [selected, setSelected] = useState<Expense | null>(null);
 
   const saldo = expenses.reduce((acc, e) => {
@@ -81,7 +83,7 @@ export default function CajaChica() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Corte de Caja (Ingresos y Egresos)")}
+          ${getPrintHeaderHtml(settings, "Corte de Caja (Ingresos y Egresos)")}
 
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">TOTAL INGRESOS</div><div class="kpi-val" style="color: #047857;">+$${totalIngresos.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>

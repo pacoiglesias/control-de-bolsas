@@ -3,6 +3,7 @@ import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc } from 
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, PATHS, storage } from '../lib/firebase';
 import { saveConfig, useConfig } from '../hooks/useConfig';
+import { saveSystemSettings } from '../hooks/useSystemSettings';
 import { useOrders } from '../hooks/useOrders';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -64,6 +65,7 @@ export default function Settings() {
     setBusy(true);
     try {
       await saveConfig(form);
+      await saveSystemSettings({ companyName: form.companyName || '', companyLogoUrl: form.companyLogoUrl || '' });
       await logAction(user?.email, 'Configuración Financiera Modificada', {
         oldConfig: config,
         newConfig: form

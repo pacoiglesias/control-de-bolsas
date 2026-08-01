@@ -7,7 +7,6 @@ service firebase.storage {
     // de Firebase Auth y queda con control total de los datos.
     function isAllowedOwnerEmail() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && request.auth.token.email != null
         && (
           request.auth.token.email == "paco.iglesias@gmail.com"
@@ -19,7 +18,6 @@ service firebase.storage {
 
     function isManagerOrAdmin() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && (
           (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
            && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in ['admin', 'manager'])
@@ -29,7 +27,6 @@ service firebase.storage {
 
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && (
           (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
            && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')

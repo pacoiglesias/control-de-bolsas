@@ -108,15 +108,15 @@ export function exportToCsv(filename: string, headers: string[], rows: (string |
   URL.revokeObjectURL(url);
 }
 
-export function getPrintHeaderHtml(config: any, title: string, subtitle?: string) {
-  const logoUrl = config.companyLogoUrl || '/logo.png';
+export function getPrintHeaderHtml(settings: any, title: string, subtitle?: string) {
+  const logoUrl = settings?.companyLogoUrl || '/logo.png';
   const logoHtml = `<img src="${logoUrl}" alt="Logo" style="width: 100px; height: 100px; object-fit: contain;" />`;
 
   return `
     <div style="display: flex; align-items: center; border-bottom: 2px solid #cbd5e1; padding-bottom: 16px; margin-bottom: 24px;">
       ${logoHtml}
       <div>
-        <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${config.companyName || 'Bolsas Elemental'}</div>
+        <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${settings?.companyName || 'Bolsas Elemental'}</div>
         <div style="font-size: 14px; font-weight: 600; color: #475569;">${title}</div>
         ${subtitle ? `<div style="font-size: 13px; color: #64748b; margin-top: 4px;">${subtitle}</div>` : ''}
       </div>

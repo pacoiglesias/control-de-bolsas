@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { missingEnv } from '../lib/firebase';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 export default function Login() {
   const { signIn, signInWithGoogle, resetPassword, error } = useAuth();
+  const { settings } = useSystemSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,10 +40,15 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
-        <div className="brand-mark" style={{ color: 'var(--ink)' }}>
-          BOLSAS ELEMENTAL
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12 }}>
+          {settings.companyLogoUrl ? (
+            <img src={settings.companyLogoUrl} alt="Logo" style={{ width: 80, height: 80, objectFit: 'contain', borderRadius: 8, background: '#fff', padding: 4, marginBottom: 12 }} />
+          ) : null}
+          <div className="brand-mark" style={{ color: 'var(--ink)' }}>
+            {settings.companyName || 'BOLSAS ELEMENTAL'}
+          </div>
         </div>
-        <div className="brand-sub" style={{ color: 'var(--ink-faint)', marginBottom: 22 }}>
+        <div className="brand-sub" style={{ color: 'var(--ink-faint)', marginBottom: 22, textAlign: 'center' }}>
           ERP · acceso restringido
         </div>
 

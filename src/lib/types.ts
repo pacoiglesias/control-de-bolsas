@@ -99,6 +99,10 @@ export interface CollectionInfo {
   paymentDocument?: string;
   notes?: string;
   complementStatus?: 'pending' | 'issued' | 'na';
+  
+  /** Indica si la comisión de contabilidad (el 8%) ya fue liquidada/reconciliada. */
+  accountantLiquidated?: boolean;
+  accountantLiquidatedAt?: Timestamp | null;
 }
 
 export interface Delivery {

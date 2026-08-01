@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import OrderModal from './OrderModal';
 import { KpiCard, Skeleton } from '../components/ui';
 import { useToast } from '../context/ToastContext';
@@ -27,6 +28,7 @@ export default function OcTracking() {
   const toast = useToast();
   const { orders, loading, error } = useOrders();
   const { config } = useConfig();
+  const { settings } = useSystemSettings();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
 
@@ -101,7 +103,7 @@ export default function OcTracking() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Manifiesto de Entregas (Chofer / Logística)")}
+          ${getPrintHeaderHtml(settings, "Manifiesto de Entregas (Chofer / Logística)")}
           
           <h3 style="margin-top: 20px;">Órdenes Pendientes de Entregar (${pendingOrders.length})</h3>
           <table>

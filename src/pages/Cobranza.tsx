@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import { Card, Empty, KpiCard, Skeleton, StatusBadge } from '../components/ui';
 import OrderModal from './OrderModal';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../lib/finance';
@@ -20,10 +21,11 @@ export default function Cobranza() {
   const { role, user } = useAuth();
   const { orders, loading, error } = useOrders();
   const { config } = useConfig();
+  const { settings } = useSystemSettings();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [hoveredCr, setHoveredCr] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas'>('pendientes');
+  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad'>('pendientes');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
 
@@ -358,6 +360,63 @@ export default function Cobranza() {
     }
   }
 
+  async function liquidateAccountantBlock(crNumber: string) {
+    if (!crNumber) return;
+    if (!window.confirm(`¿Seguro que quieres MARCAR como pagada (liquidada) la comisión al contador para el CR ${crNumber}?`)) return;
+
+    // Buscamos todas las facturas de ese CR (que esten paid o collected)
+    const allCrInvoices = [...data.paid, ...data.collected].filter(({ o, inv }) => 
+      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
+    );
+    
+    const objetivo: Record<string, string[]> = {};
+    let hasPending = false;
+    for (const { o, inv } of allCrInvoices) {
+      if (!inv.collection?.accountantLiquidated) {
+        (objetivo[o.id] ??= []).push(inv.id);
+        hasPending = true;
+      }
+    }
+
+    if (!hasPending) {
+      toast('Todas las comisiones de este contrarecibo ya estaban liquidadas.', 'info');
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const refs = Object.keys(objetivo).map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+
+        refs.forEach(({ id, ref }, k) => {
+          const snap = snaps[k];
+          if (!snap.exists()) return;
+          let invoices: Invoice[] = snap.data().invoices ?? [];
+          for (const invoiceId of objetivo[id]) {
+            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
+              ...x,
+              collection: { 
+                ...x.collection, 
+                accountantLiquidated: true, 
+                accountantLiquidatedAt: Timestamp.now() 
+              },
+            }));
+            if (nuevas) invoices = nuevas;
+          }
+          tx.update(ref, camposInvoices(invoices));
+        });
+      });
+      sound.playSuccess();
+      toast(`✅ Comisiones del Contrarecibo ${crNumber} liquidadas a contabilidad`, 'ok');
+    } catch (e) {
+      sound.playError();
+      toast(`Error al liquidar comisiones: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   function getCobranzaGlobalHtml() {
     return `
       <!DOCTYPE html>
@@ -382,7 +441,7 @@ export default function Cobranza() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Reporte Global de Cobranza y Cuentas por Cobrar")}
+          ${getPrintHeaderHtml(settings, "Reporte Global de Cobranza y Cuentas por Cobrar")}
           
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">TE DEBEN</div><div class="kpi-val">$${data.meDeben.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
@@ -499,7 +558,7 @@ export default function Cobranza() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Reporte de Cartera Vencida (Alarma)")}
+          ${getPrintHeaderHtml(settings, "Reporte de Cartera Vencida (Alarma)")}
           
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">TOTAL VENCIDO</div><div class="kpi-val">$${totalVencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
@@ -581,7 +640,7 @@ export default function Cobranza() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Notificación de Cobro y Liquidación Comercial", `Contrarecibo: ${escapeHtml(grp.cr)} - Cliente: ${escapeHtml(grp.client)}`)}
+          ${getPrintHeaderHtml(settings, "Notificación de Cobro y Liquidación Comercial", `Contrarecibo: ${escapeHtml(grp.cr)} - Cliente: ${escapeHtml(grp.client)}`)}
 
           <div class="meta-grid">
             <div>
@@ -891,7 +950,10 @@ export default function Cobranza() {
           Por Recoger Efectivo ({data.paid.length})
         </button>
         <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')}>
-          Historial: Recogidos / En CAJA ({data.collected.length})
+          Historial: Recogidos ({data.collected.length})
+        </button>
+        <button className={`tab ${activeTab === 'contabilidad' ? 'active' : ''}`} onClick={() => setActiveTab('contabilidad')}>
+          Liquidación a Contabilidad
         </button>
       </div>
 
@@ -1310,6 +1372,102 @@ export default function Cobranza() {
               </table>
             </div>
           )}
+        </Card>
+      )}
+
+      {activeTab === 'contabilidad' && (
+        <Card title="Liquidación de Comisiones a Contabilidad">
+          <div className="alert info" style={{ marginBottom: 16 }}>
+            ℹ️ Aquí se listan las facturas ya cobradas (Contrarecibos cobrados o recogidos) para revisar la <strong>comisión del 8%</strong> que corresponde a Contabilidad. Haz clic en "Liquidar a Contabilidad" una vez que pagues esos honorarios.
+          </div>
+          {(() => {
+            const allCobradas = [...data.paid, ...data.collected];
+            const unliquidatedCrs = data.listaCr.filter(grp => {
+              const invoicesInGrp = allCobradas.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === grp.cr);
+              return invoicesInGrp.length > 0 && invoicesInGrp.some(x => !x.inv.collection?.accountantLiquidated);
+            });
+            const liquidatedCrs = data.listaCr.filter(grp => {
+              const invoicesInGrp = allCobradas.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === grp.cr);
+              return invoicesInGrp.length > 0 && invoicesInGrp.every(x => x.inv.collection?.accountantLiquidated);
+            });
+
+            if (unliquidatedCrs.length === 0 && liquidatedCrs.length === 0) return <Empty>No hay contrarecibos cobrados para liquidar comisiones.</Empty>;
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                {unliquidatedCrs.length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: 16, marginBottom: 12, color: '#b91c1c' }}>Pendientes de Liquidar al Contador</h3>
+                    <div className="table-scroll">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Contrarecibo (CR)</th>
+                            <th>Cliente</th>
+                            <th className="num">Venta Facturada</th>
+                            <th className="num">Comisión (8%)</th>
+                            <th>Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {unliquidatedCrs.map(grp => (
+                            <tr key={grp.cr}>
+                              <td className="mono" style={{ fontWeight: 700 }}>{grp.cr}</td>
+                              <td>{grp.client}</td>
+                              <td className="num mono">{money(grp.totalVenta)}</td>
+                              <td className="num mono" style={{ color: '#b91c1c', fontWeight: 700 }}>{money(grp.comisionContador)}</td>
+                              <td>
+                                <button className="btn-small btn-ok" onClick={() => liquidateAccountantBlock(grp.cr)}>
+                                  ✅ Liquidar a Contabilidad
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan={3} style={{ textAlign: 'right', fontWeight: 700 }}>TOTAL PENDIENTE:</td>
+                            <td className="num mono" style={{ fontWeight: 700, color: '#b91c1c' }}>
+                              {money(unliquidatedCrs.reduce((a, b) => a + b.comisionContador, 0))}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                
+                {liquidatedCrs.length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: 16, marginBottom: 12, color: 'var(--ok)' }}>Historial de Liquidadas</h3>
+                    <div className="table-scroll">
+                      <table className="data-table" style={{ opacity: 0.8 }}>
+                        <thead>
+                          <tr>
+                            <th>Contrarecibo (CR)</th>
+                            <th>Cliente</th>
+                            <th className="num">Comisión (8%)</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {liquidatedCrs.map(grp => (
+                            <tr key={grp.cr}>
+                              <td className="mono">{grp.cr}</td>
+                              <td>{grp.client}</td>
+                              <td className="num mono">{money(grp.comisionContador)}</td>
+                              <td><span className="badge" style={{ background: 'var(--ok)', color: '#fff' }}>Liquidado</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </Card>
       )}
 

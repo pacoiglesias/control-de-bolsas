@@ -108,6 +108,11 @@ service cloud.firestore {
       allow read: if isAuthenticatedUser();
     }
 
+    match /system_settings/global {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
     // Log de auditoría
     match /system_logs/{logId} {
       // Solo super admin lee los logs

@@ -8,6 +8,7 @@ import { money, shareHtmlAsPdf, kilos, monthLabel, fmtDate, getPrintHeaderHtml }
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useConfig } from '../hooks/useConfig';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
@@ -362,6 +363,7 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
 export default function Dashboard() {
   const { purchases } = usePurchases();
   const { expenses, loading: loadingExp } = useExpenses();
+  const { settings } = useSystemSettings();
   const { orders: globalOrders, loading: loadingGlobalOrders } = useOrdersContext();
   const { role, user } = useAuth();
   const { config } = useConfig();
@@ -620,7 +622,7 @@ return () => unsub();
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Reporte de Rentabilidad (Utilidad Comercial)")}
+          ${getPrintHeaderHtml(settings, "Reporte de Rentabilidad (Utilidad Comercial)")}
           
           <div style="margin-bottom: 24px; font-size: 14px; color: #475569; font-weight: 500;">
             ${k.periodText}

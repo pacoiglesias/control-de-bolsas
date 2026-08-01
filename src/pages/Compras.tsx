@@ -5,6 +5,7 @@ import { usePurchases } from '../hooks/usePurchases';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 import { Card, Empty, Field, Modal, Skeleton } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -38,6 +39,7 @@ export default function Compras() {
 
   const toast = useToast();
   const { config } = useConfig();
+  const { settings } = useSystemSettings();
 
   const isLoading = loadingP || loadingE;
 
@@ -214,8 +216,7 @@ export default function Compras() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(config, "Estado de Cuenta Proveedor: Fabricante de Bolsas")}
-
+          ${getPrintHeaderHtml(settings, "Estado de Cuenta Proveedor: Fabricante de Bolsas")}
 
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">💰 TOTAL ADELANTADO</div><div class="kpi-val" style="color: #047857;">$${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
