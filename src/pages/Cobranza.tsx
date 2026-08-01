@@ -24,7 +24,7 @@ export default function Cobranza() {
   const { settings } = useSystemSettings();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
-  const [hoveredCr, setHoveredCr] = useState<string | null>(null);
+  
   const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad'>('pendientes');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
@@ -1071,62 +1071,29 @@ export default function Cobranza() {
               </div>
             );
           })()}
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Fecha Cobro</th>
-                  <th className="num">Plazo / Semáforo</th><th className="num">Saldo</th><th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLista.map(({ o, inv, d, saldo, hasCr, cr: currentCr }) => {
-                  const isHovered = hoveredCr && hoveredCr === currentCr;
-                  const rowClass = !hasCr 
-                    ? 'row-bad' 
-                    : (d !== null && d > 0) ? 'row-warn' : '';
-                  return (
-                  <tr key={inv.id} className={`${rowClass} ${isHovered ? 'row-hovered-cr' : ''}`}
+          <div className="cr-accordion-container" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {(() => {
+              const sinCr = filteredLista.filter(x => !x.hasCr);
+              const conCrMap = filteredLista.filter(x => x.hasCr).reduce((acc, x) => {
+                const cr = x.cr || '';
+                if (!acc[cr]) acc[cr] = [];
+                acc[cr].push(x);
+                return acc;
+              }, {} as Record<string, typeof filteredLista>);
+              
+              const renderRow = ({ o, inv, d, saldo }: any) => {
+                                return (
+                  <tr key={inv.id} className={``}
                     onClick={() => setSelected(o)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
-                    role="button"
-                    tabIndex={0}
-                    style={{ cursor: 'pointer' }}>
+                    style={{ cursor: 'pointer', background: 'transparent' }}>
                     <td className="mono">
                       {inv.folio ?? o.folio ?? '—'}
                       {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
                     </td>
                     <td>{o.client ?? '—'}</td>
-                    <td className="mono"
-                        onMouseEnter={() => currentCr ? setHoveredCr(currentCr) : null}
-                        onMouseLeave={() => setHoveredCr(null)}>
-                      {currentCr ? (
-                        <div className={`cr-chip ${data.crCounts[currentCr] > 1 ? 'shared' : ''}`}>
-                          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-3.31-2.69-6-6-6S3 1.69 3 5v12.5c0 3.86 3.14 7 7 7s7-3.14 7-7V6h-1.5z"/></svg>
-                          {currentCr}
-                        </div>
-                      ) : (
-                        <span className="badge" style={{ background: 'var(--bad)', fontSize: 10 }}>⚠ SIN CR</span>
-                      )}
-                      {currentCr && 
-                       data.crCounts[currentCr] > 1 && (
-                        <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', marginLeft: 6 }}>
-                          <button 
-                            className="btn-small btn-ok" 
-                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              payContrareciboBlock(currentCr);
-                            }}
-                          >
-                            Pagar Lote
-                          </button>
-                        </div>
-                      )}
-                    </td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">
-                      {d === null ? '—' : hasCr ? (
+                      {d === null ? '—' : (
                         d > 30 ? (
                           <span className="badge" style={{ background: '#b91c1c', color: '#fff', fontWeight: 700 }}>🔴 +{d} días</span>
                         ) : d > 15 ? (
@@ -1137,12 +1104,6 @@ export default function Cobranza() {
                           <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>Vence hoy</span>
                         ) : (
                           <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)} d</span>
-                        )
-                      ) : (
-                        d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--bad)' }}>⚠ {d} d sin CR</span>
-                        ) : (
-                          <span style={{ color: 'var(--ink-faint)' }}>Recién emitida</span>
                         )
                       )}
                     </td>
@@ -1172,10 +1133,70 @@ export default function Cobranza() {
                       </div>
                     </td>
                   </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                );
+              };
+
+              return (
+                <>
+                  {sinCr.length > 0 && (
+                    <div style={{ border: '2px solid var(--bad)', borderRadius: 8, overflow: 'hidden' }}>
+                      <div style={{ background: 'var(--bad)', color: '#fff', padding: '12px 16px', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>⚠️ Facturas Sueltas (Sin Expediente CR)</span>
+                        <span className="badge" style={{ background: '#fff', color: 'var(--bad)' }}>{sinCr.length} pendientes</span>
+                      </div>
+                      <div className="table-scroll">
+                        <table className="data-table" style={{ margin: 0, border: 'none' }}>
+                          <thead style={{ background: '#fef2f2' }}>
+                            <tr>
+                              <th>Folio</th><th>Cliente</th><th>Fecha Cobro</th>
+                              <th className="num">Plazo / Semáforo</th><th className="num">Saldo</th><th>Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sinCr.map(renderRow)}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {Object.entries(conCrMap).map(([cr, items]) => {
+                    const totalSaldo = items.reduce((sum, item) => sum + item.saldo, 0);
+                    const grp = data.listaCr.find(g => g.cr === cr);
+                    const client = grp?.client || items[0].o.client || 'Cliente';
+                    const hasOverdue = items.some(x => (x.d ?? 0) > 0);
+                    return (
+                      <details key={cr} style={{ border: hasOverdue ? '2px solid var(--warn)' : '1px solid var(--line)', borderRadius: 8, background: 'var(--paper)', overflow: 'hidden', marginBottom: 16 }} open={hasOverdue}>
+                        <summary style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: hasOverdue ? '#fffbeb' : 'var(--paper-sunk)', listStyle: 'none' }}>
+                          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                            <span style={{ fontSize: 18, fontWeight: 800 }}>{cr}</span>
+                            <span style={{ color: 'var(--ink)' }}>{client}</span>
+                            <span className="badge" style={{ background: 'var(--accent)', color: '#fff' }}>{items.length} factura(s)</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ok)' }}>{money(totalSaldo)}</span>
+                            <button className="btn-small btn-ok" onClick={(e) => { e.preventDefault(); payContrareciboBlock(cr); }}>💰 Pagar Lote</button>
+                          </div>
+                        </summary>
+                        <div className="table-scroll" style={{ borderTop: '1px solid var(--line)' }}>
+                          <table className="data-table" style={{ margin: 0, border: 'none' }}>
+                            <thead style={{ background: '#f8fafc' }}>
+                              <tr>
+                                <th>Folio</th><th>Cliente</th><th>Fecha Cobro</th>
+                                <th className="num">Plazo / Semáforo</th><th className="num">Saldo</th><th>Acción</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map(renderRow)}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
           </>
         )}
