@@ -11,6 +11,7 @@ import { useConfig } from '../hooks/useConfig';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate, exportToCsv } from '../lib/format';
+import { computeCommissionFromInvoiceTotal } from '../lib/finance';
 import type { Expense } from '../lib/types';
 
 export default function CajaChica() {
@@ -45,8 +46,8 @@ export default function CajaChica() {
     if (!o.invoices) return acc;
     return acc + o.invoices.reduce((sum, inv) => {
       if (inv.creditCycle.status === 'paid') {
-        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 47) * 1.16);
-        const comision = inv.financials?.commission ?? (totalFactura / 1.16 * (config?.commissionRate ?? 0.08));
+        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 47) * (1 + (config?.ivaRate ?? 0.16)));
+        const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
         return sum + (totalFactura - comision);
       }
       return sum;
@@ -162,7 +163,7 @@ export default function CajaChica() {
   return (
     <>
       <div className="page-head">
-        <h1>CAJA CHICA</h1>
+        <h1>CAJA</h1>
         <p>Control de efectivo, gastos internos y relación con proveedores.</p>
       </div>
 

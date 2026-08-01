@@ -1,20 +1,21 @@
 import { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, where, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
+import { useOrdersContext } from '../context/OrdersContext';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
 import { kilos, money, monthLabel, toDate, fmtDate } from '../lib/format';
-import { daysLate, round2 } from '../lib/finance';
+import { round2, daysLate, computeCommissionFromInvoiceTotal } from '../lib/finance';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder, Invoice } from '../lib/types';
-import { useDocumentData, useCollectionData } from 'react-firebase-hooks/firestore';
+import { useDocumentData } from 'react-firebase-hooks/firestore';
 
 export interface LiveLogEntry {
   id: string;
@@ -361,6 +362,7 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
 export default function Dashboard() {
   const { purchases } = usePurchases();
   const { expenses, loading: loadingExp } = useExpenses();
+  const { orders: globalOrders, loading: loadingGlobalOrders } = useOrdersContext();
   const { role, user } = useAuth();
   const { config } = useConfig();
   const nav = useNavigate();
@@ -390,18 +392,10 @@ export default function Dashboard() {
     }
   }
 
-  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', 'dashboard'));
-  // 'paid' = cobrada por el cliente, pendiente de que el contador entregue el
-  // efectivo. Faltaba en esta consulta: un expediente cuyas facturas estuvieran
-  // TODAS en 'paid' no se cargaba, y entonces la tabla "Por Recibir del
-  // Contador" se quedaba sin datos de donde salir.
-  const [activeOrdersDoc, loadingActive, activeError] = useCollectionData(query(
-    collection(db, PATHS.orders),
-    where('invoiceStatuses', 'array-contains-any', ['pending', 'overdue', 'manual_review', 'paid'])
-  ));
+  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', deptFilter === 'ALL' ? 'dashboard' : `dashboard_${deptFilter}`));
   
-  const loading = loadingStats || loadingActive || loadingExp;
-  const error = statsError?.message || activeError?.message;
+  const loading = loadingStats || loadingGlobalOrders || loadingExp;
+  const error = statsError?.message;
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -498,14 +492,14 @@ return () => unsub();
       setBackupBusy(false);
     }
   }
-    // Memoizado: `(x as T[]) || []` crea un arreglo nuevo en cada render
-    // cuando activeOrdersDoc es undefined, y eso invalidaba el useMemo de
-    // abajo en cada ciclo, recalculando todos los KPIs sin necesidad.
+    // Filter global orders exactly as the original query did, PLUS by department
     const activeOrders = useMemo(() => {
-      const all = (activeOrdersDoc as PurchaseOrder[]) ?? [];
-      if (deptFilter === 'ALL') return all;
-      return all.filter(o => o.department === deptFilter);
-    }, [activeOrdersDoc, deptFilter]);
+      return globalOrders.filter((o: PurchaseOrder) => {
+        const passDept = deptFilter === 'ALL' || o.department === deptFilter;
+        const passStatus = o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s));
+        return passDept && passStatus;
+      });
+    }, [globalOrders, deptFilter]);
 
   const k = useMemo(() => {
     const st = statsDoc || {};
@@ -531,9 +525,9 @@ return () => unsub();
     let urgentes15 = 0;
     let recientes1 = 0;
 
-    activeOrders.forEach(o => {
+    activeOrders.forEach((o: PurchaseOrder) => {
       const invoices = o.invoices || [];
-      invoices.forEach(inv => {
+      invoices.forEach((inv: Invoice) => {
         if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
           const late = daysLate(toDate(inv.creditCycle.dueDate));
           if (late !== null && late > -8) proximos.push({ o, inv, d: late });
@@ -567,8 +561,8 @@ return () => unsub();
 
     if (kpis.margenTotal === 0) {
       liveMargenTotal = 0;
-      activeOrders.forEach(o => {
-        (o.invoices || []).forEach(inv => {
+      activeOrders.forEach((o: PurchaseOrder) => {
+        (o.invoices || []).forEach((inv: Invoice) => {
           const invTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
           const comm = Number(inv.financials?.commission ?? 0);
           // `materialCost` no existe en OrderFinancials (es `costTotal`); con
@@ -590,8 +584,7 @@ return () => unsub();
     const liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
     const deudaTotalProvidencia = (kpis.porCobrar || 0) + (kpis.montoPendienteFacturar || 0);
-    const subtotalDeudaProvidencia = deudaTotalProvidencia / (1 + (config.ivaRate || 0.16));
-    const comisionContable = subtotalDeudaProvidencia * (config.commissionRate || 0.08);
+    const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config as any);
     const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
 
     return {

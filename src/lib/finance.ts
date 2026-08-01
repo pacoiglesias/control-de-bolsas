@@ -14,6 +14,7 @@ import { round2 } from '../../functions/src/shared/finance.core';
 export {
   computeFinancials,
   computeDynamicFinancials,
+  computeCommissionFromInvoiceTotal,
   configEfectiva,
   round2,
 } from '../../functions/src/shared/finance.core';

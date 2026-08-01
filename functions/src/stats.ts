@@ -182,70 +182,94 @@ export function extractStats(data: any): Record<string, any> {
   };
 }
 
+async function applyStatsDelta(docPath: string, before: any, after: any) {
+  const updates: Record<string, any> = {};
+  const addDelta = (key: string, oldVal: number, newVal: number) => {
+    const diff = newVal - oldVal;
+    if (Math.abs(diff) > 0.001) {
+      updates[`kpis.${key}`] = FieldValue.increment(diff);
+    }
+  };
+  const addCounterDelta = (key: string, oldVal: number, newVal: number) => {
+    const diff = newVal - oldVal;
+    if (diff !== 0) {
+      updates[`counters.${key}`] = FieldValue.increment(diff);
+    }
+  };
+
+  addDelta("totalKilos", before.kilos, after.kilos);
+  addDelta("totalVendido", before.vendido, after.vendido);
+  addDelta("netoTotal", before.neto, after.neto);
+  addDelta("margenTotal", before.margen || 0, after.margen || 0);
+  addDelta("gananciaRealizadaTotal", before.gananciaRealizada || 0, after.gananciaRealizada || 0);
+  addDelta("porCobrar", before.porCobrar, after.porCobrar);
+  addDelta("porCobrarSinCR", before.porCobrarSinCR, after.porCobrarSinCR);
+  addDelta("porCobrarConCR", before.porCobrarConCR, after.porCobrarConCR);
+  addDelta("vencido", before.vencido, after.vencido);
+  addDelta("cobrado", before.cobrado, after.cobrado);
+  addDelta("netoCobrado", before.netoCobrado, after.netoCobrado);
+  addDelta("porRecibir", before.porRecibir, after.porRecibir);
+  addDelta("montoPendienteFacturar", before.montoPendienteFacturar || 0, after.montoPendienteFacturar || 0);
+
+  addCounterDelta("pendingOrders", before.isPending, after.isPending);
+  addCounterDelta("pedidoOrders", before.isPedido, after.isPedido);
+  addCounterDelta("overdueOrders", before.isOverdue, after.isOverdue);
+  addCounterDelta("manualReview", before.isManual, after.isManual);
+
+  const allMonths = new Set([...Object.keys(before.meses), ...Object.keys(after.meses)]);
+  allMonths.forEach(m => {
+    const b = before.meses[m] || { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
+    const a = after.meses[m] || { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
+    
+    const dVenta = a.venta - b.venta;
+    const dCobrado = a.cobrado - b.cobrado;
+    const dGanancia = a.ganancia - b.ganancia;
+    const dMargen = (a.margen || 0) - (b.margen || 0);
+    const dRealizada = (a.gananciaRealizada || 0) - (b.gananciaRealizada || 0);
+    
+    if (Math.abs(dVenta) > 0.001) updates[`histograms.${m}.venta`] = FieldValue.increment(dVenta);
+    if (Math.abs(dCobrado) > 0.001) updates[`histograms.${m}.cobrado`] = FieldValue.increment(dCobrado);
+    if (Math.abs(dGanancia) > 0.001) updates[`histograms.${m}.ganancia`] = FieldValue.increment(dGanancia);
+    if (Math.abs(dMargen) > 0.001) updates[`histograms.${m}.margen`] = FieldValue.increment(dMargen);
+    if (Math.abs(dRealizada) > 0.001) updates[`histograms.${m}.gananciaRealizada`] = FieldValue.increment(dRealizada);
+  });
+
+  if (Object.keys(updates).length > 0) {
+    updates["lastUpdated"] = FieldValue.serverTimestamp();
+    await getFirestore().doc(docPath).set(updates, { merge: true });
+    logger.info(`Stats updated for ${docPath}`, { updates });
+  }
+}
+
 export const syncDashboardStats = onDocumentWritten(
   { document: `${COL_ORDERS}/{orderId}` },
   async (event) => {
-    const before = extractStats(event.data?.before?.data());
-    const after = extractStats(event.data?.after?.data());
+    const dataBefore = event.data?.before?.data();
+    const dataAfter = event.data?.after?.data();
+    
+    const deptBefore = dataBefore?.department || 'UNKNOWN';
+    const deptAfter = dataAfter?.department || 'UNKNOWN';
 
-    const updates: Record<string, any> = {};
-    const addDelta = (key: string, oldVal: number, newVal: number) => {
-      const diff = newVal - oldVal;
-      if (Math.abs(diff) > 0.001) {
-        updates[`kpis.${key}`] = FieldValue.increment(diff);
+    const before = extractStats(dataBefore);
+    const after = extractStats(dataAfter);
+
+    // 1. Update Global
+    await applyStatsDelta(STATS_DOC, before, after);
+
+    // 2. Update Department specific stats
+    if (deptBefore === deptAfter) {
+      if (deptAfter === 'TH' || deptAfter === 'GT') {
+        await applyStatsDelta(`${STATS_DOC}_${deptAfter}`, before, after);
       }
-    };
-    const addCounterDelta = (key: string, oldVal: number, newVal: number) => {
-      const diff = newVal - oldVal;
-      if (diff !== 0) {
-        updates[`counters.${key}`] = FieldValue.increment(diff);
+    } else {
+      // Department changed or is new
+      const empty = extractStats(null);
+      if (deptBefore === 'TH' || deptBefore === 'GT') {
+        await applyStatsDelta(`${STATS_DOC}_${deptBefore}`, before, empty);
       }
-    };
-
-    addDelta("totalKilos", before.kilos, after.kilos);
-    addDelta("totalVendido", before.vendido, after.vendido);
-    addDelta("netoTotal", before.neto, after.neto);
-    addDelta("margenTotal", before.margen || 0, after.margen || 0);
-    addDelta("gananciaRealizadaTotal", before.gananciaRealizada || 0, after.gananciaRealizada || 0);
-    addDelta("porCobrar", before.porCobrar, after.porCobrar);
-    addDelta("porCobrarSinCR", before.porCobrarSinCR, after.porCobrarSinCR);
-    addDelta("porCobrarConCR", before.porCobrarConCR, after.porCobrarConCR);
-    addDelta("vencido", before.vencido, after.vencido);
-    addDelta("cobrado", before.cobrado, after.cobrado);
-    addDelta("netoCobrado", before.netoCobrado, after.netoCobrado);
-    addDelta("porRecibir", before.porRecibir, after.porRecibir);
-    addDelta("montoPendienteFacturar", before.montoPendienteFacturar || 0, after.montoPendienteFacturar || 0);
-
-    addCounterDelta("pendingOrders", before.isPending, after.isPending);
-    addCounterDelta("pedidoOrders", before.isPedido, after.isPedido);
-    addCounterDelta("overdueOrders", before.isOverdue, after.isOverdue);
-    addCounterDelta("manualReview", before.isManual, after.isManual);
-
-    // Meses
-    const allMonths = new Set([...Object.keys(before.meses), ...Object.keys(after.meses)]);
-    allMonths.forEach(m => {
-      const b = before.meses[m] || { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
-      const a = after.meses[m] || { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
-      
-      const dVenta = a.venta - b.venta;
-      const dCobrado = a.cobrado - b.cobrado;
-      const dGanancia = a.ganancia - b.ganancia;
-      const dMargen = (a.margen || 0) - (b.margen || 0);
-      const dRealizada = (a.gananciaRealizada || 0) - (b.gananciaRealizada || 0);
-      
-      if (Math.abs(dVenta) > 0.001) updates[`histograms.${m}.venta`] = FieldValue.increment(dVenta);
-      if (Math.abs(dCobrado) > 0.001) updates[`histograms.${m}.cobrado`] = FieldValue.increment(dCobrado);
-      if (Math.abs(dGanancia) > 0.001) updates[`histograms.${m}.ganancia`] = FieldValue.increment(dGanancia);
-      if (Math.abs(dMargen) > 0.001) updates[`histograms.${m}.margen`] = FieldValue.increment(dMargen);
-      if (Math.abs(dRealizada) > 0.001) updates[`histograms.${m}.gananciaRealizada`] = FieldValue.increment(dRealizada);
-    });
-
-    if (Object.keys(updates).length > 0) {
-      updates["lastUpdated"] = FieldValue.serverTimestamp();
-      
-      // Upsert: si no existe, set con merge
-      await getFirestore().doc(STATS_DOC).set(updates, { merge: true });
-      logger.info(`Dashboard stats updated for order ${event.params.orderId}`, { updates });
+      if (deptAfter === 'TH' || deptAfter === 'GT') {
+        await applyStatsDelta(`${STATS_DOC}_${deptAfter}`, empty, after);
+      }
     }
   }
 );
@@ -288,16 +312,53 @@ export const recalcDashboardStats = onCall(
       throw new HttpsError("permission-denied", "Solo un administrador puede recalcular las estadísticas.");
     }
 
-    const kpis = {
-      totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0,
-      gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0,
-      vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0,
-    };
-    const counters = { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 };
-    const histograms: Record<string, Record<string, number>> = {};
+    const initStats = () => ({
+      kpis: {
+        totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0,
+        gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0,
+        vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0
+      },
+      counters: { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 },
+      histograms: {} as Record<string, Record<string, number>>
+    });
 
-    // Paginado por documento: traer la coleccion completa de un golpe agota la
-    // memoria en cuanto el historico crece. 300 por lote es conservador.
+    const globalStats = initStats();
+    const thStats = initStats();
+    const gtStats = initStats();
+
+    const applyData = (target: any, s: any) => {
+      target.kpis.totalKilos += s.kilos;
+      target.kpis.totalVendido += s.vendido;
+      target.kpis.netoTotal += s.neto;
+      target.kpis.margenTotal += s.margen || 0;
+      target.kpis.gananciaRealizadaTotal += s.gananciaRealizada || 0;
+      target.kpis.porCobrar += s.porCobrar;
+      target.kpis.porCobrarSinCR += s.porCobrarSinCR;
+      target.kpis.porCobrarConCR += s.porCobrarConCR;
+      target.kpis.vencido += s.vencido;
+      target.kpis.cobrado += s.cobrado;
+      target.kpis.netoCobrado += s.netoCobrado;
+      target.kpis.porRecibir += s.porRecibir;
+      target.kpis.montoPendienteFacturar += s.montoPendienteFacturar || 0;
+
+      target.counters.pendingOrders += s.isPending;
+      target.counters.pedidoOrders += s.isPedido;
+      target.counters.overdueOrders += s.isOverdue;
+      target.counters.manualReview += s.isManual;
+      target.counters.totalOrders += 1;
+
+      for (const [mes, v] of Object.entries(s.meses as Record<string, any>)) {
+        if (!target.histograms[mes]) {
+          target.histograms[mes] = { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
+        }
+        target.histograms[mes].venta += v.venta;
+        target.histograms[mes].cobrado += v.cobrado;
+        target.histograms[mes].ganancia += v.ganancia;
+        target.histograms[mes].margen += v.margen || 0;
+        target.histograms[mes].gananciaRealizada += v.gananciaRealizada || 0;
+      }
+    };
+
     const LOTE = 300;
     let ultimo: FirebaseFirestore.QueryDocumentSnapshot | null = null;
     let procesados = 0;
@@ -309,36 +370,13 @@ export const recalcDashboardStats = onCall(
       if (snap.empty) break;
 
       for (const doc of snap.docs) {
-        const s = extractStats(doc.data());
-        kpis.totalKilos += s.kilos;
-        kpis.totalVendido += s.vendido;
-        kpis.netoTotal += s.neto;
-        kpis.margenTotal += s.margen || 0;
-        kpis.gananciaRealizadaTotal += s.gananciaRealizada || 0;
-        kpis.porCobrar += s.porCobrar;
-        kpis.porCobrarSinCR += s.porCobrarSinCR;
-        kpis.porCobrarConCR += s.porCobrarConCR;
-        kpis.vencido += s.vencido;
-        kpis.cobrado += s.cobrado;
-        kpis.netoCobrado += s.netoCobrado;
-        kpis.porRecibir += s.porRecibir;
+        const data = doc.data();
+        const s = extractStats(data);
+        
+        applyData(globalStats, s);
+        if (data.department === 'TH') applyData(thStats, s);
+        if (data.department === 'GT') applyData(gtStats, s);
 
-        counters.pendingOrders += s.isPending;
-        counters.pedidoOrders += s.isPedido;
-        counters.overdueOrders += s.isOverdue;
-        counters.manualReview += s.isManual;
-        counters.totalOrders += 1;
-
-        for (const [mes, v] of Object.entries(s.meses as Record<string, any>)) {
-          if (!histograms[mes]) {
-            histograms[mes] = { venta: 0, cobrado: 0, ganancia: 0, margen: 0, gananciaRealizada: 0 };
-          }
-          histograms[mes].venta += v.venta;
-          histograms[mes].cobrado += v.cobrado;
-          histograms[mes].ganancia += v.ganancia;
-          histograms[mes].margen += v.margen || 0;
-          histograms[mes].gananciaRealizada += v.gananciaRealizada || 0;
-        }
         procesados++;
       }
 
@@ -350,18 +388,20 @@ export const recalcDashboardStats = onCall(
       for (const k of Object.keys(o)) o[k] = Math.round(o[k] * 100) / 100;
       return o;
     };
-    redondear(kpis);
-    Object.values(histograms).forEach(redondear);
+    
+    const saveStats = async (docName: string, stats: any) => {
+      redondear(stats.kpis);
+      Object.values(stats.histograms).forEach((h: any) => redondear(h));
+      await db.doc(docName).set({
+        ...stats,
+        lastUpdated: FieldValue.serverTimestamp(),
+        lastFullRecalc: FieldValue.serverTimestamp(),
+      });
+    };
 
-    // set SIN merge: es un reemplazo total a proposito. Con merge, cualquier
-    // contador viejo que ya no corresponda se quedaria pegado para siempre.
-    await db.doc(STATS_DOC).set({
-      kpis,
-      counters,
-      histograms,
-      lastUpdated: FieldValue.serverTimestamp(),
-      lastFullRecalc: FieldValue.serverTimestamp(),
-    });
+    await saveStats(STATS_DOC, globalStats);
+    await saveStats(`${STATS_DOC}_TH`, thStats);
+    await saveStats(`${STATS_DOC}_GT`, gtStats);
 
     logger.info(`Recálculo completo de stats/dashboard: ${procesados} expedientes.`);
     return { ok: true, procesados, mensaje: `Estadísticas recalculadas sobre ${procesados} expedientes.` };

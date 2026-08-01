@@ -73,6 +73,12 @@ export function computeFinancials(
   };
 }
 
+export function computeCommissionFromInvoiceTotal(invoiceTotal: number, cfg: FinanceConfigCore): number {
+  const saleTotal = invoiceTotal / (1 + (cfg.ivaRate ?? 0));
+  const base = cfg.commissionBase === 'total' ? invoiceTotal : saleTotal;
+  return round2(base * (cfg.commissionRate ?? 0));
+}
+
 /**
  * Configuracion con la que hay que evaluar UN expediente concreto.
  *

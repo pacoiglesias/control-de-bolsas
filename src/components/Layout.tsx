@@ -5,24 +5,30 @@ import { useOrders } from '../hooks/useOrders';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 
-const NAV = [
-  { to: '/', icon: '📊', label: 'Panel Principal', end: true, roles: ['admin', 'manager', 'viewer'] },
-  { to: '/subir', icon: '📥', label: 'Subir Órdenes', roles: ['admin', 'manager'] },
-  // "Expedientes" y "Por Orden de Compra" leen la MISMA coleccion
-  // (purchaseOrders): la primera es una fila por expediente, la segunda son
-  // los mismos expedientes agrupados por numero de OC con sus facturas
-  // desplegadas adentro. Antes se llamaban "Ordenes / Ventas" y "Seguimiento
-  // OC", sin relacion visible entre ambas ni pista de cual usar para que.
-  { to: '/ordenes', icon: '📋', label: 'Expedientes', roles: ['admin', 'manager', 'viewer'] },
-  { to: '/oc', icon: '📦', label: 'Por Orden de Compra', roles: ['admin', 'manager'] },
-  { to: '/compras', icon: '🏭', label: 'Proveedor (Andrés)', roles: ['admin'] },
-  { to: '/cobranza', icon: '💰', label: 'Contrarecibos / Cobranza', roles: ['admin', 'manager'] },
-  { to: '/catalogo', icon: '🛍️', label: 'Catálogo', roles: ['admin', 'manager'] },
-  { to: '/caja-chica', icon: '💵', label: 'CAJA', roles: ['admin'] },
-  { to: '/respaldo', icon: '💾', label: 'Respaldo Local', roles: ['admin'] },
-  { to: '/usuarios', icon: '👥', label: 'Usuarios', roles: ['admin'] },
-  { to: '/logs', icon: '📝', label: 'Bitácora', roles: ['admin'] },
-  { to: '/configuracion', icon: '⚙️', label: 'Configuración', roles: ['admin'] },
+type NavItem = {
+  type?: 'link' | 'group';
+  to?: string;
+  icon?: string;
+  label: string;
+  end?: boolean;
+  roles: string[];
+};
+
+const NAV: NavItem[] = [
+  { type: 'link', to: '/', icon: '📊', label: 'Visión Global', end: true, roles: ['admin', 'manager', 'viewer'] },
+  
+  { type: 'group', label: '-- FLUJO DE VENTAS --', roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/ordenes', icon: '📋', label: 'Expedientes & Ventas', roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística de Entregas', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo Inteligente', roles: ['admin', 'manager'] },
+
+  { type: 'group', label: '-- FLUJO FINANCIERO --', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/cobranza', icon: '💰', label: 'CxC: Clientes', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/compras', icon: '🏭', label: 'CxP: Fabricante', roles: ['admin'] },
+  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'CAJA', roles: ['admin'] },
+
+  { type: 'group', label: '-- ADMINISTRACIÓN --', roles: ['admin'] },
+  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
 ];
 
 function initTheme(): 'light' | 'dark' {
@@ -47,7 +53,7 @@ export default function Layout() {
 
   useEffect(() => {
     setNavOpen(false);
-    const item = NAV.find((n) => (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
+    const item = NAV.find((n) => n.to && (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
     document.title = item ? `${item.label} · Control Bolsas` : 'Control Bolsas ERP';
   }, [location.pathname]);
 
@@ -124,23 +130,32 @@ export default function Layout() {
             <div className="brand-sub">Master Track · v{__APP_VERSION__} ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
           </div>
           <nav className="nav">
-            {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => (
-              <NavLink
-                key={it.to}
-                to={it.to}
-                end={it.end}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              >
-                <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
-                <span>{it.label}</span>
-                {it.to === '/cobranza' && overdue > 0 ? (
-                  <span className="nav-badge">{overdue}</span>
-                ) : null}
-                {it.to === '/ordenes' && review > 0 ? (
-                  <span className="nav-badge soft">{review}</span>
-                ) : null}
-              </NavLink>
-            ))}
+            {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
+              if (it.type === 'group') {
+                return (
+                  <div key={it.label} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginTop: '20px', marginBottom: '4px', paddingLeft: '16px', letterSpacing: '0.5px' }}>
+                    {it.label}
+                  </div>
+                );
+              }
+              return (
+                <NavLink
+                  key={it.to}
+                  to={it.to!}
+                  end={it.end}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                >
+                  <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
+                  <span>{it.label}</span>
+                  {it.to === '/cobranza' && overdue > 0 ? (
+                    <span className="nav-badge">{overdue}</span>
+                  ) : null}
+                  {it.to === '/ordenes' && review > 0 ? (
+                    <span className="nav-badge soft">{review}</span>
+                  ) : null}
+                </NavLink>
+              );
+            })}
           </nav>
           <div className="sidebar-foot">
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>

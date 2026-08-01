@@ -160,6 +160,71 @@ async function processStorageFile(filePath: string, bucketName?: string) {
           }
           logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
         }
+      } else if (tipo === "I" || tipo === "E") {
+        logger.info(`Procesando XML Factura - Folio: ${comprobante.Folio}`);
+        const [metadata] = await bucket.file(filePath).getMetadata();
+        const fileHash = metadata?.metadata?.fileHash;
+
+        const receptor = comprobante["cfdi:Receptor"];
+        const conceptos = comprobante["cfdi:Conceptos"];
+        const complementoNode = comprobante["cfdi:Complemento"];
+        let uuid = "";
+        if (complementoNode) {
+          const tfd = complementoNode["tfd:TimbreFiscalDigital"];
+          if (tfd) uuid = tfd.UUID || "";
+        }
+
+        const clientName = receptor?.Nombre || "CLIENTE DESCONOCIDO";
+        const folio = (comprobante.Serie || "") + (comprobante.Folio || "");
+        
+        let totalKilos = 0;
+        let cfs = conceptos ? (conceptos["cfdi:Concepto"] || []) : [];
+        if (!Array.isArray(cfs)) cfs = [cfs];
+        
+        for (const c of cfs) {
+           const qty = Number(c.Cantidad) || 0;
+           totalKilos += qty;
+        }
+
+        const subtotal = Number(comprobante.SubTotal) || 0;
+        const total = Number(comprobante.Total) || 0;
+        // La fecha viene como string, ej. "2026-07-27T10:13:06"
+        const fecha = comprobante.Fecha ? new Date(comprobante.Fecha) : new Date();
+
+        const invoiceId = db.collection(COL_ORDERS).doc().id;
+        
+        const newInvoice = {
+           id: invoiceId,
+           uuid,
+           folio,
+           kilos: totalKilos,
+           creditCycle: {
+              issueDate: Timestamp.fromDate(fecha),
+              status: "facturado"
+           },
+           financials: {
+              invoiceTotal: total,
+              saleTotal: subtotal,
+           }
+        };
+
+        const newOrder = {
+          id: docIdFor(filePath),
+          fileName: filePath,
+          fileHash: fileHash ?? "",
+          client: clientName,
+          folio: folio,
+          totalKilograms: totalKilos,
+          creditCycle: { status: "facturado" },
+          invoices: [newInvoice],
+          invoiceStatuses: ["facturado"],
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          processedAt: FieldValue.serverTimestamp(),
+        };
+
+        await ref.set(newOrder, { merge: true });
+        logger.info(`Expediente creado automáticamente desde XML Ingreso: ${folio} (${clientName})`);
       } else {
         logger.info(`XML ignorado por ahora. Tipo de comprobante: ${tipo}`);
       }

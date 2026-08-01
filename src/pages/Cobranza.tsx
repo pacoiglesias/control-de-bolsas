@@ -842,9 +842,6 @@ export default function Cobranza() {
             <KpiCard tone={data.vencido > 0 ? 'bad' : undefined} label="De eso, vencido" value={money(data.vencido)} />
             <KpiCard tone="ok" label="Cobro a 7 Días" value={money(data.proyeccion7d)} sub="Proyección esta semana" />
             <KpiCard tone="ok" label="Cobro a 15 Días" value={money(data.proyeccion15d)} sub="Proyección quincenal" />
-            <KpiCard tone="cash" label="Ya cobrado" value={money(data.cobrado)} />
-            <KpiCard label="Comisiones pagadas" value={money(data.comisiones)}
-              sub={`${(config.commissionRate * 100).toFixed(1)}% sobre la venta`} />
           </div>
 
       <Card title="Antigüedad de saldos">

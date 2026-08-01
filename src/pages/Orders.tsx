@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +29,7 @@ export default function Orders() {
   const { role } = useAuth();
   const { config } = useConfig();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   
@@ -177,11 +178,14 @@ export default function Orders() {
           <>
             {role !== 'viewer' && (
               <>
-                <button className="btn btn-primary" onClick={() => setSelected({
+                <button className="btn btn-primary" onClick={() => navigate('/subir')}>
+                  📥 Subir XML / PDF
+                </button>
+                <button className="btn" onClick={() => setSelected({
                   id: doc(collection(db, PATHS.orders)).id,
                   creditCycle: { status: 'pedido' }
                 } as PurchaseOrder)}>
-                  + Nuevo Pedido
+                  + Expediente Manual
                 </button>
                 <span className="spacer" />
                 <button className="btn no-print" onClick={exportCSV}>⭳ CSV</button>

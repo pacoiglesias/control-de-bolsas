@@ -14,12 +14,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Upload = lazy(() => import('./pages/Upload'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Cobranza = lazy(() => import('./pages/Cobranza'));
-const Settings = lazy(() => import('./pages/Settings'));
-const Respaldo = lazy(() => import('./pages/Respaldo'));
 const CajaChica = lazy(() => import('./pages/CajaChica'));
 const Compras = lazy(() => import('./pages/Compras'));
-const Logs = lazy(() => import('./pages/Logs'));
-const Users = lazy(() => import('./pages/Users'));
+const ControlCenter = lazy(() => import('./pages/ControlCenter'));
 const Seeder = lazy(() => import('./pages/Seeder'));
 const OcTracking = lazy(() => import('./pages/OcTracking'));
 const Catalog = lazy(() => import('./pages/Catalog'));
@@ -52,10 +49,7 @@ function Gate() {
         <Route path="cobranza" element={<Cobranza />} />
         <Route path="caja-chica" element={<CajaChica />} />
         <Route path="compras" element={<Compras />} />
-        <Route path="configuracion" element={<Settings />} />
-        <Route path="usuarios" element={<Users />} />
-        <Route path="logs" element={<Logs />} />
-        <Route path="respaldo" element={<Respaldo />} />
+        <Route path="centro-control" element={<ControlCenter />} />
         <Route path="seed" element={<Seeder />} />
         <Route path="oc" element={<OcTracking />} />
         <Route path="catalogo" element={<Catalog />} />

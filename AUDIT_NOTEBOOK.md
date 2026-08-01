@@ -6,6 +6,25 @@ Este documento es la bitácora viva de la Auditoría de Automejora Continua del 
 
 ---
 
+## 📌 DECISIONES DE NEGOCIO (No modificar sin autorización)
+- **Fórmula de Utilidad e IVA (Confirmado 2026-07-31):** El usuario ha ordenado explícitamente que **no se descuente el IVA de la Utilidad Líquida**. El sistema es estrictamente para control interno de flujos, "nada fiscal". El cálculo `Utilidad = (Venta con IVA) - Costos - Comisión` es intencional y correcto para sus fines. No intentar arreglar o ajustar a estándares fiscales del SAT.
+
+---
+
+## ✅ Ciclo 41 — 2026-07-31 — Arquitectura Departamental de Dashboard (TH/GT)
+
+[Fecha] 2026-07-31
+Archivo: `functions/src/stats.ts`, `src/pages/Dashboard.tsx`
+Problema: El filtro departamental (TH/GT) del Dashboard solo filtraba visualmente la lista inferior de órdenes activas; los "Grandes Números" (Total Vendido, Utilidad, etc.) seguían amarrados al acumulado global ("Toda la Empresa") porque el backend solo mantenía una única métrica global (`stats/dashboard`).
+Impacto: Falsa percepción del rendimiento individual de Textil Hogar y Grupo Textil. Los KPIs superiores no coincidían con la lista inferior.
+Solución: Se refactorizaron las funciones `recalcDashboardStats` y `syncDashboardStats` para calcular, mantener y despachar deltas en vivo en tres documentos distintos: `stats/dashboard`, `stats/dashboard_TH`, y `stats/dashboard_GT`. El frontend ahora lee el documento exacto dependiendo del filtro seleccionado.
+Riesgo: 🟡 Medio — Alteración del motor estadístico principal.
+Commit: `feat(stats): desagregar motor de dashboard por departamento (TH/GT)`
+Estado: ✅ Verificado y Desplegado en Firebase.
+OKRs afectados: Precisión, Rendimiento (O(1) lectura directa en frontend sin recalcular en navegador).
+
+---
+
 ## ✅ Ciclo 39 — 2026-07-31 — Tolerancia de Peso y Fixes TypeScript
 [Fecha] 2026-07-31
 Archivos: `src/pages/OrderModal.tsx`, `src/pages/Compras.tsx`, `src/pages/Dashboard.tsx`, `src/pages/CajaChica.tsx`
@@ -1118,3 +1137,27 @@ unTransaction que inyectaste en la v6.0.
 
 **Conclusión del Sprint:**
 El sistema ahora refleja 100% los flujos financieros exactos de Providencia (pagos a través de SAP, recolección en contabilidad, comisión) y de Andrés (adelantos, entrega paulatina, ajustes). Todo el código está sincronizado y los bugs de TypeScript corregidos.
+
+
+## 🔧 Ciclo 40 — 2026-07-31 — Lógica Finance DRY
+
+[Fecha] 2026-07-31
+Archivo: src/lib/finance.ts, functions/src/shared/finance.core.ts, src/pages/Dashboard.tsx, src/pages/CajaChica.tsx
+Problema: Cálculos de comisión e IVA estaban quemados ('crudos') directamente en el frontend (ej. * 0.08 o / 1.16), ignorando variables globales y violando DRY.
+Impacto: Si se cambia la tasa de comisión o IVA desde la configuración global, el Dashboard y la Caja Chica reportarían montos erróneos e inconsistencias financieras.
+Solución:
+- Se centralizó la lógica creando `computeCommissionFromInvoiceTotal` en el core financiero (compartido con backend).
+- Se eliminaron las constantes crudas de Dashboard y Caja Chica para usar la función pura.
+Riesgo: 🟡 Medio. Refactor matemático crítico.
+Estado: 🔧 En curso — Validado con TypeScript, pendiente de commit y siguientes mejoras.
+
+
+## 🔧 Ciclo 41 — 2026-07-31 — Optimización de Suscripciones en Dashboard
+
+[Fecha] 2026-07-31
+Archivo: src/pages/Dashboard.tsx
+Problema: El Dashboard creaba un listener (onSnapshot) exclusivo a la colección entera de Orders mediante useCollectionData solo para armar la lista de pagos en tránsito, duplicando peticiones ya realizadas por OrdersContext.
+Impacto: Exceso de memoria, doble socket abierto y cobros innecesarios por lecturas extra en Firestore.
+Solución: Se eliminó el useCollectionData (activeOrdersDoc). Se reusó el estado global de useOrdersContext() para iterar los expedientes ya descargados en memoria local.
+Riesgo: 🟢 Bajo. Reducción directa de facturación GCP.
+Estado: 🔧 En curso — Compilado y validado.

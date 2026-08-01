@@ -83,7 +83,10 @@ export default function Compras() {
   // Financial logic (Dinero)
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
   const currentCostPerKg = config?.costPricePerKg || 42;
-  const totalPurchasesCost = round2(totalReceivedKilos * currentCostPerKg); // Valor Entregado
+  
+  // Bugfix (Ciclo 42): Valor Entregado histórico. Si p.pricePerKg no existe (registros muy viejos),
+  // se usa currentCostPerKg por seguridad, pero los nuevos siempre tendrán su precio histórico congelado.
+  const totalPurchasesCost = round2(provPurchases.reduce((acc, p) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), 0));
   
   const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos
@@ -105,7 +108,7 @@ export default function Compras() {
 
   const filteredPurchases = searchedPurchases.filter(p => {
     const montoOC = p.totalAmount || 0;
-    const isCompleted = montoOC > 0 && p.receivedKilos * currentCostPerKg >= montoOC;
+    const isCompleted = montoOC > 0 && (p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg) >= montoOC;
     if (filter === 'activas') return !isCompleted;
     if (filter === 'completadas') return isCompleted;
     return true;
@@ -127,7 +130,7 @@ export default function Compras() {
         id: p.id,
         date: p.date,
         concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
-        cargo: round2(p.receivedKilos * currentCostPerKg), // Sube la deuda
+        cargo: round2((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), // Sube la deuda (respeta precio histórico)
         abono: 0,
         balance: 0,
         source: 'purchase' as const
@@ -179,6 +182,12 @@ export default function Compras() {
     ]);
     exportToCsv(`Estado_Cuenta_Andres_${new Date().toISOString().slice(0, 10)}`, headers, rows);
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
+  }
+
+  function sendWhatsAppStatement() {
+    const texto = `Hola Andrés, te comparto el estado de cuenta a la fecha:\n\n📦 *Entregas recibidas:* ${totalReceivedKilos.toLocaleString()} kg\n💰 *Valor del material:* $${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}\n\n💳 *Anticipos pagados:* $${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}\n${deudaHistorica ? `🕰️ *Saldo histórico:* ${deudaHistorica > 0 ? '+' : '-'}$${Math.abs(deudaHistorica).toLocaleString('es-MX', {minimumFractionDigits:2})}\n` : ''}\n📊 *Saldo actual:* $${Math.abs(deudaReal).toLocaleString('es-MX', {minimumFractionDigits:2})} ${deudaReal > 0 ? 'a tu favor (te debemos)' : 'a mi favor (me debes)'}\n\nCualquier duda quedo a la orden.`;
+    const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    window.open(url, '_blank');
   }
 
   function printComprasReport() {
@@ -267,13 +276,11 @@ export default function Compras() {
   return (
     <>
       <div className="page-head">
-        <h1>Compras y Proveedores</h1>
-        <p>Control financiero: Anticipos, entregas físicas, saldo y pre-facturación.</p>
+        <h1>Proveedor (Andrés)</h1>
+        <p>Control financiero: Anticipos, entregas físicas de material y saldo real.</p>
         <div className="tabs" style={{ marginTop: 16 }}>
-          <button className={tab === 'ordenes' ? 'active' : ''} onClick={() => setTab('ordenes')}>Órdenes (Avance)</button>
+          <button className={tab === 'ordenes' ? 'active' : ''} onClick={() => setTab('ordenes')}>Entregas (Acopio)</button>
           <button className={tab === 'pagos' ? 'active' : ''} onClick={() => setTab('pagos')}>💳 Pagos a Andrés</button>
-          <button className={tab === 'facturar' ? 'active' : ''} onClick={() => setTab('facturar')}>Pendiente por Facturar</button>
-          <button className={tab === 'revision' ? 'active' : ''} onClick={() => setTab('revision')}>Facturas en Revisión</button>
           <button className={tab === 'estado' ? 'active' : ''} onClick={() => setTab('estado')}>Auditoría Financiera</button>
         </div>
       </div>
@@ -329,11 +336,11 @@ export default function Compras() {
                 createdAt: null,
                 items: [],
               } as unknown as Purchase)}>
-                + Nueva OC
+                + Nuevo Pedido a Andrés
               </button>
             </>
           }
-          title="Órdenes de Compra (Dinero vs Avance Físico)"
+          title="Entregas de Material (Acopio y Avance Físico)"
         >
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <input
@@ -377,7 +384,7 @@ export default function Compras() {
                   {filteredPurchases.map((p) => {
                     const o = orderById.get(p.id);
                     const montoOC = p.totalAmount || 0;
-                    const valorEntregado = round2(p.receivedKilos * currentCostPerKg);
+                    const valorEntregado = round2((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg));
                     const saldoOC = montoOC - valorEntregado;
                     
                     const progress = montoOC > 0 ? Math.min(100, Math.round((valorEntregado / montoOC) * 100)) : 0;
@@ -464,89 +471,13 @@ export default function Compras() {
           </div>
         )}
 
-        {tab === 'facturar' && (
-        <Card 
-          title="Pendiente por Facturar (Pre-factura)"
-          actions={
-            <div style={{ display: 'flex', gap: 8 }}>
-               <button className="btn" onClick={() => {
-                 const text = `Facturación Proveedor\n\nMétodo de Pago: PPD\nForma de Pago: 99\nClave SAT: 24141500 (Películas de plástico)\nUnidad SAT: KGM\nUso CFDI: G01\n\nKilos Totales: ${totalReceivedKilos.toFixed(2)}\nPrecio Unitario: $${currentCostPerKg.toFixed(2)}\n\nSubtotal: $${totalPurchasesCost.toFixed(2)}\nIVA: $${(totalPurchasesCost * 0.16).toFixed(2)}\nTOTAL: $${(totalPurchasesCost * 1.16).toFixed(2)}`;
-                 navigator.clipboard.writeText(text);
-                 toast('Datos SAT copiados al portapapeles', 'ok');
-               }} disabled={isLoading} style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', fontWeight: 600 }}>📋 Copiar Resumen SAT</button>
-               <button className="btn" onClick={() => window.print()} disabled={isLoading}>🖨️ Imprimir Pre-Factura</button>
-            </div>
-          }
-        >
-          {isLoading ? <Skeleton style={{ height: 200 }} /> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <p className="hint">Consolidación de las entregas de mercancía pendientes de facturar por parte de {selectedProvider}.</p>
-              
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Descripción</th>
-                    <th className="num">Kilos Entregados</th>
-                    <th className="num">Precio Unit.</th>
-                    <th className="num">Importe Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Bolsas de línea (Consolidado a fecha)</td>
-                    <td className="num mono">{kilos(totalReceivedKilos)}</td>
-                    <td className="num mono">${currentCostPerKg.toFixed(2)}</td>
-                    <td className="num mono"><strong>{money(totalPurchasesCost)}</strong></td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, marginTop: 16 }}>
-                <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                   <h4 style={{ margin: '0 0 12px 0', fontSize: 13, color: 'var(--ink)' }}>Datos para la Factura (SAT)</h4>
-                   <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 8, fontSize: 13 }}>
-                     <strong>Método de Pago:</strong> <span>PPD (Pago en Parcialidades o Diferido)</span>
-                     <strong>Forma de Pago:</strong> <span>99 (Por definir)</span>
-                     <strong>Clave SAT:</strong> <span className="mono">24141500 (Películas o láminas de plástico)</span>
-                     <strong>Unidad SAT:</strong> <span className="mono">KGM (Kilogramo)</span>
-                     <strong>Uso CFDI:</strong> <span>G01 (Adquisición de mercancías)</span>
-                   </div>
-                </div>
-                
-                <div style={{ padding: 16, border: '2px solid #e2e8f0', borderRadius: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span>Subtotal:</span>
-                    <span className="mono">{money(totalPurchasesCost)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span>IVA (16%):</span>
-                    <span className="mono">{money(totalPurchasesCost * 0.16)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border)', paddingTop: 12, fontSize: 18, fontWeight: 'bold' }}>
-                    <span>TOTAL:</span>
-                    <span className="mono">{money(totalPurchasesCost * 1.16)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {tab === 'revision' && (
-        <Card title="Facturas en Revisión (Bandeja)">
-           {isLoading ? <Skeleton style={{ height: 150 }} /> : (
-              <Empty icon="📂">Aún no has subido facturas en revisión para este proveedor. Esta área servirá para validar los XML/PDF contra los Kilos Entregados.</Empty>
-           )}
-        </Card>
-      )}
-
       {tab === 'estado' && (
         <Card
           title="Auditoría Financiera y Libro Mayor"
           actions={
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <button className="btn btn-primary no-print" onClick={() => setAjusteModal(true)}>⚖️ Registrar Ajuste Manual</button>
+              <button className="btn no-print" onClick={sendWhatsAppStatement} style={{ background: '#25D366', color: '#fff', borderColor: '#25D366' }}>📱 Enviar por WhatsApp</button>
               <button className="btn no-print" onClick={exportComprasCsv}>📥 Exportar CSV</button>
               <button className="btn no-print" onClick={printComprasReport}>🖨️ Imprimir Estado</button>
             </div>
@@ -559,20 +490,20 @@ export default function Compras() {
                  <h4 style={{ margin: '0 0 12px 0', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
                    <span>🕵️‍♂️</span> Fórmula de Auditoría Financiera
                  </h4>
+                 <p className="hint" style={{ margin: '0 0 16px 0' }}>El "Valor Entregado" suma el historial congelado de kilos multiplicados por el precio acordado en el momento exacto de cada entrega, blindando la matemática contra cambios futuros de precio.</p>
+                 
                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, textAlign: 'center' }}>
                    <div>
-                     <div className="hint" style={{ fontSize: 11 }}>1. Kilos Recibidos</div>
+                     <div className="hint" style={{ fontSize: 11 }}>Kilos Históricos</div>
                      <div className="mono" style={{ fontSize: 16 }}>{totalReceivedKilos.toLocaleString()} kg</div>
                    </div>
-                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>×</div>
+                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}></div>
                    <div>
-                     <div className="hint" style={{ fontSize: 11 }}>2. Costo Actual</div>
-                     <div className="mono" style={{ fontSize: 16 }}>${currentCostPerKg.toFixed(2)}</div>
                    </div>
-                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>=</div>
+                   <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>→</div>
                    <div>
-                     <div className="hint" style={{ fontSize: 11 }}>3. Valor Entregado</div>
-                     <div className="mono" style={{ fontSize: 16, fontWeight: 'bold' }}>{money(totalPurchasesCost)}</div>
+                     <div className="hint" style={{ fontSize: 11 }}>1. Valor Entregado</div>
+                     <div className="mono" style={{ fontSize: 16 }}>{money(totalPurchasesCost)}</div>
                    </div>
                  </div>
                  
@@ -580,7 +511,7 @@ export default function Compras() {
                  
                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, textAlign: 'center' }}>
                    <div>
-                     <div className="hint" style={{ fontSize: 11 }}>3. Valor Entregado</div>
+                     <div className="hint" style={{ fontSize: 11 }}>1. Valor Entregado</div>
                      <div className="mono" style={{ fontSize: 16 }}>{money(totalPurchasesCost)}</div>
                    </div>
                    <div style={{ fontSize: 20, color: '#991b1b', paddingTop: 16 }}>-</div>
