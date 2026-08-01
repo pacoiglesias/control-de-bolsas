@@ -56,6 +56,7 @@ export default function Settings() {
 
   const preview = computeFinancials(1000, form);
   const dirty = JSON.stringify(form) !== JSON.stringify(config);
+  const sysDirty = JSON.stringify(sysForm) !== JSON.stringify(settings);
 
   async function onSave() {
     if (form.salePricePerKg <= 0 || form.costPricePerKg < 0) {
@@ -368,8 +369,8 @@ export default function Settings() {
             </Field>
           </div>
           <div className="modal-actions" style={{ marginTop: 16 }}>
-            <button className="btn" onClick={() => setForm(config)} disabled={!dirty || busy}>Descartar</button>
-            <button className="btn btn-primary" onClick={() => void onSave().then(tocarConfig)} disabled={!dirty || busy}>
+            <button className="btn" onClick={() => { setForm(config); setSysForm(settings); }} disabled={(!dirty && !sysDirty) || busy}>Descartar</button>
+            <button className="btn btn-primary" onClick={() => void onSave().then(tocarConfig)} disabled={(!dirty && !sysDirty) || busy}>
               {busy ? 'Guardando…' : 'Guardar configuración'}
             </button>
           </div>
