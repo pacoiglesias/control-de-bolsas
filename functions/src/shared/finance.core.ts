@@ -19,10 +19,10 @@
  *   factura  = subtotal + IVA          <- esto es lo que se le cobra al cliente
  *   costo    = kilos x costo
  *   comision = (subtotal o factura) x tasa, segun commissionBase
- *   neto     = factura - costo - comision
+ *   neto     = subtotal - costo - comision
  *
- * El neto se calcula sobre la factura CON IVA porque en este negocio el IVA
- * es parte integra de la ganancia.
+ * El neto se calcula sobre el SUBTOTAL sin IVA porque el IVA no debe mezclarse
+ * con la utilidad real del negocio.
  */
 
 export interface FinanceConfigCore {
@@ -68,7 +68,7 @@ export function computeFinancials(
     invoiceTotal,
     costTotal,
     commission,
-    netCashFlow: round2(invoiceTotal - costTotal - commission),
+    netCashFlow: round2(saleTotal - costTotal - commission),
     tradeMargin: round2(saleTotal - costTotal),
   };
 }

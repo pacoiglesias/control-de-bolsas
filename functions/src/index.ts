@@ -214,6 +214,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
           fileHash: fileHash ?? "",
           client: clientName,
           folio: folio,
+          department: (comprobante.Serie || "").trim(),
           totalKilograms: totalKilos,
           creditCycle: { status: "facturado" },
           invoices: [newInvoice],

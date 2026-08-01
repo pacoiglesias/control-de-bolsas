@@ -563,7 +563,7 @@ return () => unsub();
       liveMargenTotal = 0;
       activeOrders.forEach((o: PurchaseOrder) => {
         (o.invoices || []).forEach((inv: Invoice) => {
-          const invTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+          const invTotal = Number(inv.financials?.saleTotal ?? inv.financials?.invoiceTotal ?? 0); // Cambio clave: Subtotal
           const comm = Number(inv.financials?.commission ?? 0);
           // `materialCost` no existe en OrderFinancials (es `costTotal`); con
           // el campo equivocado esto siempre caia al `??`, y aun asi debia

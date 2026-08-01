@@ -91,6 +91,38 @@ Pago recibido 23 julio	76140.00`);
     }
   };
 
+  const [reparandoDepts, setReparandoDepts] = useState(false);
+  const handleRepararDepartamentos = async () => {
+    setReparandoDepts(true);
+    setLog([]);
+    try {
+      addLog('Buscando expedientes sin departamento asignado (TH/GT)…');
+      const snap = await getDocs(collection(db, PATHS.orders));
+      let reparados = 0;
+      
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (!data.department) {
+          const folio = (data.folio || "").toUpperCase();
+          let newDept = "";
+          if (folio.includes("TH")) newDept = "TH";
+          else if (folio.includes("GT")) newDept = "GT";
+          
+          if (newDept) {
+            await updateDoc(doc(db, PATHS.orders, d.id), { department: newDept });
+            addLog(`  ✓ Expediente ${folio} → Departamento: ${newDept}`);
+            reparados++;
+          }
+        }
+      }
+      addLog(`✅ Reparados ${reparados} expedientes. RECUERDA IR AL DASHBOARD Y PRESIONAR "Recalcular Indicadores".`);
+    } catch (e) {
+      addLog(`⚠️ Error: ${(e as Error).message}`);
+    } finally {
+      setReparandoDepts(false);
+    }
+  };
+
   const handleRun = async () => {
     const word = window.prompt("⚠️ PELIGRO ⚠️\nEsto borrará TODAS las órdenes, facturas y flujo de caja (CAJA).\n\nPara continuar, escribe exactamente la palabra: PROVIDENCIA");
     if (word !== "PROVIDENCIA") {
@@ -431,7 +463,23 @@ Pago recibido 23 julio	76140.00`);
         {running ? "Procesando..." : configLoading ? "Cargando configuración..." : "BORRAR TODO E INYECTAR DATOS"}
       </button>
 
-      <div style={{ marginTop: 24, padding: 16, border: '1px solid var(--line)', borderRadius: 8 }}>
+        <div style={{ padding: 24, background: 'var(--paper)', borderRadius: 'var(--radius)' }}>
+          <h2 style={{ color: 'var(--ink)' }}>2. Reparar Departamentos Históricos (TH/GT)</h2>
+          <p style={{ color: 'var(--ink-soft)' }}>
+            Los expedientes creados antes de la versión v6.29.0 o mediante migración no tienen el campo "Departamento" asignado. 
+            Esto causa que los botones del Dashboard (TH y GT) muestren valores en $0.00. Este proceso asigna automáticamente el departamento 
+            leyendo el folio del expediente (ej. si el folio dice "TH-804", le asigna "TH").
+          </p>
+          <button 
+            className="btn btn-primary" 
+            onClick={() => void handleRepararDepartamentos()} 
+            disabled={reparandoDepts}
+          >
+            {reparandoDepts ? 'Reparando...' : '🔍 Reparar Departamentos Históricos'}
+          </button>
+        </div>
+
+        <div style={{ padding: 24, background: 'rgba(239, 68, 68, 0.05)', border: '1px solid var(--bad)', borderRadius: 'var(--radius)' }}>
         <h4 style={{ margin: '0 0 8px' }}>🔧 Reparación puntual: movimientos de CAJA sin proveedor</h4>
         <p className="hint" style={{ margin: '0 0 12px' }}>
           No borra ni cambia montos. Busca movimientos de CAJA que mencionan a un proveedor conocido en su concepto
