@@ -7,18 +7,47 @@ export async function exportToExcel() {
   const purchasesSnap = await getDocs(collection(db, PATHS.purchases));
   const expensesSnap = await getDocs(collection(db, PATHS.expenses));
 
-  const ordersData = ordersSnap.docs.map(d => {
+  const ordersData: any[] = [];
+  
+  ordersSnap.docs.forEach(d => {
     const data = d.data();
-    return {
-      ID: d.id,
-      Folio: data.folio || '',
-      Cliente: data.client || '',
-      Fecha: data.date?.toDate?.()?.toLocaleDateString() || '',
-      Kilos: data.totalKilograms || 0,
-      MontoVenta: data.financials?.invoiceTotal || 0,
-      Comision: data.financials?.commission || 0,
-      Neto: data.financials?.netCashFlow || 0,
-    };
+    const invs = data.invoices || [];
+    
+    if (invs.length === 0) {
+      ordersData.push({
+        OrderID: d.id,
+        InvoiceID: '',
+        OrdenFolio: data.folio || '',
+        Cliente: data.client || '',
+        FacturaFolio: '',
+        Contrarecibo: '',
+        Estatus: 'pedido',
+        Kilos: data.totalKilograms || 0,
+        MontoVenta: data.financials?.invoiceTotal || data.financials?.saleTotal || 0,
+        MontoCobrado: 0,
+        MontoPendiente: data.financials?.invoiceTotal || data.financials?.saleTotal || 0,
+        FechaEntrega: data.date?.toDate?.()?.toLocaleDateString() || '',
+      });
+    } else {
+      invs.forEach((inv: any) => {
+        const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        const paid = inv.collection?.paidAmount ?? 0;
+        ordersData.push({
+          OrderID: d.id,
+          InvoiceID: inv.id,
+          OrdenFolio: data.folio || '',
+          Cliente: data.client || '',
+          FacturaFolio: inv.folio || '',
+          Contrarecibo: inv.collection?.contrareciboNumber || '',
+          Estatus: inv.creditCycle?.status || 'pedido',
+          Kilos: inv.kilos || 0,
+          MontoVenta: invTotal,
+          MontoCobrado: paid,
+          MontoPendiente: Math.max(invTotal - paid, 0),
+          FechaVencimiento: inv.creditCycle?.dueDate?.toDate?.()?.toLocaleDateString() || '',
+        });
+      });
+    }
   });
 
   const purchasesData = purchasesSnap.docs.map(d => {

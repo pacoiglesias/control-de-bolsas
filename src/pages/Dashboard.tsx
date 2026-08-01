@@ -540,6 +540,22 @@ return () => unsub();
     const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config as any);
     const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
 
+    // Calcular Remisiones (Kilos entregados - Kilos facturados)
+    let totalKilosDelivered = 0;
+    let totalKilosInvoiced = 0;
+    activeOrders.forEach(o => {
+      const deliveries = o.deliveries || [];
+      const invoices = o.invoices || [];
+      let oDel = 0, oInv = 0;
+      deliveries.forEach(d => oDel += (d.kilos || 0));
+      invoices.forEach(i => oInv += (i.kilos || 0));
+      totalKilosDelivered += oDel;
+      totalKilosInvoiced += oInv;
+    });
+    const kilosPendientesFacturar = Math.max(0, totalKilosDelivered - totalKilosInvoiced);
+    const valorPendienteFacturar = kilosPendientesFacturar * (config.costPricePerKg || 42);
+
+
     const allMeses = Object.keys(mesesObj).sort();
     let periodText = 'Acumulado de todo el historial, sin límite de fecha';
     if (allMeses.length > 0) {
@@ -578,6 +594,8 @@ return () => unsub();
       deudaTotalProvidencia,
       comisionContable,
       dineroRealARecibir,
+      kilosPendientesFacturar,
+      valorPendienteFacturar,
       proyeccion7d,
       proyeccion15d
     };
@@ -1162,7 +1180,7 @@ return () => unsub();
                   <tr key={inv.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}>
                     <td className="mono">
                       <div style={{ fontWeight: 600 }}>Factura: {inv.folio || 'Pendiente'}</div>
-                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.cr || 'S/N'}</div>
+                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.collection?.contrareciboNumber || 'S/N'}</div>
                       <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>Orden: {o.folio}</div>
                     </td>
                     <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>
@@ -1205,7 +1223,7 @@ return () => unsub();
                   <tr key={inv.id} className="row-warn">
                     <td className="mono">
                       <div style={{ fontWeight: 600 }}>Factura: {inv.folio || 'Pendiente'}</div>
-                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.cr || 'S/N'}</div>
+                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.collection?.contrareciboNumber || 'S/N'}</div>
                       <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>Orden: {o.folio}</div>
                     </td>
                     <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>

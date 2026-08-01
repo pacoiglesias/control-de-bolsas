@@ -268,19 +268,19 @@ export default function Compras() {
       </div>
 
       <div className="kpi-grid">
-        <Card title="💰 Total Adelantado (Caja)">
+        <Card title="💰 Pagos y Anticipos (Nuestro favor)">
           {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
-            <div className="num" style={{ fontSize: 24, color: 'var(--ok)' }}>{money(totalPagado)}</div>
+            <div className="num" style={{ fontSize: 24, color: 'var(--ok)' }}>{money(totalPagado - deudaHistorica)}</div>
           )}
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Dinero pagado a Andrés.</p>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Dinero depositado a Andrés.</p>
         </Card>
-        <Card title="📦 Valor Entregado (Kilos)">
+        <Card title="📦 Material Entregado (Su favor)">
           {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
             <div className="num" style={{ fontSize: 24 }}>{money(totalPurchasesCost)}</div>
           )}
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>{kilos(totalReceivedKilos)} entregados a ${currentCostPerKg}/kg.</p>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>{kilos(totalReceivedKilos)} kgs entregados a ${currentCostPerKg}/kg.</p>
         </Card>
-        <Card title="⚖️ Balance Final (Deuda)">
+        <Card title="⚖️ Deuda Real al Día de Hoy">
           {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
             <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--ok)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
               {deudaReal < 0 ? `- ${money(Math.abs(deudaReal))}` : money(deudaReal)}

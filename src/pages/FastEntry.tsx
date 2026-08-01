@@ -7,8 +7,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { getOrderSummary } from '../lib/finance';
 
-interface MissingField {
-  type: 'factura' | 'contrarecibo';
+interface IncompleteInvoice {
   orderId: string;
   invoiceId: string;
   orderFolio: string;
@@ -35,16 +34,16 @@ export function FastEntry() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const missing = useMemo(() => {
-    const list: MissingField[] = [];
+    const list: IncompleteInvoice[] = [];
     activeOrders.forEach(o => {
       const invoices = o.invoices || [];
       invoices.forEach(inv => {
         const amount = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        const missingFolio = !inv.folio || inv.folio.trim() === '';
+        const missingCR = (!inv.collection?.contrareciboNumber || inv.collection.contrareciboNumber.trim() === '') && inv.creditCycle.status !== 'paid';
         
-        // Si falta folio de factura
-        if (!inv.folio || inv.folio.trim() === '') {
+        if (missingFolio || missingCR) {
           list.push({
-            type: 'factura',
             orderId: o.id,
             invoiceId: inv.id,
             orderFolio: o.folio ?? 'S/N',
@@ -53,22 +52,6 @@ export function FastEntry() {
             currentFolio: inv.folio ?? '',
             currentCR: inv.collection?.contrareciboNumber ?? ''
           });
-        }
-        
-        // Si tiene folio pero falta contrarecibo (y el status no es pagado)
-        if (inv.folio && inv.folio.trim() !== '' && inv.creditCycle.status !== 'paid') {
-          if (!inv.collection?.contrareciboNumber || inv.collection.contrareciboNumber.trim() === '') {
-            list.push({
-              type: 'contrarecibo',
-              orderId: o.id,
-              invoiceId: inv.id,
-              orderFolio: o.folio ?? 'S/N',
-              client: o.client ?? 'S/N',
-              amount,
-              currentFolio: inv.folio ?? '',
-              currentCR: inv.collection?.contrareciboNumber ?? ''
-            });
-          }
         }
       });
     });
@@ -182,8 +165,7 @@ export function FastEntry() {
 
   if (loading) return <div style={{ padding: 32 }}>Cargando datos...</div>;
 
-  const facturasMissing = missing.filter(m => m.type === 'factura');
-  const crMissing = missing.filter(m => m.type === 'contrarecibo');
+  
 
   return (
     <div className="page-container" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
@@ -197,88 +179,60 @@ export function FastEntry() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gap: 24, gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))' }}>
-        
-        <Card title={`Falta Factura (${facturasMissing.length})`} hint="Ingresa el Folio">
-          {facturasMissing.length === 0 ? (
+      <div style={{ marginTop: 24 }}>
+        <Card title={`Facturas o Contrarecibos Pendientes (${missing.length})`} hint="Ingresa los datos">
+          {missing.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-soft)' }}>
-              No hay facturas pendientes de folio.
+              No hay documentos pendientes.
             </div>
           ) : (
             <div className="table-scroll">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>OC</th>
+                    <th>Orden</th>
                     <th>Cliente</th>
-                    <th className="num">Folio</th>
+                    <th className="num">Folio Factura</th>
+                    <th className="num">Contrarecibo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {facturasMissing.map((m, i) => {
-                    const key = `${m.orderId}___${m.invoiceId}___factura`;
+                  {missing.map((m, i) => {
+                    const keyFolio = `${m.orderId}___${m.invoiceId}___factura`;
+                    const keyCR = `${m.orderId}___${m.invoiceId}___contrarecibo`;
+                    const valFolio = edits[keyFolio] ?? m.currentFolio;
+                    const valCR = edits[keyCR] ?? m.currentCR;
+                    const isNewFolio = edits[keyFolio] !== undefined;
+                    const isNewCR = edits[keyCR] !== undefined;
+
                     return (
-                      <tr key={key}>
+                      <tr key={m.invoiceId}>
                         <td className="mono">{m.orderFolio}</td>
                         <td style={{ fontSize: 12, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.client}>
                           {m.client}
                         </td>
                         <td className="num">
                           <input 
-                            ref={el => inputRefs.current[i] = el}
+                            ref={el => inputRefs.current[i * 2] = el}
                             type="text" 
                             className="input boxed"
-                            style={{ width: '100%', minWidth: 100, textAlign: 'right', fontWeight: 600, borderColor: edits[key] ? 'var(--accent)' : '' }}
+                            style={{ width: '100%', minWidth: 100, textAlign: 'right', fontWeight: 600, borderColor: isNewFolio ? 'var(--accent)' : '' }}
                             placeholder="Ej. F-1234"
-                            value={edits[key] ?? ''}
-                            onChange={(e) => setEdits({ ...edits, [key]: e.target.value })}
-                            onKeyDown={(e) => handleKeyDown(e, i)}
+                            value={valFolio}
+                            onChange={(e) => setEdits({ ...edits, [keyFolio]: e.target.value })}
+                            onKeyDown={(e) => handleKeyDown(e, i * 2)}
                           />
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        <Card title={`Falta Contrarecibo (${crMissing.length})`} hint="Ingresa el CR">
-          {crMissing.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-soft)' }}>
-              No hay contrarecibos pendientes.
-            </div>
-          ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Factura</th>
-                    <th>Cliente</th>
-                    <th className="num">Contrarecibo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {crMissing.map((m, i) => {
-                    const key = `${m.orderId}___${m.invoiceId}___contrarecibo`;
-                    const idx = facturasMissing.length + i;
-                    return (
-                      <tr key={key}>
-                        <td className="mono" style={{ fontWeight: 600, color: 'var(--accent)' }}>{m.currentFolio}</td>
-                        <td style={{ fontSize: 12, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.client}>
-                          {m.client}
                         </td>
                         <td className="num">
                           <input 
-                            ref={el => inputRefs.current[idx] = el}
+                            ref={el => inputRefs.current[i * 2 + 1] = el}
                             type="text" 
                             className="input boxed"
-                            style={{ width: '100%', minWidth: 100, textAlign: 'right', fontWeight: 600, borderColor: edits[key] ? 'var(--ok)' : '' }}
+                            style={{ width: '100%', minWidth: 100, textAlign: 'right', fontWeight: 600, borderColor: isNewCR ? 'var(--ok)' : '' }}
                             placeholder="Ej. CR-777"
-                            value={edits[key] ?? ''}
-                            onChange={(e) => setEdits({ ...edits, [key]: e.target.value })}
-                            onKeyDown={(e) => handleKeyDown(e, idx)}
+                            value={valCR}
+                            onChange={(e) => setEdits({ ...edits, [keyCR]: e.target.value })}
+                            onKeyDown={(e) => handleKeyDown(e, i * 2 + 1)}
                           />
                         </td>
                       </tr>
@@ -289,7 +243,6 @@ export function FastEntry() {
             </div>
           )}
         </Card>
-
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ import {
 } from '../lib/bridge';
 
 import { createCloudBackup } from '../lib/cloudBackup';
+import { processExcelImport } from '../lib/importExcel';
 
 const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '';
 
@@ -86,6 +87,9 @@ export default function Respaldo() {
 
   /* ---------- HTML → app ---------- */
   function leerArchivo(file: File) {
+    if (file.name.endsWith('.xlsx')) {
+      return leerArchivoExcel(file);
+    }
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -97,6 +101,23 @@ export default function Respaldo() {
       }
     };
     reader.readAsText(file);
+  }
+
+  async function leerArchivoExcel(file: File) {
+    setBusy('excel-import');
+    try {
+      const summary = await processExcelImport(file);
+      if (summary.errors.length > 0) {
+        toast(`Importación con errores: ${summary.errors.join(', ')}`, 'bad');
+      } else {
+        toast(`¡Éxito! Se actualizaron ${summary.updatedOrders} expedientes y ${summary.updatedInvoices} facturas.`, 'ok');
+        await logAction(user?.email, 'Importación Excel', { updatedOrders: summary.updatedOrders });
+      }
+    } catch (e: any) {
+      toast(`Fallo procesando Excel: ${e.message}`, 'bad');
+    } finally {
+      setBusy(null);
+    }
   }
 
   /**
@@ -289,15 +310,28 @@ export default function Respaldo() {
             unen por folio: lo que ya existe se actualiza en cobranza, lo que no existe se crea.
             Ninguna orden se borra.
           </p>
-          <input ref={inputRef} type="file" accept="application/json" hidden
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) leerArchivo(f); e.target.value = ''; }} />
-          <button className="btn" onClick={() => inputRef.current?.click()} disabled={busy !== null}>
-            ⭱ Elegir archivo del HTML
+          <input
+            type="file"
+            accept=".json, .html, .xlsx"
+            ref={inputRef}
+            style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) leerArchivo(file);
+              if (inputRef.current) inputRef.current.value = '';
+            }}
+          />
+          <button 
+            className="btn" 
+            onClick={() => inputRef.current?.click()}
+            disabled={busy !== null}
+          >
+            {busy === 'excel-import' ? <Spinner /> : '⭱ Elegir archivo (JSON, HTML o Excel)'}
           </button>
 
           {entrante && (
             <>
-              <div className="calc-box">
+              <div className="calc-box" style={{ marginTop: 16 }}>
                 <div className="calc-line"><span>Archivo</span><span className="mono">{entrante.nombre}</span></div>
                 <div className="calc-line"><span>Facturas</span><span className="mono">{entrante.resumen.facturas}</span></div>
                 <div className="calc-line"><span>Con folio (son las que suben)</span><span className="mono">{entrante.resumen.conFolio}</span></div>
@@ -312,10 +346,10 @@ export default function Respaldo() {
                   se pueden unir sin duplicar. Ponles folio en el HTML y vuelve a exportar.
                 </div>
               )}
-              <div className="modal-actions">
+              <div className="modal-actions" style={{ marginTop: 16 }}>
                 <button className="btn" onClick={() => setEntrante(null)} disabled={busy !== null}>Cancelar</button>
                 <button className="btn btn-primary" onClick={() => void subirRespaldo()} disabled={busy !== null}>
-                  {busy === 'subir' ? 'Subiendo…' : 'Subir a Firestore'}
+                  {busy === 'subir' ? <Spinner /> : 'Subir a Firestore'}
                 </button>
               </div>
             </>
