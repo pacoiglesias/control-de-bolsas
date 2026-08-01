@@ -846,7 +846,7 @@ function AjusteModal({ onClose, selectedProvider }: { onClose: () => void, selec
       });
       toast('Ajuste registrado con éxito', 'ok');
       onClose();
-    } catch (e) {
+    } catch {
       toast('Error al guardar el ajuste', 'bad');
     } finally {
       setBusy(false);

@@ -148,7 +148,6 @@ export async function shareHtmlAsPdf(htmlString: string, filename: string = 'doc
   document.body.appendChild(container);
 
   try {
-    // @ts-ignore
     const html2pdf = (await import('html2pdf.js')).default;
     const opt: any = {
       margin:       10,

@@ -44,6 +44,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         // El SDK de Firebase pesa; separarlo deja que el navegador lo cachee
