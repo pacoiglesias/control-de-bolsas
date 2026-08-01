@@ -27,6 +27,24 @@ OKRs afectados: Rendimiento (Validación y limpieza del pipeline), Mantenibilida
 
 ---
 
+## ✅ Ciclo 42 — 2026-08-01 — Sprint 2: Extracción de Lógica y Pruebas Unitarias de Finanzas
+
+[Fecha] 2026-08-01
+Archivos: `src/lib/finance.ts`, `src/lib/__tests__/finance.test.ts`, `src/pages/Dashboard.tsx`
+Problema: Lógica de negocio (alertas de tablero, cálculo en vivo de margen) anidada directamente en los bucles de renderizado del componente `Dashboard.tsx`. Adicionalmente, el test unitario `el honorario del contador va sobre el SUBTOTAL` estaba mal planteado, esperando un `netCashFlow` que incluyera el IVA, violando la regla de negocio explícita.
+Impacto: Difícil mantenimiento, UI acoplada a cálculos matemáticos complejos e imposibilidad de probar automatizadamente los indicadores del Dashboard. Falso negativo en la suite de pruebas.
+Solución:
+1. Se crearon funciones puras exportables en `finance.ts`: `extractDashboardAlerts` y `calculateLiveMargenTotal`.
+2. Se reemplazó el bloque monolítico en `Dashboard.tsx` por las llamadas a estas dos funciones.
+3. Se corrigió el falso negativo en `finance.test.ts` ajustando el `netCashFlow` esperado de 876 a 124 (restar solo costos y comisiones del subtotal, ignorando el IVA).
+4. Se agregaron tests para certificar que el conteo de indicadores extraído del Dashboard funciona impecablemente.
+Riesgo: 🟢 Bajo.
+Commit: `refactor: extract dashboard math to pure functions and fix tests`
+Estado: ✅ Verificado — Componente simplificado, pruebas en verde (`17 passed`).
+OKRs afectados: Precisión (Matemáticas aisladas y probadas), Mantenibilidad (Clean Code).
+
+---
+
 ## ✅ Ciclo 41 — 2026-07-31 — Arquitectura Departamental de Dashboard (TH/GT)
 
 [Fecha] 2026-07-31

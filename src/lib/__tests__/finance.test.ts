@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2 } from '../finance';
+import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal } from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
@@ -39,7 +39,8 @@ describe('computeFinancials', () => {
     expect(f.costTotal).toBe(4200);
     // 8% del subtotal: 4700 x 0.08 = 376.00
     expect(f.commission).toBe(376);
-    expect(f.netCashFlow).toBe(876);
+    // 4700 - 4200 - 376 = 124
+    expect(f.netCashFlow).toBe(124);
   });
 
   it('reproduce al centavo un cobro real del contador', () => {
@@ -174,6 +175,28 @@ describe('computeDynamicFinancials (Instructivo Motor Financiero)', () => {
     expect(res.monto_comision_gestor).toBe(8000);
     expect(res.porcentaje_comision_real).toBe(8);
     expect(res.ganancia_limpia_total).toBe(14964.02);
+  });
+});
+
+describe('Dashboard Extractions', () => {
+  it('extractDashboardAlerts counts correct statuses', () => {
+    const o1 = orden({ invoices: [factura('pending'), factura('paid')] });
+    const o2 = orden({ invoices: [factura('overdue')] });
+    
+    // Simular que overdue venció hace 40 días
+    (o2.invoices![0].creditCycle as any).dueDate = new Date(Date.now() - 40 * 86400000);
+
+    const alerts = extractDashboardAlerts([o1, o2]);
+    
+    expect(alerts.porRecibir.length).toBe(1); // 1 paid
+    expect(alerts.criticos30).toBe(1); // 1 overdue (>30 days)
+  });
+
+  it('calculateLiveMargenTotal sum correctly', () => {
+    // 100 kilos * 47 sale = 4700. cost = 42. comm = 376. 4700 - 4200 - 376 = 124 margin per invoice
+    const o = orden({ invoices: [factura('pending'), factura('paid')] });
+    const margin = calculateLiveMargenTotal([o], 42);
+    expect(margin).toBe(248); // 124 * 2
   });
 });
 

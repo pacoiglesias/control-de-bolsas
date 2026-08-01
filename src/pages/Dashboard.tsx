@@ -4,7 +4,7 @@ import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, up
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { money, shareHtmlAsPdf, kilos, monthLabel, toDate, fmtDate, getPrintHeaderHtml } from '../lib/format';
+import { money, shareHtmlAsPdf, kilos, monthLabel, fmtDate, getPrintHeaderHtml } from '../lib/format';
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useConfig } from '../hooks/useConfig';
@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
-import { round2, daysLate, computeCommissionFromInvoiceTotal } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal } from '../lib/finance';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder, Invoice } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
@@ -510,70 +510,18 @@ return () => unsub();
     const mesesKeys = Object.keys(mesesObj).sort().slice(-6);
     const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => mesesObj[m].venta)) : 1;
 
-    const proximos: { o: PurchaseOrder; inv: Invoice; d: number | null }[] = [];
-
-    // Detalle de "Por Recibir del Contador". Se arma AQUI, desde los
-    // expedientes vivos, no desde stats/dashboard: la tabla necesita folio,
-    // contrarecibo e importes factura por factura, y un contador agregado por
-    // definicion no puede darlos. Antes se hacia `kpis.porRecibir.reduce(...)`
-    // esperando un arreglo, pero el trigger escribe ese campo como NUMERO via
-    // FieldValue.increment: en cuanto stats/dashboard tuviera datos, el
-    // Dashboard entero reventaba con "porRecibir.reduce is not a function".
-    const porRecibir: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }[] = [];
-
-    let criticos30 = 0;
-    let urgentes15 = 0;
-    let recientes1 = 0;
-
-    activeOrders.forEach((o: PurchaseOrder) => {
-      const invoices = o.invoices || [];
-      invoices.forEach((inv: Invoice) => {
-        if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
-          const late = daysLate(toDate(inv.creditCycle.dueDate));
-          if (late !== null && late > -8) proximos.push({ o, inv, d: late });
-          if (late !== null && late > 30) criticos30++;
-          else if (late !== null && late > 15) urgentes15++;
-          else if (late !== null && late > 0) recientes1++;
-        }
-        if (inv.creditCycle.status === 'paid') {
-          const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
-          const commission = Number(inv.financials?.commission ?? 0);
-          porRecibir.push({
-            orderId: o.id,
-            invoiceId: inv.id,
-            folio: inv.folio ?? '—',
-            cr: inv.collection?.contrareciboNumber || '—',
-            invoiceTotal,
-            commission,
-            net: round2(invoiceTotal - commission),
-          });
-        }
-      });
-    });
+    const alerts = extractDashboardAlerts(activeOrders);
+    const proximos = alerts.proximos;
+    const porRecibir = alerts.porRecibir;
+    const criticos30 = alerts.criticos30;
+    const urgentes15 = alerts.urgentes15;
+    const recientes1 = alerts.recientes1;
 
     // Respaldo en vivo, SOLO para el indicador que de verdad esta en cero.
-    // Antes las dos condiciones iban unidas con ||: gananciaRealizadaTotal en
-    // $0.00 es CORRECTO mientras nada se haya cobrado todavia (collected), asi
-    // que la condicion se disparaba sin necesidad, recalculaba ambos valores
-    // en el navegador, y el bug de abajo terminaba pisando un margenTotal
-    // correcto que ya venia bien calculado del servidor.
     let liveMargenTotal = kpis.margenTotal || 0;
 
     if (kpis.margenTotal === 0) {
-      liveMargenTotal = 0;
-      activeOrders.forEach((o: PurchaseOrder) => {
-        (o.invoices || []).forEach((inv: Invoice) => {
-          const invTotal = Number(inv.financials?.saleTotal ?? inv.financials?.invoiceTotal ?? 0); // Cambio clave: Subtotal
-          const comm = Number(inv.financials?.commission ?? 0);
-          // `materialCost` no existe en OrderFinancials (es `costTotal`); con
-          // el campo equivocado esto siempre caia al `??`, y aun asi debia
-          // dar un margen positivo — el problema real era la condicion de
-          // arriba, pero se corrige el nombre del campo de todos modos.
-          const matCost = Number(inv.financials?.costTotal ?? (inv.kilos * config.costPricePerKg));
-          liveMargenTotal += invTotal - matCost - comm;
-        });
-      });
-      liveMargenTotal = round2(liveMargenTotal);
+      liveMargenTotal = calculateLiveMargenTotal(activeOrders, config.costPricePerKg);
     }
 
     // Ganancia por Cobros NO tiene respaldo en vivo: la consulta de

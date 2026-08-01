@@ -177,3 +177,68 @@ export function getOrderSummary(o: PurchaseOrder) {
     maxDaysLate
   };
 }
+
+export interface PorRecibirItem {
+  orderId: string;
+  invoiceId: string;
+  folio: string;
+  cr: string;
+  invoiceTotal: number;
+  commission: number;
+  net: number;
+}
+
+export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
+  const proximos: { o: PurchaseOrder; inv: Invoice; d: number }[] = [];
+  const porRecibir: PorRecibirItem[] = [];
+  let criticos30 = 0;
+  let urgentes15 = 0;
+  let recientes1 = 0;
+
+  activeOrders.forEach(o => {
+    const invoices = o.invoices || [];
+    invoices.forEach(inv => {
+      const s = inv.creditCycle.status;
+      if (s === 'pending' || s === 'overdue') {
+        let dDate: Date | null = null;
+        if (inv.creditCycle.dueDate) {
+          dDate = (inv.creditCycle.dueDate as any).toDate ? (inv.creditCycle.dueDate as any).toDate() : new Date(inv.creditCycle.dueDate as any);
+        }
+        const late = daysLate(dDate);
+        if (late !== null && late > -8) proximos.push({ o, inv, d: late });
+        if (late !== null && late > 30) criticos30++;
+        else if (late !== null && late > 15) urgentes15++;
+        else if (late !== null && late > 0) recientes1++;
+      }
+      if (s === 'paid') {
+        const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+        const commission = Number(inv.financials?.commission ?? 0);
+        porRecibir.push({
+          orderId: o.id,
+          invoiceId: inv.id,
+          folio: inv.folio ?? '—',
+          cr: inv.collection?.contrareciboNumber || '—',
+          invoiceTotal,
+          commission,
+          net: round2(invoiceTotal - commission),
+        });
+      }
+    });
+  });
+
+  return { proximos, criticos30, urgentes15, recientes1, porRecibir };
+}
+
+export function calculateLiveMargenTotal(activeOrders: PurchaseOrder[], defaultCostPricePerKg: number): number {
+  let liveMargenTotal = 0;
+  activeOrders.forEach(o => {
+    (o.invoices || []).forEach(inv => {
+      const invTotal = Number(inv.financials?.saleTotal ?? inv.financials?.invoiceTotal ?? 0);
+      const comm = Number(inv.financials?.commission ?? 0);
+      const matCost = Number(inv.financials?.costTotal ?? (inv.kilos * defaultCostPricePerKg));
+      liveMargenTotal += invTotal - matCost - comm;
+    });
+  });
+  return round2(liveMargenTotal);
+}
+
