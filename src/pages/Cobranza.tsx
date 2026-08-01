@@ -944,16 +944,16 @@ export default function Cobranza() {
 
       <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
         <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')}>
-          Pendientes de Cobro ({data.open.length})
+          ⏳ Pendientes de Cobro ({data.open.length})
         </button>
         <button className={`tab ${activeTab === 'pagadas' ? 'active' : ''}`} onClick={() => setActiveTab('pagadas')}>
-          Por Recoger Efectivo ({data.paid.length})
+          🏃‍♂️ Por Recoger Efectivo ({data.paid.length})
         </button>
         <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')}>
-          Historial: Recogidos ({data.collected.length})
+          🗄️ Historial: Recogidos ({data.collected.length})
         </button>
         <button className={`tab ${activeTab === 'contabilidad' ? 'active' : ''}`} onClick={() => setActiveTab('contabilidad')}>
-          Liquidación a Contabilidad
+          🧾 Liquidación a Contabilidad
         </button>
       </div>
 
@@ -1236,11 +1236,11 @@ export default function Cobranza() {
                     <td className="num mono" style={{ fontWeight: 700, color: grp.margenPct >= 10 ? 'var(--ok)' : 'var(--warn)' }}>{grp.margenPct.toFixed(1)}%</td>
                     <td className="num">
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn" onClick={() => shareConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px' }}>
-                          📤 PDF
+                        <button className="btn" onClick={() => shareConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px', background: 'var(--paper-sunk)', border: '1px solid var(--line)' }}>
+                          📤 Compartir PDF
                         </button>
-                        <button className="btn" onClick={() => printConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px' }}>
-                          🖨️ Imprimir Liquidación
+                        <button className="btn" onClick={() => printConsolidatedCr(grp)} style={{ fontSize: 11, padding: '3px 8px', background: 'var(--paper-sunk)', border: '1px solid var(--line)' }}>
+                          🖨️ Imprimir
                         </button>
                       </div>
                     </td>
@@ -1276,10 +1276,10 @@ export default function Cobranza() {
                         <span style={{ marginLeft: 16 }}>IMPORTE BRUTO: <strong>{money(crGroup.totalVenta)} MXN</strong></span>
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn-small btn-ok" onClick={() => collectContrareciboBlock(crGroup.cr, crGroup.netCobrado)}>
-                          💰 Recoger (Neto: {money(crGroup.netUtilidad)})
+                        <button className="btn btn-ok" style={{ fontWeight: 800 }} onClick={() => collectContrareciboBlock(crGroup.cr, crGroup.netCobrado)}>
+                          💰 Recoger Efectivo (Neto: {money(crGroup.netUtilidad)})
                         </button>
-                        <button className="btn-small btn-warn" onClick={() => undoContrareciboBlock(crGroup.cr)}>
+                        <button className="btn" style={{ background: 'var(--paper)', border: '1px solid var(--warn)', color: 'var(--warn)' }} onClick={() => undoContrareciboBlock(crGroup.cr)}>
                           ↩️ Deshacer Cobro
                         </button>
                       </div>
