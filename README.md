@@ -1,8 +1,8 @@
-# ERP Control Bolsas - Grupo Providencia (v6.5.0 Enterprise)
+# ERP Control Bolsas - Grupo Providencia (v6.30.0 Enterprise)
 
 Este es el repositorio oficial del ERP de ventas, cobranza, flujo de efectivo y emisión de Pre-Facturas CFDI 4.0 para Grupo Textil Providencia.
 
-## 🚀 Estado del Sistema (v6.5.0 Enterprise)
+## 🚀 Estado del Sistema (v6.30.0 Enterprise)
 - **URL de Producción:** https://control-de-bolsas-69.web.app
 - **Compilación:** PWA + Vite + React 18.3 + Cloud Functions Node 22 (CommonJS/ESNext)
 - **Motor Financiero Dinámico:** Implementación canónica de utilidad, despejes de comisión e impuestos (15/15 Pruebas Unitarias Pasadas).

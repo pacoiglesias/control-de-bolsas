@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction, getDocs } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, PATHS, functions } from '../lib/firebase';
 import { logAction } from '../lib/logger';
@@ -26,6 +26,7 @@ import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
 import { camposInvoices } from '../lib/invoiceOps';
 import { useInvoiceParser } from '../hooks/useInvoiceParser';
+import { safeDeleteDoc } from '../lib/logger';
 
 export default function OrderModal({
   order,
@@ -754,7 +755,7 @@ export default function OrderModal({
       return;
     setBusy(true);
     try {
-      await deleteDoc(doc(db, PATHS.orders, order.id));
+      await safeDeleteDoc(user?.email, doc(db, PATHS.orders, order.id), order);
       logAction(user?.email, 'Expediente Eliminado', {
         orderId: order.id,
         folio: order.folio ?? '',

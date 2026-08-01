@@ -1,5 +1,17 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.30.0] - 1 Agosto 2026 (Enterprise Release)
+
+### Añadido — Mejoras UI/UX y Sistema
+- **PWA Offline y Updater:** Instalación nativa con modo Offline para seguir operando sin conexión.
+- **Audit Logs:** Auditoría estricta de todos los elementos eliminados (Soft-Delete) respaldada en la base de datos (`system_logs`).
+- **Exportación Maestra Mensual:** Dashboard incluye descarga directa consolidada a Excel de todo el negocio.
+- **UI UX Premium:** Nuevos toasts proactivos con react-hot-toast, micro-animaciones en Modales con Framer Motion y rediseño general de badges y esqueletos de carga.
+
+### Corregido
+- Se removió cualquier ambigüedad de "Bolsas Sueltas" al confirmar con Negocio que todo proveedor entrega exactamente (o menos) de los pedidos.
+
+
 ## [v6.21.0] - 31 Julio 2026 (Ciclo 33 — Vencido corregido)
 
 ### Corregido — crítico

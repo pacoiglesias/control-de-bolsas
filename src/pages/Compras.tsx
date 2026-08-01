@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp, addDoc, runTransaction } from 'firebase/firestore';
+import { doc, collection, setDoc, serverTimestamp, Timestamp, addDoc, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from '../hooks/usePurchases';
 import { useExpenses } from '../hooks/useExpenses';
@@ -22,6 +22,7 @@ import {
   upsertAndresPurchase,
 } from '../lib/deliveries';
 import type { Purchase, PurchaseOrder } from '../lib/types';
+import { safeDeleteDoc } from '../lib/logger';
 
 export default function Compras() {
   const { role } = useAuth();
@@ -596,6 +597,7 @@ export default function Compras() {
 }
 
 function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Purchase, onClose: () => void, costPricePerKg: number }) {
+  const { user } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [montoOC, setMontoOC] = useState(purchase.totalAmount > 0 ? String(purchase.totalAmount) : '');
@@ -640,7 +642,7 @@ function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Purchase,
     if (!window.confirm('¿Borrar esta orden?')) return;
     setBusy(true);
     try {
-      await deleteDoc(doc(db, PATHS.purchases, purchase.id));
+      await safeDeleteDoc(user?.email, doc(db, PATHS.purchases, purchase.id), purchase);
       toast('Borrada', 'ok');
       onClose();
     } catch (e) {

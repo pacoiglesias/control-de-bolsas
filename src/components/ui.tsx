@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 import { useConfig } from '../hooks/useConfig';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function KpiCard({
   label,
@@ -125,17 +126,33 @@ export function Modal({
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={boxRef} className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
-        <header className="modal-head">
-          <h3>{title}</h3>
-          <button className="btn-icon" onClick={onClose} aria-label="Cerrar">
-            ✕
-          </button>
-        </header>
-        <div className="modal-body">{children}</div>
+    <AnimatePresence>
+      <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <motion.div 
+          className="modal-scrim" 
+          onClick={onClose} 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        />
+        <motion.div 
+          className={`modal-box ${wide ? 'wide' : ''}`} 
+          ref={boxRef}
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        >
+          <div className="modal-head">
+            <h2 id="modal-title">{title}</h2>
+            <button className="icon-btn" onClick={onClose} aria-label="Cerrar modal">
+              ✖
+            </button>
+          </div>
+          <div className="modal-body">{children}</div>
+        </motion.div>
       </div>
-    </div>
+    </AnimatePresence>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
 
 import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut as fbSignOut } from 'firebase/auth';
 import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
@@ -7,6 +7,7 @@ import { db, config } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Skeleton, Modal, Field, Card } from '../components/ui';
+import { safeDeleteDoc } from '../lib/logger';
 
 interface UserData {
   id: string;
@@ -16,6 +17,7 @@ interface UserData {
 }
 
 export default function Users() {
+  const { user } = useAuth();
   const { role } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState<UserData[]>([]);
@@ -126,7 +128,7 @@ export default function Users() {
     if (!window.confirm(`¿Seguro que deseas REVOCAR EL ACCESO al usuario ${email}?`)) return;
     try {
       // Solo borramos el doc en admins. Al hacer esto, las reglas de Firestore bloquean al usuario.
-      await deleteDoc(doc(db, 'admins', userId));
+      await safeDeleteDoc(user?.email, doc(db, "admins", userId), { id: userId });
       toast('Acceso revocado', 'ok');
     } catch (err) {
       console.error(err);

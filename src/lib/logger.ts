@@ -1,4 +1,4 @@
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, deleteDoc, type DocumentReference } from 'firebase/firestore';
 import { db } from './firebase';
 
 export async function logAction(userEmail: string | undefined | null, action: string, details: any) {
@@ -17,4 +17,22 @@ export async function logAction(userEmail: string | undefined | null, action: st
   } catch (err) {
     console.error('Failed to write log:', err);
   }
+}
+
+/**
+ * Auditoría de Borrados (Soft Deletes / Papelera).
+ * Registra el objeto completo en la bitácora antes de eliminarlo físicamente.
+ */
+export async function safeDeleteDoc(userEmail: string | undefined | null, docRef: DocumentReference, originalData: any) {
+  if (!userEmail) throw new Error("No user email provided for deletion audit");
+  
+  // 1. Respaldar en la bitácora
+  await logAction(userEmail, 'DELETE_RECORD', {
+    collection: docRef.parent.id,
+    docId: docRef.id,
+    data: originalData
+  });
+
+  // 2. Ejecutar el borrado real
+  await deleteDoc(docRef);
 }

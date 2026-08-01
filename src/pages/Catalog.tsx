@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
-import { addDoc, collection, doc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
 import { Card, Field, Spinner } from '../components/ui';
 import { useToast } from '../context/ToastContext';
+import { safeDeleteDoc } from '../lib/logger';
+import { useAuth } from '../context/AuthContext';
 
 export default function Catalog() {
+  const { user } = useAuth();
   const { products, loading: pLoad, error: pErr } = useProducts();
   const { orders, loading: oLoad, error: oErr } = useOrders();
   const toast = useToast();
@@ -248,7 +251,7 @@ export default function Catalog() {
                         onClick={async () => {
                           if (!window.confirm(`¿Eliminar "${p.description}" del catálogo?`)) return;
                           try {
-                            await deleteDoc(doc(db, PATHS.products, p.id));
+                            await safeDeleteDoc(user?.email, doc(db, PATHS.products, p.id), p);
                             toast('Producto eliminado del catálogo.', 'ok');
                           } catch (err) {
                             toast(`No se pudo eliminar: ${(err as Error).message}`, 'bad');

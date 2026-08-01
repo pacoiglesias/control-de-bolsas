@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, collection, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
@@ -14,6 +14,7 @@ import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
 import { computeCommissionFromInvoiceTotal } from '../lib/finance';
 import type { Expense } from '../lib/types';
+import { safeDeleteDoc } from '../lib/logger';
 
 export default function CajaChica() {
   const { role } = useAuth();
@@ -306,7 +307,7 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
     if (!window.confirm('¿Borrar este movimiento?')) return;
     setBusy(true);
     try {
-      await deleteDoc(doc(db, PATHS.expenses, expense.id));
+      await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
       await logAction(user?.email, 'Gasto Eliminado', {
         id: expense.id,
         concept: expense.concept,

@@ -5,6 +5,7 @@ import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
 import { money, shareHtmlAsPdf, kilos, monthLabel, fmtDate, getPrintHeaderHtml } from '../lib/format';
+import { exportToExcel } from '../lib/export';
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useConfig } from '../hooks/useConfig';
@@ -39,6 +40,18 @@ export interface SystemRelease {
 }
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
+  {
+    version: 'v6.30.0',
+    date: '1 de Agosto de 2026',
+    time: '02:00 PM',
+    summary: 'Release Enterprise: PWA Offline, Auditoría & UX Motion',
+    highlights: [
+      'PWA y Offline-Cache: La app se instala nativa y funciona rápido incluso con poca señal.',
+      'Auditoría y Papelera: Todos los borrados (Soft-Delete) se respaldan, protegiendo contra pérdida accidental.',
+      'UX Motion: Nuevas micro-animaciones (Framer Motion) para un flujo visual premium.',
+      'Master Export: Nueva Exportación Maestra de Cierre de Mes (Excel) en el Dashboard.'
+    ]
+  },
   {
     version: 'v6.26.0',
     date: '31 de Julio de 2026',
@@ -748,6 +761,17 @@ return () => unsub();
             <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
+            <button className="btn" style={{ background: '#10b981', color: '#fff', borderColor: '#10b981', fontWeight: 600 }} onClick={async () => {
+              toast('Generando Cierre de Mes Excel...', 'info');
+              try {
+                await exportToExcel();
+                toast('Cierre de Mes exportado', 'ok');
+              } catch (e) {
+                toast('Error al exportar', 'bad');
+              }
+            }}>
+              📊 Cierre de Mes (Excel)
+            </button>
             <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareRentabilidad}>
               <span className="icon">📤</span> Compartir PDF
             </button>
