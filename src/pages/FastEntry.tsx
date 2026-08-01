@@ -96,7 +96,7 @@ export function FastEntry() {
   const handleSave = async () => {
     const keys = Object.keys(edits);
     if (keys.length === 0) {
-      toast('No hay cambios por guardar.', 'warn');
+      toast('No hay cambios por guardar.', 'info');
       return;
     }
 
@@ -111,11 +111,11 @@ export function FastEntry() {
       const isFactura = key.includes('___factura');
       
       if (isFactura && allExistingFolios.includes(valLower)) {
-        toast(`El folio de factura ${val} ya existe en otra orden.`, 'error');
+        toast(`El folio de factura ${val} ya existe en otra orden.`, 'bad');
         return;
       }
       if (!isFactura && allExistingCRs.includes(valLower)) {
-        toast(`El contrarecibo ${val} ya existe en otra orden.`, 'error');
+        toast(`El contrarecibo ${val} ya existe en otra orden.`, 'bad');
         return;
       }
     }
@@ -174,7 +174,7 @@ export function FastEntry() {
       setEdits({});
     } catch (e: any) {
       console.error(e);
-      toast('Error guardando los registros: ' + e.message, 'error');
+      toast('Error guardando los registros: ' + e.message, 'bad');
     } finally {
       setSaving(false);
     }
