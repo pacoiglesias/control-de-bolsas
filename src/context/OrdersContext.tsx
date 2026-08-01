@@ -36,7 +36,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       q,
       (snap) => {
         setOrders(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) })),
+          snap.docs.filter((d: any) => !d.data().isDeleted).map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) })),
         );
         setError(null);
         setLoading(false);

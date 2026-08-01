@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import OrderModal from './OrderModal';
-import { KpiCard, Skeleton } from '../components/ui';
+import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 // money vivia duplicada aqui con su propia implementacion. Una sola.
 import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
@@ -115,15 +116,15 @@ export default function OcTracking() {
             <tbody>
               ${pendingOrders.length > 0 ? pendingOrders.map(g => {
                 const pedidos = g.order?.totalKilograms ?? 0;
-                const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
-                const faltante = pedidos - entregados;
+                const hasCR = g.invoices.length > 0 && g.invoices.every((i: any) => i.cr);
+                const faltante = hasCR ? 0 : pedidos;
                 return `
                   <tr>
                     <td><strong>${escapeHtml(g.oc)}</strong></td>
                     <td>${escapeHtml(g.order?.client || '—')}</td>
                     <td class="num">${pedidos.toLocaleString('es-MX')}</td>
-                    <td class="num">${entregados.toLocaleString('es-MX')}</td>
-                    <td class="num" style="color: #b91c1c; font-weight: bold;">${faltante.toLocaleString('es-MX')}</td>
+                    <td class="num">${hasCR ? '✅ Entregado' : '⏳ Pendiente'}</td>
+                    <td class="num" style="color: #b91c1c; font-weight: bold;">${hasCR ? '0' : faltante.toLocaleString('es-MX')}</td>
                     <td style="text-align: center;"><div class="check-box"></div></td>
                   </tr>
                 `;
@@ -146,9 +147,9 @@ export default function OcTracking() {
 
   function printManifiesto() {
     const pendingOrders = ocGroups.filter(g => {
-      const pedidos = g.order?.totalKilograms ?? 0;
-      const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
-      return pedidos > 0 && entregados < pedidos;
+      if (g.invoices.length === 0) return true; // Sin facturas = pendiente de entrega
+      // Si alguna factura NO tiene contrarecibo, significa que falta entregar evidencia/material
+      return g.invoices.some(inv => !inv.cr);
     });
 
     const html = getManifiestoHtml(pendingOrders);
@@ -160,9 +161,8 @@ export default function OcTracking() {
 
   async function shareManifiesto() {
     const pendingOrders = ocGroups.filter(g => {
-      const pedidos = g.order?.totalKilograms ?? 0;
-      const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
-      return pedidos > 0 && entregados < pedidos;
+      if (g.invoices.length === 0) return true;
+      return g.invoices.some(inv => !inv.cr);
     });
 
     const html = getManifiestoHtml(pendingOrders);
@@ -244,7 +244,7 @@ export default function OcTracking() {
           }
 
           const kilosPedidos = group.order?.totalKilograms ?? 0;
-          const kilosEntregados = group.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
+          const hasCR = group.invoices.length > 0 && group.invoices.every((i: any) => i.cr);
 
           return (
             <div
@@ -276,10 +276,15 @@ export default function OcTracking() {
                   <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                     <span style={{ color: 'var(--text)' }}>Pedida: {kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                     {' · '}
-                    <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--info)' }}>Entregada: {kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    <span style={{ color: hasCR ? 'var(--ok)' : 'var(--warn)' }}>Logística: {hasCR ? '✅ CR Recibido (Entregado)' : '🚚 Pendiente de Entrega'}</span>
                     {' · '}
-                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--info)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                   </div>
+                  {kilosPedidos > 0 && (
+                    <div style={{ marginTop: 8, maxWidth: 300 }}>
+                      <ProgressBar current={totalKilos} max={kilosPedidos} color={totalKilos >= kilosPedidos ? 'var(--ok)' : 'var(--accent)'} />
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{money(totalAmt)}</div>
@@ -298,92 +303,100 @@ export default function OcTracking() {
               </div>
 
               {/* Detalle de facturas */}
-              {isOpen && (
-                <div style={{ borderTop: '1px solid var(--border)' }}>
-                  {group.invoices.length === 0 ? (
-                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>
-                      📝 Aún no hay facturas registradas en esta Orden de Compra. <br/>
-                      <span style={{ fontSize: 12 }}>Abre el expediente para añadir entregas o facturas.</span>
-                    </div>
-                  ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ background: 'var(--surface-alt)' }}>
-                          <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vence</th>
-                          <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estado</th>
-                          <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.invoices
-                          .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
-                          .map(inv => (
-                            <tr
-                              key={inv.folio}
-                              style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
-                              onClick={() => setSelectedOrder(inv.order)}
-                            >
-                              <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 600 }}>
-                                #{inv.folio}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
-                                {inv.kilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
-                                {money(inv.amount)}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
-                                {inv.cr || <span style={{ color: 'var(--muted)' }}>Sin CR</span>}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
-                                {inv.dueDate
-                                  ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })
-                                  : '—'}
-                              </td>
-                              <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                                {inv.status === 'collected' ? (
-                                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>✅ Recibida en Caja</span>
-                                ) : inv.status === 'paid' ? (
-                                  <span style={{ color: 'var(--warn)', fontWeight: 600 }}>🟡 Con el Contador</span>
-                                ) : (
-                                  <span style={{ color: 'var(--bad)', fontWeight: 600 }}>🔴 Por Cobrar</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                                <button
-                                  className="btn"
-                                  style={{ fontSize: 11, padding: '3px 8px' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedOrder(inv.order);
-                                  }}
-                                >
-                                  ✏️ Editar
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--surface-alt)' }}>
-                          <td style={{ padding: '10px 18px', fontWeight: 700 }}>TOTAL</td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                            {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })} kg
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                            {money(totalAmt)}
-                          </td>
-                          <td colSpan={4} />
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
-                </div>
-              )}
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ borderTop: '1px solid var(--border)', overflow: 'hidden' }}
+                  >
+                    {group.invoices.length === 0 ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>
+                        📝 Aún no hay facturas registradas en esta Orden de Compra. <br/>
+                        <span style={{ fontSize: 12 }}>Abre el expediente para añadir entregas o facturas.</span>
+                      </div>
+                    ) : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--surface-alt)' }}>
+                            <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vence</th>
+                            <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estado</th>
+                            <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.invoices
+                            .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
+                            .map(inv => (
+                              <tr
+                                key={inv.folio}
+                                style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                                onClick={() => setSelectedOrder(inv.order)}
+                              >
+                                <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 600 }}>
+                                  #{inv.folio}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
+                                  {inv.kilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
+                                  {money(inv.amount)}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
+                                  {inv.cr || <span style={{ color: 'var(--muted)' }}>Sin CR</span>}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+                                  {inv.dueDate
+                                    ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })
+                                    : '—'}
+                                </td>
+                                <td style={{ padding: '10px 18px', textAlign: 'center' }}>
+                                  {inv.status === 'collected' ? (
+                                    <span style={{ color: 'var(--ok)', fontWeight: 600 }}>✅ Recibida en Caja</span>
+                                  ) : inv.status === 'paid' ? (
+                                    <span style={{ color: 'var(--warn)', fontWeight: 600 }}>🟡 Con el Contador</span>
+                                  ) : (
+                                    <span style={{ color: 'var(--bad)', fontWeight: 600 }}>🔴 Por Cobrar</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '10px 18px', textAlign: 'center' }}>
+                                  <button
+                                    className="btn"
+                                    style={{ fontSize: 11, padding: '3px 8px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedOrder(inv.order);
+                                    }}
+                                  >
+                                    ✏️ Editar
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--surface-alt)' }}>
+                            <td style={{ padding: '10px 18px', fontWeight: 700 }}>TOTAL</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                              {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })} kg
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                              {money(totalAmt)}
+                            </td>
+                            <td colSpan={4} />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}

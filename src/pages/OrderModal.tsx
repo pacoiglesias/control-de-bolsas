@@ -1407,7 +1407,7 @@ export default function OrderModal({
                                       concept: `Cobro factura #${inv.folio ?? '?'} (CR: ${inv.collection?.contrareciboNumber ?? '—'})`,
                                       amount: netAmount,
                                       type: 'ingreso',
-                                      notes: `Factura: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+                                      notes: `Documento: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
                                       createdAt: serverTimestamp(),
                                     });
                                     toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
@@ -1548,11 +1548,40 @@ export default function OrderModal({
                             }} />
                         </Field>
                         <Field label="Monto Cobrado">
-                          <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.collection?.paidAmount || 0}
-                            disabled={readOnly}
-                            onBlur={e => updateInvoice(i, x => ({
-                              ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
-                            }))} />
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <input className="input boxed mono" type="number" step="0.01" 
+                              value={inv.collection?.paidAmount !== undefined ? inv.collection.paidAmount : ''}
+                              disabled={readOnly}
+                              onChange={e => updateInvoice(i, x => ({
+                                ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
+                              }))} 
+                              style={{ flex: 1 }}
+                            />
+                            {(!readOnly && (fin.invoiceTotal - (inv.collection?.paidAmount || 0)) > 0) && (
+                              <button
+                                type="button"
+                                className="btn"
+                                style={{ 
+                                  background: 'var(--accent-tint)', 
+                                  color: 'var(--accent)', 
+                                  borderColor: 'var(--accent)', 
+                                  padding: '0 12px', 
+                                  height: '38px',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap',
+                                  animation: 'pulse 2s infinite'
+                                }}
+                                onClick={() => {
+                                  updateInvoice(i, x => ({
+                                    ...x, collection: { ...x.collection, paidAmount: fin.invoiceTotal }
+                                  }));
+                                }}
+                              >
+                                ✨ Liquidar {money(fin.invoiceTotal - (inv.collection?.paidAmount || 0))}
+                              </button>
+                            )}
+                          </div>
                         </Field>
                         <Field label="Fecha de Cobro">
                           <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.paidAt) || ''}

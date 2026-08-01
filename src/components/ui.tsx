@@ -198,8 +198,30 @@ export function ResponsiveMoney({ value }: { value: number }) {
   return (
     <>
       <span className="hide-mobile">{money(value)}</span>
-      <span className="show-mobile" title={money(value)}>{compactMoney(value)}</span>
+      <span className="hide-desktop">{compactMoney(value)}</span>
     </>
+  );
+}
+
+export function ProgressBar({ 
+  current, 
+  max, 
+  color = 'var(--accent)' 
+}: { 
+  current: number, 
+  max: number, 
+  color?: string 
+}) {
+  const percentage = max > 0 ? Math.min(100, Math.max(0, (current / max) * 100)) : 0;
+  return (
+    <div style={{ width: '100%', height: 8, background: 'var(--bg-inset)', borderRadius: 4, overflow: 'hidden', marginTop: 4 }}>
+      <motion.div 
+        initial={{ width: 0 }}
+        animate={{ width: `${percentage}%` }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        style={{ height: '100%', background: color, borderRadius: 4 }}
+      />
+    </div>
   );
 }
 

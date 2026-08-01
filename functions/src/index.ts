@@ -240,9 +240,10 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       id: docIdFor(filePath),
       fileName: filePath,
       fileHash: fileHash ?? "",
-      status: "manual_review",
+      creditCycle: { status: "manual_review" },
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
+      processedAt: FieldValue.serverTimestamp(),
     };
 
     logger.info(`Creado expediente vacío en revisión manual para PDF: ${filePath}`);

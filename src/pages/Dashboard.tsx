@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { motion } from 'framer-motion';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -44,7 +45,7 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
     version: 'v6.30.0',
     date: '1 de Agosto de 2026',
     time: '02:00 PM',
-    summary: 'Release Enterprise: PWA Offline, Auditoría & UX Motion',
+    summary: 'Release ERP Providencia: PWA Offline, Auditoría & UX Motion',
     highlights: [
       'PWA y Offline-Cache: La app se instala nativa y funciona rápido incluso con poca señal.',
       'Auditoría y Papelera: Todos los borrados (Soft-Delete) se respaldan, protegiendo contra pérdida accidental.',
@@ -742,7 +743,7 @@ return () => unsub();
         concept: `Cobro factura #${r.folio} (CR: ${r.cr})`,
         amount: r.net,
         type: 'ingreso',
-        notes: `Factura: $${r.invoiceTotal.toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${r.commission.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+        notes: `Documento: $${r.invoiceTotal.toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${r.commission.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
         createdAt: serverTimestamp(),
       });
       
@@ -879,6 +880,30 @@ return () => unsub();
           </div>
         )}
       </div>
+
+      
+      {/* 🚀 Widget Proactivo: Asistente de Siguiente Acción */}
+      {(k.pedidoPendiente.length > 0 || k.urgentes15 > 0 || k.review.length > 0) && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, boxShadow: 'var(--shadow-hover)' }}
+        >
+          <div style={{ fontSize: 32, filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5))' }}>✨</div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ margin: 0, fontSize: 16, color: 'var(--accent)' }}>Sugerencias Proactivas</h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: 14, color: 'var(--ink-soft)' }}>
+              {k.pedidoPendiente.length > 0 ? `Tienes ${k.pedidoPendiente.length} órdenes con entregas pero sin facturar. ` : ''}
+              {k.urgentes15 > 0 ? `Existen ${k.urgentes15} contrarecibos urgentes por cobrar. ` : ''}
+              {k.review.length > 0 ? `Hay ${k.review.length} XMLs esperando validación manual.` : ''}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {k.pedidoPendiente.length > 0 && <button className="btn btn-primary" onClick={() => nav('/ordenes?filtro=pedido')}>Facturar Ahora</button>}
+            {k.urgentes15 > 0 && <button className="btn" onClick={() => nav('/cobranza')}>Cobrar</button>}
+          </div>
+        </motion.div>
+      )}
 
       {/* Panel de Semáforo de Alertas Visuales - Control de Gestión */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
@@ -1170,27 +1195,37 @@ return () => unsub();
           </div>
           <div style={{ width: '100%', height: 320, padding: '16px 20px', marginTop: '16px' }}>
             <ResponsiveContainer>
-              <BarChart
+              <AreaChart
                 data={k.mesesKeys.map((m: string) => ({ name: monthLabel(m), vendido: k.meses[m].venta, ganancia: k.meses[m].ganancia, cobrado: k.meses[m].cobrado }))}
                 margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
               >
+                <defs>
+                  <linearGradient id="colorVendido" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorGanancia" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--ok)" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="var(--ok)" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line-soft)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--ink-soft)' }} dy={10} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--ink-soft)', fontFamily: 'Outfit' }} dy={10} />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fontSize: 12, fill: 'var(--ink-soft)' }}
+                  tick={{ fontSize: 12, fill: 'var(--ink-soft)', fontFamily: 'Outfit' }}
                   tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  cursor={{ fill: 'var(--paper-sunk)' }}
-                  contentStyle={{ backgroundColor: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow)' }}
+                  cursor={{ stroke: 'var(--line)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  contentStyle={{ backgroundColor: 'var(--glass)', backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow-hover)' }}
                   formatter={(value) => money(Number(value))}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                <Bar dataKey="vendido" name="Total Vendido" fill="var(--accent)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="ganancia" name="Utilidad Neta" fill="var(--ok)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              </BarChart>
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10, fontFamily: 'Outfit' }} />
+                <Area type="monotone" dataKey="vendido" name="Total Vendido" stroke="var(--accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorVendido)" />
+                <Area type="monotone" dataKey="ganancia" name="Utilidad Neta" stroke="var(--ok)" strokeWidth={3} fillOpacity={1} fill="url(#colorGanancia)" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
@@ -1215,7 +1250,7 @@ return () => unsub();
                   return (
                   <tr key={inv.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}>
                     <td className="mono">
-                      <div style={{ fontWeight: 600 }}>Factura: {inv.folio || 'Pendiente'}</div>
+                      <div style={{ fontWeight: 600 }}>Documento: {inv.folio || 'Pendiente'}</div>
                       <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.collection?.contrareciboNumber || 'S/N'}</div>
                       <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>Orden: {o.folio}</div>
                     </td>
@@ -1258,7 +1293,7 @@ return () => unsub();
                   return (
                   <tr key={inv.id} className="row-warn">
                     <td className="mono">
-                      <div style={{ fontWeight: 600 }}>Factura: {inv.folio || 'Pendiente'}</div>
+                      <div style={{ fontWeight: 600 }}>Documento: {inv.folio || 'Pendiente'}</div>
                       <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.collection?.contrareciboNumber || 'S/N'}</div>
                       <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>Orden: {o.folio}</div>
                     </td>

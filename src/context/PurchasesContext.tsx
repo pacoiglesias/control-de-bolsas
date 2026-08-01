@@ -1,0 +1,53 @@
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
+import type { Purchase } from '../lib/types';
+
+interface PurchasesState {
+  purchases: Purchase[];
+  loading: boolean;
+  error: string | null;
+}
+
+const Ctx = createContext<PurchasesState | null>(null);
+
+export function PurchasesProvider({ children }: { children: ReactNode }) {
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, PATHS.purchases),
+      orderBy('date', 'desc'),
+      limit(150)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows = snap.docs.filter((d: any) => !d.data().isDeleted).map((d) => ({ id: d.id, ...d.data() }) as Purchase);
+        setPurchases(rows);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        console.error('Error fetching purchases:', err);
+        setError('Error al cargar las compras al fabricante.');
+        setLoading(false);
+      }
+    );
+    return unsub;
+  }, []);
+
+  const value = useMemo(() => ({ purchases, loading, error }), [purchases, loading, error]);
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function usePurchasesContext(): PurchasesState {
+  const ctx = useContext(Ctx);
+  if (!ctx) {
+    throw new Error('usePurchasesContext debe usarse dentro de <PurchasesProvider>.');
+  }
+  return ctx;
+}

@@ -3,6 +3,9 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { OrdersProvider } from './context/OrdersContext';
+import { PurchasesProvider } from './context/PurchasesContext';
+import { ProductsProvider } from './context/ProductsContext';
+import { ExpensesProvider } from './context/ExpensesContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 
@@ -68,13 +71,17 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          {/* OrdersProvider debe envolver a Gate: dentro viven las nueve
-              pantallas que consumen useOrders(). */}
-          <OrdersProvider>
-            <Gate />
-          </OrdersProvider>
-        </ToastProvider>
+        <OrdersProvider>
+          <PurchasesProvider>
+            <ProductsProvider>
+              <ExpensesProvider>
+                <ToastProvider>
+                  <Gate />
+                </ToastProvider>
+              </ExpensesProvider>
+            </ProductsProvider>
+          </PurchasesProvider>
+        </OrdersProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable } from 'firebase/storage';
 import { storage, PATHS, db } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
@@ -119,6 +119,24 @@ export default function Upload() {
     });
   }, [orders, jobs, matched, toast]);
 
+  
+  const handleMerge = async (e: React.MouseEvent, reviewOrder: any, targetOrder: any) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Vincular automáticamente este XML a la Orden #${targetOrder.folio}?`)) return;
+    try {
+      const inv = reviewOrder.invoices[0];
+      const newInvoices = [...(targetOrder.invoices || []), inv];
+      await updateDoc(doc(db, PATHS.orders, targetOrder.id), {
+        invoices: newInvoices,
+        updatedAt: new Date()
+      });
+      await deleteDoc(doc(db, PATHS.orders, reviewOrder.id));
+      toast('Documento vinculado exitosamente.', 'ok');
+    } catch (err: any) {
+      toast('Error al vincular: ' + err.message, 'bad');
+    }
+  };
+
   const manualReviewOrders = orders.filter(o => o.creditCycle?.status === 'manual_review');
   const [tab, setTab] = useState<'upload' | 'review'>('upload');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -237,15 +255,37 @@ export default function Upload() {
               <table className="data-table selectable">
                 <thead>
                   <tr>
-                    <th>Fecha Alta</th><th>Archivo</th><th>Estado</th>
+                    <th>Fecha Alta</th><th>Archivo</th><th>Kilos XML</th><th>Sugerencia IA</th>
                   </tr>
                 </thead>
                 <tbody>
                   {manualReviewOrders.map((o) => (
-                    <tr key={o.id} onClick={() => setSelectedOrder(o)}>
+                    <tr key={o.id} onClick={() => setSelectedOrder(o)} style={{ cursor: 'pointer' }}>
                       <td className="mono">{fmtDateTime(o.processedAt)}</td>
                       <td className="mono" style={{ color: 'var(--info)' }}>{o.fileName?.split('/').pop() || 'Archivo sin nombre'}</td>
-                      <td><StatusBadge status={o.creditCycle?.status ?? 'manual_review'} /></td>
+                      <td className="mono">
+                        {o.invoices?.[0]?.kilos ? o.invoices[0].kilos.toLocaleString('es-MX') + ' kg' : '—'}
+                      </td>
+                      <td>
+                        {(() => {
+                           if (!o.invoices || o.invoices.length === 0) return <StatusBadge status={o.creditCycle?.status ?? 'manual_review'} />;
+                           const xmlKilos = o.invoices[0].kilos;
+                           // Buscar OC pendiente que coincida en kilos
+                           const match = orders.find(ord => ord.creditCycle?.status === 'pending' && Math.abs((ord.totalKilograms || 0) - xmlKilos) < 0.1);
+                           if (match) {
+                             return (
+                               <button 
+                                 className="btn" 
+                                 style={{ background: 'var(--ok-bg)', color: 'var(--ok)', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 12, fontWeight: 700, animation: 'pulse 2s infinite' }}
+                                 onClick={(e) => handleMerge(e, o, match)}
+                               >
+                                 ✨ Vincular a OC #{match.folio}
+                               </button>
+                             );
+                           }
+                           return <StatusBadge status={o.creditCycle?.status ?? 'manual_review'} />;
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
