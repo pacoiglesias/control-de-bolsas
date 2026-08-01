@@ -377,7 +377,7 @@ export default function Dashboard() {
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
-  const [deptFilter, setDeptFilter] = useState<'ALL' | 'TH' | 'GT'>('ALL');
+  const [deptFilter, setDeptFilter] = useState<string>('ALL');
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -518,6 +518,8 @@ return () => unsub();
     const criticos30 = alerts.criticos30;
     const urgentes15 = alerts.urgentes15;
     const recientes1 = alerts.recientes1;
+    const proyeccion7d = alerts.proyeccion7d;
+    const proyeccion15d = alerts.proyeccion15d;
 
     // Respaldo en vivo, SOLO para el indicador que de verdad esta en cero.
     let liveMargenTotal = kpis.margenTotal || 0;
@@ -573,7 +575,9 @@ return () => unsub();
       proximos,
       deudaTotalProvidencia,
       comisionContable,
-      dineroRealARecibir
+      dineroRealARecibir,
+      proyeccion7d,
+      proyeccion15d
     };
   }, [statsDoc, activeOrders, config]);
 
@@ -734,8 +738,9 @@ return () => unsub();
         </div>
         <div className="tabs" style={{ marginTop: 16 }}>
           <button className={deptFilter === 'ALL' ? 'active' : ''} onClick={() => setDeptFilter('ALL')}>🏢 Toda la Empresa</button>
-          <button className={deptFilter === 'TH' ? 'active' : ''} onClick={() => setDeptFilter('TH')}>🔵 TH (Textil Hogar)</button>
-          <button className={deptFilter === 'GT' ? 'active' : ''} onClick={() => setDeptFilter('GT')}>🟢 GT (Grupo Textil)</button>
+          {(settings?.departments || ['TH', 'GT']).map(d => (
+            <button key={d} className={deptFilter === d ? 'active' : ''} onClick={() => setDeptFilter(d)}>{d}</button>
+          ))}
         </div>
       </div>
 
@@ -842,6 +847,24 @@ return () => unsub();
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#047857' }}>Por Recoger Contador</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#047857' }}>{k.porRecibir.length} contrarecibo(s)</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
+        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 22 }}>📅</div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 7 Días</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion7d)}</div>
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 22 }}>📈</div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 15 Días</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion15d)}</div>
           </div>
         </div>
       </div>

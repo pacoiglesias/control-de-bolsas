@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, PATHS, functions } from '../lib/firebase';
 import { logAction } from '../lib/logger';
@@ -44,6 +44,7 @@ export default function OrderModal({
   const { user } = useAuth();
   const { products } = useProducts();
   const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
   // useOrders() lee del mismo <OrdersProvider> ya montado en App.tsx: no abre
   // una segunda suscripcion, solo reutiliza la que ya esta viva. No existia
   // ningun catalogo de clientes ni proveedores -- a diferencia de Productos,
@@ -231,15 +232,38 @@ export default function OrderModal({
           salePricePerKg: inv.financials?.salePricePerKg || config.salePricePerKg,
         };
 
+        const crNum = inv.collection?.contrareciboNumber?.trim() || '';
+        // If there's a contrarecibo but no invoice number, auto-assign S/N
+        const folioStr = inv.folio?.trim() || '';
+        const finalFolio = (crNum && !folioStr) ? 'S/N' : folioStr;
+
         return {
           ...inv,
+          folio: finalFolio,
           financials: computeFinancials(inv.kilos, snapshotCfg),
           collection: inv.collection ? {
             ...inv.collection,
-            contrareciboNumber: inv.collection.contrareciboNumber?.trim() || ''
+            contrareciboNumber: crNum
           } : undefined
         };
       });
+
+      // --- CHECK FOR GLOBAL INVOICE DUPLICATES ---
+      const qs = await getDocs(collection(db, PATHS.orders));
+      for (const inv of updatedInvoices) {
+        if (!inv.folio || inv.folio === 'S/N') continue;
+        const upperFolio = inv.folio.toUpperCase();
+        for (const doc of qs.docs) {
+          if (doc.id === order.id) continue;
+          const otherInvoices = doc.data().invoices || [];
+          if (otherInvoices.some((x: any) => x.folio && x.folio.toUpperCase() === upperFolio)) {
+            toast(`Bloqueado: El folio de factura ${inv.folio} ya está registrado en el expediente ${doc.data().folio || doc.id}.`, 'bad');
+            setBusy(false);
+            return;
+          }
+        }
+      }
+      // -------------------------------------------
 
       // El guardado completo del expediente corre en una transaccion: antes
       // era un setDoc a ciegas desde la copia local del formulario, asi que un
@@ -545,7 +569,7 @@ export default function OrderModal({
           </div>
 
           <div class="sat-info">
-            <strong>📌 Instructivo para Facturación:</strong> Documento con el desglose exacto de entregas reales de Andrés (${kilosNum.toLocaleString('es-MX')} kg). Utiliza estos valores para timbrar la factura CFDI 4.0 en el portal del SAT o en tu sistema de facturación.
+            <strong>📌 Instructivo para Facturación:</strong> Documento con el desglose exacto de entregas reales de ${provName} (${kilosNum.toLocaleString('es-MX')} kg). Utiliza estos valores para timbrar la factura CFDI 4.0 en el portal del SAT o en tu sistema de facturación.
           </div>
 
           <script>
@@ -659,7 +683,7 @@ export default function OrderModal({
               <strong>Orden de Compra (OC):</strong> ${escapeHtml(form.oc || '—')}
             </div>
             <div style="text-align:right;">
-              <strong>Proveedor Fabricante:</strong> Andrés (Sin Mermas)<br>
+              <strong>Proveedor Fabricante:</strong> ${provName} (Sin Mermas)<br>
               <strong>Kilos Totales:</strong> ${totalKilos.toLocaleString('es-MX')} kg<br>
               <strong>Facturas Asociadas:</strong> ${invList.length}
             </div>
@@ -687,7 +711,7 @@ export default function OrderModal({
                 <th>Contrarecibo (CR)</th>
                 <th style="text-align:right;">Kilos</th>
                 <th style="text-align:right;">Facturado (con IVA)</th>
-                <th style="text-align:right;">Costo Andrés</th>
+                <th style="text-align:right;">Costo ${provName}</th>
                 <th style="text-align:right;">Comisión Contador</th>
                 <th style="text-align:right;">Utilidad Líquida Real</th>
               </tr>
@@ -697,7 +721,7 @@ export default function OrderModal({
 
           <div class="summary-box">
             <div class="summary-line"><span>Ingreso Total Facturado (Venta + IVA):</span><strong>$${totalVentaConIVA.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
-            <div class="summary-line"><span>Costo Directo Proveedor Andrés:</span><span style="color:#8A5A1E;">-$${totalCostoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
+            <div class="summary-line"><span>Costo Directo Proveedor ${provName}:</span><span style="color:#8A5A1E;">-$${totalCostoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line"><span>Comisión Contabilidad / Contador:</span><span style="color:#B23A2E;">-$${totalComision.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
             <div class="summary-line total">
               <span>UTILIDAD LÍQUIDA REAL (MARGEN: ${margenPct}%):</span>
@@ -773,7 +797,7 @@ export default function OrderModal({
       folio: folio || f.folio,
       client: client || f.client,
       totalKilograms: kilos > 0 ? kilos.toString() : f.totalKilograms,
-      provider: 'Andrés'
+      provider: provName
     }));
 
     toast(`OC procesada. Folio: ${folio || '?'}, Kilos: ${kilos > 0 ? kilos : '?'}`, 'ok');
@@ -965,7 +989,7 @@ export default function OrderModal({
                   <input className="input boxed mono" type="number" step="0.01" 
                     onBlur={(e) => set('customSellPrice', e.target.value)} defaultValue={form.customSellPrice} disabled={readOnly} placeholder={`Ej. ${fallbackSale}`} />
                 </Field>
-                <Field label={`Costo Compra (Andrés) $/kg`}>
+                <Field label={`Costo Compra (${provName}) $/kg`}>
                   <input className="input boxed mono" type="number" step="0.01" 
                     onBlur={(e) => set('customCostPrice', e.target.value)} defaultValue={form.customCostPrice} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
                 </Field>
@@ -1230,7 +1254,7 @@ export default function OrderModal({
               <div>
                 <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
                 <p className="hint" style={{ margin: '4px 0 0' }}>
-                  Cada vez que Andrés entrega, se captura como un evento con fecha y cantidades por producto.
+                  Cada vez que {provName} entrega, se captura como un evento con fecha y cantidades por producto.
                   Entregado en total: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
                   {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
                 </p>
@@ -1588,7 +1612,7 @@ export default function OrderModal({
                           <span className="mono">{money(fin.invoiceTotal)}</span>
                         </div>
                         <div className="calc-line">
-                          <span>Costo de Compra (Kilos a Andrés)</span>
+                          <span>Costo de Compra (Kilos a ${provName})</span>
                           <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.costTotal)}</span>
                         </div>
                         <div className="calc-line" style={{ borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
@@ -1613,6 +1637,13 @@ export default function OrderModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [form.invoices, computedInvoices, config, readOnly]);
 
+  // Viability logic
+  const estimatedTotalCost = form.items.length > 0 
+    ? form.items.reduce((acc, it) => acc + ((Number(it.quantity) || 0) * ccp), 0) 
+    : kilosNum * ccp;
+  const cajaBalance = settings?.cajaChicaBalance || 0;
+  const viabilityWarning = estimatedTotalCost > cajaBalance;
+
   return (
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
       <datalist id="catalog-products">
@@ -1629,6 +1660,17 @@ export default function OrderModal({
       <datalist id="known-client-emails">
         {knownClientEmails.map(e => <option key={e} value={e} />)}
       </datalist>
+
+      <div style={{ marginBottom: 16, padding: '10px 16px', borderRadius: 8, background: viabilityWarning ? 'var(--warn-bg)' : 'var(--ok-bg)', border: `1px solid ${viabilityWarning ? 'var(--warn)' : 'var(--ok)'}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ fontSize: 24 }}>{viabilityWarning ? '⚠️' : '✅'}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, color: 'var(--ink)' }}>Auditoría de Viabilidad (Caja Chica vs Costo Producción)</div>
+          <div style={{ fontSize: 13, color: 'var(--ink)' }}>
+            Saldo actual en Caja Chica: <strong>{money(cajaBalance)}</strong> &middot; Costo de Producción estimado: <strong>{money(estimatedTotalCost)}</strong>.
+            {viabilityWarning ? ' El saldo no es suficiente para cubrir esta orden por completo.' : ' Hay saldo suficiente para esta orden.'}
+          </div>
+        </div>
+      </div>
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
@@ -1674,7 +1716,7 @@ export default function OrderModal({
         )}
       </div>
 
-      <div className="modal-actions" style={{ marginTop: 16 }}>
+      <div className="modal-actions" style={{ marginTop: 16, position: 'sticky', bottom: 0, background: 'var(--bg-modal)', padding: '16px 0', borderTop: '1px solid var(--line)', zIndex: 10 }}>
         {!readOnly && (
           <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
             {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '🗑️ '} Eliminar Expediente

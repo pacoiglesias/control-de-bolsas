@@ -232,7 +232,7 @@ Pago recibido 23 julio	76140.00`);
           },
           invoices: [{
             id: `${crKey}-inv-0`,
-            folio: `FACT-${cr.folio}`,
+            folio: `${cr.folio}`,
             oc: 'MIGRACION',
             kilos: totalKilos,
             financials: { ...computeFinancials(totalKilos, config), invoiceTotal: cr.amount },
@@ -271,7 +271,7 @@ Pago recibido 23 julio	76140.00`);
           },
           invoices: facturas.map((f, i) => ({
             id: `${crKey}-inv-${i}`,
-            folio: `FACT-${f.folio}`,
+            folio: `${f.folio}`,
             oc: f.oc,
             kilos: f.amount / precioBrutoPorKg,
             financials: { ...computeFinancials(f.amount / precioBrutoPorKg, config), invoiceTotal: f.amount },

@@ -194,6 +194,8 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
   let criticos30 = 0;
   let urgentes15 = 0;
   let recientes1 = 0;
+  let proyeccion7d = 0;
+  let proyeccion15d = 0;
 
   activeOrders.forEach(o => {
     const invoices = o.invoices || [];
@@ -209,6 +211,14 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
         if (late !== null && late > 30) criticos30++;
         else if (late !== null && late > 15) urgentes15++;
         else if (late !== null && late > 0) recientes1++;
+
+        if (late !== null) {
+          const saldo = (inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0) - (inv.collection?.paidAmount ?? 0);
+          // Si ya venció o vence en próximos 7 días
+          if (late >= -7) proyeccion7d += saldo;
+          // Si ya venció o vence en próximos 15 días
+          if (late >= -15) proyeccion15d += saldo;
+        }
       }
       if (s === 'paid') {
         const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
@@ -226,7 +236,7 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[]) {
     });
   });
 
-  return { proximos, criticos30, urgentes15, recientes1, porRecibir };
+  return { proximos, criticos30, urgentes15, recientes1, porRecibir, proyeccion7d, proyeccion15d };
 }
 
 export function calculateLiveMargenTotal(activeOrders: PurchaseOrder[], defaultCostPricePerKg: number): number {

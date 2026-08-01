@@ -24,16 +24,17 @@ export default function CajaChica() {
   const { settings } = useSystemSettings();
   const [selected, setSelected] = useState<Expense | null>(null);
 
-  const saldo = expenses.reduce((acc, e) => {
+  const saldo = settings?.cajaChicaBalance ?? expenses.reduce((acc, e) => {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
   }, 0);
 
-  // Calc deuda real con Andrés
+  // Calc deuda real con el proveedor
+  const provName = settings?.providerName || 'Andrés';
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
   const currentCostPerKg = config?.costPricePerKg || 42;
   const totalPurchasesCost = Number((totalReceivedKilos * currentCostPerKg).toFixed(2));
   
-  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === 'andres');
+  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === provName.toLowerCase());
   const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount;
     if (e.type === 'ingreso') return acc - e.amount;
@@ -175,14 +176,15 @@ export default function CajaChica() {
           </div>
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>En manos de los contadores, listo para recoger.</p>
         </Card>
-
-        <Card title="⚖️ DEUDA CON ANDRÉS">
-          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
-            {deudaReal < 0 ? `- ${money(Math.abs(deudaReal))}` : money(deudaReal)}
+        <Card title={`⚖️ DEUDA CON ${provName.toUpperCase()}`}>
+          <div style={{ padding: 16 }}>
+            <h2 className={deudaReal > 0 ? 'text-bad' : deudaReal < 0 ? 'text-ok' : ''}>
+              {deudaReal > 0 ? '+' : ''}{money(deudaReal)}
+            </h2>
+            <p className="hint" style={{ marginTop: 8 }}>
+            {deudaReal > 0 ? `Saldo a favor de ${provName} (le debes).` : deudaReal < 0 ? `Saldo a tu favor (${provName} te debe).` : 'Cuentas saldadas.'}
+            </p>
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
-            {deudaReal > 0 ? 'Saldo a favor de Andrés (le debes).' : deudaReal < 0 ? 'Saldo a tu favor (Andrés te debe).' : 'Cuentas saldadas.'}
-          </p>
         </Card>
       </div>
 
@@ -249,13 +251,13 @@ export default function CajaChica() {
       </Card>
 
       {selected && (
-        <ExpenseModal expense={selected} onClose={() => setSelected(null)} />
+        <ExpenseModal expense={selected} onClose={() => setSelected(null)} provName={provName} />
       )}
     </>
   );
 }
 
-function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => void }) {
+function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
   const { user } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -334,8 +336,8 @@ function ExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => v
         <Field label="Concepto (e.g. Gasolina, Papelería)">
           <input className="input boxed" value={form.concept} onChange={(e) => set('concept', e.target.value)} />
         </Field>
-        <Field label="Proveedor (Opcional, para anticipos)">
-          <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder="Ej. Andres" />
+        <Field label="Proveedor / Fabricante / Beneficiario">
+          <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder={`Ej. ${provName}`} />
         </Field>
         <Field label="Monto">
           <input className="input boxed mono" type="number" step="0.01" value={form.amount} onChange={(e) => set('amount', e.target.value)} />

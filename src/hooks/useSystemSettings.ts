@@ -5,11 +5,17 @@ import { db } from '../lib/firebase';
 export interface SystemSettings {
   companyName: string;
   companyLogoUrl: string;
+  providerName: string;
+  departments: string[];
+  cajaChicaBalance: number;
 }
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   companyName: 'BOLSAS ELEMENTAL',
   companyLogoUrl: '',
+  providerName: 'Andrés',
+  departments: ['TH', 'GT'],
+  cajaChicaBalance: 0,
 };
 
 export function useSystemSettings() {

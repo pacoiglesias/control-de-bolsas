@@ -200,7 +200,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
            kilos: totalKilos,
            creditCycle: {
               issueDate: Timestamp.fromDate(fecha),
-              status: "facturado"
+              status: "manual_review"
            },
            financials: {
               invoiceTotal: total,
@@ -216,7 +216,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
           folio: folio,
           department: (comprobante.Serie || "").trim(),
           totalKilograms: totalKilos,
-          creditCycle: { status: "facturado" },
+          creditCycle: { status: "manual_review" },
           invoices: [newInvoice],
           invoiceStatuses: ["facturado"],
           createdAt: FieldValue.serverTimestamp(),
@@ -529,3 +529,35 @@ export const sanitizePurchaseOrder = onDocumentWritten(
 );
 
 export { syncDashboardStats, recalcDashboardStats } from "./stats";
+
+export const updateCajaChicaBalance = onDocumentWritten(
+  { document: `expenses/{expenseId}` },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    
+    // Si no cambió ni se creó ni borró
+    if (!before && !after) return;
+
+    // Calcular la diferencia en monto (ingreso positivo, egreso negativo)
+    let amountBefore = 0;
+    if (before) {
+      amountBefore = before.type === 'ingreso' ? (before.amount || 0) : -(before.amount || 0);
+    }
+    
+    let amountAfter = 0;
+    if (after) {
+      amountAfter = after.type === 'ingreso' ? (after.amount || 0) : -(after.amount || 0);
+    }
+
+    const delta = amountAfter - amountBefore;
+
+    if (delta !== 0) {
+      const ref = getFirestore().doc('system_settings/global');
+      await ref.set({
+        cajaChicaBalance: FieldValue.increment(delta)
+      }, { merge: true });
+      logger.info(`Caja Chica updated by ${delta}`);
+    }
+  }
+);

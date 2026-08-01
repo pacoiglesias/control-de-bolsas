@@ -258,16 +258,16 @@ export const syncDashboardStats = onDocumentWritten(
 
     // 2. Update Department specific stats
     if (deptBefore === deptAfter) {
-      if (deptAfter === 'TH' || deptAfter === 'GT') {
+      if (deptAfter && deptAfter !== 'UNKNOWN') {
         await applyStatsDelta(`${STATS_DOC}_${deptAfter}`, before, after);
       }
     } else {
       // Department changed or is new
       const empty = extractStats(null);
-      if (deptBefore === 'TH' || deptBefore === 'GT') {
+      if (deptBefore && deptBefore !== 'UNKNOWN') {
         await applyStatsDelta(`${STATS_DOC}_${deptBefore}`, before, empty);
       }
-      if (deptAfter === 'TH' || deptAfter === 'GT') {
+      if (deptAfter && deptAfter !== 'UNKNOWN') {
         await applyStatsDelta(`${STATS_DOC}_${deptAfter}`, empty, after);
       }
     }
@@ -323,8 +323,15 @@ export const recalcDashboardStats = onCall(
     });
 
     const globalStats = initStats();
-    const thStats = initStats();
-    const gtStats = initStats();
+    
+    // Fetch dynamic departments
+    const settingsSnap = await db.collection('system_settings').doc('global').get();
+    const depts = settingsSnap.exists ? (settingsSnap.data()?.departments || ['TH', 'GT']) : ['TH', 'GT'];
+    
+    const deptStats: Record<string, ReturnType<typeof initStats>> = {};
+    for (const d of depts) {
+      deptStats[d] = initStats();
+    }
 
     const applyData = (target: any, s: any) => {
       target.kpis.totalKilos += s.kilos;
@@ -374,8 +381,11 @@ export const recalcDashboardStats = onCall(
         const s = extractStats(data);
         
         applyData(globalStats, s);
-        if (data.department === 'TH') applyData(thStats, s);
-        if (data.department === 'GT') applyData(gtStats, s);
+        
+        const d = data.department;
+        if (d && deptStats[d]) {
+          applyData(deptStats[d], s);
+        }
 
         procesados++;
       }
@@ -400,8 +410,9 @@ export const recalcDashboardStats = onCall(
     };
 
     await saveStats(STATS_DOC, globalStats);
-    await saveStats(`${STATS_DOC}_TH`, thStats);
-    await saveStats(`${STATS_DOC}_GT`, gtStats);
+    for (const d of depts) {
+      await saveStats(`${STATS_DOC}_${d}`, deptStats[d]);
+    }
 
     logger.info(`Recálculo completo de stats/dashboard: ${procesados} expedientes.`);
     return { ok: true, procesados, mensaje: `Estadísticas recalculadas sobre ${procesados} expedientes.` };

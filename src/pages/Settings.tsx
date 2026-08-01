@@ -3,7 +3,7 @@ import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc } from 
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, PATHS, storage } from '../lib/firebase';
 import { saveConfig, useConfig } from '../hooks/useConfig';
-import { saveSystemSettings } from '../hooks/useSystemSettings';
+import { saveSystemSettings, useSystemSettings, type SystemSettings } from '../hooks/useSystemSettings';
 import { useOrders } from '../hooks/useOrders';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -16,15 +16,19 @@ import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 
 export default function Settings() {
-  const { config, loading, exists } = useConfig();
+  const { config, loading: loadingCfg, exists } = useConfig();
+  const { settings, loading: loadingSys } = useSystemSettings();
+  const loading = loadingCfg || loadingSys;
   const { orders } = useOrders();
   const { user, role } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState<FinancialConfig>(config);
+  const [sysForm, setSysForm] = useState<SystemSettings>(settings);
   const [busy, setBusy] = useState(false);
   const [initialCash, setInitialCash] = useState<string>('169000');
 
   useEffect(() => setForm(config), [config]);
+  useEffect(() => setSysForm(settings), [settings]);
 
   async function seedInitialCash() {
     if (busy) return;
@@ -65,7 +69,12 @@ export default function Settings() {
     setBusy(true);
     try {
       await saveConfig(form);
-      await saveSystemSettings({ companyName: form.companyName || '', companyLogoUrl: form.companyLogoUrl || '' });
+      await saveSystemSettings({ 
+        companyName: sysForm.companyName || '', 
+        companyLogoUrl: sysForm.companyLogoUrl || '',
+        providerName: sysForm.providerName || 'Andrés',
+        departments: sysForm.departments || ['TH', 'GT']
+      });
       await logAction(user?.email, 'Configuración Financiera Modificada', {
         oldConfig: config,
         newConfig: form
@@ -96,7 +105,7 @@ export default function Settings() {
         setBusy(false);
       }, async () => {
         const url = await getDownloadURL(task.snapshot.ref);
-        setForm(f => ({ ...f, companyLogoUrl: url }));
+        setSysForm(f => ({ ...f, companyLogoUrl: url }));
         toast('Logotipo subido. No olvides dar clic en Guardar Configuración.', 'ok');
         setBusy(false);
       });
@@ -176,16 +185,16 @@ export default function Settings() {
         <div style={{ padding: 16 }}>
           <div className="form-grid">
             <Field label="Nombre Comercial de la Empresa">
-              <input className="input boxed" type="text" value={form.companyName ?? ''}
-                onChange={(e) => setForm({ ...form, companyName: e.target.value })} 
+              <input className="input boxed" type="text" value={sysForm.companyName ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, companyName: e.target.value })} 
                 placeholder="Ej. Elemental Denim Bolsas" />
             </Field>
             
             <Field label="Logotipo Oficial">
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                 <div style={{ width: 80, height: 80, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {form.companyLogoUrl ? (
-                    <img src={form.companyLogoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  {sysForm.companyLogoUrl ? (
+                    <img src={sysForm.companyLogoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
                     <span style={{ color: '#94a3b8', fontSize: 24 }}>🏢</span>
                   )}
@@ -205,7 +214,25 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card title="Reglas financieras">
+      <Card title="Departamentos y Proveedor">
+        <div style={{ padding: 16 }}>
+          <div className="form-grid">
+            <Field label="Nombre del Proveedor / Fabricante">
+              <input className="input boxed" type="text" value={sysForm.providerName ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, providerName: e.target.value })} 
+                placeholder="Ej. Andrés" />
+            </Field>
+            
+            <Field label="Departamentos / Prefijos (Separados por coma)">
+              <input className="input boxed" type="text" value={(sysForm.departments || []).join(', ')}
+                onChange={(e) => setSysForm({ ...sysForm, departments: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} 
+                placeholder="Ej. TH, GT" />
+            </Field>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Ajustes de Precios Base">
         <div style={{ padding: 16 }}>
           <div className="form-grid">
             <Field label="Precio de venta por kilo">
