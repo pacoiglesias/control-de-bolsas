@@ -135,8 +135,15 @@ export default function Settings() {
       for (let i = 0; i < target.length; i += 400) {
         const batch = writeBatch(db);
         target.slice(i, i + 400).forEach((o) => {
+          // Recalcular cada factura individual para que no queden obsoletas vs el total
+          const updatedInvoices = (o.invoices || []).map(inv => ({
+            ...inv,
+            financials: computeFinancials(inv.kilos || 0, config)
+          }));
+
           batch.update(doc(db, PATHS.orders, o.id), {
             financials: computeFinancials(o.totalKilograms ?? 0, config),
+            invoices: updatedInvoices,
             updatedAt: serverTimestamp(),
           });
         });
