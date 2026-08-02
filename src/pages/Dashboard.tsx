@@ -1215,12 +1215,12 @@ return () => unsub();
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fontSize: 12, fill: 'var(--ink-soft)', fontFamily: 'Outfit' }}
-                  tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`}
+                  tickFormatter={(val: number) => `$${(val/1000).toFixed(0)}k`}
                 />
                 <Tooltip
                   cursor={{ stroke: 'var(--line)', strokeWidth: 1, strokeDasharray: '4 4' }}
                   contentStyle={{ backgroundColor: 'var(--glass)', backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow-hover)' }}
-                  formatter={(value) => money(Number(value))}
+                  formatter={(value: number) => money(Number(value))}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10, fontFamily: 'Outfit' }} />
                 <Area type="monotone" dataKey="vendido" name="Total Vendido" stroke="var(--accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorVendido)" />
