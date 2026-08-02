@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { db, PATHS } from '../lib/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
-import OrderModal from './OrderModal';
+import OrderModal from '../components/OrderModal';
 import { kilos, money } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';

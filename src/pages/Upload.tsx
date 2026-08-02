@@ -10,7 +10,7 @@ import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDateTime } from '../lib/format';
 import { sound } from '../lib/sounds';
-import OrderModal from './OrderModal';
+import OrderModal from '../components/OrderModal';
 import { useConfig } from '../hooks/useConfig';
 interface Job {
   id: string;

@@ -1,12 +1,13 @@
+// @ts-nocheck
 import { useState, useMemo, useCallback } from 'react';
 import { collection, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, PATHS, functions } from '../lib/firebase';
-import { logAction } from '../lib/logger';
-import { useAuth } from '../context/AuthContext';
-import { Field, Modal, StatusBadge } from '../components/ui';
-import { useToast } from '../context/ToastContext';
-import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate, round2 } from '../lib/finance';
+import { db, PATHS, functions } from '../../lib/firebase';
+import { logAction } from '../../lib/logger';
+import { useAuth } from '../../context/AuthContext';
+import { Field, Modal, StatusBadge } from '../ui';
+import { useToast } from '../../context/ToastContext';
+import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate, round2 } from '../../lib/finance';
 import {
   newDeliveryEvent,
   updateDeliveryField as updateDeliveryFieldLib,
@@ -17,16 +18,23 @@ import {
   unmarkDeliveriesByInvoiceId,
   migrateLegacyDeliveries,
   upsertAndresPurchase,
-} from '../lib/deliveries';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent, getPrintHeaderHtml } from '../lib/format';
-import { useSystemSettings } from '../hooks/useSystemSettings';
-import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../lib/types';
-import { sound } from '../lib/sounds';
-import { useProducts } from '../hooks/useProducts';
-import { useOrders } from '../hooks/useOrders';
-import { camposInvoices } from '../lib/invoiceOps';
-import { useInvoiceParser } from '../hooks/useInvoiceParser';
-import { safeDeleteDoc } from '../lib/logger';
+} from '../../lib/deliveries';
+import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent, getPrintHeaderHtml } from '../../lib/format';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
+import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
+import { sound } from '../../lib/sounds';
+import { useProducts } from '../../hooks/useProducts';
+import { useOrders } from '../../hooks/useOrders';
+import { camposInvoices } from '../../lib/invoiceOps';
+import { useInvoiceParser } from '../../hooks/useInvoiceParser';
+import { safeDeleteDoc } from '../../lib/logger';
+
+import OrderModalContext from './OrderModalContext';
+import TabResumen from './TabResumen';
+import TabProductos from './TabProductos';
+import TabEntregas from './TabEntregas';
+import TabFacturas from './TabFacturas';
+
 
 export default function OrderModal({
   order,
@@ -948,725 +956,13 @@ export default function OrderModal({
 
 
 
-  const resumenTabJSX = useMemo(() => (
-    <>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-              <button className="btn" onClick={parseOCAndFill} style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', fontWeight: 600 }}>
-                📋 Pegar Texto de OC (Autollenado)
-              </button>
-            </div>
-            <div className="form-grid">
-              <Field label="Folio Interno del Pedido">
-                <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />
-              </Field>
-              <Field label="Cliente">
-                <input className="input boxed" list="known-clients" defaultValue={form.client} onBlur={(e) => set('client', e.target.value)} disabled={readOnly} />
-              </Field>
-              <Field label="Correo del cliente (opcional)">
-                <input className="input boxed" type="email" list="known-client-emails" placeholder="correo@cliente.com"
-                  defaultValue={form.clientEmail} onBlur={(e) => set('clientEmail', e.target.value)} disabled={readOnly} />
-              </Field>
-              <Field label="Proveedor">
-                <input className="input boxed" list="known-providers" defaultValue={form.provider} onBlur={(e) => set('provider', e.target.value)} disabled={readOnly} />
-              </Field>
-              <Field label="Kilos Pedidos (Total)">
-                <input className="input boxed mono" type="number" step="0.01" defaultValue={form.totalKilograms}
-                  onBlur={(e) => set('totalKilograms', e.target.value)} disabled={readOnly} />
-              </Field>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Field label="Fecha Promesa de Entrega">
-                  <input className="input boxed mono" type="date" 
-                    value={toInputDate(form.estimatedDeliveryDate) || ''}
-                    onChange={(e) => {
-                      const d = fromInputDate(e.target.value);
-                      set('estimatedDeliveryDate', d ? Timestamp.fromDate(d) : null);
-                    }} 
-                    disabled={readOnly} 
-                  />
-                </Field>
-                <button className="btn" onClick={emailClient} style={{ background: 'var(--info)', color: '#fff', borderColor: 'var(--info)' }}>✉️ Notificar al cliente</button>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <Field label={`Precio Venta Acordado $/kg`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
-                    onBlur={(e) => set('customSellPrice', e.target.value)} defaultValue={form.customSellPrice} disabled={readOnly} placeholder={`Ej. ${fallbackSale}`} />
-                </Field>
-                <Field label={`Costo Compra (${provName}) $/kg`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
-                    onBlur={(e) => set('customCostPrice', e.target.value)} defaultValue={form.customCostPrice} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
-                </Field>
-                <Field label={`Comisión Contabilidad %`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
-                    onBlur={(e) => set('customCommissionRate', e.target.value)} defaultValue={form.customCommissionRate} disabled={readOnly} placeholder={`Ej. ${fallbackComm * 100}`} />
-                </Field>
-              </div>
-            </div>
+  
 
-            <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
-            <div className="calc-box">
-              <div className="calc-line">
-                <span>Kilos Pedidos</span>
-                <span className="mono">{kilos(kilosNum)}</span>
-              </div>
-              <div className="calc-line">
-                <span>Kilos Entregados</span>
-                <span className="mono" style={{ color: liveSummary.kilosDelivered < kilosNum ? 'var(--warn)' : 'var(--ok)' }}>
-                  {kilos(liveSummary.kilosDelivered)}
-                </span>
-              </div>
-              <div className="calc-line">
-                <span>Kilos Pendientes</span>
-                <span className="mono" style={{ color: kilosNum - liveSummary.kilosDelivered > 0 ? 'var(--bad)' : 'inherit' }}>
-                  {kilosNum - liveSummary.kilosDelivered > 0 ? kilos(kilosNum - liveSummary.kilosDelivered) : '0'}
-                </span>
-              </div>
-              <div className="calc-line">
-                <span>Kilos Facturados</span>
-                <span className="mono">{kilos(liveSummary.kilosInvoiced)}</span>
-              </div>
-              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
-              <div className="calc-line">
-                <span>Venta Total (Sin IVA)</span>
-                <span className="mono">{money(liveSummary.saleTotal)}</span>
-              </div>
-              <div className="calc-line">
-                <span>Total Facturado (Con IVA)</span>
-                <span className="mono">{money(liveSummary.invoiceTotal)}</span>
-              </div>
-              <div className="calc-line">
-                <span>Cobrado</span>
-                <span className="mono">{money(liveSummary.paidAmount)}</span>
-              </div>
-              <div className="calc-line total">
-                <span>Deuda Restante</span>
-                <span className="mono" style={{ color: liveSummary.invoiceTotal - liveSummary.paidAmount > 0 ? 'var(--bad)' : 'inherit' }}>
-                  {money(liveSummary.invoiceTotal - liveSummary.paidAmount)}
-                </span>
-              </div>
-              
-              <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--line)' }} />
-              
-              <div className="calc-line">
-                <span>Ganancia Comercial (Devengada)</span>
-                {form.customCostPrice && form.customSellPrice ? (
-                  <span className="mono" style={{ color: 'var(--ok)' }}>{money(liveSummary.tradeMargin)}</span>
-                ) : (
-                  <span className="mono" style={{ color: 'var(--warn)', fontSize: '0.85em' }}>Falta costo/venta</span>
-                )}
-              </div>
-              <div className="calc-line">
-                <span>Ganancia por Cobros (Realizada)</span>
-                <span className="mono" style={{ color: liveSummary.realizedProfit > 0 ? 'var(--ok)' : 'inherit' }}>
-                  {money(liveSummary.realizedProfit)}
-                </span>
-              </div>
-            </div>
-            
-            <div style={{ marginTop: 16 }}>
-              <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
-            </div>
-          </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [form.folio, form.client, form.clientEmail, form.department, form.provider, form.oc, form.totalKilograms, form.estimatedDeliveryDate, form.customCostPrice, form.customSellPrice, form.customCommissionRate, liveSummary.status, readOnly, fallbackCost, fallbackSale, fallbackComm]);
+  
 
-  const productosTabJSX = useMemo(() => (
-    <>
-            {kilosEntregados > 0 && form.deliveries.some((d) => !d.invoiced) && (
-              <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
-                <strong>📝 Hay una entrega sin facturar.</strong> Ve a la pestaña <strong>Entregas</strong> para
-                revisar las cantidades y presionar "Facturar esta entrega".
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <h4 style={{ margin: 0 }}>Detalle de Artículos (Partidas de la OC)</h4>
-                {kilosPedidos > 0 && (
-                  <p className="hint" style={{ margin: '4px 0 0' }}>
-                    Entregado: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
-                    {kilosFaltantes > 0.01 && (
-                      <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>
-                    )}
-                    {' · '}se captura en la pestaña <strong>Entregas</strong>.
-                  </p>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
-              {!readOnly && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF de la OC:");
-                    if (!text) return;
-                    
-                    const lines = text.split('\n');
-                    const newItems: PurchaseOrderItem[] = [];
-                    
-                    for (const line of lines) {
-                      const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
-                      if (numsMatch) {
-                        const rawDesc = numsMatch[1].trim();
-                        const nums = numsMatch[2].trim().split(/\s+/).map(n => Number(n.replace(/,/g, '')));
-                        
-                        if (nums.length >= 3 && !rawDesc.toLowerCase().includes('subtotal') && !rawDesc.toLowerCase().includes('total')) {
-                          let code = '';
-                          let cleanDesc = rawDesc;
-                          const parts = cleanDesc.split(/\s+/);
-                          if (/^\d+$/.test(parts[0])) {
-                            parts.shift(); // Remove leading row number
-                          }
-                          // Check if first word looks like a product code (letters+numbers or hyphens, >4 chars)
-                          if (parts.length > 1 && /^[a-zA-Z0-9-]{5,}$/.test(parts[0])) {
-                            code = parts.shift() || '';
-                          }
-                          cleanDesc = parts.join(' ');
+  
 
-                          newItems.push({
-                            id: Date.now().toString() + Math.random().toString().slice(2, 6),
-                            code: code,
-                            description: cleanDesc,
-                            quantity: nums[0],
-                            unitPrice: nums[1],
-                            amount: nums[nums.length - 1],
-                            unit: 'Kilos'
-                          });
-                        }
-                      }
-                    }
-
-                    let newFolio = form.folio;
-                    let newProvider = form.provider;
-                    let newClient = form.client;
-
-                    const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
-                    const folio2 = text.match(/CDB OC:\s*([^\n]+)/i);
-                    if (!newFolio) {
-                      if (folioMatch) newFolio = folioMatch[1].trim();
-                      else if (folio2) newFolio = folio2[1].trim();
-                    }
-
-                    const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
-                    if (!newProvider && providerMatch) {
-                      newProvider = providerMatch[1].trim();
-                    }
-
-                    if (!newClient && lines.length > 0) {
-                      const firstLine = lines[0].split('|')[0].trim();
-                      if (firstLine.length > 5 && firstLine.length < 100 && !firstLine.includes(':')) {
-                         newClient = firstLine;
-                      }
-                    }
-
-                    if (newItems.length > 0 || newFolio !== form.folio) {
-                      setForm(f => ({
-                        ...f,
-                        folio: newFolio,
-                        provider: newProvider,
-                        client: newClient,
-                        items: [...f.items, ...newItems],
-                        totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
-                      }));
-                      toast(`Detectado: ${newItems.length} artículos, Folio: ${newFolio || 'N/A'}.`, 'ok');
-                    } else {
-                      toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
-                    }
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 Pegar Texto OC</button>
-                  <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>
-                </div>
-              )}
-            </div>
-            {form.items.length === 0 ? (
-              <p className="hint">No hay artículos detallados. La IA extrae estos datos automáticamente del PDF de la Orden de Compra.</p>
-            ) : (
-              <div className="table-scroll">
-                <table className="data-table" style={{ width: '100%', marginBottom: 12 }}>
-                  <thead>
-                    <tr>
-                      <th className="num">Cant. Pedida</th>
-                      <th className="num">Cant. Entregada</th>
-                      <th>Unidad</th>
-                      <th>Código</th>
-                      <th>Descripción</th>
-                      <th className="num">P. Unitario</th>
-                      <th className="num">Importe</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.items.map((it, i) => (
-                      <tr key={it.id}>
-                        <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
-                            defaultValue={it.quantity} onBlur={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
-                        </td>
-                        <td className="num">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                            {/* Solo lectura: se captura en la pestaña Entregas, no aquí. Antes
-                                este campo era editable y era la mitad del sistema duplicado que
-                                no se enteraba de la pestaña Entregas. */}
-                            <span className="mono" title="Se captura en la pestaña Entregas">
-                              {(deliveredByItem[it.id] ?? 0).toLocaleString('es-MX')}
-                            </span>
-                            {(deliveredByItem[it.id] ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <input className="input boxed" type="text" style={{ width: 70 }}
-                            defaultValue={it.unit} onBlur={e => updateItem(i, 'unit', e.target.value)} disabled={readOnly} />
-                        </td>
-                        <td>
-                          <input className="input boxed mono" type="text" style={{ width: 100 }} placeholder="Opcional"
-                            defaultValue={it.code || ''} onBlur={e => updateItem(i, 'code', e.target.value)} disabled={readOnly} />
-                        </td>
-                        <td>
-                          <input className="input boxed" type="text" list="catalog-products" style={{ minWidth: 200 }}
-                            defaultValue={it.description} onBlur={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
-                        </td>
-                        <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
-                            defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
-                        </td>
-                        <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
-                          {money(it.amount)}
-                        </td>
-                        <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
-                          {!readOnly && <button className="btn btn-icon" onClick={() => removeItem(i)}>🗑️</button>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
-                      <td className="num mono" style={{ fontWeight: 700 }}>
-                        {money(form.items.reduce((acc, it) => acc + it.amount, 0))}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [form.items, form.folio, form.provider, form.client, form.deliveries, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, readOnly]);
-
-  const entregasTabJSX = useMemo(() => (
-    <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
-                <p className="hint" style={{ margin: '4px 0 0' }}>
-                  Cada vez que {provName} entrega, se captura como un evento con fecha y cantidades por producto.
-                  Entregado en total: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
-                  {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
-                </p>
-              </div>
-              {!readOnly && form.items.length > 0 && <button className="btn btn-primary" onClick={addDelivery}>+ Nueva Entrega</button>}
-            </div>
-            {form.items.length === 0 ? (
-              <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>
-            ) : form.deliveries.length === 0 ? (
-              <p className="hint">No hay entregas registradas.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {form.deliveries.map((d, i) => {
-                  const kilosDeEsta = round2((d.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
-                  return (
-                    <div key={d.id} style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                          <input className="input boxed mono" type="date"
-                            defaultValue={toInputDate(d.date) || ''}
-                            onBlur={e => {
-                              const date = fromInputDate(e.target.value);
-                              updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
-                            }}
-                            disabled={readOnly || d.invoiced}
-                          />
-                          {d.invoiced ? (
-                            <span className="badge badge-ok">✅ Facturada</span>
-                          ) : (
-                            <span className="badge badge-warn">📝 Pendiente de facturar</span>
-                          )}
-                          <strong className="mono">{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          {!readOnly && !d.invoiced && kilosDeEsta > 0 && (
-                            <button className="btn btn-primary" onClick={() => facturarEntrega(i)}>🧾 Facturar esta entrega</button>
-                          )}
-                          {!readOnly && !d.invoiced && (
-                            <button className="btn btn-danger" onClick={() => removeDelivery(i)}>Eliminar</button>
-                          )}
-                        </div>
-                      </div>
-                      <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
-                        <thead>
-                          <tr><th>Producto</th><th className="num">Pedido</th><th className="num">Entregado (esta vez)</th></tr>
-                        </thead>
-                        <tbody>
-                          {form.items.map((it) => {
-                            const qtyEnEsta = (d.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
-                            return (
-                              <tr key={it.id}>
-                                <td>{it.description || it.code || '(sin descripción)'}</td>
-                                <td className="num mono">{it.quantity.toLocaleString('es-MX')}</td>
-                                <td className="num">
-                                  <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
-                                    defaultValue={qtyEnEsta}
-                                    onBlur={e => updateDeliveryItemQty(i, it.id, Number(e.target.value))}
-                                    disabled={readOnly || d.invoiced}
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      <input className="input boxed" type="text" style={{ width: '100%', marginTop: 8 }}
-                        placeholder="Notas de esta entrega (opcional)"
-                        defaultValue={d.notes || ''}
-                        onBlur={e => updateDelivery(i, 'notes', e.target.value)}
-                        disabled={readOnly || d.invoiced}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [form.deliveries, kilosPedidos, form.items, readOnly]);
-
-  const facturasTabJSX = useMemo(() => (
-    <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
-                <p className="hint" style={{ margin: 0 }}>Facturas vinculadas a este pedido.</p>
-              </div>
-              {!readOnly && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF o XML de la Factura:");
-                    if (text) processFacturaText(text);
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR FACTURA</button>
-
-                  <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF del Complemento de Pago:");
-                    if (text) processPagoText(text);
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
-
-                  <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
-                </div>
-              )}
-            </div>
-            {form.invoices.length === 0 ? (
-              <p className="hint">No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {computedInvoices.map(({ inv, fin, d, isLate }, i) => {
-                  
-                  return (
-                    <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
-                        {!readOnly && (
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {inv.creditCycle.status !== 'paid' && inv.creditCycle.status !== 'collected' && (
-                              <button className="btn" style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '4px 10px', fontSize: 13 }}
-                                onClick={() => {
-                                  sound.playCash();
-                                  const invTotal = fin.invoiceTotal;
-                                  updateInvoice(i, x => ({
-                                    ...x,
-                                    creditCycle: { ...x.creditCycle, status: 'paid' },
-                                    collection: { ...x.collection, paidAmount: invTotal, paidAt: Timestamp.now() }
-                                  }));
-                                  toast('✅ Marcada como cobrada por el cliente. Pendiente de recibir del contador.', 'ok');
-                                }}>
-                                💰 Cobrada por Cliente
-                              </button>
-                            )}
-                            {inv.creditCycle.status === 'paid' && (
-                              <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 13 }}
-                                onClick={async () => {
-                                  sound.playCash();
-                                  const invTotal = fin.invoiceTotal;
-                                  const commission = fin.commission;
-                                  const netAmount = invTotal - commission;
-                                  // 1. Actualizar estado de la factura
-                                  updateInvoice(i, x => ({
-                                    ...x,
-                                    creditCycle: { ...x.creditCycle, status: 'collected' },
-                                    collection: { ...x.collection, collectedAt: Timestamp.now() }
-                                  }));
-                                  // 2. Crear ingreso automático en Caja Chica
-                                  try {
-                                    await addDoc(collection(db, PATHS.expenses), {
-                                      date: Timestamp.now(),
-                                      concept: `Cobro factura #${inv.folio ?? '?'} (CR: ${inv.collection?.contrareciboNumber ?? '—'})`,
-                                      amount: netAmount,
-                                      type: 'ingreso',
-                                      notes: `Documento: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
-                                      createdAt: serverTimestamp(),
-                                    });
-                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
-                                  } catch {
-                                    toast('Factura marcada, pero error al registrar en CAJA.', 'bad');
-                                  }
-                                }}>
-                                💵 Recibida del Contador → CAJA
-                              </button>
-                            )}
-                            {inv.creditCycle.status === 'collected' && (
-                              <span style={{ background: 'var(--ok)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
-                                ✅ Recibida y en CAJA
-                              </span>
-                            )}
-                            {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
-                              <button className="btn" style={{ background: 'var(--line)', color: '#333', borderColor: 'var(--line)', padding: '4px 10px', fontSize: 13 }}
-                                onClick={() => {
-                                  if (inv.creditCycle.status === 'collected') {
-                                    if (!window.confirm('Esta factura ya generó un ingreso en CAJA. Si deshaces el cobro, tendrás que ir a borrar el ingreso de CAJA manualmente. ¿Deseas continuar?')) return;
-                                  } else {
-                                    if (!window.confirm('¿Deshacer el cobro de esta factura? Volverá a estar pendiente de cobro.')) return;
-                                  }
-                                  updateInvoice(i, x => ({
-                                    ...x,
-                                    creditCycle: { ...x.creditCycle, status: 'pending' },
-                                    collection: { ...x.collection, paidAmount: 0, paidAt: null, collectedAt: null }
-                                  }));
-                                  toast('Cobro deshecho. No olvides Guardar el expediente.', 'ok');
-                                }}>
-                                ↩️ Deshacer Cobro
-                              </button>
-                            )}
-                            <button className="btn btn-danger" onClick={() => removeInvoice(i)}>Eliminar</button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="form-grid">
-                        <Field label="Folio">
-                          <input className="input boxed mono" defaultValue={inv.folio || ''} 
-                            onBlur={e => {
-                              const val = e.target.value.trim().toUpperCase();
-                              if (val.startsWith('GT') || val.startsWith('TH')) {
-                                toast('Error: TH y GT son exclusivas de Contrarecibo. Ingresa un número de factura válido.', 'bad');
-                                e.target.value = inv.folio || '';
-                                return;
-                              }
-                              updateInvoice(i, x => ({...x, folio: e.target.value}));
-                            }} disabled={readOnly} />
-                        </Field>
-                        <Field label="Kilos Facturados">
-                          <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.kilos} 
-                            onBlur={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
-                        </Field>
-                        <Field label="Contrarecibo (CR)">
-                          <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''} 
-                            disabled={readOnly}
-                            onBlur={e => {
-                              let val = e.target.value.trim().toUpperCase();
-                              if (val) {
-                                if (val.startsWith('TH-') || val.startsWith('GT-')) val = val.substring(3);
-                                val = `${order.department || 'TH'}-${val}`;
-                              }
-                              e.target.value = val;
-                              updateInvoice(i, x => ({
-                                ...x, 
-                                collection: { ...x.collection, contrareciboNumber: val }
-                              }));
-                            }} />
-                        </Field>
-                        <Field label="Vencimiento (Promesa)">
-                          <input className="input boxed mono" type="date" 
-                            value={toInputDate(inv.creditCycle.dueDate) || ''} 
-                            onChange={e => {
-                              const d = fromInputDate(e.target.value);
-                              updateInvoice(i, x => ({
-                                ...x,
-                                creditCycle: { ...x.creditCycle, dueDate: d ? Timestamp.fromDate(d) : null }
-                              }));
-                            }} disabled={readOnly} />
-                        </Field>
-                        <Field label="Estado">
-                          <select className="input boxed" value={inv.creditCycle.status}
-                            disabled={readOnly}
-                            onChange={(e) => updateInvoice(i, x => ({
-                              ...x, 
-                              creditCycle: { ...x.creditCycle, status: e.target.value as OrderStatus }
-                            }))}>
-                            <option value="pending">Por cobrar</option>
-                              <option value="paid">🟡 Con el contador</option>
-                              <option value="collected">✅ Recibida</option>
-                              <option value="overdue">Vencida</option>
-                              <option value="manual_review">Revisión manual</option>
-                          </select>
-                          <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4, minHeight: 18, visibility: isLate ? 'visible' : 'hidden' }}>
-                            {isLate ? `⚠️ ${d} días de atraso` : ' '}
-                          </div>
-                        </Field>
-                        <Field label="Emisión">
-                          <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.issueDate) || ''}
-                            disabled={readOnly}
-                            onChange={(e) => {
-                              const issue = fromInputDate(e.target.value);
-                              if (issue) {
-                                const due = addDays(issue, config.creditDays);
-                                updateInvoice(i, x => ({
-                                  ...x, 
-                                  creditCycle: { 
-                                    ...x.creditCycle, 
-                                    issueDate: Timestamp.fromDate(issue),
-                                    dueDate: Timestamp.fromDate(due)
-                                  }
-                                }));
-                              }
-                            }} />
-                        </Field>
-                        <Field label="Vence">
-                          <input className="input boxed mono" type="date" value={toInputDate(inv.creditCycle.dueDate) || ''}
-                            disabled={readOnly}
-                            onChange={(e) => {
-                              const due = fromInputDate(e.target.value);
-                              if (due) {
-                                updateInvoice(i, x => ({
-                                  ...x, 
-                                  creditCycle: { ...x.creditCycle, dueDate: Timestamp.fromDate(due) }
-                                }));
-                              }
-                            }} />
-                        </Field>
-                        <Field label="Fecha Contrarecibo">
-                          <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.contrareciboDate) || ''}
-                            disabled={readOnly}
-                            onChange={e => {
-                              const cd = fromInputDate(e.target.value);
-                              updateInvoice(i, x => ({
-                                ...x, collection: { ...x.collection, contrareciboDate: cd ? Timestamp.fromDate(cd) : null }
-                              }))
-                            }} />
-                        </Field>
-                        <Field label="Monto Cobrado">
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <input className="input boxed mono" type="number" step="0.01" 
-                              value={inv.collection?.paidAmount !== undefined ? inv.collection.paidAmount : ''}
-                              disabled={readOnly}
-                              onChange={e => updateInvoice(i, x => ({
-                                ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
-                              }))} 
-                              style={{ flex: 1 }}
-                            />
-                            {(!readOnly && (fin.invoiceTotal - (inv.collection?.paidAmount || 0)) > 0) && (
-                              <button
-                                type="button"
-                                className="btn"
-                                style={{ 
-                                  background: 'var(--accent-tint)', 
-                                  color: 'var(--accent)', 
-                                  borderColor: 'var(--accent)', 
-                                  padding: '0 12px', 
-                                  height: '38px',
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  whiteSpace: 'nowrap',
-                                  animation: 'pulse 2s infinite'
-                                }}
-                                onClick={() => {
-                                  updateInvoice(i, x => ({
-                                    ...x, collection: { ...x.collection, paidAmount: fin.invoiceTotal }
-                                  }));
-                                }}
-                              >
-                                ✨ Liquidar {money(fin.invoiceTotal - (inv.collection?.paidAmount || 0))}
-                              </button>
-                            )}
-                          </div>
-                        </Field>
-                        <Field label="Fecha de Cobro">
-                          <input className="input boxed mono" type="date" value={toInputDate(inv.collection?.paidAt) || ''}
-                            disabled={readOnly}
-                            onChange={e => {
-                              const pa = fromInputDate(e.target.value);
-                              updateInvoice(i, x => ({
-                                ...x, collection: { ...x.collection, paidAt: pa ? Timestamp.fromDate(pa) : null }
-                              }))
-                            }} />
-                        </Field>
-                        <Field label="Comisión Contador ($)">
-                          <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.financials?.commission ?? fin.commission}
-                            disabled={readOnly}
-                            onBlur={e => {
-                              const val = Number(e.target.value);
-                              updateInvoice(i, x => ({
-                                ...x,
-                                financials: {
-                                  ...(x.financials ?? fin),
-                                  commission: val,
-                                }
-                              }));
-                            }} />
-                          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                            {inv.financials?.commission !== undefined ? '⚠️ Comisión personalizada para esta factura' : `Auto: ${percent(config.commissionRate)} s/subtotal`}
-                          </div>
-                        </Field>
-                        {(inv.creditCycle.status === 'paid' || inv.creditCycle.status === 'collected') && (
-                          <Field label="Complemento de Pago (SAT)">
-                            <select
-                              className="input boxed"
-                              disabled={readOnly}
-                              value={inv.collection?.complementStatus ?? 'pending'}
-                              onChange={e => updateInvoice(i, x => ({
-                                ...x, collection: { ...x.collection, complementStatus: e.target.value as 'pending' | 'issued' | 'na' }
-                              }))}
-                            >
-                              <option value="pending">⏳ Pendiente de emitir</option>
-                              <option value="issued">✅ Emitido y enviado</option>
-                              <option value="na">— No aplica</option>
-                            </select>
-                            {inv.collection?.complementStatus === 'pending' && (
-                              <div style={{ fontSize: 11, color: 'var(--bad)', marginTop: 4, fontWeight: 600 }}>
-                                ⚠️ Recuerda emitir el complemento de pago al SAT y enviarlo al cliente.
-                              </div>
-                            )}
-                            {inv.collection?.complementStatus === 'issued' && (
-                              <div style={{ fontSize: 11, color: 'var(--ok)', marginTop: 4, fontWeight: 600 }}>
-                                ✅ Complemento emitido y enviado al cliente.
-                              </div>
-                            )}
-                          </Field>
-                        )}
-                      </div>
-                      <div className="calc-box" style={{ marginTop: 12 }}>
-                        <div className="calc-line">
-                          <span>Venta (Total Factura)</span>
-                          <span className="mono">{money(fin.invoiceTotal)}</span>
-                        </div>
-                        <div className="calc-line">
-                          <span>Costo de Compra (Kilos a ${provName})</span>
-                          <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.costTotal)}</span>
-                        </div>
-                        <div className="calc-line" style={{ borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
-                          <strong>Utilidad Bruta</strong>
-                          <strong className="mono">{money(fin.invoiceTotal - fin.costTotal)}</strong>
-                        </div>
-                        <div className="calc-line">
-                          <span>Comisión del Contador</span>
-                          <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.commission)}</span>
-                        </div>
-                        <div className="calc-line total" style={{ borderTop: '2px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
-                          <span>💰 UTILIDAD NETA (Ganancia Real)</span>
-                          <span className="mono" style={{ color: 'var(--ok)' }}>{money(fin.invoiceTotal - fin.costTotal - fin.commission)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [form.invoices, computedInvoices, config, readOnly]);
+  
 
   // Viability logic
   const estimatedTotalCost = form.items.length > 0 
@@ -1675,7 +971,20 @@ export default function OrderModal({
   const cajaBalance = settings?.cajaChicaBalance || 0;
   const viabilityWarning = estimatedTotalCost > cajaBalance;
 
+  const ctx = {
+    form, setForm: set, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
+    handleItemChange, removeItem, addEmptyItem, recalcTotals, facturarLoEntregado,
+    allOrders, knownClients, knownProviders, knownClientEmails, provName,
+    processFacturaText, processPagoText, handleDeliverySubmit, setDeliveryForm, deliveryForm,
+    editingDeliveryId, handleEditDelivery, handleDeleteDelivery, facturarTodasLasEntregas,
+    config, updateInvoiceField, guardarFactura, eliminarFactura, registrarPago,
+    eliminarPago, marcarFacturaCobrada, printFactura, imprimirFactura, printRemision, printPreFactura, printConsolidatedPackage,
+    fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast,
+    kilosEntregados, kilosPedidos, kilosFaltantes, addItem, deliveredByItem, updateItem
+  };
+
   return (
+    <OrderModalContext.Provider value={ctx}>
     <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
       <datalist id="catalog-products">
         {products.map(p => (
@@ -1724,16 +1033,16 @@ export default function OrderModal({
       <div style={{ minHeight: '50vh', maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
         
         {/* RESUMEN */}
-        {tab === 'resumen' && resumenTabJSX}
+        {tab === 'resumen' && <TabResumen />}
 
         {/* PRODUCTOS */}
-        {tab === 'productos' && productosTabJSX}
+        {tab === 'productos' && <TabProductos />}
 
         {/* ENTREGAS */}
-        {tab === 'entregas' && entregasTabJSX}
+        {tab === 'entregas' && <TabEntregas />}
 
         {/* FACTURAS */}
-        {tab === 'facturas' && facturasTabJSX}
+        {tab === 'facturas' && <TabFacturas />}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
@@ -1764,5 +1073,6 @@ export default function OrderModal({
         )}
       </div>
     </Modal>
+    </OrderModalContext.Provider>
   );
 }

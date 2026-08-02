@@ -141,6 +141,16 @@ describe('getOrderSummary — derivación de estatus', () => {
     const s = getOrderSummary(o);
     expect(s.invoiceTotal - s.paidAmount).toBe(5452);
   });
+
+  it('realizedProfit no produce NaN si invTotal es cero', () => {
+    // Si una factura tiene monto total 0, no debe causar división por cero
+    const o = orden({ invoices: [factura('paid', 0)] });
+    // Modificamos manualmente el total a 0
+    (o.invoices![0] as any).total = 0;
+    const s = getOrderSummary(o);
+    expect(s.realizedProfit).toBe(0);
+    expect(Number.isNaN(s.realizedProfit)).toBe(false);
+  });
 });
 
 describe('computeDynamicFinancials (Instructivo Motor Financiero)', () => {

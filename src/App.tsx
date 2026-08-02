@@ -17,7 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Upload = lazy(() => import('./pages/Upload'));
 const Orders = lazy(() => import('./pages/Orders'));
-const Cobranza = lazy(() => import('./pages/Cobranza'));
+const Cobranza = lazy(() => import('./components/Cobranza'));
 const CajaChica = lazy(() => import('./pages/CajaChica'));
 const Compras = lazy(() => import('./pages/Compras'));
 const ControlCenter = lazy(() => import('./pages/ControlCenter'));
