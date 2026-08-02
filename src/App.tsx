@@ -26,6 +26,7 @@ const OcTracking = lazy(() => import('./pages/OcTracking'));
 const Catalog = lazy(() => import('./pages/Catalog'));
 const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m.FastEntry })));
 const AuditSync = lazy(() => import('./pages/AuditSync'));
+const DataMining = lazy(() => import('./pages/DataMining'));
 
 function RouteFallback() {
   return (
@@ -66,6 +67,7 @@ function Gate() {
           <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
           <Route path="audit" element={<Suspense fallback={<RouteFallback />}><AuditSync /></Suspense>} />
           <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
+          <Route path="mining" element={<Suspense fallback={<RouteFallback />}><DataMining /></Suspense>} />
           <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
           <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />

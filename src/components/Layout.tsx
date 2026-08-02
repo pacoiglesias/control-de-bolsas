@@ -31,6 +31,7 @@ const NAV: NavItem[] = [
 
   { type: 'group', label: '-- ADMINISTRACIÓN --', roles: ['admin'] },
   { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
+  { type: 'link', to: '/mining', icon: '📊', label: 'Sábana Maestra', roles: ['admin'] },
 ];
 
 function initTheme(): 'light' | 'dark' {

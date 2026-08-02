@@ -172,16 +172,31 @@ export function extractStats(data: any): Record<string, any> {
 
   // Monto pendiente por facturar (kilos entregados - kilos facturados)
   let kilosPendientesFacturar = 0;
+  let entregados = 0;
   if (status !== 'manual_review' && data.client !== 'MIGRACION') {
     let kilosFacturados = 0;
     for (const inv of invoices) {
       kilosFacturados += Number(inv.kilos || 0);
     }
-    const entregados = Number(data.totalKilograms || 0);
+    
+    // Kilos Entregados = suma de entregas si existen, sino 0. 
+    // NO asumas que entregados = totalKilograms (kilos pedidos).
+    if (data.deliveries && data.deliveries.length > 0) {
+      for (const d of data.deliveries) {
+         entregados += Number(d.kilos || 0);
+      }
+    }
+
     const faltantes = Math.max(0, entregados - kilosFacturados);
     kilosPendientesFacturar = faltantes;
   }
-  const montoPendienteFacturar = round2(kilosPendientesFacturar * 47 * 1.16);
+  
+  // Utilizar el precio de venta configurado en el expediente (snapshot/custom), no $47 fijo.
+  const customPrice = data.financials?.salePricePerKg || 47; 
+  // Nota: Si el IVA es distinto de 16%, debería leerse de data.financials.ivaRate, pero 
+  // para mantener la estructura actual de los KPIs que asume 16% agregamos fallback a 1.16
+  const ivaRate = data.financials?.ivaRate ?? 0.16;
+  const montoPendienteFacturar = round2(kilosPendientesFacturar * customPrice * (1 + ivaRate));
 
   return {
     kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir,

@@ -9,7 +9,7 @@ import { safeDeleteDoc, logAction } from '../../lib/logger';
 
 export function useOrderActions() {
   async function saveOrder({
-    form, order, kilosNum, allOrders, dynamicConfig, config, baselineUpdatedAt, userEmail, toast, setBusy, onClose, liveSummary
+    form, order, kilosNum, allOrders, dynamicConfig, baselineUpdatedAt, userEmail, toast, setBusy, onClose, liveSummary
   }: any) {
     if (kilosNum <= 0) {
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
@@ -60,7 +60,9 @@ export function useOrderActions() {
       const updatedInvoices = form.invoices.map((inv: any) => {
         const snapshotCfg = {
           ...dynamicConfig,
-          salePricePerKg: inv.financials?.salePricePerKg || config.salePricePerKg,
+          salePricePerKg: (form.customSellPrice !== undefined && form.customSellPrice !== '') ? dynamicConfig.salePricePerKg : (inv.financials?.salePricePerKg || dynamicConfig.salePricePerKg),
+          costPricePerKg: (form.customCostPrice !== undefined && form.customCostPrice !== '') ? dynamicConfig.costPricePerKg : (inv.financials?.costPricePerKg || dynamicConfig.costPricePerKg),
+          commissionRate: (form.customCommissionRate !== undefined && form.customCommissionRate !== '') ? dynamicConfig.commissionRate : (inv.financials?.commissionRate || dynamicConfig.commissionRate),
         };
 
         const crNum = inv.collection?.contrareciboNumber?.trim() || '';
@@ -123,6 +125,7 @@ export function useOrderActions() {
           customCostPrice: ccp,
           customSellPrice: csp,
           customCommissionRate: ccr,
+          isClosedShort: form.isClosedShort ?? false,
           ...camposInvoices(updatedInvoices),
         }, { merge: true });
       });

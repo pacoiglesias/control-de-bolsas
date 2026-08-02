@@ -104,6 +104,7 @@ export default function OrderModal({
     customCostPrice: order.customCostPrice !== undefined ? String(order.customCostPrice) : '',
     customSellPrice: order.customSellPrice !== undefined ? String(order.customSellPrice) : '',
     customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
+    isClosedShort: order.isClosedShort ?? false,
   });
 
   const set = useCallback(<K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v })), []);
@@ -183,8 +184,25 @@ export default function OrderModal({
   // no hay entrega capturada, sin caer al total pedido.
 
   async function save() {
+    let finalIsClosedShort = form.isClosedShort;
+    const kilosPedidosActuales = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries);
+    const tol = (dynamicConfig as any).weightTolerancePercentage ?? 2;
+    
+    const isUnderLimit = kilosEntregadosActuales >= (kilosPedidosActuales * (1 - tol / 100));
+    const isOverLimit = kilosEntregadosActuales <= (kilosPedidosActuales * (1 + tol / 100));
+
+    // Auto-cierre si se completó y aún no está facturada ni cerrada
+    if (kilosEntregadosActuales > 0 && isUnderLimit && isOverLimit && !finalIsClosedShort && (liveSummary.status === 'pedido' || liveSummary.status === 'pending')) {
+      if (window.confirm('Has completado los kilos pedidos. ¿Deseas marcar esta orden como finalizada para que deje de aparecer como pendiente en almacén?')) {
+        finalIsClosedShort = true;
+        set('isClosedShort', true);
+      }
+    }
+
     await saveOrder({
-      form, order, kilosNum, allOrders, dynamicConfig, config,
+      form: { ...form, isClosedShort: finalIsClosedShort }, 
+      order, kilosNum, allOrders, dynamicConfig, config,
       baselineUpdatedAt, userEmail: user?.email, toast, setBusy, onClose, liveSummary
     });
   }

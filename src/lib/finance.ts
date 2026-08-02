@@ -73,12 +73,16 @@ export function getOrderSummary(o: PurchaseOrder) {
   }
 
   const deliveries: Delivery[] = o.deliveries && o.deliveries.length > 0 ? o.deliveries : [];
-  if (deliveries.length === 0 && o.totalKilograms && o.totalKilograms > 0 && invoices.length > 0) {
-    deliveries.push({
-      id: o.id + '-del0',
-      date: o.processedAt || null,
-      kilos: o.totalKilograms
-    });
+  // Si no hay entregas, no asumimos que entregaron los kilos pedidos. Asumimos como minimo lo facturado.
+  if (deliveries.length === 0 && invoices.length > 0) {
+    const fallbackKilos = invoices.reduce((acc, i) => acc + (i.kilos || 0), 0);
+    if (fallbackKilos > 0) {
+      deliveries.push({
+        id: o.id + '-del0',
+        date: o.processedAt || null,
+        kilos: fallbackKilos
+      });
+    }
   }
 
   const kilosDelivered = round2(deliveries.reduce((a, d) => a + d.kilos, 0));
@@ -154,10 +158,11 @@ export function getOrderSummary(o: PurchaseOrder) {
     else if (hasPending) status = 'pending';
     else if (hasFacturado) status = 'facturado';
     else if (allPaid) {
-      if (kilosInvoiced < (o.totalKilograms || 0)) status = 'pending';
+      if (kilosInvoiced < (o.totalKilograms || 0) && !o.isClosedShort) status = 'pending';
       else status = hasCollected ? 'collected' : 'paid';
     } else if (allPedido) {
-      status = 'pedido';
+      if (o.isClosedShort) status = 'facturado'; // Si no tiene facturas y se cerró, queda como finalizada
+      else status = 'pedido';
     }
   }
 

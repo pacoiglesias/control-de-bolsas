@@ -6,11 +6,32 @@ import { escapeHtml, fromInputDate, money, toInputDate, kilos, percent, fmtDate,
 import { Timestamp } from 'firebase/firestore';
 import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
+import { parseXmlInvoice } from '../../lib/xmlParser';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
   if (!ctx) return null;
-  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processParsedXml, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+
+  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = parseXmlInvoice(text);
+        processParsedXml(parsed);
+      } catch (err: any) {
+        toast(`Error al leer XML: ${err.message}`, 'bad');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset input
+  };
 
   return (
     <>
@@ -21,10 +42,16 @@ export default function TabFacturas() {
               </div>
               {!readOnly && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
+                  
+                  <button className="btn" onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)', color: 'var(--accent)' }}>
+                    📄 CARGAR XML (SAT)
+                  </button>
+
                   <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF o XML de la Factura:");
+                    const text = window.prompt("Pega aquí el texto completo copiado del PDF de la Factura:");
                     if (text) processFacturaText(text);
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR FACTURA</button>
+                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
 
                   <button className="btn" onClick={() => {
                     const text = window.prompt("Pega aquí el texto completo copiado del PDF del Complemento de Pago:");

@@ -13,6 +13,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
+import { useMaquilaDeliveries } from '../hooks/useMaquilaDeliveries';
 import { useToast } from '../context/ToastContext';
 import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
 import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal } from '../lib/finance';
@@ -385,6 +386,40 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
     ]
   }
 ];
+
+function BandejaMaquilaWidget() {
+  const { deliveries, loading } = useMaquilaDeliveries();
+  const nav = useNavigate();
+
+  if (loading || deliveries.length === 0) return null;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ background: 'var(--brand-light)', border: '1px solid var(--brand)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, boxShadow: 'var(--shadow-hover)' }}
+    >
+      <div style={{ fontSize: 32 }}>📥</div>
+      <div style={{ flex: 1 }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: 'var(--brand-dark)' }}>Bandeja de Entregas (Portal Maquilador)</h3>
+        <p style={{ margin: '4px 0 0 0', fontSize: 14, color: 'var(--brand)' }}>
+          Andrés ha reportado <strong>{deliveries.length}</strong> entrega(s) pendiente(s) de revisión.
+        </p>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {deliveries.slice(0, 3).map((d: any) => (
+          <button key={d.id} className="btn" onClick={() => {
+            if (d.orderId) nav(`/oc/${d.orderId}`);
+            else nav(`/ordenes`);
+          }} style={{ background: 'white', color: 'var(--brand-dark)', fontSize: 12, padding: '6px 12px', border: '1px solid var(--brand)' }}>
+            Ver {d.folio || 'OC'} ({d.kilos}kg)
+          </button>
+        ))}
+        {deliveries.length > 3 && <span style={{ alignSelf: 'center', fontSize: 12, color: 'var(--brand-dark)', fontWeight: 600 }}>+{deliveries.length - 3} más</span>}
+      </div>
+    </motion.div>
+  );
+}
 
 export default function Dashboard() {
   const { purchases } = usePurchases();
@@ -983,6 +1018,7 @@ return () => unsub();
         )}
       </div>
 
+      <BandejaMaquilaWidget />
       
       {/* 🚀 Widget Proactivo: Asistente de Siguiente Acción */}
       {(k.pedidoPendiente.length > 0 || k.urgentes15 > 0 || k.review.length > 0) && (
@@ -1258,7 +1294,7 @@ return () => unsub();
                 <strong>{money(k.deudaTotalProvidencia)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#f87171' }}>
-                <span>(-) Comisión Contable (8%)</span>
+                <span>(-) Comisión Contable ({(config.commissionRate * 100).toFixed(1).replace(/\.0$/, '')}%)</span>
                 <strong>-{money(k.comisionContable)}</strong>
               </div>
               <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>

@@ -7,6 +7,8 @@ export interface MaquilaDelivery {
   date: any;
   productCode: string;
   productDescription: string;
+  orderId?: string;
+  folio?: string;
   kilos: number;
   status: 'pending' | 'assigned';
   createdAt: any;

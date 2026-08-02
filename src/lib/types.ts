@@ -199,6 +199,7 @@ export interface PurchaseOrder {
   processedAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
   aiError?: string;
+  isClosedShort?: boolean;
 }
 
 export interface Expense {

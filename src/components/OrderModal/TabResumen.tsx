@@ -113,7 +113,7 @@ export default function TabResumen() {
               <div className="calc-line">
                 <span>Ganancia Comercial (Devengada)</span>
                 {form.customCostPrice && form.customSellPrice ? (
-                  <span className="mono" style={{ color: 'var(--ok)' }}>{money(liveSummary.tradeMargin)}</span>
+                  <span className="mono" style={{ color: 'var(--ok)' }}>{money(liveSummary.netCashFlow)}</span>
                 ) : (
                   <span className="mono" style={{ color: 'var(--warn)', fontSize: '0.85em' }}>Falta costo/venta</span>
                 )}
@@ -126,8 +126,21 @@ export default function TabResumen() {
               </div>
             </div>
             
-            <div style={{ marginTop: 16 }}>
-              <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
+            <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div>
+                <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
+              </div>
+              {form.isClosedShort && <span className="badge badge-warn">🔒 Cierre Forzado</span>}
+              {!form.isClosedShort && liveSummary.status === 'pending' && kilosNum - liveSummary.kilosDelivered > 0 && (
+                <button className="btn btn-primary" style={{ background: 'var(--ink)', borderColor: 'var(--ink)', fontSize: 12 }} onClick={() => {
+                  if (window.confirm('¿Seguro que deseas forzar el cierre de esta Orden? Ya no aparecerá como pendiente en almacén aunque falten kilos.')) {
+                    set('isClosedShort', true);
+                    toast('Orden marcada para cierre. Haz clic en Guardar Cambios.', 'ok');
+                  }
+                }}>
+                  🔒 Forzar Cierre (Faltan Kilos)
+                </button>
+              )}
             </div>
           </>
   // eslint-disable-next-line react-hooks/exhaustive-deps

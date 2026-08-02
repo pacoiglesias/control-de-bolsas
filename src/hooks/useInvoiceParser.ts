@@ -3,6 +3,7 @@ import { useToast } from '../context/ToastContext';
 import { addDays } from '../lib/finance';
 import type { Invoice } from '../lib/types';
 import type { FinanceConfigCore } from '../lib/finance';
+import type { ParsedInvoiceData } from '../lib/xmlParser';
 
 interface UseInvoiceParserProps {
   invoices: Invoice[];
@@ -79,6 +80,55 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
 
     setInvoices([...invoices, newInvoice]);
     toast(`Factura agregada. Folio: ${finalFolio || 'No encontrado'}, Kilos: ${kilos || 0}`, 'ok');
+  };
+
+  const processParsedXml = (data: ParsedInvoiceData) => {
+    // Validación Antiduplicados
+    const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
+    if (currentInvoicesFolios.includes(data.uuid)) {
+      toast(`La Factura #${data.uuid} ya existe en este mismo expediente.`, 'bad');
+      return;
+    }
+    if (allOrders && allOrders.length > 0) {
+      const duplicadoGlobal = allOrders.find(o => 
+        (o.invoices || []).some((i: any) => i.folio?.trim().toUpperCase() === data.uuid)
+      );
+      if (duplicadoGlobal) {
+        toast(`La Factura #${data.uuid} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
+        return;
+      }
+    }
+
+    // Inferir kilos desde los conceptos (buscando KG, KGM o algo parecido en la descripcion/unidad)
+    let totalKilos = 0;
+    data.conceptos.forEach(c => {
+      totalKilos += c.cantidad; // Asumimos que la cantidad es kilos si es una empresa de empaques, pero puede que no.
+      // Podríamos ser más inteligentes, pero tomaremos la cantidad por defecto.
+    });
+
+    // Asegurar que la fecha viene con la zona horaria correcta (generalmente el SAT devuelve YYYY-MM-DDTHH:mm:ss)
+    const issue = new Date(data.fecha + 'Z'); 
+    const due = addDays(issue, config.creditDays);
+
+    const newInvoice: Invoice = {
+      id: Date.now().toString(),
+      folio: data.uuid,
+      kilos: totalKilos, // O 0 si preferimos que lo llenen manual
+      oc: '',
+      creditCycle: { 
+        status: 'pending', 
+        issueDate: Timestamp.fromDate(issue), 
+        dueDate: Timestamp.fromDate(due) 
+      },
+      collection: { 
+        paidAmount: 0, 
+        contrareciboNumber: '', 
+        notes: '' 
+      }
+    };
+
+    setInvoices([...invoices, newInvoice]);
+    toast(`Factura XML Procesada. UUID: ${data.uuid}. Subtotal: $${data.subTotal}`, 'ok');
   };
 
   const processPagoText = (text: string) => {
@@ -184,6 +234,7 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
 
   return {
     processFacturaText,
+    processParsedXml,
     processPagoText
   };
 }

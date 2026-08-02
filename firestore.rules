@@ -5,13 +5,13 @@ service cloud.firestore {
     // Función principal para verificar si el usuario es administrador.
     function isAdmin() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && (
           request.auth.token.admin == true ||
           (request.auth.token.email != null && (
             request.auth.token.email.matches(".*@ruenisco\\.com") ||
             request.auth.token.email == "pacoismael@gmail.com" ||
-            request.auth.token.email == "paco@cobertores.com" ||
-            request.auth.token.email.matches("admin@.*")
+            request.auth.token.email == "paco@cobertores.com"
           ))
         );
     }
@@ -19,6 +19,7 @@ service cloud.firestore {
     // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager.
     function isAuthenticatedUser() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid))
           || isAdmin()
