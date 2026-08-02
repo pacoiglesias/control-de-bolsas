@@ -114,31 +114,80 @@ export default function Catalog() {
             <input className="input boxed mono" type="number" step="0.01" value={nuevo.defaultPrice} onChange={(e) => setNuevo({ ...nuevo, defaultPrice: e.target.value })} placeholder="0.00" />
           </Field>
         </div>
-        <button
-          className="btn btn-primary"
-          style={{ marginTop: 12 }}
-          disabled={creando || !nuevo.description.trim()}
-          onClick={async () => {
-            setCreando(true);
-            try {
-              await addDoc(collection(db, PATHS.products), {
-                code: nuevo.code.trim(),
-                description: nuevo.description.trim(),
-                unit: nuevo.unit.trim() || 'kg',
-                defaultPrice: Number(nuevo.defaultPrice) || 0,
-                createdAt: serverTimestamp(),
-              });
-              toast(`Producto "${nuevo.description}" agregado al catálogo.`, 'ok');
-              setNuevo({ code: '', description: '', unit: 'kg', defaultPrice: '' });
-            } catch (e) {
-              toast(`No se pudo agregar: ${(e as Error).message}`, 'bad');
-            } finally {
-              setCreando(false);
-            }
-          }}
-        >
-          {creando ? 'Agregando…' : '+ Agregar Producto'}
-        </button>
+        
+        <div style={{ display: 'flex', gap: '12px', marginTop: 12, alignItems: 'center' }}>
+          <button
+            className="btn btn-primary"
+            disabled={creando || !nuevo.description.trim()}
+            onClick={async () => {
+              setCreando(true);
+              try {
+                await addDoc(collection(db, PATHS.products), {
+                  code: nuevo.code.trim(),
+                  description: nuevo.description.trim(),
+                  unit: nuevo.unit.trim() || 'kg',
+                  defaultPrice: Number(nuevo.defaultPrice) || 0,
+                  createdAt: serverTimestamp(),
+                });
+                toast(`Producto "${nuevo.description}" agregado al catálogo.`, 'ok');
+                setNuevo({ code: '', description: '', unit: 'kg', defaultPrice: '' });
+              } catch (e) {
+                toast(`No se pudo agregar: ${(e as Error).message}`, 'bad');
+              } finally {
+                setCreando(false);
+              }
+            }}
+          >
+            {creando ? 'Agregando…' : '+ Agregar Producto'}
+          </button>
+
+          <span style={{ color: 'var(--text-light)', fontSize: '13px' }}>ó</span>
+
+          <label className="btn" style={{ cursor: 'pointer', margin: 0 }}>
+            {creando ? 'Procesando...' : '📄 Importar CSV (Código, Nombre, Precio)'}
+            <input 
+              type="file" 
+              accept=".csv" 
+              style={{ display: 'none' }}
+              disabled={creando}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setCreando(true);
+                try {
+                  const text = await file.text();
+                  const lines = text.split('\n');
+                  let added = 0;
+                  for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const parts = line.split(',');
+                    // code, desc..., price
+                    const code = parts[0]?.trim() || '';
+                    if (code.toLowerCase() === 'sku' || code.toLowerCase() === 'código' || code.toLowerCase() === 'codigo') continue;
+                    const priceRaw = parts[parts.length - 1]?.trim() || '0';
+                    const desc = parts.slice(1, -1).join(',').replace(/^"|"$/g, '').trim(); 
+                    if (!desc) continue;
+
+                    await addDoc(collection(db, PATHS.products), {
+                      code,
+                      description: desc,
+                      unit: 'kg',
+                      defaultPrice: Number(priceRaw) || 0,
+                      createdAt: serverTimestamp(),
+                    });
+                    added++;
+                  }
+                  toast(`Se importaron ${added} productos desde el CSV.`, 'ok');
+                } catch (err: any) {
+                  toast(`Error al importar CSV: ${err.message}`, 'bad');
+                } finally {
+                  setCreando(false);
+                  if (e.target) e.target.value = '';
+                }
+              }}
+            />
+          </label>
+        </div>
       </Card>
 
       <Card title="Productos Registrados">
