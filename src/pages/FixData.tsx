@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db, PATHS } from '../lib/firebase';
-import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, writeBatch } from 'firebase/firestore';
 
 export default function FixData() {
   const [log, setLog] = useState<string[]>([]);
@@ -80,27 +80,7 @@ export default function FixData() {
       
       addLog(`Se actualizaron ${matchedCount} facturas con su CR exacto o estado pagado.`);
 
-      // 2. Fix Andrés Saldo
-      // Saldo a favor nuestro con andres: 21,824.44
-      // Saldo caja: 75,265.56
-      const expensesSnap = await getDocs(collection(db, PATHS.expenses));
-      let totalPagado = 0;
-      expensesSnap.docs.forEach(d => {
-         const e = d.data();
-         if (e.category === 'proveedor') {
-            if (e.type === 'egreso') totalPagado += e.amount;
-            if (e.type === 'ingreso') totalPagado -= e.amount;
-         }
-      });
-      
-      // La formula de "Saldo A Favor" es: totalPagado - deudaHistorica = 21,824.44
-      // Entonces: deudaHistorica = totalPagado - 21,824.44
-      const targetDeudaHistorica = totalPagado - 21824.44;
-      
-      batch.update(doc(db, 'system_settings', 'global'), {
-         historicalDebtAndres: targetDeudaHistorica
-      });
-      addLog(`✅ Ajustado Saldo Histórico de Andrés para que tu Saldo a Favor sea exactamente $21,824.44.`);
+      // El ajuste de saldo histórico de Andrés se quitó para que no sobreescriba los números actuales.
       
       // Commit all
       await batch.commit();
