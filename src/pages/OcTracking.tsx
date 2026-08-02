@@ -62,6 +62,13 @@ export default function OcTracking() {
 
     return Array.from(map.entries())
       .map(([oc, data]) => ({ oc, order: data.order, invoices: data.invoices }))
+      .filter(g => {
+        // Filtrar órdenes que ya están totalmente entregadas y con contrarecibo
+        if (g.invoices.length === 0) return true; // Falta todo
+        // Si hay alguna factura sin CR o que no esté pagada/cobrada
+        const allHaveCR = g.invoices.every(inv => inv.cr);
+        return !allHaveCR;
+      })
       .sort((a, b) => {
         if (a.oc === 'SIN-OC') return 1;
         if (b.oc === 'SIN-OC') return -1;

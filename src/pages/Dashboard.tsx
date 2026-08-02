@@ -1,21 +1,19 @@
 import { useMemo, useState, useEffect } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { motion } from 'framer-motion';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { money, shareHtmlAsPdf, kilos, monthLabel, fmtDate, getPrintHeaderHtml } from '../lib/format';
-import { exportToExcel } from '../lib/export';
+import { money, kilos, fmtDate } from '../lib/format';
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useConfig } from '../hooks/useConfig';
-import { useSystemSettings } from '../hooks/useSystemSettings';
+// import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { KpiCard, Card, Empty, StatusBadge, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
-import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal } from '../lib/finance';
+import { KpiCard, Empty, Skeleton, ResponsiveMoney, Modal } from '../components/ui';
+import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal, PorRecibirItem } from '../lib/finance';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder, Invoice } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
@@ -377,7 +375,7 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
 export default function Dashboard() {
   const { purchases } = usePurchases();
   const { expenses, loading: loadingExp } = useExpenses();
-  const { settings } = useSystemSettings();
+  // const { settings } = useSystemSettings();
   const { orders: globalOrders, loading: loadingGlobalOrders } = useOrdersContext();
   const { role, user } = useAuth();
   const { config } = useConfig();
@@ -391,7 +389,7 @@ export default function Dashboard() {
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
-  const [deptFilter, setDeptFilter] = useState<string>('ALL');
+  const [deptFilter] = useState<string>('ALL');
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -615,7 +613,7 @@ return () => unsub();
     };
   }, [statsDoc, activeOrders, config]);
 
-  const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
+  // const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
 
   if (loading || loadingExp) {
     return (
@@ -634,90 +632,6 @@ return () => unsub();
     );
   }
   if (error) return <div className="alert bad">{error}</div>;
-
-  function getRentabilidadHtml() {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Reporte de Utilidad Comercial</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            .flow-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; }
-            .flow-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-            .flow-row:last-child { border-bottom: none; }
-            .flow-label { font-weight: 600; color: #475569; }
-            .flow-val { font-family: monospace; font-size: 15px; }
-            .flow-total { font-weight: 800; font-size: 18px; color: #0f172a; border-top: 2px solid #cbd5e1; padding-top: 16px; margin-top: 8px; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 80px; text-align: center; font-weight: 600; color: #475569; }
-            .sig-box { border-top: 1px solid #94a3b8; width: 250px; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          ${getPrintHeaderHtml(settings, "Reporte de Rentabilidad (Utilidad Comercial)")}
-          
-          <div style="margin-bottom: 24px; font-size: 14px; color: #475569; font-weight: 500;">
-            ${k.periodText}
-          </div>
-
-          <div class="kpis">
-            <div class="kpi"><div class="kpi-title">TOTAL VENDIDO</div><div class="kpi-val">$${k.ventasTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">UTILIDAD BRUTA (MARGIN)</div><div class="kpi-val" style="color: #047857;">$${k.margenTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">GANANCIA LÍQUIDA EN CAJA</div><div class="kpi-val" style="color: #2563eb;">$${k.gananciaRealizadaTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-          </div>
-
-          <h3>Cascada Financiera: Deuda Proyectada</h3>
-          <div class="flow-box">
-            <div class="flow-row"><span class="flow-label">1. Dinero en la calle (Por cobrar):</span><span class="flow-val">$${(k.porCobrar || 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row"><span class="flow-label">2. Mercancía entregada pendiente de facturar:</span><span class="flow-val">$${(k.montoPendienteFacturar || 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row flow-total"><span class="flow-label">Deuda Bruta de Providencia:</span><span class="flow-val" style="color: #b91c1c;">$${k.deudaTotalProvidencia.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row"><span class="flow-label">Menos Comisión Contable Estimada:</span><span class="flow-val" style="color: #047857;">-$${k.comisionContable.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row flow-total"><span class="flow-label">Dinero Real a Recibir (Neto):</span><span class="flow-val" style="color: #2563eb;">$${k.dineroRealARecibir.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-          </div>
-
-          <h3>Métricas Operativas</h3>
-          <div class="flow-box">
-            <div class="flow-row"><span class="flow-label">Kilos Procesados:</span><span class="flow-val">${k.kilosTotal.toLocaleString('es-MX')} kg</span></div>
-            <div class="flow-row"><span class="flow-label">Facturas Emitidas:</span><span class="flow-val">${k.facturasEmitidas.toLocaleString('es-MX')} facturas</span></div>
-            <div class="flow-row"><span class="flow-label">Órdenes Atendidas:</span><span class="flow-val">${k.totalOrders.toLocaleString('es-MX')} OC's</span></div>
-            <div class="flow-row"><span class="flow-label">Costo por Kilo Base:</span><span class="flow-val">$${(config?.costPricePerKg || 0).toLocaleString('es-MX', {minimumFractionDigits:2})} MXN/kg</span></div>
-            <div class="flow-row"><span class="flow-label">Venta por Kilo Base:</span><span class="flow-val">$${(config?.salePricePerKg || 0).toLocaleString('es-MX', {minimumFractionDigits:2})} MXN/kg</span></div>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-box">Elaborado Por</div>
-            <div class="sig-box">Aprobado / Revisado</div>
-          </div>
-
-          <script>
-            window.onafterprint = () => window.close();
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-  }
-
-  function printRentabilidad() {
-    const html = getRentabilidadHtml();
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
-
-  async function shareRentabilidad() {
-    const html = getRentabilidadHtml();
-    toast('Generando PDF, por favor espera...', 'ok');
-    await shareHtmlAsPdf(html, `Rentabilidad_Providencia_${new Date().toISOString().split('T')[0]}.pdf`);
-  }
-
   async function handleRecibir(r: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }) {
     if (!window.confirm(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`)) return;
     
@@ -729,7 +643,7 @@ return () => unsub();
       
       const orderData = orderSnap.data();
       const invoices = orderData.invoices || [];
-      const invIndex = invoices.findIndex((i: any) => i.id === r.invoiceId);
+      const invIndex = invoices.findIndex((i: Invoice) => i.id === r.invoiceId);
       if (invIndex === -1) throw new Error("Factura no encontrada");
       
       invoices[invIndex].creditCycle.status = 'collected';
@@ -748,573 +662,321 @@ return () => unsub();
       });
       
       toast(`💵 Recibido del contador. $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
-    } catch (e: any) {
-      toast('Error: ' + e.message, 'bad');
+    } catch (e: unknown) {
+      toast('Error: ' + (e as Error).message, 'bad');
     }
   }
 
   return (
     <>
-      <div className="page-head">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h1>Dashboard Maestro</h1>
-            <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn" style={{ background: '#10b981', color: '#fff', borderColor: '#10b981', fontWeight: 600 }} onClick={async () => {
-              toast('Generando Cierre de Mes Excel...', 'info');
-              try {
-                await exportToExcel();
-                toast('Cierre de Mes exportado', 'ok');
-              } catch (e) {
-                toast('Error al exportar', 'bad');
-              }
-            }}>
-              📊 Cierre de Mes (Excel)
-            </button>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareRentabilidad}>
-              <span className="icon">📤</span> Compartir PDF
-            </button>
-            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printRentabilidad}>
-              📈 Imprimir Reporte
-            </button>
-          </div>
+      {/* 🚀 HEADER HERO: ZONA 1 (KPI Financieros OLED) */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div className="kpi-section-title" style={{ margin: 0 }}>💰 Visión Global Financiera</div>
+          <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{k.periodText}</div>
         </div>
-        <div className="tabs" style={{ marginTop: 16 }}>
-          <button className={deptFilter === 'ALL' ? 'active' : ''} onClick={() => setDeptFilter('ALL')}>🏢 Toda la Empresa</button>
-          {(settings?.departments || ['TH', 'GT']).map(d => (
-            <button key={d} className={deptFilter === d ? 'active' : ''} onClick={() => setDeptFilter(d)}>{d}</button>
-          ))}
-        </div>
-      </div>
-
-      {role !== 'viewer' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, marginTop: 16 }}>
-          <button className="btn" onClick={() => nav('/subir')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper-sunk)', border: '2px dashed var(--accent)', color: 'var(--ink)' }}>
-            <span style={{ fontSize: 28 }}>📥</span>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Subir OC (PDF)</span>
-            <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Órdenes de Compra</span>
-          </button>
-          <button className="btn" onClick={() => nav('/captura-rapida')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper-sunk)', border: '2px dashed var(--ok)', color: 'var(--ink)' }}>
-            <span style={{ fontSize: 28 }}>⚡</span>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Pegar Facturas / Pagos</span>
-            <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Extraer texto de PDFs</span>
-          </button>
-          <button className="btn" onClick={() => nav('/ordenes?nueva=1')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
-            <span style={{ fontSize: 28 }}>🛒</span>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Venta Manual</span>
-            <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Crear sin PDF</span>
-          </button>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>
         
-        {role === 'admin' && (
-          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--ok-bg)', color: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-              ⚡
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Último Movimiento (Live)</span>
-                <span className="badge badge-ok" style={{ fontSize: 10 }}>● En vivo</span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
-                🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {liveLogs[0]?.action || 'Sistema iniciado'}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
-                Por: {liveLogs[0]?.user || '—'}
-              </div>
-              <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-                ⚡ Monitor Live de Movimientos
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-            🚀
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Versión del Sistema</span>
-              <span className="badge badge-ok" style={{ fontSize: 10 }}>v{__APP_VERSION__}</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
-              📅 {SYSTEM_CHANGELOG[0]?.date ?? '—'}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {SYSTEM_CHANGELOG[0]?.summary ?? ''}
-            </div>
-            <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              📜 Bitácora de Parches
-            </button>
-          </div>
-        </div>
-
-        {role === 'admin' && (
-          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--info-bg)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-              🛡️
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Salud & Respaldos</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, marginBottom: 4 }}>
-                BD: <strong>{health.dbStatus}</strong> · Respaldo: {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  {backupBusy ? 'Guardando…' : '☁ Respaldar'}
-                </button>
-                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  📋 5 Máx
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      
-      {/* 🚀 Widget Proactivo: Asistente de Siguiente Acción */}
-      {(k.pedidoPendiente.length > 0 || k.urgentes15 > 0 || k.review.length > 0) && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, boxShadow: 'var(--shadow-hover)' }}
-        >
-          <div style={{ fontSize: 32, filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5))' }}>✨</div>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ margin: 0, fontSize: 16, color: 'var(--accent)' }}>Sugerencias Proactivas</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: 14, color: 'var(--ink-soft)' }}>
-              {k.pedidoPendiente.length > 0 ? `Tienes ${k.pedidoPendiente.length} órdenes con entregas pero sin facturar. ` : ''}
-              {k.urgentes15 > 0 ? `Existen ${k.urgentes15} contrarecibos urgentes por cobrar. ` : ''}
-              {k.review.length > 0 ? `Hay ${k.review.length} XMLs esperando validación manual.` : ''}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {k.pedidoPendiente.length > 0 && <button className="btn btn-primary" onClick={() => nav('/ordenes?filtro=pedido')}>Facturar Ahora</button>}
-            {k.urgentes15 > 0 && <button className="btn" onClick={() => nav('/cobranza')}>Cobrar</button>}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Panel de Semáforo de Alertas Visuales - Control de Gestión */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: k.criticos30 > 0 ? 'rgba(239,68,68,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.criticos30 > 0 ? '#ef4444' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🔴</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink-faint)' }}>Críticos (&gt;30 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink)' }}>{k.criticos30} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: k.urgentes15 > 0 ? 'rgba(249,115,22,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.urgentes15 > 0 ? '#f97316' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟠</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink-faint)' }}>Urgentes (16-30 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink)' }}>{k.urgentes15} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: k.recientes1 > 0 ? 'rgba(234,179,8,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.recientes1 > 0 ? '#eab308' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟡</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.recientes1 > 0 ? '#a16207' : 'var(--ink-faint)' }}>Recientes (1-15 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.recientes1 > 0 ? '#a16207' : 'var(--ink)' }}>{k.recientes1} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟢</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#047857' }}>Por Recoger Contador</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#047857' }}>{k.porRecibir.length} contrarecibo(s)</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>📅</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 7 Días</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion7d)}</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>📈</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 15 Días</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion15d)}</div>
-          </div>
-        </div>
-      </div>
-
-      {(k.overdue.length > 0 || k.review.length > 0) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-          {k.overdue.length > 0 && (
-            <div className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 20 }}>⚠️</span>
-              <div style={{ flex: 1 }}>
-                <strong>Atención:</strong> Tienes {k.overdue.length} contrarecibo{k.overdue.length > 1 ? 's' : ''} vencido{k.overdue.length > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
-              </div>
-              <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
-            </div>
-          )}
-          {k.review.length > 0 && (
-            <div className="alert warn" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 20 }}>🔍</span>
-              <div style={{ flex: 1 }}>
-                <strong>Revisión manual:</strong> {k.review.length} archivo{k.review.length > 1 ? 's' : ''} con errores en XML o que esperan captura manual.
-              </div>
-              <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar Ahora</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {k.porRecibir.length > 0 && (
-        <div style={{
-          background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2218 100%)',
-          border: '1px solid var(--ok)',
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 22,
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+          gap: 16,
+          background: 'linear-gradient(180deg, rgba(20,20,20,0.8) 0%, rgba(10,10,10,0.9) 100%)',
+          padding: 24,
+          borderRadius: 16,
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
-                💼 Por Recibir del Contador
-              </div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                Estas facturas ya fueron cobradas por el cliente — el contador aún no te da el efectivo
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Total neto a recibir</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
-            </div>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
-                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Factura</th>
-                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Contrarecibo</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Importe Factura</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Comisión</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Neto a recibir</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {k.porRecibir.map((r: any, idx: number) => (
-                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                  <td style={{ padding: '8px 8px', color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>#{r.folio}</td>
-                  <td style={{ padding: '8px 8px', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{r.cr}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.8)' }}>{money(r.invoiceTotal)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 700 }}>{money(r.net)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right' }}>
-                    <button className="btn" style={{ background: 'rgba(34,197,94,0.2)', color: 'var(--ok)', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 12, fontWeight: 600 }} onClick={() => handleRecibir(r)}>
-                      💵 Recibir → CAJA
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-            Abre la factura → "💵 Recibida del Contador → Caja Chica" para mover el dinero automáticamente.
+          <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.totalVendido} />}
+            sub={<>{kilos(k.totalKilos)} procesados en {k.totalOrders} órdenes</>} />
+            
+          {role !== 'viewer' && (
+            <>
+              <KpiCard tone="ok" label="Ganancia Comercial" value={<ResponsiveMoney value={k.margenTotal || 0} />}
+                sub="Venta - Costo (Devengada)" />
+              <KpiCard tone="ok" label="Ganancia por Cobros" value={<ResponsiveMoney value={k.gananciaRealizadaTotal || 0} />}
+                sub="Flujo real (Cobrado)" />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ⚡ ZONA 2: ACCIONES RÁPIDAS (Botonera Centralizada) */}
+      {role !== 'viewer' && (
+        <div style={{ marginBottom: 32 }}>
+          <div className="kpi-section-title">⚡ Acciones Rápidas</div>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
+            gap: 12 
+          }}>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="btn" onClick={() => nav('/subir')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '90px', background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(37,99,235,0.2))', border: '1px solid rgba(59,130,246,0.5)', color: '#60a5fa' }}>
+              <span style={{ fontSize: 24 }}>📄</span>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>Pegar Facturas</span>
+            </motion.button>
+
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="btn" onClick={() => nav('/ordenes?nueva=1')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '90px', background: 'var(--paper)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
+              <span style={{ fontSize: 24 }}>🛒</span>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>Venta Manual</span>
+            </motion.button>
+            
+            {role === 'admin' && (
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="btn" onClick={() => nav('/compras')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '90px' }}>
+                <span style={{ fontSize: 24 }}>🏭</span>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>Comprar Material</span>
+              </motion.button>
+            )}
+            
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="btn" onClick={() => nav('/cobranza')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '90px' }}>
+              <span style={{ fontSize: 24 }}>💰</span>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Registrar Cobro</span>
+            </motion.button>
           </div>
         </div>
       )}
 
-      {role !== 'viewer' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {role === 'admin' && (
-            <button className="btn" onClick={() => nav('/compras')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-              <span style={{ fontSize: 24 }}>🏭</span>
-              <span style={{ fontWeight: 600 }}>Comprar al Fabricante</span>
-            </button>
-          )}
-          <button className="btn" onClick={() => nav('/cobranza')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-            <span style={{ fontSize: 24 }}>💰</span>
-            <span style={{ fontWeight: 600 }}>Registrar Cobro</span>
-          </button>
-          {role === 'admin' && (
+      {/* 🚨 ZONA 3: CENTRO DE CONTROL PROACTIVO */}
+      <div style={{ marginBottom: 32 }}>
+        <div className="kpi-section-title">🚨 Control Operativo</div>
+        
+        {/* Widget Sugerencias (Si aplica) */}
+        {(k.pedidoPendiente.length > 0 || k.urgentes15 > 0 || k.review.length > 0) && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, boxShadow: 'var(--shadow-hover)' }}
+          >
+            <div style={{ fontSize: 32, filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5))' }}>✨</div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: 15, color: 'var(--accent)' }}>Sugerencias Proactivas</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--ink-soft)' }}>
+                {k.pedidoPendiente.length > 0 ? `Tienes ${k.pedidoPendiente.length} órdenes con entregas pero sin facturar. ` : ''}
+                {k.urgentes15 > 0 ? `Existen ${k.urgentes15} contrarecibos urgentes por cobrar. ` : ''}
+                {k.review.length > 0 ? `Hay ${k.review.length} XMLs esperando validación manual.` : ''}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {k.pedidoPendiente.length > 0 && <button className="btn btn-primary" onClick={() => nav('/ordenes?filtro=pedido')}>Facturar Ahora</button>}
+              {k.urgentes15 > 0 && <button className="btn" onClick={() => nav('/cobranza')}>Cobrar</button>}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Semáforo */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div style={{ background: k.criticos30 > 0 ? 'rgba(239,68,68,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.criticos30 > 0 ? '#ef4444' : 'var(--line)'}`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24, filter: k.criticos30 > 0 ? 'drop-shadow(0 0 8px #ef4444)' : 'none' }}>🔴</div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink-faint)' }}>Críticos (&gt;30 días)</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink)' }}>{k.criticos30} factura(s)</div>
+            </div>
+          </div>
+
+          <div style={{ background: k.urgentes15 > 0 ? 'rgba(249,115,22,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.urgentes15 > 0 ? '#f97316' : 'var(--line)'}`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24, filter: k.urgentes15 > 0 ? 'drop-shadow(0 0 8px #f97316)' : 'none' }}>🟠</div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink-faint)' }}>Urgentes (16-30 días)</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink)' }}>{k.urgentes15} factura(s)</div>
+            </div>
+          </div>
+
+          <div style={{ background: k.recientes1 > 0 ? 'rgba(234,179,8,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.recientes1 > 0 ? '#eab308' : 'var(--line)'}`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24, filter: k.recientes1 > 0 ? 'drop-shadow(0 0 8px #eab308)' : 'none' }}>🟡</div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: k.recientes1 > 0 ? '#a16207' : 'var(--ink-faint)' }}>Recientes (1-15 días)</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: k.recientes1 > 0 ? '#a16207' : 'var(--ink)' }}>{k.recientes1} factura(s)</div>
+            </div>
+          </div>
+          
+          <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24 }}>📅</div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 7 Días</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion7d)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Alertas Críticas Adicionales */}
+        {(k.overdue.length > 0 || k.review.length > 0) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {k.overdue.length > 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 20 }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <strong>Atención:</strong> Tienes {k.overdue.length} contrarecibo(s) vencido(s) por <strong>{money(k.vencido)}</strong>.
+                </div>
+                <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
+              </motion.div>
+            )}
+            {k.review.length > 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="alert warn" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 20 }}>🔍</span>
+                <div style={{ flex: 1 }}>
+                  <strong>Revisión manual:</strong> {k.review.length} archivo(s) con errores en XML o esperando captura manual.
+                </div>
+                <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar</button>
+              </motion.div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 💼 ZONA 4: TABLAS OPERATIVAS */}
+      <div style={{ marginBottom: 32 }}>
+        {k.porRecibir.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2218 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 20,
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#10b981', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🟢 Por Recibir del Contador
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                  Facturas cobradas por el cliente — el efectivo está con el contador.
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, color: 'rgba(16, 185, 129, 0.8)' }}>Total Neto</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#10b981' }}>{money(k.totalPorRecibir)}</div>
+              </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <th style={{ padding: '8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)' }}>Factura</th>
+                    <th style={{ padding: '8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)' }}>Contrarecibo</th>
+                    <th style={{ padding: '8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)' }}>Neto a recibir</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {k.porRecibir.map((r: PorRecibirItem, idx: number) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '10px 8px', color: '#fff', fontWeight: 600 }}>#{r.folio}</td>
+                      <td style={{ padding: '10px 8px', color: 'rgba(255,255,255,0.7)' }}>{r.cr}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', color: '#10b981', fontWeight: 700 }}>{money(r.net)}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        <button className="btn" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: 'none', padding: '6px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6 }} onClick={() => handleRecibir(r)}>
+                          Recibir a CAJA →
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Las facturas vencidas (Antiguo cuadro) */}
+        {k.overdue.length > 0 && (
+          <div style={{ marginBottom: 20, border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 12, background: 'var(--paper)', overflow: 'hidden' }}>
+<div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', fontWeight: 700, fontSize: 16 }}>🔥 Facturas Vencidas</div>
+<div style={{ padding: 20 }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--ink-soft)' }}>Días Venc.</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--ink-soft)' }}>Contrarecibo</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--ink-soft)' }}>Cliente</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--ink-soft)' }}>Importe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {k.overdue.map((o: PurchaseOrder, idx: number) => {
+                    const inv = (o.invoices || []).find(i => i.creditCycle?.status === 'overdue' || (i.creditCycle?.dueDate && i.creditCycle.status === 'pending' && (i.creditCycle.dueDate?.toDate ? i.creditCycle.dueDate.toDate() : new Date(i.creditCycle.dueDate as any)) < new Date()));
+                    if (!inv || !inv.creditCycle?.dueDate) return null;
+                    const dias = Math.floor((new Date().getTime() - (inv.creditCycle.dueDate?.toDate ? inv.creditCycle.dueDate.toDate() : new Date(inv.creditCycle.dueDate as any)).getTime()) / (1000 * 3600 * 24));
+                    const saldo = ((inv as any).total || (inv as any).amount || 0) - ((inv.creditCycle as any).payments || []).reduce((acc: number, p: any) => acc + p.amount, 0);
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--bad)' }}>+{dias}d</td>
+                        <td style={{ padding: '10px 12px', fontWeight: 600, fontFamily: 'monospace' }}>#{o.folio}</td>
+                        <td style={{ padding: '10px 12px' }}>{o.client} {o.department ? `(${o.department})` : ''}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{money(saldo)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div></div>
+        )}
+      </div>
+
+      {/* ⚙️ ZONA 5: ESTADO TÉCNICO (FOOTER DEL DASHBOARD) */}
+      <div style={{ marginTop: 48, paddingTop: 24, borderTop: '1px dashed rgba(255,255,255,0.1)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
+        
+        {/* Recalcular */}
+        {role === 'admin' && (
+          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 12, border: '1px solid var(--line)' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--ink-soft)' }}>🛠️ Herramientas Admin</div>
             <button
               className="btn"
               onClick={() => void recalcStats()}
               disabled={recalcBusy}
-              title="Reconstruye los indicadores de este panel leyendo todos los expedientes. Úsalo si las cifras se ven en cero o descuadradas."
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}
+              style={{ width: '100%', padding: '10px', fontSize: 12, background: 'transparent', border: '1px solid var(--line)' }}
             >
-              <span style={{ fontSize: 24 }}>{recalcBusy ? '⏳' : '🔄'}</span>
-              <span style={{ fontWeight: 600 }}>{recalcBusy ? 'Recalculando…' : 'Recalcular Indicadores'}</span>
+              {recalcBusy ? '⏳ Recalculando…' : '🔄 Recalcular Indicadores'}
             </button>
+            <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginTop: 8, textAlign: 'center' }}>
+              Usa esto si las cifras se ven descuadradas.
+            </div>
+          </div>
+        )}
+
+        {/* Live Logs */}
+        {role === 'admin' && (
+          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 12, border: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink-soft)' }}>⚡ Monitor Live</div>
+              <span className="badge badge-ok" style={{ fontSize: 9 }}>En vivo</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginBottom: 4 }}>
+              🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { timeStyle: 'medium' }) : 'Esperando…'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {liveLogs[0]?.action || 'Sistema iniciado'}
+            </div>
+            <button className="btn" onClick={() => setShowLiveLogsModal(true)} style={{ width: '100%', padding: '6px', fontSize: 11, marginTop: 10, background: 'transparent', border: '1px solid var(--line)' }}>
+              Ver Bitácora Live
+            </button>
+          </div>
+        )}
+
+        {/* Versión y Salud */}
+        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 12, border: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink-soft)' }}>🚀 Sistema v{__APP_VERSION__}</div>
+            <button onClick={() => setShowChangelogModal(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Novedades</button>
+          </div>
+          {role === 'admin' && (
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 8 }}>
+              BD: <strong>{health.dbStatus}</strong> <br/>
+              Respaldo: {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
+            </div>
+          )}
+          {role === 'admin' && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <button className="btn" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ flex: 1, padding: '6px', fontSize: 11, background: 'transparent', border: '1px solid var(--line)' }}>
+                {backupBusy ? 'Guardando…' : '☁ Respaldar'}
+              </button>
+              <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', border: '1px solid var(--line)' }}>
+                📋 5 Máx
+              </button>
+            </div>
           )}
         </div>
-      )}
 
-      {(statsDoc?.counters?.totalOrders ?? 0) === 0 && role === 'admin' && (
-        <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
-            El sistema no tiene órdenes registradas aún
-          </div>
-          <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-            La carga inicial se hace desde la pantalla de migración, donde pegas
-            tus contrarecibos y facturas reales. Este panel ya no carga datos de
-            ejemplo: hacerlo desde aquí mezclaba registros ficticios con los tuyos.
-          </div>
-          <button className="btn btn-primary" onClick={() => nav('/seed')}>
-            📥 Ir a la carga inicial
-          </button>
-        </div>
-      )}
-
-      <div className="kpi-section-title">💰 Ventas y Ganancias</div>
-      <div className="kpi-grid">
-        <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.totalVendido} />}
-          sub={
-            <>
-              {kilos(k.totalKilos)} procesados en {k.totalOrders} órdenes
-              <br /><span style={{ opacity: 0.75 }}>{k.periodText}</span>
-            </>
-          } />
-        {role !== 'viewer' && (
-          <>
-            <KpiCard tone="ok" label="Ganancia Comercial" value={<ResponsiveMoney value={k.margenTotal || 0} />}
-              sub="Venta - Costo (Devengada)" />
-            <KpiCard tone="ok" label="Ganancia por Cobros" value={<ResponsiveMoney value={k.gananciaRealizadaTotal || 0} />}
-              sub="Flujo real (Cobrado)" />
-          </>
-        )}
       </div>
-
-      <div className="kpi-section-title">📋 Cobranza</div>
-      <div className="kpi-grid">
-        <KpiCard tone={k.pedidoPendiente.length > 0 ? 'warn' : 'ok'} label="📝 Pendiente de Facturar"
-          value={<ResponsiveMoney value={k.montoPendienteFacturar || 0} />}
-          sub={
-            <>
-              {k.pedidoPendiente.length} expediente(s) con kilos entregados sin facturar
-              <br /><span style={{ opacity: 0.75 }}>Incluye IVA</span>
-            </>
-          }
-          onClick={() => nav('/ordenes?filtro=pedido')} />
-        {role !== 'viewer' ? (
-          <div className="card stat-card" style={{ padding: '20px', gridColumn: 'span 2', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', border: '1px solid #334155', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>Flujo de Efectivo Providencia</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#cbd5e1' }}>Facturado (Te Deben)</span>
-                <strong>{money(k.porCobrar)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#cbd5e1' }}>Pendiente de Facturar</span>
-                <strong>{money(k.montoPendienteFacturar ?? 0)}</strong>
-              </div>
-              <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 16 }}>
-                <span style={{ color: '#e2e8f0' }}>Deuda Total Providencia</span>
-                <strong>{money(k.deudaTotalProvidencia)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#f87171' }}>
-                <span>(-) Comisión Contable (8%)</span>
-                <strong>-{money(k.comisionContable)}</strong>
-              </div>
-              <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 20, color: 'var(--ok)' }}>
-                <span style={{ fontWeight: 700 }}>Dinero Real a Recibir</span>
-                <span style={{ fontWeight: 800 }}>{money(k.dineroRealARecibir)}</span>
-              </div>
-            </div>
-            <div style={{ marginTop: 16, fontSize: 12, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-              <span>{(k.porCobrarSinCR ?? 0) > 0 ? `${money(k.porCobrarSinCR ?? 0)} sin CR` : ''}</span>
-              <span>{(k.porCobrarConCR ?? 0) > 0 ? `${money(k.porCobrarConCR ?? 0)} con CR` : ''}</span>
-            </div>
-          </div>
-        ) : (
-          <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
-            sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}
-            onClick={() => nav('/cobranza')} />
-        )}
-
-        <KpiCard tone={k.overdue.length ? 'bad' : undefined} label="Vencido" value={<ResponsiveMoney value={k.vencido} />}
-          sub={`${k.overdue.length} contrarecibo${k.overdue.length === 1 ? '' : 's'} pasado${k.overdue.length === 1 ? '' : 's'} de fecha`}
-          onClick={() => nav('/cobranza')} />
-        <KpiCard tone="cash" label="Cobrado" value={<ResponsiveMoney value={k.cobrado} />}
-          sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />
-      </div>
-
-      <div className="kpi-section-title">🏦 Caja y Operación</div>
-      <div className="kpi-grid">
-        {role === 'admin' && (
-          <KpiCard tone={saldoCaja < 0 ? "bad" : "ok"} label="CAJA" value={<ResponsiveMoney value={saldoCaja} />}
-            sub="flujo líquido" onClick={() => nav('/caja-chica')} />
-        )}
-        <KpiCard tone={k.review.length ? 'warn' : undefined} label="Esperan captura manual"
-          value={k.review.length} sub="XML no subido o inválido"
-          onClick={() => nav('/ordenes?filtro=manual_review')} />
-      </div>
-
-      {k.mesesKeys.length > 0 && (
-        <Card title="Ganancias Estimadas por Fecha de Factura">
-          <div className="table-scroll">
-            <table className="data-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>Mes de Emisión</th>
-                  <th className="num">Venta Facturada</th>
-                  <th className="num">Ganancia Comercial</th>
-                  <th className="num">Ganancia por Cobros</th>
-                </tr>
-              </thead>
-              <tbody>
-                {k.mesesKeys.map((m: string) => {
-                  const data = k.meses[m];
-                  return (
-                    <tr key={m}>
-                      <td style={{ fontWeight: 600, textTransform: 'capitalize' }}>{monthLabel(m)}</td>
-                      <td className="num mono">{money(data.venta)}</td>
-                      <td className="num mono" style={{ color: 'var(--ok)' }}>{money(data.margen || 0)}</td>
-                      <td className="num mono" style={{ color: 'var(--ok)' }}>{money(data.gananciaRealizada || 0)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ width: '100%', height: 320, padding: '16px 20px', marginTop: '16px' }}>
-            <ResponsiveContainer>
-              <AreaChart
-                data={k.mesesKeys.map((m: string) => ({ name: monthLabel(m), vendido: k.meses[m].venta, ganancia: k.meses[m].ganancia, cobrado: k.meses[m].cobrado }))}
-                margin={{ top: 10, right: 10, left: 20, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="colorVendido" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorGanancia" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--ok)" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="var(--ok)" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line-soft)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--ink-soft)', fontFamily: 'Outfit' }} dy={10} />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 12, fill: 'var(--ink-soft)', fontFamily: 'Outfit' }}
-                  tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  cursor={{ stroke: 'var(--line)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                  contentStyle={{ backgroundColor: 'var(--glass)', backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow-hover)' }}
-                  formatter={(value) => money(Number(value))}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10, fontFamily: 'Outfit' }} />
-                <Area type="monotone" dataKey="vendido" name="Total Vendido" stroke="var(--accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorVendido)" />
-                <Area type="monotone" dataKey="ganancia" name="Utilidad Neta" stroke="var(--ok)" strokeWidth={3} fillOpacity={1} fill="url(#colorGanancia)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
-
-      <Card title="Facturas Vencidas" hint={`${k.vencidas.length}`}>
-        {k.vencidas.length === 0 ? (
-          <Empty>Ninguna factura atrasada.</Empty>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Documentos</th><th>Cliente</th><th>Vence</th><th className="num">Días</th>
-                  <th className="num">Monto</th><th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {k.vencidas.slice(0, 8).map(({ o, inv, d }: { o: PurchaseOrder; inv: Invoice; d: number | null }) => {
-                  const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-                  const saldo = Math.max(invTotal - (inv.collection?.paidAmount ?? 0), 0);
-                  return (
-                  <tr key={inv.id} className={(d ?? 0) > 0 ? 'row-bad' : ''}>
-                    <td className="mono">
-                      <div style={{ fontWeight: 600 }}>Documento: {inv.folio || 'Pendiente'}</div>
-                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.collection?.contrareciboNumber || 'S/N'}</div>
-                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>Orden: {o.folio}</div>
-                    </td>
-                    <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>
-                    <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
-                    <td className="num mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                      {d === null ? '—' : d > 0 ? `+${d}` : d}
-                      <span title={d !== null && d > 30 ? '+30 días' : d !== null && d >= 15 ? '+15 días' : 'Reciente'} style={{ fontSize: 10 }}>
-                        {d !== null && d > 30 ? '🔴' : d !== null && d >= 15 ? '🟡' : '🟢'}
-                      </span>
-                    </td>
-                    <td className="num mono">{money(saldo)}</td>
-                    <td><StatusBadge status={inv.creditCycle.status} /></td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <Card title="Próximas a Vencer (7 días)" hint={`${k.proximas.length}`}>
-        {k.proximas.length === 0 ? (
-          <Empty>Ninguna factura por vencer en los próximos 7 días.</Empty>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Documentos</th><th>Cliente</th><th>Vence</th><th className="num">Faltan</th>
-                  <th className="num">Monto</th><th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {k.proximas.slice(0, 8).map(({ o, inv, d }: { o: PurchaseOrder; inv: Invoice; d: number | null }) => {
-                  const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-                  const saldo = Math.max(invTotal - (inv.collection?.paidAmount ?? 0), 0);
-                  const diasFaltantes = d !== null ? Math.abs(d) : null;
-                  return (
-                  <tr key={inv.id} className="row-warn">
-                    <td className="mono">
-                      <div style={{ fontWeight: 600 }}>Documento: {inv.folio || 'Pendiente'}</div>
-                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>CR: {inv.collection?.contrareciboNumber || 'S/N'}</div>
-                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.85em' }}>Orden: {o.folio}</div>
-                    </td>
-                    <td>{o.client ?? '—'} {o.department ? ` - ${o.department}` : ''}</td>
-                    <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
-                    <td className="num mono" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                      {diasFaltantes === null ? '—' : diasFaltantes === 0 ? 'Hoy' : `${diasFaltantes} días`}
-                      <span title="Por vencer" style={{ fontSize: 10 }}>🟡</span>
-                    </td>
-                    <td className="num mono">{money(saldo)}</td>
-                    <td><StatusBadge status={inv.creditCycle.status} /></td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {showBackupsModal && (
+{showBackupsModal && (
         <Modal title="☁ Respaldos en la Nube (Máximo 5 rodantes)" onClose={() => setShowBackupsModal(false)}>
           <div style={{ padding: 16 }}>
             <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>

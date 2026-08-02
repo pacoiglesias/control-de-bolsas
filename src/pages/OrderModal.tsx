@@ -258,7 +258,7 @@ export default function OrderModal({
         for (const doc of qs.docs) {
           if (doc.id === order.id) continue;
           const otherInvoices = doc.data().invoices || [];
-          if (otherInvoices.some((x: any) => x.folio && x.folio.toUpperCase() === upperFolio)) {
+          if (otherInvoices.some((x: Invoice) => x.folio && x.folio.toUpperCase() === upperFolio)) {
             toast(`Bloqueado: El folio de factura ${inv.folio} ya está registrado en el expediente ${doc.data().folio || doc.id}.`, 'bad');
             setBusy(false);
             return;

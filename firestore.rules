@@ -43,6 +43,10 @@ service cloud.firestore {
       return isSuperAdmin();
     }
 
+    function isAllowedOwnerEmail() {
+      return isAdmin();
+    }
+
     match /admins/{uid} {
       // Cada quien ve su propio permiso; un admin ve la lista completa
       // para poder administrarla desde la pantalla de Usuarios.

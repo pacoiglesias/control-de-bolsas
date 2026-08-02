@@ -8,6 +8,7 @@ import { ProductsProvider } from './context/ProductsContext';
 import { ExpensesProvider } from './context/ExpensesContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -28,8 +29,16 @@ const FixData = lazy(() => import('./pages/FixData'));
 
 function RouteFallback() {
   return (
-    <div className="boot">
-      <span className="spinner" /> Cargando…
+    <div className="page" style={{ padding: 20 }}>
+      <div className="page-head" style={{ marginBottom: 20 }}>
+        <div className="skeleton-row" style={{ width: '40%', height: 32, marginBottom: 8 }}></div>
+        <div className="skeleton-row" style={{ width: '60%', height: 16 }}></div>
+      </div>
+      <div className="kpi-grid">
+        <div className="skeleton-card" style={{ height: 100 }}></div>
+        <div className="skeleton-card" style={{ height: 100 }}></div>
+        <div className="skeleton-card" style={{ height: 100 }}></div>
+      </div>
     </div>
   );
 }
@@ -38,32 +47,33 @@ function Gate() {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="boot">
-        <span className="spinner" /> Verificando sesión…
+      <div className="page" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--base)' }}>
+        <span className="spinner" style={{ marginBottom: 16 }} />
+        <div style={{ color: 'var(--ink-soft)', fontWeight: 600 }}>Cargando ERP...</div>
       </div>
     );
   }
   if (!user) return <Login />;
   return (
-    <Suspense fallback={<RouteFallback />}>
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="subir" element={<Upload />} />
-        <Route path="ordenes" element={<Orders />} />
-        <Route path="cobranza" element={<Cobranza />} />
-        <Route path="caja-chica" element={<CajaChica />} />
-        <Route path="compras" element={<Compras />} />
-        <Route path="centro-control" element={<ControlCenter />} />
-        <Route path="seed" element={<Seeder />} />
-        <Route path="oc" element={<OcTracking />} />
-        <Route path="catalogo" element={<Catalog />} />
-        <Route path="captura-rapida" element={<FastEntry />} />
-        <Route path="fix-data" element={<FixData />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
-    </Suspense>
+    <ErrorBoundary>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Suspense fallback={<RouteFallback />}><Dashboard /></Suspense>} />
+          <Route path="subir" element={<Suspense fallback={<RouteFallback />}><Upload /></Suspense>} />
+          <Route path="ordenes" element={<Suspense fallback={<RouteFallback />}><Orders /></Suspense>} />
+          <Route path="cobranza" element={<Suspense fallback={<RouteFallback />}><Cobranza /></Suspense>} />
+          <Route path="caja-chica" element={<Suspense fallback={<RouteFallback />}><CajaChica /></Suspense>} />
+          <Route path="compras" element={<Suspense fallback={<RouteFallback />}><Compras /></Suspense>} />
+          <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
+          <Route path="seed" element={<Suspense fallback={<RouteFallback />}><Seeder /></Suspense>} />
+          <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
+          <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
+          <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
+          <Route path="fix-data" element={<Suspense fallback={<RouteFallback />}><FixData /></Suspense>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
   );
 }
 
