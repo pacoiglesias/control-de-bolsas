@@ -20,8 +20,9 @@ export function multiply(a: number, b: number): number {
 }
 
 export function divide(a: number, b: number): number {
-  if (b === 0) return 0;
-  return (Math.round(a * FACTOR) / Math.round(b * FACTOR));
+  const scaledB = Math.round(b * FACTOR);
+  if (scaledB === 0) return 0;
+  return (Math.round(a * FACTOR) / scaledB);
 }
 
 /** Redondeo bancario (round half to even) a N decimales */
