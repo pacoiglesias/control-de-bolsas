@@ -26,7 +26,6 @@ const Seeder = lazy(() => import('./pages/Seeder'));
 const OcTracking = lazy(() => import('./pages/OcTracking'));
 const Catalog = lazy(() => import('./pages/Catalog'));
 const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m.FastEntry })));
-const FixData = lazy(() => import('./pages/FixData'));
 
 function RouteFallback() {
   return (
@@ -70,7 +69,6 @@ function Gate() {
           <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
           <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
           <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
-          <Route path="fix-data" element={<Suspense fallback={<RouteFallback />}><FixData /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
