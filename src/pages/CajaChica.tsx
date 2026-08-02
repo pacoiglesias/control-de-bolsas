@@ -15,6 +15,7 @@ import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeader
 import { computeCommissionFromInvoiceTotal } from '../lib/finance';
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
+import { motion } from 'framer-motion';
 
 export default function CajaChica() {
   const { role } = useAuth();
@@ -167,48 +168,61 @@ export default function CajaChica() {
         <p>Control de efectivo, comisiones contables y gastos diversos.</p>
       </div>
 
-      {dineroEnTransito > 0 && (
-        <div className="alert warn" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 24 }}>🚚</span>
-          <div>
-            <strong style={{ fontSize: 15 }}>Aviso: Tienes {money(dineroEnTransito)} pendientes por recolectar.</strong>
-            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'inherit' }}>
-              Este dinero ya lo cobró el contador y falta que te lo entregue físicamente. Haz clic en el botón de abajo para registrar el ingreso a CAJA cuando lo recibas.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="kpi-grid" style={{ marginBottom: 24 }}>
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="kpi-grid" 
+        style={{ marginBottom: 32 }}
+      >
         <Card title="💰 SALDO EN CAJA">
-          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)' }}>
-            {money(saldo)}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)', letterSpacing: '-1px' }}>
+                {money(saldo)}
+              </div>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 14 }}>Efectivo físico disponible en caja actualmente.</p>
+            </div>
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Efectivo disponible actualmente.</p>
         </Card>
         
         <Card title="🚚 DINERO EN TRÁNSITO">
-          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)' }}>
-            {money(dineroEnTransito)}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)', letterSpacing: '-1px' }}>
+                {money(dineroEnTransito)}
+              </div>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>Cobrado por los contadores, pendiente de entregar a caja.</p>
+            </div>
+            {dineroEnTransito > 0 && (
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="btn btn-primary" 
+                style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--warn)', borderColor: 'var(--warn)', color: '#000', fontWeight: 'bold' }} 
+                onClick={() => nav('/cobranza', { state: { tab: 'contabilidad' } })}
+              >
+                📥 Reclamar / Recolectar Efectivo
+              </motion.button>
+            )}
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 12 }}>En manos de los contadores, listo para recoger.</p>
-          {dineroEnTransito > 0 && (
-             <button className="btn btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => nav('/cobranza', { state: { tab: 'contabilidad' } })}>
-                📥 Ir a Recolectar Efectivo
-             </button>
-          )}
         </Card>
-        <Card title={`⚖️ SALDO CON ${provName.toUpperCase()}`}>
-          <div style={{ padding: 16 }}>
-            <h2 className={saldoProveedor < 0 ? 'text-bad' : saldoProveedor > 0 ? 'text-ok' : ''}>
-              {saldoProveedor < 0 ? '-' : '+'}{money(Math.abs(saldoProveedor))}
-            </h2>
-            <p className="hint" style={{ marginTop: 8 }}>
-            {saldoProveedor < 0 ? `Deuda activa (le debes a ${provName}).` : saldoProveedor > 0 ? `Saldo a tu favor (${provName} te debe bolsas).` : 'Cuentas saldadas.'}
-            </p>
+
+        <Card title={`⚖️ ESTADO CON ${provName.toUpperCase()}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldoProveedor < 0 ? 'var(--bad)' : saldoProveedor > 0 ? 'var(--ok)' : 'var(--ink)', letterSpacing: '-1px' }}>
+                {saldoProveedor < 0 ? '-' : '+'}{money(Math.abs(saldoProveedor))}
+              </div>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 8, fontSize: 14 }}>
+                {saldoProveedor < 0 ? `Deuda activa (Total a pagar a ${provName}).` : saldoProveedor > 0 ? `Saldo a favor (${provName} te debe).` : 'Cuentas completamente saldadas.'}
+              </p>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
+               Fórmula: <strong>Pagado</strong> ({money(totalPagado)}) - <strong>Compras</strong> ({money(totalPurchasesCost)}) + <strong>Histórico</strong> ({money(deudaHistorica)})
+            </div>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       <Card
         actions={
@@ -252,26 +266,37 @@ export default function CajaChica() {
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((e) => (
-                  <tr key={e.id} onClick={() => setSelected(e)} style={{ cursor: 'pointer' }}>
-                    <td className="mono">{fmtDate(e.date)}</td>
+                {expenses.map((e, index) => (
+                  <motion.tr 
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: Math.min(index * 0.05, 0.5) }}
+                    key={e.id} 
+                    onClick={() => setSelected(e)} 
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.date)}</td>
                     <td>
-                      {e.concept}
+                      <div style={{ fontWeight: 500 }}>{e.concept}</div>
                       {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
-                        <div style={{ marginTop: 4 }}>
-                           <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>[Abono a Proveedor]</span>
+                        <div style={{ marginTop: 6 }}>
+                           <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>● Abono a Proveedor</span>
                         </div>
                       )}
                     </td>
                     <td>
-                      <span className={`badge ${e.type === 'ingreso' ? 'b-ok' : 'b-bad'}`}>
-                        {e.type.toUpperCase()}
+                      <span className={`badge`} style={{ 
+                        background: e.type === 'ingreso' ? '#dcfce7' : '#fee2e2', 
+                        color: e.type === 'ingreso' ? '#166534' : '#991b1b',
+                        border: `1px solid ${e.type === 'ingreso' ? '#bbf7d0' : '#fecaca'}`
+                      }}>
+                        {e.type === 'ingreso' ? '↑ INGRESO' : '↓ EGRESO'}
                       </span>
                     </td>
-                    <td className="num mono" style={{ color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--bad)' }}>
+                    <td className="num mono" style={{ color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--bad)', fontWeight: 600, fontSize: 16 }}>
                       {e.type === 'ingreso' ? '+' : '-'}{money(e.amount)}
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>

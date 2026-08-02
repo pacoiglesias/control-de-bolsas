@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
@@ -159,10 +158,11 @@ export default function Catalog() {
                   const reader = new FileReader();
                   reader.onload = async (evt) => {
                     try {
+                      const XLSX = await import('xlsx');
                       const data = new Uint8Array(evt.target?.result as ArrayBuffer);
                       const workbook = XLSX.read(data, { type: 'array' });
                       const sheetName = workbook.SheetNames[0];
-                      const rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[sheetName]);
+                      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]) as any[];
                       
                       let added = 0;
                       for (const row of rows) {

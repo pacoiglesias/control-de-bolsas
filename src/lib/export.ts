@@ -1,8 +1,8 @@
-import * as XLSX from 'xlsx';
 import { collection, getDocs } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
 
 export async function exportToExcel() {
+  const XLSX = await import('xlsx');
   const ordersSnap = await getDocs(collection(db, PATHS.orders));
   const purchasesSnap = await getDocs(collection(db, PATHS.purchases));
   const expensesSnap = await getDocs(collection(db, PATHS.expenses));

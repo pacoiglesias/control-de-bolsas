@@ -350,26 +350,6 @@ export const checkOverdueInvoices = onSchedule(
       .where("invoiceStatuses", "array-contains", "pending")
       .get();
 
-    // Los expedientes creados ANTES de que existiera invoiceStatuses no tienen
-    // ese campo y la consulta de arriba los deja fuera: quedan sin vigilancia y
-    // sin dar error. No se pueden contar con where(campo, "==", null): en
-    // Firestore esa consulta solo encuentra documentos con el campo presente y
-    // valor null EXPLICITO. Un campo ausente no aparece en ninguna consulta
-    // sobre ese campo, asi que el contador anterior devolvia siempre cero.
-    // La forma barata de detectarlos es comparar totales.
-    const [totalExpedientes, conCampo] = await Promise.all([
-      db.collection(COL_ORDERS).count().get()
-        .then((r) => r.data().count).catch(() => -1),
-      db.collection(COL_ORDERS).where("invoiceStatuses", "!=", null).count().get()
-        .then((r) => r.data().count).catch(() => -1),
-    ]);
-    if (totalExpedientes >= 0 && conCampo >= 0 && totalExpedientes > conCampo) {
-      logger.warn(
-        `${totalExpedientes - conCampo} expediente(s) sin invoiceStatuses ` +
-        `quedan fuera de la revision de vencidos. Se reparan solos al abrirlos ` +
-        `y guardarlos una vez desde la interfaz.`,
-      );
-    }
 
     if (snapshot.empty) {
       logger.info("No hay expedientes que revisar.");

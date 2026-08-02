@@ -842,12 +842,28 @@ export default function Cobranza() {
         return (b.d ?? -999) - (a.d ?? -999);
       });
 
+    const allCobradas = [...paid, ...collected];
+    const pendingToCollectCrs = listaCr.filter(g => paid.some(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === g.cr));
+    
+    const unliquidatedCrs = listaCr.filter(grp => {
+      const invoicesInGrp = allCobradas.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === grp.cr);
+      return invoicesInGrp.length > 0 && invoicesInGrp.some(x => !x.inv.collection?.accountantLiquidated);
+    });
+    
+    const liquidatedCrs = listaCr.filter(grp => {
+      const invoicesInGrp = allCobradas.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === grp.cr);
+      return invoicesInGrp.length > 0 && invoicesInGrp.every(x => x.inv.collection?.accountantLiquidated);
+    });
+
     return {
       open,
       paid,
       collected,
       lista,
       listaCr,
+      pendingToCollectCrs,
+      unliquidatedCrs,
+      liquidatedCrs,
       clientes,
       porCliente,
       totalPorBucket,
@@ -1061,7 +1077,7 @@ export default function Cobranza() {
             <Empty>No hay pagos pendientes de recolectar.</Empty>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {data.listaCr.filter(g => data.paid.some(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === g.cr)).map(crGroup => {
+              {data.pendingToCollectCrs.map(crGroup => {
                 const groupInvoices = data.paid.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === crGroup.cr);
                 const doctoPago = groupInvoices[0]?.inv.collection?.paymentDocument || groupInvoices[0]?.inv.collection?.transferRef || 'Sin Ref';
                 
@@ -1223,15 +1239,8 @@ export default function Cobranza() {
             ℹ️ Aquí se listan las facturas ya cobradas (Contrarecibos cobrados o recogidos) para revisar la <strong>comisión del 8%</strong> que corresponde a Contabilidad. Haz clic en "Liquidar a Contabilidad" una vez que pagues esos honorarios.
           </div>
           {(() => {
-            const allCobradas = [...data.paid, ...data.collected];
-            const unliquidatedCrs = data.listaCr.filter(grp => {
-              const invoicesInGrp = allCobradas.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === grp.cr);
-              return invoicesInGrp.length > 0 && invoicesInGrp.some(x => !x.inv.collection?.accountantLiquidated);
-            });
-            const liquidatedCrs = data.listaCr.filter(grp => {
-              const invoicesInGrp = allCobradas.filter(x => (x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber) === grp.cr);
-              return invoicesInGrp.length > 0 && invoicesInGrp.every(x => x.inv.collection?.accountantLiquidated);
-            });
+            const unliquidatedCrs = data.unliquidatedCrs;
+            const liquidatedCrs = data.liquidatedCrs;
 
             if (unliquidatedCrs.length === 0 && liquidatedCrs.length === 0) return <Empty>No hay contrarecibos cobrados para liquidar comisiones.</Empty>;
 

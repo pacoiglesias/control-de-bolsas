@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
 import { collection, getDocs, doc, writeBatch, getDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { toast } from 'react-hot-toast';
@@ -19,10 +18,11 @@ export default function AuditSync() {
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         
-        await processDiffs(workbook);
+        await processDiffs(workbook, XLSX);
       };
       reader.readAsArrayBuffer(uploadedFile);
     } catch (err) {
@@ -32,17 +32,17 @@ export default function AuditSync() {
     }
   };
 
-  const processDiffs = async (workbook: XLSX.WorkBook) => {
+  const processDiffs = async (workbook: any, XLSX: any) => {
     const newDiffs = [];
 
     // 1. Cobranza
     const cobranzaSheet = workbook.Sheets['Auditoria_Cobranza'];
     if (cobranzaSheet) {
-      const cobranzaRows = XLSX.utils.sheet_to_json<any>(cobranzaSheet);
+      const cobranzaRows = XLSX.utils.sheet_to_json(cobranzaSheet);
       const ordersSnap = await getDocs(collection(db, PATHS.orders));
       const orderDocs = ordersSnap.docs.map(d => ({ id: d.id, data: d.data() }));
 
-      for (const row of cobranzaRows) {
+      for (const row of cobranzaRows as any[]) {
         if (!row.ID_SISTEMA) {
           // New
           newDiffs.push({ tab: 'cobranza', type: 'new', label: `Factura ${row.FacturaFolio || 'Sin Folio'}`, newValue: row.MontoVenta });
@@ -87,7 +87,7 @@ export default function AuditSync() {
     // 2. Caja Chica
     const cajaSheet = workbook.Sheets['Auditoria_CajaChica'];
     if (cajaSheet) {
-      const cajaRows = XLSX.utils.sheet_to_json<any>(cajaSheet);
+      const cajaRows = XLSX.utils.sheet_to_json(cajaSheet);
       const expensesSnap = await getDocs(collection(db, PATHS.expenses));
       const expenseDocs = expensesSnap.docs.map(d => ({ id: d.id, data: d.data() }));
 
