@@ -533,13 +533,14 @@ return () => unsub();
   const k = useMemo(() => {
     const st = statsDoc || {};
     const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0 };
-    const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 };
+    const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0, paymentDaysCount: 0 };
     const mesesObj = st.histograms || {};
 
     const mesesKeys = Object.keys(mesesObj).sort().slice(-6);
     const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => mesesObj[m].venta)) : 1;
 
-    const alerts = extractDashboardAlerts(activeOrders);
+    const avgDSO = counters.paymentDaysCount > 0 ? (kpis.paymentDaysSum || 0) / counters.paymentDaysCount : 0;
+    const alerts = extractDashboardAlerts(activeOrders, avgDSO);
     const vencidas = alerts.vencidas;
     const proximas = alerts.proximas;
     const porRecibir = alerts.porRecibir;

@@ -7,10 +7,72 @@ import { Timestamp } from 'firebase/firestore';
 import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
 
+import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+
+function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) => void, onCancel: () => void }) {
+  const { deliveries, loading } = useMaquilaDeliveries();
+  if (loading) return <span className="spinner" />;
+  if (deliveries.length === 0) return <p className="hint">No hay entregas pendientes en el portal del maquilador.</p>;
+  
+  return (
+    <div style={{ background: 'var(--base)', border: '1px solid var(--line)', padding: 16, borderRadius: 8, marginBottom: 16 }}>
+      <h5 style={{ margin: '0 0 12px 0' }}>Entregas reportadas por el maquilador:</h5>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {deliveries.map(d => (
+          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', padding: 8, borderRadius: 4 }}>
+            <div>
+              <strong>{d.kilos} kg</strong> de {d.productDescription}
+              <div className="hint" style={{ fontSize: 11 }}>{fmtDateTime(d.createdAt)}</div>
+            </div>
+            <button className="btn btn-primary" onClick={() => onSelect(d)}>Importar</button>
+          </div>
+        ))}
+      </div>
+      <button className="btn" onClick={onCancel} style={{ marginTop: 12 }}>Cerrar</button>
+    </div>
+  );
+}
+
 export default function TabEntregas() {
   const ctx = useOrderModal();
+  const [showPortal, setShowPortal] = React.useState(false);
+
   if (!ctx) return null;
   const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+
+  const handleImportMaquilaDelivery = async (d: any) => {
+    // 1. Encuentra el ítem en la OC actual (buscando por código o por id)
+    let ocItem = form.items.find(it => it.code === d.productCode || it.id === d.productCode);
+    
+    // Si no está, lo ideal sería agregarlo automáticamente, pero por ahora requerimos que exista en la OC.
+    if (!ocItem) {
+      toast.showError(`La Orden de Compra no incluye el producto "${d.productDescription}". Agrégalo primero en la pestaña Productos.`);
+      return;
+    }
+
+    // 2. Crea la entrega en la OC actual
+    const newDel = {
+      id: crypto.randomUUID(),
+      date: Timestamp.now(),
+      kilos: d.kilos,
+      items: [{ itemId: ocItem.id, quantity: d.kilos }],
+      invoiced: false,
+      notes: 'Importado del Portal Maquilador'
+    };
+    setForm(f => ({ ...f, deliveries: [...f.deliveries, newDel] }));
+    
+    // 3. Marca la entrega como asignada en Firestore
+    try {
+      await updateDoc(doc(db, PATHS.maquilaDeliveries, d.id), { status: 'assigned' });
+      toast.showSuccess('Entrega importada correctamente');
+      setShowPortal(false);
+    } catch(e) {
+      console.error(e);
+      toast.showError('Error al marcar la entrega como asignada.');
+    }
+  };
 
   return (
     <>
@@ -23,8 +85,14 @@ export default function TabEntregas() {
                   {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
                 </p>
               </div>
-              {!readOnly && form.items.length > 0 && <button className="btn btn-primary" onClick={addDelivery}>+ Nueva Entrega</button>}
+              {!readOnly && form.items.length > 0 && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" style={{ background: 'var(--brand)', color: 'white' }} onClick={() => setShowPortal(true)}>📥 Importar del Portal</button>
+                  <button className="btn btn-primary" onClick={addDelivery}>+ Nueva Entrega</button>
+                </div>
+              )}
             </div>
+            {showPortal && <MaquilaDeliveriesSelector onSelect={handleImportMaquilaDelivery} onCancel={() => setShowPortal(false)} />}
             {form.items.length === 0 ? (
               <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>
             ) : form.deliveries.length === 0 ? (

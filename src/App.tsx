@@ -15,18 +15,16 @@ import ReloadPrompt from './components/ReloadPrompt';
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
 // que solo lo usa Dashboard. Con lazy() cada ruta va a su propio chunk y el
 // navegador solo baja lo que la persona realmente visita.
+const MaquiladorPortal = lazy(() => import('./pages/MaquiladorPortal'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Upload = lazy(() => import('./pages/Upload'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Cobranza = lazy(() => import('./components/Cobranza'));
 const CajaChica = lazy(() => import('./pages/CajaChica'));
 const Compras = lazy(() => import('./pages/Compras'));
 const ControlCenter = lazy(() => import('./pages/ControlCenter'));
-const Seeder = lazy(() => import('./pages/Seeder'));
 const OcTracking = lazy(() => import('./pages/OcTracking'));
 const Catalog = lazy(() => import('./pages/Catalog'));
 const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m.FastEntry })));
-const SeedV3 = lazy(() => import('./pages/SeedV3'));
 const AuditSync = lazy(() => import('./pages/AuditSync'));
 
 function RouteFallback() {
@@ -61,14 +59,11 @@ function Gate() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Suspense fallback={<RouteFallback />}><Dashboard /></Suspense>} />
-          <Route path="subir" element={<Suspense fallback={<RouteFallback />}><Upload /></Suspense>} />
           <Route path="ordenes" element={<Suspense fallback={<RouteFallback />}><Orders /></Suspense>} />
           <Route path="cobranza" element={<Suspense fallback={<RouteFallback />}><Cobranza /></Suspense>} />
           <Route path="caja-chica" element={<Suspense fallback={<RouteFallback />}><CajaChica /></Suspense>} />
           <Route path="compras" element={<Suspense fallback={<RouteFallback />}><Compras /></Suspense>} />
           <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
-          <Route path="seed" element={<Suspense fallback={<RouteFallback />}><Seeder /></Suspense>} />
-          <Route path="seed-v3" element={<Suspense fallback={<RouteFallback />}><SeedV3 /></Suspense>} />
           <Route path="audit" element={<Suspense fallback={<RouteFallback />}><AuditSync /></Suspense>} />
           <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
           <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
@@ -90,7 +85,10 @@ export default function App() {
             <ProductsProvider>
               <ExpensesProvider>
                 <ToastProvider>
-                  <Gate />
+                  <Routes>
+                    <Route path="/portal-maquilador" element={<Suspense fallback={<RouteFallback />}><MaquiladorPortal /></Suspense>} />
+                    <Route path="*" element={<Gate />} />
+                  </Routes>
                 </ToastProvider>
               </ExpensesProvider>
             </ProductsProvider>

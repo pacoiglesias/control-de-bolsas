@@ -63,6 +63,37 @@ async function readConfig(): Promise<FinanceConfigCore> {
   };
 }
 
+export const getActiveMaquilaOrders = onCall(async (request) => {
+  const db = getFirestore();
+  const snapshot = await db.collection(COL_ORDERS)
+    .where("isArchived", "==", false)
+    .get();
+
+  const activeOrders: any[] = [];
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    const status = data.creditCycle?.status || "pedido";
+    if (status === "pedido" || status === "pending" || status === "overdue") {
+      const deliveries = data.deliveries || [];
+      const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + (d.kilos || 0), 0);
+      const totalKilos = data.totalKilograms || 0;
+      const pendingKilos = totalKilos - totalDelivered;
+
+      if (pendingKilos > 0) {
+        activeOrders.push({
+          orderId: doc.id,
+          folio: data.folio || "Sin Folio",
+          productDescription: data.productDescription || "Producto",
+          totalKilos,
+          pendingKilos,
+        });
+      }
+    }
+  });
+
+  return activeOrders;
+});
+
 /** Cache corto de config/financials: el sanitizador se dispara en cascada
  *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
  *  documento en cada invocacion. */

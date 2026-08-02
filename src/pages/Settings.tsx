@@ -240,6 +240,15 @@ export default function Settings() {
                 onChange={(e) => setSysForm({ ...sysForm, departments: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} 
                 placeholder="Ej. TH, GT" />
             </Field>
+
+            <Field label="PIN del Portal Maquilador">
+              <input className="input boxed mono" type="text" value={sysForm.maquilaPin ?? '2468'}
+                onChange={(e) => setSysForm({ ...sysForm, maquilaPin: e.target.value })} 
+                placeholder="Ej. 2468" />
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Contraseña de 4 dígitos para que el maquilador registre entregas.
+              </div>
+            </Field>
           </div>
         </div>
       </Card>

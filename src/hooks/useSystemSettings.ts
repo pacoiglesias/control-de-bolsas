@@ -8,6 +8,7 @@ export interface SystemSettings {
   providerName: string;
   departments: string[];
   cajaChicaBalance: number;
+  maquilaPin?: string;
 }
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
@@ -16,6 +17,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   providerName: 'Andrés',
   departments: ['TH', 'GT'],
   cajaChicaBalance: 0,
+  maquilaPin: '2468',
 };
 
 export function useSystemSettings() {

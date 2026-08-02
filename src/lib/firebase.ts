@@ -33,4 +33,5 @@ export const PATHS = {
   configFinancials: 'financials',
   admins: 'admins',
   uploadsPrefix: 'uploads',
+  maquilaDeliveries: 'maquilaDeliveries',
 } as const;

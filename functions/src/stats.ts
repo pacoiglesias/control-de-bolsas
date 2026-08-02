@@ -51,10 +51,11 @@ function estaVencidaEnVivo(
 export function extractStats(data: any): Record<string, any> {
   let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, porCobrarSinCR = 0, porCobrarConCR = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
   let margen = 0, gananciaRealizada = 0;
+  let paymentDaysSum = 0, paymentDaysCount = 0;
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   const ahora = Date.now();
   
-  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
+  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
@@ -122,11 +123,25 @@ export function extractStats(data: any): Record<string, any> {
       neto += invNet;
       
       const s = inv.creditCycle?.status;
-      if (s === 'paid') {
-        cobrado += paidAmt > 0 ? paidAmt : invTotal;
-        netoCobrado += invNet;
-        const commission = Number(inv.financials?.commission || 0);
-        porRecibir += (invTotal - commission);
+      if (s === 'paid' || s === 'collected') {
+        // Para ganancia cobrada, solo usamos 'paid' para no doble-contar o si 'collected' ya está
+        if (s === 'paid') {
+          cobrado += paidAmt > 0 ? paidAmt : invTotal;
+          netoCobrado += invNet;
+          const commission = Number(inv.financials?.commission || 0);
+          porRecibir += (invTotal - commission);
+        }
+        
+        // Métrica de DSO predictivo (desde CR hasta Pago)
+        const pAt = toDate(inv.collection?.paidAt);
+        const crAt = toDate(inv.collection?.contrareciboDate);
+        if (pAt && crAt) {
+          const dias = (pAt.getTime() - crAt.getTime()) / (1000 * 60 * 60 * 24);
+          if (dias >= 0) {
+            paymentDaysSum += dias;
+            paymentDaysCount += 1;
+          }
+        }
       } else if (s === 'pending' || s === 'overdue') {
         porCobrar += saldo;
         // Dos gestiones distintas: sin CR se persigue para que el cliente
@@ -157,7 +172,7 @@ export function extractStats(data: any): Record<string, any> {
 
   // Monto pendiente por facturar (kilos entregados - kilos facturados)
   let kilosPendientesFacturar = 0;
-  if (status !== 'manual_review') {
+  if (status !== 'manual_review' && data.client !== 'MIGRACION') {
     let kilosFacturados = 0;
     for (const inv of invoices) {
       kilosFacturados += Number(inv.kilos || 0);
@@ -171,6 +186,7 @@ export function extractStats(data: any): Record<string, any> {
   return {
     kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir,
     margen, gananciaRealizada, montoPendienteFacturar,
+    paymentDaysSum, paymentDaysCount,
     meses,
     isPending: status === 'pending' ? 1 : 0,
     isOverdue: status === 'overdue' ? 1 : 0,
@@ -210,6 +226,8 @@ async function applyStatsDelta(docPath: string, before: any, after: any) {
   addDelta("netoCobrado", before.netoCobrado, after.netoCobrado);
   addDelta("porRecibir", before.porRecibir, after.porRecibir);
   addDelta("montoPendienteFacturar", before.montoPendienteFacturar || 0, after.montoPendienteFacturar || 0);
+  addDelta("paymentDaysSum", before.paymentDaysSum || 0, after.paymentDaysSum || 0);
+  addCounterDelta("paymentDaysCount", before.paymentDaysCount || 0, after.paymentDaysCount || 0);
 
   addCounterDelta("pendingOrders", before.isPending, after.isPending);
   addCounterDelta("pedidoOrders", before.isPedido, after.isPedido);
@@ -316,9 +334,10 @@ export const recalcDashboardStats = onCall(
       kpis: {
         totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0,
         gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0,
-        vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0
+        vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0,
+        paymentDaysSum: 0
       },
-      counters: { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 },
+      counters: { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0, paymentDaysCount: 0 },
       histograms: {} as Record<string, Record<string, number>>
     });
 
@@ -347,12 +366,14 @@ export const recalcDashboardStats = onCall(
       target.kpis.netoCobrado += s.netoCobrado;
       target.kpis.porRecibir += s.porRecibir;
       target.kpis.montoPendienteFacturar += s.montoPendienteFacturar || 0;
+      target.kpis.paymentDaysSum += s.paymentDaysSum || 0;
 
       target.counters.pendingOrders += s.isPending;
       target.counters.pedidoOrders += s.isPedido;
       target.counters.overdueOrders += s.isOverdue;
       target.counters.manualReview += s.isManual;
       target.counters.totalOrders += 1;
+      target.counters.paymentDaysCount += s.paymentDaysCount || 0;
 
       for (const [mes, v] of Object.entries(s.meses as Record<string, any>)) {
         if (!target.histograms[mes]) {

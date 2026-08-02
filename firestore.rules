@@ -111,6 +111,13 @@ service cloud.firestore {
     match /stats/{statId} {
       allow read: if isAuthenticatedUser();
     }
+    
+    match /maquilaDeliveries/{deliveryId} {
+      allow read: if isAuthenticatedUser();
+      // El maquilador se autentica anónimamente para enviar su reporte
+      allow create: if request.auth != null;
+      allow update, delete: if isManagerOrAdmin();
+    }
 
     match /system_settings/global {
       allow read: if true;
