@@ -5,7 +5,7 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
@@ -25,7 +25,9 @@ export default function CajaChica() {
   const { settings } = useSystemSettings();
   const [selected, setSelected] = useState<Expense | null>(null);
 
-  const saldo = settings?.cajaChicaBalance ?? expenses.reduce((acc, e) => {
+  const nav = useNavigate();
+
+  const saldo = expenses.reduce((acc, e) => {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
   }, 0);
 
@@ -165,6 +167,18 @@ export default function CajaChica() {
         <p>Control de efectivo, comisiones contables y gastos diversos.</p>
       </div>
 
+      {dineroEnTransito > 0 && (
+        <div className="alert warn" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 24 }}>🚚</span>
+          <div>
+            <strong style={{ fontSize: 15 }}>Aviso: Tienes {money(dineroEnTransito)} pendientes por recolectar.</strong>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'inherit' }}>
+              Este dinero ya lo cobró el contador y falta que te lo entregue físicamente. Haz clic en el botón de abajo para registrar el ingreso a CAJA cuando lo recibas.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="kpi-grid" style={{ marginBottom: 24 }}>
         <Card title="💰 SALDO EN CAJA">
           <div className="num" style={{ fontSize: 36, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)' }}>
@@ -177,7 +191,12 @@ export default function CajaChica() {
           <div className="num" style={{ fontSize: 36, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)' }}>
             {money(dineroEnTransito)}
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>En manos de los contadores, listo para recoger.</p>
+          <p className="hint" style={{ marginTop: 4, marginBottom: 12 }}>En manos de los contadores, listo para recoger.</p>
+          {dineroEnTransito > 0 && (
+             <button className="btn btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => nav('/cobranza', { state: { tab: 'contabilidad' } })}>
+                📥 Ir a Recolectar Efectivo
+             </button>
+          )}
         </Card>
         <Card title={`⚖️ SALDO CON ${provName.toUpperCase()}`}>
           <div style={{ padding: 16 }}>

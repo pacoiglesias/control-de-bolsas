@@ -13,7 +13,7 @@ import TableroKanban from './TableroKanban';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../../lib/finance';
 import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
 import type { Invoice } from '../../lib/types';
 import { db, PATHS } from '../../lib/firebase';
@@ -31,7 +31,8 @@ export default function Cobranza() {
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>('tablero');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>((location.state as any)?.tab || 'tablero');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
 
