@@ -391,3 +391,7 @@ button {
 button:active {
   transform: scale(0.97);
 }
+
+@media (min-width: 769px) {
+  .hide-desktop { display: none !important; }
+}
