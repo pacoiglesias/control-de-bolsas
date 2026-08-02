@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useMemo, useState } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { useConfig } from '../../hooks/useConfig';
@@ -9,6 +8,7 @@ import CobranzaContext from './CobranzaContext';
 import CobranzaStats from './CobranzaStats';
 import AgingTable from './AgingTable';
 import ProximasTable from './ProximasTable';
+import EstadoCuenta from './EstadoCuenta';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../../lib/finance';
 import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
@@ -30,7 +30,7 @@ export default function Cobranza() {
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad'>('pendientes');
+  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>('pendientes');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
 
@@ -920,7 +920,8 @@ export default function Cobranza() {
     data, settings, money, activeTab, setActiveTab, shareCarteraVencida, printCarteraVencida, exportCobranzaCsv,
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
     payContrareciboBlock, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
-    liquidateAccountantBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr
+    liquidateAccountantBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr,
+    filterType, setFilterType, setSelected
   };
 
   return (
@@ -967,7 +968,14 @@ export default function Cobranza() {
         <button className={`tab ${activeTab === 'contabilidad' ? 'active' : ''}`} onClick={() => setActiveTab('contabilidad')}>
           🧾 Liquidación a Contabilidad
         </button>
+        <button className={`tab ${activeTab === 'estado_cuenta' ? 'active' : ''}`} onClick={() => setActiveTab('estado_cuenta')}>
+          🪞 Estado de Cuenta (Espejo)
+        </button>
       </div>
+
+      {activeTab === 'estado_cuenta' && (
+        <EstadoCuenta />
+      )}
 
       {activeTab === 'pendientes' && (
         <>

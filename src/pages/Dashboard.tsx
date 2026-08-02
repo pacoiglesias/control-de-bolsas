@@ -392,6 +392,7 @@ export default function Dashboard() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
+  const [monthFilter, setMonthFilter] = useState<string>('ALL');
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -548,7 +549,7 @@ return () => unsub();
     // asi que un recalculo en el navegador nunca veria las facturas que mas
     // importan para este indicador. Se confia siempre en el agregado del
     // servidor, que si recorre todos los expedientes.
-    const liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
+    let liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
     const deudaTotalProvidencia = (kpis.porCobrar || 0) + (kpis.montoPendienteFacturar || 0);
     const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config as any);
@@ -572,7 +573,11 @@ return () => unsub();
 
     const allMeses = Object.keys(mesesObj).sort();
     let periodText = 'Acumulado de todo el historial, sin límite de fecha';
-    if (allMeses.length > 0) {
+    if (monthFilter !== 'ALL') {
+      const [yy, mm] = monthFilter.split('-');
+      const date = new Date(parseInt(yy), parseInt(mm) - 1, 1);
+      periodText = `Datos del mes de ${date.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`;
+    } else if (allMeses.length > 0) {
       const formatMonth = (m: string) => {
         const [yy, mm] = m.split('-');
         const date = new Date(parseInt(yy), parseInt(mm) - 1, 1);
@@ -585,8 +590,66 @@ return () => unsub();
       }
     }
 
+    const isMonthMatch = (d: any) => {
+      if (monthFilter === 'ALL') return true;
+      if (!d) return false;
+      const dateObj = d.toDate ? d.toDate() : new Date(d);
+      const mStr = dateObj.toISOString().slice(0, 7);
+      return mStr === monthFilter;
+    };
+
+    // Inventario Vivo (Bodega)
+    let totalReceivedKilos = 0;
+    (purchases || []).forEach(p => totalReceivedKilos += (p.receivedKilos || 0));
+    const inventarioVivo = totalReceivedKilos - totalKilosInvoiced;
+
+    // Caja y Flujo
+    let localSaldoCaja = 0;
+    let opex = 0;
+    let totalPagadoAndres = 0;
+    (expenses || []).forEach(e => {
+        if (e.type === 'ingreso') {
+           localSaldoCaja += e.amount;
+        } else {
+           localSaldoCaja -= e.amount;
+           if (e.provider?.toLowerCase() !== 'andrés' && !e.concept?.toLowerCase().includes('ajuste')) {
+               if (isMonthMatch(e.date)) opex += e.amount;
+           }
+        }
+        
+        if (e.provider?.toLowerCase() === 'andrés') {
+            if (e.type === 'egreso') totalPagadoAndres += e.amount;
+            else totalPagadoAndres -= e.amount; // devolucion
+        }
+    });
+
+    let totalPurchasesCost = 0;
+    (purchases || []).forEach(p => {
+      totalPurchasesCost += (p.receivedKilos ?? 0) * (p.pricePerKg || config.costPricePerKg || 42);
+    });
+    const deudaHistorica = config.historicalDebtAndres || 0;
+    const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica; // Negativo = Deuda
+
+    const transito = round2(porRecibir.reduce((acc, r) => acc + r.net, 0));
+    const proyeccionFlujo = localSaldoCaja + transito + deudaAndres; 
+
+    // Adjust global KPIs if month filter is active
+    let liveVentas = kpis.netoTotal || 0;
+    let liveKilosTotal = kpis.totalKilos || 0;
+    let liveFacturasEmitidas = kpis.facturasEmitidas || 0;
+    if (monthFilter !== 'ALL' && mesesObj[monthFilter]) {
+       liveGananciaRealizada = mesesObj[monthFilter].gananciaRealizada || 0;
+       liveMargenTotal = mesesObj[monthFilter].margen || 0;
+       liveVentas = mesesObj[monthFilter].venta || 0;
+    }
+    
+    const utilidadNeta = liveGananciaRealizada - opex;
+
     return {
       ...kpis,
+      ventasTotal: round2(liveVentas),
+      kilosTotal: liveKilosTotal,
+      facturasEmitidas: liveFacturasEmitidas,
       periodText,
       margenTotal: round2(liveMargenTotal),
       gananciaRealizadaTotal: round2(liveGananciaRealizada),
@@ -611,9 +674,15 @@ return () => unsub();
       kilosPendientesFacturar,
       valorPendienteFacturar,
       proyeccion7d,
-      proyeccion15d
+      proyeccion15d,
+      inventarioVivo: round2(inventarioVivo),
+      localSaldoCaja: round2(localSaldoCaja),
+      deudaAndres: round2(deudaAndres),
+      proyeccionFlujo: round2(proyeccionFlujo),
+      opex: round2(opex),
+      utilidadNeta: round2(utilidadNeta)
     };
-  }, [statsDoc, activeOrders, config]);
+  }, [statsDoc, activeOrders, config, purchases, expenses]);
 
   const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
 
@@ -781,11 +850,20 @@ return () => unsub();
             </button>
           </div>
         </div>
-        <div className="tabs" style={{ marginTop: 16 }}>
+        <div className="tabs" style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
           <button className={deptFilter === 'ALL' ? 'active' : ''} onClick={() => setDeptFilter('ALL')}>🏢 Toda la Empresa</button>
           {(settings?.departments || ['TH', 'GT']).map(d => (
             <button key={d} className={deptFilter === d ? 'active' : ''} onClick={() => setDeptFilter(d)}>{d}</button>
           ))}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Mes P&L:</span>
+            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={{ padding: '6px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--paper)', fontSize: 13, fontWeight: 600, color: 'var(--ink)', outline: 'none' }}>
+              <option value="ALL">Histórico Global</option>
+              {[...k.mesesKeys].reverse().map(m => (
+                <option key={m} value={m}>{monthLabel(m)}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1052,6 +1130,20 @@ return () => unsub();
           {role === 'admin' && (
             <button
               className="btn"
+              onClick={() => {
+                toast('Generando exportación...', 'info');
+                exportToExcel().then(() => toast('Sábana de auditoría exportada.', 'ok')).catch(e => toast(`Error: ${e.message}`, 'bad'));
+              }}
+              title="Descarga un Excel con todos los movimientos crudos para auditoría manual."
+              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}
+            >
+              <span style={{ fontSize: 24 }}>📊</span>
+              <span style={{ fontWeight: 600 }}>Sábana de Auditoría</span>
+            </button>
+          )}
+          {role === 'admin' && (
+            <button
+              className="btn"
               onClick={() => void recalcStats()}
               disabled={recalcBusy}
               title="Reconstruye los indicadores de este panel leyendo todos los expedientes. Úsalo si las cifras se ven en cero o descuadradas."
@@ -1080,12 +1172,26 @@ return () => unsub();
         </div>
       )}
 
+      <div className="kpi-section-title">⚙️ Operación y Universo</div>
+      <div className="kpi-grid" style={{ marginBottom: 32 }}>
+        <KpiCard hero tone="cash" label="📦 BODEGA (INVENTARIO VIVO)" value={<span style={{ fontSize: 32 }}>{kilos(k.inventarioVivo)}</span>}
+          sub="Kilos recibidos de Andrés - Kilos facturados a Providencia" />
+        {role !== 'viewer' && (
+          <>
+            <KpiCard tone={k.utilidadNeta > 0 ? 'ok' : 'bad'} label="Utilidad Neta (P&L)" value={<ResponsiveMoney value={k.utilidadNeta || 0} />}
+              sub="Margen Cobrado - OPEX (Gastos de Caja Chica)" />
+            <KpiCard tone={k.proyeccionFlujo >= 0 ? 'ok' : 'bad'} label="Proyección Flujo Efectivo" value={<ResponsiveMoney value={k.proyeccionFlujo || 0} />}
+              sub="Caja Chica + Dinero en Tránsito + Deuda Proveedor" />
+          </>
+        )}
+      </div>
+
       <div className="kpi-section-title">💰 Ventas y Ganancias</div>
       <div className="kpi-grid">
-        <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.totalVendido} />}
+        <KpiCard hero label="TOTAL VENDIDO" value={<ResponsiveMoney value={k.ventasTotal} />}
           sub={
             <>
-              {kilos(k.totalKilos)} procesados en {k.totalOrders} órdenes
+              {monthFilter === 'ALL' ? `${kilos(k.totalKilos)} procesados` : `Facturado este mes`}
               <br /><span style={{ opacity: 0.75 }}>{k.periodText}</span>
             </>
           } />
@@ -1215,12 +1321,12 @@ return () => unsub();
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fontSize: 12, fill: 'var(--ink-soft)', fontFamily: 'Outfit' }}
-                  tickFormatter={(val: number) => `$${(val/1000).toFixed(0)}k`}
+                  tickFormatter={(val: any) => `$${(Number(val)/1000).toFixed(0)}k`}
                 />
                 <Tooltip
                   cursor={{ stroke: 'var(--line)', strokeWidth: 1, strokeDasharray: '4 4' }}
                   contentStyle={{ backgroundColor: 'var(--glass)', backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius)', color: 'var(--ink)', fontSize: 13, boxShadow: 'var(--shadow-hover)' }}
-                  formatter={(value: number) => money(Number(value))}
+                  formatter={(value: any) => money(Number(value))}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 10, fontFamily: 'Outfit' }} />
                 <Area type="monotone" dataKey="vendido" name="Total Vendido" stroke="var(--accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorVendido)" />

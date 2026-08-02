@@ -9,6 +9,7 @@ import { ExpensesProvider } from './context/ExpensesContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import ReloadPrompt from './components/ReloadPrompt';
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -73,6 +74,7 @@ function Gate() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      <ReloadPrompt />
     </ErrorBoundary>
   );
 }

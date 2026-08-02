@@ -16,13 +16,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Control Bolsas ERP',
         short_name: 'ERP Providencia',
         description: 'ERP de Control de Bolsas y Facturación',
-        theme_color: '#000000',
+        theme_color: '#09090b',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [

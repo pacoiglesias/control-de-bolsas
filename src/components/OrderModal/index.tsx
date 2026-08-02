@@ -35,6 +35,8 @@ import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
 import TabEntregas from './TabEntregas';
 import TabFacturas from './TabFacturas';
+import { printRemision, printPreFactura, printConsolidatedPackage } from './orderModalPrint';
+import { useOrderActions } from './useOrderActions';
 
 
 export default function OrderModal({
@@ -139,6 +141,8 @@ export default function OrderModal({
     allOrders,
   });
 
+  const { saveOrder, removeOrder } = useOrderActions();
+
   const liveSummary = useMemo(() => {
     // We construct a fake order object to pass to getOrderSummary
     const tempOrder: PurchaseOrder = {
@@ -179,207 +183,10 @@ export default function OrderModal({
   // no hay entrega capturada, sin caer al total pedido.
 
   async function save() {
-    if (kilosNum <= 0) {
-      sound.playError();
-      toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
-      return;
-    }
-    if (!form.client.trim()) {
-      sound.playError();
-      toast('Falta el nombre del cliente. No se puede guardar un expediente sin él.', 'bad');
-      return;
-    }
-    if (!form.provider.trim()) {
-      sound.playError();
-      toast('Falta el nombre del proveedor. No se puede guardar un expediente sin él.', 'bad');
-      return;
-    }
-    // Aviso (no bloqueo) de folio repetido: no existia ninguna comprobacion.
-    // Copiar y pegar dos veces la misma OC creaba dos expedientes identicos
-    // sin que nada lo detectara. Solo avisa -- puede haber folios legitimos
-    // repetidos (reenvios, correcciones) y no conviene bloquear el guardado
-    // por eso.
-    const folioTrim = form.folio.trim();
-    if (folioTrim) {
-      const duplicado = allOrders.find((o) => o.id !== order.id && (o.folio ?? '').trim() === folioTrim);
-      if (duplicado) {
-        const continuar = window.confirm(
-          `Ya existe otro expediente con el folio "${folioTrim}" (cliente: ${duplicado.client || '—'}). ` +
-          `¿Seguro que quieres guardar de todos modos?`,
-        );
-        if (!continuar) return;
-      }
-    }
-    const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined;
-    const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined;
-    const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) : undefined;
-
-    if ((ccp !== undefined && isNaN(ccp)) || (csp !== undefined && isNaN(csp)) || (ccr !== undefined && isNaN(ccr))) {
-      sound.playError();
-      toast('Por favor, ingresa solo números válidos en Costo, Precio o Comisión.', 'bad');
-      return;
-    }
-
-    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries);
-    const kilosPedidosActuales = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-    const tol = (dynamicConfig as any).weightTolerancePercentage ?? 2;
-    const maxKilos = kilosPedidosActuales * (1 + tol / 100);
-    
-    if (kilosEntregadosActuales > maxKilos && kilosPedidosActuales > 0) {
-      sound.playError();
-      toast(`No se puede guardar: has registrado ${kilosEntregadosActuales.toLocaleString('es-MX')} kg entregados, superando el límite de tolerancia (${tol}%) sobre los ${kilosPedidosActuales.toLocaleString('es-MX')} kg pedidos (Máximo permitido: ${maxKilos.toLocaleString('es-MX')} kg).`, 'bad');
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const ref = doc(db, PATHS.orders, order.id);
-      
-      // Compute financials for all invoices just in case
-      // Recalculate financials using historical snapshot if available to prevent history tampering
-      const updatedInvoices = form.invoices.map(inv => {
-        const snapshotCfg = {
-          ...dynamicConfig,
-          salePricePerKg: inv.financials?.salePricePerKg || config.salePricePerKg,
-        };
-
-        const crNum = inv.collection?.contrareciboNumber?.trim() || '';
-        // If there's a contrarecibo but no invoice number, auto-assign S/N
-        const folioStr = inv.folio?.trim() || '';
-        const finalFolio = (crNum && !folioStr) ? 'S/N' : folioStr;
-
-        return {
-          ...inv,
-          folio: finalFolio,
-          financials: computeFinancials(inv.kilos, snapshotCfg),
-          collection: inv.collection ? {
-            ...inv.collection,
-            contrareciboNumber: crNum
-          } : undefined
-        };
-      });
-
-      // --- CHECK FOR GLOBAL INVOICE DUPLICATES ---
-      const qs = await getDocs(collection(db, PATHS.orders));
-      for (const inv of updatedInvoices) {
-        if (!inv.folio || inv.folio === 'S/N') continue;
-        const upperFolio = inv.folio.toUpperCase();
-        for (const doc of qs.docs) {
-          if (doc.id === order.id) continue;
-          const otherInvoices = doc.data().invoices || [];
-          if (otherInvoices.some((x: Invoice) => x.folio && x.folio.toUpperCase() === upperFolio)) {
-            toast(`Bloqueado: El folio de factura ${inv.folio} ya está registrado en el expediente ${doc.data().folio || doc.id}.`, 'bad');
-            setBusy(false);
-            return;
-          }
-        }
-      }
-      // -------------------------------------------
-
-      // El guardado completo del expediente corre en una transaccion: antes
-      // era un setDoc a ciegas desde la copia local del formulario, asi que un
-      // cobro registrado en Cobranza mientras este modal seguia abierto se
-      // revertia en silencio al guardar aqui. La transaccion relee el
-      // documento y aborta si `updatedAt` ya no coincide con lo que habia al
-      // abrir el modal. camposInvoices() es la misma funcion que usa Cobranza:
-      // invoices/invoiceStatuses/updatedAt viajan juntos por un solo camino.
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
-
-        const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
-        if (
-          baselineUpdatedAt &&
-          freshUpdatedAt &&
-          freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()
-        ) {
-          throw new Error(
-            'Este expediente fue modificado por otra persona mientras lo editabas. ' +
-            'Ciérralo y vuelve a abrirlo para ver los cambios más recientes antes de guardar.',
-          );
-        }
-
-        tx.set(ref, {
-          folio: form.folio.trim(),
-          client: form.client.trim(),
-          clientEmail: form.clientEmail.trim(),
-          department: form.department.trim(),
-          provider: form.provider.trim(),
-          totalKilograms: kilosNum,
-          estimatedDeliveryDate: form.estimatedDeliveryDate,
-          deliveries: form.deliveries,
-          items: form.items,
-          processedAt: order.processedAt ?? serverTimestamp(),
-          customCostPrice: ccp,
-          customSellPrice: csp,
-          customCommissionRate: ccr,
-          ...camposInvoices(updatedInvoices),
-        }, { merge: true });
-      });
-
-      // Upsert Purchase for Andrés — delega a lib/deliveries.ts, la misma
-      // funcion que usa el atajo "Registrar Entrega" de Compras.tsx.
-      try {
-        // Precio efectivo, NO el override opcional: `ccp` vale undefined
-        // siempre que el usuario no capture un costo propio, y entonces
-        // `kilosNum * ccp` daba NaN y se guardaba una compra con importe
-        // invalido. dynamicConfig ya resuelve override -> configuracion base.
-        const { kilosEntregados } = computeDeliveredTotals(form.deliveries);
-        await upsertAndresPurchase({
-          orderId: order.id,
-          provider: form.provider.trim(),
-          expectedKilos: kilosNum,
-          receivedKilos: kilosEntregados,
-          costPerKg: dynamicConfig.costPricePerKg,
-        });
-      } catch (err) {
-        console.error("Error linking purchase", err);
-      }
-
-      // Alta en el catalogo de productos. Es una funcion accesoria: si falla
-      // (permisos, red) NO debe tumbar el guardado del expediente, que a estas
-      // alturas ya se escribio correctamente. Antes esto vivia fuera de un
-      // try/catch y un solo rechazo mostraba "No se pudo guardar" sobre un
-      // expediente que si se habia guardado.
-      if (form.items && form.items.length > 0) {
-        try {
-          await Promise.all(
-            form.items.map(async (it) => {
-              if (!it.description.trim()) return;
-              const productId = it.code?.trim() 
-                ? it.code.trim().toUpperCase() 
-                : it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
-                
-              await setDoc(doc(db, PATHS.products, productId), {
-                code: it.code?.trim() || null,
-                description: it.description.trim(),
-                unit: it.unit,
-                defaultPrice: it.unitPrice,
-                lastOrderDate: serverTimestamp(),
-              }, { merge: true });
-            }),
-          );
-        } catch (err) {
-          console.warn('No se pudo actualizar el catalogo de productos:', err);
-        }
-      }
-
-      logAction(user?.email, 'Expediente Guardado', {
-        orderId: order.id,
-        folio: form.folio,
-        kilos: kilosNum,
-        facturas: updatedInvoices.length,
-        cobrado: liveSummary.paidAmount,
-      });
-      sound.playSuccess();
-      toast('Expediente actualizado', 'ok');
-      onClose();
-    } catch (e) {
-      sound.playError();
-      toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBusy(false);
-    }
+    await saveOrder({
+      form, order, kilosNum, allOrders, dynamicConfig, config,
+      baselineUpdatedAt, userEmail: user?.email, toast, setBusy, onClose, liveSummary
+    });
   }
 
   function emailClient() {
@@ -397,387 +204,22 @@ export default function OrderModal({
     window.location.href = `mailto:${encodeURIComponent(correo)}?subject=${subject}&body=${body}`;
   }
 
-  function printRemision() {
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Remisión de Entrega - ${escapeHtml(form.folio)}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #cbd5e1; padding: 12px; text-align: left; }
-            th { background: #f8fafc; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 13px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 15px; }
-            .signature { margin-top: 80px; text-align: center; font-weight: 600; border-top: 1px solid #cbd5e1; padding-top: 10px; width: 300px; margin-left: auto; margin-right: auto; }
-          </style>
-        </head>
-        <body>
-          ${getPrintHeaderHtml(settings, "Remisión de Entrega", `Folio de Expediente: ${escapeHtml(form.folio) || '(Sin folio)'}`)}
-          
-          <div class="grid" style="margin-top: 20px;">
-            <div>
-              <strong>Cliente:</strong> ${escapeHtml(form.client)}<br>
-              <strong>Departamento:</strong> ${escapeHtml(form.department) || '—'}<br>
-            </div>
-            <div style="text-align: right;">
-              <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString()}<br>
-              <strong>Clave SAT:</strong> ${escapeHtml(config.satClaveProdServ) || '—'}<br>
-              <strong>Unidad SAT:</strong> ${escapeHtml(config.satClaveUnidad) || '—'}<br>
-              <strong>Método/Forma de pago:</strong> ${escapeHtml(config.satMetodoPago) || '—'} / ${escapeHtml(config.satFormaPago) || '—'}<br>
-            </div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Concepto</th>
-                <th style="text-align: right;">Cantidad (kg)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Bolsa Plástica - Pedido Completo</td>
-                <td style="text-align: right;">${kilosNum}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="signature">
-            <div>Nombre y Firma de Recibido</div>
-          </div>
-          <script>
-            window.onafterprint = () => window.close();
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  function handlePrintRemision() {
+    printRemision({ folio: form.folio, client: form.client, department: form.department, kilosNum, config, settings });
   }
 
-  function printPreFactura() {
-    const rawItems = form.items && form.items.length > 0 ? form.items : [];
-    
-    const itemsList = rawItems.length > 0 ? rawItems.map(it => {
-      const k = Number(deliveredByItem[it.id] ?? it.deliveredQuantity ?? it.quantity ?? 0);
-      const price = Number(it.unitPrice || dynamicConfig.salePricePerKg || 47);
-      const subtotal = round2(k * price);
-      return {
-        code: it.code || 'Bolsa',
-        desc: it.description || 'Bolsa Polietileno',
-        kilos: k,
-        price,
-        subtotal
-      };
-    }) : [{
-      code: 'Bolsa',
-      desc: 'Bolsa Polietileno',
-      kilos: kilosNum,
-      price: dynamicConfig.salePricePerKg || 47,
-      subtotal: round2(kilosNum * (dynamicConfig.salePricePerKg || 47))
-    }];
-
-    const subtotalTotal = round2(itemsList.reduce((sum, item) => sum + item.subtotal, 0));
-    const ivaTotal = round2(subtotalTotal * (dynamicConfig.ivaRate ?? 0.16));
-    const grandTotal = round2(subtotalTotal + ivaTotal);
-
-    const itemsRows = itemsList.map(it => `
-      <tr>
-        <td style="text-align: right; font-weight: 600;">${it.kilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-        <td><strong>${escapeHtml(it.code)}</strong> - ${escapeHtml(it.desc)}</td>
-        <td style="text-align: right;">$${it.price.toFixed(2)}</td>
-        <td style="text-align: right; font-weight: 600;">$${it.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-      </tr>
-    `).join('');
-
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Pre-Factura CFDI 4.0 - ${escapeHtml(form.folio)}</title>
-          <style>
-            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-            .header-meta { text-align: right; color: #475569; }
-            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-            tr:last-child td { border-bottom: none; }
-            tr:nth-child(even) { background-color: #fafaf9; }
-            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-ok { background: #dcfce7; color: #166534; }
-            .badge-warn { background: #fef9c3; color: #854d0e; }
-            .badge-bad { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { padding: 0; } .no-print { display: none; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <h1>Pre-Factura CFDI 4.0</h1>
-              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Bolsas Elemental ERP · Documento Fiscal de Facturación</div>
-            </div>
-            <div class="badge">ORDEN / NOTA: ${escapeHtml(form.folio) || '120267114014'}</div>
-          </div>
-
-          <div class="grid">
-            <div class="box">
-              <div class="box-title">DATOS DEL RECEPTOR</div>
-              <strong>GRUPO TEXTIL PROVIDENCIA SA DE CV</strong><br>
-              <strong>RFC:</strong> GTP930115PU1<br>
-              <strong>Domicilio Fiscal:</strong> HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO<br>
-              <strong>Uso CFDI:</strong> G01 - Adquisición de mercancías
-            </div>
-            <div class="box">
-              <div class="box-title">ESPECIFICACIONES CFDI 4.0 / METADATOS</div>
-              <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}<br>
-              <strong>Método de Pago:</strong> PPD (Pago en parcialidades o diferido)<br>
-              <strong>Forma de Pago:</strong> 99 Por definir<br>
-              <strong>Clave Prod/Serv SAT:</strong> 24141500 (Bolsas de plástico)<br>
-              <strong>Clave Unidad SAT:</strong> KGM (Kilogramos)<br>
-              <strong>Nota en CFDI:</strong> OC ${escapeHtml(form.folio) || '120267114014'}
-            </div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 15%; text-align: right;">Kilos</th>
-                <th style="width: 50%;">Descripción / Código Producto</th>
-                <th style="width: 15%; text-align: right;">Precio ($/kg)</th>
-                <th style="width: 20%; text-align: right;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsRows}
-            </tbody>
-          </table>
-
-          <div class="totals-container">
-            <div class="totals-box">
-              <div class="totals-row">
-                <span>SUBTOTAL:</span>
-                <strong>$${subtotalTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
-              </div>
-              <div class="totals-row">
-                <span>IVA (16%):</span>
-                <strong>$${ivaTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
-              </div>
-              <div class="totals-row grand">
-                <span>TOTAL:</span>
-                <span>$${grandTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="sat-info">
-            <strong>📌 Instructivo para Facturación:</strong> Documento con el desglose exacto de entregas reales de ${provName} (${kilosNum.toLocaleString('es-MX')} kg). Utiliza estos valores para timbrar la factura CFDI 4.0 en el portal del SAT o en tu sistema de facturación.
-          </div>
-
-          <script>
-            window.onafterprint = () => window.close();
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  function handlePrintPreFactura() {
+    printPreFactura({ folio: form.folio, items: form.items, deliveredByItem, kilosNum, dynamicConfig, provName });
   }
 
-  function printConsolidatedPackage() {
-
-    const totalKilos = Number(form.totalKilograms) || 0;
-    const invList = form.invoices ?? [];
-    const delList = form.deliveries ?? [];
-
-    let totalVentaConIVA = 0;
-    let totalCostoAndres = 0;
-    let totalComision = 0;
-
-    const invoicesHtml = invList.map(inv => {
-      const baseFin = computeFinancials(inv.kilos, config);
-      const customComm = inv.financials?.commission;
-      const invTotal = baseFin.invoiceTotal;
-      const costAndres = baseFin.costTotal;
-      const comm = customComm ?? baseFin.commission;
-      const net = invTotal - comm - costAndres;
-
-      totalVentaConIVA += invTotal;
-      totalCostoAndres += costAndres;
-      totalComision += comm;
-
-      return `
-        <tr>
-          <td style="font-family:monospace;font-weight:600;">#${escapeHtml(inv.folio || '—')}</td>
-          <td style="font-family:monospace;">${escapeHtml(inv.collection?.contrareciboNumber || '—')}</td>
-          <td style="text-align:right;">${inv.kilos.toLocaleString('es-MX')} kg</td>
-          <td style="text-align:right;">$${invTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-          <td style="text-align:right;color:#8A5A1E;">-$${costAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-          <td style="text-align:right;color:#B23A2E;">-$${comm.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-          <td style="text-align:right;font-weight:700;color:#2F7A52;">$${net.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-        </tr>
-      `;
-    }).join('');
-
-    const deliveriesHtml = delList.map(d => `
-      <tr>
-        <td>${d.date ? toDate(d.date)?.toLocaleDateString('es-MX') || '—' : '—'}</td>
-        <td style="text-align:right;">${d.kilos.toLocaleString('es-MX')} kg</td>
-        <td>${escapeHtml(d.notes || '—')}</td>
-      </tr>
-    `).join('');
-
-    const netUtilidad = totalVentaConIVA - totalCostoAndres - totalComision;
-    const margenPct = totalVentaConIVA > 0 ? ((netUtilidad / totalVentaConIVA) * 100).toFixed(2) : '0.00';
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>\n          <meta charset="UTF-8">
-          <title>Paquete Consolidado - ${escapeHtml(form.client)} (OC ${escapeHtml(form.oc || '—')})</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; color: #1e293b; font-size: 13px; line-height: 1.5; background: #fff; }
-            .header { border-bottom: 4px solid #0f172a; padding-bottom: 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .header-brand { display: flex; flex-direction: column; gap: 4px; }
-            .header h1 { margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.02em; font-weight: 800; }
-            .header-subtitle { color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-            .header-meta { text-align: right; color: #475569; }
-            .header-meta strong { color: #0f172a; display: block; margin-bottom: 4px; font-size: 14px; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-            tr:last-child td { border-bottom: none; }
-            tr:nth-child(even) { background-color: #fafaf9; }
-            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            .badge-ok { background: #dcfce7; color: #166534; }
-            .badge-warn { background: #fef9c3; color: #854d0e; }
-            .badge-bad { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { padding: 0; } .no-print { display: none; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <h1>PAQUETE DE COBRO CONSOLIDADO</h1>
-              <div class="sub">Bolsas Elemental ERP · Pre-Factura CFDI</div>
-            </div>
-            <div style="text-align:right;">
-              <strong>Fecha:</strong> ${new Date().toLocaleDateString('es-MX')}<br>
-              <strong>Folio Expediente:</strong> #${escapeHtml(form.folio || '—')}
-            </div>
-          </div>
-
-          <div class="meta-grid">
-            <div>
-              <strong>Cliente:</strong> ${escapeHtml(form.client || '—')}<br>
-              <strong>Departamento:</strong> ${escapeHtml(form.department || '—')}<br>
-              <strong>Orden de Compra (OC):</strong> ${escapeHtml(form.oc || '—')}
-            </div>
-            <div style="text-align:right;">
-              <strong>Proveedor Fabricante:</strong> ${provName} (Sin Mermas)<br>
-              <strong>Kilos Totales:</strong> ${totalKilos.toLocaleString('es-MX')} kg<br>
-              <strong>Facturas Asociadas:</strong> ${invList.length}
-            </div>
-          </div>
-
-          ${delList.length > 0 ? `
-            <div class="section-title">📦 1. REMISIONES Y ENTREGAS DE PLÁSTICO</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha Entrega</th>
-                  <th style="text-align:right;">Kilos Entregados</th>
-                  <th>Notas / Remisión</th>
-                </tr>
-              </thead>
-              <tbody>${deliveriesHtml}</tbody>
-            </table>
-          ` : ''}
-
-          <div class="section-title">📄 2. DETALLE DE FACTURAS (CFDI) Y CONTRARECIBOS (GT/TH)</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Folio Factura</th>
-                <th>Contrarecibo (CR)</th>
-                <th style="text-align:right;">Kilos</th>
-                <th style="text-align:right;">Facturado (con IVA)</th>
-                <th style="text-align:right;">Costo ${provName}</th>
-                <th style="text-align:right;">Comisión Contador</th>
-                <th style="text-align:right;">Utilidad Líquida Real</th>
-              </tr>
-            </thead>
-            <tbody>${invoicesHtml}</tbody>
-          </table>
-
-          <div class="summary-box">
-            <div class="summary-line"><span>Ingreso Total Facturado (Venta + IVA):</span><strong>$${totalVentaConIVA.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
-            <div class="summary-line"><span>Costo Directo Proveedor ${provName}:</span><span style="color:#8A5A1E;">-$${totalCostoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="summary-line"><span>Comisión Contabilidad / Contador:</span><span style="color:#B23A2E;">-$${totalComision.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="summary-line total">
-              <span>UTILIDAD LÍQUIDA REAL (MARGEN: ${margenPct}%):</span>
-              <span>$${netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
-            </div>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-box">Firma y Sello de Recepción Cliente</div>
-            <div class="sig-box">Autorización de Cobro y CAJA</div>
-          </div>
-
-          <script>
-            window.onafterprint = () => window.close();
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  function handlePrintConsolidatedPackage() {
+    printConsolidatedPackage({ folio: form.folio, client: form.client, department: form.department, oc: form.oc, totalKilograms: form.totalKilograms, invoices: form.invoices, deliveries: form.deliveries, config, provName });
   }
 
   async function remove() {
-    if (!window.confirm(`¿Eliminar el expediente ${order.folio ?? ''}? Esto no se puede deshacer.`))
-      return;
-    setBusy(true);
-    try {
-      await safeDeleteDoc(user?.email, doc(db, PATHS.orders, order.id), order);
-      logAction(user?.email, 'Expediente Eliminado', {
-        orderId: order.id,
-        folio: order.folio ?? '',
-        saleTotal: initialSummary.saleTotal,
-        paidAmount: initialSummary.paidAmount,
-      });
-      toast('Expediente eliminado', 'ok');
-      onClose();
-    } catch (e) {
-      toast(`No se pudo eliminar: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBusy(false);
-    }
+    await removeOrder({
+      order, userEmail: user?.email, initialSummary, setBusy, toast, onClose
+    });
   }
 
 
@@ -981,7 +423,7 @@ export default function OrderModal({
     addItem, updateItem, removeItem,
     addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery,
     addInvoice, updateInvoice, removeInvoice, facturarEntrega,
-    printRemision, printPreFactura, printConsolidatedPackage
+    printRemision: handlePrintRemision, printPreFactura: handlePrintPreFactura, printConsolidatedPackage: handlePrintConsolidatedPackage
   };
 
   return (
@@ -1025,7 +467,7 @@ export default function OrderModal({
         <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('facturas'); }}>
           Facturas <span className="badge">{form.invoices.length}</span>
         </button>
-        <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
+        <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={handlePrintConsolidatedPackage}>
           🖨️ Paquete Consolidado (PDF)
         </button>
       </div>
@@ -1063,8 +505,8 @@ export default function OrderModal({
             {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '🗑️ '} Eliminar Expediente
           </button>
         )}
-        <button className="btn" onClick={printRemision} style={{ marginLeft: 12 }}>📄 Generar Remisión (PDF)</button>
-        <button className="btn" onClick={printPreFactura} style={{ marginLeft: 12, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}>📋 Pre-Factura CFDI 4.0 (PDF)</button>
+        <button className="btn" onClick={handlePrintRemision} style={{ marginLeft: 12 }}>📄 Generar Remisión (PDF)</button>
+        <button className="btn" onClick={handlePrintPreFactura} style={{ marginLeft: 12, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}>📋 Pre-Factura CFDI 4.0 (PDF)</button>
         <span className="spacer" />
         <button className="btn" onClick={onClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
         {!readOnly && (

@@ -6,7 +6,7 @@ import { fmtDate } from '../../lib/format';
 import OrderModal from './index';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, exportCobranzaCsv, undoContrareciboBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, exportCobranzaCsv, undoContrareciboBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 

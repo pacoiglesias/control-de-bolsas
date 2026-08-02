@@ -43,7 +43,9 @@ export default function CajaChica() {
   }, 0);
   
   const deudaHistorica = config?.historicalDebtAndres || 0;
-  const deudaReal = totalPurchasesCost - totalPagado + deudaHistorica;
+  // Negativo = Deuda (Recibimos mas de lo que pagamos o tenemos deuda historica en negativo)
+  // Positivo = Saldo a Favor / Anticipo (Pagamos mas de lo que recibimos)
+  const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
   // Calc dinero en tránsito (estatus 'paid')
   const dineroEnTransito = orders.reduce((acc, o) => {
@@ -177,13 +179,13 @@ export default function CajaChica() {
           </div>
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>En manos de los contadores, listo para recoger.</p>
         </Card>
-        <Card title={`⚖️ DEUDA CON ${provName.toUpperCase()}`}>
+        <Card title={`⚖️ SALDO CON ${provName.toUpperCase()}`}>
           <div style={{ padding: 16 }}>
-            <h2 className={deudaReal > 0 ? 'text-bad' : deudaReal < 0 ? 'text-ok' : ''}>
-              {deudaReal > 0 ? '+' : ''}{money(deudaReal)}
+            <h2 className={saldoProveedor < 0 ? 'text-bad' : saldoProveedor > 0 ? 'text-ok' : ''}>
+              {saldoProveedor < 0 ? '-' : '+'}{money(Math.abs(saldoProveedor))}
             </h2>
             <p className="hint" style={{ marginTop: 8 }}>
-            {deudaReal > 0 ? `Saldo a favor de ${provName} (le debes).` : deudaReal < 0 ? `Saldo a tu favor (${provName} te debe).` : 'Cuentas saldadas.'}
+            {saldoProveedor < 0 ? `Deuda activa (le debes a ${provName}).` : saldoProveedor > 0 ? `Saldo a tu favor (${provName} te debe bolsas).` : 'Cuentas saldadas.'}
             </p>
           </div>
         </Card>
@@ -234,7 +236,14 @@ export default function CajaChica() {
                 {expenses.map((e) => (
                   <tr key={e.id} onClick={() => setSelected(e)} style={{ cursor: 'pointer' }}>
                     <td className="mono">{fmtDate(e.date)}</td>
-                    <td>{e.concept}</td>
+                    <td>
+                      {e.concept}
+                      {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
+                        <div style={{ marginTop: 4 }}>
+                           <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>[Abono a Proveedor]</span>
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <span className={`badge ${e.type === 'ingreso' ? 'b-ok' : 'b-bad'}`}>
                         {e.type.toUpperCase()}

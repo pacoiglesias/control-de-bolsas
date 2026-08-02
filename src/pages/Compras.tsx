@@ -98,7 +98,9 @@ export default function Compras() {
   }, 0);
   
   const deudaHistorica = config?.historicalDebtAndres || 0;
-  const deudaReal = totalPurchasesCost - totalPagado + deudaHistorica;
+  // Negativo = Deuda (Recibimos mas de lo que pagamos o tenemos deuda historica en negativo)
+  // Positivo = Saldo a Favor / Anticipo (Pagamos mas de lo que recibimos)
+  const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
   // Filter Logic
   const searchedPurchases = search.trim()
@@ -151,15 +153,15 @@ export default function Compras() {
   }, [provPurchases, provExpenses, currentCostPerKg, orderById]);
 
   // Compute accumulated balance
-  let currentBalance = -deudaHistorica;
+  let currentBalance = deudaHistorica;
   
   const historicalEntry = deudaHistorica !== 0 ? [{
     id: 'historical',
     date: null,
     concept: 'Saldo Histórico (Antes del Sistema)',
-    cargo: deudaHistorica < 0 ? -deudaHistorica : 0,
-    abono: deudaHistorica > 0 ? deudaHistorica : 0,
-    balance: -deudaHistorica,
+    cargo: deudaHistorica < 0 ? Math.abs(deudaHistorica) : 0, // Aumenta deuda (hace balance más negativo)
+    abono: deudaHistorica > 0 ? deudaHistorica : 0, // Saldo a favor inicial
+    balance: deudaHistorica,
     source: 'historical' as const
   }] : [];
 
@@ -188,7 +190,7 @@ export default function Compras() {
   }
 
   function sendWhatsAppStatement() {
-    const texto = `Hola Andrés, te comparto el estado de cuenta a la fecha:\n\n📦 *Entregas recibidas:* ${totalReceivedKilos.toLocaleString()} kg\n💰 *Valor del material:* $${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}\n\n💳 *Anticipos pagados:* $${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}\n${deudaHistorica ? `🕰️ *Saldo histórico:* ${deudaHistorica > 0 ? '+' : '-'}$${Math.abs(deudaHistorica).toLocaleString('es-MX', {minimumFractionDigits:2})}\n` : ''}\n📊 *Saldo actual:* $${Math.abs(deudaReal).toLocaleString('es-MX', {minimumFractionDigits:2})} ${deudaReal > 0 ? 'a tu favor (te debemos)' : 'a mi favor (me debes)'}\n\nCualquier duda quedo a la orden.`;
+    const texto = `Hola Andrés, te comparto el estado de cuenta a la fecha:\n\n📦 *Entregas recibidas:* ${totalReceivedKilos.toLocaleString()} kg\n💰 *Valor del material:* $${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}\n\n💳 *Anticipos pagados:* $${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}\n${deudaHistorica ? `🕰️ *Saldo histórico:* ${deudaHistorica > 0 ? '+' : '-'}$${Math.abs(deudaHistorica).toLocaleString('es-MX', {minimumFractionDigits:2})}\n` : ''}\n📊 *Saldo actual:* $${Math.abs(saldoProveedor).toLocaleString('es-MX', {minimumFractionDigits:2})} ${saldoProveedor < 0 ? 'deuda pendiente (te debemos)' : 'a mi favor (me debes)'}\n\nCualquier duda quedo a la orden.`;
     const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   }
@@ -222,14 +224,14 @@ export default function Compras() {
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">💰 TOTAL ADELANTADO</div><div class="kpi-val" style="color: #047857;">$${totalPagado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
             <div class="kpi"><div class="kpi-title">📦 VALOR ENTREGADO</div><div class="kpi-val">$${totalPurchasesCost.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">⚖️ SALDO PENDIENTE</div><div class="kpi-val" style="color: ${deudaReal > 0 ? '#b91c1c' : '#047857'};">$${deudaReal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
+            <div class="kpi"><div class="kpi-title">⚖️ SALDO PENDIENTE</div><div class="kpi-val" style="color: ${saldoProveedor < 0 ? '#b91c1c' : '#047857'};">${saldoProveedor < 0 ? '-' : '+'}$${Math.abs(saldoProveedor).toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
           </div>
 
           <h3>Libro Mayor Cronológico</h3>
           <table>
             <thead>
               <tr>
-                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (Sube Deuda)</th><th class="num">Abono (Baja Deuda)</th><th class="num">Saldo Acumulado</th>
+                <th>Fecha</th><th>Movimiento / Concepto</th><th class="num">Cargo (Aumenta Deuda)</th><th class="num">Abono (Pagos)</th><th class="num">Saldo Acumulado</th>
               </tr>
             </thead>
             <tbody>
@@ -239,7 +241,7 @@ export default function Compras() {
                   <td>${e.concept || '—'}</td>
                   <td class="num" style="font-weight:700; color: #b91c1c">${e.cargo ? `$${e.cargo.toLocaleString('es-MX', {minimumFractionDigits:2})}` : '—'}</td>
                   <td class="num" style="font-weight:700; color: #047857">${e.abono ? `$${e.abono.toLocaleString('es-MX', {minimumFractionDigits:2})}` : '—'}</td>
-                  <td class="num" style="font-weight:700; color: ${e.balance > 0 ? '#b91c1c' : '#047857'}">$${e.balance.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+                  <td class="num" style="font-weight:700; color: ${e.balance < 0 ? '#b91c1c' : '#047857'}">${e.balance < 0 ? '-' : '+'}$${Math.abs(e.balance).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -271,7 +273,7 @@ export default function Compras() {
       <div className="kpi-grid">
         <Card title="💰 Pagos y Anticipos (Nuestro favor)">
           {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
-            <div className="num" style={{ fontSize: 24, color: 'var(--ok)' }}>{money(totalPagado - deudaHistorica)}</div>
+            <div className="num" style={{ fontSize: 24, color: 'var(--ok)' }}>{money(totalPagado)}</div>
           )}
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Dinero depositado a Andrés.</p>
         </Card>
@@ -281,14 +283,14 @@ export default function Compras() {
           )}
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>{kilos(totalReceivedKilos)} kgs entregados a ${currentCostPerKg}/kg.</p>
         </Card>
-        <Card title="⚖️ Deuda Real al Día de Hoy">
+        <Card title="⚖️ Saldo Real al Día de Hoy">
           {isLoading ? <Skeleton style={{ height: 32, width: '60%' }} /> : (
-            <div className="num" style={{ fontSize: 24, color: deudaReal < 0 ? 'var(--ok)' : deudaReal > 0 ? 'var(--bad)' : 'var(--ink)' }}>
-              {deudaReal < 0 ? `- ${money(Math.abs(deudaReal))}` : money(deudaReal)}
+            <div className="num" style={{ fontSize: 24, color: saldoProveedor > 0 ? 'var(--ok)' : saldoProveedor < 0 ? 'var(--bad)' : 'var(--ink)' }}>
+              {saldoProveedor < 0 ? `- ${money(Math.abs(saldoProveedor))}` : `+ ${money(saldoProveedor)}`}
             </div>
           )}
           <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>
-             {deudaReal < 0 ? 'A tu favor (Andrés te debe bolsas).' : deudaReal > 0 ? 'Le debes dinero a Andrés.' : 'Saldos cuadrados al centavo.'}
+             {saldoProveedor > 0 ? 'A tu favor (Andrés te debe bolsas/dinero).' : saldoProveedor < 0 ? 'Deuda Activa (Le debes a Andrés).' : 'Saldos cuadrados al centavo.'}
           </p>
         </Card>
         <Card title={entregasAtrasadas.length > 0 ? '⚠️ Entregas Atrasadas' : '✅ Entregas al Día'}>
