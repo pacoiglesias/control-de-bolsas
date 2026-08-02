@@ -44,13 +44,14 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
     version: 'v6.30.0',
     date: '1 de Agosto de 2026',
-    time: '02:00 PM',
-    summary: 'Release ERP Providencia: PWA Offline, Auditoría & UX Motion',
+    time: '03:40 PM',
+    summary: 'Release ERP Providencia: PWA Offline, KPIs Globales (P&L) y Estado de Cuenta (Espejo)',
     highlights: [
-      'PWA y Offline-Cache: La app se instala nativa y funciona rápido incluso con poca señal.',
-      'Auditoría y Papelera: Todos los borrados (Soft-Delete) se respaldan, protegiendo contra pérdida accidental.',
-      'UX Motion: Nuevas micro-animaciones (Framer Motion) para un flujo visual premium.',
-      'Master Export: Nueva Exportación Maestra de Cierre de Mes (Excel) en el Dashboard.'
+      'Inventario Vivo (Bodega): Indicador global exacto de kilos facturados vs surtidos, sin merma.',
+      'Flujo de Efectivo Proyectado: Integración de Caja Chica, Tránsito de Cobranza y Deuda Proveedor (Andrés) en tiempo real.',
+      'Rentabilidad P&L por Mes: Nuevo selector de "Mes P&L" en Dashboard que permite calcular la utilidad neta mensual (Ganancia Comercial vs OPEX).',
+      'Estado de Cuenta (Espejo): Nueva pestaña en Cobranza que actúa como Libro Mayor para auditar todo lo emitido y cobrado al cliente (Providencia).',
+      'Exportación Maestra: Sábana de auditoría en Excel agregada al Dashboard.'
     ]
   },
   {
