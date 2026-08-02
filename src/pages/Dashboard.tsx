@@ -197,6 +197,17 @@ export const SYSTEM_CHANGELOG: SystemRelease[] = [
     ]
   },
   {
+    version: 'v6.31.0',
+    date: '2 de Agosto de 2026',
+    time: '11:20 AM',
+    summary: 'Módulo de Conciliación Maestra por Excel (Auditoría Bidireccional).',
+    highlights: [
+      'Exportación mejorada con ID_SISTEMA',
+      'Pantalla /audit para cruzar el Excel vs Base de Datos',
+      'Flujo neto exacto de comisión de contador a Caja Chica'
+    ]
+  },
+  {
     version: 'v6.12.0',
     date: '31 de Julio de 2026',
     time: '00:57 AM',
