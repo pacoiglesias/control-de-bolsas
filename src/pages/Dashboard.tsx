@@ -590,10 +590,14 @@ return () => unsub();
       gananciaRealizadaTotal: round2(liveGananciaRealizada),
       porRecibir,
       totalPorRecibir: round2(porRecibir.reduce((acc, r) => acc + r.net, 0)),
-      pending: { length: counters.pendingOrders },
-      pedidoPendiente: { length: counters.pedidoOrders },
-      overdue: { length: counters.overdueOrders },
-      review: { length: counters.manualReview },
+      // Arrays reales para tablas y alertas
+      pedidoPendiente: activeOrders.filter((o: PurchaseOrder) => !o.invoices?.length),
+      overdue: activeOrders.filter((o: PurchaseOrder) =>
+        (o.invoices || []).some(i => i.creditCycle?.status === 'overdue')
+      ),
+      review: activeOrders.filter((o: PurchaseOrder) =>
+        (o.invoices || []).some(i => i.creditCycle?.status === 'manual_review')
+      ),
       totalOrders: counters.totalOrders,
       meses: mesesObj,
       mesesKeys,
