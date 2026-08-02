@@ -13,7 +13,7 @@ export default function FixData() {
     addLog('Iniciando cuadre maestro...');
     
     try {
-      // 1. Fix Contrarecibos
+      // 1. Fix Contrarecibos (Por cobrar)
       const targetCRs = [
         { cr: 'TH-836', amount: 106720.17 },
         { cr: 'GT-742', amount: 54520.00 },
@@ -22,9 +22,16 @@ export default function FixData() {
         { cr: 'TH-768', amount: 125254.25 },
         { cr: 'TH-739', amount: 109040.00 },
         { cr: 'GT-651', amount: 106477.56 },
-        { cr: 'TH-713', amount: 108647.46 }, // wait, TH-713 and GT-713 ? Screenshot says TH-713 for 108,647.46
+        { cr: 'TH-713', amount: 108647.46 }, 
         { cr: 'TH-680', amount: 80970.38 },
-        { cr: 'GT-597', amount: 107420.76 }
+        { cr: 'GT-597', amount: 107420.76 },
+        { cr: 'GT-535', amount: 196482.30 } // Also in the image!
+      ];
+      
+      // 2. Fix Pagos (Con contabilidad)
+      const targetPagos = [
+        { cr: 'GT-570', amount: 92292.55 },
+        { cr: 'GT-570', amount: 89958.00 }
       ];
       
       const ordersSnap = await getDocs(collection(db, PATHS.orders));
@@ -39,7 +46,7 @@ export default function FixData() {
         invoices.forEach((inv: any) => {
           const total = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
           
-          // Buscar si el total hace match exacto (dentro de 1 peso) con algún CR objetivo
+          // Buscar si el total hace match con CR por cobrar
           const target = targetCRs.find(t => Math.abs(t.amount - total) < 1.0);
           if (target) {
              if (!inv.collection) inv.collection = {};
@@ -50,6 +57,20 @@ export default function FixData() {
                  addLog(`✅ Asignado CR ${target.cr} a la factura de ${total}`);
              }
           }
+          
+          // Buscar si el total hace match con facturas pagadas (Con Contabilidad)
+          const pago = targetPagos.find(t => Math.abs(t.amount - total) < 1.0);
+          if (pago) {
+             if (!inv.collection) inv.collection = {};
+             if (inv.collection.contrareciboNumber !== pago.cr || inv.creditCycle?.status !== 'paid') {
+                 inv.collection.contrareciboNumber = pago.cr;
+                 if (!inv.creditCycle) inv.creditCycle = {};
+                 inv.creditCycle.status = 'paid';
+                 changed = true;
+                 matchedCount++;
+                 addLog(`✅ Asignado CR ${pago.cr} y marcada PAGADA la factura de ${total}`);
+             }
+          }
         });
         
         if (changed) {
@@ -57,7 +78,7 @@ export default function FixData() {
         }
       });
       
-      addLog(`Se actualizaron ${matchedCount} facturas con su CR exacto.`);
+      addLog(`Se actualizaron ${matchedCount} facturas con su CR exacto o estado pagado.`);
 
       // 2. Fix Andrés Saldo
       // Saldo a favor nuestro con andres: 21,824.44
