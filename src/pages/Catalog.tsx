@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
@@ -144,10 +145,10 @@ export default function Catalog() {
           <span style={{ color: 'var(--text-light)', fontSize: '13px' }}>ó</span>
 
           <label className="btn" style={{ cursor: 'pointer', margin: 0 }}>
-            {creando ? 'Procesando...' : '📄 Importar CSV (Código, Nombre, Precio)'}
+            {creando ? 'Procesando...' : '📄 Importar Excel (.xlsx)'}
             <input 
               type="file" 
-              accept=".csv" 
+              accept=".csv, .xlsx, .xls" 
               style={{ display: 'none' }}
               disabled={creando}
               onChange={async (e) => {
@@ -155,34 +156,48 @@ export default function Catalog() {
                 if (!file) return;
                 setCreando(true);
                 try {
-                  const text = await file.text();
-                  const lines = text.split('\n');
-                  let added = 0;
-                  for (const line of lines) {
-                    if (!line.trim()) continue;
-                    const parts = line.split(',');
-                    // code, desc..., price
-                    const code = parts[0]?.trim() || '';
-                    if (code.toLowerCase() === 'sku' || code.toLowerCase() === 'código' || code.toLowerCase() === 'codigo') continue;
-                    const priceRaw = parts[parts.length - 1]?.trim() || '0';
-                    const desc = parts.slice(1, -1).join(',').replace(/^"|"$/g, '').trim(); 
-                    if (!desc) continue;
-
-                    await addDoc(collection(db, PATHS.products), {
-                      code,
-                      description: desc,
-                      unit: 'kg',
-                      defaultPrice: Number(priceRaw) || 0,
-                      createdAt: serverTimestamp(),
-                    });
-                    added++;
-                  }
-                  toast(`Se importaron ${added} productos desde el CSV.`, 'ok');
+                  const reader = new FileReader();
+                  reader.onload = async (evt) => {
+                    try {
+                      const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+                      const workbook = XLSX.read(data, { type: 'array' });
+                      const sheetName = workbook.SheetNames[0];
+                      const rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[sheetName]);
+                      
+                      let added = 0;
+                      for (const row of rows) {
+                        // Tolerar distintas capitalizaciones en el Excel
+                        const code = String(row['Código'] || row['codigo'] || row['Codigo'] || row['sku'] || '').trim();
+                        const desc = String(row['Nombre'] || row['nombre'] || row['descripción'] || row['description'] || '').trim();
+                        const price = Number(row['Precio'] || row['precio'] || row['price'] || 0);
+                        
+                        if (!desc) continue; 
+                        
+                        await addDoc(collection(db, PATHS.products), {
+                          code,
+                          description: desc,
+                          unit: 'kg',
+                          defaultPrice: price,
+                          createdAt: serverTimestamp(),
+                        });
+                        added++;
+                      }
+                      toast(`Se importaron ${added} productos desde el Excel.`, 'ok');
+                    } catch (err: any) {
+                      toast(`Error procesando Excel: ${err.message}`, 'bad');
+                    } finally {
+                      setCreando(false);
+                      if (e.target) e.target.value = '';
+                    }
+                  };
+                  reader.onerror = () => {
+                    toast('Error al leer el archivo.', 'bad');
+                    setCreando(false);
+                  };
+                  reader.readAsArrayBuffer(file);
                 } catch (err: any) {
-                  toast(`Error al importar CSV: ${err.message}`, 'bad');
-                } finally {
+                  toast(`Error general: ${err.message}`, 'bad');
                   setCreando(false);
-                  if (e.target) e.target.value = '';
                 }
               }}
             />

@@ -13,29 +13,11 @@ export async function exportToExcel() {
     const data = d.data();
     const invs = data.invoices || [];
     
-    if (invs.length === 0) {
-      ordersData.push({
-        OrderID: d.id,
-        InvoiceID: '',
-        OrdenFolio: data.folio || '',
-        Cliente: data.client || '',
-        FacturaFolio: '',
-        Contrarecibo: '',
-        Estatus: 'pedido',
-        Kilos: data.totalKilograms || 0,
-        MontoVenta: data.financials?.invoiceTotal || data.financials?.saleTotal || 0,
-        MontoCobrado: 0,
-        MontoPendiente: data.financials?.invoiceTotal || data.financials?.saleTotal || 0,
-        FechaEntrega: data.date?.toDate?.()?.toLocaleDateString() || '',
-      });
-    } else {
+    if (invs.length > 0) {
       invs.forEach((inv: any) => {
         const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
         const paid = inv.collection?.paidAmount ?? 0;
         ordersData.push({
-          OrderID: d.id,
-          InvoiceID: inv.id,
-          OrdenFolio: data.folio || '',
           Cliente: data.client || '',
           FacturaFolio: inv.folio || '',
           Contrarecibo: inv.collection?.contrareciboNumber || '',
@@ -44,7 +26,8 @@ export async function exportToExcel() {
           MontoVenta: invTotal,
           MontoCobrado: paid,
           MontoPendiente: Math.max(invTotal - paid, 0),
-          FechaVencimiento: inv.creditCycle?.dueDate?.toDate?.()?.toLocaleDateString() || '',
+          FechaVencimiento: inv.creditCycle?.dueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+          ID_SISTEMA: `${d.id}::${inv.id}`
         });
       });
     }
@@ -53,40 +36,42 @@ export async function exportToExcel() {
   const purchasesData = purchasesSnap.docs.map(d => {
     const data = d.data();
     return {
-      ID: d.id,
       Proveedor: data.provider || '',
-      Fecha: data.date?.toDate?.()?.toLocaleDateString() || '',
-      KilosPedidos: data.expectedKilos || 0,
-      KilosRecibidos: data.receivedKilos || 0,
-      PrecioKg: data.pricePerKg || 0,
-      MontoTotal: data.totalAmount || 0,
+      Folio: data.folio || '',
+      Estatus: data.status || '',
+      Subtotal: data.subtotal || 0,
+      IVA: data.iva || 0,
+      Total: data.total || 0,
+      FechaEmision: data.invoiceDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      FechaVencimiento: data.dueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      ID_SISTEMA: d.id,
     };
   });
 
   const expensesData = expensesSnap.docs.map(d => {
     const data = d.data();
     return {
-      ID: d.id,
+      Concepto: data.concept || '',
       Tipo: data.type || '',
       Categoria: data.category || '',
       Monto: data.amount || 0,
-      Fecha: data.date?.toDate?.()?.toLocaleDateString() || '',
-      Concepto: data.concept || '',
+      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      ID_SISTEMA: d.id,
     };
   });
 
   const wb = XLSX.utils.book_new();
   
   const wsOrders = XLSX.utils.json_to_sheet(ordersData);
-  XLSX.utils.book_append_sheet(wb, wsOrders, 'Ventas_Clientes');
+  XLSX.utils.book_append_sheet(wb, wsOrders, 'Auditoria_Cobranza');
 
   const wsPurchases = XLSX.utils.json_to_sheet(purchasesData);
-  XLSX.utils.book_append_sheet(wb, wsPurchases, 'Compras_Proveedores');
+  XLSX.utils.book_append_sheet(wb, wsPurchases, 'Auditoria_Compras');
 
   const wsExpenses = XLSX.utils.json_to_sheet(expensesData);
-  XLSX.utils.book_append_sheet(wb, wsExpenses, 'Caja_Flujo');
+  XLSX.utils.book_append_sheet(wb, wsExpenses, 'Auditoria_CajaChica');
 
-  XLSX.writeFile(wb, `Respaldo_ERP_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(wb, `Sabana_Auditoria_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 export async function exportToHtml() {

@@ -26,6 +26,8 @@ const Seeder = lazy(() => import('./pages/Seeder'));
 const OcTracking = lazy(() => import('./pages/OcTracking'));
 const Catalog = lazy(() => import('./pages/Catalog'));
 const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m.FastEntry })));
+const SeedV3 = lazy(() => import('./pages/SeedV3'));
+const AuditSync = lazy(() => import('./pages/AuditSync'));
 
 function RouteFallback() {
   return (
@@ -66,6 +68,8 @@ function Gate() {
           <Route path="compras" element={<Suspense fallback={<RouteFallback />}><Compras /></Suspense>} />
           <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
           <Route path="seed" element={<Suspense fallback={<RouteFallback />}><Seeder /></Suspense>} />
+          <Route path="seed-v3" element={<Suspense fallback={<RouteFallback />}><SeedV3 /></Suspense>} />
+          <Route path="audit" element={<Suspense fallback={<RouteFallback />}><AuditSync /></Suspense>} />
           <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
           <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
           <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />

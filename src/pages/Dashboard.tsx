@@ -832,6 +832,17 @@ return () => unsub();
             <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
+            <a 
+              href="/plantilla_llena.xlsx" 
+              download="plantilla_llena.xlsx"
+              className="btn" 
+              style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+            >
+              ⬇️ Descargar Sábana Llena
+            </a>
+            <button className="btn" style={{ background: '#7e22ce', color: '#fff', borderColor: '#7e22ce', fontWeight: 600 }} onClick={() => window.location.href = '/audit'}>
+              ⚖️ Auditoría Maestra
+            </button>
             <button className="btn" style={{ background: '#10b981', color: '#fff', borderColor: '#10b981', fontWeight: 600 }} onClick={async () => {
               toast('Generando Cierre de Mes Excel...', 'info');
               try {
