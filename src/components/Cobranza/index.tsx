@@ -9,6 +9,7 @@ import CobranzaStats from './CobranzaStats';
 import AgingTable from './AgingTable';
 import ProximasTable from './ProximasTable';
 import EstadoCuenta from './EstadoCuenta';
+import TableroKanban from './TableroKanban';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../../lib/finance';
 import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
@@ -30,7 +31,7 @@ export default function Cobranza() {
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>('pendientes');
+  const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>('tablero');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
 
@@ -831,7 +832,7 @@ export default function Cobranza() {
       .map(({ o, inv }) => {
         const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
         const hasCr = cr.length > 0;
-        const d = daysLate(toDate(inv.creditCycle.dueDate));
+        const d = daysLate(toDate(inv.creditCycle?.dueDate));
         return { o, inv, d, saldo: saldo(inv), hasCr, cr };
       })
       .sort((a, b) => {
@@ -956,6 +957,9 @@ export default function Cobranza() {
       </div>
 
       <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
+        <button className={`tab ${activeTab === 'tablero' ? 'active' : ''}`} onClick={() => setActiveTab('tablero')}>
+          📋 Tablero (Kanban)
+        </button>
         <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')}>
           ⏳ Pendientes de Cobro ({data.open.length})
         </button>
@@ -972,6 +976,10 @@ export default function Cobranza() {
           🪞 Estado de Cuenta (Espejo)
         </button>
       </div>
+
+      {activeTab === 'tablero' && (
+        <TableroKanban />
+      )}
 
       {activeTab === 'estado_cuenta' && (
         <EstadoCuenta />

@@ -1175,8 +1175,8 @@ return () => unsub();
 
       <div className="kpi-section-title">⚙️ Operación y Universo</div>
       <div className="kpi-grid" style={{ marginBottom: 32 }}>
-        <KpiCard hero tone="cash" label="📦 BODEGA (INVENTARIO VIVO)" value={<span style={{ fontSize: 32 }}>{kilos(k.inventarioVivo)}</span>}
-          sub="Kilos recibidos de Andrés - Kilos facturados a Providencia" />
+        <KpiCard hero tone="cash" label="📦 MATERIAL FLOTANTE (POR FACTURAR)" value={<span style={{ fontSize: 32 }}>{kilos(k.inventarioVivo)}</span>}
+          sub="Kilos entregados por Andrés pendientes de ser facturados a Providencia" />
         {role !== 'viewer' && (
           <>
             <KpiCard tone={k.utilidadNeta > 0 ? 'ok' : 'bad'} label="Utilidad Neta (P&L)" value={<ResponsiveMoney value={k.utilidadNeta || 0} />}

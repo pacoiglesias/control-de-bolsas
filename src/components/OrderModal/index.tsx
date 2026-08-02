@@ -323,7 +323,15 @@ export default function OrderModal({
     set('deliveries', updateDeliveryFieldLib(form.deliveries, index, field, value));
   };
   const updateDeliveryItemQty = (deliveryIndex: number, itemId: string, quantity: number) => {
-    set('deliveries', updateDeliveryItemQuantity(form.deliveries, deliveryIndex, itemId, quantity));
+    const nextDeliveries = updateDeliveryItemQuantity(form.deliveries, deliveryIndex, itemId, quantity);
+    const { kilosEntregados: nextKilos } = computeDeliveredTotals(nextDeliveries);
+    const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+    
+    if (nextKilos > kilosPedidos) {
+      toast(`Error: No puedes registrar ${nextKilos.toLocaleString('es-MX')} kg en total si la OC solo ampara ${kilosPedidos.toLocaleString('es-MX')} kg.`, 'bad');
+      return;
+    }
+    set('deliveries', nextDeliveries);
   };
   const removeDelivery = (index: number) => {
     const result = removeDeliveryAt(form.deliveries, index);

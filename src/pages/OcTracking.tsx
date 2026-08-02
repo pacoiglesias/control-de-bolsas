@@ -251,7 +251,12 @@ export default function OcTracking() {
           }
 
           const kilosPedidos = group.order?.totalKilograms ?? 0;
-          const hasCR = group.invoices.length > 0 && group.invoices.every((i: any) => i.cr);
+          
+          const kilosEntregados = group.order?.deliveries?.reduce((acc, d) => {
+             const itemsTotal = d.items?.reduce((s, it) => s + (Number(it.quantity)||0), 0) || 0;
+             return acc + (itemsTotal > 0 ? itemsTotal : (Number(d.kilos)||0));
+          }, 0) ?? 0;
+          const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
 
           return (
             <div
@@ -283,9 +288,11 @@ export default function OcTracking() {
                   <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                     <span style={{ color: 'var(--text)' }}>Pedida: {kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                     {' · '}
-                    <span style={{ color: hasCR ? 'var(--ok)' : 'var(--warn)' }}>Logística: {hasCR ? '✅ CR Recibido (Entregado)' : '🚚 Pendiente de Entrega'}</span>
+                    <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Surtido: {kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                     {' · '}
-                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--info)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    <span style={{ color: 'var(--info)' }}>Faltan: {kilosFaltantes.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    {' · '}
+                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--text)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                   </div>
                   {kilosPedidos > 0 && (
                     <div style={{ marginTop: 8, maxWidth: 300 }}>
