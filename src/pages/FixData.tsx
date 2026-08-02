@@ -97,16 +97,28 @@ export default function FixData() {
       <h1>Herramienta de Cuadre Maestro</h1>
       <p>Al hacer clic en este botón, el sistema escaneará las facturas actuales y les asignará automáticamente los Contrarecibos (TH-836, TH-804, GT-713, etc) basándose en las cantidades exactas de tu Excel.</p>
       <p>También recalculará el saldo inicial de Andrés para que el "Saldo a Favor" sea exactamente <b>$21,824.44</b>.</p>
-      <button 
-        onClick={runFix} 
-        disabled={busy}
-        style={{ padding: '12px 24px', fontSize: 18, background: '#16a34a', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}
-      >
-        {busy ? 'Cuadrando...' : 'Aplicar Cuadre Exacto'}
-      </button>
       
-      <div style={{ marginTop: 24, background: '#f1f5f9', padding: 16, borderRadius: 8, fontFamily: 'monospace' }}>
+      <div style={{ marginBottom: 20 }}>
+        <button 
+          onClick={runFix} 
+          disabled={busy}
+          style={{ padding: '15px 30px', fontSize: '18px', marginRight: '15px', background: '#16a34a', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+        >
+          {busy ? 'Calculando y Guardando...' : '1. Correr Cuadre Automático'}
+        </button>
+
+        <a 
+          href="/plantilla_maestra_v3.xlsx" 
+          target="_blank"
+          style={{ padding: '15px 30px', fontSize: '18px', textDecoration: 'none', display: 'inline-block', background: '#2563eb', color: 'white', borderRadius: 8 }}
+        >
+          2. ⬇️ Descargar Sábana de Captura Inicial (Excel)
+        </a>
+      </div>
+      
+      <div style={{ marginTop: 30, background: '#111', padding: 20, borderRadius: 8, color: '#0f0', fontFamily: 'monospace' }}>
         {log.map((l, i) => <div key={i}>{l}</div>)}
+        {!log.length && 'Esperando iniciar...'}
       </div>
     </div>
   );
