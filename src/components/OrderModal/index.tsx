@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 import { useState, useMemo, useCallback } from 'react';
 import { collection, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -972,15 +973,15 @@ export default function OrderModal({
   const viabilityWarning = estimatedTotalCost > cajaBalance;
 
   const ctx = {
-    form, setForm: set, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
-    handleItemChange, removeItem, addEmptyItem, recalcTotals, facturarLoEntregado,
-    allOrders, knownClients, knownProviders, knownClientEmails, provName,
-    processFacturaText, processPagoText, handleDeliverySubmit, setDeliveryForm, deliveryForm,
-    editingDeliveryId, handleEditDelivery, handleDeleteDelivery, facturarTodasLasEntregas,
-    config, updateInvoiceField, guardarFactura, eliminarFactura, registrarPago,
-    eliminarPago, marcarFacturaCobrada, printFactura, imprimirFactura, printRemision, printPreFactura, printConsolidatedPackage,
-    fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast,
-    kilosEntregados, kilosPedidos, kilosFaltantes, addItem, deliveredByItem, updateItem
+    form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
+    allOrders, knownClients, knownProviders, knownClientEmails, provName, config,
+    fallbackSale, fallbackCost, fallbackComm, kilosNum,
+    kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem,
+    processFacturaText, processPagoText, parseOCAndFill, emailClient, toast,
+    addItem, updateItem, removeItem,
+    addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery,
+    addInvoice, updateInvoice, removeInvoice, facturarEntrega,
+    printRemision, printPreFactura, printConsolidatedPackage
   };
 
   return (

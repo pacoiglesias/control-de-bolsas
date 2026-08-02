@@ -10,7 +10,7 @@ import { camposInvoices } from '../../lib/invoiceOps';
 export default function TabResumen() {
   const ctx = useOrderModal();
   if (!ctx) return null;
-  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, handleItemChange, removeItem, addEmptyItem, recalcTotals, facturarLoEntregado, allOrders, knownClients, knownProviders, knownClientEmails, provName, processFacturaText, processPagoText, handleDeliverySubmit, setDeliveryForm, deliveryForm, editingDeliveryId, handleEditDelivery, handleDeleteDelivery, facturarTodasLasEntregas, config, updateInvoiceField, guardarFactura, eliminarFactura, registrarPago, eliminarPago, marcarFacturaCobrada, printFactura, imprimirFactura, fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast, kilosEntregados, kilosPedidos, kilosFaltantes, addItem, deliveredByItem, updateItem } = ctx;
+  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
 
   return (
     <>
