@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
-import { Field, StatusBadge } from '../ui';
+import { Field, StatusBadge, CopyButton } from '../ui';
 import { escapeHtml, fromInputDate, money, toInputDate, kilos, percent, fmtDate, fmtDateTime } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
 import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
@@ -15,10 +15,7 @@ export default function TabFacturas() {
   if (!ctx) return null;
   const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processParsedXml, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
 
-  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -30,7 +27,22 @@ export default function TabFacturas() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
     e.target.value = ''; // Reset input
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
   };
 
   return (
@@ -44,9 +56,30 @@ export default function TabFacturas() {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
                   
-                  <button className="btn" onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)', color: 'var(--accent)' }}>
-                    📄 CARGAR XML (SAT)
-                  </button>
+                  <div 
+                    onDrop={handleDrop} 
+                    onDragOver={handleDragOver}
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ 
+                      border: '1px dashed var(--accent)', 
+                      borderRadius: 8, 
+                      padding: '6px 14px', 
+                      background: 'rgba(37,99,235,0.05)', 
+                      color: 'var(--accent)', 
+                      cursor: 'pointer', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      fontSize: 13,
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37,99,235,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(37,99,235,0.05)'}
+                  >
+                    <span>📄</span>
+                    <span>Arrastra o Carga XML</span>
+                  </div>
 
                   <button className="btn" onClick={() => {
                     const text = window.prompt("Pega aquí el texto completo copiado del PDF de la Factura:");
@@ -63,7 +96,11 @@ export default function TabFacturas() {
               )}
             </div>
             {form.invoices.length === 0 ? (
-              <p className="hint">No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.</p>
+              <div className="empty">
+                <span className="empty-icon">🧾</span>
+                <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>Sin Facturas</strong>
+                No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {computedInvoices.map(({ inv, fin, d, isLate }, i) => {
@@ -149,36 +186,42 @@ export default function TabFacturas() {
                       </div>
                       <div className="form-grid">
                         <Field label="Folio">
-                          <input className="input boxed mono" defaultValue={inv.folio || ''} 
-                            onBlur={e => {
-                              const val = e.target.value.trim().toUpperCase();
-                              if (val.startsWith('GT') || val.startsWith('TH')) {
-                                toast('Error: TH y GT son exclusivas de Contrarecibo. Ingresa un número de factura válido.', 'bad');
-                                e.target.value = inv.folio || '';
-                                return;
-                              }
-                              updateInvoice(i, x => ({...x, folio: e.target.value}));
-                            }} disabled={readOnly} />
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <input className="input boxed mono" defaultValue={inv.folio || ''} 
+                              onBlur={e => {
+                                const val = e.target.value.trim().toUpperCase();
+                                if (val.startsWith('GT') || val.startsWith('TH')) {
+                                  toast('Error: TH y GT son exclusivas de Contrarecibo. Ingresa un número de factura válido.', 'bad');
+                                  e.target.value = inv.folio || '';
+                                  return;
+                                }
+                                updateInvoice(i, x => ({...x, folio: e.target.value}));
+                              }} disabled={readOnly} />
+                            {inv.folio && <CopyButton text={inv.folio} />}
+                          </div>
                         </Field>
                         <Field label="Kilos Facturados">
                           <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.kilos} 
                             onBlur={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
                         </Field>
                         <Field label="Contrarecibo (CR)">
-                          <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''} 
-                            disabled={readOnly}
-                            onBlur={e => {
-                              let val = e.target.value.trim().toUpperCase();
-                              if (val) {
-                                if (val.startsWith('TH-') || val.startsWith('GT-')) val = val.substring(3);
-                                val = `${order.department || 'TH'}-${val}`;
-                              }
-                              e.target.value = val;
-                              updateInvoice(i, x => ({
-                                ...x, 
-                                collection: { ...x.collection, contrareciboNumber: val }
-                              }));
-                            }} />
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <input className="input boxed mono" defaultValue={inv.collection?.contrareciboNumber || ''} 
+                              disabled={readOnly}
+                              onBlur={e => {
+                                let val = e.target.value.trim().toUpperCase();
+                                if (val) {
+                                  if (val.startsWith('TH-') || val.startsWith('GT-')) val = val.substring(3);
+                                  val = `${order.department || 'TH'}-${val}`;
+                                }
+                                e.target.value = val;
+                                updateInvoice(i, x => ({
+                                  ...x, 
+                                  collection: { ...x.collection, contrareciboNumber: val }
+                                }));
+                              }} />
+                            {inv.collection?.contrareciboNumber && <CopyButton text={inv.collection?.contrareciboNumber} />}
+                          </div>
                         </Field>
                         <Field label="Vencimiento (Promesa)">
                           <input className="input boxed mono" type="date" 

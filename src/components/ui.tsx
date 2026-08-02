@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 import { useConfig } from '../hooks/useConfig';
@@ -65,6 +65,28 @@ export function Card({
       ) : null}
       {children}
     </section>
+  );
+}
+
+export function CopyButton({ text, label }: { text: string; label?: string; }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="btn-icon"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'auto', padding: '2px 6px', height: 24, fontSize: 11, color: copied ? 'var(--ok)' : 'var(--ink-soft)' }}
+      title={`Copiar ${label ?? text}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      {copied ? '✅' : '📋'}
+      {label && <span style={{ fontWeight: 600 }}>{label}</span>}
+    </button>
   );
 }
 

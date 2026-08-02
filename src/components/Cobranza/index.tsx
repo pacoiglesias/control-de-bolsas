@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { useConfig } from '../../hooks/useConfig';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
-import { Card, Empty, KpiCard, Skeleton, StatusBadge } from '../ui';
+import { Card, Empty, KpiCard, Skeleton } from '../ui';
 import OrderModal from '../OrderModal';
 import CobranzaContext from './CobranzaContext';
 import CobranzaStats from './CobranzaStats';
@@ -1140,54 +1140,77 @@ export default function Cobranza() {
           {data.collected.length === 0 ? (
             <Empty>No hay contrarecibos recogidos aún en el historial.</Empty>
           ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Folio</th>
-                    <th>Cliente</th>
-                    <th>Contrarecibo</th>
-                    <th>Referencia Transferencia</th>
-                    <th className="num">Monto Venta</th>
-                    <th>Estado</th>
-                    <th>Acción Reversión</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.collected.map(({ o, inv }) => {
-                    const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
-                    const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-                    return (
-                      <tr key={inv.id}>
-                        <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
-                        <td>{o.client ?? '—'}</td>
-                        <td className="mono">{currentCr || '—'}</td>
-                        <td className="mono">{inv.collection?.transferRef || '—'}</td>
-                        <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
-                          {money(invTotal)}
-                        </td>
-                        <td>
-                          <StatusBadge status={inv.creditCycle.status} />
-                        </td>
-                        <td>
-                          {currentCr && (
-                            <button
-                              className="btn-small btn-warn"
-                              style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600 }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                revertCollectedContrareciboBlock(currentCr);
-                              }}
-                            >
-                              ↩️ Deshacer Recolección
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {(() => {
+                const groupedByTr = data.collected.reduce((acc, { o, inv }) => {
+                  const tr = inv.collection?.transferRef || 'Sin Ref';
+                  if (!acc[tr]) acc[tr] = { tr, invoices: [], totalSale: 0 };
+                  acc[tr].invoices.push({ o, inv });
+                  acc[tr].totalSale += (inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+                  return acc;
+                }, {} as Record<string, { tr: string, invoices: any[], totalSale: number }>);
+
+                return Object.values(groupedByTr).map((group) => (
+                  <div key={group.tr} style={{ border: '2px solid var(--ok)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ background: '#f0fdf4', padding: '8px 12px', borderBottom: '2px solid var(--ok)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 13, color: '#166534' }}>
+                        <span>TRANSFERENCIA (TR): <strong>{group.tr}</strong></span>
+                        <span style={{ marginLeft: 16 }}>IMPORTE BRUTO: <strong>{money(group.totalSale)} MXN</strong></span>
+                      </div>
+                    </div>
+                    <div className="table-scroll" style={{ margin: 0 }}>
+                      <table className="data-table" style={{ margin: 0, border: 'none' }}>
+                        <thead style={{ background: 'var(--ok)', color: '#fff' }}>
+                          <tr>
+                            <th style={{ color: '#fff', border: 'none' }}>Folio</th>
+                            <th style={{ color: '#fff', border: 'none' }}>Cliente</th>
+                            <th style={{ color: '#fff', border: 'none' }}>Contrarecibo</th>
+                            <th className="num" style={{ color: '#fff', border: 'none' }}>Importe Venta</th>
+                            <th style={{ color: '#fff', border: 'none' }}>Acción Reversión</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.invoices.map(({ o, inv }) => {
+                            const currentCr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '';
+                            const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+                            return (
+                              <tr key={inv.id}>
+                                <td className="mono" style={{ borderLeft: 'none' }}>{inv.folio ?? o.folio ?? '—'}</td>
+                                <td>{o.client ?? '—'}</td>
+                                <td className="mono">{currentCr || '—'}</td>
+                                <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
+                                  {money(invTotal)}
+                                </td>
+                                <td style={{ borderRight: 'none' }}>
+                                  {currentCr && (
+                                    <button
+                                      className="btn-small btn-warn"
+                                      style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600 }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        revertCollectedContrareciboBlock(currentCr);
+                                      }}
+                                    >
+                                      ↩️ Deshacer Recolección
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan={3} style={{ textAlign: 'right', fontWeight: 'bold', border: 'none' }}>TOTAL TRANSFERENCIA:</td>
+                            <td className="num mono" style={{ fontWeight: 'bold', border: 'none' }}>{money(group.totalSale)}</td>
+                            <td style={{ border: 'none' }}></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                ));
+              })()}
             </div>
           )}
         </Card>

@@ -28,6 +28,16 @@ export type {
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date.getTime());
   d.setDate(d.getDate() + days);
+  
+  // Evitar fines de semana: si cae sábado, pasar a lunes (+2 días)
+  if (d.getDay() === 6) {
+    d.setDate(d.getDate() + 2);
+  } 
+  // Si cae domingo, pasar a lunes (+1 día)
+  else if (d.getDay() === 0) {
+    d.setDate(d.getDate() + 1);
+  }
+  
   return d;
 }
 

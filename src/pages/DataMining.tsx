@@ -147,7 +147,19 @@ export default function DataMining() {
                   </td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{money(row.facturado)}</td>
                   <td style={{ textAlign: 'right', fontFamily: 'monospace', color: 'var(--ok)' }}>{money(row.gananciaNeta)}</td>
-                  <td><StatusBadge status={row.status} /></td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <StatusBadge status={row.status} />
+                      <div style={{ background: 'var(--line-soft)', width: '100%', height: 4, borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ 
+                          width: `${row.status === 'ordered' || row.status === 'draft' ? 25 : row.status === 'delivered' ? 50 : row.status === 'invoiced' ? 75 : row.status === 'collected' ? 100 : 0}%`, 
+                          background: row.status === 'collected' ? 'var(--ok)' : 'var(--accent)', 
+                          height: '100%',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                    </div>
+                  </td>
                   <td style={{ textAlign: 'center', color: row.diasAtraso > 0 ? 'var(--bad)' : 'var(--ink-soft)' }}>
                     {row.diasAtraso > 0 ? `${row.diasAtraso} días` : '—'}
                   </td>
@@ -155,8 +167,12 @@ export default function DataMining() {
               ))}
               {processedData.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-soft)' }}>
-                    No hay resultados que coincidan con la búsqueda.
+                  <td colSpan={9}>
+                    <div className="empty">
+                      <span className="empty-icon">🔍</span>
+                      <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>No hay resultados</strong>
+                      Intenta con otro folio o nombre de cliente.
+                    </div>
                   </td>
                 </tr>
               )}

@@ -1277,37 +1277,62 @@ return () => unsub();
           }
           onClick={() => nav('/ordenes?filtro=pedido')} />
         {role !== 'viewer' ? (
-          <div className="card stat-card" style={{ padding: '20px', gridColumn: 'span 2', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', border: '1px solid #334155', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>Flujo de Efectivo Providencia</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <motion.div 
+            whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(16,185,129,0.3)' }}
+            transition={{ type: 'spring', stiffness: 300 }}
+            className="card stat-card" 
+            style={{ 
+              padding: '24px', 
+              gridColumn: 'span 2', 
+              background: 'linear-gradient(135deg, rgba(30,41,59,0.85) 0%, rgba(15,23,42,0.95) 100%)', 
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              color: '#fff', 
+              border: '1px solid rgba(16,185,129,0.2)', 
+              borderRadius: '16px',
+              display: 'flex', 
+              flexDirection: 'column', 
+              justifyContent: 'center',
+              boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <div style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', width: 36, height: 36, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                💎
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Flujo de Efectivo Providencia
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#cbd5e1' }}>Facturado (Te Deben)</span>
-                <strong>{money(k.porCobrar)}</strong>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Facturado (Te Deben)</span>
+                <strong style={{ fontSize: 15 }}>{money(k.porCobrar)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#cbd5e1' }}>Pendiente de Facturar</span>
-                <strong>{money(k.montoPendienteFacturar ?? 0)}</strong>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Pendiente de Facturar</span>
+                <strong style={{ fontSize: 15 }}>{money(k.montoPendienteFacturar ?? 0)}</strong>
               </div>
-              <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 16 }}>
-                <span style={{ color: '#e2e8f0' }}>Deuda Total Providencia</span>
-                <strong>{money(k.deudaTotalProvidencia)}</strong>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 17 }}>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>Deuda Total Providencia</span>
+                <strong style={{ color: '#f8fafc' }}>{money(k.deudaTotalProvidencia)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#f87171' }}>
-                <span>(-) Comisión Contable ({(config.commissionRate * 100).toFixed(1).replace(/\.0$/, '')}%)</span>
-                <strong>-{money(k.comisionContable)}</strong>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>(-) Comisión Contable ({(config.commissionRate * 100).toFixed(1).replace(/\.0$/, '')}%)</span>
+                <strong style={{ fontSize: 15 }}>-{money(k.comisionContable)}</strong>
               </div>
-              <div style={{ height: 1, background: '#334155', margin: '4px 0' }}></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 20, color: 'var(--ok)' }}>
-                <span style={{ fontWeight: 700 }}>Dinero Real a Recibir</span>
-                <span style={{ fontWeight: 800 }}>{money(k.dineroRealARecibir)}</span>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#10b981', fontSize: '1.4em', textShadow: '0 2px 10px rgba(16,185,129,0.3)' }}>
+                <span style={{ fontWeight: 600 }}>Dinero Real a Recibir</span>
+                <strong style={{ fontWeight: 900 }}>{money(k.dineroRealARecibir)}</strong>
               </div>
             </div>
             <div style={{ marginTop: 16, fontSize: 12, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
               <span>{(k.porCobrarSinCR ?? 0) > 0 ? `${money(k.porCobrarSinCR ?? 0)} sin CR` : ''}</span>
               <span>{(k.porCobrarConCR ?? 0) > 0 ? `${money(k.porCobrarConCR ?? 0)} con CR` : ''}</span>
             </div>
-          </div>
+          </motion.div>
         ) : (
           <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}
             sub={`${k.pending.length + k.overdue.length} órdenes abiertas`}

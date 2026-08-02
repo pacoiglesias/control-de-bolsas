@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React from 'react';
 import { useCobranza } from './CobranzaContext';
-import { Card, Empty } from '../ui';
+import { Card, Empty, CopyButton, StatusBadge } from '../ui';
 import { fmtDate } from '../../lib/format';
 import OrderModal from './index';
 
@@ -85,8 +85,11 @@ export default function ProximasTable() {
                     onClick={() => setSelected(o)} 
                     style={{ cursor: 'pointer', background: 'transparent' }}>
                     <td className="mono">
-                      {inv.folio ?? o.folio ?? '—'}
-                      {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{inv.folio ?? o.folio ?? '—'}</span>
+                        {(inv.folio || o.folio) && <CopyButton text={inv.folio ?? o.folio ?? ''} />}
+                        {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
+                      </div>
                     </td>
                     <td>{o.client ?? '—'}</td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
@@ -105,7 +108,12 @@ export default function ProximasTable() {
                         )
                       )}
                     </td>
-                    <td className="num mono" style={{ fontWeight: 700 }}>{money(saldo)}</td>
+                    <td className="num mono" style={{ fontWeight: 700 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        <span>{money(saldo)}</span>
+                        <CopyButton text={saldo.toString()} label="" />
+                      </div>
+                    </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <StatusBadge status={inv.creditCycle.status} />

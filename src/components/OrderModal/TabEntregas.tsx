@@ -96,7 +96,11 @@ export default function TabEntregas() {
             {form.items.length === 0 ? (
               <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>
             ) : form.deliveries.length === 0 ? (
-              <p className="hint">No hay entregas registradas.</p>
+              <div className="empty">
+                <span className="empty-icon">📦</span>
+                <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>Sin Entregas</strong>
+                No hay entregas registradas.
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {form.deliveries.map((d, i) => {
