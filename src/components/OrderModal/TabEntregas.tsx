@@ -1,14 +1,10 @@
-// @ts-nocheck
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
-import { Field, StatusBadge } from '../ui';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, percent, fmtDate, fmtDateTime } from '../../lib/format';
-import { Timestamp } from 'firebase/firestore';
-import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
-import { camposInvoices } from '../../lib/invoiceOps';
+import { fromInputDate, toInputDate, fmtDateTime } from '../../lib/format';
+import { round2 } from '../../lib/finance';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
-import { doc, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 
 function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) => void, onCancel: () => void }) {
@@ -40,15 +36,15 @@ export default function TabEntregas() {
   const [showPortal, setShowPortal] = React.useState(false);
 
   if (!ctx) return null;
-  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+  const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = ctx;
 
   const handleImportMaquilaDelivery = async (d: any) => {
     // 1. Encuentra el ítem en la OC actual (buscando por código o por id)
-    let ocItem = form.items.find(it => it.code === d.productCode || it.id === d.productCode);
+    const ocItem = form.items.find((it: any) => it.code === d.productCode || it.id === d.productCode);
     
     // Si no está, lo ideal sería agregarlo automáticamente, pero por ahora requerimos que exista en la OC.
     if (!ocItem) {
-      toast.showError(`La Orden de Compra no incluye el producto "${d.productDescription}". Agrégalo primero en la pestaña Productos.`);
+      toast(`La Orden de Compra no incluye el producto "${d.productDescription}". Agrégalo primero en la pestaña Productos.`, 'bad');
       return;
     }
 
@@ -61,16 +57,16 @@ export default function TabEntregas() {
       invoiced: false,
       notes: 'Importado del Portal Maquilador'
     };
-    setForm(f => ({ ...f, deliveries: [...f.deliveries, newDel] }));
+    setForm((f: any) => ({ ...f, deliveries: [...f.deliveries, newDel] }));
     
     // 3. Marca la entrega como asignada en Firestore
     try {
       await updateDoc(doc(db, PATHS.maquilaDeliveries, d.id), { status: 'assigned' });
-      toast.showSuccess('Entrega importada correctamente');
+      toast('Entrega importada correctamente', 'ok');
       setShowPortal(false);
     } catch(e) {
       console.error(e);
-      toast.showError('Error al marcar la entrega como asignada.');
+      toast('Error al marcar la entrega como asignada.', 'bad');
     }
   };
 
@@ -103,8 +99,8 @@ export default function TabEntregas() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {form.deliveries.map((d, i) => {
-                  const kilosDeEsta = round2((d.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
+                {form.deliveries.map((d: any, i: number) => {
+                  const kilosDeEsta = round2((d.items ?? []).reduce((a: number, x: any) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
                   return (
                     <div key={d.id} style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
@@ -139,8 +135,8 @@ export default function TabEntregas() {
                           <tr><th>Producto</th><th className="num">Pedido</th><th className="num">Entregado (esta vez)</th></tr>
                         </thead>
                         <tbody>
-                          {form.items.map((it) => {
-                            const qtyEnEsta = (d.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
+                          {form.items.map((it: any) => {
+                            const qtyEnEsta = (d.items ?? []).find((x: any) => x.itemId === it.id)?.quantity ?? 0;
                             return (
                               <tr key={it.id}>
                                 <td>{it.description || it.code || '(sin descripción)'}</td>

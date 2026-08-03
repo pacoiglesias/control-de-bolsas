@@ -2,11 +2,14 @@
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { Field, StatusBadge, CopyButton } from '../ui';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, percent, fmtDate, fmtDateTime } from '../../lib/format';
-import { Timestamp } from 'firebase/firestore';
-import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
+import { fromInputDate, money, toInputDate, kilos, fmtDate, percent } from '../../lib/format';
+import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+import { addDays } from '../../lib/finance';
+import type { OrderStatus } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { parseXmlInvoice } from '../../lib/xmlParser';
+import { sound } from '../../lib/sounds';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();

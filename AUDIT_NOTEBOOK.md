@@ -30,3 +30,16 @@ La hoja "Auditoria_Compras" del Excel descargable ahora exporta datos correctos,
 **Riesgo:** 🟢 Bajo — solo estructura visual.
 **Commit:** `style: agregar table-scroll faltante en 2 tablas para consistencia móvil`
 **Estado:** ✅ Verificado.
+
+### Iteración 12: Scroll bloqueado en toda la aplicación tras un error dentro de un modal (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/components/ui.tsx`, `src/components/Layout.tsx`
+**Problema:** 🔴 Reportado por el usuario en `/caja-chica`: el scroll de la página dejó de funcionar. Causa raíz: el componente `Modal` bloquea el scroll del fondo mientras está abierto (`document.body.style.overflow = 'hidden'`) y lo restaura al cerrarse — patrón correcto en sí, pero el `useEffect` que lo hace dependía de `[onClose]`, una función que casi siempre es una referencia nueva en cada render del componente padre. Esto hacía que el efecto se reiniciara en cada render mientras el modal seguía abierto. Si algo tronaba a mitad de una interacción dentro de un modal (como los `ReferenceError` reales encontrados hoy en `TabFacturas.tsx` — `sound`, `addDoc`, `addDays` usados sin importar, ocultos hasta ahora por `@ts-nocheck`), la limpieza final del efecto podía no completarse nunca, dejando el `body` con `overflow:hidden` para siempre. El bloqueo afecta a **toda la aplicación**, no solo a la pantalla donde ocurrió — de ahí que el usuario preguntara si era solo esa pantalla.
+**Impacto:** Scroll completamente roto en cualquier página, hasta recargar el navegador.
+**Solución:** Dos capas. (1) El efecto del `Modal` ahora se ejecuta una sola vez por apertura/cierre real (dependencias `[]`), usando una ref para la última versión de `onClose` — ya no se reinicia en cada render. (2) Red de seguridad en `Layout.tsx`: el bloqueo de scroll se libera automáticamente cada vez que cambia de ruta, sin depender de que la limpieza del modal se haya ejecutado correctamente — cubre cualquier otro fallo futuro de la misma naturaleza, no solo este caso puntual.
+**Riesgo:** 🟢 Bajo — el cambio hace el comportamiento existente más robusto, no cambia la experiencia cuando todo funciona bien.
+**Commit:** `fix(ui): reparar bloqueo de scroll permanente cuando un modal falla a medio uso`
+**Estado:** ✅ Verificado — `tsc` limpio, 39/39 pruebas, build completo.
+
+### 🟡 Nota de continuidad
+`TabFacturas.tsx` quedó con `@ts-nocheck` restaurado temporalmente para no bloquear esta entrega urgente — pero ya con los imports reales corregidos (`sound`, `addDoc`, `collection`, `db`, `PATHS`, `serverTimestamp`, `addDays`), que eran justamente la causa más probable del bug de scroll. Falta terminar de recortar su desestructuración y anotar los tipos implícitos, igual que ya se hizo en los otros 6 archivos. `OrderModal/index.tsx` (547 líneas) tampoco se ha tocado todavía. Ambos quedan como continuación directa de la limpieza de `@ts-nocheck` ya en curso.

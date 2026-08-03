@@ -102,6 +102,18 @@ export function Modal({
   wide?: boolean;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
+  // onClose casi siempre es una funcion nueva en cada render del padre. Antes
+  // este efecto dependia de [onClose], asi que se reiniciaba en cada
+  // render mientras el modal seguia abierto: cada reinicio quitaba el
+  // bloqueo de scroll y lo volvia a poner. Si algo tronaba a mitad de una
+  // interaccion (un error real de codigo, no solo un caso raro) ANTES de que
+  // el efecto terminara de reiniciarse, la limpieza final podia no
+  // ejecutarse nunca — el body se quedaba con overflow:hidden para
+  // siempre, y el scroll dejaba de funcionar en TODA la aplicacion, no
+  // solo en la pantalla donde paso. Con onCloseRef, el bloqueo se pone y se
+  // quita UNA sola vez por apertura/cierre real del modal.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     // Quien abrio el modal recupera el foco al cerrarlo, y el fondo deja de
@@ -121,7 +133,7 @@ export function Modal({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab') {
@@ -145,7 +157,7 @@ export function Modal({
       document.body.style.overflow = overflowPrevio;
       previo?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <AnimatePresence>

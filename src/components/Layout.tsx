@@ -52,6 +52,16 @@ export default function Layout() {
   const nav = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+  // Red de seguridad: si algun modal llegara a fallar a mitad de una
+  // interaccion sin completar su limpieza (ver el bloqueo de scroll en
+  // components/ui.tsx), el body podia quedarse con overflow:hidden para
+  // siempre — el scroll dejaba de funcionar en toda la app, no solo en la
+  // pantalla donde paso. Esto lo libera solo, cada vez que se cambia de
+  // ruta, sin depender de que la limpieza del modal se haya ejecutado bien.
+  useEffect(() => {
+    document.body.style.overflow = '';
+  }, [location.pathname]);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('cb-theme', theme);

@@ -1,20 +1,15 @@
-// @ts-nocheck
-import React from 'react';
 import { useOrderModal } from './OrderModalContext';
-import { Field, StatusBadge } from '../ui';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, percent, fmtDate, fmtDateTime } from '../../lib/format';
-import { Timestamp } from 'firebase/firestore';
-import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
-import { camposInvoices } from '../../lib/invoiceOps';
+import { money } from '../../lib/format';
+import type { PurchaseOrderItem } from '../../lib/types';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
   if (!ctx) return null;
-  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+  const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast, addItem, updateItem, removeItem } = ctx;
 
   return (
     <>
-            {kilosEntregados > 0 && form.deliveries.some((d) => !d.invoiced) && (
+            {kilosEntregados > 0 && form.deliveries.some((d: any) => !d.invoiced) && (
               <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
                 <strong>📝 Hay una entrega sin facturar.</strong> Ve a la pestaña <strong>Entregas</strong> para
                 revisar las cantidades y presionar "Facturar esta entrega".
@@ -100,7 +95,7 @@ export default function TabProductos() {
                     }
 
                     if (newItems.length > 0 || newFolio !== form.folio) {
-                      setForm(f => ({
+                      setForm((f: any) => ({
                         ...f,
                         folio: newFolio,
                         provider: newProvider,
@@ -135,7 +130,7 @@ export default function TabProductos() {
                     </tr>
                   </thead>
                   <tbody>
-                    {form.items.map((it, i) => (
+                    {form.items.map((it: PurchaseOrderItem, i: number) => (
                       <tr key={it.id}>
                         <td className="num">
                           <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
@@ -181,7 +176,7 @@ export default function TabProductos() {
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'right', fontWeight: 600 }}>Suma Importes:</td>
                       <td className="num mono" style={{ fontWeight: 700 }}>
-                        {money(form.items.reduce((acc, it) => acc + it.amount, 0))}
+                        {money(form.items.reduce((acc: number, it: PurchaseOrderItem) => acc + it.amount, 0))}
                       </td>
                       <td></td>
                     </tr>

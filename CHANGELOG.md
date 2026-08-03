@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.39.0] - 3 Agosto 2026 (Scroll bloqueado — reparado)
+
+### Corregido — crítico
+- **El scroll dejaba de funcionar en toda la aplicación** después de un fallo dentro de un modal (reportado en `/caja-chica`, pero afecta cualquier pantalla). El bloqueo de scroll de fondo del componente `Modal` se reiniciaba en cada render mientras estaba abierto; si algo tronaba a mitad de una interacción, la limpieza podía no completarse y el `body` quedaba con scroll bloqueado para siempre.
+- Corregido de raíz (el efecto ya no se reinicia en cada render) y con una red de seguridad adicional: el bloqueo se libera solo al cambiar de página, sin depender de que la limpieza anterior se haya ejecutado bien.
+
+### Continuación en curso
+- Limpieza de `@ts-nocheck`: 6 de 8 archivos completamente resueltos. `TabFacturas.tsx` tiene ya los imports reales corregidos (la causa más probable de fallos dentro de modales) pero el candado temporal sigue puesto para no bloquear esta entrega urgente.
+
+
 ## [v6.38.0] - 3 Agosto 2026 (Saldo histórico corregido en Compras + revisión responsive)
 
 ### Corregido — crítico

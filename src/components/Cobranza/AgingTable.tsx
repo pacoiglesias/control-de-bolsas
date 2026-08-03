@@ -1,5 +1,3 @@
-// @ts-nocheck
-import React from 'react';
 import { useCobranza } from './CobranzaContext';
 import { Card, Empty } from '../ui';
 
@@ -29,7 +27,7 @@ export default function AgingTable() {
                 </tr>
               </thead>
               <tbody>
-                {data.clientes.map((c) => (
+                {data.clientes.map((c: string) => (
                   <tr key={c}>
                     <td><strong>{c}</strong></td>
                     {AGING_BUCKETS.map((b) => (

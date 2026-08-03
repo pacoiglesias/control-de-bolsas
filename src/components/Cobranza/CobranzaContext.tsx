@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createContext, useContext } from 'react';
 
 const CobranzaContext = createContext<any>(null);

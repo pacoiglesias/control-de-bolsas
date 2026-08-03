@@ -220,7 +220,7 @@ export function FastEntry() {
           const snap = snaps[index];
           if (!snap.exists()) return;
           
-          let invoices: Invoice[] = snap.data().invoices ?? [];
+          const invoices: Invoice[] = snap.data().invoices ?? [];
           const updates = updatesByOrder[id];
           
           let modified = false;

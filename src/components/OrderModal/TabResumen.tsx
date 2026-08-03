@@ -1,16 +1,12 @@
-// @ts-nocheck
-import React from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { Field, StatusBadge } from '../ui';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, percent, fmtDate, fmtDateTime } from '../../lib/format';
+import { fromInputDate, money, toInputDate, kilos } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
-import { OrderStatus, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
-import { camposInvoices } from '../../lib/invoiceOps';
 
 export default function TabResumen() {
   const ctx = useOrderModal();
   if (!ctx) return null;
-  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast } = ctx;
 
   return (
     <>

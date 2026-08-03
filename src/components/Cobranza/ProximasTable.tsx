@@ -1,12 +1,9 @@
-// @ts-nocheck
-import React from 'react';
 import { useCobranza } from './CobranzaContext';
 import { Card, Empty, CopyButton, StatusBadge } from '../ui';
 import { fmtDate } from '../../lib/format';
-import OrderModal from './index';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, undoContrareciboBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr, filterType, setFilterType, setSelected } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, copyReminder, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 
@@ -32,9 +29,9 @@ export default function ProximasTable() {
           <>
           {/* Resumen rápido e interactivo de filtros */}
           {(() => {
-            const sinCrCount = data.lista.filter(x => !x.hasCr).length;
-            const vencidosCount = data.lista.filter(x => x.hasCr && (x.d ?? 0) > 0).length;
-            const enPlazoCount = data.lista.filter(x => x.hasCr && (x.d ?? 0) <= 0).length;
+            const sinCrCount = data.lista.filter((x: any) => !x.hasCr).length;
+            const vencidosCount = data.lista.filter((x: any) => x.hasCr && (x.d ?? 0) > 0).length;
+            const enPlazoCount = data.lista.filter((x: any) => x.hasCr && (x.d ?? 0) <= 0).length;
             return (
               <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Filtro rápido:</span>
@@ -71,13 +68,13 @@ export default function ProximasTable() {
           })()}
           <div className="cr-accordion-container" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {(() => {
-              const sinCr = filteredLista.filter(x => !x.hasCr);
-              const conCrMap = filteredLista.filter(x => x.hasCr).reduce((acc, x) => {
+              const sinCr = filteredLista.filter((x: any) => !x.hasCr);
+              const conCrMap = filteredLista.filter((x: any) => x.hasCr).reduce((acc: Record<string, any[]>, x: any) => {
                 const cr = x.cr || '';
                 if (!acc[cr]) acc[cr] = [];
                 acc[cr].push(x);
                 return acc;
-              }, {} as Record<string, typeof filteredLista>);
+              }, {} as Record<string, any[]>);
               
               const renderRow = ({ o, inv, d, saldo }: any) => {
                                 return (
@@ -178,11 +175,11 @@ export default function ProximasTable() {
                     </div>
                   )}
 
-                  {Object.entries(conCrMap).map(([cr, items]) => {
-                    const totalSaldo = items.reduce((sum, item) => sum + item.saldo, 0);
-                    const grp = data.listaCr.find(g => g.cr === cr);
+                  {(Object.entries(conCrMap) as [string, any[]][]).map(([cr, items]) => {
+                    const totalSaldo = items.reduce((sum: number, item: any) => sum + item.saldo, 0);
+                    const grp = data.listaCr.find((g: any) => g.cr === cr);
                     const client = grp?.client || items[0].o.client || 'Cliente';
-                    const hasOverdue = items.some(x => (x.d ?? 0) > 0);
+                    const hasOverdue = items.some((x: any) => (x.d ?? 0) > 0);
                     return (
                       <details key={cr} style={{ border: hasOverdue ? '2px solid var(--warn)' : '1px solid var(--line)', borderRadius: 8, background: 'var(--paper)', overflow: 'hidden', marginBottom: 16 }} open={hasOverdue}>
                         <summary style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: hasOverdue ? '#fffbeb' : 'var(--paper-sunk)', listStyle: 'none' }}>

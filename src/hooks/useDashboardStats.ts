@@ -128,8 +128,8 @@ export function useDashboardStats(
 
     // Adjust global KPIs if month filter is active
     let liveVentas = kpis.netoTotal || 0;
-    let liveKilosTotal = kpis.totalKilos || 0;
-    let liveFacturasEmitidas = kpis.facturasEmitidas || 0;
+    const liveKilosTotal = kpis.totalKilos || 0;
+    const liveFacturasEmitidas = kpis.facturasEmitidas || 0;
     if (monthFilter !== 'ALL' && mesesObj[monthFilter]) {
        liveGananciaRealizada = mesesObj[monthFilter].gananciaRealizada || 0;
        liveMargenTotal = mesesObj[monthFilter].margen || 0;

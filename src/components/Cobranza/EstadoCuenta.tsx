@@ -19,7 +19,7 @@ export default function EstadoCuenta() {
   const [search, setSearch] = useState('');
 
   const ledger = useMemo(() => {
-    let entries: Omit<LedgerEntry, 'balance'>[] = [];
+    const entries: Omit<LedgerEntry, 'balance'>[] = [];
 
     // Recorremos todas las facturas como Cargos y sus pagos como Abonos
     // 'data.rawOrders' o el equivalente en 'data'. Voy a buscar si en context se llama globalOrders o algo asi.

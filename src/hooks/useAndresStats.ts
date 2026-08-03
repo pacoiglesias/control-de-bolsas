@@ -51,7 +51,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
     // Libro Mayor (Ledger)
-    let ledger: LedgerEntry[] = [
+    const ledger: LedgerEntry[] = [
       ...provPurchases.map(p => ({
         id: p.id,
         date: p.date,

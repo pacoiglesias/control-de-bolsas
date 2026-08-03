@@ -1,21 +1,21 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title Control Bolsas - Instalar v6.38.0 - Ciclo 7
+title Control Bolsas - Instalar v6.39.0 - Ciclo 7
 color 0B
 cls
 echo.
 echo  ============================================================
-echo    INSTALAR v6.38.0  -  CICLO 11 (carga inicial)
+echo    INSTALAR v6.39.0  -  CICLO 11 (carga inicial)
 echo  ============================================================
 echo.
 echo   Este instalador NO BORRA NADA. Lo unico que hace es:
 echo     - respaldar tu proyecto completo antes de tocar un archivo
-echo     - copiar el proyecto v6.38.0 completo
+echo     - copiar el proyecto v6.39.0 completo
 echo     - respetar lo tuyo: .env, .firebaserc, node_modules,
 echo       dist, .git y cualquier archivo que no venga en el ZIP
 echo.
-echo   SALDO ANDRES Y RESPONSIVE reparada:
+echo   SCROLL BLOQUEADO REPARADO reparada:
 echo     - Signo invertido en Caja Chica corregido (un anticipo
 echo       se guardaba como ingreso, al reves).
 echo     - invoiceStatuses ahora se sincroniza al cambiar
@@ -75,7 +75,7 @@ if !CUANTOS!==0 (
   color 0C
   echo.
   echo  [X] No encontre ningun .zip junto a este .bat.
-  echo      Deja "control-bolsas-v6.38.0.zip" en esta misma carpeta.
+  echo      Deja "control-bolsas-v6.39.0.zip" en esta misma carpeta.
   pause & exit /b 1
 )
 if !CUANTOS! GTR 1 (
@@ -91,7 +91,7 @@ if !CUANTOS! GTR 1 (
 for %%f in ("!ZIPFILE!") do echo  [OK] Paquete: %%~nxf
 
 REM ---------- 3. Descomprimir a temporal ----------
-set "TMPDIR=%TEMP%\cb_v638_%RANDOM%"
+set "TMPDIR=%TEMP%\cb_v639_%RANDOM%"
 echo  [..] Descomprimiendo...
 powershell -NoProfile -Command "try{ Expand-Archive -LiteralPath '!ZIPFILE!' -DestinationPath '!TMPDIR!' -Force; exit 0 }catch{ exit 1 }"
 if errorlevel 1 (
@@ -172,7 +172,7 @@ REM cualquier archivo que en el destino "parezca" igual o mas nuevo. Si tu
 REM copia local tiene fecha mas reciente que la del paquete, la correccion
 REM nunca llegaria. /IS fuerza a copiar tambien los que se ven "iguales".
 set "MERGE_LOG=%TEMP%\cb_instalacion_log.txt"
-echo  [..] Instalando la v6.38.0...
+echo  [..] Instalando la v6.39.0...
 echo.
 robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" /R:2 /W:2 /LOG:"!MERGE_LOG!"
 set RC=%ERRORLEVEL%
@@ -225,7 +225,7 @@ echo  [OK] Typecheck limpio
 color 0A
 echo.
 echo  ============================================================
-echo    v6.38.0 INSTALADA  -  CICLO 11
+echo    v6.39.0 INSTALADA  -  CICLO 11
 echo.
 echo    Se respeto: .env, .firebaserc, node_modules, dist, .git
 echo    Tu version anterior completa quedo en:

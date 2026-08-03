@@ -110,7 +110,7 @@ export const getActiveMaquilaOrders = onCall(async (request) => {
     
     const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
 
-    let ledger: any[] = [
+    const ledger: any[] = [
       ...provPurchases.map((p: any) => ({
         id: p.id,
         date: p.date, 
