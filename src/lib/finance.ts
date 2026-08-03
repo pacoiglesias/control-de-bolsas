@@ -162,6 +162,14 @@ export function getOrderSummary(o: PurchaseOrder) {
   realizedProfit = round2(realizedProfit);
 
   let status: OrderStatus = o.creditCycle?.status ?? 'pedido';
+  // isClosedShort se puede activar SIN que exista todavia ninguna factura
+  // (el aviso automatico de "completaste la entrega, ¿cerrar?" dispara
+  // cuando el expediente sigue en estatus 'pedido', sin invoices). El
+  // bloque de abajo solo corre si invoices.length > 0, asi que sin esta
+  // linea, cerrar un expediente sin facturar dejaba la promesa de la
+  // ventana de confirmacion ("deja de aparecer como pendiente") sin
+  // cumplirse: el estatus se quedaba en 'pedido' para siempre.
+  if (o.isClosedShort && status === 'pedido') status = 'facturado';
   if (invoices.length > 0) {
     if (hasOverdue) status = 'overdue';
     else if (hasManual) status = 'manual_review';
@@ -171,7 +179,7 @@ export function getOrderSummary(o: PurchaseOrder) {
       if (kilosInvoiced < (o.totalKilograms || 0) && !o.isClosedShort) status = 'pending';
       else status = hasCollected ? 'collected' : 'paid';
     } else if (allPedido) {
-      if (o.isClosedShort) status = 'facturado'; // Si no tiene facturas y se cerró, queda como finalizada
+      if (o.isClosedShort) status = 'facturado'; // Caso raro: SI tiene facturas, pero todas siguen en estatus 'pedido'
       else status = 'pedido';
     }
   }

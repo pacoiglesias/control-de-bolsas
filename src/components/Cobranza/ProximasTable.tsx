@@ -3,7 +3,7 @@ import { Card, Empty, CopyButton, StatusBadge } from '../ui';
 import { fmtDate } from '../../lib/format';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, copyReminder, sendWhatsApp, filterType, setFilterType, setSelected } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, toast, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 
@@ -142,6 +142,24 @@ export default function ProximasTable() {
                           }}
                         >
                           💬 WhatsApp
+                        </button>
+                        <button
+                          className="btn-small"
+                          style={{ padding: '2px 6px', fontSize: '10px', background: 'var(--bg-card)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const actual = inv.creditCycle.dueDate ? new Date(inv.creditCycle.dueDate.toMillis()).toISOString().slice(0, 10) : '';
+                            const input = window.prompt('Nueva fecha de vencimiento (aaaa-mm-dd):', actual);
+                            if (!input) return;
+                            const nuevaFecha = new Date(`${input}T00:00:00`);
+                            if (isNaN(nuevaFecha.getTime())) {
+                              toast('Fecha inválida. Usa el formato aaaa-mm-dd.', 'bad');
+                              return;
+                            }
+                            void reprogramarVencimiento(o.id, inv.id, nuevaFecha);
+                          }}
+                        >
+                          📅 Reprogramar
                         </button>
                         {inv.creditCycle.status !== 'paid' && (
                           <button

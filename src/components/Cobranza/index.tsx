@@ -84,6 +84,35 @@ export default function Cobranza() {
   // las necesita igual y antes tenia su propio camino para escribir
   // invoiceStatuses, con riesgo de divergir de este.
 
+  /**
+   * "Reprogramar" — cambia la fecha de vencimiento de una factura en un
+   * clic, sin abrir el expediente completo. Mismo patron de transaccion
+   * segura que toggleComplementStatus: relee el expediente dentro de la
+   * operacion en vez de escribir desde una copia local, para no pisar un
+   * cambio simultaneo de otra persona.
+   */
+  async function reprogramarVencimiento(orderId: string, invoiceId: string, nuevaFecha: Date) {
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, PATHS.orders, orderId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('El expediente ya no existe');
+
+        const actuales: Invoice[] = snap.data().invoices ?? [];
+        const nuevas = aplicarPorId(actuales, invoiceId, (x) => ({
+          ...x,
+          creditCycle: { ...x.creditCycle, dueDate: Timestamp.fromDate(nuevaFecha) },
+        }));
+        if (!nuevas) throw new Error('La factura ya no está en el expediente');
+
+        tx.update(ref, camposInvoices(nuevas));
+      });
+      toast(`Vencimiento reprogramado al ${nuevaFecha.toLocaleDateString('es-MX')}`, 'ok');
+    } catch (e) {
+      toast(`Error al reprogramar: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   async function toggleComplementStatus(orderId: string, invoiceId: string) {
     const o = orders.find(x => x.id === orderId);
     if (!o) return;
@@ -1119,7 +1148,7 @@ export default function Cobranza() {
     data, settings, money, activeTab, setActiveTab, shareCarteraVencida, printCarteraVencida, exportCobranzaCsv,
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
     payContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
-    liquidateAccountantBlock, toggleComplementStatus, copyReminder, sendWhatsApp, printConsolidatedCr, shareConsolidatedCr,
+    liquidateAccountantBlock, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, printConsolidatedCr, shareConsolidatedCr,
     filterType, setFilterType, setSelected, moveInvoice
   };
 

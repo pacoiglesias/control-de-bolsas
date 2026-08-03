@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.43.0] - 3 Agosto 2026 (isClosedShort corregido, Compras a tarjetas, Reprogramar)
+
+### Corregido — crítico
+- **`isClosedShort` no cumplía su promesa** cuando se cerraba una OC antes de facturarla: el estatus se quedaba pegado en "pedido" para siempre. Corregido en `getOrderSummary()`.
+- **Buscador y filtro de Compras no hacían nada** — controles visuales sin conectar a la lista. Ya funcionan de verdad.
+
+### Agregado
+- **Compras rediseñado a tarjetas** (folio, cliente, barra de progreso, monto, recepción rápida) en vez de tabla.
+- **"📅 Reprogramar"** en Cobranza — cambia la fecha de vencimiento de una factura en un clic.
+
+### Verificado, sin cambios necesarios
+- `html2pdf.js` (982 KB): confirmado que ya carga de forma perezosa, solo al generar un PDF real.
+
+
 ## [v6.42.0] - 3 Agosto 2026 (Auditoría completa de menús y rutas)
 
 ### Corregido

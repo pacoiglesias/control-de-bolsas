@@ -177,29 +177,77 @@ export default function Compras() {
               <option value="todas">Mostrar Todas</option>
             </select>
           </div>
-          {provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead><tr><th>Folio OC</th><th>Anticipo</th><th>Kg Pedidos</th><th>Kg Recibidos</th><th>Estado</th></tr></thead>
-                <tbody>
-                  {provPurchases.map(p => {
-                    const o = orderById.get(p.id);
-                    return (
-                      <tr key={p.id} className="clickable" onClick={() => setSelected(p)}>
-                        <td className="mono">{o?.folio || 'S/F'}</td>
-                        <td className="mono num">${p.totalAmount?.toFixed(2) || '0.00'}</td>
-                        <td className="mono num">{p.expectedKilos?.toFixed(2) || '0.00'}</td>
-                        <td className="mono num">{p.receivedKilos?.toFixed(2) || '0.00'}</td>
-                        <td>
-                          {o ? <button className="btn" onClick={(e) => { e.stopPropagation(); setDeliveryOrder(o); }}>📦 Recibir Kilos Rápidos</button> : '-'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (() => {
+            // ANTES: `search` y `filter` existian como controles visuales
+            // pero nunca se aplicaban a la lista — cambiarlos no hacia
+            // absolutamente nada. Se corrigen aqui, al mismo tiempo que se
+            // convierte la tabla en tarjetas.
+            const q = search.trim().toLowerCase();
+            const visibles = provPurchases.filter((p) => {
+              const o = orderById.get(p.id);
+              const faltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
+              if (filter === 'activas' && faltan <= 0.01) return false;
+              if (filter === 'completadas' && faltan > 0.01) return false;
+              if (q && !(o?.folio ?? '').toLowerCase().includes(q) && !(o?.client ?? '').toLowerCase().includes(q)) return false;
+              return true;
+            });
+            if (visibles.length === 0) return <Empty>Sin resultados para este filtro/búsqueda.</Empty>;
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+                {visibles.map((p) => {
+                  const o = orderById.get(p.id);
+                  const pedidos = p.expectedKilos ?? 0;
+                  const recibidos = p.receivedKilos ?? 0;
+                  const pct = pedidos > 0 ? Math.min(100, Math.round((recibidos / pedidos) * 100)) : 0;
+                  const completo = pedidos > 0 && recibidos >= pedidos - 0.01;
+                  return (
+                    <div
+                      key={p.id}
+                      className="clickable"
+                      onClick={() => setSelected(p)}
+                      style={{
+                        border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 16,
+                        background: 'var(--paper)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div className="mono" style={{ fontWeight: 700, fontSize: 15 }}>{o?.folio || 'S/F'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{o?.client || '—'}</div>
+                        </div>
+                        <span className={`badge ${completo ? 'badge-ok' : 'badge-warn'}`}>{completo ? '✅ Completa' : '⏳ Activa'}</span>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-soft)', marginBottom: 4 }}>
+                          <span>{recibidos.toFixed(2)} de {pedidos.toFixed(2)} kg</span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: 8, background: 'var(--bg-inset)', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', background: completo ? 'var(--ok)' : 'var(--accent)' }} />
+                        </div>
+                      </div>
+
+                      <div className="mono num" style={{ fontSize: 18, fontWeight: 700 }}>
+                        ${p.totalAmount?.toFixed(2) || '0.00'}
+                        <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--ink-soft)' }}> anticipo/costo</span>
+                      </div>
+
+                      {o && (
+                        <button
+                          className="btn btn-primary"
+                          style={{ marginTop: 4 }}
+                          onClick={(e) => { e.stopPropagation(); setDeliveryOrder(o); }}
+                        >
+                          📦 Recibir Kilos Rápidos
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </Card>
       )}
 

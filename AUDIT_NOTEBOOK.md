@@ -91,3 +91,16 @@ La hoja "Auditoria_Compras" del Excel descargable ahora exporta datos correctos,
 **Riesgo:** 🟢 Bajo.
 **Commit:** `fix: corregir las dos ultimas rutas muertas (dashboard duplicado y mensaje de sistema vacio)`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo. Barrido completo de rutas internas confirma cero referencias muertas restantes en todo el proyecto.
+
+### Iteración 17: isClosedShort corregido, Compras a tarjetas, Reprogramar en Cobranza (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/lib/finance.ts`, `src/pages/Compras.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Cobranza/ProximasTable.tsx`
+**Problema:** 🔴 `isClosedShort` (cierre forzado de una OC sin completar) tenía una inconsistencia real entre el código y su propio comentario: `getOrderSummary()` solo revisaba `isClosedShort` dentro de un bloque que exige `invoices.length > 0`. El disparador real (el aviso automático "completaste la entrega, ¿cerrar?") puede activarse sobre un expediente que **todavía no tiene ninguna factura** (estatus `pedido`) — en ese caso, `isClosedShort` se guardaba en `true`, pero el estatus se quedaba pegado en `pedido` para siempre, contradiciendo la promesa de la ventana de confirmación ("deja de aparecer como pendiente"). Además, en `Compras.tsx` se confirmó que **el buscador y el filtro "Activas/Completadas" no hacían absolutamente nada** — existían como controles visuales sin conectar a la lista.
+**Impacto:** Expedientes cerrados a la fuerza que seguían apareciendo como pendientes indefinidamente; dos controles de UI que aparentaban funcionar y no hacían nada.
+**Solución:** El chequeo de `isClosedShort` se movió fuera del bloque que exige facturas, para que aplique sin importar si ya existen o no. Comentario interno corregido para reflejar la realidad del código. Buscador y filtro de Compras conectados de verdad a la lista. De paso, tabla convertida a tarjetas (Propuesta 2 original): folio, cliente, barra de progreso de kilos, monto, y el botón de recepción rápida, todo visible de un vistazo.
+**Riesgo:** 🟡 Medio — toca la función central de estatus de todo el sistema (`getOrderSummary`); mitigado con las 18 pruebas de `finance.test.ts`, todas verdes tras el cambio.
+**Commit:** `fix(finance): isClosedShort aplica sin importar si hay facturas; feat(Compras): tarjetas + buscador/filtro reales; feat(Cobranza): Reprogramar`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Nota sobre html2pdf.js
+Investigado y confirmado que **no requiere corrección**: ya se importa de forma dinámica (`await import('html2pdf.js')`) dentro de una función que solo se ejecuta al presionar un botón de "Compartir PDF" — los 6 puntos donde se usa están dentro de manejadores de clic, ninguno se ejecuta al cargar la página. El peso de 982 KB solo se descarga cuando alguien de verdad genera un PDF, no en cada visita.
