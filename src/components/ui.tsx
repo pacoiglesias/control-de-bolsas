@@ -158,12 +158,12 @@ export function Modal({
           exit={{ opacity: 0 }}
         />
         <motion.div 
-          className={`modal-box ${wide ? 'wide' : ''}`} 
+          className={`modal-box glass-modal ${wide ? 'wide' : ''}`} 
           ref={boxRef}
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
         >
           <div className="modal-head">
             <h2 id="modal-title">{title}</h2>

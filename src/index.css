@@ -144,6 +144,22 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .page-head h1{font-size:28px;margin:0 0 8px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
 .page-head p{margin:0;color:var(--ink-soft);font-size:15px;max-width:720px;line-height:1.6}
 
+/* --- Glassmorphism Utils --- */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-radius));
+  -webkit-backdrop-filter: blur(var(--blur-radius));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.glass-modal {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--blur-radius));
+  -webkit-backdrop-filter: blur(var(--blur-radius));
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--shadow-lg), var(--glass-shadow) !important;
+}
+
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px}
 .kpi-section-title{font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 12px 2px;display:flex;align-items:center;gap:6px}
 .kpi-card{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:16px;padding:18px 20px 16px;box-shadow:var(--shadow-sm);transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);animation:fadeInCard 0.4s ease-out backwards}

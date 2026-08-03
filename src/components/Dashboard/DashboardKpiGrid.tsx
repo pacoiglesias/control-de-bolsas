@@ -113,6 +113,28 @@ export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav 
               <span>{(k.porCobrarSinCR ?? 0) > 0 ? `${money(k.porCobrarSinCR ?? 0)} sin CR` : ''}</span>
               <span>{(k.porCobrarConCR ?? 0) > 0 ? `${money(k.porCobrarConCR ?? 0)} con CR` : ''}</span>
             </div>
+            
+            {(k.dineroRealARecibir || 0) > 0 && (
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => { e.stopPropagation(); nav('/caja-chica'); }}
+                className="btn" 
+                style={{ 
+                  marginTop: 20, 
+                  width: '100%', 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  background: 'rgba(16,185,129,0.2)', 
+                  borderColor: 'rgba(16,185,129,0.4)', 
+                  color: '#10b981', 
+                  fontWeight: 'bold',
+                  boxShadow: 'none'
+                }} 
+              >
+                📥 Recolectar a Caja Chica
+              </motion.button>
+            )}
           </motion.div>
         ) : (
           <KpiCard tone={k.porCobrar > 0 ? 'warn' : 'ok'} label="Te deben" value={<ResponsiveMoney value={k.porCobrar} />}

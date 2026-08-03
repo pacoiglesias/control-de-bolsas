@@ -1,0 +1,57 @@
+import { Empty } from '../ui';
+import { fmtDate, money } from '../../lib/format';
+import type { LedgerEntry } from '../../hooks/useAndresStats';
+
+export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledgerWithBalance: LedgerEntry[], deudaHistorica: number }) {
+  if (ledgerWithBalance.length === 0 && deudaHistorica === 0) {
+    return <Empty>No hay movimientos registrados en el libro mayor.</Empty>;
+  }
+
+  return (
+    <div className="table-scroll">
+      {deudaHistorica !== 0 && (
+        <p className="hint" style={{ marginTop: 0, marginBottom: 16, textAlign: 'center', color: '#991b1b' }}>
+          * Nota: Existe una deuda/ajuste histórico configurado por {money(deudaHistorica)} que afecta el balance final.
+        </p>
+      )}
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Origen</th>
+            <th>Movimiento / Concepto</th>
+            <th className="num">Cargo (Sube Deuda)</th>
+            <th className="num">Abono (Baja Deuda)</th>
+            <th className="num">Saldo Acumulado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ledgerWithBalance.map((e, i) => (
+            <tr key={`${e.id}-${i}`}>
+              <td className="mono">{fmtDate(e.date)}</td>
+              <td>
+                {e.source === 'historical' ? (
+                  <span className="badge b-warn">Histórico</span>
+                ) : e.source === 'purchase' ? (
+                  <span className="badge b-ok">Material</span>
+                ) : (
+                  <span className="badge b-info">Caja (Pago)</span>
+                )}
+              </td>
+              <td>{e.concept}</td>
+              <td className="num mono" style={{ color: e.cargo ? 'var(--bad)' : 'inherit', fontWeight: e.cargo ? 600 : 'normal' }}>
+                {e.cargo ? money(e.cargo) : '-'}
+              </td>
+              <td className="num mono" style={{ color: e.abono ? 'var(--ok)' : 'inherit', fontWeight: e.abono ? 600 : 'normal' }}>
+                {e.abono ? money(e.abono) : '-'}
+              </td>
+              <td className="num mono" style={{ color: e.balance > 0 ? 'var(--ok)' : 'var(--bad)', fontWeight: 700 }}>
+                {money(e.balance)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.36.0] - 2 Agosto 2026 (UI Glassmorphism y Refactorización Compras)
+
+### Añadido — Proactividad y Estética Premium
+- **Glassmorphism Global:** Implementación de tarjetas y modales esmerilados mediante variables CSS `--glass-*` y la clase `.glass-modal`, dotando al sistema de una estética moderna y premium.
+- **Atajos Contextuales (Quick Actions):** Integración de botones proactivos directamente en los indicadores principales. (ej. "Recolectar a Caja Chica" desde el Dashboard, o "Liquidar Deuda" desde Compras).
+
+### Mejorado — Deuda Técnica
+- **Desacoplamiento de `Compras.tsx`:** Reducción monumental de ~880 líneas a ~160 líneas. La lógica de estado se extrajo a `useAndresStats.ts`, y la UI de tablas y modales se dividió en microcomponentes dedicados (`OrderModals.tsx`, `AndresLedgerTable.tsx`), mejorando drásticamente su mantenibilidad a largo plazo.
+- **Performance de Renderizado:** Reducción de sobrecarga en el render inicial al separar el estado de los componentes visuales. Resolvimos falsos positivos y errores de tipado de TypeScript.
+
 ## [v6.35.0] - 2 Agosto 2026 (Reconciliación de ramas + facturas sin CR vencidas)
 
 ### Corregido — crítico
