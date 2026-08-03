@@ -11,3 +11,22 @@
 
 ### 🟡 Pendiente consciente
 La hoja "Auditoria_Compras" del Excel descargable ahora exporta datos correctos, pero **subir cambios en esa hoja todavía no hace nada** — `AuditSync.tsx` no la lee. Sirve hoy solo para consulta/respaldo, no para corregir compras desde el Excel. Construir esa mitad es candidato para un ciclo futuro si se necesita.
+
+### Iteración 10: Saldo histórico con Andrés ignorado en la tabla de movimientos de Compras (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/hooks/useAndresStats.ts`, `src/pages/Compras.tsx`
+**Problema:** El número principal de "Saldo con Andrés" en `/compras` usa correctamente el hook compartido `useAndresStats()`, que sí incluye el ajuste histórico configurado (`config.historicalDebtAndres`, -$123,175.56 real). Pero la tabla de movimientos (el detalle línea por línea, y el reporte imprimible que se genera desde ahí) tenía su propio cálculo local con `const deudaHistorica = 0` fijo — cada renglón de esa tabla arrancaba su saldo acumulado en cero, desfasado del número principal de la pantalla por el monto completo del ajuste histórico.
+**Impacto:** El saldo principal era correcto, pero el detalle de movimientos y su reporte impreso no coincidían con él — confusión real al intentar cuadrar cifras.
+**Solución:** `useAndresStats()` ahora expone `deudaHistorica` en su valor de retorno; `Compras.tsx` la usa en vez de su copia local fija en cero.
+**Riesgo:** 🟢 Bajo — un solo valor corregido, mismo patrón de "una sola fuente de verdad" ya aplicado varias veces.
+**Commit:** `fix(Compras): usar el saldo histórico real en la tabla de movimientos, no un cero fijo`
+**Estado:** ✅ Verificado.
+
+### Iteración 11: Revisión de diseño responsive (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/components/Compras/OrderModals.tsx`, `src/components/OrderModal/TabEntregas.tsx`
+**Problema:** El sistema sí tiene diseño responsive real (menú lateral colapsable en móvil, tamaño de fuente de 16px en inputs para evitar el zoom automático de iOS, cuadrícula de indicadores que se reacomoda, botones con área táctil mínima de 40px). Se encontraron 2 tablas de datos sin el envoltorio `.table-scroll` que sí usa el resto del sistema para permitir desplazamiento horizontal en pantallas angostas.
+**Solución:** Envueltas ambas tablas en `.table-scroll`, mismo patrón ya establecido.
+**Riesgo:** 🟢 Bajo — solo estructura visual.
+**Commit:** `style: agregar table-scroll faltante en 2 tablas para consistencia móvil`
+**Estado:** ✅ Verificado.

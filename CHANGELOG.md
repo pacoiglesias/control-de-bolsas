@@ -1,5 +1,14 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.38.0] - 3 Agosto 2026 (Saldo histórico corregido en Compras + revisión responsive)
+
+### Corregido — crítico
+- **La tabla de movimientos con Andrés en `/compras` ignoraba el ajuste histórico real** (-$123,175.56 configurado). El saldo principal de la pantalla sí lo usaba correctamente; la tabla de detalle y su reporte impreso arrancaban en $0, desfasados del número principal.
+
+### Mejorado
+- Revisión de diseño responsive: confirmado que el sistema sí adapta bien a móvil (menú colapsable, botones táctiles, sin zoom automático en inputs). Agregado el desplazamiento horizontal faltante en 2 tablas.
+
+
 ## [v6.37.0] - 3 Agosto 2026 (Auditoría Maestra reparada)
 
 ### Corregido — crítico

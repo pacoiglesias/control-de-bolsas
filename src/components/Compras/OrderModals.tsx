@@ -170,6 +170,7 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
       </Field>
       
       {(order.items ?? []).length === 0 ? <Empty>Este expediente no tiene productos capturados.</Empty> : (
+        <div className="table-scroll">
         <table className="data-table" style={{ width: '100%', marginTop: 12 }}>
           <thead><tr><th>Producto</th><th className="num">Esta entrega (kg)</th></tr></thead>
           <tbody>
@@ -186,6 +187,7 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
             })}
           </tbody>
         </table>
+        </div>
       )}
       <div className="modal-actions" style={{ marginTop: 16 }}>
         <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>

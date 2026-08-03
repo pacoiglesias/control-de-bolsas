@@ -133,6 +133,7 @@ export default function TabEntregas() {
                           )}
                         </div>
                       </div>
+                      <div className="table-scroll">
                       <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
                         <thead>
                           <tr><th>Producto</th><th className="num">Pedido</th><th className="num">Entregado (esta vez)</th></tr>
@@ -156,6 +157,7 @@ export default function TabEntregas() {
                           })}
                         </tbody>
                       </table>
+                      </div>
                       <input className="input boxed" type="text" style={{ width: '100%', marginTop: 8 }}
                         placeholder="Notas de esta entrega (opcional)"
                         defaultValue={d.notes || ''}

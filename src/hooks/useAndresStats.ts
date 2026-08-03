@@ -112,6 +112,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     error,
     stats,
     entregasAtrasadas,
-    currentCostPerKg
+    currentCostPerKg,
+    deudaHistorica,
   };
 }

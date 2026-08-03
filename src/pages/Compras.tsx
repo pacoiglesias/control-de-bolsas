@@ -25,7 +25,8 @@ export default function Compras() {
     entregasAtrasadas,
     currentCostPerKg,
     provPurchases,
-    orderById
+    orderById,
+    deudaHistorica,
   } = useAndresStats(selectedProvider);
 
   const [selected, setSelected] = useState<Purchase | null>(null);
@@ -47,7 +48,12 @@ export default function Compras() {
   );
 
   // Ledger calc for printing & rendering
-  const deudaHistorica = 0; // Se obtiene de config si existiera, pero para simplificar
+  // ANTES: `const deudaHistorica = 0` fijo aqui, ignorando el ajuste
+  // historico real configurado (-$123,175.56). El saldo principal (arriba)
+  // SI lo usaba via useAndresStats(), pero esta tabla de movimientos
+  // arrancaba su acumulado en $0 — cada renglon quedaba desfasado por el
+  // monto completo del ajuste historico, sin coincidir con el numero
+  // principal de la pantalla.
   let currentBalance = deudaHistorica;
   const ledgerWithBalance = ledger.map(e => {
     currentBalance += (e.cargo - e.abono);
