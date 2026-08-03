@@ -1,8 +1,10 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v6.36.0] - 2 Agosto 2026 (UI Glassmorphism y Refactorización Compras)
+## [v6.36.0] - 2 Agosto 2026 (UI Glassmorphism, Kanban Drag & Drop y Refactorización Compras)
 
 ### Añadido — Proactividad y Estética Premium
+- **Kanban Drag & Drop (Fase 6):** Arrastrar y soltar facturas libremente en el tablero de cobranza. Transiciones inteligentes con validación de negocio (ej. preguntar por Contrarecibo al mover a "Por Cobrar").
+- **Sincronización Mágica de Caja Chica:** Al mover una factura a "En Caja Chica" desde el Kanban, el sistema inyecta automáticamente el movimiento de ingreso de efectivo correspondiente usando una transacción atómica. Si se deshace el movimiento, se inyecta un egreso de reversión. Las métricas financieras "Cobrado" y "Caja" ahora cuadran perfectamente sin depender de captura manual.
 - **Glassmorphism Global:** Implementación de tarjetas y modales esmerilados mediante variables CSS `--glass-*` y la clase `.glass-modal`, dotando al sistema de una estética moderna y premium.
 - **Atajos Contextuales (Quick Actions):** Integración de botones proactivos directamente en los indicadores principales. (ej. "Recolectar a Caja Chica" desde el Dashboard, o "Liquidar Deuda" desde Compras).
 
