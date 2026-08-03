@@ -28,8 +28,18 @@ export function ComprasKpiGrid({
             <div className="num" style={{ fontSize: 42, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-1px' }}>
               {kilos(totalReceivedKilos)}
             </div>
-            <p className="hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 14 }}>Total histórico de mercancía ingresada por Andrés.</p>
+            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>Total histórico de mercancía ingresada por Andrés.</p>
           </div>
+          
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="btn" 
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--bg-inset)', borderColor: 'var(--border)', color: 'var(--ink)', fontWeight: 'bold' }} 
+            onClick={onPayAtrasadas} /* Reuse this function to just switch tab to 'ordenes' */
+          >
+            📦 Registrar Llegada de Material
+          </motion.button>
         </div>
       </Card>
 
@@ -75,17 +85,26 @@ export function ComprasKpiGrid({
             </p>
           </div>
           
-          {entregasAtrasadasCount > 0 && (
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="btn" 
-              style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--warn-bg)', borderColor: 'var(--warn)', color: 'var(--warn)', fontWeight: 'bold' }} 
-              onClick={onPayAtrasadas}
-            >
-              🔍 Ver Atrasadas
-            </motion.button>
-          )}
+          <motion.button 
+            whileHover={entregasAtrasadasCount > 0 ? { scale: 1.02 } : {}}
+            whileTap={entregasAtrasadasCount > 0 ? { scale: 0.98 } : {}}
+            className="btn" 
+            style={{ 
+              width: '100%', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              background: entregasAtrasadasCount > 0 ? 'var(--warn-bg)' : 'var(--bg-inset)', 
+              borderColor: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--border)', 
+              color: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--hint)', 
+              fontWeight: 'bold',
+              cursor: entregasAtrasadasCount > 0 ? 'pointer' : 'not-allowed',
+              opacity: entregasAtrasadasCount > 0 ? 1 : 0.6
+            }} 
+            disabled={entregasAtrasadasCount <= 0}
+            onClick={onPayAtrasadas}
+          >
+            🔍 {entregasAtrasadasCount > 0 ? 'Ver Atrasadas' : 'Todo al Corriente'}
+          </motion.button>
         </div>
       </Card>
     </motion.div>
