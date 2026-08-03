@@ -37,13 +37,13 @@ export async function exportToExcel() {
     const data = d.data();
     return {
       Proveedor: data.provider || '',
-      Folio: data.folio || '',
+      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      KilosPedidos: data.expectedKilos || 0,
+      KilosEntregados: data.receivedKilos || 0,
+      PrecioPorKilo: data.pricePerKg || 0,
+      Total: data.totalAmount || 0,
+      Pagado: data.paidAmount || 0,
       Estatus: data.status || '',
-      Subtotal: data.subtotal || 0,
-      IVA: data.iva || 0,
-      Total: data.total || 0,
-      FechaEmision: data.invoiceDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
-      FechaVencimiento: data.dueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
       ID_SISTEMA: d.id,
     };
   });

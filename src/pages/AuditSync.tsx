@@ -1,13 +1,76 @@
-import React, { useState } from 'react';
-import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
+import { useState } from 'react';
+import { collection, getDocs, doc, writeBatch, getDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
-import { toast } from 'react-hot-toast';
+import { useToast } from '../context/ToastContext';
+import { camposInvoices } from '../lib/invoiceOps';
+import type { OrderStatus, Invoice, PurchaseOrder } from '../lib/types';
+
+/**
+ * Estatus reales que reconoce el sistema. Antes esta pantalla escribia
+ * cualquier texto que viniera en la columna "Estatus" del Excel sin
+ * verificar nada: un typo ahi se guardaba tal cual y quedaba una factura
+ * con un estatus que ningun otro lugar del sistema sabe interpretar.
+ */
+const ESTATUS_VALIDOS: OrderStatus[] = ['pedido', 'facturado', 'pending', 'paid', 'collected', 'overdue', 'manual_review'];
+
+/**
+ * Proveedores conocidos, para detectar automaticamente a quien corresponde
+ * un movimiento de caja por su concepto (mismo patron que se uso para
+ * reparar la migracion original en el Ciclo 30 — ver AUDIT_NOTEBOOK.md).
+ * Sin esto, un movimiento como "Anticipo a Andres" quedaba sin `provider` y
+ * se volvia invisible para su Estado de Cuenta especifico, aunque si
+ * afectara el saldo general de Caja.
+ */
+const PROVIDER_NAMES = ['Andres', 'Andrés'];
+
+type DiffCobranza = {
+  tab: 'cobranza';
+  type: 'new' | 'mod';
+  label: string;
+  orderId?: string;
+  invoiceId?: string;
+  cliente?: string;
+  folio?: string;
+  contrarecibo?: string;
+  estatus?: string;
+  montoVenta?: number;
+  fechaVencimiento?: string;
+  oldValue?: number | string;
+  newValue?: number | string;
+  campo?: 'monto' | 'estatus' | 'contrarecibo' | 'vencimiento';
+  error?: string;
+};
+
+type DiffCaja = {
+  tab: 'caja';
+  type: 'new' | 'mod';
+  label: string;
+  id?: string;
+  concepto?: string;
+  proveedor?: string;
+  monto?: number;
+  fecha?: string;
+  oldValue?: number;
+  newValue?: number;
+};
+
+function parseFechaExcel(v: unknown): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  const s = String(v).trim();
+  // dd/mm/aaaa, el formato que ya usa el resto del sistema en sus reportes.
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export default function AuditSync() {
+  const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [diffs, setDiffs] = useState<any[]>([]);
+  const [diffs, setDiffs] = useState<(DiffCobranza | DiffCaja)[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'cobranza' | 'compras' | 'caja'>('cobranza');
+  const [activeTab, setActiveTab] = useState<'cobranza' | 'caja'>('cobranza');
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -21,94 +84,150 @@ export default function AuditSync() {
         const XLSX = await import('xlsx');
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
-        
         await processDiffs(workbook, XLSX);
       };
       reader.readAsArrayBuffer(uploadedFile);
     } catch (err) {
       console.error(err);
-      toast.error('Error al leer el archivo');
+      toast(`Error al leer el archivo: ${(err as Error).message}`, 'bad');
       setIsProcessing(false);
     }
   };
 
   const processDiffs = async (workbook: any, XLSX: any) => {
-    const newDiffs = [];
+    const newDiffs: (DiffCobranza | DiffCaja)[] = [];
 
-    // 1. Cobranza
+    // --- 1. Cobranza: contrarecibos y facturas ---
     const cobranzaSheet = workbook.Sheets['Auditoria_Cobranza'];
     if (cobranzaSheet) {
       const cobranzaRows = XLSX.utils.sheet_to_json(cobranzaSheet);
       const ordersSnap = await getDocs(collection(db, PATHS.orders));
-      const orderDocs = ordersSnap.docs.map(d => ({ id: d.id, data: d.data() }));
+      const orderDocs = ordersSnap.docs.map((d) => ({ id: d.id, data: d.data() as PurchaseOrder }));
 
       for (const row of cobranzaRows as any[]) {
-        if (!row.ID_SISTEMA) {
-          // New
-          newDiffs.push({ tab: 'cobranza', type: 'new', label: `Factura ${row.FacturaFolio || 'Sin Folio'}`, newValue: row.MontoVenta, rawData: row });
+        const estatusExcel = String(row.Estatus || '').trim();
+        if (estatusExcel && !ESTATUS_VALIDOS.includes(estatusExcel as OrderStatus)) {
+          // No se descarta el renglon: se marca el error y se deja fuera de
+          // "Aplicar Ajustes" hasta que se corrija en el Excel. Antes esto
+          // se hubiera guardado tal cual, con un estatus que el resto del
+          // sistema no reconoce.
+          newDiffs.push({
+            tab: 'cobranza', type: 'mod',
+            label: `Factura ${row.FacturaFolio || row.ID_SISTEMA || '(sin folio)'}`,
+            campo: 'estatus',
+            error: `Estatus "${estatusExcel}" no es válido. Debe ser uno de: ${ESTATUS_VALIDOS.join(', ')}`,
+          });
           continue;
         }
 
-        const [orderId, invoiceId] = row.ID_SISTEMA.split('::');
-        const order = orderDocs.find(o => o.id === orderId);
-        if (order) {
-          const inv = order.data.invoices?.find((i: any) => i.id === invoiceId);
-          if (inv) {
-            const sysTotal = inv.financials?.invoiceTotal || 0;
-            const excelTotal = Number(row.MontoVenta) || 0;
-            if (Math.abs(sysTotal - excelTotal) > 0.01) {
-              newDiffs.push({
-                tab: 'cobranza',
-                type: 'mod',
-                id: row.ID_SISTEMA,
-                label: `Factura ${inv.folio}`,
-                oldValue: sysTotal,
-                newValue: excelTotal
-              });
-            }
-            
-            const sysStatus = inv.creditCycle?.status || '';
-            const excelStatus = row.Estatus || '';
-            if (sysStatus !== excelStatus) {
-                newDiffs.push({
-                    tab: 'cobranza',
-                    type: 'mod',
-                    id: row.ID_SISTEMA,
-                    label: `Estatus Factura ${inv.folio}`,
-                    oldValue: sysStatus,
-                    newValue: excelStatus
-                });
-            }
-          }
+        if (!row.ID_SISTEMA) {
+          // Renglon NUEVO: antes se detectaba pero "Aplicar Ajustes" nunca
+          // lo guardaba — se mostraba en la lista y desaparecia sin dejar
+          // rastro al presionar el boton.
+          newDiffs.push({
+            tab: 'cobranza', type: 'new',
+            label: `Factura ${row.FacturaFolio || '(nueva)'} — ${row.Cliente || 'sin cliente'}`,
+            cliente: String(row.Cliente || '').trim(),
+            folio: String(row.FacturaFolio || '').trim(),
+            contrarecibo: String(row.Contrarecibo || '').trim(),
+            estatus: estatusExcel || 'pending',
+            montoVenta: Number(row.MontoVenta) || 0,
+            fechaVencimiento: row.FechaVencimiento,
+            newValue: Number(row.MontoVenta) || 0,
+          });
+          continue;
+        }
+
+        const [orderId, invoiceId] = String(row.ID_SISTEMA).split('::');
+        const order = orderDocs.find((o) => o.id === orderId);
+        if (!order) continue;
+        const inv = order.data.invoices?.find((i) => i.id === invoiceId);
+        if (!inv) continue;
+
+        const sysTotal = inv.financials?.invoiceTotal ?? 0;
+        const excelTotal = Number(row.MontoVenta) || 0;
+        if (Math.abs(sysTotal - excelTotal) > 0.01) {
+          newDiffs.push({
+            tab: 'cobranza', type: 'mod', campo: 'monto',
+            orderId, invoiceId,
+            label: `Factura ${inv.folio}`,
+            oldValue: sysTotal, newValue: excelTotal,
+          });
+        }
+
+        const sysStatus = inv.creditCycle?.status || '';
+        if (estatusExcel && sysStatus !== estatusExcel) {
+          newDiffs.push({
+            tab: 'cobranza', type: 'mod', campo: 'estatus',
+            orderId, invoiceId,
+            label: `Estatus factura ${inv.folio}`,
+            oldValue: sysStatus, newValue: estatusExcel,
+          });
+        }
+
+        // Contrarecibo y fecha de vencimiento: antes NUNCA se comparaban ni
+        // se escribian de vuelta, aunque son justo los datos que mas cambian
+        // en la sabana real del negocio (cuando llega el CR, o se corrige
+        // una fecha).
+        const sysCr = inv.collection?.contrareciboNumber || '';
+        const excelCr = String(row.Contrarecibo || '').trim();
+        if (excelCr && sysCr !== excelCr) {
+          newDiffs.push({
+            tab: 'cobranza', type: 'mod', campo: 'contrarecibo',
+            orderId, invoiceId,
+            label: `Contrarecibo de ${inv.folio}`,
+            oldValue: sysCr || '(sin CR)', newValue: excelCr,
+          });
+        }
+
+        const excelVenc = parseFechaExcel(row.FechaVencimiento);
+        const sysVenc = inv.creditCycle?.dueDate ? inv.creditCycle.dueDate.toDate() : null;
+        if (excelVenc && (!sysVenc || Math.abs(excelVenc.getTime() - sysVenc.getTime()) > 24 * 3600 * 1000)) {
+          newDiffs.push({
+            tab: 'cobranza', type: 'mod', campo: 'vencimiento',
+            orderId, invoiceId,
+            label: `Vencimiento de ${inv.folio}`,
+            oldValue: sysVenc ? sysVenc.toLocaleDateString('es-MX') : '(sin fecha)',
+            newValue: excelVenc.toLocaleDateString('es-MX'),
+          });
         }
       }
     }
 
-    // 2. Caja Chica
+    // --- 2. Caja ---
     const cajaSheet = workbook.Sheets['Auditoria_CajaChica'];
     if (cajaSheet) {
       const cajaRows = XLSX.utils.sheet_to_json(cajaSheet);
       const expensesSnap = await getDocs(collection(db, PATHS.expenses));
-      const expenseDocs = expensesSnap.docs.map(d => ({ id: d.id, data: d.data() }));
+      const expenseDocs = expensesSnap.docs.map((d) => ({ id: d.id, data: d.data() }));
 
       for (const row of cajaRows as any[]) {
         if (!row.ID_SISTEMA) {
-          newDiffs.push({ tab: 'caja', type: 'new', label: `Movimiento: ${row.Concepto}`, newValue: row.Monto, rawData: row });
+          const monto = Number(row.Monto) || 0;
+          if (monto === 0 || !row.Concepto) continue; // renglon vacio del template
+          const concepto = String(row.Concepto).trim();
+          const proveedorDetectado = PROVIDER_NAMES.find((p) => concepto.toLowerCase().includes(p.toLowerCase()));
+          newDiffs.push({
+            tab: 'caja', type: 'new',
+            label: `Movimiento: ${row.Concepto}`,
+            concepto,
+            proveedor: proveedorDetectado,
+            monto,
+            fecha: row.Fecha,
+            newValue: monto,
+          });
           continue;
         }
 
-        const exp = expenseDocs.find(e => e.id === row.ID_SISTEMA);
+        const exp = expenseDocs.find((e) => e.id === row.ID_SISTEMA);
         if (exp) {
-          const sysTotal = exp.data.amount || 0;
+          const sysTotal = (exp.data as any).amount || 0;
           const excelTotal = Number(row.Monto) || 0;
           if (Math.abs(sysTotal - excelTotal) > 0.01) {
             newDiffs.push({
-              tab: 'caja',
-              type: 'mod',
-              id: row.ID_SISTEMA,
-              label: `Movimiento: ${exp.data.concept}`,
-              oldValue: sysTotal,
-              newValue: excelTotal
+              tab: 'caja', type: 'mod', id: row.ID_SISTEMA,
+              label: `Movimiento: ${(exp.data as any).concept}`,
+              oldValue: sysTotal, newValue: excelTotal,
             });
           }
         }
@@ -117,109 +236,151 @@ export default function AuditSync() {
 
     setDiffs(newDiffs);
     setIsProcessing(false);
+    if (newDiffs.length === 0) {
+      toast('No se detectaron diferencias entre el Excel y el sistema.', 'ok');
+    }
   };
 
   const applyChanges = async () => {
-    if (!confirm('¿Estás seguro de aplicar estos ajustes al sistema? Esta acción es irreversible.')) return;
-    
+    const aplicables = diffs.filter((d) => !('error' in d && d.error));
+    const conError = diffs.length - aplicables.length;
+    const confirmMsg = conError > 0
+      ? `Hay ${conError} renglón(es) con errores que NO se van a aplicar. ¿Aplicar los otros ${aplicables.length} ajustes de todos modos?`
+      : `¿Aplicar estos ${aplicables.length} ajustes al sistema? Esta acción no se puede deshacer con un botón.`;
+    if (!window.confirm(confirmMsg)) return;
+
     setIsProcessing(true);
-    
+    const batch = writeBatch(db);
+    let aplicados = 0;
+
     try {
-      await runTransaction(db, async (tx) => {
-        // First, prepare all references to read for 'mod' updates
-        const orderRefsToRead = new Set<string>();
-        const expRefsToRead = new Set<string>();
-        
-        for (const diff of diffs) {
-            if (diff.type === 'mod') {
-                if (diff.tab === 'cobranza') orderRefsToRead.add(diff.id.split('::')[0]);
-                if (diff.tab === 'caja') expRefsToRead.add(diff.id);
-            }
+      // Cobranza: agrupar por expediente para no pisar cambios de otro
+      // renglon del mismo expediente dentro del mismo lote.
+      const porOrden = new Map<string, { snap: any; invoices: Invoice[] }>();
+      const nuevasFacturasPorCliente = new Map<string, { cliente: string; items: DiffCobranza[] }>();
+
+      for (const diff of aplicables) {
+        if (diff.tab !== 'cobranza') continue;
+
+        if (diff.type === 'new') {
+          const key = diff.cliente || '(sin cliente)';
+          if (!nuevasFacturasPorCliente.has(key)) nuevasFacturasPorCliente.set(key, { cliente: key, items: [] });
+          nuevasFacturasPorCliente.get(key)!.items.push(diff);
+          continue;
         }
-        
-        // Batch read to ensure consistency in the transaction
-        const orderSnaps = new Map();
-        for (const orderId of Array.from(orderRefsToRead)) {
-            const ref = doc(db, PATHS.orders, orderId);
-            orderSnaps.set(orderId, await tx.get(ref));
+
+        const orderId = diff.orderId!;
+        if (!porOrden.has(orderId)) {
+          const orderRef = doc(db, PATHS.orders, orderId);
+          const orderSnap = await getDoc(orderRef);
+          if (!orderSnap.exists()) continue;
+          porOrden.set(orderId, { snap: orderSnap, invoices: [...(orderSnap.data().invoices || [])] });
         }
-        
-        // Execute writes (updates and creations)
-        for (const diff of diffs) {
-            if (diff.tab === 'cobranza') {
-                if (diff.type === 'mod') {
-                    const [orderId, invoiceId] = diff.id.split('::');
-                    const snap = orderSnaps.get(orderId);
-                    if (snap && snap.exists()) {
-                        const orderData = snap.data();
-                        const updatedInvoices = orderData.invoices.map((inv: any) => {
-                            if (inv.id === invoiceId) {
-                                if (diff.label.includes('Estatus')) {
-                                    return { ...inv, creditCycle: { ...inv.creditCycle, status: diff.newValue } };
-                                } else {
-                                    return { ...inv, financials: { ...inv.financials, invoiceTotal: diff.newValue } };
-                                }
-                            }
-                            return inv;
-                        });
-                        tx.update(snap.ref, { invoices: updatedInvoices });
-                    }
-                } else if (diff.type === 'new') {
-                    // Create a new order with a placeholder invoice
-                    const newOrderRef = doc(collection(db, PATHS.orders));
-                    tx.set(newOrderRef, {
-                        folio: diff.rawData.FacturaFolio || 'NUEVA',
-                        client: diff.rawData.Cliente || 'SIN CLIENTE',
-                        createdAt: Date.now(),
-                        invoices: [{
-                            id: newOrderRef.id + '-inv0',
-                            folio: diff.rawData.FacturaFolio || 'NUEVA',
-                            kilos: 0,
-                            financials: { invoiceTotal: Number(diff.newValue) || 0, saleTotal: 0 },
-                            creditCycle: { status: diff.rawData.Estatus || 'pedido' },
-                            collection: {}
-                        }]
-                    });
-                }
-            } else if (diff.tab === 'caja') {
-                if (diff.type === 'mod') {
-                    const expRef = doc(db, PATHS.expenses, diff.id);
-                    tx.update(expRef, { amount: Number(diff.newValue) });
-                } else if (diff.type === 'new') {
-                    const newExpRef = doc(collection(db, PATHS.expenses));
-                    tx.set(newExpRef, {
-                        amount: Number(diff.newValue) || 0,
-                        concept: diff.rawData.Concepto || 'Ajuste Auditoría',
-                        provider: 'Andrés', // Defaulting to main provider for Caja Chica
-                        type: Number(diff.newValue) < 0 ? 'ingreso' : 'egreso',
-                        date: Date.now()
-                    });
-                }
-            }
+        const entry = porOrden.get(orderId)!;
+        const idx = entry.invoices.findIndex((i) => i.id === diff.invoiceId);
+        if (idx < 0) continue;
+        const inv = entry.invoices[idx];
+
+        if (diff.campo === 'monto') {
+          entry.invoices[idx] = { ...inv, financials: { ...inv.financials, invoiceTotal: Number(diff.newValue) } as any };
+        } else if (diff.campo === 'estatus') {
+          entry.invoices[idx] = { ...inv, creditCycle: { ...inv.creditCycle, status: diff.newValue as OrderStatus } };
+        } else if (diff.campo === 'contrarecibo') {
+          entry.invoices[idx] = { ...inv, collection: { ...inv.collection, contrareciboNumber: String(diff.newValue) } };
+        } else if (diff.campo === 'vencimiento') {
+          const d = parseFechaExcel(diff.newValue as string);
+          if (d) entry.invoices[idx] = { ...inv, creditCycle: { ...inv.creditCycle, dueDate: Timestamp.fromDate(d) } };
         }
+        aplicados++;
+      }
+
+      // Escribir expedientes existentes modificados — SIEMPRE via
+      // camposInvoices(), para que invoiceStatuses viaje junto con
+      // invoices. Antes esta pantalla escribia `invoices` sola: el resto
+      // del sistema (Dashboard, Cobranza, el proceso de vencidos) depende
+      // de invoiceStatuses, no de invoices, para filtrar — quedaba
+      // desincronizado en silencio.
+      porOrden.forEach((_entry, orderId) => {
+        const entry = porOrden.get(orderId)!;
+        batch.set(doc(db, PATHS.orders, orderId), camposInvoices(entry.invoices), { merge: true });
       });
-      
-      toast.success('Ajustes aplicados correctamente mediante Transacción Segura');
+
+      // Facturas nuevas: se agrupan en UN expediente nuevo por cliente en
+      // este lote de importacion, para no crear un expediente vacio por
+      // cada renglon.
+      for (const [, { cliente, items }] of nuevasFacturasPorCliente) {
+        const newOrderRef = doc(collection(db, PATHS.orders));
+        const invoices: Invoice[] = items.map((item, i) => {
+          const venc = parseFechaExcel(item.fechaVencimiento);
+          return {
+            id: `${newOrderRef.id}-imp-${i}`,
+            folio: item.folio || '',
+            kilos: 0,
+            financials: { salePricePerKg: 0, costPricePerKg: 0, netCashFlow: 0, invoiceTotal: item.montoVenta || 0 },
+            creditCycle: {
+              status: (item.estatus as OrderStatus) || 'pending',
+              issueDate: Timestamp.now(),
+              dueDate: venc ? Timestamp.fromDate(venc) : null,
+            },
+            collection: { contrareciboNumber: item.contrarecibo || '' },
+          };
+        });
+        batch.set(newOrderRef, {
+          client: cliente,
+          fileName: 'IMPORTADO_AUDITORIA_MAESTRA',
+          totalKilograms: 0,
+          processedAt: serverTimestamp(),
+          ...camposInvoices(invoices),
+        });
+        aplicados += items.length;
+      }
+
+      // Caja
+      for (const diff of aplicables) {
+        if (diff.tab !== 'caja') continue;
+        if (diff.type === 'mod' && diff.id) {
+          batch.update(doc(db, PATHS.expenses, diff.id), { amount: diff.newValue });
+          aplicados++;
+        } else if (diff.type === 'new') {
+          const fecha = parseFechaExcel(diff.fecha) || new Date();
+          const monto = diff.monto || 0;
+          batch.set(doc(collection(db, PATHS.expenses)), {
+            date: Timestamp.fromDate(fecha),
+            concept: diff.concepto,
+            type: monto < 0 ? 'egreso' : 'ingreso',
+            amount: Math.abs(monto),
+            provider: diff.proveedor || null,
+            notes: 'Importado desde Auditoría Maestra',
+            createdAt: serverTimestamp(),
+          });
+          aplicados++;
+        }
+      }
+
+      await batch.commit();
+      toast(`${aplicados} ajuste(s) aplicados correctamente.${conError > 0 ? ` ${conError} con error se dejaron sin aplicar.` : ''}`, 'ok');
       setDiffs([]);
       setFile(null);
     } catch (e) {
       console.error(e);
-      toast.error('Error al aplicar cambios');
+      toast(`Error al aplicar cambios: ${(e as Error).message}`, 'bad');
     }
-    
+
     setIsProcessing(false);
   };
 
-  const filteredDiffs = diffs.filter(d => d.tab === activeTab);
+  const filteredDiffs = diffs.filter((d) => d.tab === activeTab);
+  const totalAplicables = diffs.filter((d) => !('error' in d && d.error)).length;
 
   return (
     <div style={{ padding: '2rem', maxWidth: 1000, margin: '0 auto', background: '#fff', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginTop: '2rem' }}>
       <h1 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <span>⚖️</span> Auditoría Maestra por Excel
       </h1>
-      
+
       <p style={{ color: '#666', marginBottom: '2rem' }}>
         Sube tu Sábana de Auditoría modificada. El sistema detectará los cambios y te propondrá los ajustes antes de guardarlos en la base de datos.
+        Los renglones nuevos (sin <code>ID_SISTEMA</code>) se crean; los existentes se actualizan.
       </p>
 
       {!file && (
@@ -236,23 +397,17 @@ export default function AuditSync() {
       {file && !isProcessing && (
         <div>
           <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #eee', marginBottom: '1rem' }}>
-            <button 
-                onClick={() => setActiveTab('cobranza')}
-                style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'cobranza' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'cobranza' ? 'bold' : 'normal', cursor: 'pointer' }}
+            <button
+              onClick={() => setActiveTab('cobranza')}
+              style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'cobranza' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'cobranza' ? 'bold' : 'normal', cursor: 'pointer' }}
             >
-                Cobranza ({diffs.filter(d => d.tab === 'cobranza').length})
+              Cobranza ({diffs.filter((d) => d.tab === 'cobranza').length})
             </button>
-            <button 
-                onClick={() => setActiveTab('compras')}
-                style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'compras' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'compras' ? 'bold' : 'normal', cursor: 'pointer' }}
+            <button
+              onClick={() => setActiveTab('caja')}
+              style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'caja' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'caja' ? 'bold' : 'normal', cursor: 'pointer' }}
             >
-                Compras ({diffs.filter(d => d.tab === 'compras').length})
-            </button>
-            <button 
-                onClick={() => setActiveTab('caja')}
-                style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'caja' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'caja' ? 'bold' : 'normal', cursor: 'pointer' }}
-            >
-                Caja Chica ({diffs.filter(d => d.tab === 'caja').length})
+              Caja Chica ({diffs.filter((d) => d.tab === 'caja').length})
             </button>
           </div>
 
@@ -261,29 +416,33 @@ export default function AuditSync() {
               <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
                 <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Tipo</th>
                 <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Registro</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Valor Anterior (Sistema)</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Nuevo Valor (Excel)</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Variación</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Valor Anterior</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Nuevo Valor</th>
               </tr>
             </thead>
             <tbody>
               {filteredDiffs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>No se detectaron diferencias en esta sección.</td>
+                  <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>No se detectaron diferencias en esta sección.</td>
                 </tr>
               ) : (
                 filteredDiffs.map((d, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #eee', background: 'error' in d && d.error ? '#fef2f2' : undefined }}>
                     <td style={{ padding: '12px' }}>
-                        {d.type === 'new' ? <span style={{ background: '#e6f4ea', color: '#137333', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>NUEVO</span> : 
-                         <span style={{ background: '#fef7e0', color: '#b06000', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>MODIFICADO</span>}
+                      {'error' in d && d.error ? (
+                        <span style={{ background: '#fef2f2', color: '#b91c1c', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>ERROR</span>
+                      ) : d.type === 'new' ? (
+                        <span style={{ background: '#e6f4ea', color: '#137333', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>NUEVO</span>
+                      ) : (
+                        <span style={{ background: '#fef7e0', color: '#b06000', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>MODIFICADO</span>
+                      )}
                     </td>
-                    <td style={{ padding: '12px', fontWeight: 500 }}>{d.label}</td>
+                    <td style={{ padding: '12px', fontWeight: 500 }}>
+                      {d.label}
+                      {'error' in d && d.error && <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 400, marginTop: 4 }}>{d.error}</div>}
+                    </td>
                     <td style={{ padding: '12px', color: '#666' }}>{typeof d.oldValue === 'number' ? `$${d.oldValue.toLocaleString()}` : d.oldValue || '—'}</td>
                     <td style={{ padding: '12px', fontWeight: 'bold' }}>{typeof d.newValue === 'number' ? `$${d.newValue.toLocaleString()}` : d.newValue}</td>
-                    <td style={{ padding: '12px', color: typeof d.oldValue === 'number' && typeof d.newValue === 'number' ? (d.newValue > d.oldValue ? '#137333' : '#c5221f') : '#000' }}>
-                        {typeof d.oldValue === 'number' && typeof d.newValue === 'number' ? `$${(d.newValue - d.oldValue).toLocaleString()}` : '—'}
-                    </td>
                   </tr>
                 ))
               )}
@@ -292,12 +451,13 @@ export default function AuditSync() {
 
           {diffs.length > 0 && (
             <div style={{ marginTop: '2rem', textAlign: 'right' }}>
-                <button 
-                    onClick={applyChanges}
-                    style={{ background: '#137333', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}
-                >
-                    Aplicar {diffs.length} Ajustes a Base de Datos
-                </button>
+              <button
+                onClick={() => void applyChanges()}
+                disabled={totalAplicables === 0}
+                style={{ background: totalAplicables === 0 ? '#999' : '#137333', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: 6, fontWeight: 'bold', cursor: totalAplicables === 0 ? 'not-allowed' : 'pointer', fontSize: 16 }}
+              >
+                Aplicar {totalAplicables} Ajuste(s) a Base de Datos
+              </button>
             </div>
           )}
         </div>

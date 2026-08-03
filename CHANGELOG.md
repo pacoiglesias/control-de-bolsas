@@ -1,5 +1,16 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.37.0] - 3 Agosto 2026 (Auditoría Maestra reparada)
+
+### Corregido — crítico
+- **Signo invertido en movimientos nuevos de Caja Chica** al crearlos desde la Auditoría Maestra: un anticipo se guardaba como "ingreso" y un cobro como "egreso" — exactamente al revés.
+- **`invoiceStatuses` no se sincronizaba** al cambiar el estatus de una factura desde el Excel — el resto del sistema seguía viendo el estatus viejo.
+- **Los renglones nuevos ahora sí detectan el proveedor** por el texto del concepto, y se **valida el estatus** contra los valores reales del sistema antes de aplicarlo.
+- Corregida la hoja "Auditoria_Compras" del Excel descargable: exportaba campos que no existen en el modelo (`subtotal`, `iva`, `total`) y siempre salía en blanco.
+
+### Verificado
+- Probado de extremo a extremo con una sábana sintética idéntica a los datos reales del negocio, incluyendo un caso de estatus inválido a propósito.
+
 ## [v6.36.0] - 2 Agosto 2026 (UI Glassmorphism, Kanban Drag & Drop y Refactorización Compras)
 
 ### Añadido — Proactividad y Estética Premium
