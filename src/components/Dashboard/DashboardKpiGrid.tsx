@@ -87,8 +87,12 @@ export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav 
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Facturado (Te Deben)</span>
-                <strong style={{ fontSize: 15 }}>{money(k.porCobrar)}</strong>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Facturas en Revisión (sin CR)</span>
+                <strong style={{ fontSize: 15 }}>{money(k.porCobrarSinCR ?? 0)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Contrarecibos (con CR)</span>
+                <strong style={{ fontSize: 15 }}>{money(k.porCobrarConCR ?? 0)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Pendiente de Facturar</span>

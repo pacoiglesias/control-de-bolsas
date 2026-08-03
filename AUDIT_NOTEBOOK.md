@@ -132,3 +132,15 @@ Las cifras del panel ("Facturado (Te Deben) $136,300.00", "1 contrarecibo pasado
 
 ### 📌 Pendiente — alcance completo de "perfeccionar el flujo" y limpiar Visión Global
 El usuario pidió una revisión mucho más amplia (limpiar información "irrelevante" de Visión Global, hacer todo el flujo OC→cobro más visual/proactivo con skeletons y menús interactivos, y una auditoría completa del ciclo de negocio). Dado el tamaño, se entregó la pieza concreta y explícitamente solicitada (la tabla de contrarecibos) en este ciclo. El resto queda como trabajo de continuación, a abordar por partes para no comprometer la verificación de cada cambio.
+
+### Iteración 20: Panel de Flujo Providencia con líneas claras (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/components/Dashboard/DashboardKpiGrid.tsx`
+**Problema:** El usuario pidió ver claramente: Contrarecibos, Facturas en Revisión, y Pendiente por Facturar como conceptos separados que suman la Deuda Total Providencia. La fórmula YA estaba correcta (`deudaTotalProvidencia = porCobrar + montoPendienteFacturar`, donde `porCobrar` ya se separaba internamente en `porCobrarSinCR`/`porCobrarConCR`) — pero esa separación solo se mostraba como texto pequeño sin etiqueta al final de la tarjeta, no como líneas claras del desglose principal.
+**Solución:** "Facturado (Te Deben)" (una sola cifra combinada) reemplazado por dos líneas explícitas: "Facturas en Revisión (sin CR)" y "Contrarecibos (con CR)", usando el vocabulario exacto que pidió el usuario.
+**Riesgo:** 🟢 Bajo — solo relabeling, la fórmula subyacente no cambió.
+**Commit:** `style(Dashboard): mostrar Facturas en Revision y Contrarecibos como lineas separadas`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Nota: "Total Vendido" y el botón "Subir OC"
+Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un bug — depende del selector "Mes P&L" (default "Histórico Global", pero cambia si el usuario selecciona un mes específico). El botón "Subir OC (PDF)" ya está corregido en el código desde el Ciclo 16; si sigue fallando en producción, la explicación más probable es que esa versión no se ha desplegado todavía.

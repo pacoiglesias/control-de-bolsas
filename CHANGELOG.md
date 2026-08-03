@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.45.0] - 3 Agosto 2026 (Flujo Providencia con líneas claras)
+
+### Mejorado
+- El panel "Flujo de Efectivo Providencia" ahora muestra "Facturas en Revisión (sin CR)" y "Contrarecibos (con CR)" como líneas separadas y claramente etiquetadas, en vez de una sola cifra combinada con el desglose en texto pequeño sin etiqueta.
+
+### Aclarado, no era un error
+- "Total Vendido" depende del selector "Mes P&L" — selecciona "Histórico Global" para ver el acumulado completo.
+- El botón "Subir OC (PDF)" ya está corregido desde v6.42.0; si sigue fallando, falta desplegar esa versión.
+
+
 ## [v6.44.0] - 3 Agosto 2026 (Sábana visual reparada + tabla de contrarecibos)
 
 ### Corregido — crítico
