@@ -1,10 +1,11 @@
-import { useContext, useMemo } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import CobranzaContext from './CobranzaContext';
 import { daysLate } from '../../lib/finance';
 import { toDate, fmtDate } from '../../lib/format';
 
 export default function TableroKanban() {
-  const { data, money, setSelected } = useContext(CobranzaContext)!;
+  const { data, money, setSelected, moveInvoice } = useContext(CobranzaContext)!;
+  const [activeTarget, setActiveTarget] = useState<string | null>(null);
 
   const cols = useMemo(() => {
     const colRevision: any[] = [];
@@ -29,6 +30,11 @@ export default function TableroKanban() {
     return { colRevision, colPorCobrar, colContador, colCaja };
   }, [data]);
 
+  const onDragStart = (e: React.DragEvent<HTMLDivElement>, oId: string, invId: string) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ oId, invId }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   const renderCard = (x: any) => {
     const o = x.o;
     const inv = x.inv;
@@ -39,15 +45,18 @@ export default function TableroKanban() {
     
     return (
       <div 
-        key={inv.id} 
+        key={inv.id}
+        draggable
+        onDragStart={(e) => onDragStart(e, o.id, inv.id)}
         style={{
           background: 'var(--surface)', 
           border: isOverdue ? '2px solid #fca5a5' : '1px solid var(--border)', 
           borderRadius: 8, 
           padding: 12,
           marginBottom: 10,
-          cursor: 'pointer',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          cursor: 'grab',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          opacity: 1 // can be bound to isDragging if desired
         }}
         onClick={() => setSelected(o)}
       >
@@ -68,54 +77,107 @@ export default function TableroKanban() {
     );
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); // Necessary to allow dropping
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>, targetCol: string) => {
+    e.preventDefault();
+    setActiveTarget(null);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+      if (data.oId && data.invId) {
+        await moveInvoice(data.oId, data.invId, targetCol);
+      }
+    } catch (err) {
+      console.error('Drop error', err);
+    }
+  };
+
+  const getColStyle = (colId: string, baseBg: string) => ({
+    flex: '0 0 300px', 
+    background: activeTarget === colId ? '#e2e8f0' : baseBg, // Highlight on drag over
+    borderRadius: 12, 
+    padding: 16, 
+    display: 'flex', 
+    flexDirection: 'column' as const, 
+    maxHeight: '70vh',
+    transition: 'background 0.2s ease'
+  });
+
   return (
     <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, marginTop: 16 }}>
       
       {/* Columna En Revisión */}
-      <div style={{ flex: '0 0 300px', background: '#f8fafc', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
+      <div 
+        style={getColStyle('colRevision', '#f8fafc')}
+        onDragOver={handleDragOver}
+        onDragEnter={() => setActiveTarget('colRevision')}
+        onDragLeave={() => setActiveTarget(null)}
+        onDrop={(e) => handleDrop(e, 'colRevision')}
+      >
         <div style={{ fontWeight: 700, color: '#334155', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           <span>🔎 En Revisión (Sin CR)</span>
           <span style={{ background: '#e2e8f0', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colRevision.length}</span>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.colRevision.map(renderCard)}
-          {cols.colRevision.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 20 }}>Vacío</div>}
+          {cols.colRevision.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
       </div>
 
       {/* Columna Por Cobrar */}
-      <div style={{ flex: '0 0 300px', background: '#fef2f2', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
+      <div 
+        style={getColStyle('colPorCobrar', '#fef2f2')}
+        onDragOver={handleDragOver}
+        onDragEnter={() => setActiveTarget('colPorCobrar')}
+        onDragLeave={() => setActiveTarget(null)}
+        onDrop={(e) => handleDrop(e, 'colPorCobrar')}
+      >
         <div style={{ fontWeight: 700, color: '#991b1b', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           <span>⏳ Por Cobrar (Con CR)</span>
           <span style={{ background: '#fca5a5', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colPorCobrar.length}</span>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.colPorCobrar.map(renderCard)}
-          {cols.colPorCobrar.length === 0 && <div style={{ textAlign: 'center', color: '#fca5a5', fontSize: 13, marginTop: 20 }}>Vacío</div>}
+          {cols.colPorCobrar.length === 0 && <div style={{ textAlign: 'center', color: '#fca5a5', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
       </div>
 
       {/* Columna Con Contador */}
-      <div style={{ flex: '0 0 300px', background: '#fffbeb', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
+      <div 
+        style={getColStyle('colContador', '#fffbeb')}
+        onDragOver={handleDragOver}
+        onDragEnter={() => setActiveTarget('colContador')}
+        onDragLeave={() => setActiveTarget(null)}
+        onDrop={(e) => handleDrop(e, 'colContador')}
+      >
         <div style={{ fontWeight: 700, color: '#b45309', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           <span>🟡 Con el Contador</span>
           <span style={{ background: '#fde68a', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colContador.length}</span>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.colContador.map(renderCard)}
-          {cols.colContador.length === 0 && <div style={{ textAlign: 'center', color: '#fcd34d', fontSize: 13, marginTop: 20 }}>Vacío</div>}
+          {cols.colContador.length === 0 && <div style={{ textAlign: 'center', color: '#fcd34d', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
       </div>
 
       {/* Columna En Caja */}
-      <div style={{ flex: '0 0 300px', background: '#f0fdf4', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
+      <div 
+        style={getColStyle('colCaja', '#f0fdf4')}
+        onDragOver={handleDragOver}
+        onDragEnter={() => setActiveTarget('colCaja')}
+        onDragLeave={() => setActiveTarget(null)}
+        onDrop={(e) => handleDrop(e, 'colCaja')}
+      >
         <div style={{ fontWeight: 700, color: '#166534', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           <span>✅ En Caja Chica</span>
           <span style={{ background: '#bbf7d0', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colCaja.length}</span>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.colCaja.map(renderCard)}
-          {cols.colCaja.length === 0 && <div style={{ textAlign: 'center', color: '#86efac', fontSize: 13, marginTop: 20 }}>Vacío</div>}
+          {cols.colCaja.length === 0 && <div style={{ textAlign: 'center', color: '#86efac', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
       </div>
 

@@ -75,3 +75,11 @@
 **Estado:** ✅ Verificado — `tsc` limpio en functions.
 
 > Nota: el historial detallado de los Ciclos 1–33 (incluyendo los hallazgos que motivan las dos iteraciones de arriba) vive en `CHANGELOG.md` y en el historial de commits de la rama `optimize/workspace-2026-07-29-ciclo2`, por si hace falta consultarlo — esta bitácora se reemplazó por un formato distinto a mitad de proyecto y no se restauró el contenido anterior para no pisar el trabajo de esta sesión.
+
+### Iteración 9: Kanban Drag and Drop y Reconciliación de Caja Chica (COMPLETADO)
+**Fecha:** 2026-08-02
+**Archivos:** `src/components/Cobranza/index.tsx`, `src/components/Cobranza/TableroKanban.tsx`
+**Problema:** Al mover estados manualmente sin usar los botones, las métricas financieras (Cobrado vs Caja) divergían si no se inyectaba el gasto manual.
+**Impacto:** Riesgo Alto de divergencia de reportes contables.
+**Solución:** Se implementó API HTML5 Drag and Drop en las columnas de cobranza. Se centralizó la lógica en la función `moveInvoice` envolviendo las transiciones en un bloque `runTransaction` que actualiza el ciclo de crédito de la factura y, simultáneamente, inyecta (o revierte) el ingreso en la colección `expenses` cuando se mueve hacia/desde `En Caja Chica`.
+**Estado:** Desplegado en Producción (v6.36.0).

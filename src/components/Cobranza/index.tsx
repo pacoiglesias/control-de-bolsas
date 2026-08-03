@@ -963,12 +963,148 @@ export default function Cobranza() {
   if (error) return <div className="alert bad">{error}</div>;
 
 
+  async function moveInvoice(orderId: string, invoiceId: string, targetCol: string) {
+    const o = orders.find(x => x.id === orderId);
+    if (!o) return;
+    const inv = o.invoices?.find(i => i.id === invoiceId);
+    if (!inv) return;
+
+    const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
+    let currentCol = '';
+    if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
+      currentCol = cr ? 'colPorCobrar' : 'colRevision';
+    } else if (inv.creditCycle.status === 'paid') {
+      currentCol = 'colContador';
+    } else if (inv.creditCycle.status === 'collected') {
+      currentCol = 'colCaja';
+    }
+
+    if (currentCol === targetCol) return;
+
+    let newStatus = inv.creditCycle.status;
+    let newCr = inv.collection?.contrareciboNumber;
+    let expenseData: any = null;
+
+    if (targetCol === 'colRevision') {
+      if (currentCol !== 'colPorCobrar') {
+         toast('Solo puedes regresar a Revisión desde Por Cobrar.', 'bad'); return;
+      }
+      if (o.collection?.contrareciboNumber) {
+        toast('El Contrarecibo está a nivel Expediente. Edita el expediente para borrarlo.', 'bad');
+        return;
+      }
+      newStatus = 'pending';
+      newCr = undefined; // Se usará undefined para limpiarlo después
+    } else if (targetCol === 'colPorCobrar') {
+      if (currentCol === 'colRevision') {
+         const promptCr = window.prompt('Ingresa el número de Contrarecibo (CR):');
+         if (!promptCr) return;
+         newCr = promptCr.trim();
+      } else if (currentCol === 'colContador') {
+         newStatus = 'pending';
+      } else {
+         toast('Movimiento no permitido.', 'bad'); return;
+      }
+    } else if (targetCol === 'colContador') {
+      if (currentCol === 'colPorCobrar') {
+         newStatus = 'paid';
+      } else if (currentCol === 'colCaja') {
+         if (!window.confirm('¿Seguro que quieres deshacer la recolección? Se registrará un egreso de reversión en Caja para cuadrar.')) return;
+         
+         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 47) * (1 + (config.ivaRate || 0.16)));
+         const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 47) * (config.commissionRate || 0));
+         const net = invTotal - comision;
+
+         expenseData = {
+           id: doc(collection(db, PATHS.expenses)).id,
+           date: Timestamp.now(),
+           concept: `[REVERSO] Corrección de factura ${inv.folio || o.folio}`,
+           amount: net,
+           type: 'egreso',
+           createdAt: Timestamp.now(),
+         };
+         newStatus = 'paid';
+      } else {
+         toast('Movimiento no permitido.', 'bad'); return;
+      }
+    } else if (targetCol === 'colCaja') {
+      if (currentCol === 'colContador') {
+         if (!window.confirm(`¿Confirmas que se recibió el EFECTIVO/TRANSFERENCIA por la factura ${inv.folio || o.folio}? Se registrará el ingreso en Caja.`)) return;
+
+         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 47) * (1 + (config.ivaRate || 0.16)));
+         const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 47) * (config.commissionRate || 0));
+         const net = invTotal - comision;
+
+         expenseData = {
+           id: doc(collection(db, PATHS.expenses)).id,
+           date: Timestamp.now(),
+           concept: `Cobro Fac. ${inv.folio || o.folio}`,
+           amount: net,
+           type: 'ingreso',
+           createdAt: Timestamp.now(),
+         };
+         newStatus = 'collected';
+      } else {
+         toast('Solo puedes mover a Caja desde la columna del Contador.', 'bad'); return;
+      }
+    }
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, PATHS.orders, orderId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('Expediente no existe');
+        
+        const actuales = snap.data().invoices ?? [];
+        
+        const nuevas = aplicarPorId(actuales, invoiceId, (x) => {
+          const collectionUpdate = { ...x.collection };
+          
+          if (targetCol === 'colRevision') {
+             delete collectionUpdate.contrareciboNumber;
+          } else if (newCr !== undefined) {
+             collectionUpdate.contrareciboNumber = newCr;
+          }
+
+          if (targetCol === 'colContador' && currentCol === 'colPorCobrar') {
+             collectionUpdate.paidAt = Timestamp.now();
+          }
+          if (targetCol === 'colCaja' && currentCol === 'colContador') {
+             collectionUpdate.collectedAt = Timestamp.now();
+          }
+          if (targetCol === 'colContador' && currentCol === 'colCaja') {
+             collectionUpdate.collectedAt = null;
+          }
+          if (targetCol === 'colPorCobrar' && currentCol === 'colContador') {
+             collectionUpdate.paidAt = null;
+          }
+
+          return {
+            ...x,
+            creditCycle: { ...x.creditCycle, status: newStatus as any },
+            collection: collectionUpdate
+          };
+        });
+
+        if (!nuevas) throw new Error('La factura no está en el expediente');
+        tx.update(ref, camposInvoices(nuevas));
+
+        if (expenseData) {
+          tx.set(doc(db, PATHS.expenses, expenseData.id), expenseData);
+        }
+      });
+      toast('Factura movida con éxito', 'ok');
+    } catch (e) {
+      toast(`Error al mover factura: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   const ctx = {
     data, settings, money, activeTab, setActiveTab, shareCarteraVencida, printCarteraVencida, exportCobranzaCsv,
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
     payContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
     liquidateAccountantBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr,
-    filterType, setFilterType, setSelected
+    filterType, setFilterType, setSelected, moveInvoice
   };
 
   return (
