@@ -1,5 +1,20 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.44.0] - 3 Agosto 2026 (Sábana visual reparada + tabla de contrarecibos)
+
+### Corregido — crítico
+- **12 facturas reales con `Estatus: "issued"`** (valor inválido, residuo de la migración original) y **10 con monto en $0** — corregidas con datos reales, entregado archivo listo para subir.
+- **Botón "Subir Sábana Modificada" invisible**: usaba una variable CSS (`var(--brand)`) que no existe en el proyecto. Reconstruida toda la pantalla con los estilos reales del sistema.
+- **Sin forma de cancelar** una carga en la Auditoría Maestra — agregado en dos lugares.
+- **3 botones duplicados** que descargaban el mismo archivo en el Dashboard, consolidados en 1.
+
+### Agregado
+- **Tabla de contrarecibos por vencer** en Visión Global: folio, cliente, vencimiento, monto y estado (vigente / próximo a vencer / vencido con días de atraso), con totales.
+
+### Corregido con documento real
+- "Pendiente por Facturar" bajó de $161,606.00 a **$81,780.00**, confirmado contra la Factura 6159 real (factura la mitad exacta de la OC-71-14014).
+
+
 ## [v6.43.0] - 3 Agosto 2026 (isClosedShort corregido, Compras a tarjetas, Reprogramar)
 
 ### Corregido — crítico

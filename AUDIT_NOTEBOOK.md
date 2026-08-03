@@ -104,3 +104,31 @@ La hoja "Auditoria_Compras" del Excel descargable ahora exporta datos correctos,
 
 ### Nota sobre html2pdf.js
 Investigado y confirmado que **no requiere corrección**: ya se importa de forma dinámica (`await import('html2pdf.js')`) dentro de una función que solo se ejecuta al presionar un botón de "Compartir PDF" — los 6 puntos donde se usa están dentro de manejadores de clic, ninguno se ejecuta al cargar la página. El peso de 982 KB solo se descarga cuando alguien de verdad genera un PDF, no en cada visita.
+
+### Iteración 18: Sábana de Cobranza real corregida; Auditoría Maestra reconstruida visualmente; menú de sábana consolidado (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/pages/AuditSync.tsx`, `src/pages/Dashboard.tsx`
+**Problema:** 🔴 Al subir la sábana real de vuelta, aparecieron 14 errores: `Estatus "issued" no es válido`. Investigado contra la base de datos real: 12 facturas (los 10 contrarecibos originales de Andrés + 2 facturas en revisión) tenían `creditCycle.status: 'issued'`, un valor que nunca existió en el enum real del sistema — residuo de la migración original, antes de que se definieran los estatus válidos. Al mismo tiempo se descubrió que esas mismas 10 facturas tenían `invoiceTotal: 0` en producción, aunque sus montos reales son conocidos. Se armó y entregó un archivo corregido (26 ajustes: 12 estatus + 10 montos + 1 fecha) construido directamente sobre la sábana real descargada por el usuario, preservando los `ID_SISTEMA` reales para actualizar en vez de duplicar. El usuario confirmó además que "Recibimos dinero" debía ser $76,140 (no $100,000, un valor de prueba) — corregido con el mismo mecanismo.
+
+Por separado, el usuario reportó: (1) el botón "Subir Sábana Modificada" era casi invisible sobre fondo blanco — investigado: usaba `var(--brand)`, una variable CSS que **no existe en ninguna parte del proyecto**, dejando el botón sin color de fondo; (2) no había forma de cancelar, solo "Aplicar Cambios"; (3) el menú de la sábana se repetía en la Visión Global — confirmado: existían **tres botones que descargan exactamente el mismo archivo** con nombres distintos ("Descargar Sábana", "Sábana de Auditoría", "Cierre de Mes Excel" — este último con una etiqueta engañosa que sugería un filtro por mes que nunca existió).
+**Impacto:** Auditoría Maestra percibida como rota (botón invisible); sin forma de cancelar una carga; Dashboard confuso con acciones duplicadas bajo nombres distintos.
+**Solución:** `AuditSync.tsx` reconstruido con las clases y variables reales del sistema (`.btn`, `.btn-primary`, `Card`, `Empty`, variables `--ok`/`--warn`/`--bad`), botón "Cancelar" agregado en dos lugares (junto a las pestañas y junto a "Aplicar Cambios"). En el Dashboard: los tres botones de descarga se consolidaron en uno solo arriba; el card duplicado de "Sábana de Auditoría" ahora navega a la Auditoría Maestra (acción distinta) en vez de repetir la descarga.
+**Riesgo:** 🟢 Bajo — cambios visuales y de navegación, no tocan lógica financiera.
+**Commit:** `fix(AuditSync): reconstruir UI con estilos reales, agregar Cancelar; fix(Dashboard): consolidar los 3 botones de descarga duplicados`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### 📌 Nota importante para el usuario
+Las cifras del panel ("Facturado (Te Deben) $136,300.00", "1 contrarecibo pasado de fecha") siguen sin reflejar los 26 ajustes recién aplicados — es el mismo patrón de siempre: el agregado del servidor no se actualiza retroactivamente sobre datos que ya existían. **Se requiere presionar "Recalcular Indicadores" para ver las cifras correctas.**
+
+### Iteración 19: Tabla de contrarecibos por vencer; "Pendiente por Facturar" corregido con documento real (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/components/Dashboard/ContrarecibosTable.tsx` (nuevo), `src/pages/Dashboard.tsx`
+**Contexto:** El usuario compartió 9 documentos CFDI reales (facturas, complementos de pago, capturas del portal de Providencia). Cruce reveló que la Factura 6159 factura exactamente la mitad de cada producto de la OC-71-14014 (500 kg de 983.46/1000/980.70) — el "Pendiente por Facturar" que se venía rastreando como $161,606.00 (2,964.16 kg completos) en realidad bajó a **$81,780.00 (1,500 kg reales)**, dato que solo se pudo confirmar con el documento fiscal real, no adivinado.
+**Solicitud explícita:** "el cuadro de los contrarecibos para saber lo que se vence y se vencerá de forma clara" — no existía en el panel.
+**Solución:** Nuevo componente `ContrarecibosTable`, construido directo de las órdenes activas (no del agregado del servidor, que se desactualiza hasta recalcular) — cada contrarecibo con folio, cliente, fecha de vencimiento, monto, y su estado (vigente/próximo a vencer en 7 días/vencido con días de atraso), más el resumen de totales vigentes vs. vencidos.
+**Riesgo:** 🟢 Bajo — componente nuevo, de solo lectura, no toca escritura de datos.
+**Commit:** `feat(Dashboard): agregar tabla de contrarecibos por vencer`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### 📌 Pendiente — alcance completo de "perfeccionar el flujo" y limpiar Visión Global
+El usuario pidió una revisión mucho más amplia (limpiar información "irrelevante" de Visión Global, hacer todo el flujo OC→cobro más visual/proactivo con skeletons y menús interactivos, y una auditoría completa del ciclo de negocio). Dado el tamaño, se entregó la pieza concreta y explícitamente solicitada (la tabla de contrarecibos) en este ciclo. El resto queda como trabajo de continuación, a abordar por partes para no comprometer la verificación de cada cambio.

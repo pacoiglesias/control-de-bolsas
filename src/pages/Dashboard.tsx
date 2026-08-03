@@ -19,6 +19,7 @@ import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { SYSTEM_CHANGELOG, ChangelogModal } from '../components/Dashboard/ChangelogFeed';
 import { DashboardKpiGrid } from '../components/Dashboard/DashboardKpiGrid';
+import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { DashboardCharts } from '../components/Dashboard/DashboardCharts';
 import { DashboardTables } from '../components/Dashboard/DashboardTables';
 import { useDashboardStats } from '../hooks/useDashboardStats';
@@ -358,18 +359,6 @@ return () => unsub();
             <button className="btn" style={{ background: '#7e22ce', color: '#fff', borderColor: '#7e22ce', fontWeight: 600 }} onClick={() => window.location.href = '/audit'}>
               ⚖️ Auditoría Maestra
             </button>
-            <button className="btn" style={{ background: '#10b981', color: '#fff', borderColor: '#10b981', fontWeight: 600 }} onClick={async () => {
-              toast('Generando Cierre de Mes Excel...', 'info');
-              try {
-                await exportToExcel();
-                toast('Cierre de Mes exportado', 'ok');
-              } catch (e) {
-                console.error(e);
-                toast('Error al exportar', 'bad');
-              }
-            }}>
-              📊 Cierre de Mes (Excel)
-            </button>
             <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareRentabilidad}>
               <span className="icon">📤</span> Compartir PDF
             </button>
@@ -659,15 +648,12 @@ return () => unsub();
           {role === 'admin' && (
             <button
               className="btn"
-              onClick={() => {
-                toast('Generando exportación...', 'info');
-                exportToExcel().then(() => toast('Sábana de auditoría exportada.', 'ok')).catch(e => toast(`Error: ${e.message}`, 'bad'));
-              }}
-              title="Descarga un Excel con todos los movimientos crudos para auditoría manual."
+              onClick={() => { window.location.href = '/audit'; }}
+              title="Sube tu Excel corregido y aplica los cambios a la base de datos."
               style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}
             >
-              <span style={{ fontSize: 24 }}>📊</span>
-              <span style={{ fontWeight: 600 }}>Sábana de Auditoría</span>
+              <span style={{ fontSize: 24 }}>⚖️</span>
+              <span style={{ fontWeight: 600 }}>Ir a Auditoría Maestra</span>
             </button>
           )}
           {role === 'admin' && (
@@ -706,6 +692,12 @@ return () => unsub();
       )}
 
       <DashboardKpiGrid k={k} role={role} saldoCaja={saldoCaja} config={config as any} monthFilter={monthFilter} nav={nav} />
+
+      {role !== 'viewer' && (
+        <div style={{ marginTop: 24 }}>
+          <ContrarecibosTable orders={activeOrders} />
+        </div>
+      )}
 
       <DashboardCharts k={k} />
 

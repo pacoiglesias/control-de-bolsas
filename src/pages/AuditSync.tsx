@@ -3,6 +3,7 @@ import { collection, getDocs, doc, writeBatch, getDoc, Timestamp, serverTimestam
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { camposInvoices } from '../lib/invoiceOps';
+import { Card, Empty } from '../components/ui';
 import type { OrderStatus, Invoice, PurchaseOrder } from '../lib/types';
 
 /**
@@ -372,96 +373,115 @@ export default function AuditSync() {
   const filteredDiffs = diffs.filter((d) => d.tab === activeTab);
   const totalAplicables = diffs.filter((d) => !('error' in d && d.error)).length;
 
+  function cancelar() {
+    setFile(null);
+    setDiffs([]);
+  }
+
   return (
-    <div style={{ padding: '2rem', maxWidth: 1000, margin: '0 auto', background: '#fff', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginTop: '2rem' }}>
-      <h1 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <span>⚖️</span> Auditoría Maestra por Excel
-      </h1>
+    <>
+      <div className="page-head">
+        <h1>⚖️ Auditoría Maestra</h1>
+        <p>
+          Sube tu Sábana de Auditoría modificada. El sistema detectará los cambios y te propondrá los ajustes
+          antes de guardarlos en la base de datos. Los renglones nuevos (sin <code>ID_SISTEMA</code>) se crean;
+          los existentes se actualizan.
+        </p>
+      </div>
 
-      <p style={{ color: '#666', marginBottom: '2rem' }}>
-        Sube tu Sábana de Auditoría modificada. El sistema detectará los cambios y te propondrá los ajustes antes de guardarlos en la base de datos.
-        Los renglones nuevos (sin <code>ID_SISTEMA</code>) se crean; los existentes se actualizan.
-      </p>
+      <Card title="Sábana de Auditoría">
+        <div style={{ padding: 16 }}>
+          {!file && (
+            <div style={{ border: '2px dashed var(--line)', padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius)' }}>
+              <label className="btn btn-primary" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                📤 Subir Sábana Modificada
+                <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleUpload} />
+              </label>
+            </div>
+          )}
 
-      {!file && (
-        <div style={{ border: '2px dashed #ccc', padding: '3rem', textAlign: 'center', borderRadius: 8 }}>
-          <label style={{ background: 'var(--brand)', color: '#fff', padding: '10px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-            Subir Sábana Modificada
-            <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleUpload} />
-          </label>
-        </div>
-      )}
+          {isProcessing && <p style={{ textAlign: 'center', marginTop: '2rem', fontWeight: 700 }}>Procesando cruce de datos…</p>}
 
-      {isProcessing && <p style={{ textAlign: 'center', marginTop: '2rem', fontWeight: 'bold' }}>Procesando cruce de datos...</p>}
+          {file && !isProcessing && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className={`btn ${activeTab === 'cobranza' ? 'btn-primary' : ''}`}
+                    onClick={() => setActiveTab('cobranza')}
+                  >
+                    Cobranza ({diffs.filter((d) => d.tab === 'cobranza').length})
+                  </button>
+                  <button
+                    className={`btn ${activeTab === 'caja' ? 'btn-primary' : ''}`}
+                    onClick={() => setActiveTab('caja')}
+                  >
+                    Caja Chica ({diffs.filter((d) => d.tab === 'caja').length})
+                  </button>
+                </div>
+                <button className="btn" onClick={cancelar}>✕ Cancelar / Subir otro archivo</button>
+              </div>
 
-      {file && !isProcessing && (
-        <div>
-          <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #eee', marginBottom: '1rem' }}>
-            <button
-              onClick={() => setActiveTab('cobranza')}
-              style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'cobranza' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'cobranza' ? 'bold' : 'normal', cursor: 'pointer' }}
-            >
-              Cobranza ({diffs.filter((d) => d.tab === 'cobranza').length})
-            </button>
-            <button
-              onClick={() => setActiveTab('caja')}
-              style={{ padding: '10px', background: 'none', border: 'none', borderBottom: activeTab === 'caja' ? '3px solid var(--brand)' : '3px solid transparent', fontWeight: activeTab === 'caja' ? 'bold' : 'normal', cursor: 'pointer' }}
-            >
-              Caja Chica ({diffs.filter((d) => d.tab === 'caja').length})
-            </button>
-          </div>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Tipo</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Registro</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Valor Anterior</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #ddd' }}>Nuevo Valor</th>
-              </tr>
-            </thead>
-            <tbody>
               {filteredDiffs.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>No se detectaron diferencias en esta sección.</td>
-                </tr>
+                <Empty>No se detectaron diferencias en esta sección.</Empty>
               ) : (
-                filteredDiffs.map((d, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #eee', background: 'error' in d && d.error ? '#fef2f2' : undefined }}>
-                    <td style={{ padding: '12px' }}>
-                      {'error' in d && d.error ? (
-                        <span style={{ background: '#fef2f2', color: '#b91c1c', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>ERROR</span>
-                      ) : d.type === 'new' ? (
-                        <span style={{ background: '#e6f4ea', color: '#137333', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>NUEVO</span>
-                      ) : (
-                        <span style={{ background: '#fef7e0', color: '#b06000', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>MODIFICADO</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px', fontWeight: 500 }}>
-                      {d.label}
-                      {'error' in d && d.error && <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 400, marginTop: 4 }}>{d.error}</div>}
-                    </td>
-                    <td style={{ padding: '12px', color: '#666' }}>{typeof d.oldValue === 'number' ? `$${d.oldValue.toLocaleString()}` : d.oldValue || '—'}</td>
-                    <td style={{ padding: '12px', fontWeight: 'bold' }}>{typeof d.newValue === 'number' ? `$${d.newValue.toLocaleString()}` : d.newValue}</td>
-                  </tr>
-                ))
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Tipo</th>
+                        <th>Registro</th>
+                        <th className="num">Valor Anterior</th>
+                        <th className="num">Nuevo Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDiffs.map((d, i) => (
+                        <tr key={i} style={'error' in d && d.error ? { background: 'rgba(220,38,38,0.06)' } : undefined}>
+                          <td>
+                            {'error' in d && d.error ? (
+                              <span className="badge" style={{ background: 'var(--bad)' }}>ERROR</span>
+                            ) : d.type === 'new' ? (
+                              <span className="badge" style={{ background: 'var(--ok)' }}>NUEVO</span>
+                            ) : (
+                              <span className="badge" style={{ background: 'var(--warn)' }}>MODIFICADO</span>
+                            )}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>
+                            {d.label}
+                            {'error' in d && d.error && (
+                              <div style={{ fontSize: 12, color: 'var(--bad)', fontWeight: 400, marginTop: 4 }}>{d.error}</div>
+                            )}
+                          </td>
+                          <td className="num mono" style={{ color: 'var(--ink-soft)' }}>
+                            {typeof d.oldValue === 'number' ? `$${d.oldValue.toLocaleString('es-MX')}` : d.oldValue || '—'}
+                          </td>
+                          <td className="num mono" style={{ fontWeight: 700 }}>
+                            {typeof d.newValue === 'number' ? `$${d.newValue.toLocaleString('es-MX')}` : d.newValue}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </tbody>
-          </table>
 
-          {diffs.length > 0 && (
-            <div style={{ marginTop: '2rem', textAlign: 'right' }}>
-              <button
-                onClick={() => void applyChanges()}
-                disabled={totalAplicables === 0}
-                style={{ background: totalAplicables === 0 ? '#999' : '#137333', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: 6, fontWeight: 'bold', cursor: totalAplicables === 0 ? 'not-allowed' : 'pointer', fontSize: 16 }}
-              >
-                Aplicar {totalAplicables} Ajuste(s) a Base de Datos
-              </button>
+              {diffs.length > 0 && (
+                <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                  <button className="btn" onClick={cancelar}>Cancelar</button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => void applyChanges()}
+                    disabled={totalAplicables === 0}
+                  >
+                    Aplicar {totalAplicables} Ajuste(s) a Base de Datos
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
-    </div>
+      </Card>
+    </>
   );
 }
