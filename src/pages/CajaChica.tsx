@@ -193,24 +193,33 @@ export default function CajaChica() {
               </div>
               <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>Cobrado por los contadores, pendiente de entregar a caja.</p>
             </div>
-            {dineroEnTransito > 0 && (
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="btn btn-primary" 
-                style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--warn)', borderColor: 'var(--warn)', color: '#000', fontWeight: 'bold' }} 
-                onClick={() => setSelected({
-                  id: doc(collection(db, PATHS.expenses)).id,
-                  date: Timestamp.fromDate(new Date()),
-                  concept: 'Recolección de Contabilidad',
-                  amount: dineroEnTransito,
-                  type: 'ingreso',
-                  createdAt: null,
-                } as Expense)}
-              >
-                📥 Recolectar Efectivo a Caja
-              </motion.button>
-            )}
+            <motion.button 
+              whileHover={dineroEnTransito > 0 ? { scale: 1.02 } : {}}
+              whileTap={dineroEnTransito > 0 ? { scale: 0.98 } : {}}
+              className="btn btn-primary" 
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                background: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--bg-inset)', 
+                borderColor: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--border)', 
+                color: dineroEnTransito > 0 ? '#000' : 'var(--hint)', 
+                fontWeight: 'bold',
+                cursor: dineroEnTransito > 0 ? 'pointer' : 'not-allowed',
+                opacity: dineroEnTransito > 0 ? 1 : 0.6
+              }} 
+              disabled={dineroEnTransito <= 0}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: 'Recolección de Contabilidad',
+                amount: dineroEnTransito,
+                type: 'ingreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              📥 {dineroEnTransito > 0 ? 'Recolectar Efectivo a Caja' : 'Nada por recolectar'}
+            </motion.button>
           </div>
         </Card>
 
