@@ -5,6 +5,7 @@ import { useOrders } from '../hooks/useOrders';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
+import Omnibar from './Omnibar';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -45,6 +46,7 @@ export default function Layout() {
   const { orders } = useOrders();
   const { settings } = useSystemSettings();
   const [navOpen, setNavOpen] = useState(false);
+  const [omnibarOpen, setOmnibarOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
   const nav = useNavigate();
@@ -76,8 +78,7 @@ export default function Layout() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        const term = window.prompt('Buscar expediente, folio o cliente:');
-        if (term) nav(`/ordenes?q=${encodeURIComponent(term)}`);
+        setOmnibarOpen(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -104,8 +105,9 @@ export default function Layout() {
   }, [orders]);
 
   return (
-    <>
-      <div className={`scrim ${navOpen ? 'show' : ''}`} onClick={() => setNavOpen(false)} />
+    <div className="layout">
+      <Omnibar isOpen={omnibarOpen} onClose={() => setOmnibarOpen(false)} />
+      <div className={`nav-scrim ${navOpen ? 'open' : ''}`} onClick={() => setNavOpen(false)} />
 
       <header className="topbar no-print">
         <button className="icon-btn" onClick={() => setNavOpen((v) => !v)} aria-label="Abrir menú">
@@ -183,6 +185,6 @@ export default function Layout() {
           </footer>
         </main>
       </div>
-    </>
+    </div>
   );
 }

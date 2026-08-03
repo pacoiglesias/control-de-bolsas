@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { collection, getDocs, doc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { toast } from 'react-hot-toast';
 
@@ -45,7 +45,7 @@ export default function AuditSync() {
       for (const row of cobranzaRows as any[]) {
         if (!row.ID_SISTEMA) {
           // New
-          newDiffs.push({ tab: 'cobranza', type: 'new', label: `Factura ${row.FacturaFolio || 'Sin Folio'}`, newValue: row.MontoVenta });
+          newDiffs.push({ tab: 'cobranza', type: 'new', label: `Factura ${row.FacturaFolio || 'Sin Folio'}`, newValue: row.MontoVenta, rawData: row });
           continue;
         }
 
@@ -91,9 +91,9 @@ export default function AuditSync() {
       const expensesSnap = await getDocs(collection(db, PATHS.expenses));
       const expenseDocs = expensesSnap.docs.map(d => ({ id: d.id, data: d.data() }));
 
-      for (const row of cajaRows) {
+      for (const row of cajaRows as any[]) {
         if (!row.ID_SISTEMA) {
-          newDiffs.push({ tab: 'caja', type: 'new', label: `Movimiento: ${row.Concepto}`, newValue: row.Monto });
+          newDiffs.push({ tab: 'caja', type: 'new', label: `Movimiento: ${row.Concepto}`, newValue: row.Monto, rawData: row });
           continue;
         }
 
@@ -123,39 +123,83 @@ export default function AuditSync() {
     if (!confirm('¿Estás seguro de aplicar estos ajustes al sistema? Esta acción es irreversible.')) return;
     
     setIsProcessing(true);
-    const batch = writeBatch(db);
     
     try {
-      for (const diff of diffs) {
-        if (diff.tab === 'cobranza' && diff.type === 'mod') {
-          const [orderId, invoiceId] = diff.id.split('::');
-          const orderRef = doc(db, PATHS.orders, orderId);
-          const orderSnap = await getDoc(orderRef);
-          
-          if (orderSnap.exists()) {
-             const orderData = orderSnap.data();
-             const updatedInvoices = orderData.invoices.map((inv: any) => {
-                 if (inv.id === invoiceId) {
-                     if (diff.label.includes('Estatus')) {
-                         return { ...inv, creditCycle: { ...inv.creditCycle, status: diff.newValue } };
-                     } else {
-                         return { ...inv, financials: { ...inv.financials, invoiceTotal: diff.newValue } };
-                     }
-                 }
-                 return inv;
-             });
-             batch.update(orderRef, { invoices: updatedInvoices });
-          }
+      await runTransaction(db, async (tx) => {
+        // First, prepare all references to read for 'mod' updates
+        const orderRefsToRead = new Set<string>();
+        const expRefsToRead = new Set<string>();
+        
+        for (const diff of diffs) {
+            if (diff.type === 'mod') {
+                if (diff.tab === 'cobranza') orderRefsToRead.add(diff.id.split('::')[0]);
+                if (diff.tab === 'caja') expRefsToRead.add(diff.id);
+            }
         }
         
-        if (diff.tab === 'caja' && diff.type === 'mod') {
-            const expRef = doc(db, PATHS.expenses, diff.id);
-            batch.update(expRef, { amount: diff.newValue });
+        // Batch read to ensure consistency in the transaction
+        const orderSnaps = new Map();
+        for (const orderId of Array.from(orderRefsToRead)) {
+            const ref = doc(db, PATHS.orders, orderId);
+            orderSnaps.set(orderId, await tx.get(ref));
         }
-      }
+        
+        // Execute writes (updates and creations)
+        for (const diff of diffs) {
+            if (diff.tab === 'cobranza') {
+                if (diff.type === 'mod') {
+                    const [orderId, invoiceId] = diff.id.split('::');
+                    const snap = orderSnaps.get(orderId);
+                    if (snap && snap.exists()) {
+                        const orderData = snap.data();
+                        const updatedInvoices = orderData.invoices.map((inv: any) => {
+                            if (inv.id === invoiceId) {
+                                if (diff.label.includes('Estatus')) {
+                                    return { ...inv, creditCycle: { ...inv.creditCycle, status: diff.newValue } };
+                                } else {
+                                    return { ...inv, financials: { ...inv.financials, invoiceTotal: diff.newValue } };
+                                }
+                            }
+                            return inv;
+                        });
+                        tx.update(snap.ref, { invoices: updatedInvoices });
+                    }
+                } else if (diff.type === 'new') {
+                    // Create a new order with a placeholder invoice
+                    const newOrderRef = doc(collection(db, PATHS.orders));
+                    tx.set(newOrderRef, {
+                        folio: diff.rawData.FacturaFolio || 'NUEVA',
+                        client: diff.rawData.Cliente || 'SIN CLIENTE',
+                        createdAt: Date.now(),
+                        invoices: [{
+                            id: newOrderRef.id + '-inv0',
+                            folio: diff.rawData.FacturaFolio || 'NUEVA',
+                            kilos: 0,
+                            financials: { invoiceTotal: Number(diff.newValue) || 0, saleTotal: 0 },
+                            creditCycle: { status: diff.rawData.Estatus || 'pedido' },
+                            collection: {}
+                        }]
+                    });
+                }
+            } else if (diff.tab === 'caja') {
+                if (diff.type === 'mod') {
+                    const expRef = doc(db, PATHS.expenses, diff.id);
+                    tx.update(expRef, { amount: Number(diff.newValue) });
+                } else if (diff.type === 'new') {
+                    const newExpRef = doc(collection(db, PATHS.expenses));
+                    tx.set(newExpRef, {
+                        amount: Number(diff.newValue) || 0,
+                        concept: diff.rawData.Concepto || 'Ajuste Auditoría',
+                        provider: 'Andrés', // Defaulting to main provider for Caja Chica
+                        type: Number(diff.newValue) < 0 ? 'ingreso' : 'egreso',
+                        date: Date.now()
+                    });
+                }
+            }
+        }
+      });
       
-      await batch.commit();
-      toast.success('Ajustes aplicados correctamente');
+      toast.success('Ajustes aplicados correctamente mediante Transacción Segura');
       setDiffs([]);
       setFile(null);
     } catch (e) {

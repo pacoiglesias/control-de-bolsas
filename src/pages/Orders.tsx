@@ -7,6 +7,7 @@ import { db, PATHS } from '../lib/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from '../components/OrderModal';
+import KanbanBoard from '../components/Orders/KanbanBoard';
 import { kilos, money } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
@@ -32,6 +33,7 @@ export default function Orders() {
   const navigate = useNavigate();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [viewMode, setViewMode] = useState<'list'|'kanban'>('list');
   
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -211,6 +213,22 @@ export default function Orders() {
             ))}
           </div>
           <span className="spacer" />
+          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-body)', padding: 4, borderRadius: 8, marginRight: 12 }}>
+            <button 
+              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              onClick={() => setViewMode('list')}
+            >
+              ☰ Lista
+            </button>
+            <button 
+              className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'kanban' ? 'var(--brand)' : 'transparent', color: viewMode === 'kanban' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              onClick={() => setViewMode('kanban')}
+            >
+              ◫ Tablero
+            </button>
+          </div>
           <input
             className="search-input"
             type="search"
@@ -222,6 +240,10 @@ export default function Orders() {
 
         {rows.length === 0 ? (
           <Empty>No hay órdenes en este filtro.</Empty>
+        ) : viewMode === 'kanban' ? (
+          <div style={{ padding: '20px 16px' }}>
+            <KanbanBoard items={rows} onSelect={setSelected} />
+          </div>
         ) : (
           <div className="table-scroll">
             <table className="data-table">

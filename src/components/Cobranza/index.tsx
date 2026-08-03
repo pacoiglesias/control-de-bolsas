@@ -104,6 +104,35 @@ export default function Cobranza() {
     }
   }
 
+  async function payInvoiceExact(orderId: string, invoiceId: string, amountToPay: number) {
+    if (!window.confirm(`¿Confirmas el cobro exacto por $${amountToPay.toLocaleString('es-MX', {minimumFractionDigits:2})} de esta factura?`)) return;
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, PATHS.orders, orderId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('El expediente ya no existe');
+
+        const actuales: Invoice[] = snap.data().invoices ?? [];
+        const nuevas = aplicarPorId(actuales, invoiceId, (x) => ({
+          ...x,
+          creditCycle: { ...x.creditCycle, status: 'paid' },
+          collection: {
+            ...x.collection,
+            paidAmount: amountToPay,
+            paidAt: Timestamp.now(),
+          },
+        }));
+        if (!nuevas) throw new Error('La factura ya no está en el expediente');
+
+        tx.update(ref, camposInvoices(nuevas));
+      });
+      toast(`Factura cobrada con éxito.`, 'ok');
+    } catch (e) {
+      toast(`Error al cobrar factura: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   async function payContrareciboBlock(crNumber: string) {
     if (!crNumber) return;
     if (!window.confirm(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`)) return;
@@ -937,7 +966,7 @@ export default function Cobranza() {
   const ctx = {
     data, settings, money, activeTab, setActiveTab, shareCarteraVencida, printCarteraVencida, exportCobranzaCsv,
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
-    payContrareciboBlock, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
+    payContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
     liquidateAccountantBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr,
     filterType, setFilterType, setSelected
   };

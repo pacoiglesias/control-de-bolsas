@@ -259,7 +259,17 @@ export default function CajaChica() {
       <Card
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn btn-primary no-print" onClick={() => setSelected({
+            <button className="btn no-print" style={{ background: '#047857', color: 'white', borderColor: '#047857', fontWeight: 600 }} onClick={() => setSelected({
+              id: doc(collection(db, PATHS.expenses)).id,
+              date: Timestamp.fromDate(new Date()),
+              concept: '',
+              amount: 0,
+              type: 'ingreso',
+              createdAt: null,
+            } as Expense)}>
+              ➕ Ingreso
+            </button>
+            <button className="btn no-print" style={{ background: '#b91c1c', color: 'white', borderColor: '#b91c1c', fontWeight: 600 }} onClick={() => setSelected({
               id: doc(collection(db, PATHS.expenses)).id,
               date: Timestamp.fromDate(new Date()),
               concept: '',
@@ -267,7 +277,7 @@ export default function CajaChica() {
               type: 'egreso',
               createdAt: null,
             } as Expense)}>
-              + Registrar Gasto / Ingreso
+              ➖ Egreso
             </button>
             <span className="spacer" />
             <button className="btn no-print" onClick={exportCajaChicaCsv}>📥 Exportar Excel (CSV)</button>

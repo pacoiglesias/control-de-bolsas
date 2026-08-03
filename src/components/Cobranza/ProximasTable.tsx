@@ -6,7 +6,7 @@ import { fmtDate } from '../../lib/format';
 import OrderModal from './index';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, exportCobranzaCsv, undoContrareciboBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr, filterType, setFilterType, setSelected } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, undoContrareciboBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 
@@ -136,6 +136,18 @@ export default function ProximasTable() {
                         >
                           ✉️ Recordatorio
                         </button>
+                        {inv.creditCycle.status !== 'paid' && (
+                          <button
+                            className="btn-small btn-ok"
+                            style={{ padding: '2px 6px', fontSize: '10px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              payInvoiceExact(o.id, inv.id, saldo);
+                            }}
+                          >
+                            ✅ Cobrar Exacto
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
