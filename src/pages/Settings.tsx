@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, PATHS, storage } from '../lib/firebase';
 import { saveConfig, useConfig } from '../hooks/useConfig';
-import { saveSystemSettings, useSystemSettings, type SystemSettings } from '../hooks/useSystemSettings';
+import { saveSystemSettings, useSystemSettings, getMaquilaPin, saveMaquilaPin, type SystemSettings } from '../hooks/useSystemSettings';
 import { useOrders } from '../hooks/useOrders';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -24,8 +24,17 @@ export default function Settings() {
   const toast = useToast();
   const [form, setForm] = useState<FinancialConfig>(config);
   const [sysForm, setSysForm] = useState<SystemSettings>(settings);
+  const [maquilaPin, setMaquilaPin] = useState('');
+  const [maquilaPinLoaded, setMaquilaPinLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [initialCash, setInitialCash] = useState<string>('169000');
+
+  useEffect(() => {
+    // Solo se lee cuando un admin abre esta pantalla — no en cada carga de
+    // la app, y nunca desde el documento publico que Login necesita leer
+    // sin sesion (ver Ciclo de seguridad: el PIN vivia ahi antes, publico).
+    getMaquilaPin().then((p) => { setMaquilaPin(p); setMaquilaPinLoaded(true); });
+  }, []);
 
   useEffect(() => setForm(config), [config]);
   useEffect(() => setSysForm(settings), [settings]);
@@ -38,7 +47,7 @@ export default function Settings() {
     setBusy(true);
     try {
       await addDoc(collection(db, PATHS.expenses), {
-        date: Date.now(),
+        date: Timestamp.now(),
         concept: 'Saldo Inicial (Arranque)',
         provider: '',
         type: amount > 0 ? 'ingreso' : 'egreso',
@@ -242,11 +251,33 @@ export default function Settings() {
             </Field>
 
             <Field label="PIN del Portal Maquilador">
-              <input className="input boxed mono" type="text" value={sysForm.maquilaPin ?? '2468'}
-                onChange={(e) => setSysForm({ ...sysForm, maquilaPin: e.target.value })} 
-                placeholder="Ej. 2468" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="input boxed mono" type="text" value={maquilaPin}
+                  onChange={(e) => setMaquilaPin(e.target.value)}
+                  disabled={!maquilaPinLoaded}
+                  placeholder="Ej. 2468" />
+                <button
+                  className="btn"
+                  disabled={!maquilaPinLoaded || busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await saveMaquilaPin(maquilaPin.trim());
+                      toast('PIN actualizado', 'ok');
+                    } catch (e) {
+                      toast(`No se pudo guardar el PIN: ${(e as Error).message}`, 'bad');
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Guardar PIN
+                </button>
+              </div>
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Contraseña de 4 dígitos para que el maquilador registre entregas.
+                Contraseña de 4 dígitos para que el maquilador registre entregas. Se guarda aparte
+                de lo demás — vive en un documento que solo un administrador puede leer, para que
+                nadie más pueda verlo.
               </div>
             </Field>
           </div>

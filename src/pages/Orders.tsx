@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
@@ -30,9 +30,9 @@ export default function Orders() {
   const { role } = useAuth();
   const { config } = useConfig();
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'>('list');
   
   const [page, setPage] = useState(1);
@@ -47,12 +47,14 @@ export default function Orders() {
 
   useEffect(() => {
     if (params.get('nueva') === '1') {
+      setInitialModalTab(params.get('tab') === 'productos' ? 'productos' : 'resumen');
       setSelected({
         id: doc(collection(db, PATHS.orders)).id,
         creditCycle: { status: 'pedido' }
       } as PurchaseOrder);
       const newParams = new URLSearchParams(params);
       newParams.delete('nueva');
+      newParams.delete('tab');
       setParams(newParams, { replace: true });
     }
   }, [params, setParams]);
@@ -180,13 +182,22 @@ export default function Orders() {
           <>
             {role !== 'viewer' && (
               <>
-                <button className="btn btn-primary" onClick={() => navigate('/subir')}>
-                  📥 Subir XML / PDF
+                <button className="btn btn-primary" onClick={() => {
+                  setInitialModalTab('productos');
+                  setSelected({
+                    id: doc(collection(db, PATHS.orders)).id,
+                    creditCycle: { status: 'pedido' }
+                  } as PurchaseOrder);
+                }}>
+                  📥 Subir / Pegar OC
                 </button>
-                <button className="btn" onClick={() => setSelected({
-                  id: doc(collection(db, PATHS.orders)).id,
-                  creditCycle: { status: 'pedido' }
-                } as PurchaseOrder)}>
+                <button className="btn" onClick={() => {
+                  setInitialModalTab('resumen');
+                  setSelected({
+                    id: doc(collection(db, PATHS.orders)).id,
+                    creditCycle: { status: 'pedido' }
+                  } as PurchaseOrder);
+                }}>
                   + Expediente Manual
                 </button>
                 <span className="spacer" />
@@ -264,8 +275,8 @@ export default function Orders() {
                     <tr
                       key={o.id}
                       className={st === 'overdue' ? 'row-bad' : st === 'manual_review' ? 'row-warn' : st === 'paid' ? 'row-done' : ''}
-                      onClick={() => setSelected(o)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
+                      onClick={() => { setInitialModalTab('resumen'); setSelected(o); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); { setInitialModalTab('resumen'); setSelected(o); } } }}
                       role="button"
                       tabIndex={0}
                       style={{ cursor: 'pointer' }}
@@ -343,6 +354,7 @@ export default function Orders() {
           config={config}
           onClose={() => setSelected(null)}
           readOnly={role === 'viewer'}
+          initialTab={initialModalTab}
         />
       )}
     </>

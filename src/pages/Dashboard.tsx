@@ -182,7 +182,7 @@ return () => unsub();
         const passStatus = o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s));
         return passDept && passStatus;
       });
-    }, [globalOrders]);
+    }, [globalOrders, deptFilter]);
 
   const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses);
 
@@ -333,14 +333,28 @@ return () => unsub();
             <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <a 
-              href="/plantilla_llena.xlsx" 
-              download="plantilla_llena.xlsx"
-              className="btn" 
-              style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+            <button
+              className="btn"
+              style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6', fontWeight: 600 }}
+              onClick={async () => {
+                // Antes este boton descargaba un archivo estatico
+                // (/plantilla_llena.xlsx) guardado una sola vez en el
+                // servidor: una foto congelada que nunca se actualizaba con
+                // los datos reales. Si alguien la editaba pensando que eran
+                // los datos de hoy y la volvia a subir, pisaba cambios
+                // reales con informacion vieja. Ahora usa la MISMA
+                // exportacion en vivo que el resto del sistema.
+                toast('Generando sábana con los datos actuales...', 'info');
+                try {
+                  await exportToExcel();
+                  toast('Sábana descargada', 'ok');
+                } catch (e) {
+                  toast(`Error al exportar: ${(e as Error).message}`, 'bad');
+                }
+              }}
             >
-              ⬇️ Descargar Sábana Llena
-            </a>
+              ⬇️ Descargar Sábana (datos actuales)
+            </button>
             <button className="btn" style={{ background: '#7e22ce', color: '#fff', borderColor: '#7e22ce', fontWeight: 600 }} onClick={() => window.location.href = '/audit'}>
               ⚖️ Auditoría Maestra
             </button>
@@ -350,6 +364,7 @@ return () => unsub();
                 await exportToExcel();
                 toast('Cierre de Mes exportado', 'ok');
               } catch (e) {
+                console.error(e);
                 toast('Error al exportar', 'bad');
               }
             }}>
@@ -382,7 +397,7 @@ return () => unsub();
 
       {role !== 'viewer' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24, marginTop: 16 }}>
-          <button className="btn" onClick={() => nav('/subir')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper-sunk)', border: '2px dashed var(--accent)', color: 'var(--ink)' }}>
+          <button className="btn" onClick={() => nav('/ordenes?nueva=1&tab=productos')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: 'var(--paper-sunk)', border: '2px dashed var(--accent)', color: 'var(--ink)' }}>
             <span style={{ fontSize: 28 }}>📥</span>
             <span style={{ fontWeight: 700, fontSize: 14 }}>Subir OC (PDF)</span>
             <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Órdenes de Compra</span>
@@ -676,13 +691,17 @@ return () => unsub();
             El sistema no tiene órdenes registradas aún
           </div>
           <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-            La carga inicial se hace desde la pantalla de migración, donde pegas
-            tus contrarecibos y facturas reales. Este panel ya no carga datos de
-            ejemplo: hacerlo desde aquí mezclaba registros ficticios con los tuyos.
+            Puedes cargar varios expedientes de golpe desde un Excel en la Auditoría Maestra,
+            o capturar el primero a mano desde Expedientes.
           </div>
-          <button className="btn btn-primary" onClick={() => nav('/seed')}>
-            📥 Ir a la carga inicial
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={() => window.location.href = '/audit'}>
+              ⚖️ Ir a la Auditoría Maestra
+            </button>
+            <button className="btn" onClick={() => nav('/ordenes?nueva=1')}>
+              + Capturar a mano
+            </button>
+          </div>
         </div>
       )}
 

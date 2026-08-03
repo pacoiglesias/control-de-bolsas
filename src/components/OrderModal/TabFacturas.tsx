@@ -1,13 +1,11 @@
-// @ts-nocheck
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
-import { Field, StatusBadge, CopyButton } from '../ui';
-import { fromInputDate, money, toInputDate, kilos, fmtDate, percent } from '../../lib/format';
+import { Field, CopyButton } from '../ui';
+import { fromInputDate, money, toInputDate, percent } from '../../lib/format';
 import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { addDays } from '../../lib/finance';
 import type { OrderStatus } from '../../lib/types';
-import { camposInvoices } from '../../lib/invoiceOps';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { sound } from '../../lib/sounds';
 
@@ -16,7 +14,7 @@ export default function TabFacturas() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   if (!ctx) return null;
-  const { form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order, allOrders, knownClients, knownProviders, knownClientEmails, provName, config, fallbackSale, fallbackCost, fallbackComm, kilosNum, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, processFacturaText, processParsedXml, processPagoText, parseOCAndFill, emailClient, toast, addItem, updateItem, removeItem, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, addInvoice, updateInvoice, removeInvoice, facturarEntrega, printRemision, printPreFactura, printConsolidatedPackage } = ctx;
+  const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice } = ctx;
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
@@ -106,7 +104,7 @@ export default function TabFacturas() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {computedInvoices.map(({ inv, fin, d, isLate }, i) => {
+                {computedInvoices.map(({ inv, fin, d, isLate }: any, i: number) => {
                   
                   return (
                     <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
@@ -119,7 +117,7 @@ export default function TabFacturas() {
                                 onClick={() => {
                                   sound.playCash();
                                   const invTotal = fin.invoiceTotal;
-                                  updateInvoice(i, x => ({
+                                  updateInvoice(i, (x: any) => ({
                                     ...x,
                                     creditCycle: { ...x.creditCycle, status: 'paid' },
                                     collection: { ...x.collection, paidAmount: invTotal, paidAt: Timestamp.now() }
@@ -137,7 +135,7 @@ export default function TabFacturas() {
                                   const commission = fin.commission;
                                   const netAmount = invTotal - commission;
                                   // 1. Actualizar estado de la factura
-                                  updateInvoice(i, x => ({
+                                  updateInvoice(i, (x: any) => ({
                                     ...x,
                                     creditCycle: { ...x.creditCycle, status: 'collected' },
                                     collection: { ...x.collection, collectedAt: Timestamp.now() }
@@ -173,7 +171,7 @@ export default function TabFacturas() {
                                   } else {
                                     if (!window.confirm('¿Deshacer el cobro de esta factura? Volverá a estar pendiente de cobro.')) return;
                                   }
-                                  updateInvoice(i, x => ({
+                                  updateInvoice(i, (x: any) => ({
                                     ...x,
                                     creditCycle: { ...x.creditCycle, status: 'pending' },
                                     collection: { ...x.collection, paidAmount: 0, paidAt: null, collectedAt: null }
@@ -198,14 +196,14 @@ export default function TabFacturas() {
                                   e.target.value = inv.folio || '';
                                   return;
                                 }
-                                updateInvoice(i, x => ({...x, folio: e.target.value}));
+                                updateInvoice(i, (x: any) => ({...x, folio: e.target.value}));
                               }} disabled={readOnly} />
                             {inv.folio && <CopyButton text={inv.folio} />}
                           </div>
                         </Field>
                         <Field label="Kilos Facturados">
                           <input className="input boxed mono" type="number" step="0.01" defaultValue={inv.kilos} 
-                            onBlur={e => updateInvoice(i, x => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
+                            onBlur={e => updateInvoice(i, (x: any) => ({...x, kilos: Number(e.target.value)}))} disabled={readOnly} />
                         </Field>
                         <Field label="Contrarecibo (CR)">
                           <div style={{ display: 'flex', gap: 4 }}>
@@ -218,7 +216,7 @@ export default function TabFacturas() {
                                   val = `${order.department || 'TH'}-${val}`;
                                 }
                                 e.target.value = val;
-                                updateInvoice(i, x => ({
+                                updateInvoice(i, (x: any) => ({
                                   ...x, 
                                   collection: { ...x.collection, contrareciboNumber: val }
                                 }));
@@ -231,7 +229,7 @@ export default function TabFacturas() {
                             value={toInputDate(inv.creditCycle.dueDate) || ''} 
                             onChange={e => {
                               const d = fromInputDate(e.target.value);
-                              updateInvoice(i, x => ({
+                              updateInvoice(i, (x: any) => ({
                                 ...x,
                                 creditCycle: { ...x.creditCycle, dueDate: d ? Timestamp.fromDate(d) : null }
                               }));
@@ -240,7 +238,7 @@ export default function TabFacturas() {
                         <Field label="Estado">
                           <select className="input boxed" value={inv.creditCycle.status}
                             disabled={readOnly}
-                            onChange={(e) => updateInvoice(i, x => ({
+                            onChange={(e) => updateInvoice(i, (x: any) => ({
                               ...x, 
                               creditCycle: { ...x.creditCycle, status: e.target.value as OrderStatus }
                             }))}>
@@ -261,7 +259,7 @@ export default function TabFacturas() {
                               const issue = fromInputDate(e.target.value);
                               if (issue) {
                                 const due = addDays(issue, config.creditDays);
-                                updateInvoice(i, x => ({
+                                updateInvoice(i, (x: any) => ({
                                   ...x, 
                                   creditCycle: { 
                                     ...x.creditCycle, 
@@ -278,7 +276,7 @@ export default function TabFacturas() {
                             onChange={(e) => {
                               const due = fromInputDate(e.target.value);
                               if (due) {
-                                updateInvoice(i, x => ({
+                                updateInvoice(i, (x: any) => ({
                                   ...x, 
                                   creditCycle: { ...x.creditCycle, dueDate: Timestamp.fromDate(due) }
                                 }));
@@ -290,7 +288,7 @@ export default function TabFacturas() {
                             disabled={readOnly}
                             onChange={e => {
                               const cd = fromInputDate(e.target.value);
-                              updateInvoice(i, x => ({
+                              updateInvoice(i, (x: any) => ({
                                 ...x, collection: { ...x.collection, contrareciboDate: cd ? Timestamp.fromDate(cd) : null }
                               }))
                             }} />
@@ -300,7 +298,7 @@ export default function TabFacturas() {
                             <input className="input boxed mono" type="number" step="0.01" 
                               value={inv.collection?.paidAmount !== undefined ? inv.collection.paidAmount : ''}
                               disabled={readOnly}
-                              onChange={e => updateInvoice(i, x => ({
+                              onChange={e => updateInvoice(i, (x: any) => ({
                                 ...x, collection: { ...x.collection, paidAmount: Number(e.target.value) }
                               }))} 
                               style={{ flex: 1 }}
@@ -321,7 +319,7 @@ export default function TabFacturas() {
                                   animation: 'pulse 2s infinite'
                                 }}
                                 onClick={() => {
-                                  updateInvoice(i, x => ({
+                                  updateInvoice(i, (x: any) => ({
                                     ...x, collection: { ...x.collection, paidAmount: fin.invoiceTotal }
                                   }));
                                 }}
@@ -336,7 +334,7 @@ export default function TabFacturas() {
                             disabled={readOnly}
                             onChange={e => {
                               const pa = fromInputDate(e.target.value);
-                              updateInvoice(i, x => ({
+                              updateInvoice(i, (x: any) => ({
                                 ...x, collection: { ...x.collection, paidAt: pa ? Timestamp.fromDate(pa) : null }
                               }))
                             }} />
@@ -346,7 +344,7 @@ export default function TabFacturas() {
                             disabled={readOnly}
                             onBlur={e => {
                               const val = Number(e.target.value);
-                              updateInvoice(i, x => ({
+                              updateInvoice(i, (x: any) => ({
                                 ...x,
                                 financials: {
                                   ...(x.financials ?? fin),
@@ -364,7 +362,7 @@ export default function TabFacturas() {
                               className="input boxed"
                               disabled={readOnly}
                               value={inv.collection?.complementStatus ?? 'pending'}
-                              onChange={e => updateInvoice(i, x => ({
+                              onChange={e => updateInvoice(i, (x: any) => ({
                                 ...x, collection: { ...x.collection, complementStatus: e.target.value as 'pending' | 'issued' | 'na' }
                               }))}
                             >
@@ -413,6 +411,5 @@ export default function TabFacturas() {
               </div>
             )}
           </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   );
 }

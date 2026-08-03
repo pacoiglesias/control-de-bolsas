@@ -1,12 +1,10 @@
-// @ts-nocheck
 
 import { useState, useMemo, useCallback } from 'react';
-import { collection, doc, serverTimestamp, Timestamp, setDoc, addDoc, runTransaction, getDocs } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, PATHS, functions } from '../../lib/firebase';
-import { logAction } from '../../lib/logger';
+import { functions } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { Field, Modal, StatusBadge } from '../ui';
+import { Modal } from '../ui';
 import { useToast } from '../../context/ToastContext';
 import { computeFinancials, configEfectiva, addDays, getOrderSummary, daysLate, round2 } from '../../lib/finance';
 import {
@@ -18,17 +16,14 @@ import {
   buildInvoiceFromDelivery,
   unmarkDeliveriesByInvoiceId,
   migrateLegacyDeliveries,
-  upsertAndresPurchase,
 } from '../../lib/deliveries';
-import { escapeHtml, fromInputDate, money, toInputDate, kilos, toDate, percent, getPrintHeaderHtml } from '../../lib/format';
+import { money, toDate } from '../../lib/format';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
-import type { FinancialConfig, OrderStatus, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
+import type { FinancialConfig, PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from '../../lib/types';
 import { sound } from '../../lib/sounds';
 import { useProducts } from '../../hooks/useProducts';
 import { useOrders } from '../../hooks/useOrders';
-import { camposInvoices } from '../../lib/invoiceOps';
 import { useInvoiceParser } from '../../hooks/useInvoiceParser';
-import { safeDeleteDoc } from '../../lib/logger';
 
 import OrderModalContext from './OrderModalContext';
 import TabResumen from './TabResumen';

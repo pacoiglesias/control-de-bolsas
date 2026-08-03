@@ -67,15 +67,21 @@ export const getActiveMaquilaOrders = onCall(async (request) => {
   const { action, pin } = request.data || {};
   const db = getFirestore();
 
-  if (action === 'ledger') {
-    if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
-    
-    const settingsSnap = await db.collection('system_settings').doc('global').get();
-    const realPin = settingsSnap.data()?.maquilaPin || '2468';
-    if (pin !== realPin) {
-      throw new HttpsError('permission-denied', 'PIN incorrecto');
-    }
+  // El PIN se exige para CUALQUIER accion de esta funcion, no solo
+  // "ledger". Antes el camino por defecto (listar/registrar entregas) no
+  // pedia PIN en absoluto en el servidor — el "candado" solo vivia en el
+  // navegador, y cualquiera con la URL de la funcion podia llamarla
+  // directo sin PIN. Ademas, el PIN real ahora se lee de un documento que
+  // Firestore nunca deja leer al cliente (system_settings_private), no del
+  // documento publico donde vivia antes.
+  if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
+  const pinSnap = await db.collection('system_settings_private').doc('maquila').get();
+  const realPin = pinSnap.data()?.pin || '2468';
+  if (pin !== realPin) {
+    throw new HttpsError('permission-denied', 'PIN incorrecto');
+  }
 
+  if (action === 'ledger') {
     const configSnap = await db.collection('config').doc('financials').get();
     const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
     const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;

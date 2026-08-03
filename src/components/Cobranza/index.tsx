@@ -49,6 +49,22 @@ export default function Cobranza() {
     toast('📋 Recordatorio de cobro copiado al portapapeles. Listo para enviar por Correo/WhatsApp.', 'ok');
   }
 
+  /**
+   * Abre WhatsApp Web/App con el mensaje ya redactado, listo para elegir el
+   * contacto y enviar — en vez de solo copiarlo y tener que pegarlo a mano.
+   * No manda nada solo; abre la conversación con el texto precargado, el
+   * envio final sigue siendo decision de quien lo usa.
+   */
+  function sendWhatsApp(order: PurchaseOrder, inv: Invoice, d: number | null) {
+    const folioStr = inv.folio || order.folio || '(sin folio)';
+    const crStr = inv.collection?.contrareciboNumber || order.collection?.contrareciboNumber || 'SIN-CR';
+    const monto = money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
+    const dias = (d ?? 0) > 0 ? `${d} días de atraso` : 'próximo a vencer';
+
+    const msg = `Estimado cliente (${order.client || 'Cliente'}), le enviamos un cordial saludo. Le recordamos amablemente la factura / folio ${folioStr} (Contrarecibo: ${crStr}) por el monto de ${monto}, el cual cuenta con ${dias}. Agradecemos su confirmación de fecha de pago. Atentamente, Grupo Textil Providencia.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
   function exportCobranzaCsv() {
     const headers = ['Folio', 'Cliente', 'Contrarecibo', 'Vencimiento', 'Días Atraso', 'Monto Venta con IVA', 'Estado'];
     const rows = data.lista.map(x => [
@@ -1103,7 +1119,7 @@ export default function Cobranza() {
     data, settings, money, activeTab, setActiveTab, shareCarteraVencida, printCarteraVencida, exportCobranzaCsv,
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
     payContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
-    liquidateAccountantBlock, toggleComplementStatus, copyReminder, printConsolidatedCr, shareConsolidatedCr,
+    liquidateAccountantBlock, toggleComplementStatus, copyReminder, sendWhatsApp, printConsolidatedCr, shareConsolidatedCr,
     filterType, setFilterType, setSelected, moveInvoice
   };
 

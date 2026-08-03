@@ -43,3 +43,51 @@ La hoja "Auditoria_Compras" del Excel descargable ahora exporta datos correctos,
 
 ### 🟡 Nota de continuidad
 `TabFacturas.tsx` quedó con `@ts-nocheck` restaurado temporalmente para no bloquear esta entrega urgente — pero ya con los imports reales corregidos (`sound`, `addDoc`, `collection`, `db`, `PATHS`, `serverTimestamp`, `addDays`), que eran justamente la causa más probable del bug de scroll. Falta terminar de recortar su desestructuración y anotar los tipos implícitos, igual que ya se hizo en los otros 6 archivos. `OrderModal/index.tsx` (547 líneas) tampoco se ha tocado todavía. Ambos quedan como continuación directa de la limpieza de `@ts-nocheck` ya en curso.
+
+### Iteración 13: Seguridad del Portal Maquilador, FastEntry, y limpieza total de @ts-nocheck (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `firestore.rules`, `src/hooks/useSystemSettings.ts`, `src/pages/Settings.tsx`, `src/pages/MaquiladorPortal.tsx`, `functions/src/index.ts`, `src/pages/FastEntry.tsx`, y los 8 archivos que tenían `@ts-nocheck`
+**Problema:** 🔴 El PIN del Portal Maquilador vivía en `system_settings/global`, un documento con `allow read: if true` — legible por cualquiera sin sesión. Además, la función en la nube que lista órdenes activas solo exigía el PIN para la acción "ledger"; el camino principal (registrar entregas) no lo exigía en absoluto en el servidor. `FastEntry.tsx` escribía `invoices` sin `invoiceStatuses`, el mismo desajuste corregido antes en otras pantallas. Los 8 archivos con `@ts-nocheck` escondían, entre otras cosas: un destructuring de 40 valores usando solo 10-13, una API de `toast` inexistente (`toast.showError`/`toast.showSuccess` en vez de `toast(msg, tono)`), y cinco funciones usadas sin importar (`sound`, `addDoc`, `collection`, `db`, `PATHS`, `serverTimestamp`, `addDays`) que habrían tronado en tiempo real de uso.
+**Impacto:** El PIN del portal era efectivamente público. Cualquier fallo dentro de un modal (como los `ReferenceError` reales encontrados) podía dejar el scroll de toda la app bloqueado (ver Iteración 12).
+**Solución:** PIN movido a `system_settings_private/maquila`, legible solo por super admin; el cliente nunca ve el valor real, solo envía el intento al servidor. La función en la nube exige PIN válido para cualquier acción. `FastEntry.tsx` usa `camposInvoices()`. Los 8 archivos limpiados uno por uno, cada uno verificado con `tsc --noEmit` antes de continuar con el siguiente.
+**Riesgo:** 🟡 Medio en el cambio de seguridad (toca autenticación), 🟢 Bajo en el resto.
+**Commit:** `fix(security): PIN del portal maquilador ya no es publico; fix(FastEntry): sincronizar invoiceStatuses; refactor: eliminar @ts-nocheck de los 8 archivos restantes`
+**Estado:** ✅ Verificado — `tsc` limpio en raíz y functions, `eslint` **0 errores y 0 avisos** en todo el proyecto, 39/39 pruebas, build completo.
+
+### Iteración 14: Las 4 propuestas de mejora — estado real de cada una
+**Fecha:** 2026-08-03
+1. **Dividir Dashboard.tsx** — no se dividió en esta pasada (715 líneas, ya más manejable de lo reportado originalmente); se priorizó la seguridad y los bugs reales encontrados. Queda como siguiente paso si se retoma.
+2. **Tarjetas en Compras** — el botón de recepción rápida sin modales pesados **ya existía** (`RegistrarEntregaModal`, construido en un ciclo anterior); se renombró a "📦 Recibir Kilos Rápidos" para coincidir con la propuesta. El rediseño visual completo a tarjetas (en vez de tabla) no se hizo — es un cambio de layout más grande, no un bug.
+3. **Acciones rápidas en Cobranza** — "✅ Cobrar Exacto" **ya existía**. Se agregó **"💬 WhatsApp"** real (enlace `wa.me` con el mensaje precargado, en vez de solo copiar al portapapeles). "Reprogramar" no se implementó.
+4. **Lectura automática de PDF con IA** — 🔴 NO implementado a propósito. Requeriría reintroducir capacidad de IA (OCR/extracción), la misma que se retiró antes por decisión explícita del usuario. No se reintroduce sin confirmar primero que sigue siendo lo que se quiere, dado ese historial.
+**Estado:** Parcialmente completado, con razones explícitas para cada punto no construido.
+
+### Iteración 15: Descarga/subida de sábana nunca coincidieron; botón OC roto; branding incorrecto (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/pages/Orders.tsx`, `src/pages/Dashboard.tsx`, `src/pages/DataMining.tsx`, `src/pages/Settings.tsx`, `src/components/Layout.tsx`, `public/plantilla_llena.xlsx`
+**Problema:** 🔴 El usuario reportó "varias sábanas" y que la Auditoría Maestra parecía no funcionar. Al comparar un Excel descargado en producción contra el código actual: **el sitio en vivo corre una versión vieja de `export.ts`** que genera hojas llamadas `Cobranza_Clientes`/`Caja Chica` sin `ID_SISTEMA`, mientras `AuditSync.tsx` busca `Auditoria_Cobranza`/`Auditoria_CajaChica` — nunca coincidían, así que subir de vuelta un archivo descargado no encontraba nada que comparar. El código en este repo YA genera el formato correcto (confirmado línea por línea) — el problema es que producción no se ha desplegado con él. Además: (1) un botón de Dashboard descargaba un archivo estático (`plantilla_llena.xlsx`) congelado desde su creación, sin relación con la base de datos real — riesgo real de subir datos viejos pensando que eran actuales, ya eliminado; (2) "Subir OC (PDF)" en Expedientes navegaba a `/subir`, una ruta que ya no existe, regresando al usuario al inicio en silencio; (3) `DataMining.tsx` llamaba a `exportToExcel()` con parámetros que la función no acepta (`as any` escondía el error), descargando el volcado genérico en vez de su tabla de análisis calculada; (4) el pie de página decía "Desarrollado por Elver Gonzalez" en vez del nombre real del usuario.
+**Impacto:** Auditoría Maestra percibida como no funcional; riesgo de sobrescribir datos reales con una foto vieja; un botón completamente muerto; crédito de autoría incorrecto.
+**Solución:** Botón de sábana estática reemplazado por la exportación en vivo (misma función que ya usan los otros tres botones). "Subir OC (PDF)" ahora abre un expediente nuevo directo en la pestaña Productos (donde vive de verdad la función de pegar/extraer texto de una OC), separado de "+ Expediente Manual" que abre en Resumen. `DataMining.tsx` ahora escribe su propio Excel con `xlsx` directamente, con los datos que el botón promete. Corregido el nombre en el pie de página.
+**Riesgo:** 🟢 Bajo — son correcciones de UI y de una ruta muerta, no tocan fórmulas financieras.
+**Commit:** `fix: reparar boton de subir OC, exportacion de Data Mining, eliminar sabana estatica peligrosa, corregir credito de autoria`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### 📌 Acción requerida del usuario, no resoluble desde este entorno
+1. **Desplegar esta versión** — el desajuste entre exportación e importación de la sábana ya está resuelto en el código, pero solo tendrá efecto una vez desplegado.
+2. **Revisar `CAJA` en producción**: se detectó un movimiento de prueba de "$8" registrado hoy (visible en el log de auditoría del panel), que dejó el saldo mostrado en $9.00 en vez del saldo real (~$75,270). Hay que borrarlo manualmente desde `/caja-chica` una vez desplegado.
+3. Una vez desplegado, descargar la sábana de nuevo (ya vendrá con `ID_SISTEMA` real) y compartirla para hacer el cruce correcto de los 10 contrarecibos y las 2 cobranzas nuevas (TR_3640, TR_3620) sin riesgo de duplicar.
+
+### Iteración 16: Auditoría completa de menús, rutas y scroll (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/pages/Dashboard.tsx`, `src/pages/Orders.tsx`
+**Problema:** El usuario pidió revisar todos los menús, submenús y páginas — funcionamiento de scrolls, que todo se vea bien y sea funcional. Verificación sistemática:
+- Los 10 enlaces del menú principal (`Layout.tsx`) contra las rutas reales (`App.tsx`): **todos coinciden**, sin enlaces muertos en la navegación principal.
+- Búsqueda de `overflow: hidden` en todo `src/`: ninguno a nivel de página o `body` — todos son locales (recorte de texto, esquinas redondeadas, barras de progreso, plantillas de impresión). El único bug de scroll real ya se corrigió en el Ciclo 12.
+- Los dos tableros Kanban (`Orders/KanbanBoard.tsx`, `Cobranza/TableroKanban.tsx`): scroll horizontal y vertical bien implementados, con `maxHeight` correcto en las columnas.
+- Cobertura de `.table-scroll` en tablas anchas: completa, sin faltantes.
+- 🔴 Búsqueda de cada `navigate()`/`nav()` a rutas internas encontró **dos ocurrencias más del mismo bug** ya corregido una vez: `nav('/subir')` duplicado en `Dashboard.tsx` (idéntico al de `Orders.tsx`, apunta a una ruta eliminada), y `nav('/seed')` en el mensaje de "sistema sin órdenes" — `Seeder.tsx` fue eliminado del proyecto hace varios ciclos y este mensaje nunca se actualizó.
+**Impacto:** Dos botones adicionales, no detectados en la corrección anterior porque solo se revisó `Orders.tsx`, no todo el proyecto.
+**Solución:** Botón de Dashboard corregido con el mismo patrón (abre expediente nuevo directo en Productos). Mensaje de "sistema vacío" reescrito con dos opciones reales: ir a la Auditoría Maestra (carga masiva vía Excel) o capturar a mano — ninguna apunta a una pantalla que ya no existe.
+**Riesgo:** 🟢 Bajo.
+**Commit:** `fix: corregir las dos ultimas rutas muertas (dashboard duplicado y mensaje de sistema vacio)`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo. Barrido completo de rutas internas confirma cero referencias muertas restantes en todo el proyecto.

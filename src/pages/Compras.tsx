@@ -191,7 +191,7 @@ export default function Compras() {
                         <td className="mono num">{p.expectedKilos?.toFixed(2) || '0.00'}</td>
                         <td className="mono num">{p.receivedKilos?.toFixed(2) || '0.00'}</td>
                         <td>
-                          {o ? <button className="btn" onClick={(e) => { e.stopPropagation(); setDeliveryOrder(o); }}>🚚 Registrar Entrega</button> : '-'}
+                          {o ? <button className="btn" onClick={(e) => { e.stopPropagation(); setDeliveryOrder(o); }}>📦 Recibir Kilos Rápidos</button> : '-'}
                         </td>
                       </tr>
                     );

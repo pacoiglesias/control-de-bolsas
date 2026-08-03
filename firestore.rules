@@ -125,6 +125,18 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // El PIN del portal maquilador vive APARTE de system_settings/global.
+    // Las reglas de Firestore son por documento, no por campo: si el PIN
+    // siguiera en el documento publico de arriba (necesario para que Login
+    // muestre el logo/nombre antes de autenticarse), cualquiera podria
+    // leerlo directo sin necesidad de acertarlo. Solo el backend (Cloud
+    // Functions, que usa el Admin SDK y no pasa por estas reglas) necesita
+    // leerlo de verdad.
+    match /system_settings_private/maquila {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
     // Log de auditoría
     match /system_logs/{logId} {
       // Solo super admin lee los logs

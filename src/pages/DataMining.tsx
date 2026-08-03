@@ -3,7 +3,6 @@ import { useOrders } from '../hooks/useOrders';
 import { getOrderSummary } from '../lib/finance';
 import { money, kilos, percent, fmtDate } from '../lib/format';
 import { StatusBadge } from '../components/ui';
-import { exportToExcel } from '../lib/export';
 import { useConfig } from '../hooks/useConfig';
 
 export default function DataMining() {
@@ -46,7 +45,7 @@ export default function DataMining() {
     }).sort((a: any, b: any) => b.fechaPedido.toMillis() - a.fechaPedido.toMillis());
   }, [orders, config, filterText]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const dataToExport = processedData.map((row: any) => ({
       'Folio OC': row.folio,
       'Cliente': row.client,
@@ -62,8 +61,19 @@ export default function DataMining() {
       'Ganancia Neta ($)': row.gananciaNeta,
       'Días Atraso': row.diasAtraso
     }));
-    
-    (exportToExcel as any)(dataToExport, 'Sabana_Maestra');
+
+    // ANTES: (exportToExcel as any)(dataToExport, 'Sabana_Maestra') — esa
+    // funcion no acepta parametros (export async function exportToExcel()),
+    // asi que ambos argumentos se ignoraban en silencio y el boton
+    // descargaba el volcado generico de ordenes/compras/gastos en vez de
+    // esta tabla de analisis ya calculada (diferencias de kilos, cierres
+    // forzados, dias de atraso...). El "as any" escondia el error de tipos
+    // que hubiera delatado el problema.
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sabana_Maestra');
+    XLSX.writeFile(wb, `Sabana_Maestra_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   if (loading || configLoading) return <div className="p-8">Cargando Sábana Maestra...</div>;
@@ -83,7 +93,7 @@ export default function DataMining() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-primary" onClick={handleExport}>
+          <button className="btn btn-primary" onClick={() => void handleExport()}>
             📊 Exportar a Excel
           </button>
         </div>

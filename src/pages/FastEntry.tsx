@@ -7,6 +7,7 @@ import { db, PATHS } from '../lib/firebase';
 import { doc, runTransaction } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { getOrderSummary } from '../lib/finance';
+import { camposInvoices } from '../lib/invoiceOps';
 
 interface IncompleteInvoice {
   orderId: string;
@@ -241,7 +242,7 @@ export function FastEntry() {
           });
           
           if (modified) {
-            tx.update(ref, { invoices });
+            tx.update(ref, camposInvoices(invoices));
           }
         });
       });

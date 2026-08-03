@@ -8,7 +8,7 @@ import { httpsCallable } from 'firebase/functions';
 import { money } from '../lib/format';
 
 export default function MaquiladorPortal() {
-  const { settings, loading: loadingSettings } = useSystemSettings();
+  const { loading: loadingSettings } = useSystemSettings();
   const toast = useToast();
   
   const [pin, setPin] = useState('');
@@ -25,30 +25,40 @@ export default function MaquiladorPortal() {
   const [statement, setStatement] = useState<any>(null);
   const [loadingStatement, setLoadingStatement] = useState(false);
 
-  const PIN_SECRETO = settings?.maquilaPin || '2468';
-
-  const loadOrders = async () => {
+  /**
+   * El PIN YA NO se compara en el navegador. Antes se leia
+   * `settings?.maquilaPin` desde un documento publico de Firestore
+   * (system_settings/global, con `allow read: if true`) — cualquiera con
+   * las herramientas del navegador podia leer el PIN real ahi, sin
+   * necesidad de acertarlo. Ahora el PIN vive en un documento aparte,
+   * legible solo por admins, y la unica forma de validarlo es que el
+   * propio backend (Cloud Function, con el Admin SDK) lo compare. El
+   * cliente nunca ve el valor real bajo ninguna circunstancia.
+   */
+  const loadOrders = async (pinIntentado: string) => {
     setLoadingOrders(true);
     try {
       const getActiveMaquilaOrders = httpsCallable(functions, 'getActiveMaquilaOrders');
-      const res = await getActiveMaquilaOrders();
+      const res = await getActiveMaquilaOrders({ pin: pinIntentado });
       setActiveOrders((res.data as any[]) || []);
-    } catch (err) {
-      console.error(err);
-      toast('Error al cargar órdenes', 'bad');
+      return true;
+    } catch (err: any) {
+      if (err?.code === 'functions/permission-denied') {
+        toast('PIN incorrecto', 'bad');
+      } else {
+        console.error(err);
+        toast('Error al cargar órdenes', 'bad');
+      }
+      return false;
     } finally {
       setLoadingOrders(false);
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === PIN_SECRETO) {
-      setAuth(true);
-      loadOrders();
-    } else {
-      toast('PIN incorrecto', 'bad');
-    }
+    const ok = await loadOrders(pin);
+    if (ok) setAuth(true);
   };
 
   const loadStatement = async () => {
@@ -99,7 +109,7 @@ export default function MaquiladorPortal() {
       toast('Entrega registrada exitosamente', 'ok');
       setKilos('');
       setOrderId('');
-      loadOrders(); // recargar para actualizar los kilos pendientes
+      loadOrders(pin); // recargar para actualizar los kilos pendientes
     } catch (err: any) {
       console.error(err);
       toast('Error al guardar: ' + err.message, 'bad');

@@ -190,7 +190,7 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Elver Gonzalez &copy; 2026<br/>
+            Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>

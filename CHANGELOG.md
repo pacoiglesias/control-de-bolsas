@@ -1,5 +1,51 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.42.0] - 3 Agosto 2026 (Auditoría completa de menús y rutas)
+
+### Corregido
+- **Dos rutas muertas más**, encontradas en un barrido completo de todo el proyecto (no solo la pantalla donde se reportó el problema original): un botón duplicado en el Dashboard apuntando a `/subir`, y un mensaje de "sistema sin órdenes" apuntando a `/seed` — ambas rutas ya no existen.
+
+### Verificado, sin cambios necesarios
+- Los 10 enlaces del menú principal contra las rutas reales: coinciden todos.
+- Todo `overflow: hidden` del proyecto: ninguno bloquea el scroll de página, solo usos locales legítimos.
+- Los dos tableros Kanban: scroll horizontal/vertical bien implementado.
+- Cobertura de tablas anchas con desplazamiento en móvil: completa.
+
+
+## [v6.41.0] - 3 Agosto 2026 (La sábana por fin coincide; botón de OC reparado)
+
+### Corregido — crítico
+- **Descarga y subida de la sábana nunca coincidían.** Confirmado: el código de este repo ya genera el formato correcto (`Auditoria_Cobranza`/`Auditoria_CajaChica` con `ID_SISTEMA`); producción corre una versión anterior. Desplegar esta versión resuelve el desajuste de raíz.
+- **"Subir OC (PDF)" navegaba a una ruta eliminada** (`/subir`), regresando al inicio sin aviso. Ahora abre un expediente nuevo directo en la pestaña donde se pega y extrae el texto de la OC.
+- **Botón de sábana estática eliminado.** Descargaba un archivo congelado (`plantilla_llena.xlsx`) sin relación con los datos reales — riesgo de subir información vieja pensando que era actual.
+- **Data Mining exportaba los datos equivocados**: llamaba a una función con parámetros que no acepta (silenciados con `as any`), descargando el volcado genérico en vez de su propio análisis.
+- Corregido el nombre de autoría en el pie de página.
+
+### ⚠️ Acción requerida
+Después de desplegar, revisar `/caja-chica`: hay un movimiento de prueba de $8 que dejó el saldo mostrado en $9 — hay que borrarlo manualmente.
+
+
+## [v6.40.0] - 3 Agosto 2026 (Seguridad del Portal Maquilador + limpieza total de tipos + WhatsApp)
+
+### Corregido — crítico (seguridad)
+- **El PIN del Portal Maquilador era públicamente legible** por cualquiera, sin sesión — vivía en un documento con `allow read: if true`. Movido a un documento admin-only; el cliente ya nunca ve el valor real.
+- **La función en la nube no exigía PIN para la acción principal** (listar/registrar entregas), solo para el estado de cuenta. Ahora lo exige para cualquier acción.
+- **`FastEntry.tsx` no sincronizaba `invoiceStatuses`** — mismo bug ya corregido en otras pantallas.
+
+### Corregido — calidad de código
+- **Eliminado `@ts-nocheck` de los 8 archivos que lo tenían.** Cada uno reveló bugs reales: un destructuring de 40 valores usando solo 10-13, una API de `toast` inexistente que habría tronado en producción, y 5 funciones usadas sin importar (`sound`, `addDoc`, `addDays`, entre otras).
+- **`eslint`: de 15 errores y 192 avisos a 0 y 0** en todo el proyecto.
+
+### Agregado
+- Botón "💬 WhatsApp" en Cobranza — enlace real con el mensaje precargado, no solo copiar al portapapeles.
+- Botón de recepción rápida en Compras renombrado a "📦 Recibir Kilos Rápidos".
+
+### Pendiente, con razón explícita
+- División de `Dashboard.tsx` en componentes más chicos.
+- Rediseño visual de Compras a tarjetas (la función ya existe, falta el layout).
+- Lectura automática de PDF con IA — no se reintroduce sin confirmar que sigue siendo lo que se quiere, dado que se retiró antes por decisión explícita.
+
+
 ## [v6.39.0] - 3 Agosto 2026 (Scroll bloqueado — reparado)
 
 ### Corregido — crítico

@@ -166,6 +166,5 @@ export default function TabEntregas() {
               </div>
             )}
           </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   );
 }

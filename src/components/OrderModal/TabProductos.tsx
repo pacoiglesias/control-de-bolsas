@@ -185,6 +185,5 @@ export default function TabProductos() {
               </div>
             )}
           </>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   );
 }
