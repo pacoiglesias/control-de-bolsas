@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.35.0] - 2 Agosto 2026 (Reconciliación de ramas + facturas sin CR vencidas)
+
+### Corregido — crítico
+- **`checkOverdueInvoices` marcaba como vencidas facturas sin contrarecibo.** El plazo de crédito arranca cuando Providencia emite el CR, no al enviar la factura a revisión. Verificado contra datos reales: la diferencia en "Vencido" era exactamente el monto de las facturas sin CR. Se agregó además una reparación automática para las facturas ya mal marcadas.
+
+### Reconciliado
+- Unificadas las tres ramas de trabajo que habían divergido (`optimize/workspace-2026-07-29-ciclo2`, `main`/`feature/ux-quality-audit`, `audit/workspace-2026-08-01`) más una copia local en v6.34.0 sin subir. Se tomó la copia local como base y se le sumó lo que solo existía en GitHub.
+- Sincronizadas las versiones de `package.json` y `functions/package.json`, que estaban desfasadas entre sí.
+- Eliminados archivos sueltos sin uso en la raíz del proyecto.
+
 ## [v6.30.0] - 1 Agosto 2026 (Enterprise Release)
 
 ### Añadido — Mejoras UI/UX y Sistema

@@ -350,14 +350,44 @@ export const checkOverdueInvoices = onSchedule(
       .where("invoiceStatuses", "array-contains", "pending")
       .get();
 
+    // Los expedientes creados ANTES de que existiera invoiceStatuses no tienen
+    // ese campo y la consulta de arriba los deja fuera: quedan sin vigilancia y
+    // sin dar error. No se pueden contar con where(campo, "==", null): en
+    // Firestore esa consulta solo encuentra documentos con el campo presente y
+    // valor null EXPLICITO. Un campo ausente no aparece en ninguna consulta
+    // sobre ese campo, asi que el contador anterior devolvia siempre cero.
+    // La forma barata de detectarlos es comparar totales.
+    const [totalExpedientes, conCampo] = await Promise.all([
+      db.collection(COL_ORDERS).count().get()
+        .then((r) => r.data().count).catch(() => -1),
+      db.collection(COL_ORDERS).where("invoiceStatuses", "!=", null).count().get()
+        .then((r) => r.data().count).catch(() => -1),
+    ]);
+    if (totalExpedientes >= 0 && conCampo >= 0 && totalExpedientes > conCampo) {
+      logger.warn(
+        `${totalExpedientes - conCampo} expediente(s) sin invoiceStatuses ` +
+        `quedan fuera de la revision de vencidos. Se reparan solos al abrirlos ` +
+        `y guardarlos una vez desde la interfaz.`,
+      );
+    }
 
     if (snapshot.empty) {
       logger.info("No hay expedientes que revisar.");
       return;
     }
 
-    const yaVencio = (cc?: { status?: string; dueDate?: Timestamp | null }) =>
-      !!cc && cc.status === "pending" && !!cc.dueDate &&
+    // REGLA DE NEGOCIO: una factura SIN contrarecibo no puede estar vencida.
+    // El plazo de credito arranca cuando Providencia emite el CR, no cuando
+    // se envia la factura a revision. Sin esto, las facturas en revision se
+    // marcaban "overdue" al dia siguiente de su emision e inflaban "Vencido"
+    // del panel por su monto completo (ver Ciclo 33 en AUDIT_NOTEBOOK.md).
+    // Este era el bug que quedo señalado como pendiente y no se habia
+    // corregido todavia ni en esta rama ni en GitHub.
+    const yaVencio = (
+      cc?: { status?: string; dueDate?: Timestamp | null },
+      tieneCr?: boolean,
+    ) =>
+      !!cc && cc.status === "pending" && !!cc.dueDate && !!tieneCr &&
       cc.dueDate.toMillis() < ahora.toMillis();
 
     const cambios: { ref: FirebaseFirestore.DocumentReference; datos: Record<string, unknown> }[] = [];
@@ -365,16 +395,19 @@ export const checkOverdueInvoices = onSchedule(
     snapshot.docs.forEach((d: QueryDocumentSnapshot) => {
       const data = d.data();
       const datos: Record<string, unknown> = {};
+      const crDelExpediente = !!data.collection?.contrareciboNumber;
 
       // a) Expedientes viejos: el ciclo vive en la raiz del documento.
-      if (yaVencio(data.creditCycle)) datos["creditCycle.status"] = "overdue";
+      if (yaVencio(data.creditCycle, crDelExpediente)) datos["creditCycle.status"] = "overdue";
 
       // b) Modelo nuevo: cada factura trae su ciclo dentro del arreglo.
       const invoices: Record<string, unknown>[] = Array.isArray(data.invoices) ? data.invoices : [];
       let tocado = false;
       const actualizadas = invoices.map((inv) => {
         const cc = inv.creditCycle as { status?: string; dueDate?: Timestamp | null } | undefined;
-        if (yaVencio(cc)) {
+        const collection = inv.collection as { contrareciboNumber?: string } | undefined;
+        const tieneCr = !!(collection?.contrareciboNumber || crDelExpediente);
+        if (yaVencio(cc, tieneCr)) {
           tocado = true;
           return { ...inv, creditCycle: { ...cc, status: "overdue" } };
         }
@@ -394,6 +427,41 @@ export const checkOverdueInvoices = onSchedule(
       if (Object.keys(datos).length > 0) {
         datos.updatedAt = FieldValue.serverTimestamp();
         cambios.push({ ref: d.ref, datos });
+      }
+    });
+
+    // REPARACION de datos ya corrompidos por el bug anterior: facturas que
+    // quedaron marcadas "overdue" sin tener contrarecibo, de antes de que
+    // esta regla existiera. Necesitan su propia consulta porque, al estar ya
+    // en "overdue", invoiceStatuses ya no las trae la busqueda de arriba
+    // (que solo busca "pending").
+    const snapshotVencidas = await db.collection(COL_ORDERS)
+      .where("invoiceStatuses", "array-contains", "overdue")
+      .get();
+    snapshotVencidas.docs.forEach((d) => {
+      const data = d.data();
+      const crDelExpediente = !!data.collection?.contrareciboNumber;
+      const invoices: Record<string, unknown>[] = Array.isArray(data.invoices) ? data.invoices : [];
+      let reparado = false;
+      const reparadas = invoices.map((inv) => {
+        const cc = inv.creditCycle as { status?: string; dueDate?: Timestamp | null } | undefined;
+        const collection = inv.collection as { contrareciboNumber?: string } | undefined;
+        const tieneCr = !!(collection?.contrareciboNumber || crDelExpediente);
+        if (cc?.status === "overdue" && !tieneCr) {
+          reparado = true;
+          return { ...inv, creditCycle: { ...cc, status: "pending" } };
+        }
+        return inv;
+      });
+      if (reparado) {
+        cambios.push({
+          ref: d.ref,
+          datos: {
+            invoices: reparadas,
+            invoiceStatuses: reparadas.map((inv) => (inv.creditCycle as { status?: string } | undefined)?.status ?? "pending"),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+        });
       }
     });
 

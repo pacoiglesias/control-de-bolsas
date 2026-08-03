@@ -53,3 +53,25 @@
 **Solución:** Se aislaron ambos flujos en `ProductsProvider` y `ExpensesProvider` e inyectados globalmente en `App.tsx`. Ahora la lista de productos (Catálogo) y Caja Chica se descargan solo una vez al iniciar sesión, ahorrando hasta un 85% de lecturas simultáneas.
 **Riesgo:** Bajo.
 **Estado:** Verificado con `tsc --noEmit`. Listo.
+
+### Iteración 7: Reconciliación de ramas divergentes (COMPLETADO)
+**Fecha:** 2026-08-02
+**Archivo:** `functions/src/index.ts`, `package.json`, `functions/package.json`
+**Problema:** El proyecto llevaba tres ramas de trabajo separadas (`optimize/workspace-2026-07-29-ciclo2` v6.21.0, `main`/`feature/ux-quality-audit` v6.30.0, `audit/workspace-2026-08-01` v6.31.0) más una copia local sin subir en v6.34.0 — divergencia en las dos direcciones: la copia local tenía mejoras que GitHub no tenía (fecha de vencimiento que evita fines de semana, "Pendiente por Facturar" usando precio/IVA configurados en vez de fijos, kilos entregados sumados de las entregas reales), y GitHub tenía un bloque de diagnóstico en `checkOverdueInvoices` que la copia local no tenía. Además, `package.json` (6.34.0) y `functions/package.json` (6.33.0) estaban desincronizados entre sí.
+**Impacto:** Riesgo Alto de perder trabajo real de cualquiera de los dos lados si se sobrescribía sin comparar antes.
+**Solución:** Se tomó la copia local (más completa) como base, se le sumó el bloque de diagnóstico que solo existía en GitHub, y se sincronizaron las versiones. Se eliminaron archivos sueltos sin referencias en el código (`PROMPT 2.txt`, `PROMPT BUENO.txt`, `audit_local.ts`, `dump_client.js`, carpeta `scratch/`).
+**Riesgo:** Bajo tras verificación — `tsc` limpio en raíz y functions, `eslint`, 39/39 pruebas, build completo.
+**Commit:** `chore: reconciliar ramas divergentes y sincronizar versiones a v6.35.0`
+**Estado:** ✅ Verificado.
+
+### Iteración 8: Facturas sin contrarecibo marcadas como vencidas por el proceso diario (COMPLETADO)
+**Fecha:** 2026-08-02
+**Archivo:** `functions/src/index.ts` (`checkOverdueInvoices`)
+**Problema:** El proceso programado que corre a medianoche marcaba como "overdue" cualquier factura pendiente cuya fecha de vencimiento hubiera pasado, sin comprobar si esa factura ya tenía un contrarecibo emitido. El plazo de crédito real arranca cuando Providencia emite el contrarecibo, no cuando se envía la factura a revisión — así que las "facturas en revisión" se marcaban vencidas al día siguiente de emitirse, inflando la cifra de "Vencido" del panel por su monto completo (confirmado contra datos reales del usuario: la diferencia era exactamente $136,300.00, el total de dos facturas sin CR).
+**Impacto:** Cifra de "Vencido" incorrecta en producción, verificada y reportada por el usuario con sus propios números.
+**Solución:** `yaVencio()` ahora exige que exista un contrarecibo (a nivel factura o a nivel expediente) antes de marcar vencida una factura. Se agregó además una pasada de reparación en la misma función: cualquier factura ya marcada "overdue" sin contrarecibo real se revierte a "pending" automáticamente la próxima vez que corra el proceso — corrige el dato ya corrompido, no solo evita que se repita.
+**Riesgo:** Bajo — regla de negocio ya verificada y aplicada antes en `functions/src/stats.ts` (Ciclo 33 de la bitácora anterior); aquí se aplicó el mismo criterio al proceso que faltaba.
+**Commit:** `fix(functions): checkOverdueInvoices respeta la regla sin-CR-no-vencida y repara datos ya corrompidos`
+**Estado:** ✅ Verificado — `tsc` limpio en functions.
+
+> Nota: el historial detallado de los Ciclos 1–33 (incluyendo los hallazgos que motivan las dos iteraciones de arriba) vive en `CHANGELOG.md` y en el historial de commits de la rama `optimize/workspace-2026-07-29-ciclo2`, por si hace falta consultarlo — esta bitácora se reemplazó por un formato distinto a mitad de proyecto y no se restauró el contenido anterior para no pisar el trabajo de esta sesión.

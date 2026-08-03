@@ -5,7 +5,7 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
@@ -26,7 +26,7 @@ export default function CajaChica() {
   const { settings } = useSystemSettings();
   const [selected, setSelected] = useState<Expense | null>(null);
 
-  const nav = useNavigate();
+
 
   const saldo = expenses.reduce((acc, e) => {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
@@ -199,9 +199,16 @@ export default function CajaChica() {
                 whileTap={{ scale: 0.98 }}
                 className="btn btn-primary" 
                 style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--warn)', borderColor: 'var(--warn)', color: '#000', fontWeight: 'bold' }} 
-                onClick={() => nav('/cobranza', { state: { tab: 'contabilidad' } })}
+                onClick={() => setSelected({
+                  id: doc(collection(db, PATHS.expenses)).id,
+                  date: Timestamp.fromDate(new Date()),
+                  concept: 'Recolección de Contabilidad',
+                  amount: dineroEnTransito,
+                  type: 'ingreso',
+                  createdAt: null,
+                } as Expense)}
               >
-                📥 Reclamar / Recolectar Efectivo
+                📥 Recolectar Efectivo a Caja
               </motion.button>
             )}
           </div>
@@ -217,9 +224,34 @@ export default function CajaChica() {
                 {saldoProveedor < 0 ? `Deuda activa (Total a pagar a ${provName}).` : saldoProveedor > 0 ? `Saldo a favor (${provName} te debe).` : 'Cuentas completamente saldadas.'}
               </p>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8, marginBottom: 12 }}>
                Fórmula: <strong>Pagado</strong> ({money(totalPagado)}) - <strong>Compras</strong> ({money(totalPurchasesCost)}) + <strong>Histórico</strong> ({money(deudaHistorica)})
             </div>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="btn btn-primary" 
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                background: saldoProveedor < 0 ? 'var(--bad)' : '#0ea5e9', 
+                borderColor: saldoProveedor < 0 ? 'var(--bad)' : '#0ea5e9', 
+                color: '#fff', 
+                fontWeight: 'bold' 
+              }} 
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: saldoProveedor < 0 ? `Abono a ${provName}` : `Anticipo a ${provName}`,
+                provider: provName,
+                amount: saldoProveedor < 0 ? Math.abs(saldoProveedor) : 0,
+                type: 'egreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              {saldoProveedor < 0 ? '💸 Pagar Deuda Exacta' : '💸 Dar Anticipo / Pago a Cuenta'}
+            </motion.button>
           </div>
         </Card>
       </motion.div>
