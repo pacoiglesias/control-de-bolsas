@@ -54,8 +54,8 @@ export default function MaquiladorPortal() {
   const loadStatement = async () => {
     setLoadingStatement(true);
     try {
-      const fn = httpsCallable(functions, 'getMaquilaLedger');
-      const res = await fn({ pin });
+      const fn = httpsCallable(functions, 'getActiveMaquilaOrders');
+      const res = await fn({ action: 'ledger', pin });
       setStatement(res.data);
     } catch (err: any) {
       console.error(err);

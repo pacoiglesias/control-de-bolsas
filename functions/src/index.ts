@@ -64,7 +64,103 @@ async function readConfig(): Promise<FinanceConfigCore> {
 }
 
 export const getActiveMaquilaOrders = onCall(async (request) => {
+  const { action, pin } = request.data || {};
   const db = getFirestore();
+
+  if (action === 'ledger') {
+    if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
+    
+    const settingsSnap = await db.collection('system_settings').doc('global').get();
+    const realPin = settingsSnap.data()?.maquilaPin || '2468';
+    if (pin !== realPin) {
+      throw new HttpsError('permission-denied', 'PIN incorrecto');
+    }
+
+    const configSnap = await db.collection('config').doc('financials').get();
+    const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
+    const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
+
+    const purchasesSnap = await db.collection('purchases').get();
+    const provPurchases = purchasesSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((p: any) => p.provider && p.provider.toLowerCase() === 'andres');
+
+    const orderIds = provPurchases.map(p => p.id);
+    const orderById = new Map();
+    if (orderIds.length > 0) {
+      const ordersSnap = await db.collection('purchaseOrders').get();
+      ordersSnap.docs.forEach(d => {
+        orderById.set(d.id, d.data());
+      });
+    }
+
+    const expensesSnap = await db.collection('expenses').get();
+    const provExpenses = expensesSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((e: any) => e.provider && e.provider.toLowerCase() === 'andres');
+
+    const totalReceivedKilos = provPurchases.reduce((acc, p: any) => acc + (p.receivedKilos ?? 0), 0);
+    const totalPurchasesCost = provPurchases.reduce((acc, p: any) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)), 0);
+    
+    const totalPagado = provExpenses.reduce((acc, e: any) => {
+      if (e.type === 'egreso') return acc + (e.amount || 0);
+      if (e.type === 'ingreso') return acc - (e.amount || 0);
+      return acc;
+    }, 0);
+    
+    const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
+
+    let ledger: any[] = [
+      ...provPurchases.map((p: any) => ({
+        id: p.id,
+        date: p.date, 
+        concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
+        cargo: ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
+        abono: 0,
+        balance: 0,
+        source: 'purchase'
+      })).filter((x: any) => x.cargo > 0),
+      ...provExpenses.map((e: any) => ({
+        id: e.id,
+        date: e.date,
+        concept: e.concept || '',
+        cargo: e.type === 'ingreso' ? (e.amount || 0) : 0, 
+        abono: e.type === 'egreso' ? (e.amount || 0) : 0, 
+        balance: 0,
+        source: 'expense'
+      }))
+    ];
+
+    const getMillis = (dateObj: any) => {
+      if (!dateObj) return 0;
+      if (dateObj.toMillis) return dateObj.toMillis();
+      if (dateObj._seconds) return dateObj._seconds * 1000;
+      return 0;
+    };
+
+    ledger.sort((a, b) => getMillis(a.date) - getMillis(b.date));
+
+    let running = -historicalDebtAndres;
+    for (const row of ledger) {
+      running += row.cargo;
+      running -= row.abono;
+      row.balance = running;
+      
+      row.dateMillis = getMillis(row.date);
+      delete row.date;
+    }
+    ledger.reverse();
+
+    return {
+      totalReceivedKilos,
+      totalPurchasesCost,
+      totalPagado,
+      saldoProveedor,
+      ledger
+    };
+  }
+
+  // Original getActiveMaquilaOrders logic
   const snapshot = await db.collection(COL_ORDERS)
     .where("isArchived", "==", false)
     .get();
@@ -94,102 +190,7 @@ export const getActiveMaquilaOrders = onCall(async (request) => {
   return activeOrders;
 });
 
-export const getMaquilaLedger = onCall(async (request) => {
-  const { pin } = request.data || {};
-  if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
 
-  const db = getFirestore();
-  
-  const settingsSnap = await db.collection('system_settings').doc('global').get();
-  const realPin = settingsSnap.data()?.maquilaPin || '2468';
-  if (pin !== realPin) {
-    throw new HttpsError('permission-denied', 'PIN incorrecto');
-  }
-
-  const configSnap = await db.collection('config').doc('financials').get();
-  const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
-  const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
-
-  const purchasesSnap = await db.collection('purchases').get();
-  const provPurchases = purchasesSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter((p: any) => p.provider && p.provider.toLowerCase() === 'andres');
-
-  const orderIds = provPurchases.map(p => p.id);
-  const orderById = new Map();
-  if (orderIds.length > 0) {
-    const ordersSnap = await db.collection('purchaseOrders').get();
-    ordersSnap.docs.forEach(d => {
-      orderById.set(d.id, d.data());
-    });
-  }
-
-  const expensesSnap = await db.collection('expenses').get();
-  const provExpenses = expensesSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter((e: any) => e.provider && e.provider.toLowerCase() === 'andres');
-
-  const totalReceivedKilos = provPurchases.reduce((acc, p: any) => acc + (p.receivedKilos ?? 0), 0);
-  const totalPurchasesCost = provPurchases.reduce((acc, p: any) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)), 0);
-  
-  const totalPagado = provExpenses.reduce((acc, e: any) => {
-    if (e.type === 'egreso') return acc + (e.amount || 0);
-    if (e.type === 'ingreso') return acc - (e.amount || 0);
-    return acc;
-  }, 0);
-  
-  const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
-
-  let ledger: any[] = [
-    ...provPurchases.map((p: any) => ({
-      id: p.id,
-      date: p.date, 
-      concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
-      cargo: ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
-      abono: 0,
-      balance: 0,
-      source: 'purchase'
-    })).filter((x: any) => x.cargo > 0),
-    ...provExpenses.map((e: any) => ({
-      id: e.id,
-      date: e.date,
-      concept: e.concept || '',
-      cargo: e.type === 'ingreso' ? (e.amount || 0) : 0, 
-      abono: e.type === 'egreso' ? (e.amount || 0) : 0, 
-      balance: 0,
-      source: 'expense'
-    }))
-  ];
-
-  const getMillis = (dateObj: any) => {
-    if (!dateObj) return 0;
-    if (dateObj.toMillis) return dateObj.toMillis();
-    if (dateObj._seconds) return dateObj._seconds * 1000;
-    return 0;
-  };
-
-  ledger.sort((a, b) => getMillis(a.date) - getMillis(b.date));
-
-  let running = -historicalDebtAndres;
-  for (const row of ledger) {
-    running += row.cargo;
-    running -= row.abono;
-    row.balance = running;
-    
-    // Remove complex Timestamp objects for clean JSON serialization
-    row.dateMillis = getMillis(row.date);
-    delete row.date;
-  }
-  ledger.reverse();
-
-  return {
-    totalReceivedKilos,
-    totalPurchasesCost,
-    totalPagado,
-    saldoProveedor,
-    ledger
-  };
-});
 
 /** Cache corto de config/financials: el sanitizador se dispara en cascada
  *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
