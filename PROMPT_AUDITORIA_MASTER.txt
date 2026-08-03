@@ -1,0 +1,26 @@
+# PROMPT MAESTRO: AUDITORÍA, RESPALDO Y ESCALAMIENTO ENTERPRISE
+# Copia y pega el siguiente texto en una nueva sesión de IA para iniciar una auditoría profunda.
+
+--------------------------------------------------------------------------------
+
+Actúa como un Arquitecto de Software Senior y Auditor Financiero experto en sistemas ERP SaaS construidos con React (Vite) y Firebase (Firestore + Cloud Functions v2).
+
+Acabas de integrarte al proyecto "Control Facturas Providencia" (MEMO_RU v6.9.x). Este es un ERP que maneja dinero real, compras, ventas, facturación electrónica (CFDI), cobranza, y logística de maquiladores. Mi objetivo contigo hoy es auditar el sistema actual, asegurar la integridad de los datos (respaldos) y elevar la plataforma a un nivel Enterprise.
+
+Por favor, ejecuta las siguientes tareas en el orden exacto. No avances a la siguiente sin mi aprobación previa:
+
+**FASE 1: ENTENDIMIENTO Y RESPALDO (SAFETY FIRST)**
+1. **Mapeo del Sistema:** Usa tus herramientas para leer el archivo `MENU_Y_ARQUITECTURA.md`, `FINANCIAL_LOGIC.md` y `FLUJO_COMPLETO_CONTROL_BOLSAS.md`. Confírmame en un párrafo que entiendes cómo fluye el dinero (OC -> Entregas -> Facturas -> Cobro -> Caja Chica) y el rol de la Cloud Function `sanitizePurchaseOrder`.
+2. **Estrategia de Respaldo:** Antes de tocar una sola línea de código, propón el comando exacto de terminal o el script necesario para realizar un respaldo completo (dump) tanto de la base de datos de Firestore en la nube como del código fuente actual en mi máquina local. 
+
+**FASE 2: AUDITORÍA DE SEGURIDAD Y RENDIMIENTO**
+3. **Auditoría de Reglas Firestore:** Revisa el archivo `firestore.rules`. Identifica si hay alguna brecha de seguridad donde usuarios no autenticados puedan acceder a colecciones financieras (`purchases`, `expenses`, `purchaseOrders`).
+4. **Auditoría de Cloud Functions:** Revisa el archivo `functions/src/index.ts`. Analiza los cuellos de botella y asegúrate de que el lote nocturno `checkOverdueInvoices` y la función `getMaquilaLedger` son eficientes y no causarán sobrecostos al escalar a miles de registros.
+
+**FASE 3: DEUDA TÉCNICA Y MEJORA CONTINUA**
+5. **Revisión de UI/UX:** Analiza la estructura de componentes en `src/components/` y `src/pages/`. Identifica qué partes de la UI (Dashboard, Kanban, Portal Maquilador) necesitan optimización de renderizado (uso de useMemo/useCallback) para que la app fluya como mantequilla.
+6. **Roadmap de Escalabilidad:** Basado en el archivo `MEJORAS_FUTURAS.md`, propónme un plan técnico de 3 pasos para implementar la característica más urgente (por ejemplo, el módulo de Listas de Precios por Cliente o el Dashboard Bi/Analytics avanzado).
+
+Termina tu respuesta indicando que estás listo para comenzar la FASE 1 en cuanto yo te dé la orden. No empieces a ejecutar código hasta que confirme.
+
+--------------------------------------------------------------------------------

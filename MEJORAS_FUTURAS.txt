@@ -1,0 +1,47 @@
+# Roadmap 2026: Mejoras Futuras para Control Bolsas ERP
+
+El sistema ha alcanzado madurez operativa y estabilidad financiera. Las siguientes mejoras están diseñadas para escalar el sistema a un nivel **Enterprise (SaaS B2B)** enfocado en la automatización, reducción de dependencia manual y Business Intelligence.
+
+---
+
+## 1. Integración CFDI 4.0 Directa (PAC)
+**Estado actual:** El sistema genera una "Pre-Factura" en PDF con todos los datos fiscales (UUID, Método de Pago, Forma de Pago) para que el contador o administrador la timbre en el portal del SAT.
+**La Mejora:** Integrar la API de un PAC (Proveedor Autorizado de Certificación) como Facturapi o Facturama.
+**Beneficio:** Al presionar "Facturar", el sistema generaría el XML real, lo enviaría al SAT y descargaría el PDF fiscal automáticamente. Se elimina por completo el re-trabajo contable.
+
+---
+
+## 2. Motor de Listas de Precios por Cliente
+**Estado actual:** Existe un "Precio de Venta Base" global configurado en el Centro de Control. Todos los expedientes nuevos nacen con ese precio.
+**La Mejora:** Extender el Catálogo para soportar múltiples listas de precios.
+**Beneficio:** Si el departamento GT tiene un precio pactado de $47/kg y el TH tiene $48/kg, el sistema inyectaría automáticamente el precio correcto al crear el expediente. Previene errores humanos en cotizaciones con clientes diversos.
+
+---
+
+## 3. Automatización de Cobranza (Notificaciones Push/Email/WhatsApp)
+**Estado actual:** El sistema sabe cuándo una factura se vence gracias al Semáforo (Rojo, Naranja, Amarillo), pero el administrador debe ver la pantalla y enviar un mensaje manual.
+**La Mejora:** Conectar Twilio o Firebase Extensions (SendGrid).
+**Beneficio:** El sistema enviará automáticamente un mensaje a Providencia 1 día antes del vencimiento y el día del vencimiento. También podría notificar a Andrés si una de sus órdenes prometidas se retrasa.
+
+---
+
+## 4. Evolución del Portal Maquilador
+**Estado actual:** Andrés tiene un portal (`/portal-maquilador`) para registrar las entregas que envía.
+**La Mejora:** Expandir el portal para que incluya una sección de **"Estado de Cuenta en Vivo"**.
+**Beneficio:** Andrés podrá entrar con su PIN y ver exactamente cuánto le debes (y por qué conceptos), y el historial de pagos que le has hecho (Egresos de tu Caja Chica). Esto elimina las llamadas de conciliación y genera transparencia total.
+
+---
+
+## 5. Módulo de Business Intelligence (BI) y Proyecciones
+**Estado actual:** El Dashboard tiene gráficas de ventas e ingresos históricos de excelente nivel.
+**La Mejora:** Integrar algoritmos de proyección.
+**Beneficio:** 
+*   **Proyección de Flujo de Efectivo:** "La próxima semana recibirás X cantidad garantizada basada en los contrarecibos emitidos".
+*   **Análisis de Rentabilidad por Producto:** Identificar automáticamente cuáles productos generan el mayor margen de utilidad neta y sugerir precios.
+
+---
+
+## 6. Lector Inteligente Universal (GenAI v2)
+**Estado actual:** El sistema parsea las OC a través de OCR o extracción de texto determinista.
+**La Mejora:** Reactivar la Inteligencia Artificial (Gemini) en los Cloud Functions, pero entrenada específicamente con los formatos de Providencia y facturas de XML.
+**Beneficio:** Subir cualquier PDF o XML (incluso con formatos desconocidos) y dejar que la IA extraiga, clasifique y vincule los datos sin necesidad de plantillas estrictas.
