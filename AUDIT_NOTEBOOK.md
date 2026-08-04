@@ -215,3 +215,23 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟡 Medio — toca la función de guardado central de expedientes; mitigado revisando cuidadosamente que la protección contra ediciones simultáneas siga funcionando igual para expedientes existentes (sin cambios en ese camino).
 **Commit:** `fix(OrderModal): permitir guardar un expediente nuevo por primera vez sin requerir que ya exista`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 28: Tablero de Cobranza clasificaba TODO como "Sin CR", aunque sí tuvieran contrarecibo (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/Cobranza/TableroKanban.tsx`
+**Problema:** 🔴 Verificado en vivo, en el navegador del usuario: los 10 contrarecibos reales (TH-836, GT-742, etc.) mostraban correctamente su insignia verde "CR: TH-836" en cada tarjeta, pero **todos** aparecían en la columna "En Revisión (Sin CR)" — la columna "Por Cobrar (Con CR)" estaba vacía. Causa: el tablero leía `data.open`, el arreglo crudo de facturas abiertas, que **nunca tuvo el campo `hasCr` calculado** — ese cálculo solo existe en `data.lista`, un arreglo derivado y separado construido aparte. `!x.hasCr` sobre un campo inexistente (`undefined`) es siempre verdadero, así que absolutamente todo caía en "Sin CR" sin importar si de verdad tenía contrarecibo — mientras la tarjeta individual sí calculaba el dato correcto de forma independiente para su propia insignia, revelando la contradicción visual.
+**Impacto:** El tablero Kanban de Cobranza no distinguía en absoluto entre facturas con y sin contrarecibo — la columna diseñada específicamente para ese propósito nunca funcionó desde que se construyó.
+**Solución:** El tablero ahora usa `data.lista` (el arreglo ya correcto, que las tarjetas y otras pantallas de Cobranza ya usan) en vez de `data.open`.
+**Riesgo:** 🟢 Bajo — corrige la fuente de datos que alimenta la clasificación visual, no toca escritura.
+**Commit:** `fix(TableroKanban): usar data.lista con hasCr calculado en vez del arreglo crudo data.open`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 29: 🔴 CRÍTICO — Guardar un expediente sin Costo/Precio/Comisión personalizados tronaba el guardado completo (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`
+**Problema:** 🔴🔴🔴 Error real capturado del usuario: `Function Transaction.set() called with invalid data. Unsupported field value: undefined (found in field customCostPrice...)`. Causa: `customCostPrice`, `customSellPrice`, y `customCommissionRate` son campos opcionales (el usuario los deja en blanco casi siempre) — pero el código los incluía SIEMPRE en el objeto que se guarda, con valor `undefined` cuando estaban vacíos. **Firestore rechaza la escritura COMPLETA si cualquier campo llega como `undefined`** — no lo ignora, no lo omite, truena todo el documento. Esto probablemente explica también los "cuelgues" repetidos de la automatización del navegador en los intentos previos de esta sesión: el error se lanza dentro de la transacción y, mal manejado, puede congelar el hilo de renderizado.
+**Impacto:** Guardar cualquier expediente nuevo (o editar uno existente) SIN capturar los tres campos opcionales de precio personalizado —el caso más común— fallaba silenciosamente o con este error.
+**Solución:** Los tres campos ahora solo se incluyen en el objeto a guardar si tienen un valor real; si están vacíos, se omiten por completo del documento en vez de mandarse como `undefined`.
+**Riesgo:** 🟢 Bajo — la corrección es puramente aditiva (omitir campos vacíos), no cambia el comportamiento para expedientes que sí tienen esos valores capturados.
+**Commit:** `fix(OrderModal): omitir campos opcionales vacios en vez de mandarlos como undefined a Firestore`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.

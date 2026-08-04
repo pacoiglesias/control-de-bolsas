@@ -13,7 +13,15 @@ export default function TableroKanban() {
     const colContador: any[] = [];
     const colCaja: any[] = [];
 
-    data.open.forEach((x: any) => {
+    // ANTES: `data.open` — el arreglo crudo de facturas abiertas, que NUNCA
+    // tuvo el campo `hasCr` calculado (ese calculo solo vive en
+    // `data.lista`, un arreglo derivado y separado). `!x.hasCr` sobre un
+    // campo inexistente es siempre verdadero, asi que TODAS las facturas
+    // caian en "Sin CR" sin importar si de verdad tenian un contrarecibo —
+    // la propia tarjeta mostraba "CR: TH-836" en verde mientras el tablero
+    // la clasificaba como "Sin CR". Con `data.lista` el campo ya viene
+    // calculado correctamente.
+    data.lista.forEach((x: any) => {
       if (!x.hasCr) {
         colRevision.push(x);
       } else {

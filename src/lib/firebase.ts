@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -20,7 +20,16 @@ export const missingEnv = Object.entries(config)
 
 export const app = initializeApp(config);
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+// Sin `tabManager: persistentMultipleTabManager()`, abrir el sitio en una
+// segunda pestaña (o una segunda sesion, como la de este mismo navegador
+// controlado) le quita a la primera el acceso exclusivo a la cache local —
+// Firestore cae a memoria en silencio, sin ningun error visible en la UI.
+// Los guardados pueden parecer exitosos en pantalla sin persistir de
+// verdad, o las lecturas pueden quedarse en datos viejos. Esto explica muy
+// probablemente varios de los "se guardo y luego desaparecio" de hoy.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'us-east1');
 

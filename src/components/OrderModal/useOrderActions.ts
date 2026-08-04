@@ -122,7 +122,14 @@ export function useOrderActions() {
           );
         }
 
-        tx.set(ref, {
+        // Firestore rechaza el documento COMPLETO si cualquier campo llega
+        // como `undefined` — no lo ignora, no lo omite, truena la escritura
+        // entera. Costo/Precio/Comision personalizados son opcionales por
+        // diseño (el usuario los deja en blanco casi siempre), pero antes
+        // se mandaban siempre en el objeto, con valor `undefined` cuando
+        // estaban vacios — eso hacia fallar el guardado de CUALQUIER
+        // expediente que no llenara los tres, que es el caso mas comun.
+        const datosBase: Record<string, unknown> = {
           folio: form.folio.trim(),
           client: form.client.trim(),
           clientEmail: form.clientEmail.trim(),
@@ -133,12 +140,14 @@ export function useOrderActions() {
           deliveries: form.deliveries,
           items: form.items,
           processedAt: order.processedAt ?? serverTimestamp(),
-          customCostPrice: ccp,
-          customSellPrice: csp,
-          customCommissionRate: ccr,
           isClosedShort: form.isClosedShort ?? false,
           ...camposInvoices(updatedInvoices),
-        }, { merge: true });
+        };
+        if (ccp !== undefined) datosBase.customCostPrice = ccp;
+        if (csp !== undefined) datosBase.customSellPrice = csp;
+        if (ccr !== undefined) datosBase.customCommissionRate = ccr;
+
+        tx.set(ref, datosBase, { merge: true });
       });
 
       try {
