@@ -350,3 +350,150 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — solo agrega manejo de casos nulos, no cambia el comportamiento para datos completos.
 **Commit:** `fix(DataMining): no tronar la pantalla completa por expedientes sin fecha o sin folio`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 41: 🟢 Confirmado en vivo: "Pendiente por Facturar" ya muestra $161,606 exactos, cuadra 100% contra el Excel
+**Fecha:** 2026-08-04
+**Verificación:** Se revisó directamente el documento `stats/dashboard` del servidor y ya contiene `montoPendienteFacturar: 161606` — el cálculo del servidor SIEMPRE fue correcto; el $0 que se veía antes era una vista sin refrescar. Confirmado en pantalla: "Deuda Total Providencia: $1,319,423.80" coincide EXACTO con el Excel del usuario.
+**Nota:** Se detectó de paso que "Material Flotante" volvió a mostrar un valor negativo (-20,861.42 kg) tras esta corrección — mismo patrón de la Iteración 24 (desbalance kilos facturados vs. recibidos). Pendiente de investigar en un ciclo dedicado, no reportado explícitamente por el usuario todavía.
+**Archivo:** `src/index.css` — reforzada la barra de scroll de la pantalla principal (`html`/`body`) con una regla explícita adicional, en caso de que el selector universal no cubra el scroll raíz en todos los navegadores.
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 42: Al abrir un expediente, la página "salta" y la barra de scroll cambia de golpe (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/ui.tsx`
+**Problema:** El usuario reportó que la barra de scroll vertical "no se ve bien" específicamente al abrir algo desde el panel "Por Cobrar". Causa encontrada: al abrir cualquier expediente, el modal bloquea el scroll del fondo con `document.body.style.overflow = 'hidden'` — correcto por diseño (evita scrollear la pantalla tapada) — pero **sin compensar el ancho que dejó la barra de scroll que acaba de desaparecer**. El contenido de la página salta unos píxeles hacia la derecha en el instante exacto en que se abre el expediente (y vuelve a saltar al cerrarlo), justo cuando la barra del modal (más corta, contenida solo en el cuadro del expediente) reemplaza visualmente a la barra de toda la página. Ese salto + cambio de barra es probablemente lo que se percibe como "no se ve bien".
+**Solución:** Se mide el ancho real de la barra de scroll antes de ocultarla, y se compensa con `padding-right` en el body — el contenido ya no salta al abrir ni cerrar un expediente.
+**Riesgo:** 🟢 Bajo — es una técnica estándar (scrollbar-width compensation), no cambia ningún comportamiento funcional.
+**Commit:** `fix(Modal): compensar el ancho de la barra de scroll al bloquear el fondo, evita que la pagina salte al abrir un expediente`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 42: Tablero Kanban para Compras (Andrés) (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/Compras/ComprasKanban.tsx` (nuevo), `src/pages/Compras.tsx`
+**Contexto:** A petición del usuario, se construyó una vista de tablero para el flujo de compras con Andrés, con el mismo lenguaje visual que ya funciona bien en Cobranza (columnas, scroll propio, tarjetas con progreso).
+**Columnas (según el flujo real que describió el usuario: OC → anticipo → entrega → pago):**
+- 📋 **Pedido** — sin nada recibido todavía
+- 🚚 **En Tránsito** — recibido parcial
+- 📦 **Recibido — Falta Pagar** — 100% recibido, pago pendiente
+- ✅ **Pagado** — recibido y liquidado
+**Integración:** Botón "Lista / Tablero" en la pestaña "Órdenes de Compra" — no reemplaza la vista existente, se puede alternar.
+**Hallazgo de paso:** las tarjetas de la vista de lista ya existente usaban clases `badge-ok`/`badge-warn` que **no existen en el CSS** (mismo patrón de bug encontrado varias veces antes) — corregido en este archivo con estilos en línea usando las variables reales. Se encontraron **5 archivos más** con el mismo patrón (`orderModalPrint.ts`, `TabEntregas.tsx`, `TabResumen.tsx`, `ChangelogFeed.tsx`, `Dashboard.tsx`) — quedan pendientes para un ciclo dedicado, no se tocaron para no desviarse de esta tarea.
+**Riesgo:** 🟢 Bajo — vista nueva, de solo lectura (clic abre el mismo modal de edición que ya existía).
+**Commit:** `feat(Compras): tablero Kanban para el flujo de compras con Andres`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 43: 🔴 Encontrada la causa real de "Material Flotante" negativo — guardar CUALQUIER cambio en un expediente borraba su registro de compra ligado (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`, `src/hooks/useDashboardStats.ts`
+**Pregunta del usuario:** "-20,861.42 kg ¿es correcto? Pedí una auditoría anterior y no lo detectaste." Justo — se había anotado como pendiente sin explicar la causa real. Esta vez sí se investigó a fondo con los datos reales de Firestore.
+**Causa raíz encontrada:** `upsertAndresPurchase()` se ejecuta en **cada guardado de cualquier expediente**, sin importar qué se edite, y **siempre recalcula `receivedKilos` desde `form.deliveries`** — sobrescribiendo el registro de compra ligado a ese expediente. Para el expediente de la migración original (OC-CR, que nunca tuvo un arreglo de "entregas" — solo kilos capturados directamente en cada factura), esto da `kilosEntregados = 0` **siempre**. Confirmado con los datos reales: el registro de compra "Andrés" que se corrigió manualmente a 23,825.58 kg en un ciclo anterior **volvió a quedar en 0** la primera vez que se guardó cualquier cambio en ese expediente — en este caso, la corrección del contrarecibo GT-597. Se encontró también un tercer registro de compra sin filtrar por proveedor ("N0342 - ELEMENTAL DENIM", 2,964.16 kg) sumándose de más al mismo cálculo.
+**Solución:** (1) `upsertAndresPurchase` ahora usa los kilos de las facturas como respaldo cuando el expediente no tiene entregas explícitas, en vez de sobrescribir con 0. (2) "Material Flotante" ahora filtra las compras por proveedor (consistente con la Iteración 35) — ya no cuenta compras de otros proveedores como si fueran de Andrés.
+**Dato pendiente de reparar:** El registro de compra "Andrés" sigue en 0 en la base de datos real ahora mismo — el código ya no lo va a volver a romper, pero el valor actual necesita corregirse una vez más después de desplegar (para no repetir el ciclo de "se corrige, se guarda algo no relacionado, se vuelve a romper").
+**Riesgo:** 🟡 Medio — toca la función de vinculación de compras, usada en cada guardado de expediente. Mitigado: el cambio es conservador (solo evita sobrescribir con 0 cuando hay un respaldo real de kilos).
+**Commit:** `fix(upsertAndresPurchase): no sobreescribir receivedKilos con 0 si el expediente no tiene entregas pero si facturas; fix(inventarioVivo): filtrar compras por proveedor`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 43: 🔴 "Ganancia Comercial" con margen por kilo inflado ($8.08/kg en vez de ~$5/kg real) — auditoría con números reales (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `functions/src/stats.ts`
+**Contexto:** El usuario pidió una auditoría real de las fórmulas del sistema. Se verificó la fórmula base (`functions/src/shared/finance.core.ts`) — sólida, con aritmética decimal precisa y 21 pruebas. Pero al calcular margen-por-kilo con los números reales del servidor (`margenTotal / totalKilos = $550,852.98 / 68,140.55 kg = $8.08/kg`) contra el margen esperado del negocio (`$47 venta − $42 costo = $5/kg`), la diferencia era real y medible — no una percepción.
+**Causa raíz, confirmada con los datos reales del expediente:** el KPI "kilos totales" leía `data.totalKilograms`, un campo a **nivel expediente** — para el expediente que agrupa los 10 contrarecibos reales, ese campo está en **0**, aunque sus 12 facturas suman **23,825.58 kg reales** capturados individualmente. El cálculo de "margen" sí usa los kilos de cada factura (correcto), pero el conteo de "kilos totales" no — dejando el denominador subestimado en más de 23 mil kilos, e inflando artificialmente el margen-por-kilo aparente.
+**Solución:** El KPI de kilos ahora usa la suma real de las facturas como respaldo cuando el campo resumen del expediente está vacío — mismo patrón de corrección que ya se aplicó para "Pendiente por Facturar" y "Material Flotante" en ciclos anteriores.
+**Riesgo:** 🟡 Medio — toca el cálculo de kilos del agregado del servidor, usado por varios KPIs. Mitigado: el cambio es un respaldo aditivo (solo actúa cuando el campo principal está vacío), no cambia ningún caso donde `totalKilograms` ya tenga un valor real.
+**Commit:** `fix(stats): usar suma de kilos por factura cuando el campo resumen del expediente esta vacio`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio (frontend y functions), `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario. Requiere "Recalcular Indicadores" después de instalar para que el nuevo total de kilos se refleje.
+
+### Iteración 44: "Por Recibir del Contador" mostraba $440,559.13 en vez de $427,997.50 — comisión faltante en facturas importadas por XML (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/lib/finance.ts`, `src/hooks/useDashboardStats.ts`, `functions/src/stats.ts`
+**Problema:** El usuario comparó el panel "Por Recibir del Contador" contra su Excel: el bruto coincidía casi exacto ($459,703.38 vs $459,703.23), pero el neto no ($440,559.13 vs $427,997.50 esperado) — una diferencia de $12,561.63.
+**Causa raíz:** Las facturas GT-570 (#5927, #5928) mostraban "-$0.00" de comisión, mientras TH-680 y GT-535 sí mostraban ~6.9% correctamente. El código lee `inv.financials.commission` como un valor **guardado** (snapshot), no calculado — para facturas capturadas vía XML (como estas dos), ese campo nunca se llenó, quedando en $0 aunque la comisión real siga aplicando. La diferencia calculada ($12,561.63) coincide con la comisión que faltaba exactamente en esas dos facturas.
+**Solución:** (1) Del lado del cliente, cuando el valor guardado es 0/falta, ahora se calcula en vivo con la tasa de comisión configurada. (2) Se encontró el mismo patrón sin respaldo, sin corregir, en **el cálculo del servidor** (`functions/src/stats.ts`, afecta `porRecibir` y `gananciaRealizada` para TODO el sistema, no solo este panel) — corregido con la misma logica de respaldo, usando la tasa estándar (6.9%) ya que ese archivo no tiene acceso directo a la configuración dinámica en ese punto (mismo patrón que ya usaba el archivo para el costo por kilo, con `|| 42` como respaldo).
+**Riesgo:** 🟡 Medio — toca calculos financieros del servidor. Mitigado: el respaldo solo se activa cuando el valor guardado es exactamente 0/falta, nunca sobreescribe una comisión personalizada real ya capturada.
+**Commit:** `fix(comision): calcular comision en vivo cuando el valor guardado falta, en cliente y servidor`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio (frontend y funciones), `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 45: Tarjeta "Por Recibir del Contador" rediseñada — flujo en 3 pasos, claro para cualquiera (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/pages/Dashboard.tsx`
+**Contexto:** El usuario preguntó cuál de las dos cifras usar ($459,703.23 bruto vs $427,997.50 neto) y pidió que el sistema lo mostrara claro, para que hasta su socio lo entendiera sin explicación. La cifra correcta ya era la neta (confirmado: eso es lo que de verdad entra a Caja), pero la tarjeta solo mostraba el resultado final sin explicar de dónde salía.
+**Solución:** La tarjeta ahora muestra el flujo completo en 3 pasos, visualmente: **Cobrado por el cliente** (bruto) → **− Comisión del contador** → **= Esto es lo que entra a tu Caja** (neto) — como una especie de recibo simple, en vez de una sola cifra sin contexto.
+**Riesgo:** 🟢 Bajo — solo visual, no cambia ningún cálculo (que ya estaba correcto).
+**Commit:** `feat(Dashboard): flujo de 3 pasos en la tarjeta Por Recibir del Contador`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 44: 🔴 El registro de compra tomaba el proveedor del texto de la OC (a veces el propio negocio del usuario) en vez del proveedor real de material (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`, `src/components/OrderModal/index.tsx`, `src/components/Compras/OrderModals.tsx`
+**Contexto:** El usuario aclaró el modelo de negocio: Providencia le hace órdenes de compra a "Elemental Denim" (el propio negocio del usuario, el comercializador), y el usuario a su vez consigue el material con **Andrés** (el proveedor real). El campo "Proveedor" del expediente, cuando se llena pegando el texto de una OC, termina con el nombre que aparece en ese documento (a veces "Elemental Denim", el propio negocio del usuario) — no con quien realmente entrega el material.
+**Impacto confirmado con datos reales:** el registro de compra creado automáticamente al guardar el expediente 71/14014 quedó con proveedor "N0342 - ELEMENTAL DENIM" en vez de "Andrés" — invisible en todas las pantallas de Compras (que filtran por "Andrés"), y excluido del cálculo de "Estado con Andrés".
+**Solución:** Los dos lugares que crean/actualizan el registro de compra automáticamente ahora usan siempre el **proveedor real configurado en Centro de Control** ("Nombre del Proveedor/Fabricante"), sin importar qué diga el campo "Proveedor" del expediente individual.
+**Corrección del dato ya existente:** con este código desplegado, basta con volver a abrir el expediente 71/14014 y guardar (sin cambiar nada más) — el sistema corrige automáticamente el proveedor del registro de compra asociado, sin necesitar edición manual.
+**Además, corregido en esta sesión (config):** "Deuda Histórica Inicial con Andrés" se ajustó de -$123,175.56 a **+$21,824.44**, verificado con el propio cálculo del usuario: $124,494.72 (2,964.16 kg × $42) − $21,824.44 = $102,670.28, coincidiendo con el saldo real. Confirmado en pantalla: "Estado de Cuenta: +$21,824.44".
+**Riesgo:** 🟡 Medio — toca la creación del registro de compra automático, usado en dos flujos distintos (guardar expediente y registrar entrega desde Compras). Mitigado: el cambio es un cambio de fuente de dato (qué proveedor usar), no de lógica de cálculo.
+**Commit:** `fix(compras): usar el proveedor real configurado (Andres) en vez del proveedor del expediente para el registro de compra automatico`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario. El ajuste de configuración (+$21,824.44) SÍ ya se guardó en vivo, confirmado en pantalla.
+
+### Iteración 45: 🔴 El número real de OC nunca se guardaba — el sistema solo capturaba el folio interno (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/TabProductos.tsx`, `src/components/OrderModal/TabResumen.tsx`, `src/components/OrderModal/useOrderActions.ts`
+**Contexto:** El usuario insistió en que OC (ej. `120267114014`) y Contrarecibo (`TH-xxx`/`GT-xxx`) son documentos distintos y no deben confundirse. Se verificó el expediente 71/14014 recién creado directamente en Firestore: el campo `oc` **no existe en absoluto** en el documento — solo se guardó el folio interno corto.
+**Causa raíz encontrada:** "Pegar Texto de OC" SÍ detecta ambos números en el texto (`No. Ord. de Compra: 71/14014` y `CDB OC: 120267114014`), pero el código solo capturaba **uno de los dos** — el primero que coincidiera — descartando el otro por completo, porque usaba `if (!newFolio) { ... else if ... }` en vez de capturar los dos de forma independiente. Además, **no existía ningún campo visible en la pantalla** donde ver o corregir el número de OC a mano, y aunque hubiera existido, **el guardado tampoco incluía ese campo** en el objeto que se escribe a Firestore — tres fallas en cadena para el mismo dato.
+**Solución:**
+1. El parser ahora captura Folio y OC como dos valores independientes, cada uno en su propio campo.
+2. Se agregó un campo visible y editable **"Número de OC (Orden de Compra)"** en la pestaña Resumen, junto a Folio — para poder verlo y corregirlo a mano cuando haga falta.
+3. El guardado ahora sí incluye el campo `oc` (con el mismo cuidado de omitirlo si viene vacío, para no repetir el bug de `undefined` corregido antes).
+**Riesgo:** 🟢 Bajo — agrega un campo nuevo, no modifica ningún dato existente.
+**Commit:** `fix(OrderModal): capturar y guardar el numero real de OC por separado del folio interno`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 46: Panel "Con el Contador" — duplicados reales confirmados; detección visual de duplicados; totales por columna; cursor corregido (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/Cobranza/TableroKanban.tsx`
+**Problema #1 — Expedientes duplicados:** Confirmado con evidencia directa de Firestore: **son dos expedientes reales y distintos** (`QMjuMVzzM3rPPchXlgZC`, folio "PED-OC-HIST", y `cTpSirJD5iv2lx56X4BB`, sin folio), ambos con las mismas facturas 5927/5928 — de la migración original, no un bug de la pantalla. La pantalla mostraba correctamente lo que existe en la base de datos.
+**Problema #2 — Dificultad para entrar a los expedientes:** el cursor de las tarjetas decía `grab` (solo sugiere "arrastrar"), aunque el clic ya abría el expediente correctamente — confundía sobre cómo interactuar. Cambiado a `pointer`.
+**Mejoras agregadas:**
+- **Detección automática de posibles duplicados**: cualquier tarjeta que comparta el mismo número de Contrarecibo con otra en la misma columna ahora se marca con un borde ámbar y una etiqueta "⚠️ Posible duplicado" — para que el usuario los detecte de un vistazo, sin depender de que yo los busque a mano cada vez.
+- **Total en dinero por columna**, no solo el conteo — cada columna del tablero ahora muestra "Total: $X" debajo del encabezado.
+**Riesgo:** 🟢 Bajo — mejoras visuales y de detección, de solo lectura; no borra ni modifica ningún dato.
+**Pendiente de confirmación del usuario:** cuál de los dos expedientes duplicados (5927/5928) debe conservarse — no se borró ninguno sin su autorización explícita.
+**Commit:** `feat(TableroKanban): deteccion visual de duplicados, totales por columna, cursor corregido`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 45: Sin protección contra duplicar CR, número de Factura, ni número de OC (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/TabFacturas.tsx`, `src/components/OrderModal/useOrderActions.ts`
+**Pregunta del usuario:** si el sistema evita duplicar contrarecibos, OC y facturas, y si es posible que una OC se facture con varias facturas.
+**Respuesta verificada en el código, no supuesta:**
+- El modelo de datos **ya soporta** que un expediente tenga varias facturas (`invoices: Invoice[]`) — es como ya funciona la OC-71-14014 en la práctica.
+- Solo existía verificación de duplicados para el **folio interno** del expediente. **No existía ninguna** para el número de Contrarecibo, el número de Factura, ni el número real de OC — así fue exactamente como "333333" se pudo colar en un campo de CR sin ningún aviso.
+**Solución:** Se agregó la misma verificación (avisa con confirmación, no bloquea — para no estorbar casos legítimos donde el usuario sabe lo que hace) en los tres campos: Contrarecibo, Folio de Factura, y número de OC. Cada uno revisa contra **todos los expedientes del sistema**, no solo el actual.
+**Riesgo:** 🟢 Bajo — son avisos adicionales antes de guardar, no cambian ningún cálculo ni bloquean ningún caso real.
+**Commit:** `feat(OrderModal): avisar si se repite un numero de Contrarecibo, Factura, u OC entre expedientes`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 46: Tablero Kanban para Logística de Entregas — completa la trilogía visual (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OcTracking/EntregasKanban.tsx` (nuevo), `src/pages/OcTracking.tsx`
+**Contexto:** Tercer y último tablero de la trilogía visual (Compras → Entregas → Cobranza), a petición del usuario, completando el mismo lenguaje visual en los tres módulos que siguen el flujo real de negocio.
+**Columnas (todo el ciclo, de punta a punta):**
+- 📋 **Pedido** — sin nada entregado
+- 🚚 **En Camino** — entrega parcial
+- 📦 **Entregado — Sin Facturar** — 100% entregado, falta facturar
+- 🧾 **Facturado — Por Cobrar** — facturado, pendiente de cobro
+- ✅ **Cobrado** — ciclo completo
+**Nota de calidad:** se encontró y corrigió un error de lógica propio antes de terminar — una de las columnas ("En Camino") nunca se hubiera alcanzado por el orden de las condiciones (código muerto), detectado en revisión antes de dar por completa la tarea.
+**Integración:** Botón "Lista / Tablero" junto a los botones existentes de Compartir/Imprimir — no reemplaza la vista actual, se alterna. Reutiliza el mismo `OrderModal` al hacer clic en una tarjeta.
+**Riesgo:** 🟢 Bajo — vista nueva, de solo lectura.
+**Commit:** `feat(OcTracking): tablero Kanban para Logistica de Entregas`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 47: 🔴 Expedientes completamente cobrados desaparecían del tablero Kanban de Expedientes (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/Orders/KanbanBoard.tsx`
+**Contexto:** El usuario pidió revisar también Expedientes & Ventas. Se encontró que **ya existe** un tablero Kanban bien construido, con columnas por estado real de negocio (no genérico) — no necesitaba reconstruirse, solo auditarse.
+**Bug encontrado:** `OrderStatus` tiene 7 valores posibles (`pedido, facturado, pending, paid, collected, overdue, manual_review`), pero el tablero solo tenía **6 columnas** — faltaba `'collected'` (el estado final: ya cobrado y recolectado a Caja Chica). Cualquier expediente en ese estado **no tenía ninguna columna donde aparecer**, desapareciendo del tablero sin ningún aviso.
+**Solución:** Se agregó la columna faltante ("✅ Cobrado y Recolectado"). De paso, se renombró la columna de `paid` de "Cobradas" a "Con el Contador" — más preciso: ese estado significa que el cliente ya pagó pero el contador todavía no entrega el efectivo, no que el dinero ya esté en Caja (eso es "collected").
+**Riesgo:** 🟢 Bajo — agrega una columna, no quita ninguna.
+**Commit:** `fix(KanbanBoard): agregar columna faltante para expedientes ya cobrados y recolectados`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.

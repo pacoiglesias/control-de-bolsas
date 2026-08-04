@@ -9,7 +9,7 @@ import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from './types';
  * Se reexporta desde aqui para que nada del frontend tenga que conocer esa
  * ruta y todos los imports existentes sigan funcionando igual.
  */
-import { round2 } from '../../functions/src/shared/finance.core';
+import { round2, computeCommissionFromInvoiceTotal } from '../../functions/src/shared/finance.core';
 
 export {
   computeFinancials,
@@ -234,7 +234,7 @@ export interface PorRecibirItem {
   net: number;
 }
 
-export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: number = 0) {
+export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: number = 0, config?: any) {
   const vencidas: { o: PurchaseOrder; inv: Invoice; d: number }[] = [];
   const proximas: { o: PurchaseOrder; inv: Invoice; d: number }[] = [];
   const porRecibir: PorRecibirItem[] = [];
@@ -279,7 +279,15 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: nu
       }
       if (s === 'paid') {
         const invoiceTotal = Number(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
-        const commission = Number(inv.financials?.commission ?? 0);
+        // inv.financials.commission es un valor guardado (snapshot) del
+        // momento en que se capturo la factura -- para facturas importadas
+        // por XML (como estas dos), ese campo nunca se lleno y quedaba en
+        // $0.00 de comision, aunque la comision real siga aplicando. Si no
+        // hay valor guardado, se calcula en vivo con la tasa configurada.
+        const storedCommission = Number(inv.financials?.commission ?? 0);
+        const commission = storedCommission > 0 || !config
+          ? storedCommission
+          : computeCommissionFromInvoiceTotal(invoiceTotal, config);
         porRecibir.push({
           orderId: o.id,
           invoiceId: inv.id,

@@ -20,7 +20,7 @@ export function useDashboardStats(
     const maxMes = mesesKeys.length > 0 ? Math.max(1, ...mesesKeys.map((m) => mesesObj[m].venta)) : 1;
 
     const avgDSO = counters.paymentDaysCount > 0 ? (kpis.paymentDaysSum || 0) / counters.paymentDaysCount : 0;
-    const alerts = extractDashboardAlerts(activeOrders, avgDSO);
+    const alerts = extractDashboardAlerts(activeOrders, avgDSO, config);
     const vencidas = alerts.vencidas;
     const proximas = alerts.proximas;
     const porRecibir = alerts.porRecibir;
@@ -92,8 +92,15 @@ export function useDashboardStats(
     };
 
     // Inventario Vivo (Bodega)
+    // Solo cuenta como "recibido de Andres" lo que realmente viene de
+    // Andres -- antes sumaba compras de CUALQUIER proveedor guardado en
+    // la coleccion (incluyendo el proveedor real de un expediente nuevo,
+    // capturado sin querer como si fuera parte del inventario de Andres).
     let totalReceivedKilos = 0;
-    (purchases || []).forEach(p => totalReceivedKilos += (p.receivedKilos || 0));
+    (purchases || []).forEach(p => {
+      if (normalizarTexto(p.provider) !== 'andres') return;
+      totalReceivedKilos += (p.receivedKilos || 0);
+    });
     const inventarioVivo = totalReceivedKilos - totalKilosInvoiced;
 
     // Caja y Flujo

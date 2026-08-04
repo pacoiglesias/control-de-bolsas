@@ -121,7 +121,15 @@ export function Modal({
     // botones de la pantalla que quedaba tapada.
     const previo = document.activeElement as HTMLElement | null;
     const overflowPrevio = document.body.style.overflow;
+    const paddingPrevio = document.body.style.paddingRight;
+    // Sin esto, ocultar la barra de scroll del fondo (abajo) deja un hueco
+    // del ancho exacto de esa barra -- el contenido de la pagina "salta"
+    // unos pixeles hacia la derecha en el instante en que se abre el
+    // expediente, y vuelve a saltar al cerrarlo. Compensar ese ancho con
+    // padding evita el salto.
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
 
     const focusables = () =>
       Array.from(
@@ -155,6 +163,7 @@ export function Modal({
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
       document.body.style.overflow = overflowPrevio;
+      document.body.style.paddingRight = paddingPrevio;
       previo?.focus?.();
     };
   }, []);

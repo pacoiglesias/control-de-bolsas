@@ -13,7 +13,8 @@ const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: strin
   { id: 'pending', label: 'Con Contrarecibo', color: '#b45309', bg: '#fef3c7' },
   { id: 'overdue', label: 'Vencidas', color: '#b91c1c', bg: '#fef2f2' },
   { id: 'manual_review', label: 'Revisión Manual', color: '#c2410c', bg: '#ffedd5' },
-  { id: 'paid', label: 'Cobradas', color: '#15803d', bg: '#f0fdf4' },
+  { id: 'paid', label: 'Con el Contador', color: '#15803d', bg: '#f0fdf4' },
+  { id: 'collected', label: '✅ Cobrado y Recolectado', color: '#047857', bg: '#ecfdf5' },
 ];
 
 export default function KanbanBoard({ items, onSelect }: { items: OrderWithSummary[], onSelect: (o: PurchaseOrder) => void }) {

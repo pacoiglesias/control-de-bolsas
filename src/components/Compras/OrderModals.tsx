@@ -8,6 +8,7 @@ import { Modal, Field, Empty } from '../ui';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
 import { newDeliveryEvent, updateDeliveryField, updateDeliveryItemQuantity, computeDeliveredTotals, migrateLegacyDeliveries, upsertAndresPurchase } from '../../lib/deliveries';
 import { logAction, safeDeleteDoc } from '../../lib/logger';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { round2 } from '../../lib/finance';
 
 export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Purchase, onClose: () => void, costPricePerKg: number }) {
@@ -107,6 +108,7 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
 
 export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { order: PurchaseOrder, onClose: () => void, costPricePerKg: number }) {
   const toast = useToast();
+  const { settings } = useSystemSettings();
   const [busy, setBusy] = useState(false);
   const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
   const [existingDeliveries] = useState(() => migrateLegacyDeliveries(order, order.deliveries ?? []));
@@ -147,7 +149,11 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
       
       await upsertAndresPurchase({
         orderId: order.id,
-        provider: order.provider || 'Andrés',
+        // El proveedor real de material (Andres) esta configurado
+        // globalmente -- no debe depender de lo que diga order.provider,
+        // que puede reflejar el nombre del propio negocio del usuario si
+        // vino de un texto de OC pegado (ver Iteracion correspondiente).
+        provider: settings?.providerName || order.provider || 'Andrés',
         expectedKilos: kilosPedidos,
         receivedKilos: totalEntregadoAhora,
         costPerKg: order.customCostPrice ?? costPricePerKg,

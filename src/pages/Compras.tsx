@@ -8,6 +8,7 @@ import { ComprasKpiGrid } from '../components/Compras/ComprasKpiGrid';
 import { PagarAndresModal } from '../components/Compras/PagarAndresModal';
 import { AndresLedgerTable } from '../components/Compras/AndresLedgerTable';
 import { OrderModal, RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderModals';
+import { ComprasKanban } from '../components/Compras/ComprasKanban';
 import { exportToCsv, getPrintHeaderHtml, fmtDate } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
 import type { Purchase, PurchaseOrder } from '../lib/types';
@@ -36,6 +37,7 @@ export default function Compras() {
   const [tab, setTab] = useState<'estado' | 'ordenes' | 'revision'>('estado');
   const [filter, setFilter] = useState<'activas'|'completadas'|'todas'>('activas');
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'lista' | 'tablero'>('lista');
 
   if (error) return <div className="alert bad">{error}</div>;
   if (!loading && role !== 'admin') return <Navigate to="/" replace />;
@@ -162,22 +164,30 @@ export default function Compras() {
 
       {tab === 'ordenes' && (
         <Card title="Control de Órdenes (OC)">
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-            <input 
-              type="search" 
-              className="input boxed" 
-              placeholder="Buscar por folio o concepto..." 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
-              style={{ maxWidth: 300 }}
-            />
-            <select className="input boxed" value={filter} onChange={e => setFilter(e.target.value as 'activas'|'completadas'|'todas')}>
-              <option value="activas">Solo Activas (Pendientes de llegar)</option>
-              <option value="completadas">Solo Completadas (Llegó el 100%)</option>
-              <option value="todas">Mostrar Todas</option>
-            </select>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <input 
+                type="search" 
+                className="input boxed" 
+                placeholder="Buscar por folio o concepto..." 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                style={{ maxWidth: 300 }}
+              />
+              <select className="input boxed" value={filter} onChange={e => setFilter(e.target.value as 'activas'|'completadas'|'todas')}>
+                <option value="activas">Solo Activas (Pendientes de llegar)</option>
+                <option value="completadas">Solo Completadas (Llegó el 100%)</option>
+                <option value="todas">Mostrar Todas</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
+              <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
+            </div>
           </div>
-          {provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (() => {
+          {view === 'tablero' ? (
+            <ComprasKanban purchases={provPurchases} orderById={orderById} onSelect={setSelected} />
+          ) : provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (() => {
             // ANTES: `search` y `filter` existian como controles visuales
             // pero nunca se aplicaban a la lista — cambiarlos no hacia
             // absolutamente nada. Se corrigen aqui, al mismo tiempo que se
@@ -215,7 +225,7 @@ export default function Compras() {
                           <div className="mono" style={{ fontWeight: 700, fontSize: 15 }}>{o?.folio || 'S/F'}</div>
                           <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{o?.client || '—'}</div>
                         </div>
-                        <span className={`badge ${completo ? 'badge-ok' : 'badge-warn'}`}>{completo ? '✅ Completa' : '⏳ Activa'}</span>
+                        <span className="badge" style={{ background: completo ? 'var(--ok)' : 'var(--warn)' }}>{completo ? '✅ Completa' : '⏳ Activa'}</span>
                       </div>
 
                       <div>

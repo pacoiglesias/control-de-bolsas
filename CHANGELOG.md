@@ -1,5 +1,61 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.58.0] - 4 Agosto 2026 (Proveedor real de Andres, avisos de duplicados, 2 tableros Kanban nuevos)
+
+### Corregido — crítico
+- **El registro de compra tomaba el proveedor del texto de la OC pegada** (a veces el propio negocio del usuario, ej. "Elemental Denim") **en vez del proveedor real que entrega el material** (Andrés). Ahora siempre usa el proveedor configurado globalmente en Centro de Control, sin importar qué diga el expediente individual. Corregir un expediente ya existente basta con volver a guardarlo — se autocorrige.
+- **Deuda Histórica con Andrés** ajustada de -$123,175.56 a **+$21,824.44**, verificada con el propio cálculo del usuario contra su saldo real ($102,670.28).
+- **Expedientes completamente cobrados desaparecían del tablero Kanban** de Expedientes & Ventas — faltaba una columna para el estado final ("collected"), de 7 estados posibles solo había 6 columnas.
+
+### Agregado
+- **Sin ninguna protección contra duplicar números de Contrarecibo, Factura, u OC entre expedientes** — corregido: ahora avisa (con confirmación, no bloqueo) si el número ya existe en otro expediente del sistema.
+- **Tablero Kanban para Logística de Entregas** — completa la trilogía visual (Compras → Entregas → Cobranza), columnas: Pedido → En Camino → Entregado sin facturar → Facturado por cobrar → Cobrado.
+- Columna "✅ Cobrado y Recolectado" agregada al tablero de Expedientes; columna `paid` renombrada de "Cobradas" a "Con el Contador" (más preciso).
+
+
+## [v6.57.0] - 4 Agosto 2026 (Auditoria completa: numeros cuadrados contra Excel, 0 errores)
+
+Verificacion final antes de esta entrega: `tsc` limpio (frontend y funciones),
+`eslint` 0 errores / 0 avisos, **42/42 pruebas**, build completo en ambos
+proyectos. Todo lo de aqui abajo ya esta en el codigo, verificado.
+
+### 🔴 Critico
+- **"Pendiente por Facturar" y "Deuda Total Providencia" ya cuadran exacto
+  contra el Excel** ($161,606.00 y $1,319,423.80). Causa: el guardado de un
+  expediente migrado se bloqueaba por campos de resumen sin llenar (kilos,
+  proveedor) ajenos al cambio que se intentaba hacer.
+- **"Material Flotante" volvia a quedar negativo despues de CUALQUIER
+  guardado** en el expediente migrado — `upsertAndresPurchase()` recalculaba
+  el registro de compra ligado desde "entregas", y para expedientes que solo
+  tienen kilos a nivel factura (sin arreglo de entregas), lo dejaba en 0
+  cada vez, borrando correcciones anteriores sin avisar.
+- **"Ganancia Comercial" con margen por kilo inflado** ($8.08/kg calculado
+  vs ~$5/kg real del negocio) — el conteo de "kilos totales" del servidor
+  leia un campo de resumen vacio en vez de sumar las facturas reales.
+- **"Por Recibir del Contador" mostraba $440,559.13 en vez de $427,997.50**
+  — dos facturas importadas por XML nunca capturaron el campo de comision,
+  mostrando -$0.00 en vez del ~6.9% real. Corregido en cliente y servidor.
+- **Corregir un numero de Contrarecibo (CR) se revertia solo** al perder el
+  foco del campo — el prefijo (TH-/GT-) se reescribia siempre con el
+  departamento del expediente, descartando lo que el usuario acababa de
+  escribir.
+
+### Corregido
+- Al abrir un expediente, la pagina "saltaba" por no compensar el ancho de
+  la barra de scroll que se ocultaba de fondo.
+- Mover una tarjeta en Cobranza de "Por Cobrar" a "Revision" borraba el CR
+  sin ninguna confirmacion.
+
+### Mejorado / Nuevo
+- **Tarjeta "Por Recibir del Contador" rediseñada**: flujo claro en 3 pasos
+  (Cobrado por el cliente − Comision del contador = Lo que entra a Caja),
+  en vez de una sola cifra sin contexto.
+- **Tablero Kanban para Compras (Andres)**: nueva vista alternable en
+  "Ordenes de Compra", mismo lenguaje visual que ya funciona en Cobranza
+  (Pedido → En Transito → Recibido, Falta Pagar → Pagado).
+- Barra de scroll de la pantalla principal reforzada de forma explicita.
+
+
 ## [v6.56.0] - 4 Agosto 2026 (Paquete grande: 4 correcciones críticas + 6 mejoras)
 
 ### 🔴 Crítico

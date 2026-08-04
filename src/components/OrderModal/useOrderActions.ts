@@ -9,7 +9,7 @@ import { safeDeleteDoc, logAction } from '../../lib/logger';
 
 export function useOrderActions() {
   async function saveOrder({
-    form, order, kilosNum, allOrders, dynamicConfig, baselineUpdatedAt, userEmail, toast, setBusy, onClose, liveSummary
+    form, order, kilosNum, allOrders, dynamicConfig, baselineUpdatedAt, userEmail, toast, setBusy, onClose, liveSummary, materialProviderName
   }: any) {
     // ANTES: exigia kilosNum > 0 SIEMPRE, incluso para editar un
     // expediente que ya tiene facturas reales con kilos capturados a
@@ -38,6 +38,19 @@ export function useOrderActions() {
       if (duplicado) {
         const continuar = window.confirm(
           `Ya existe otro expediente con el folio "${folioTrim}" (cliente: ${duplicado.client || '—'}). ` +
+          `¿Seguro que quieres guardar de todos modos?`,
+        );
+        if (!continuar) return;
+      }
+    }
+    // El numero real de OC (distinto del folio interno) nunca deberia
+    // repetirse entre expedientes -- no tenia ninguna verificacion antes.
+    const ocTrim = (form.oc || '').trim();
+    if (ocTrim) {
+      const ocDuplicada = allOrders.find((o: any) => o.id !== order.id && (o.oc ?? '').trim() === ocTrim);
+      if (ocDuplicada) {
+        const continuar = window.confirm(
+          `Ya existe otro expediente con el número de OC "${ocTrim}" (cliente: ${ocDuplicada.client || '—'}). ` +
           `¿Seguro que quieres guardar de todos modos?`,
         );
         if (!continuar) return;
@@ -155,19 +168,41 @@ export function useOrderActions() {
         if (ccp !== undefined) datosBase.customCostPrice = ccp;
         if (csp !== undefined) datosBase.customSellPrice = csp;
         if (ccr !== undefined) datosBase.customCommissionRate = ccr;
+        // "Folio" y "OC" son documentos distintos (folio interno corto vs
+        // numero real de Orden de Compra) — se guardan por separado, sin
+        // pisarse. Solo se incluye si tiene contenido, para no repetir el
+        // bug de mandar `undefined` y tronar el guardado completo.
+        const ocValue = (form as any).oc?.trim?.();
+        if (ocValue) datosBase.oc = ocValue;
 
         tx.set(ref, datosBase, { merge: true });
       });
 
       try {
         const { kilosEntregados } = computeDeliveredTotals(form.deliveries);
-        await upsertAndresPurchase({
-          orderId: order.id,
-          provider: form.provider.trim(),
-          expectedKilos: kilosNum,
-          receivedKilos: kilosEntregados,
-          costPerKg: dynamicConfig.costPricePerKg,
-        });
+        // Si el expediente no tiene "entregas" capturadas como tal (el
+        // caso de los migrados, que solo tienen kilos a nivel factura),
+        // NO sobrescribir el registro de compra con 0 -- eso borraba en
+        // silencio una correccion real cada vez que se guardaba CUALQUIER
+        // cambio en el expediente, sin importar que tan ajeno fuera a la
+        // entrega. Se usa la suma de kilos de las facturas como respaldo.
+        const kilosDeFacturasParaCompra = (form.invoices || []).reduce((acc: number, i: any) => acc + (i.kilos || 0), 0);
+        const kilosParaCompra = kilosEntregados > 0 ? kilosEntregados : kilosDeFacturasParaCompra;
+        if (kilosParaCompra > 0) {
+          await upsertAndresPurchase({
+            orderId: order.id,
+            // ANTES: usaba form.provider.trim() -- el nombre que aparece
+            // en el documento de la OC del cliente (a veces el nombre del
+            // propio negocio del usuario, como "Elemental Denim"), NO
+            // quien entrega el material fisicamente. El proveedor real de
+            // material (Andres) esta configurado globalmente y es ese el
+            // que debe usarse aqui, sin importar que diga el expediente.
+            provider: materialProviderName || form.provider.trim(),
+            expectedKilos: kilosNum,
+            receivedKilos: kilosParaCompra,
+            costPerKg: dynamicConfig.costPricePerKg,
+          });
+        }
       } catch (err) {
         console.error("Error linking purchase", err);
       }

@@ -197,7 +197,7 @@ export default function OrderModal({
 
     await saveOrder({
       form: { ...form, isClosedShort: finalIsClosedShort }, 
-      order, kilosNum, allOrders, dynamicConfig, config,
+      order, kilosNum, allOrders, dynamicConfig, config, materialProviderName: provName,
       baselineUpdatedAt, userEmail: user?.email, toast, setBusy, onClose, liveSummary
     });
   }

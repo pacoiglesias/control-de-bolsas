@@ -1,39 +1,40 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title Control Bolsas - Instalar v6.55.0 - Ciclo 7
+title Control Bolsas - Instalar v6.58.0 - Ciclo 7
 color 0B
 cls
 echo.
 echo  ============================================================
-echo    INSTALAR v6.55.0  -  CICLO 11 (carga inicial)
+echo    INSTALAR v6.58.0  -  CICLO 11 (carga inicial)
 echo  ============================================================
 echo.
 echo   Este instalador NO BORRA NADA. Lo unico que hace es:
 echo     - respaldar tu proyecto completo antes de tocar un archivo
-echo     - copiar el proyecto v6.55.0 completo
+echo     - copiar el proyecto v6.58.0 completo
 echo     - respetar lo tuyo: .env, .firebaserc, node_modules,
 echo       dist, .git y cualquier archivo que no venga en el ZIP
 echo.
-echo   CORRECCION MULTI-PESTAÑA + DISEÑO MEJORADO reparada:
-echo     - Signo invertido en Caja Chica corregido (un anticipo
-echo       se guardaba como ingreso, al reves).
-echo     - invoiceStatuses ahora se sincroniza al cambiar
-echo       estatus desde el Excel.
-echo     - Deteccion de proveedor y validacion de estatus.
-echo     - Hoja "Auditoria_Compras" del Excel corregida.
+echo   PROVEEDOR REAL DE ANDRES + 2 TABLEROS NUEVOS:
 echo.
-echo   [!] Despues de instalar, entra a /seed y presiona
-echo       "Reparar movimientos sin proveedor" UNA VEZ para
-echo       corregir tus datos ya existentes.
+echo     - El registro de compra tomaba el proveedor del texto
+echo       de la OC pegada (a veces tu propio negocio, ej.
+echo       "Elemental Denim") en vez de quien entrega el
+echo       material de verdad (Andres). Ya usa siempre el
+echo       proveedor configurado en Centro de Control.
+echo     - Deuda Historica con Andres ajustada a +$21,824.44,
+echo       verificada contra tu saldo real ($102,670.28).
+echo     - Expedientes ya cobrados y recolectados desaparecian
+echo       del tablero Kanban de Expedientes -- faltaba su
+echo       columna. Ya aparece.
+echo     - Aviso (no bloqueo) si repites un numero de
+echo       Contrarecibo, Factura, u OC entre expedientes.
+echo     - Tablero Kanban nuevo en Logistica de Entregas --
+echo       completa la trilogia Compras - Entregas - Cobranza.
 echo.
-echo   [!] AVISO: al reabrir y guardar expedientes viejos, su
-echo       compra a Andres se recalcula y el saldo puede moverse
-echo       de golpe la primera vez -- es la correccion tomando
-echo       efecto, no un error.
-echo.
-echo   [!] Despues de instalar, revisa CONFIGURACION: manda lo
-echo       guardado en Firestore, no el valor por omision.
+echo   [!] Despues de instalar: abre el expediente 71/14014 y
+echo       vuelve a guardarlo (sin cambiar nada) para que el
+echo       registro de compra se autocorrija al proveedor real.
 echo.
 
 cd /d "%~dp0"
@@ -75,7 +76,7 @@ if !CUANTOS!==0 (
   color 0C
   echo.
   echo  [X] No encontre ningun .zip junto a este .bat.
-  echo      Deja "control-bolsas-v6.55.0.zip" en esta misma carpeta.
+  echo      Deja "control-bolsas-v6.58.0.zip" en esta misma carpeta.
   pause & exit /b 1
 )
 if !CUANTOS! GTR 1 (
@@ -91,7 +92,7 @@ if !CUANTOS! GTR 1 (
 for %%f in ("!ZIPFILE!") do echo  [OK] Paquete: %%~nxf
 
 REM ---------- 3. Descomprimir a temporal ----------
-set "TMPDIR=%TEMP%\cb_v655_%RANDOM%"
+set "TMPDIR=%TEMP%\cb_v658_%RANDOM%"
 echo  [..] Descomprimiendo...
 powershell -NoProfile -Command "try{ Expand-Archive -LiteralPath '!ZIPFILE!' -DestinationPath '!TMPDIR!' -Force; exit 0 }catch{ exit 1 }"
 if errorlevel 1 (
@@ -172,7 +173,7 @@ REM cualquier archivo que en el destino "parezca" igual o mas nuevo. Si tu
 REM copia local tiene fecha mas reciente que la del paquete, la correccion
 REM nunca llegaria. /IS fuerza a copiar tambien los que se ven "iguales".
 set "MERGE_LOG=%TEMP%\cb_instalacion_log.txt"
-echo  [..] Instalando la v6.55.0...
+echo  [..] Instalando la v6.58.0...
 echo.
 robocopy "!ORIGEN!" "!PROYECTO!" /E /IS /IT /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" /R:2 /W:2 /LOG:"!MERGE_LOG!"
 set RC=%ERRORLEVEL%
@@ -225,7 +226,7 @@ echo  [OK] Typecheck limpio
 color 0A
 echo.
 echo  ============================================================
-echo    v6.55.0 INSTALADA  -  CICLO 11
+echo    v6.58.0 INSTALADA  -  CICLO 11
 echo.
 echo    Se respeto: .env, .firebaserc, node_modules, dist, .git
 echo    Tu version anterior completa quedo en:

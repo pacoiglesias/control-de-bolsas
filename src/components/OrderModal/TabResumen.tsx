@@ -30,6 +30,9 @@ export default function TabResumen() {
               <Field label="Folio Interno del Pedido">
                 <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />
               </Field>
+              <Field label="Número de OC (Orden de Compra)">
+                <input className="input boxed mono" placeholder="Ej. 120267114014" defaultValue={(form as any).oc} onBlur={(e) => set('oc' as any, e.target.value)} disabled={readOnly} />
+              </Field>
               <Field label="Cliente">
                 <input className="input boxed" list="known-clients" defaultValue={form.client} onBlur={(e) => set('client', e.target.value)} disabled={readOnly} />
               </Field>

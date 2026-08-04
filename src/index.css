@@ -151,6 +151,13 @@
 }
 *{box-sizing:border-box}
 html,body,#root{margin:0;padding:0;min-height:100%}
+/* Barra de scroll del documento completo (pantalla principal) explicita
+   -- ademas de la regla universal de arriba, por si en algun navegador el
+   selector universal no aplica de forma confiable al scroll raiz. */
+html::-webkit-scrollbar{width:14px}
+html::-webkit-scrollbar-track{background:var(--paper-sunk)}
+html::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;border:3px solid var(--paper-sunk);background-clip:content-box}
+html{scrollbar-width:auto;scrollbar-color:var(--accent) var(--paper-sunk)}
 body{background:var(--bg-body);color:var(--ink);font-family:'Outfit','Inter',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 h1,h2,h3{font-family:'Outfit','Space Grotesk',system-ui,sans-serif; letter-spacing: -0.03em;}
 .mono,code{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}

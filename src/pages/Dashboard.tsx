@@ -597,7 +597,10 @@ return () => unsub();
         </div>
       )}
 
-      {k.porRecibir.length > 0 && (
+      {k.porRecibir.length > 0 && (() => {
+        const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
+        const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
+        return (
         <div style={{
           background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2218 100%)',
           border: '1px solid var(--ok)',
@@ -605,18 +608,31 @@ return () => unsub();
           padding: 20,
           marginBottom: 22,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
-                💼 Por Recibir del Contador
-              </div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                Estas facturas ya fueron cobradas por el cliente — el contador aún no te da el efectivo
-              </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
+              💼 Por Recibir del Contador
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Total neto a recibir</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+              Estas facturas ya fueron cobradas por el cliente — el contador aún no te da el efectivo
+            </div>
+          </div>
+          {/* Flujo claro en 3 pasos: lo que cobró el cliente -> comisión -> lo que de verdad entra a Caja.
+              Antes solo se veia el neto final, sin explicar de donde salia — cualquiera que no conociera
+              el descuento del contador de memoria tenia que sumar la tabla completa para entender la diferencia. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '14px 18px' }}>
+            <div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Cobrado por el cliente</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{money(totalBruto)}</div>
+            </div>
+            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.35)' }}>−</div>
+            <div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Comisión del contador</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#f87171' }}>{money(totalComision)}</div>
+            </div>
+            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.35)' }}>=</div>
+            <div style={{ marginLeft: 'auto' }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Esto es lo que entra a tu Caja</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
             </div>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -651,7 +667,8 @@ return () => unsub();
             Abre la factura → "💵 Recibida del Contador → Caja Chica" para mover el dinero automáticamente.
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {role !== 'viewer' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>

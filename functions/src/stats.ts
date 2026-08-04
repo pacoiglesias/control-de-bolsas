@@ -85,7 +85,16 @@ export function extractStats(data: any): Record<string, any> {
   const isManual = status === 'manual_review' ? 1 : 0;
   
   if (status !== 'manual_review') {
-    kilos = Number(data.totalKilograms) || 0;
+    // ANTES: `kilos` solo leia data.totalKilograms -- un campo a nivel
+    // expediente que en varios casos (como el que agrupa 10 contrarecibos
+    // reales de la migracion) nunca se actualizo y se quedo en 0, aunque
+    // las facturas de adentro sí tienen kilos reales capturados. El
+    // margen SI se calculaba bien (usa los kilos de cada factura), asi
+    // que "kilos" quedaba subestimado mientras "margen" era correcto —
+    // haciendo ver un margen por kilo mas alto de lo real. Si el campo
+    // resumen esta vacio, se usa la suma real de las facturas.
+    const kilosDeFacturas = invoices.reduce((acc: number, i: any) => acc + Number(i.kilos || 0), 0);
+    kilos = Number(data.totalKilograms) || kilosDeFacturas || 0;
     
     for (const inv of invoices) {
       const invTotal = Number(inv.financials?.invoiceTotal || inv.financials?.saleTotal || 0);
@@ -101,7 +110,12 @@ export function extractStats(data: any): Record<string, any> {
         const costT = Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * 42)); // fallback a $42
         invMargin = round2(saleT - costT);
       }
-      const invCommission = Number(inv.financials?.commission || 0);
+      // inv.financials.commission es un valor guardado (snapshot); para
+      // facturas importadas por XML ese campo puede no haberse llenado
+      // nunca, dejando la comision en $0 aunque la comision real siga
+      // aplicando. Respaldo con la tasa estandar (6.9%), mismo patron ya
+      // usado arriba para costPerKg (fallback a $42).
+      const invCommission = Number(inv.financials?.commission || (invTotal * 0.069));
       
       margen += invMargin;
       
@@ -128,7 +142,7 @@ export function extractStats(data: any): Record<string, any> {
         if (s === 'paid') {
           cobrado += paidAmt > 0 ? paidAmt : invTotal;
           netoCobrado += invNet;
-          const commission = Number(inv.financials?.commission || 0);
+          const commission = Number(inv.financials?.commission || (invTotal * 0.069));
           porRecibir += (invTotal - commission);
         }
         

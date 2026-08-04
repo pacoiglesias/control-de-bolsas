@@ -4,6 +4,7 @@ import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import OrderModal from '../components/OrderModal';
+import { EntregasKanban } from '../components/OcTracking/EntregasKanban';
 import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 // money vivia duplicada aqui con su propia implementacion. Una sola.
@@ -32,6 +33,7 @@ export default function OcTracking() {
   const { settings } = useSystemSettings();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [view, setView] = useState<'lista' | 'tablero'>('lista');
 
   const ocGroups = useMemo<OcGroup[]>(() => {
     const map = new Map<string, { order: PurchaseOrder; invoices: OcGroup['invoices'] }>();
@@ -209,13 +211,19 @@ export default function OcTracking() {
           Orden de Compra. Haz clic en cualquier renglón para editar el expediente.
         </p>
         <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareManifiesto}>
-              <span className="icon">📤</span> Compartir PDF
-            </button>
-            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printManifiesto}>
-              📈 Imprimir Manifiesto
-            </button>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareManifiesto}>
+                <span className="icon">📤</span> Compartir PDF
+              </button>
+              <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printManifiesto}>
+                📈 Imprimir Manifiesto
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
+              <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
+            </div>
           </div>
         </div>
       </div>
@@ -233,6 +241,9 @@ export default function OcTracking() {
       </div>
 
       {/* Tabla de OCs */}
+      {view === 'tablero' ? (
+        <EntregasKanban orders={orders} onSelect={setSelectedOrder} />
+      ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ocGroups.map(group => {
           const totalAmt = group.invoices.reduce((s, i) => s + i.amount, 0);
@@ -415,6 +426,7 @@ export default function OcTracking() {
           );
         })}
       </div>
+      )}
 
       {selectedOrder && (
         <OrderModal

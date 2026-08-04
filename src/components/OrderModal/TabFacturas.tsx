@@ -16,7 +16,46 @@ export default function TabFacturas() {
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   
   if (!ctx) return null;
-  const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice } = ctx;
+  const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice, allOrders } = ctx;
+
+  /**
+   * Ningun numero de Contrarecibo, Folio de factura, u OC debe repetirse
+   * entre expedientes distintos -- antes no habia ninguna validacion para
+   * esto (asi fue como un CR de prueba como "333333" se pudo colar sin
+   * ningun aviso). Avisa, no bloquea -- puede haber casos legitimos donde
+   * el usuario sabe lo que hace y quiere continuar de todos modos.
+   */
+  function avisarSiCrDuplicado(cr: string, invoiceIdActual: string) {
+    if (!cr) return true;
+    for (const o of allOrders) {
+      for (const inv of o.invoices ?? []) {
+        if (inv.id === invoiceIdActual) continue;
+        if ((inv.collection?.contrareciboNumber || '').toUpperCase() === cr.toUpperCase()) {
+          return window.confirm(
+            `El contrarecibo "${cr}" ya existe en otro expediente (folio: ${o.folio || o.oc || '(sin folio)'}, cliente: ${o.client || '—'}). ` +
+            `¿Seguro que quieres usar el mismo número aquí también?`,
+          );
+        }
+      }
+    }
+    return true;
+  }
+
+  function avisarSiFolioFacturaDuplicado(folio: string, invoiceIdActual: string) {
+    if (!folio) return true;
+    for (const o of allOrders) {
+      for (const inv of o.invoices ?? []) {
+        if (inv.id === invoiceIdActual) continue;
+        if ((inv.folio || '').toUpperCase() === folio.toUpperCase()) {
+          return window.confirm(
+            `El número de factura "${folio}" ya existe en otro expediente (folio: ${o.folio || o.oc || '(sin folio)'}, cliente: ${o.client || '—'}). ` +
+            `¿Seguro que quieres usar el mismo número aquí también?`,
+          );
+        }
+      }
+    }
+    return true;
+  }
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
@@ -209,6 +248,10 @@ export default function TabFacturas() {
                                   e.target.value = inv.folio || '';
                                   return;
                                 }
+                                if (val && !avisarSiFolioFacturaDuplicado(val, inv.id)) {
+                                  e.target.value = inv.folio || '';
+                                  return;
+                                }
                                 updateInvoice(i, (x: any) => ({...x, folio: e.target.value}));
                               }} disabled={readOnly} />
                             {inv.folio && <CopyButton text={inv.folio} />}
@@ -242,6 +285,9 @@ export default function TabFacturas() {
                                   if (!yaTienePrefijo) {
                                     val = `${order.department || 'TH'}-${val}`;
                                   }
+                                }
+                                if (val && !avisarSiCrDuplicado(val, inv.id)) {
+                                  return; // El usuario cancelo -- no se guarda el valor duplicado
                                 }
                                 e.target.value = val;
                                 updateInvoice(i, (x: any) => ({

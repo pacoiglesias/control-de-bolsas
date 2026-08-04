@@ -55,15 +55,19 @@ export default function TabProductos() {
     }
 
     let newFolio = form.folio;
+    let newOc = (form as any).oc;
     let newProvider = form.provider;
     let newClient = form.client;
 
+    // Folio (interno, corto, ej "71/14014") y OC (numero real y largo de
+    // la Orden de Compra, ej "120267114014") son DOS documentos distintos
+    // -- no deben mezclarse ni pisarse uno al otro. Antes solo se
+    // capturaba uno de los dos (el que apareciera primero en el texto),
+    // descartando el otro por completo.
     const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
-    const folio2 = text.match(/CDB OC:\s*([^\n]+)/i);
-    if (!newFolio) {
-      if (folioMatch) newFolio = folioMatch[1].trim();
-      else if (folio2) newFolio = folio2[1].trim();
-    }
+    const ocMatch = text.match(/CDB OC:\s*([^\n]+)/i) || text.match(/Orden de Compra\s*\n\s*([^\n]+)/i);
+    if (!newFolio && folioMatch) newFolio = folioMatch[1].trim();
+    if (!newOc && ocMatch) newOc = ocMatch[1].trim();
 
     const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
     if (!newProvider && providerMatch) {
@@ -77,16 +81,17 @@ export default function TabProductos() {
       }
     }
 
-    if (newItems.length > 0 || newFolio !== form.folio) {
+    if (newItems.length > 0 || newFolio !== form.folio || newOc !== (form as any).oc) {
       setForm((f: any) => ({
         ...f,
         folio: newFolio,
+        oc: newOc,
         provider: newProvider,
         client: newClient,
         items: [...f.items, ...newItems],
         totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
       }));
-      toast(`Detectado: ${newItems.length} artículos, Folio: ${newFolio || 'N/A'}.`, 'ok');
+      toast(`Detectado: ${newItems.length} artículos. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
     } else {
       toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
     }
