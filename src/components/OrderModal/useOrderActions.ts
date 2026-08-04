@@ -11,7 +11,16 @@ export function useOrderActions() {
   async function saveOrder({
     form, order, kilosNum, allOrders, dynamicConfig, baselineUpdatedAt, userEmail, toast, setBusy, onClose, liveSummary
   }: any) {
-    if (kilosNum <= 0) {
+    // ANTES: exigia kilosNum > 0 SIEMPRE, incluso para editar un
+    // expediente que ya tiene facturas reales con kilos capturados a
+    // nivel factura -- el campo resumen "Kilos Pedidos (Total)" nunca se
+    // lleno en la migracion original, asi que CUALQUIER edicion a ese
+    // expediente (hasta corregir un numero de contrarecibo) quedaba
+    // bloqueada por un campo que no tenia nada que ver con lo que se
+    // estaba editando. Ahora tambien cuenta los kilos ya capturados en
+    // las facturas del expediente.
+    const kilosDeFacturas = (form.invoices || []).reduce((acc: number, i: any) => acc + (i.kilos || 0), 0);
+    if (kilosNum <= 0 && kilosDeFacturas <= 0) {
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
       return;
     }
@@ -19,7 +28,7 @@ export function useOrderActions() {
       toast('Falta el nombre del cliente. No se puede guardar un expediente sin él.', 'bad');
       return;
     }
-    if (!form.provider.trim()) {
+    if (!form.provider.trim() && kilosDeFacturas <= 0) {
       toast('Falta el nombre del proveedor. No se puede guardar un expediente sin él.', 'bad');
       return;
     }

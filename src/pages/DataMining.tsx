@@ -41,8 +41,19 @@ export default function DataMining() {
     }).filter((row: any) => {
       if (!filterText) return true;
       const q = filterText.toLowerCase();
-      return row.folio.toLowerCase().includes(q) || row.client.toLowerCase().includes(q);
-    }).sort((a: any, b: any) => b.fechaPedido.toMillis() - a.fechaPedido.toMillis());
+      // order.folio y order.client pueden venir undefined en expedientes
+      // viejos migrados -- .toLowerCase() sobre undefined tronaba toda la
+      // pantalla, el mismo tipo de error que fechaPedido de abajo.
+      return (row.folio || '').toLowerCase().includes(q) || (row.client || '').toLowerCase().includes(q);
+    }).sort((a: any, b: any) => {
+      // order.createdAt puede venir undefined en expedientes migrados —
+      // .toMillis() sobre undefined tronaba toda la pantalla de Sabana
+      // Maestra con "Cannot read properties of undefined". Los que no
+      // tienen fecha se ordenan al final en vez de tronar la pagina.
+      const ta = a.fechaPedido?.toMillis?.() ?? 0;
+      const tb = b.fechaPedido?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
   }, [orders, config, filterText]);
 
   const handleExport = async () => {

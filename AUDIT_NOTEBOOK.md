@@ -254,3 +254,99 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Pendiente real:** Una vez el usuario instale v6.54.0 (que ya incluye el arreglo de multi-pestaña), debe repetir la captura del expediente OC-71-14014 — la instrucción exacta ya se le dio dos veces en el chat.
 **Commit:** `feat(DashboardKpiGrid): barra de composicion visual en tarjeta Flujo Providencia`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 32: Expediente nuevo con entregas aparecía como "FACTURADO" sin ninguna factura real (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/lib/finance.ts`
+**Contexto:** Se creó en vivo el expediente de la OC-71-14014 (Cliente Providencia, 3 artículos, 2,964.16 kg entregados, sin facturar a propósito). El guardado funcionó (confirma que v6.55.0 resolvió el bloqueo entre pestañas), pero el expediente apareció con **Estado: FACTURADO** y **Kilos Facturados: 2,964.16 kg**, pese a que "Facturado (c/IVA)" mostraba $0.00 y nunca se capturó ninguna factura.
+**Causa raíz:** `getOrderSummary()` sintetiza una factura falsa cuando `invoices.length === 0` pero el expediente tiene folio — pensado para expedientes viejos migrados sin trazabilidad de facturas (donde "tener folio" era la única señal disponible). Pero esta misma regla se disparaba también para expedientes NUEVOS con entregas explícitas capturadas, marcándolos como facturados sin serlo.
+**Solución:** La síntesis de factura ahora se omite si el expediente ya tiene entregas capturadas explícitamente — esa es una señal clara de que se está usando el flujo normal (Productos → Entregas → Facturas) y que "sin factura" significa genuinamente "pendiente de facturar", no un vacío de datos migrados.
+**Riesgo:** 🟡 Medio — toca la función más usada del sistema (`getOrderSummary`). Verificado que las 39 pruebas existentes siguen pasando; no se pudo confirmar en vivo contra HIST-001/OC-HIST sin desplegar.
+**Commit:** `fix(finance): no sintetizar factura falsa si el expediente ya tiene entregas explicitas`
+**Estado:** ✅ Compilado y verificado. **NO DESPLEGADO** — a petición explícita del usuario ("no entregues más archivos hasta que te lo pido"). Este es probablemente el motivo real de que "Pendiente por Facturar" siga en $0 incluso después de crear el expediente correctamente.
+
+### Iteración 33: Identificadores (OC/Folio/CR) etiquetados sin ambigüedad; skeleton en Caja Chica (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/pages/Orders.tsx`, `src/pages/CajaChica.tsx`
+**Problema #1:** El usuario pidió explícitamente no mezclar número de factura, OC y contrarecibo. Se encontró la causa exacta: en Expedientes, la línea principal mostraba `{o.oc || o.folio || 'Sin Folio'}` — el número de OC o el folio interno, indistintamente, en negritas, **sin ninguna etiqueta que dijera cuál de los dos era**.
+**Solución #1:** Cada identificador ahora lleva su propia insignia de color fija: **OC** (azul), **FOLIO** (morado), **CR** (verde) — nunca vuelven a verse como el mismo tipo de dato.
+**Problema #2:** Caja Chica seguía usando un spinner genérico mientras las demás pantallas (Dashboard, Compras, Seguimiento de OC) ya usan skeletons con la forma real del contenido.
+**Solución #2:** Caja Chica ahora usa el mismo patrón de skeleton (encabezado + tarjetas resumen + filas) que el resto del sistema.
+**Nota sobre "responsive":** Revisado el CSS existente — el sistema YA tiene una capa responsive razonablemente completa (sidebar colapsable en móvil, cuadrícula de KPIs que se reacomoda, botones con área táctil mínima de 44px, tipografía de inputs a 16px para evitar zoom automático en iOS). No es un sistema no-responsive; los puntos de fricción reales identificados hasta ahora son más específicos (confusión de identificadores, ya corregida) que un problema estructural de layout.
+**Riesgo:** 🟢 Bajo — CSS/JSX puro.
+**Commit:** `feat(Orders): etiquetar OC/Folio/CR sin ambiguedad; feat(CajaChica): skeleton en vez de spinner generico`
+**Estado:** ✅ Compilado y verificado. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 34: Mover tarjeta en Cobranza borraba el CR sin avisar (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/Cobranza/index.tsx`
+**Problema:** El usuario movió una tarjeta en el tablero de Cobranza y, al regresarla, el sistema le pidió el número de Contrarecibo desde cero — "se supone que ya lo tenía". Causa confirmada: mover una tarjeta de "Por Cobrar" de vuelta a "En Revisión" **borra el CR en silencio**, sin ninguna confirmación — es el comportamiento esperado del diseño (esa columna es "sin CR"), pero nada avisaba que se iba a perder el número.
+**Solución:** (1) Ahora se pide confirmación explícita, mostrando el número de CR que se va a borrar, antes de hacerlo. (2) El sistema recuerda ese número por si el movimiento fue accidental — al regresar la tarjeta a "Por Cobrar", el cuadro para capturar el CR viene pre-llenado con el valor anterior en vez de pedirlo desde cero.
+**Sobre el botón de "deshacer" general:** Un deshacer global (para cualquier acción del sistema) es un cambio arquitectónico grande — no lo implementé todavía. Lo que sí se corrigió es el caso concreto que reportó el usuario, con una mitigación de bajo riesgo (confirmar + recordar) en vez de una reescritura mayor.
+**Riesgo:** 🟢 Bajo — agrega una confirmación y un valor recordado en memoria; no cambia la lógica de escritura.
+**Commit:** `fix(Cobranza): confirmar antes de borrar el CR al mover a Revision; recordar el valor para restaurarlo`
+**Estado:** ✅ Compilado y verificado. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 35: 🔴 CRÍTICO — "Deuda con Andrés" mostraba -$1,248,344.64 en vez de -$102,670.27 (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/lib/finance.ts` (nueva función `normalizarTexto`), `src/hooks/useDashboardStats.ts`, `src/hooks/useAndresStats.ts`, `src/pages/CajaChica.tsx`
+**Problema:** El usuario reportó "ESTADO CON ANDRÉS: -$1,248,344.64" — muy lejos de los -$102,670.27 de su Excel. Investigación encontró **dos bugs distintos, en tres archivos**:
+1. **Filtro de proveedor ausente**: en `useDashboardStats.ts` y `CajaChica.tsx`, la variable que sumaba las compras "de Andrés" (`totalPurchasesCost`, `provPurchases`) en realidad **sumaba TODAS las compras del sistema, sin filtrar por proveedor**, pese a estar nombrada como si sí filtrara. Una sola compra de prueba (creada en un ciclo anterior de esta sesión, para corregir "Material Flotante") se sumó de más aquí, inflando la deuda en más de un millón de pesos.
+2. **Acentos rompiendo comparaciones**: donde SÍ existía un filtro por proveedor (`useAndresStats.ts`, usado en Compras), comparaba contra `'andres'` sin acento — pero esa misma compra de prueba se guardó como `'Andrés'` con acento. `'andrés' !== 'andres'` como texto — el filtro nunca coincidía, así que esa pantalla mostraba una cifra *distinta* a la del Dashboard, ninguna de las dos correcta.
+**Solución:** Nueva función compartida `normalizarTexto()` (quita acentos, minúsculas, espacios) usada en los 4 puntos de comparación de proveedor en todo el sistema — "Andres" y "Andrés" ahora son siempre el mismo proveedor, sin importar quién lo haya escrito ni cómo.
+**Riesgo:** 🟡 Medio — toca el cálculo financiero más sensible del sistema (deuda con el proveedor). Mitigado con 3 pruebas nuevas específicas para este caso (42/42 pruebas totales pasando).
+**Commit:** `fix(Andres): filtrar compras/gastos por proveedor de forma consistente e insensible a acentos`
+**Estado:** ✅ Compilado y verificado. **NO DESPLEGADO** — acumulando, a petición del usuario. Dado lo grave del error (una cifra contable equivocada por más de un millón de pesos), se recomienda priorizar esta entrega.
+
+### Iteración 36: 🔴🔴 CRÍTICO — Resuelto el misterio: corregir un CR se revertía SIEMPRE, por diseño equivocado (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/TabFacturas.tsx`
+**Problema:** Explica de raíz por qué "editar CR: 333333 → GT-597" nunca se quedaba guardado, en tres intentos distintos, sin ningún error. El campo Contrarecibo (CR) tenía un `onBlur` que **siempre reconstruía el valor usando `order.department` como prefijo fijo**, descartando el prefijo que el usuario acabara de escribir. Para el expediente de la migración original (que agrupa contrarecibos TH- y GT- mezclados, sin un `department` único), esto significa: escribir "GT-597" → al salir del campo, el código lo convertía en "TH-597" (usando el valor por defecto 'TH'), sin importar qué se hubiera escrito. **Cualquier corrección manual a un contrarecibo con prefijo distinto al del expediente se revertía sola, siempre, silenciosamente.**
+**Impacto:** Esto no era un problema aislado del "333333" — es estructural: cualquier intento de corregir a mano un número de contrarecibo, en cualquier expediente sin `department` fijo, quedaba condenado a revertirse. Muy probablemente la causa real detrás de más de un intento fallido de esta sesión que se atribuyó (incorrectamente) a bloqueos de guardado.
+**Solución:** El auto-formato ahora respeta el prefijo (TH- o GT-) si el usuario ya lo escribió explícitamente — solo aplica el prefijo por defecto del expediente cuando se escribe el número sin ningún prefijo.
+**Riesgo:** 🟢 Bajo — el cambio es puramente aditivo (respeta más casos de los que ya funcionaban, no quita ninguno).
+**Commit:** `fix(TabFacturas): no sobreescribir el prefijo del CR si el usuario ya escribio uno valido`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 37: 🔴 CRÍTICO — 23 variables CSS usadas en decenas de archivos, nunca definidas (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/index.css`, `src/components/Cobranza/TableroKanban.tsx`, `src/pages/MaquiladorPortal.tsx`, `src/pages/OcTracking.tsx`
+**Contexto:** El usuario reportó pantallas y paneles "mal ajustados". Se hizo una auditoría sistemática: se extrajo cada `var(--nombre)` usado en TODO el código fuente y se comparó contra cada variable realmente declarada en `index.css`. Resultado: **23 variables usadas en el código, en más de 20 archivos distintos, que nunca se definieron en ninguna parte** — el mismo patrón exacto de `var(--brand)` que se venía corrigiendo caso por caso desde hace varios ciclos, pero mucho más extendido de lo que parecía.
+**Ejemplo concreto encontrado en vivo:** en el tablero de Cobranza, las tarjetas usaban `var(--surface)` (fondo) y `var(--border)` (borde) — ninguna de las dos existe. Sin fondo ni borde reales, las tarjetas quedaban visualmente transparentes sobre el color de la columna, haciendo que el texto se viera "lavado", casi invisible en algunos casos.
+**Solución:** En vez de corregir archivo por archivo (alto riesgo de dejar alguno sin tocar), se declararon **alias de compatibilidad** en `index.css` — cada variable faltante ahora apunta a la variable real y correcta del sistema de diseño (ej. `--surface` → `--paper-raised`, `--text-muted` → `--ink-soft`), en modo claro y oscuro. Esto corrige TODOS los usos existentes de una sola vez, en ambos temas, sin tocar decenas de archivos de componentes.
+**Verificación de la auditoría:** se re-extrajeron todas las variables usadas después del cambio — **cero quedan sin definir** en todo el código fuente.
+**Riesgo:** 🟢 Bajo — son declaraciones CSS nuevas que no eliminan ni modifican ninguna variable existente; solo agregan las que faltaban.
+**Commit:** `fix(css): declarar alias para 23 variables usadas mas nunca definidas en todo el sistema`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 38: Barra de scroll vertical del tablero Kanban prácticamente invisible (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/index.css`, `src/components/Cobranza/TableroKanban.tsx`
+**Problema:** El usuario reportó no ver la barra de scroll vertical en Cobranza — pensó que no había más contenido en pantalla. Causa: cada columna del tablero (300px de ancho) reservaba solo **4px** de espacio (`paddingRight: 4`) para la barra de scroll, pero la barra global del sistema mide **14px** — quedaba recortada casi por completo contra el borde de la columna, prácticamente invisible.
+**Solución:** Las 4 columnas del tablero ahora usan una barra de scroll propia, más delgada (8px, proporcionada al ancho angosto de la columna) y con el espacio correcto reservado para que se vea completa, no recortada.
+**Riesgo:** 🟢 Bajo — CSS puro.
+**Commit:** `fix(TableroKanban): barra de scroll vertical propia, delgada y con espacio correcto`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 39: Guardar cualquier edición en expedientes migrados bloqueado por validaciones ajenas al cambio (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`
+**Problema:** El usuario siguió las instrucciones para corregir el CR "333333" y recibió: "Los kilos totales del pedido deben ser mayores a cero." Investigación: el expediente de la migración original (`trenHXXX`) tiene `totalKilograms: 0` y **sin campo `provider` en absoluto** — pese a tener 12 facturas reales con kilos capturados individualmente. El guardado exigía SIEMPRE que el campo resumen "Kilos Pedidos (Total)" y "Proveedor" tuvieran valor, sin importar que el expediente ya tuviera datos financieros reales capturados a nivel factura — bloqueando CUALQUIER edición (hasta corregir un typo en un contrarecibo) por campos completamente ajenos al cambio que se estaba haciendo.
+**Impacto:** Confirmado con los datos reales del expediente vía inspección directa de Firestore: el usuario habría chocado con un SEGUNDO bloqueo (proveedor faltante) inmediatamente después de resolver el primero.
+**Solución:** Ambas validaciones ahora se omiten cuando el expediente ya tiene kilos reales capturados en sus facturas — solo bloquean el guardado de un expediente genuinamente vacío (sin facturas, sin kilos en ningún lado), que era la intención original.
+**Riesgo:** 🟢 Bajo — la validación se vuelve más permisiva solo para expedientes que ya tienen datos financieros reales; sigue bloqueando la creación de un expediente vacío desde cero.
+**Commit:** `fix(useOrderActions): no bloquear el guardado de un expediente con facturas reales por campos resumen sin llenar`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### 📌 Recomendación urgente
+Este arreglo desbloquea directamente la tarea que el usuario lleva varios intentos tratando de completar (corregir el CR "333333" → "GT-597"). Se sugiere priorizar esta entrega.
+
+### Iteración 40: 🔴 Sábana Maestra (/mining) se caía por completo con "Cannot read properties of undefined" (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/pages/DataMining.tsx`
+**Problema:** Al abrir Sábana Maestra desde el menú, la pantalla entera se caía con `TypeError: Cannot read properties of undefined (reading 'toMillis')`. Causa: `.sort()` llamaba `.toMillis()` directo sobre `order.createdAt` sin verificar que existiera — cualquier expediente migrado sin esa fecha (como varios de los que hemos visto en esta sesión) tronaba la página completa.
+**Segundo crash encontrado justo al lado, mismo patrón:** el filtro de búsqueda llamaba `.toLowerCase()` directo sobre `order.folio` y `order.client`, también sin verificar que existieran — los expedientes "Sin Folio" que hemos visto durante toda la sesión habrían tronado esto también, apenas se corrigiera el primero.
+**Solución:** Ambos accesos ahora usan valores de respaldo seguros (`?? 0` para la fecha, `|| ''` para folio/cliente) — los expedientes sin esos datos se ordenan al final o simplemente no coinciden con la búsqueda, en vez de tronar toda la pantalla.
+**Riesgo:** 🟢 Bajo — solo agrega manejo de casos nulos, no cambia el comportamiento para datos completos.
+**Commit:** `fix(DataMining): no tronar la pantalla completa por expedientes sin fecha o sin folio`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.

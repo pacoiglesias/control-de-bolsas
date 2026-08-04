@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { useConfig } from '../../hooks/useConfig';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
@@ -30,6 +30,10 @@ export default function Cobranza() {
   const { settings } = useSystemSettings();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  // Recuerda el CR que se borro al mover una tarjeta de vuelta a Revision,
+  // por si el movimiento fue accidental y la regresan a Por Cobrar poco
+  // despues -- evita tener que volver a escribirlo desde cero.
+  const crRecordados = useRef<Record<string, string>>({});
   
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>((location.state as any)?.tab || 'tablero');
@@ -1038,11 +1042,26 @@ export default function Cobranza() {
         toast('El Contrarecibo está a nivel Expediente. Edita el expediente para borrarlo.', 'bad');
         return;
       }
+      // Antes esto borraba el CR en silencio -- el usuario lo movia de
+      // vuelta sin darse cuenta de que perdia el numero, y al intentar
+      // regresarlo el sistema se lo volvia a pedir desde cero, como si
+      // nunca lo hubiera tenido. Ahora se confirma explicitamente, y el
+      // numero que se borra se recuerda para poder restaurarlo con un
+      // clic si fue un movimiento accidental.
+      const crActual = inv.collection?.contrareciboNumber || '';
+      if (!window.confirm(`Esto borra el número de Contrarecibo (${crActual}) de esta factura. ¿Seguro que quieres moverla a Revisión?`)) {
+        return;
+      }
+      if (crActual) crRecordados.current[invoiceId] = crActual;
       newStatus = 'pending';
       newCr = undefined; // Se usará undefined para limpiarlo después
     } else if (targetCol === 'colPorCobrar') {
       if (currentCol === 'colRevision') {
-         const promptCr = window.prompt('Ingresa el número de Contrarecibo (CR):');
+         const crAnterior = crRecordados.current[invoiceId] || '';
+         const promptCr = window.prompt(
+           crAnterior ? `Ingresa el número de Contrarecibo (CR):\n\n(Antes tenía "${crAnterior}" — bórralo del cuadro si es un número distinto)` : 'Ingresa el número de Contrarecibo (CR):',
+           crAnterior,
+         );
          if (!promptCr) return;
          newCr = promptCr.trim();
       } else if (currentCol === 'colContador') {

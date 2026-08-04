@@ -4,7 +4,7 @@ import { usePurchases } from './usePurchases';
 import { useExpenses } from './useExpenses';
 import { useOrders } from './useOrders';
 import { useConfig } from './useConfig';
-import { round2 } from '../lib/finance';
+import { round2, normalizarTexto } from '../lib/finance';
 export type LedgerEntry = {
   id: string;
   date: Timestamp | null;
@@ -27,11 +27,11 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   const orderById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
 
   const provPurchases = useMemo(() => 
-    purchases.filter(p => p.provider.toLowerCase() === selectedProvider.toLowerCase()), 
+    purchases.filter(p => normalizarTexto(p.provider) === normalizarTexto(selectedProvider)), 
   [purchases, selectedProvider]);
 
   const provExpenses = useMemo(() => 
-    expenses.filter(e => e.provider?.toLowerCase() === selectedProvider.toLowerCase()), 
+    expenses.filter(e => normalizarTexto(e.provider) === normalizarTexto(selectedProvider)), 
   [expenses, selectedProvider]);
 
   const currentCostPerKg = config?.costPricePerKg || 42;

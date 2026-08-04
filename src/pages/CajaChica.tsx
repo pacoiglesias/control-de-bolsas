@@ -3,7 +3,7 @@ import { doc, collection, setDoc, serverTimestamp, Timestamp } from 'firebase/fi
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
+import { Card, Empty, Field, Modal, Skeleton } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
@@ -12,7 +12,7 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
-import { computeCommissionFromInvoiceTotal } from '../lib/finance';
+import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
 import { motion } from 'framer-motion';
@@ -21,7 +21,7 @@ export default function CajaChica() {
   const { role } = useAuth();
   const { expenses, loading, error } = useExpenses();
   const { orders } = useOrders();
-  const { purchases: provPurchases } = usePurchases();
+  const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
   const { settings } = useSystemSettings();
   const [selected, setSelected] = useState<Expense | null>(null);
@@ -34,11 +34,16 @@ export default function CajaChica() {
 
   // Calc deuda real con el proveedor
   const provName = settings?.providerName || 'Andrés';
+  // ANTES: "provPurchases" no filtraba por proveedor pese al nombre --
+  // era TODAS las compras del sistema, de cualquier proveedor. Una sola
+  // compra registrada para otro caso (o con acento distinto en el nombre)
+  // inflaba esta tarjeta sin relacion real con Andres.
+  const provPurchases = allPurchases.filter(p => normalizarTexto(p.provider) === normalizarTexto(provName));
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
   const currentCostPerKg = config?.costPricePerKg || 42;
   const totalPurchasesCost = Number((totalReceivedKilos * currentCostPerKg).toFixed(2));
   
-  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === provName.toLowerCase());
+  const provExpenses = expenses.filter(e => normalizarTexto(e.provider) === normalizarTexto(provName));
   const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount;
     if (e.type === 'ingreso') return acc - e.amount;
@@ -157,7 +162,20 @@ export default function CajaChica() {
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
   }
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <>
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 220, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: '55%', height: 16 }} />
+        </div>
+        <div className="kpi-grid" style={{ marginBottom: 24 }}>
+          {[1, 2, 3].map(i => <Skeleton key={i} className="skeleton-card" style={{ height: 90 }} />)}
+        </div>
+        {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 52, marginBottom: 8 }} />)}
+      </>
+    );
+  }
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 

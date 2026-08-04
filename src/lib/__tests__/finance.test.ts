@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal } from '../finance';
+import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto } from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
@@ -210,3 +210,20 @@ describe('Dashboard Extractions', () => {
   });
 });
 
+
+describe('normalizarTexto', () => {
+  it('trata "Andres" y "Andrés" como el mismo proveedor', () => {
+    expect(normalizarTexto('Andrés')).toBe(normalizarTexto('Andres'));
+    expect(normalizarTexto('ANDRÉS')).toBe(normalizarTexto('andres'));
+  });
+
+  it('ignora mayusculas, acentos y espacios sobrantes', () => {
+    expect(normalizarTexto('  Providencia  ')).toBe('providencia');
+    expect(normalizarTexto('José Nava')).toBe('jose nava');
+  });
+
+  it('maneja null/undefined sin tronar', () => {
+    expect(normalizarTexto(null)).toBe('');
+    expect(normalizarTexto(undefined)).toBe('');
+  });
+});

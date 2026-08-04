@@ -121,7 +121,7 @@ export default function MaquiladorPortal() {
   if (!auth) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--base)', padding: 20 }}>
-        <div style={{ width: '100%', maxWidth: 400, padding: 32, background: 'var(--surface)', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+        <div style={{ width: '100%', maxWidth: 400, padding: 32, background: 'var(--paper-raised)', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
           <div style={{ textAlign: 'center', margin: '0 0 24px 0' }}>
             <h1 style={{ margin: 0, fontSize: 24 }}>📦 Portal Maquilador</h1>
             <p style={{ color: 'var(--ink-soft)', marginTop: 8 }}>Ingresa tu PIN para registrar entregas</p>
@@ -159,7 +159,7 @@ export default function MaquiladorPortal() {
     <div style={{ minHeight: '100vh', background: 'var(--base)', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 800, margin: '0 auto' }}>
         
-        <div className="tabs" style={{ marginBottom: 24, display: 'flex', gap: 8, background: 'var(--surface)', padding: '12px 16px', borderRadius: 8, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+        <div className="tabs" style={{ marginBottom: 24, display: 'flex', gap: 8, background: 'var(--paper-raised)', padding: '12px 16px', borderRadius: 8, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
           <button className={`btn ${tab === 'entrega' ? 'btn-primary' : ''}`} onClick={() => handleTabChange('entrega')} style={{ flex: 1, padding: 12 }}>
             🏭 Registrar Entrega
           </button>
@@ -169,7 +169,7 @@ export default function MaquiladorPortal() {
         </div>
 
         {tab === 'entrega' && (
-          <div style={{ padding: 24, background: 'var(--surface)', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+          <div style={{ padding: 24, background: 'var(--paper-raised)', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
             <h1 style={{ margin: '0 0 24px 0', fontSize: 22, color: 'var(--brand)' }}>🏭 Nueva Entrega</h1>
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -220,7 +220,7 @@ export default function MaquiladorPortal() {
         )}
 
         {tab === 'estado' && (
-          <div style={{ padding: 24, background: 'var(--surface)', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+          <div style={{ padding: 24, background: 'var(--paper-raised)', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
             <h1 style={{ margin: '0 0 24px 0', fontSize: 22, color: 'var(--brand)' }}>💰 Estado de Cuenta</h1>
             {loadingStatement ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>

@@ -281,19 +281,28 @@ export default function Orders() {
                       tabIndex={0}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="mono sticky-col" style={{ lineHeight: '1.4' }}>
-                        <div>
-                          <strong>{o.oc || o.folio || 'Sin Folio'}</strong>
-                        </div>
-                        {o.oc && o.folio && o.oc !== o.folio && (
-                          <div className="hint" style={{ fontSize: '0.85em' }}>Folio: {o.folio}</div>
+                      <td className="mono sticky-col" style={{ lineHeight: '1.5' }}>
+                        {o.oc && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#2563eb', background: '#dbeafe', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>OC</span>
+                            <strong>{o.oc}</strong>
+                          </div>
+                        )}
+                        {o.folio && o.folio !== o.oc && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: o.oc ? 3 : 0 }}>
+                            <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>FOLIO</span>
+                            {o.oc ? <span className="hint" style={{ fontSize: '0.85em' }}>{o.folio}</span> : <strong>{o.folio}</strong>}
+                          </div>
                         )}
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
                         {summary.invoices.some(i => i.collection?.contrareciboNumber) && (
-                          <div style={{ fontSize: '0.8em', color: 'var(--accent)', marginTop: '4px' }}>
-                            CR: {Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))).join(', ')}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                            <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>CR</span>
+                            <span style={{ fontSize: '0.85em', color: 'var(--ink-soft)' }}>
+                              {Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))).join(', ')}
+                            </span>
                           </div>
                         )}
                       </td>

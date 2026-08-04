@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto } from '../lib/finance';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
 
 export function useDashboardStats(
@@ -105,19 +105,24 @@ export function useDashboardStats(
            localSaldoCaja += e.amount;
         } else {
            localSaldoCaja -= e.amount;
-           if (e.provider?.toLowerCase() !== 'andrés' && !e.concept?.toLowerCase().includes('ajuste')) {
+           if (normalizarTexto(e.provider) !== 'andres' && !e.concept?.toLowerCase().includes('ajuste')) {
                if (isMonthMatch(e.date)) opex += e.amount;
            }
         }
         
-        if (e.provider?.toLowerCase() === 'andrés') {
+        if (normalizarTexto(e.provider) === 'andres') {
             if (e.type === 'egreso') totalPagadoAndres += e.amount;
             else totalPagadoAndres -= e.amount; // devolucion
         }
     });
 
     let totalPurchasesCost = 0;
+    // ANTES: sumaba TODAS las compras del sistema sin filtrar por
+    // proveedor -- una sola compra registrada para cualquier otro
+    // proveedor (o con el nombre escrito con acento distinto) inflaba la
+    // deuda con Andres sin que tuviera nada que ver con el.
     (purchases || []).forEach(p => {
+      if (normalizarTexto(p.provider) !== 'andres') return;
       totalPurchasesCost += (p.receivedKilos ?? 0) * (p.pricePerKg || config.costPricePerKg || 42);
     });
     const deudaHistorica = config.historicalDebtAndres || 0;

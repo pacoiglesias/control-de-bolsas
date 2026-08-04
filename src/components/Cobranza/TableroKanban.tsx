@@ -57,8 +57,8 @@ export default function TableroKanban() {
         draggable
         onDragStart={(e) => onDragStart(e, o.id, inv.id)}
         style={{
-          background: 'var(--surface)', 
-          border: isOverdue ? '2px solid #fca5a5' : '1px solid var(--border)', 
+          background: 'var(--paper-raised)', 
+          border: isOverdue ? '2px solid #fca5a5' : '1px solid var(--line)', 
           borderRadius: 8, 
           padding: 12,
           marginBottom: 10,
@@ -129,7 +129,7 @@ export default function TableroKanban() {
           <span>🔎 En Revisión (Sin CR)</span>
           <span style={{ background: '#e2e8f0', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colRevision.length}</span>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
           {cols.colRevision.map(renderCard)}
           {cols.colRevision.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
@@ -147,7 +147,7 @@ export default function TableroKanban() {
           <span>⏳ Por Cobrar (Con CR)</span>
           <span style={{ background: '#fca5a5', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colPorCobrar.length}</span>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
           {cols.colPorCobrar.map(renderCard)}
           {cols.colPorCobrar.length === 0 && <div style={{ textAlign: 'center', color: '#fca5a5', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
@@ -165,7 +165,7 @@ export default function TableroKanban() {
           <span>🟡 Con el Contador</span>
           <span style={{ background: '#fde68a', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colContador.length}</span>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
           {cols.colContador.map(renderCard)}
           {cols.colContador.length === 0 && <div style={{ textAlign: 'center', color: '#fcd34d', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>
@@ -183,7 +183,7 @@ export default function TableroKanban() {
           <span>✅ En Caja Chica</span>
           <span style={{ background: '#bbf7d0', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.colCaja.length}</span>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
           {cols.colCaja.map(renderCard)}
           {cols.colCaja.length === 0 && <div style={{ textAlign: 'center', color: '#86efac', fontSize: 13, marginTop: 20 }}>Soltar aquí...</div>}
         </div>

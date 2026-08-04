@@ -53,6 +53,36 @@
   /* Efectos Glass */
   --glass: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.5);
+
+  /* Alias de compatibilidad: nombres usados en distintas partes del
+     codigo que nunca se declararon, dejando fondos/bordes/texto
+     invisibles o transparentes (el mismo tipo de bug que --brand,
+     encontrado y corregido varias veces por separado -- aqui se cubren
+     todos los que faltaban de una vez). */
+  --brand: var(--accent);
+  --brand-dark: var(--accent-deep);
+  --brand-light: var(--accent-tint);
+  --border: var(--line);
+  --surface: var(--paper-raised);
+  --bg-card: var(--paper-raised);
+  --bg-faint: var(--paper-sunk);
+  --bg-inset: var(--paper-sunk);
+  --bg-modal: var(--paper-raised);
+  --text: var(--ink);
+  --text-muted: var(--ink-soft);
+  --text-light: var(--ink-faint);
+  --muted: var(--ink-soft);
+  --hint: var(--ink-faint);
+  --base: var(--paper);
+  --layer-2: var(--paper-sunk);
+  --surface-alt: var(--paper-sunk);
+  --surface-sunken: var(--paper-sunk);
+  --ink-muted: var(--ink-soft);
+  --info-deep: #1d4ed8;
+  --glass-bg: rgba(255,255,255,0.7);
+  --glass-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  --blur-radius: 12px;
+  --accent-sunk: var(--accent-tint);
 }
 
 :root[data-theme="dark"] {
@@ -92,6 +122,32 @@
   
   --glass: rgba(9, 9, 11, 0.7);
   --glass-border: rgba(255, 255, 255, 0.05);
+
+  /* Mismos alias de compatibilidad que en modo claro. */
+  --brand: var(--accent);
+  --brand-dark: var(--accent-deep);
+  --brand-light: var(--accent-tint);
+  --border: var(--line);
+  --surface: var(--paper-raised);
+  --bg-card: var(--paper-raised);
+  --bg-faint: var(--paper-sunk);
+  --bg-inset: var(--paper-sunk);
+  --bg-modal: var(--paper-raised);
+  --text: var(--ink);
+  --text-muted: var(--ink-soft);
+  --text-light: var(--ink-faint);
+  --muted: var(--ink-soft);
+  --hint: var(--ink-faint);
+  --base: var(--paper);
+  --layer-2: var(--paper-sunk);
+  --surface-alt: var(--paper-sunk);
+  --surface-sunken: var(--paper-sunk);
+  --ink-muted: var(--ink-soft);
+  --info-deep: #93c5fd;
+  --glass-bg: rgba(24,24,27,0.7);
+  --glass-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  --blur-radius: 12px;
+  --accent-sunk: var(--accent-tint);
 }
 *{box-sizing:border-box}
 html,body,#root{margin:0;padding:0;min-height:100%}
@@ -104,13 +160,16 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-/* Seleccion y barras de scroll: dos detalles chicos que se notan mucho. */
+/* Seleccion y barras de scroll: dos detalles chicos que se notan mucho.
+   Mismo color de acento (naranja) en TODA la aplicacion -- vertical,
+   horizontal, tablas, modales -- para que sea inconfundible, no un gris
+   mas oscuro que todavia podria pasar desapercibido. */
 ::selection{background:var(--accent-tint);color:var(--accent-deep)}
-*{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-*::-webkit-scrollbar{width:10px;height:10px}
-*::-webkit-scrollbar-track{background:transparent}
-*::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;border:3px solid transparent;background-clip:content-box}
-*::-webkit-scrollbar-thumb:hover{background:var(--ink-faint);border:3px solid transparent;background-clip:content-box}
+*{scrollbar-width:auto;scrollbar-color:var(--accent) var(--paper-sunk)}
+*::-webkit-scrollbar{width:14px;height:14px}
+*::-webkit-scrollbar-track{background:var(--paper-sunk)}
+*::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;border:3px solid var(--paper-sunk);background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:var(--accent-deep);border:3px solid var(--paper-sunk);background-clip:content-box}
 
 .app-shell{display:grid;grid-template-columns:260px 1fr;min-height:100vh} /* Ligeramente más ancho el sidebar */
 .sidebar{background:var(--sidebar);color:var(--sidebar-ink);padding:24px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:60;border-right:1px solid var(--sidebar-line);transition:all 0.3s ease}
@@ -238,6 +297,14 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .table-scroll::-webkit-scrollbar-thumb:hover{background:var(--accent-deep,#B45309)}
 .table-scroll{scrollbar-width:auto;scrollbar-color:var(--accent,#D97706) var(--paper-sunk,#1a1a1a)}
 .data-table{width:100%;border-collapse:separate;border-spacing:0 6px;white-space:nowrap;font-size:13.5px}
+/* Columnas del tablero Kanban de Cobranza: son angostas (300px), asi que
+   la barra de scroll global de 14px se veia recortada contra apenas 4px
+   de espacio reservado -- practicamente invisible. Esta es mas delgada y
+   con el espacio correcto para que se note de verdad. */
+.kanban-col-scroll::-webkit-scrollbar{width:8px}
+.kanban-col-scroll::-webkit-scrollbar-track{background:transparent}
+.kanban-col-scroll::-webkit-scrollbar-thumb{background:var(--accent);border-radius:8px}
+.kanban-col-scroll{scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
 /* Columna fija: al hacer scroll lateral en tablas anchas, la primera
    columna (el expediente/folio) se queda visible — asi siempre sabes que
    fila estas viendo sin tener que regresar el scroll. */

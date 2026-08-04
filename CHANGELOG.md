@@ -1,5 +1,27 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.56.0] - 4 Agosto 2026 (Paquete grande: 4 correcciones críticas + 6 mejoras)
+
+### 🔴 Crítico
+- **"Deuda con Andrés" mostraba -$1,248,344.64 en vez de -$102,670.27.** Dos bugs reales: (1) el cálculo del Dashboard sumaba TODAS las compras del sistema sin filtrar por proveedor; (2) donde sí filtraba (Compras), comparaba "andres" sin acento contra datos guardados como "Andrés" con acento, y nunca coincidían. Ambos corregidos con una función compartida que ignora acentos y mayúsculas en cualquier comparación de proveedor.
+- **Corregir un número de Contrarecibo (CR) se revertía siempre, sin aviso.** El campo reconstruía el valor usando el departamento del expediente como prefijo fijo, descartando lo que el usuario acababa de escribir — cualquier corrección con un prefijo distinto (TH-/GT-) se revertía sola al salir del campo.
+- **23 variables de color/estilo (CSS) usadas en más de 20 archivos, nunca definidas en ningún lado.** Auditoría completa del código encontró que tarjetas, fondos y bordes en varias pantallas (incluido el tablero de Cobranza) quedaban visualmente transparentes o de bajo contraste por esta causa — no una pantalla aislada, un patrón repetido por todo el sistema.
+- **Sábana Maestra (/mining) se caía por completo** con "Cannot read properties of undefined" al ordenar u buscar expedientes migrados sin fecha o sin folio.
+
+### Corregido
+- Guardar cualquier edición en un expediente migrado (como corregir un CR) quedaba bloqueado por validaciones de campos totalmente ajenos al cambio ("Kilos totales" y "Proveedor" del resumen, nunca llenados en la migración original).
+- Expediente nuevo con entregas capturadas aparecía como "FACTURADO" sin ninguna factura real.
+- Mover una tarjeta en el tablero de Cobranza de vuelta a "Revisión" borraba el número de Contrarecibo sin ninguna confirmación.
+- Barra de scroll vertical del tablero Kanban prácticamente invisible (recortada contra apenas 4px de espacio reservado).
+- Barra de scroll global (vertical y horizontal, toda la aplicación) con bajo contraste en modo claro.
+
+### Mejorado
+- Identificadores de OC, Folio y Contrarecibo ahora llevan insignias de color fijas y distintas — ya no se confunden entre sí.
+- Caja Chica usa el mismo tipo de pantalla de carga (skeleton) que el resto del sistema, en vez de un ícono genérico.
+- Columna fija en tablas anchas (Expedientes, Contrarecibos, Seguimiento de Pedidos) al hacer scroll lateral.
+- Tarjeta "Flujo de Efectivo Providencia" con barra de composición visual y colores por categoría.
+
+
 ## [v6.47.0] - 3 Agosto 2026 (CRÍTICO: documentos invisibles por orderBy)
 
 ### Corregido — crítico, máxima prioridad

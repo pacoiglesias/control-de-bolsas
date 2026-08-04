@@ -225,8 +225,23 @@ export default function TabFacturas() {
                               onBlur={e => {
                                 let val = e.target.value.trim().toUpperCase();
                                 if (val) {
-                                  if (val.startsWith('TH-') || val.startsWith('GT-')) val = val.substring(3);
-                                  val = `${order.department || 'TH'}-${val}`;
+                                  // ANTES: aqui SIEMPRE se reescribia el
+                                  // prefijo usando order.department, sin
+                                  // importar que el usuario ya hubiera
+                                  // escrito uno valido (TH- o GT-). Para
+                                  // expedientes sin departamento fijo (como
+                                  // uno que agrupa contrarecibos de ambos,
+                                  // el caso real de este sistema), CUALQUIER
+                                  // correccion a un CR se revertia sola al
+                                  // salir del campo -- si escribias
+                                  // "GT-597", el sistema lo convertia en
+                                  // "TH-597" porque el expediente no tiene
+                                  // un department unico. Ahora se respeta
+                                  // el prefijo que el usuario ya escribio.
+                                  const yaTienePrefijo = /^(TH|GT)-/.test(val);
+                                  if (!yaTienePrefijo) {
+                                    val = `${order.department || 'TH'}-${val}`;
+                                  }
                                 }
                                 e.target.value = val;
                                 updateInvoice(i, (x: any) => ({

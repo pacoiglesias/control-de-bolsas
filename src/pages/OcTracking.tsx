@@ -262,7 +262,7 @@ export default function OcTracking() {
             <div
               key={group.oc}
               style={{
-                background: 'var(--surface)',
+                background: 'var(--paper-raised)',
                 border: '1px solid var(--border)',
                 borderRadius: 10,
                 overflow: 'hidden',

@@ -25,6 +25,19 @@ export type {
   DynamicFinancialsResult,
 } from '../../functions/src/shared/finance.core';
 
+/**
+ * Normaliza texto para comparaciones que no deben depender de acentos ni
+ * mayusculas -- "Andres" vs "Andrés" son el mismo proveedor para cualquier
+ * humano, pero como strings JS son distintos byte a byte. Sin esto, dos
+ * partes del sistema que escriben el nombre de forma ligeramente distinta
+ * (una con acento, otra sin) dejan de coincidir en los filtros — cada
+ * pantalla termina sumando un subconjunto distinto de compras/gastos del
+ * mismo proveedor real, con resultados que nunca cuadran entre si.
+ */
+export function normalizarTexto(s: string | null | undefined): string {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date.getTime());
   d.setDate(d.getDate() + days);
@@ -71,7 +84,17 @@ export function agingBucket(due: Date | null | undefined): AgingKey {
 
 export function getOrderSummary(o: PurchaseOrder) {
   const invoices: Invoice[] = o.invoices && o.invoices.length > 0 ? o.invoices : [];
-  if (invoices.length === 0 && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
+  // Esta sintesis de factura es para expedientes VIEJOS migrados sin
+  // trazabilidad de facturas, donde "tener folio" era la unica senal
+  // disponible de que ya se habia facturado. Pero si el expediente tiene
+  // ENTREGAS capturadas explicitamente, eso ya es una senal clara de que
+  // el usuario esta usando el flujo normal (Productos -> Entregas ->
+  // Facturas) y genuinamente no ha facturado todavia — sintetizar una
+  // factura aqui lo marcaria como "FACTURADO" con kilos completos sin que
+  // exista ninguna factura real, exactamente el caso de un expediente
+  // recien capturado con "Pendiente de Facturar".
+  const tieneEntregasExplicitas = (o.deliveries?.length || 0) > 0;
+  if (invoices.length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
     invoices.push({
       id: o.id + '-inv0',
       folio: o.folio,
