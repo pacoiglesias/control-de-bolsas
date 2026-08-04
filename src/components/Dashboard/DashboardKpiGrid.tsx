@@ -78,7 +78,7 @@ export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav,
               boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <div style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', width: 36, height: 36, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
                 💎
               </div>
@@ -86,17 +86,40 @@ export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav,
                 Flujo de Efectivo Providencia
               </div>
             </div>
+            {(() => {
+              const sinCr = k.porCobrarSinCR ?? 0;
+              const conCr = k.porCobrarConCR ?? 0;
+              const pend = k.montoPendienteFacturar ?? 0;
+              const total = sinCr + conCr + pend;
+              if (total <= 0) return null;
+              return (
+                <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 20, background: 'rgba(255,255,255,0.06)' }}>
+                  {sinCr > 0 && <div style={{ width: `${(sinCr / total) * 100}%`, background: '#f59e0b' }} title="Facturas en Revisión" />}
+                  {conCr > 0 && <div style={{ width: `${(conCr / total) * 100}%`, background: '#10b981' }} title="Contrarecibos" />}
+                  {pend > 0 && <div style={{ width: `${(pend / total) * 100}%`, background: '#38bdf8' }} title="Pendiente de Facturar" />}
+                </div>
+              );
+            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Facturas en Revisión (sin CR)</span>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                  Facturas en Revisión (sin CR)
+                </span>
                 <strong style={{ fontSize: 15 }}>{money(k.porCobrarSinCR ?? 0)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Contrarecibos (con CR)</span>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                  Contrarecibos (con CR)
+                </span>
                 <strong style={{ fontSize: 15 }}>{money(k.porCobrarConCR ?? 0)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Pendiente de Facturar</span>
+                <span style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#38bdf8', display: 'inline-block' }} />
+                  Pendiente de Facturar
+                </span>
                 <strong style={{ fontSize: 15 }}>{money(k.montoPendienteFacturar ?? 0)}</strong>
               </div>
               <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }}></div>
@@ -114,11 +137,6 @@ export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav,
                 <strong style={{ fontWeight: 900 }}>{money(k.dineroRealARecibir)}</strong>
               </div>
             </div>
-            <div style={{ marginTop: 16, fontSize: 12, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-              <span>{(k.porCobrarSinCR ?? 0) > 0 ? `${money(k.porCobrarSinCR ?? 0)} sin CR` : ''}</span>
-              <span>{(k.porCobrarConCR ?? 0) > 0 ? `${money(k.porCobrarConCR ?? 0)} con CR` : ''}</span>
-            </div>
-            
             {(k.dineroRealARecibir || 0) > 0 && (
               <motion.button 
                 whileHover={{ scale: 1.02 }}

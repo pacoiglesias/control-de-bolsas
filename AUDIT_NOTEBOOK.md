@@ -244,3 +244,13 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Verificación:** `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo. **No se pudo probar visualmente en vivo** (el navegador de pruebas y el entorno de código están en redes separadas, sin forma de servir la build local ahí) — verificado por revisión de código, no por captura de pantalla.
 **Commit:** `feat(tablas): columna fija al hacer scroll lateral; fix: otra instancia de var(--brand) indefinida`
 **Estado:** ✅ Compilado y verificado; visual sin confirmar en vivo.
+
+### Iteración 31: Tarjeta "Flujo de Efectivo Providencia" rediseñada; "Pendiente por Facturar" sigue en $0 por el bloqueo entre pestañas (COMPLETADO parcial)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/Dashboard/DashboardKpiGrid.tsx`
+**Contexto:** El usuario pidió mejorar visualmente las tarjetas de Cobranza y preguntó por qué "Pendiente por Facturar" sigue en $0. Se intentó crear en vivo el expediente de la OC-71-14014 directamente en el navegador del usuario, pero **el guardado se congeló de nuevo** — mismo patrón exacto del bloqueo entre pestañas (Ciclo con `persistentMultipleTabManager`) ya diagnosticado y corregido en v6.54.0, todavía no instalado por el usuario (sigue en v6.53.0 en producción). No se pudo completar el guardado del expediente por esta causa ambiental, no por un bug nuevo.
+**Mejora visual aplicada:** La tarjeta "Flujo de Efectivo Providencia" ahora tiene una barra de composición (Facturas en Revisión / Contrarecibos / Pendiente, coloreada y proporcional al total) justo debajo del título, y cada línea del desglose tiene un punto de color que coincide con la barra — reemplaza el pie de texto plano anterior que solo repetía números ya mostrados arriba.
+**Riesgo:** 🟢 Bajo — CSS/JSX puro, no toca cálculos.
+**Pendiente real:** Una vez el usuario instale v6.54.0 (que ya incluye el arreglo de multi-pestaña), debe repetir la captura del expediente OC-71-14014 — la instrucción exacta ya se le dio dos veces en el chat.
+**Commit:** `feat(DashboardKpiGrid): barra de composicion visual en tarjeta Flujo Providencia`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
