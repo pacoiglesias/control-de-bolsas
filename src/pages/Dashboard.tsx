@@ -187,6 +187,26 @@ return () => unsub();
 
   const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses);
 
+  // El contador de "Vencido" del agregado del servidor cuenta EXPEDIENTES,
+  // no contrarecibos — correcto casi siempre (un expediente = una factura),
+  // pero incorrecto para cualquier expediente que agrupe varias facturas
+  // (como el de la migracion original). La etiqueta dice "contrarecibo(s)",
+  // asi que el conteo debe ser por factura, no por expediente.
+  const contrarecibosVencidosCount = useMemo(() => {
+    const ahora = Date.now();
+    let n = 0;
+    for (const o of activeOrders) {
+      for (const inv of o.invoices ?? []) {
+        if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
+        const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
+        if (!cr) continue;
+        const venc = inv.creditCycle?.dueDate?.toMillis?.();
+        if (venc && venc < ahora) n++;
+      }
+    }
+    return n;
+  }, [activeOrders]);
+
   const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
 
   if (loading || loadingExp) {
@@ -691,7 +711,7 @@ return () => unsub();
         </div>
       )}
 
-      <DashboardKpiGrid k={k} role={role} saldoCaja={saldoCaja} config={config as any} monthFilter={monthFilter} nav={nav} />
+      <DashboardKpiGrid k={k} role={role} saldoCaja={saldoCaja} config={config as any} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} />
 
       {role !== 'viewer' && (
         <div style={{ marginTop: 24 }}>

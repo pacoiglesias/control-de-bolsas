@@ -8,9 +8,10 @@ interface DashboardKpiGridProps {
   config: any;
   monthFilter: string;
   nav: (path: string) => void;
+  contrarecibosVencidosCount?: number;
 }
 
-export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav }: DashboardKpiGridProps) {
+export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav, contrarecibosVencidosCount }: DashboardKpiGridProps) {
   return (
     <>
       <div className="kpi-section-title">⚙️ Operación y Universo</div>
@@ -147,7 +148,7 @@ export function DashboardKpiGrid({ k, role, saldoCaja, config, monthFilter, nav 
         )}
 
         <KpiCard tone={k.overdue?.length ? 'bad' : undefined} label="Vencido" value={<ResponsiveMoney value={k.vencido} />}
-          sub={`${k.overdue?.length || 0} contrarecibo${k.overdue?.length === 1 ? '' : 's'} pasado${k.overdue?.length === 1 ? '' : 's'} de fecha`}
+          sub={`${contrarecibosVencidosCount ?? k.overdue?.length ?? 0} contrarecibo${(contrarecibosVencidosCount ?? k.overdue?.length) === 1 ? '' : 's'} pasado${(contrarecibosVencidosCount ?? k.overdue?.length) === 1 ? '' : 's'} de fecha`}
           onClick={() => nav('/cobranza')} />
         <KpiCard tone="cash" label="Cobrado" value={<ResponsiveMoney value={k.cobrado} />}
           sub={role !== 'viewer' ? `neto ${money(k.netoCobrado)}` : undefined} />

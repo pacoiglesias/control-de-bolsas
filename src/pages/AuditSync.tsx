@@ -57,6 +57,23 @@ type DiffCaja = {
   newValue?: number;
 };
 
+type DiffCompras = {
+  tab: 'compras';
+  type: 'new' | 'mod';
+  label: string;
+  id?: string; // orderId — Purchase usa el mismo id que su expediente
+  proveedor?: string;
+  kilosPedidos?: number;
+  kilosEntregados?: number;
+  precioPorKilo?: number;
+  total?: number;
+  pagado?: number;
+  estatus?: string;
+  campo?: 'kilosEntregados' | 'kilosPedidos';
+  oldValue?: number;
+  newValue?: number;
+};
+
 function parseFechaExcel(v: unknown): Date | null {
   if (!v) return null;
   if (v instanceof Date) return v;
@@ -71,9 +88,9 @@ function parseFechaExcel(v: unknown): Date | null {
 export default function AuditSync() {
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [diffs, setDiffs] = useState<(DiffCobranza | DiffCaja)[]>([]);
+  const [diffs, setDiffs] = useState<(DiffCobranza | DiffCaja | DiffCompras)[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'cobranza' | 'caja'>('cobranza');
+  const [activeTab, setActiveTab] = useState<'cobranza' | 'caja' | 'compras'>('cobranza');
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -98,7 +115,7 @@ export default function AuditSync() {
   };
 
   const processDiffs = async (workbook: any, XLSX: any) => {
-    const newDiffs: (DiffCobranza | DiffCaja)[] = [];
+    const newDiffs: (DiffCobranza | DiffCaja | DiffCompras)[] = [];
 
     // --- 1. Cobranza: contrarecibos y facturas ---
     const cobranzaSheet = workbook.Sheets['Auditoria_Cobranza'];
@@ -261,6 +278,67 @@ export default function AuditSync() {
       }
     }
 
+    // --- 3. Compras a proveedor (Andres) ---
+    // Un expediente puede tener facturas y contrarecibos reales sin tener
+    // NUNCA un registro de compra vinculado — pasa con expedientes viejos
+    // que nunca pasaron por "Registrar Entrega" ni por guardar el
+    // expediente completo (los unicos dos caminos que crean este
+    // registro). Sin el, "Material Flotante" del panel resta kilos
+    // facturados contra kilos recibidos que nunca se contaron, y puede
+    // salir negativo.
+    const comprasSheet = workbook.Sheets['Auditoria_Compras'];
+    if (comprasSheet) {
+      const comprasRows = XLSX.utils.sheet_to_json(comprasSheet);
+      const purchasesSnap = await getDocs(collection(db, PATHS.purchases));
+      const purchaseDocs = purchasesSnap.docs.map((d) => ({ id: d.id, data: d.data() }));
+
+      for (const row of comprasRows as any[]) {
+        const kilosEntregadosExcel = Number(row.KilosEntregados) || 0;
+        if (kilosEntregadosExcel <= 0) continue; // renglon vacio del template
+
+        if (!row.ID_SISTEMA) {
+          newDiffs.push({
+            tab: 'compras', type: 'new',
+            label: `Compra nueva — ${row.Proveedor || 'sin proveedor'} (${kilosEntregadosExcel} kg)`,
+            proveedor: String(row.Proveedor || '').trim(),
+            kilosPedidos: Number(row.KilosPedidos) || kilosEntregadosExcel,
+            kilosEntregados: kilosEntregadosExcel,
+            precioPorKilo: Number(row.PrecioPorKilo) || 42,
+            estatus: String(row.Estatus || 'pedido').trim(),
+            newValue: kilosEntregadosExcel,
+          });
+          continue;
+        }
+
+        const purchase = purchaseDocs.find((p) => p.id === row.ID_SISTEMA);
+        if (!purchase) {
+          // ID_SISTEMA viene de un expediente real que existe pero nunca
+          // genero su registro de compra — se crea usando ese mismo id,
+          // para que quede ligado al expediente correcto.
+          newDiffs.push({
+            tab: 'compras', type: 'new', id: row.ID_SISTEMA,
+            label: `Compra faltante para expediente ${row.ID_SISTEMA} — ${row.Proveedor || 'Andrés'} (${kilosEntregadosExcel} kg)`,
+            proveedor: String(row.Proveedor || 'Andrés').trim(),
+            kilosPedidos: Number(row.KilosPedidos) || kilosEntregadosExcel,
+            kilosEntregados: kilosEntregadosExcel,
+            precioPorKilo: Number(row.PrecioPorKilo) || 42,
+            estatus: String(row.Estatus || 'pedido').trim(),
+            newValue: kilosEntregadosExcel,
+          });
+          continue;
+        }
+
+        const sysKilosEntregados = purchase.data.receivedKilos || 0;
+        if (Math.abs(sysKilosEntregados - kilosEntregadosExcel) > 0.01) {
+          newDiffs.push({
+            tab: 'compras', type: 'mod', id: purchase.id, campo: 'kilosEntregados',
+            label: `Kilos entregados — ${purchase.data.provider || 'proveedor'}`,
+            oldValue: sysKilosEntregados, newValue: kilosEntregadosExcel,
+          });
+        }
+      }
+    }
+
     setDiffs(newDiffs);
     setIsProcessing(false);
     if (newDiffs.length === 0) {
@@ -386,6 +464,32 @@ export default function AuditSync() {
         }
       }
 
+      // Compras — mismo esquema que upsertAndresPurchase() en lib/deliveries.ts
+      for (const diff of aplicables) {
+        if (diff.tab !== 'compras') continue;
+        if (diff.type === 'mod' && diff.id && diff.campo === 'kilosEntregados') {
+          batch.update(doc(db, PATHS.purchases, diff.id), {
+            receivedKilos: diff.newValue,
+            totalAmount: round2((diff.newValue || 0) * (diff.precioPorKilo || 42)),
+          });
+          aplicados++;
+        } else if (diff.type === 'new') {
+          const ref = diff.id ? doc(db, PATHS.purchases, diff.id) : doc(collection(db, PATHS.purchases));
+          batch.set(ref, {
+            date: serverTimestamp(),
+            provider: diff.proveedor || 'Andrés',
+            expectedKilos: diff.kilosPedidos || diff.kilosEntregados || 0,
+            receivedKilos: diff.kilosEntregados || 0,
+            pricePerKg: diff.precioPorKilo || 42,
+            totalAmount: round2((diff.kilosEntregados || 0) * (diff.precioPorKilo || 42)),
+            paidAmount: 0,
+            status: diff.estatus || 'pedido',
+            createdAt: serverTimestamp(),
+          }, { merge: true });
+          aplicados++;
+        }
+      }
+
       await batch.commit();
       toast(`${aplicados} ajuste(s) aplicados correctamente.${conError > 0 ? ` ${conError} con error se dejaron sin aplicar.` : ''}`, 'ok');
       setDiffs([]);
@@ -445,6 +549,12 @@ export default function AuditSync() {
                     onClick={() => setActiveTab('caja')}
                   >
                     Caja Chica ({diffs.filter((d) => d.tab === 'caja').length})
+                  </button>
+                  <button
+                    className={`btn ${activeTab === 'compras' ? 'btn-primary' : ''}`}
+                    onClick={() => setActiveTab('compras')}
+                  >
+                    Compras ({diffs.filter((d) => d.tab === 'compras').length})
                   </button>
                 </div>
                 <button className="btn" onClick={cancelar}>✕ Cancelar / Subir otro archivo</button>

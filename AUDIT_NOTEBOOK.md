@@ -173,3 +173,14 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟢 Bajo — la corrección solo agrega una columna más al mismo mecanismo ya verificado.
 **Commit:** `fix(AuditSync): corregir tambien los kilos, causa raiz de que el monto se revertiera solo`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 24: Material Flotante negativo; conteo de "Vencido" corregido; soporte de Compras en Auditoría Maestra (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/pages/AuditSync.tsx`, `src/pages/Dashboard.tsx`, `src/components/Dashboard/DashboardKpiGrid.tsx`
+**Contexto:** Tras aplicar la corrección de kilos del Ciclo 23, el usuario reportó dos problemas nuevos: (1) "Material Flotante" mostrando **-23,825.58 kg** — exactamente la suma de los kilos recién corregidos, con signo negativo; (2) "Vencido: $420,681.78" pero la etiqueta decía "1 contrarecibo pasado de fecha" cuando en realidad son 4 (confirmado: $107,420.76+$98,136.00+$106,477.56+$108,647.46 = $420,681.78 exacto).
+**Causa raíz #1:** "Material Flotante" = kilos recibidos de Andrés (colección `purchases`) − kilos facturados (colección `orders`). El expediente de la migración original **nunca tuvo un registro de compra vinculado** — nunca pasó por "Registrar Entrega" ni por guardar el expediente completo, los dos únicos caminos que lo crean. Al corregir los kilos facturados sin que existiera el lado de "recibido", la resta se volvió negativa.
+**Causa raíz #2:** El contador de "Vencido" cuenta **expedientes**, no facturas — correcto casi siempre (1 expediente = 1 factura), pero incorrecto para este expediente que agrupa 12 contrarecibos en un solo documento.
+**Solución:** (1) La Auditoría Maestra ahora soporta también la hoja `Auditoria_Compras` (la exportación ya generaba las columnas correctas desde el Ciclo 18, nunca se leían de vuelta) — detecta y crea/corrige registros de compra faltantes o desactualizados, usando el mismo esquema que `upsertAndresPurchase()`. (2) El conteo de "Vencido" ahora se calcula en vivo por factura individual en `Dashboard.tsx`, en vez de depender del contador de expedientes del agregado del servidor.
+**Riesgo:** 🟡 Medio en la escritura de Compras (dinero real, nueva superficie de escritura); 🟢 Bajo en el conteo de Vencido (solo lectura).
+**Commit:** `feat(AuditSync): soporte para Auditoria_Compras; fix(Dashboard): contar vencidos por factura, no por expediente`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
