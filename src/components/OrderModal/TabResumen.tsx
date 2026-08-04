@@ -1,17 +1,28 @@
+import { useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { Field, StatusBadge } from '../ui';
+import { PasteTextModal } from '../PasteTextModal';
 import { fromInputDate, money, toInputDate, kilos } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
 
 export default function TabResumen() {
   const ctx = useOrderModal();
+  const [pegandoOC, setPegandoOC] = useState(false);
   if (!ctx) return null;
   const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast } = ctx;
 
   return (
     <>
+            {pegandoOC && (
+              <PasteTextModal
+                title="Pegar texto de la OC"
+                placeholder="Pega aquí el texto completo copiado de la Orden de Compra (OC)…"
+                onConfirm={(text) => parseOCAndFill(text)}
+                onClose={() => setPegandoOC(false)}
+              />
+            )}
             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-              <button className="btn" onClick={parseOCAndFill} style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', fontWeight: 600 }}>
+              <button className="btn" onClick={() => setPegandoOC(true)} style={{ background: 'var(--accent)', color: '#fff', fontWeight: 600 }}>
                 📋 Pegar Texto de OC (Autollenado)
               </button>
             </div>

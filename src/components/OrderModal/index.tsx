@@ -236,8 +236,7 @@ export default function OrderModal({
   }
 
 
-  function parseOCAndFill() {
-    const text = prompt('Pega aquí el texto completo copiado de la Orden de Compra (OC):');
+  function parseOCAndFill(text: string) {
     if (!text) return;
 
     const folioMatch = text.match(/CDB OC:\s*([\w]+)/i) || text.match(/No\.\s*Ord\.\s*de\s*Compra:\s*([^\s\n\r]+)/i);

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { Field, CopyButton } from '../ui';
+import { PasteTextModal } from '../PasteTextModal';
 import { fromInputDate, money, toInputDate, percent } from '../../lib/format';
 import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
@@ -12,6 +13,7 @@ import { sound } from '../../lib/sounds';
 export default function TabFacturas() {
   const ctx = useOrderModal();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   
   if (!ctx) return null;
   const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice } = ctx;
@@ -82,15 +84,26 @@ export default function TabFacturas() {
                     <span>Arrastra o Carga XML</span>
                   </div>
 
-                  <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF de la Factura:");
-                    if (text) processFacturaText(text);
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
+                  <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
 
-                  <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF del Complemento de Pago:");
-                    if (text) processPagoText(text);
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
+                  <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
+
+                  {pegando === 'factura' && (
+                    <PasteTextModal
+                      title="Pegar texto de la Factura"
+                      placeholder="Pega aquí el texto completo copiado del PDF de la Factura…"
+                      onConfirm={(text) => processFacturaText(text)}
+                      onClose={() => setPegando(null)}
+                    />
+                  )}
+                  {pegando === 'complemento' && (
+                    <PasteTextModal
+                      title="Pegar texto del Complemento de Pago"
+                      placeholder="Pega aquí el texto completo copiado del PDF del Complemento de Pago…"
+                      onConfirm={(text) => processPagoText(text)}
+                      onClose={() => setPegando(null)}
+                    />
+                  )}
 
                   <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
                 </div>

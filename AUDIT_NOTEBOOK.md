@@ -193,3 +193,15 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟢 Bajo — corrige la condición de visibilidad de un botón, no la lógica de borrado en sí (que ya funcionaba y estaba probada).
 **Commit:** `fix(CajaChica): boton Eliminar visible en registros reales sin createdAt; fix(Settings): guardar createdAt en el saldo inicial`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 26: "Pegar Texto de OC" no funcionaba — tres causas reales encontradas (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/PasteTextModal.tsx` (nuevo), `src/components/OrderModal/TabResumen.tsx`, `src/components/OrderModal/TabFacturas.tsx`, `src/components/OrderModal/TabProductos.tsx`
+**Problema:** El usuario pegó el texto real de una OC y no funcionó. Investigación encontró tres causas reales, no una:
+1. **Colores rotos**: el botón de "Pegar Texto de OC" en la pestaña Resumen usaba `var(--brand-light)`/`var(--brand-dark)` — variables CSS que **no existen en el proyecto**, mismo patrón del bug de `var(--brand)` corregido en un ciclo anterior.
+2. **Las 3 funciones de "pegar texto"** (OC, Factura, Complemento de Pago) usaban `window.prompt()` — un cuadro nativo de una sola línea, frágil para pegar un documento completo: fácil de pegar mal, sin forma de revisar el contenido, y un clic fuera de lugar pierde todo el texto sin aviso.
+3. **Existían DOS implementaciones distintas** de "pegar OC" — una simple en la pestaña Resumen (solo folio + kilos totales) y una completa en Productos (cada artículo con código, cantidad y precio) — sin que quedara claro cuál usar, y el enrutamiento del botón principal de "Subir/Pegar OC" mandaba a veces a la pestaña equivocada.
+**Solución:** Nuevo componente `PasteTextModal` reutilizable (textarea real, botón de confirmar explícito) que reemplaza los 3 `window.prompt()`. Colores corregidos a variables reales. Confirmado con prueba de escritorio que el parser de Productos SÍ extrae correctamente folio, proveedor, y los 3 artículos del texto real que pegó el usuario — el problema nunca fue la lógica de extracción, sino los tres bugs de arriba impidiendo que el texto llegara limpio a esa lógica.
+**Riesgo:** 🟢 Bajo — cambios de UI y de mecanismo de captura de texto, no tocan cálculos financieros.
+**Commit:** `fix(OrderModal): reemplazar window.prompt por modal confiable en las 3 funciones de pegar texto; fix: corregir colores de boton indefinidos`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.

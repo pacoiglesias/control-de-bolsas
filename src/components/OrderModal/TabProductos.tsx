@@ -1,14 +1,107 @@
+import { useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
+import { PasteTextModal } from '../PasteTextModal';
 import { money } from '../../lib/format';
 import type { PurchaseOrderItem } from '../../lib/types';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
+  const [pegandoOC, setPegandoOC] = useState(false);
   if (!ctx) return null;
   const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast, addItem, updateItem, removeItem } = ctx;
 
+  /**
+   * Extrae folio, proveedor y CADA ARTICULO (codigo, descripcion, cantidad,
+   * precio) del texto pegado de una OC. Antes vivia embebido dentro de un
+   * window.prompt() de una sola linea -- fragil para pegar un documento
+   * completo. Ahora recibe el texto ya capturado por un modal de verdad.
+   */
+  function handlePasteOC(text: string) {
+    if (!text) return;
+
+    const lines = text.split('\n');
+    const newItems: PurchaseOrderItem[] = [];
+
+    for (const line of lines) {
+      const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
+      if (numsMatch) {
+        const rawDesc = numsMatch[1].trim();
+        const nums = numsMatch[2].trim().split(/\s+/).map(n => Number(n.replace(/,/g, '')));
+
+        if (nums.length >= 3 && !rawDesc.toLowerCase().includes('subtotal') && !rawDesc.toLowerCase().includes('total')) {
+          let code = '';
+          let cleanDesc = rawDesc;
+          const parts = cleanDesc.split(/\s+/);
+          if (/^\d+$/.test(parts[0])) {
+            parts.shift(); // Remove leading row number
+          }
+          // Check if first word looks like a product code (letters+numbers or hyphens, >4 chars)
+          if (parts.length > 1 && /^[a-zA-Z0-9-]{5,}$/.test(parts[0])) {
+            code = parts.shift() || '';
+          }
+          cleanDesc = parts.join(' ');
+
+          newItems.push({
+            id: Date.now().toString() + Math.random().toString().slice(2, 6),
+            code: code,
+            description: cleanDesc,
+            quantity: nums[0],
+            unitPrice: nums[1],
+            amount: nums[nums.length - 1],
+            unit: 'Kilos'
+          });
+        }
+      }
+    }
+
+    let newFolio = form.folio;
+    let newProvider = form.provider;
+    let newClient = form.client;
+
+    const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
+    const folio2 = text.match(/CDB OC:\s*([^\n]+)/i);
+    if (!newFolio) {
+      if (folioMatch) newFolio = folioMatch[1].trim();
+      else if (folio2) newFolio = folio2[1].trim();
+    }
+
+    const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
+    if (!newProvider && providerMatch) {
+      newProvider = providerMatch[1].trim();
+    }
+
+    if (!newClient && lines.length > 0) {
+      const firstLine = lines[0].split('|')[0].trim();
+      if (firstLine.length > 5 && firstLine.length < 100 && !firstLine.includes(':')) {
+        newClient = firstLine;
+      }
+    }
+
+    if (newItems.length > 0 || newFolio !== form.folio) {
+      setForm((f: any) => ({
+        ...f,
+        folio: newFolio,
+        provider: newProvider,
+        client: newClient,
+        items: [...f.items, ...newItems],
+        totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
+      }));
+      toast(`Detectado: ${newItems.length} artículos, Folio: ${newFolio || 'N/A'}.`, 'ok');
+    } else {
+      toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
+    }
+  }
+
   return (
     <>
+            {pegandoOC && (
+              <PasteTextModal
+                title="Pegar texto de la OC"
+                placeholder="Pega aquí el texto completo copiado del PDF de la Orden de Compra (OC)…"
+                onConfirm={handlePasteOC}
+                onClose={() => setPegandoOC(false)}
+              />
+            )}
             {kilosEntregados > 0 && form.deliveries.some((d: any) => !d.invoiced) && (
               <div className="alert warn" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius)' }}>
                 <strong>📝 Hay una entrega sin facturar.</strong> Ve a la pestaña <strong>Entregas</strong> para
@@ -32,82 +125,7 @@ export default function TabProductos() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
               {!readOnly && (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn" onClick={() => {
-                    const text = window.prompt("Pega aquí el texto completo copiado del PDF de la OC:");
-                    if (!text) return;
-                    
-                    const lines = text.split('\n');
-                    const newItems: PurchaseOrderItem[] = [];
-                    
-                    for (const line of lines) {
-                      const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
-                      if (numsMatch) {
-                        const rawDesc = numsMatch[1].trim();
-                        const nums = numsMatch[2].trim().split(/\s+/).map(n => Number(n.replace(/,/g, '')));
-                        
-                        if (nums.length >= 3 && !rawDesc.toLowerCase().includes('subtotal') && !rawDesc.toLowerCase().includes('total')) {
-                          let code = '';
-                          let cleanDesc = rawDesc;
-                          const parts = cleanDesc.split(/\s+/);
-                          if (/^\d+$/.test(parts[0])) {
-                            parts.shift(); // Remove leading row number
-                          }
-                          // Check if first word looks like a product code (letters+numbers or hyphens, >4 chars)
-                          if (parts.length > 1 && /^[a-zA-Z0-9-]{5,}$/.test(parts[0])) {
-                            code = parts.shift() || '';
-                          }
-                          cleanDesc = parts.join(' ');
-
-                          newItems.push({
-                            id: Date.now().toString() + Math.random().toString().slice(2, 6),
-                            code: code,
-                            description: cleanDesc,
-                            quantity: nums[0],
-                            unitPrice: nums[1],
-                            amount: nums[nums.length - 1],
-                            unit: 'Kilos'
-                          });
-                        }
-                      }
-                    }
-
-                    let newFolio = form.folio;
-                    let newProvider = form.provider;
-                    let newClient = form.client;
-
-                    const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
-                    const folio2 = text.match(/CDB OC:\s*([^\n]+)/i);
-                    if (!newFolio) {
-                      if (folioMatch) newFolio = folioMatch[1].trim();
-                      else if (folio2) newFolio = folio2[1].trim();
-                    }
-
-                    const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
-                    if (!newProvider && providerMatch) {
-                      newProvider = providerMatch[1].trim();
-                    }
-
-                    if (!newClient && lines.length > 0) {
-                      const firstLine = lines[0].split('|')[0].trim();
-                      if (firstLine.length > 5 && firstLine.length < 100 && !firstLine.includes(':')) {
-                         newClient = firstLine;
-                      }
-                    }
-
-                    if (newItems.length > 0 || newFolio !== form.folio) {
-                      setForm((f: any) => ({
-                        ...f,
-                        folio: newFolio,
-                        provider: newProvider,
-                        client: newClient,
-                        items: [...f.items, ...newItems],
-                        totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
-                      }));
-                      toast(`Detectado: ${newItems.length} artículos, Folio: ${newFolio || 'N/A'}.`, 'ok');
-                    } else {
-                      toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
-                    }
-                  }} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 Pegar Texto OC</button>
+                  <button className="btn" onClick={() => setPegandoOC(true)} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 Pegar Texto OC</button>
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>
                 </div>
               )}
