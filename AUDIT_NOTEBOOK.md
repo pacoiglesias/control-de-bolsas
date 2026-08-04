@@ -184,3 +184,12 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟡 Medio en la escritura de Compras (dinero real, nueva superficie de escritura); 🟢 Bajo en el conteo de Vencido (solo lectura).
 **Commit:** `feat(AuditSync): soporte para Auditoria_Compras; fix(Dashboard): contar vencidos por factura, no por expediente`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 25: El botón "Eliminar" de Caja Chica no aparecía para el movimiento de prueba (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/pages/Settings.tsx`, `src/pages/CajaChica.tsx`
+**Problema:** El usuario reportó que `/caja-chica` no tenía botón "Eliminar" para borrar el movimiento de prueba de $8. Causa: ese botón solo aparece si `expense.createdAt` es verdadero — y el botón "Inyectar Saldo" en Configuración (el que creó ese movimiento) **nunca guardó el campo `createdAt`**, dejándolo permanentemente sin ese campo. Cualquier registro creado por ese botón queda atrapado sin poder borrarse, para siempre, sin importar qué versión del sistema se instale después.
+**Solución:** Se agregó `createdAt: serverTimestamp()` a la creación del saldo inicial (previene que se repita). Para los registros que YA quedaron atrapados (como el de $8), se corrigió la condición del botón: los 4 lugares que crean un movimiento nuevo en blanco marcan explícitamente `createdAt: null` a propósito — así que un registro real, aunque le falte el campo por este bug, tiene `createdAt === undefined`, que es distinto de `null`. El botón ahora se muestra con `expense.createdAt !== null` en vez de un chequeo de verdad simple, permitiendo borrar cualquier registro real ya guardado sin arriesgar mostrar el botón sobre un borrador todavía sin guardar.
+**Riesgo:** 🟢 Bajo — corrige la condición de visibilidad de un botón, no la lógica de borrado en sí (que ya funcionaba y estaba probada).
+**Commit:** `fix(CajaChica): boton Eliminar visible en registros reales sin createdAt; fix(Settings): guardar createdAt en el saldo inicial`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.

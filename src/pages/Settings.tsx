@@ -51,7 +51,8 @@ export default function Settings() {
         concept: 'Saldo Inicial (Arranque)',
         provider: '',
         type: amount > 0 ? 'ingreso' : 'egreso',
-        amount: Math.abs(amount)
+        amount: Math.abs(amount),
+        createdAt: serverTimestamp(),
       });
       await logAction(user?.email, `Registró saldo inicial en caja chica por $${amount}`, { amount });
       toast('Saldo inicial registrado correctamente en Caja Chica');

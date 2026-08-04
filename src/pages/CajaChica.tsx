@@ -452,7 +452,7 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
         </Field>
       </div>
       <div className="modal-actions" style={{ marginTop: 24 }}>
-        {expense.createdAt && (
+        {expense.createdAt !== null && (
           <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>Eliminar</button>
         )}
         <span className="spacer" />
