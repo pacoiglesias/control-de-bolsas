@@ -205,3 +205,13 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟢 Bajo — cambios de UI y de mecanismo de captura de texto, no tocan cálculos financieros.
 **Commit:** `fix(OrderModal): reemplazar window.prompt por modal confiable en las 3 funciones de pegar texto; fix: corregir colores de boton indefinidos`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 27: 🔴 CRÍTICO — Imposible guardar CUALQUIER expediente nuevo por primera vez (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`
+**Problema:** 🔴🔴🔴 El usuario reportó "No se pudo guardar: El expediente ya no existe" al intentar guardar un expediente recién creado con "Subir/Pegar OC". Causa: la función de guardado usaba `if (!snap.exists()) throw new Error('El expediente ya no existe.')` de forma **incondicional** — exigiendo que el documento YA existiera en Firestore antes de poder guardarlo. Para un expediente genuinamente nuevo (creado con "+ Expediente Manual", "Subir/Pegar OC" o "Venta Manual", que solo generan un ID en el navegador sin escribir nada a Firestore todavía), `snap.exists()` es `false` la primera vez — lo esperado, no un error — pero el código lo trataba como si el expediente hubiera sido borrado por alguien más.
+**Impacto:** Guardar CUALQUIER expediente nuevo, por cualquiera de los tres caminos que lo crean, estaba completamente roto. No es un problema aislado del pegado de OC — es un bloqueo total a dar de alta cualquier pedido nuevo en el sistema.
+**Solución:** El chequeo de "ya no existe" ahora solo se exige cuando `baselineUpdatedAt` está presente — es decir, cuando el expediente se leyó antes de una version real ya guardada. Un expediente nuevo (sin `baselineUpdatedAt`, porque nunca se leyó de Firestore) ya no dispara el error — se crea normalmente. Se revisaron las otras 4 ocurrencias del mismo patrón en el sistema (Compras, Cobranza ×3): todas operan sobre expedientes que ya existen por diseño, así que esas sí están correctas y no se tocaron.
+**Riesgo:** 🟡 Medio — toca la función de guardado central de expedientes; mitigado revisando cuidadosamente que la protección contra ediciones simultáneas siga funcionando igual para expedientes existentes (sin cambios en ese camino).
+**Commit:** `fix(OrderModal): permitir guardar un expediente nuevo por primera vez sin requerir que ya exista`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.

@@ -97,9 +97,20 @@ export function useOrderActions() {
 
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+        // Solo se exige que el expediente YA exista cuando estamos editando
+        // uno que se leyo antes (baselineUpdatedAt viene de esa lectura
+        // previa). Un expediente nuevo (creado via "+ Expediente Manual",
+        // "Subir/Pegar OC" o "Venta Manual") todavia no existe en Firestore
+        // la primera vez que se guarda — eso es lo esperado, no un error.
+        // Antes esta linea exigia snap.exists() siempre, asi que guardar
+        // CUALQUIER expediente nuevo por primera vez tronaba con "El
+        // expediente ya no existe", sin importar que nunca hubiera existido
+        // para empezar.
+        if (!snap.exists() && baselineUpdatedAt) {
+          throw new Error('El expediente ya no existe.');
+        }
 
-        const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
+        const freshUpdatedAt = (snap.data()?.updatedAt as Timestamp | undefined) ?? null;
         if (
           baselineUpdatedAt &&
           freshUpdatedAt &&
