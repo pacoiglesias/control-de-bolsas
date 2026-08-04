@@ -163,3 +163,13 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟡 Medio — toca las cuatro fuentes de datos más usadas del sistema; mitigado con verificación completa y el hecho de que el cambio es puramente aditivo (ver más documentos, nunca menos).
 **Commit:** `fix(context): eliminar orderBy que excluia documentos en silencio en Orders/Purchases/Expenses/Products`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 23: 🔴 CAUSA RAÍZ ENCONTRADA — el total de una factura se recalcula de Kilos × Precio, no de un valor guardado (COMPLETADO)
+**Fecha:** 2026-08-03/04
+**Archivo:** `src/pages/AuditSync.tsx`
+**Problema:** 🔴🔴🔴 Investigación en vivo, directo en el navegador del usuario (lectura de IndexedDB del caché de Firestore), confirmó que las correcciones de monto aplicadas via Auditoría Maestra se "revertían" solas. Causa raíz real: el expediente calcula el total de cada factura como `kilos × precio` cada vez que se guarda — nunca confía en el valor de `invoiceTotal` guardado directamente. Las 12 facturas de la migración original tienen `kilos: 0` (nunca se capturó ese dato en la migración), así que **cualquier corrección de monto sin corregir también los kilos se pierde en el siguiente guardado del expediente**, sin ningún aviso. Se confirmó probando en vivo: al escribir manualmente los kilos correctos en una factura desde la UI, el monto se recalculó exacto al centavo.
+**Impacto:** Explica por completo el ciclo de "lo corrijo, se ve bien, y luego vuelve a estar en $0" que se repitió varias veces con el usuario — no era caché, no eran datos corruptos nuevos, era esta causa estructural no identificada hasta ahora.
+**Solución:** `AuditSync.tsx` ahora detecta y corrige también la columna `Kilos` de la sábana (ya existía en la exportación, nunca se leía de vuelta). Los renglones nuevos también calculan un valor de kilos razonable si el Excel no lo trae explícito, en vez de nacer con `kilos: 0` como antes.
+**Riesgo:** 🟢 Bajo — la corrección solo agrega una columna más al mismo mecanismo ya verificado.
+**Commit:** `fix(AuditSync): corregir tambien los kilos, causa raiz de que el monto se revertiera solo`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.

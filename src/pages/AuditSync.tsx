@@ -3,6 +3,7 @@ import { collection, getDocs, doc, writeBatch, getDoc, Timestamp, serverTimestam
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { camposInvoices } from '../lib/invoiceOps';
+import { round2 } from '../lib/finance';
 import { Card, Empty } from '../components/ui';
 import type { OrderStatus, Invoice, PurchaseOrder } from '../lib/types';
 
@@ -35,10 +36,11 @@ type DiffCobranza = {
   contrarecibo?: string;
   estatus?: string;
   montoVenta?: number;
+  kilos?: number;
   fechaVencimiento?: string;
   oldValue?: number | string;
   newValue?: number | string;
-  campo?: 'monto' | 'estatus' | 'contrarecibo' | 'vencimiento';
+  campo?: 'monto' | 'kilos' | 'estatus' | 'contrarecibo' | 'vencimiento';
   error?: string;
 };
 
@@ -125,6 +127,12 @@ export default function AuditSync() {
           // Renglon NUEVO: antes se detectaba pero "Aplicar Ajustes" nunca
           // lo guardaba — se mostraba en la lista y desaparecia sin dejar
           // rastro al presionar el boton.
+          const montoVenta = Number(row.MontoVenta) || 0;
+          // Si el Excel no trae Kilos, se calcula con el precio estandar
+          // (47/kg + IVA 16%) para que la factura NO nazca con kilos=0 —
+          // esa fue la causa raiz de que un monto corregido se "borrara"
+          // solo la siguiente vez que alguien guardara el expediente.
+          const kilosExcel = Number(row.Kilos) || round2(montoVenta / (47 * 1.16));
           newDiffs.push({
             tab: 'cobranza', type: 'new',
             label: `Factura ${row.FacturaFolio || '(nueva)'} — ${row.Cliente || 'sin cliente'}`,
@@ -132,9 +140,10 @@ export default function AuditSync() {
             folio: String(row.FacturaFolio || '').trim(),
             contrarecibo: String(row.Contrarecibo || '').trim(),
             estatus: estatusExcel || 'pending',
-            montoVenta: Number(row.MontoVenta) || 0,
+            montoVenta,
+            kilos: kilosExcel,
             fechaVencimiento: row.FechaVencimiento,
-            newValue: Number(row.MontoVenta) || 0,
+            newValue: montoVenta,
           });
           continue;
         }
@@ -153,6 +162,23 @@ export default function AuditSync() {
             orderId, invoiceId,
             label: `Factura ${inv.folio}`,
             oldValue: sysTotal, newValue: excelTotal,
+          });
+        }
+
+        // Los kilos son la RAIZ del problema de "el monto se borra solo":
+        // el expediente recalcula el total de cada factura como
+        // kilos * precio cada vez que se guarda. Corregir solo MontoVenta
+        // sin corregir Kilos deja la correccion viva hasta el siguiente
+        // guardado del expediente, que la vuelve a poner en $0 si los
+        // kilos siguen en cero. Se corrigen los dos juntos, siempre.
+        const sysKilos = inv.kilos ?? 0;
+        const excelKilos = Number(row.Kilos) || 0;
+        if (excelKilos > 0 && Math.abs(sysKilos - excelKilos) > 0.01) {
+          newDiffs.push({
+            tab: 'cobranza', type: 'mod', campo: 'kilos',
+            orderId, invoiceId,
+            label: `Kilos de ${inv.folio || row.Contrarecibo || invoiceId}`,
+            oldValue: sysKilos, newValue: excelKilos,
           });
         }
 
@@ -284,6 +310,8 @@ export default function AuditSync() {
 
         if (diff.campo === 'monto') {
           entry.invoices[idx] = { ...inv, financials: { ...inv.financials, invoiceTotal: Number(diff.newValue) } as any };
+        } else if (diff.campo === 'kilos') {
+          entry.invoices[idx] = { ...inv, kilos: Number(diff.newValue) };
         } else if (diff.campo === 'estatus') {
           entry.invoices[idx] = { ...inv, creditCycle: { ...inv.creditCycle, status: diff.newValue as OrderStatus } };
         } else if (diff.campo === 'contrarecibo') {
@@ -316,7 +344,7 @@ export default function AuditSync() {
           return {
             id: `${newOrderRef.id}-imp-${i}`,
             folio: item.folio || '',
-            kilos: 0,
+            kilos: item.kilos || 0,
             financials: { salePricePerKg: 0, costPricePerKg: 0, netCashFlow: 0, invoiceTotal: item.montoVenta || 0 },
             creditCycle: {
               status: (item.estatus as OrderStatus) || 'pending',

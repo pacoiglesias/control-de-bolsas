@@ -28,6 +28,18 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
         if (!cr) continue; // Sin CR todavía, no es "contrarecibo" — es "factura en revisión".
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
 
+        // DIAGNOSTICO TEMPORAL — quitar en cuanto se confirme la causa.
+        if (typeof window !== 'undefined' && (window as any).__DEBUG_CR__ !== false) {
+          console.log('[ContrarecibosTable]', {
+            orderId: o.id,
+            invoiceId: inv.id,
+            cr,
+            status: inv.creditCycle?.status,
+            invoiceTotal: inv.financials?.invoiceTotal,
+            financialsRaw: inv.financials,
+          });
+        }
+
         const venc = toDate(inv.creditCycle?.dueDate);
         const dias = venc ? Math.round((venc.getTime() - ahora) / (24 * 3600 * 1000)) : null;
         out.push({
