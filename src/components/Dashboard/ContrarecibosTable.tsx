@@ -69,7 +69,7 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Contrarecibo</th>
+                <th className="sticky-col">Contrarecibo</th>
                 <th>Folio</th>
                 <th>Cliente</th>
                 <th>Vencimiento</th>
@@ -83,7 +83,7 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
                 const proximo = !vencido && (f.diasParaVencer ?? 99) <= 7;
                 return (
                   <tr key={i}>
-                    <td className="mono" style={{ fontWeight: 700 }}>{f.contrarecibo}</td>
+                    <td className="mono sticky-col" style={{ fontWeight: 700 }}>{f.contrarecibo}</td>
                     <td className="mono">{f.folio}</td>
                     <td>{f.cliente}</td>
                     <td>{f.vencimiento ? fmtDate(f.vencimiento) : '—'}</td>

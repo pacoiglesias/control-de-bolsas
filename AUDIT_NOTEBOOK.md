@@ -235,3 +235,12 @@ Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un 
 **Riesgo:** 🟢 Bajo — la corrección es puramente aditiva (omitir campos vacíos), no cambia el comportamiento para expedientes que sí tienen esos valores capturados.
 **Commit:** `fix(OrderModal): omitir campos opcionales vacios en vez de mandarlos como undefined a Firestore`
 **Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.
+
+### Iteración 30: Columna fija en tablas anchas (mejora visual, no crítica) (COMPLETADO)
+**Fecha:** 2026-08-04
+**Archivo:** `src/index.css`, `src/pages/Orders.tsx`, `src/components/Dashboard/ContrarecibosTable.tsx`, `src/components/Dashboard/SeguimientoPedidosTable.tsx`
+**Contexto:** El usuario confirmó que el arreglo de la barra de scroll de v6.53.0 sí está presente en el código, pero pidió algo más "profesional" y proactivo — que valiera la pena la sesión. Se agregó `position: sticky` a la primera columna (Expediente/OC, Contrarecibo, Folio OC) en las tres tablas anchas del sistema, para que se quede visible al hacer scroll lateral — un patrón estándar de tablas profesionales, reduce la necesidad de usar el scroll en primer lugar. De paso, se encontró y corrigió otra instancia de `var(--brand)` (variable CSS indefinida) en la insignia "CR:" de Expedientes.
+**Riesgo:** 🟢 Bajo — CSS puro, `position: sticky` es una técnica estándar y bien soportada.
+**Verificación:** `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo. **No se pudo probar visualmente en vivo** (el navegador de pruebas y el entorno de código están en redes separadas, sin forma de servir la build local ahí) — verificado por revisión de código, no por captura de pantalla.
+**Commit:** `feat(tablas): columna fija al hacer scroll lateral; fix: otra instancia de var(--brand) indefinida`
+**Estado:** ✅ Compilado y verificado; visual sin confirmar en vivo.

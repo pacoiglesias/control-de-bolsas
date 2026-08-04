@@ -260,7 +260,7 @@ export default function Orders() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Expediente / OC</th><th>Cliente</th><th>Prov.</th>
+                  <th className="sticky-col">Expediente / OC</th><th>Cliente</th><th>Prov.</th>
                   <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
                   <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
                   <th className="num">Deuda Restante</th>
@@ -281,7 +281,7 @@ export default function Orders() {
                       tabIndex={0}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="mono" style={{ lineHeight: '1.4' }}>
+                      <td className="mono sticky-col" style={{ lineHeight: '1.4' }}>
                         <div>
                           <strong>{o.oc || o.folio || 'Sin Folio'}</strong>
                         </div>
@@ -292,7 +292,7 @@ export default function Orders() {
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
                         {summary.invoices.some(i => i.collection?.contrareciboNumber) && (
-                          <div style={{ fontSize: '0.8em', color: 'var(--brand)', marginTop: '4px' }}>
+                          <div style={{ fontSize: '0.8em', color: 'var(--accent)', marginTop: '4px' }}>
                             CR: {Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))).join(', ')}
                           </div>
                         )}

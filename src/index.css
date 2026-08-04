@@ -238,6 +238,13 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .table-scroll::-webkit-scrollbar-thumb:hover{background:var(--accent-deep,#B45309)}
 .table-scroll{scrollbar-width:auto;scrollbar-color:var(--accent,#D97706) var(--paper-sunk,#1a1a1a)}
 .data-table{width:100%;border-collapse:separate;border-spacing:0 6px;white-space:nowrap;font-size:13.5px}
+/* Columna fija: al hacer scroll lateral en tablas anchas, la primera
+   columna (el expediente/folio) se queda visible — asi siempre sabes que
+   fila estas viendo sin tener que regresar el scroll. */
+.data-table .sticky-col{position:sticky;left:0;z-index:1;box-shadow:2px 0 4px rgba(0,0,0,0.04)}
+.data-table thead th.sticky-col{z-index:3;background:var(--paper-raised)}
+.data-table tbody td.sticky-col{background:var(--paper-raised)}
+.data-table tbody tr:hover td.sticky-col{background:#fff}
 .data-table th,.data-table td{padding:14px 20px;text-align:left;transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1)}
 .data-table tbody td {background:var(--paper-raised); border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);}
 .data-table tbody td:first-child {border-left: 1px solid var(--line-soft); border-top-left-radius: 14px; border-bottom-left-radius: 14px;}

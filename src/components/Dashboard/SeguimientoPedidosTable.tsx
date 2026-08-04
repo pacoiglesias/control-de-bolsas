@@ -44,7 +44,7 @@ export function SeguimientoPedidosTable({ orders }: { orders: PurchaseOrder[] })
           <table className="data-table">
             <thead>
               <tr>
-                <th>Folio OC</th>
+                <th className="sticky-col">Folio OC</th>
                 <th>Cliente</th>
                 <th>Fecha</th>
                 <th className="num">Kg Pedidos</th>
@@ -61,7 +61,7 @@ export function SeguimientoPedidosTable({ orders }: { orders: PurchaseOrder[] })
                 const facturaPct = f.kilosEntregados > 0 ? Math.round((f.kilosFacturados / f.kilosEntregados) * 100) : 0;
                 return (
                   <tr key={f.id}>
-                    <td className="mono" style={{ fontWeight: 700 }}>{f.folio}</td>
+                    <td className="mono sticky-col" style={{ fontWeight: 700 }}>{f.folio}</td>
                     <td>{f.cliente}</td>
                     <td>{fmtDate(f.fecha)}</td>
                     <td className="num mono">{kilos(f.kilosPedidos)}</td>
