@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Purchase } from '../lib/types';
 
@@ -17,15 +17,20 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Mismo patron peligroso que en OrdersContext: orderBy excluye en
+    // silencio cualquier compra sin el campo `date`. Se ordena del lado
+    // del cliente en su lugar.
     const q = query(
       collection(db, PATHS.purchases),
-      orderBy('date', 'desc'),
-      limit(150)
+      limit(300)
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows = snap.docs.filter((d: any) => !d.data().isDeleted).map((d) => ({ id: d.id, ...d.data() }) as Purchase);
+        const rows = snap.docs
+          .filter((d: any) => !d.data().isDeleted)
+          .map((d) => ({ id: d.id, ...d.data() }) as Purchase);
+        rows.sort((a: any, b: any) => (b.date?.toMillis?.() ?? 0) - (a.date?.toMillis?.() ?? 0));
         setPurchases(rows);
         setLoading(false);
         setError(null);

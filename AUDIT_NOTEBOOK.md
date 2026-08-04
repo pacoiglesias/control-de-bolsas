@@ -144,3 +144,22 @@ El usuario pidió una revisión mucho más amplia (limpiar información "irrelev
 
 ### Nota: "Total Vendido" y el botón "Subir OC"
 Ambos reportados de nuevo por el usuario. Investigado: "Total Vendido" no es un bug — depende del selector "Mes P&L" (default "Histórico Global", pero cambia si el usuario selecciona un mes específico). El botón "Subir OC (PDF)" ya está corregido en el código desde el Ciclo 16; si sigue fallando en producción, la explicación más probable es que esa versión no se ha desplegado todavía.
+
+### Iteración 21: "Ganancias Estimadas" reemplazada por Seguimiento de Pedidos (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/components/Dashboard/SeguimientoPedidosTable.tsx` (nuevo), `src/pages/Dashboard.tsx`, `src/components/Dashboard/DashboardCharts.tsx` (eliminado)
+**Problema:** El usuario dijo explícitamente que la gráfica "Ganancias Estimadas por Fecha de Factura" no le interesa — lo que necesita es seguimiento de sus pedidos (OC), pagos y cobros.
+**Solución:** Gráfica eliminada por completo (componente y archivo). Nueva tabla `SeguimientoPedidosTable`: una fila por expediente con folio, cliente, fecha, kilos pedidos/entregados/facturados (con porcentaje de avance), total, cobrado, y estatus — construida sobre `getOrderSummary()`, ya probado y usado en el resto del sistema.
+**Riesgo:** 🟢 Bajo — quita una gráfica, agrega una tabla de solo lectura.
+**Commit:** `feat(Dashboard): reemplazar grafica de ganancias por tabla de seguimiento de pedidos`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo. Bundle del Dashboard ~370 KB más liviano al quitar la dependencia de gráficas para esa sección.
+
+### Iteración 22: 🔴 CRÍTICO — Expedientes, compras, gastos y productos invisibles por orderBy silencioso (COMPLETADO)
+**Fecha:** 2026-08-03
+**Archivo:** `src/context/OrdersContext.tsx`, `src/context/PurchasesContext.tsx`, `src/context/ExpensesContext.tsx`, `src/context/ProductsContext.tsx`
+**Problema:** 🔴🔴 El usuario reportó que la tabla nueva de "Contrarecibos — Qué vence y cuándo" salía vacía, pese a tener 10 contrarecibos reales con datos correctos (verificados en la sábana). Investigación reveló la causa raíz: **`OrdersContext.tsx` consultaba con `orderBy('processedAt', 'desc')`** — y Firestore **excluye por completo, en silencio, cualquier documento que no tenga el campo usado en `orderBy`**, sin lanzar error ni advertencia. El expediente que agrupa los 10 contrarecibos originales (creado por la migración inicial, antes de que `processedAt` se capturara consistentemente) no tiene ese campo — así que ha sido **invisible en absolutamente todas las pantallas que usan `useOrders()`: Dashboard, Cobranza, Compras, Expedientes** — durante toda esta sesión, aunque la Auditoría Maestra sí lo veía (usa una consulta distinta, sin `orderBy`, por eso ahí sí se pudo corregir). Se encontró el mismo patrón peligroso en otras tres suscripciones: `PurchasesContext.tsx` (compras a Andrés, `orderBy('date')`), `ExpensesContext.tsx` (Caja Chica, `orderBy('date')`) y `ProductsContext.tsx` (catálogo, `orderBy('description')`) — cualquier registro sin ese campo exacto desaparecería igual, en silencio.
+**Impacto:** Esta es probablemente la causa de fondo de buena parte de la confusión de cifras a lo largo de toda la sesión — datos reales, correctos en Firestore, invisibles para el sistema sin ningún error visible.
+**Solución:** Las cuatro consultas ya no usan `orderBy` de Firestore — se ordenan del lado del cliente, con un valor de respaldo (`?? 0` / cadena vacía) para que ningún documento pueda excluirse por faltarle el campo de orden.
+**Riesgo:** 🟡 Medio — toca las cuatro fuentes de datos más usadas del sistema; mitigado con verificación completa y el hecho de que el cambio es puramente aditivo (ver más documentos, nunca menos).
+**Commit:** `fix(context): eliminar orderBy que excluia documentos en silencio en Orders/Purchases/Expenses/Products`
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 39/39 pruebas, build completo.

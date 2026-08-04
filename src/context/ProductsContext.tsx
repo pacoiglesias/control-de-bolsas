@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Product } from '../lib/types';
 
@@ -17,16 +17,20 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Mismo patron peligroso: un producto sin `description` desaparecia
+    // del catalogo en silencio. Se ordena del lado del cliente.
     const q = query(
       collection(db, PATHS.products),
-      orderBy('description', 'asc'),
-      limit(500)
+      limit(1000)
     );
     
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const items = snap.docs.filter((d: any) => !d.data().isDeleted).map((d) => ({ id: d.id, ...d.data() } as Product));
+        const items = snap.docs
+          .filter((d: any) => !d.data().isDeleted)
+          .map((d) => ({ id: d.id, ...d.data() } as Product));
+        items.sort((a: any, b: any) => String(a.description ?? '').localeCompare(String(b.description ?? '')));
         setProducts(items);
         setLoading(false);
       },

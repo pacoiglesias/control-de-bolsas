@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder } from '../lib/types';
 
@@ -31,13 +31,29 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, PATHS.orders), orderBy('processedAt', 'desc'), limit(500));
+    // ANTES: `orderBy('processedAt', 'desc')` — Firestore EXCLUYE por
+    // completo, en silencio, cualquier documento que no tenga el campo
+    // usado en orderBy. Al menos un expediente real (el que agrupa los 10
+    // contrarecibos originales de la migracion, creado antes de que
+    // `processedAt` se capturara consistentemente) no tenia ese campo, y
+    // por eso era invisible en TODAS las pantallas que usan useOrders() —
+    // Dashboard, Cobranza, Compras, Expedientes — aunque la Auditoria
+    // Maestra si lo veia, porque esa pantalla usa una consulta distinta,
+    // sin orderBy. Se ordena del lado del cliente para que ningun
+    // documento pueda desaparecer por faltarle un campo.
+    const q = query(collection(db, PATHS.orders), limit(1000));
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setOrders(
-          snap.docs.filter((d: any) => !d.data().isDeleted).map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) })),
-        );
+        const docs = snap.docs
+          .filter((d: any) => !d.data().isDeleted)
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
+        docs.sort((a, b) => {
+          const ta = a.processedAt?.toMillis?.() ?? 0;
+          const tb = b.processedAt?.toMillis?.() ?? 0;
+          return tb - ta;
+        });
+        setOrders(docs);
         setError(null);
         setLoading(false);
       },

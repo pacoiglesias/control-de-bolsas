@@ -1,5 +1,21 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.47.0] - 3 Agosto 2026 (CRÍTICO: documentos invisibles por orderBy)
+
+### Corregido — crítico, máxima prioridad
+- **Expedientes, compras, gastos de caja y productos podían desaparecer por completo del sistema, sin ningún error, si les faltaba el campo exacto usado para ordenar la lista.** Confirmado: el expediente con los 10 contrarecibos originales (de la migración inicial) era invisible en Dashboard, Cobranza, Compras y Expedientes por esta causa — solo la Auditoría Maestra lo veía, porque usa una consulta distinta.
+- Las cuatro fuentes de datos principales (`Orders`, `Purchases`, `Expenses`, `Products`) ya no dependen de `orderBy` de Firestore — se ordenan del lado del cliente, sin posibilidad de excluir un documento por un campo faltante.
+
+Este es probablemente el hallazgo más importante de toda la sesión de auditoría: explica por qué cifras que ya se habían corregido en la base de datos seguían sin aparecer correctamente en el sistema.
+
+
+## [v6.46.0] - 3 Agosto 2026 (Seguimiento de Pedidos reemplaza gráfica de ganancias)
+
+### Cambiado
+- **"Ganancias Estimadas por Fecha de Factura" eliminada** (a petición explícita del usuario) y reemplazada por **"Seguimiento de Pedidos"**: una tabla con cada OC, sus kilos pedidos/entregados/facturados con porcentaje de avance, total, cobrado, y estatus.
+- Bundle del Dashboard más liviano al quitar esa dependencia de gráficas.
+
+
 ## [v6.45.0] - 3 Agosto 2026 (Flujo Providencia con líneas claras)
 
 ### Mejorado

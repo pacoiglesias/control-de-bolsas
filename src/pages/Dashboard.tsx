@@ -20,7 +20,7 @@ import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { SYSTEM_CHANGELOG, ChangelogModal } from '../components/Dashboard/ChangelogFeed';
 import { DashboardKpiGrid } from '../components/Dashboard/DashboardKpiGrid';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
-import { DashboardCharts } from '../components/Dashboard/DashboardCharts';
+import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { DashboardTables } from '../components/Dashboard/DashboardTables';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { CloudBackupsModal } from '../components/Dashboard/CloudBackupsModal';
@@ -699,7 +699,9 @@ return () => unsub();
         </div>
       )}
 
-      <DashboardCharts k={k} />
+      <div style={{ marginTop: 24 }}>
+        <SeguimientoPedidosTable orders={activeOrders} />
+      </div>
 
       <DashboardTables k={k} />
 
