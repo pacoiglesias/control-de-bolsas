@@ -21,7 +21,6 @@ import { SYSTEM_CHANGELOG, ChangelogModal } from '../components/Dashboard/Change
 import { DashboardKpiGrid } from '../components/Dashboard/DashboardKpiGrid';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
-import { DashboardTables } from '../components/Dashboard/DashboardTables';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { CloudBackupsModal } from '../components/Dashboard/CloudBackupsModal';
 import { LiveLogsModal } from '../components/Dashboard/LiveLogsModal';
@@ -739,8 +738,6 @@ return () => unsub();
       <div style={{ marginTop: 24 }}>
         <SeguimientoPedidosTable orders={activeOrders} />
       </div>
-
-      <DashboardTables k={k} />
 
       {showBackupsModal && (
         <CloudBackupsModal

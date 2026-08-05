@@ -504,6 +504,35 @@ export default function OrderModal({
           </div>
         </div>
       </div>
+
+      {/* Siguiente Paso — antes las 4 pestañas eran planas, sin ningun
+          orden sugerido; el usuario tenia que adivinar que hacer despues.
+          Esto lee el estado real del expediente y dice exactamente cual
+          es el siguiente paso, con un boton que lleva directo ahi. */}
+      {!readOnly && (() => {
+        const entregasSinFacturar = form.deliveries.filter((d: any) => !d.invoiced).length;
+        let paso: { texto: string; boton: string; ir: typeof tab; tono: string } | null = null;
+        if (!form.client.trim() || !form.provider.trim()) {
+          paso = { texto: 'Faltan datos básicos (cliente o proveedor).', boton: 'Ir a Resumen', ir: 'resumen', tono: '#fef3c7' };
+        } else if (form.items.length === 0) {
+          paso = { texto: 'Agrega los productos de esta Orden de Compra.', boton: 'Ir a Productos', ir: 'productos', tono: '#fef3c7' };
+        } else if (entregasSinFacturar > 0) {
+          paso = { texto: `Tienes ${entregasSinFacturar} entrega(s) sin facturar.`, boton: 'Ir a Facturar', ir: 'entregas', tono: '#dbeafe' };
+        } else if (kilosFaltantes > 0.01) {
+          paso = { texto: `Faltan ${kilosFaltantes.toLocaleString('es-MX')} kg por entregar.`, boton: 'Ir a Entregas', ir: 'entregas', tono: '#dbeafe' };
+        } else if (form.invoices.length > 0) {
+          paso = { texto: '✅ Todo entregado y facturado — esta OC está completa.', boton: 'Ver Facturas', ir: 'facturas', tono: '#d1fae5' };
+        }
+        if (!paso) return null;
+        return (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: paso.tono, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
+            <span style={{ fontWeight: 600 }}>👉 Siguiente paso: {paso.texto}</span>
+            {tab !== paso.ir && (
+              <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => setTab(paso!.ir)}>{paso.boton} →</button>
+            )}
+          </div>
+        );
+      })()}
       
       {/* Tabs */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>

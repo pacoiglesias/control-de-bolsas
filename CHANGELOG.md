@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.66.0] - 5 Agosto 2026 (URGENTE: Deuda con Andres corregida de -$978,849 a -$102,670)
+
+### Corregido — critico, dinero real
+- "Deuda con Andres" mostraba -$978,849.92 en vez de -$102,670.28. Causa: doble conteo (un ajuste anterior no considero una restauracion automatica posterior) mas 6 movimientos de prueba "[AJUSTE]" contaminando el calculo con hasta $400,000 que nunca se habian revisado. Todo corregido en la misma migracion automatica, verificado contra Firestore antes de fijar el valor.
+
+
 ## [v6.65.0] - 5 Agosto 2026 (Eliminar expediente ahora requiere dos clics deliberados)
 
 ### Mejorado — seguridad de datos

@@ -579,3 +579,79 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — hace la acción destructiva más difícil de disparar por accidente, no más difícil de completar intencionalmente.
 **Commit:** `feat(OrderModal): confirmar eliminacion con dos clics deliberados en vez de un dialogo del navegador`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.
+
+### Iteración 56: Auditoría del flujo "1 OC → varias entregas → varias facturas" — confirmado sólido, agregada visibilidad de progreso (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/TabEntregas.tsx`, `src/components/OrderModal/TabResumen.tsx`
+**Pregunta del usuario:** si el sistema soporta bien el flujo real de su negocio — una OC, seguida de varias entregas parciales en el tiempo, cada una facturada por separado, hasta que la OC queda completa.
+**Auditoría realizada (código revisado directamente, no supuesto):**
+- `computeDeliveredTotals()`: acumula correctamente todas las entregas sin doble conteo. ✅
+- `addDelivery()`: **sin ningún límite** en cuántas entregas se pueden agregar. ✅
+- `updateDeliveryItemQty()`: **ya valida** que el total acumulado de todas las entregas no exceda los kilos que ampara la OC — protección real contra sobre-entregar por error. ✅
+- `buildInvoiceFromDelivery()` / `facturarEntrega()`: cada entrega se factura de forma independiente, marcando esa entrega específica como facturada (`invoiced: true`) sin tocar las demás — previene re-facturar la misma entrega dos veces. ✅
+**Conclusión de la auditoría:** el modelo de datos y la lógica de negocio para este flujo específico **ya estaban bien construidos** — no se encontraron bugs estructurales. Lo que faltaba era la **visibilidad**: no había ninguna forma de ver, de un vistazo, cuántas entregas llevas facturadas de cuántas totales, ni una señal clara de cuándo una OC está genuinamente completa.
+**Mejora agregada:** resumen visual en Entregas — contador "X de Y entregas facturadas", barra de progreso por kilos, y un mensaje proactivo ("✅ Todo entregado y facturado — esta OC está lista para cerrarse sola") cuando se completa el ciclo, sin necesitar el botón de "Forzar Cierre" (que sigue existiendo para el caso distinto de cerrar con faltantes).
+**De paso:** se corrigió otra instancia de la clase `badge-warn` (no existe en el CSS — mismo patrón de bug ya encontrado y corregido varias veces en esta sesión).
+**Riesgo:** 🟢 Bajo — la mejora es visual/informativa, no toca ningún cálculo.
+**Commit:** `feat(TabEntregas): resumen visual de progreso -- entregas facturadas y aviso proactivo de OC completa`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.
+
+### Iteración 57: Barra de "Siguiente Paso" — convierte las 4 pestañas planas en un flujo guiado (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/index.tsx`
+**Contexto:** El usuario sintió el flujo "muy enredado" — las 4 pestañas del expediente (Resumen, Productos, Entregas, Facturas) estaban en el orden correcto, pero nada le decía al usuario CUÁL tocaba siguiente en cada momento; tenía que adivinar o recordarlo.
+**Solución:** Nueva barra "👉 Siguiente Paso", visible arriba de las pestañas, que lee el estado real del expediente y dice exactamente qué falta — con un botón que lleva directo a la pestaña correspondiente:
+1. Faltan cliente/proveedor → Resumen
+2. Sin productos capturados → Productos
+3. Hay entregas sin facturar → Entregas (a facturar)
+4. Faltan kilos por entregar → Entregas
+5. Todo completo → "✅ Todo entregado y facturado"
+**No se reconstruyó nada** — las 4 pestañas siguen igual, con su misma lógica interna ya auditada y confirmada sólida (Iteración 56). Esto es una capa de guía encima, no una reescritura.
+**Riesgo:** 🟢 Bajo — puramente informativo/de navegación, no toca ningún cálculo ni dato.
+**Commit:** `feat(OrderModal): barra de siguiente paso -- guia proactiva a traves del flujo de 4 pestañas`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.
+
+### Iteración 58: La lista de Expedientes no tenía ningún ordenamiento propio — agregado orden por columna (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/pages/Orders.tsx`
+**Problema confirmado en el código:** la lista de Expedientes (`rows`) solo filtraba, sin ningún `.sort()` — el orden en pantalla dependía completamente de cómo llegaran los datos, sin que el usuario pudiera controlarlo de ninguna forma.
+**Solución:** Encabezados de columna clickeables (Expediente/OC, Cliente, Deuda Restante) — un clic ordena, otro clic invierte el orden, con indicador visual (▲▼) de cuál columna y dirección está activa. Patrón estándar de tabla, sin depender de memorizar ningún orden implícito.
+**Riesgo:** 🟢 Bajo — agrega control, no cambia ningún dato ni el orden por defecto cuando no se ha elegido ninguna columna.
+**Commit:** `feat(Orders): ordenamiento por columna en la lista de expedientes`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.
+
+### Iteración 59: Facturas colapsadas por defecto — la causa real de "se abren muchas cosas" (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/TabFacturas.tsx`
+**Problema real, más profundo que la Iteración 54:** cada factura dentro de un expediente se mostraba **siempre completamente desplegada** — todos sus campos editables (folio, kilos, CR, vencimiento, estado, fechas, comisión) y todos sus botones de acción (Cobrada por Cliente, Recibida del Contador, Deshacer Cobro, Eliminar), simultáneamente, para las 12 facturas a la vez en un expediente como el de los 10 contrarecibos. El resaltado de la Iteración 54 ayudaba a encontrar la correcta, pero no resolvía que las otras 11 siguieran ahí, completamente expandidas, ocupando toda la pantalla.
+**Solución:** Cada factura ahora empieza **colapsada**, mostrando solo un resumen de una línea (folio, CR, monto, estado — con un color según si está vencida/con el contador/en caja) y un "▼ Ver detalles" para expandirla individualmente. La factura con la que se llegó desde el tablero de Cobranza (foco específico, Iteración 54) se expande automáticamente; las demás quedan compactas hasta que el usuario decida verlas.
+**Riesgo:** 🟡 Medio — cambio de mayor alcance en un archivo grande (513 líneas). Se verificó línea por línea que el condicional de apertura/cierre quedó correctamente balanceado antes de dar la tarea por terminada, no solo confiando en que `tsc` no marcara error.
+**Commit:** `feat(TabFacturas): colapsar cada factura a un resumen por defecto -- la causa real de que se abriera demasiado a la vez`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.
+
+### Iteración 60: "Facturas Vencidas" era un concepto que no existe en el negocio del usuario — widget duplicado eliminado (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/pages/Dashboard.tsx`, `src/components/Dashboard/DashboardTables.tsx` (eliminado)
+**Observación del usuario:** "no existen facturas vencidas, si acaso entregas por facturar" — una factura, por sí sola, no tiene vencimiento en su negocio; lo que vence es el contrarecibo.
+**Confirmado en el código:** "Facturas Vencidas" y "Próximas a Vencer" usaban exactamente el mismo campo (`inv.creditCycle.dueDate`) que "Contrarecibos — Qué vence y cuándo" — mostrando, en la práctica, la misma información dos veces, con un nombre que sugería un concepto distinto y que no existe realmente en el negocio del usuario.
+**Solución:** Se eliminó el componente completo `DashboardTables.tsx` (ambas tarjetas, "Facturas Vencidas" y "Próximas a Vencer") — la información correcta y ya bien nombrada sigue disponible en "Contrarecibos — Qué vence y cuándo", que además calcula en vivo del lado del cliente en vez de depender del agregado del servidor (más actualizado).
+**De paso:** se eliminó un `console.log` de diagnóstico que había quedado activo en producción (código de depuración olvidado, deuda técnica real).
+**Nota:** el concepto que el usuario sí identifica como real — "entregas por facturar" — ya tiene representación propia en el Dashboard, en la tarjeta "Material Flotante (Por Facturar)".
+**Riesgo:** 🟢 Bajo — se quita un widget que duplicaba información ya mostrada correctamente en otro lado; se verificó que ningún otro archivo lo importara antes de eliminarlo.
+**Commit:** `refactor(Dashboard): eliminar DashboardTables -- duplicaba Contrarecibos Vencidos con un nombre que no reflejaba el negocio real`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.
+
+### Iteración 61: 🔴🔴🔴 URGENTE — "Deuda con Andrés" mostraba -$978,849.92 en vez de -$102,670.28 (COMPLETADO, entregado de inmediato)
+**Fecha:** 2026-08-05
+**Archivo:** `src/lib/oneTimeMigrations.ts`
+**Contexto:** El usuario reportó, con razón, que llevaba muchas veces compartiendo el Excel correcto sin ver el dato reflejado. Confirmado en vivo: "Estado de Cuenta: -$978,849.92" en Compras.
+**Causa raíz — un error propio, encontrado y corregido:** en la Iteración 44 se ajustó `historicalDebtAndres` a +$21,824.44, calculado asumiendo que **solo una** de las dos entregas reales de Andrés contaría en el sistema. Pero la migración automática de la Iteración 52/53 (ejecutada en la misma sesión) restauró el registro de compra del expediente de los 10 contrarecibos (23,825.58 kg) — que **también** empezó a contar como compra de Andrés, sin que se hubiera vuelto a ajustar el histórico para reflejar eso. El resultado: doble conteo, deuda mostrada casi 10 veces más grande que la real.
+**Segundo hallazgo, más serio:** al verificar el cálculo con cuidado esta vez (no repetir el mismo error), se encontraron **6 movimientos de gasto** etiquetados con proveedor "Andrés" que nunca se habían revisado — todos con concepto **"[AJUSTE] Ajuste de conciliación"**, fechados el 3 de agosto: artefactos de pruebas de un ciclo anterior de esta sesión, no pagos reales, que estaban contaminando el cálculo de deuda con montos de hasta $400,000.
+**Solución, en la misma migración automática (ya existente, extendida):**
+1. Se corrige el proveedor del segundo registro de compra (OC 71/14014) de "Elemental Denim" a "Andrés" — ahora sus 2,964.16 kg sí cuentan.
+2. Se les quita la etiqueta de proveedor a los 6 movimientos de prueba "[AJUSTE]" (sin borrarlos, para no perder el rastro de auditoría) — dejan de contarse como pagos reales.
+3. Se recalcula `historicalDebtAndres` a **$1,022,498.80**, verificado matemáticamente para que, con ambas compras reales contando y los ajustes de prueba fuera, el resultado final sea la deuda real: **-$102,670.28**.
+**Verificación del cálculo antes de confiar en él esta vez:** se consultó directamente Firestore para confirmar que no había ningún otro pago real a Andrés escondido antes de dar el número por bueno — así se encontraron los 6 ajustes de prueba que el cálculo anterior había pasado por alto.
+**Riesgo:** 🟡 Medio — escritura automática a datos financieros reales. Mitigado con verificación exhaustiva contra Firestore antes de fijar el valor, no solo con la fórmula en abstracto.
+**Commit:** `fix(migracion): corregir doble conteo y ajustes de prueba contaminando la deuda con Andres`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — dinero real mostrado mal en pantalla, no puede esperar.

@@ -67,9 +67,16 @@ export default function Orders() {
     [orders],
   );
 
+  const [sortBy, setSortBy] = useState<'folio' | 'client' | 'deuda' | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const toggleSort = (campo: 'folio' | 'client' | 'deuda') => {
+    if (sortBy === campo) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(campo); setSortDir('asc'); }
+  };
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return conResumen.filter(({ o, s }) => {
+    const filtradas = conResumen.filter(({ o, s }) => {
       // El estatus sale del resumen, igual que el contador del chip y que la
       // columna Estado. Antes el filtro leia o.creditCycle.status (el campo
       // viejo de la raiz): el chip decia "Vencidas (5)" y la tabla salia vacia.
@@ -80,7 +87,20 @@ export default function Orders() {
         .toLowerCase()
         .includes(q);
     });
-  }, [conResumen, filter, search]);
+    // Antes esta lista no tenia NINGUN orden propio -- dependia
+    // completamente del orden en que llegaran los datos, sin que el
+    // usuario pudiera controlarlo. Ahora, si eligio ordenar por una
+    // columna, se aplica aqui; si no, se deja el orden de llegada.
+    if (!sortBy) return filtradas;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filtradas].sort((a, b) => {
+      if (sortBy === 'folio') return dir * (a.o.folio || a.o.oc || '').localeCompare(b.o.folio || b.o.oc || '');
+      if (sortBy === 'client') return dir * (a.o.client || '').localeCompare(b.o.client || '');
+      const deudaA = a.s.invoiceTotal - a.s.paidAmount;
+      const deudaB = b.s.invoiceTotal - b.s.paidAmount;
+      return dir * (deudaA - deudaB);
+    });
+  }, [conResumen, filter, search, sortBy, sortDir]);
 
   const paginatedRows = useMemo(() => {
     return rows.slice((page - 1) * pageSize, page * pageSize);
@@ -260,10 +280,18 @@ export default function Orders() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th className="sticky-col">Expediente / OC</th><th>Cliente</th><th>Prov.</th>
+                  <th className="sticky-col" onClick={() => toggleSort('folio')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Expediente / OC {sortBy === 'folio' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => toggleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Cliente {sortBy === 'client' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th>Prov.</th>
                   <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
                   <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
-                  <th className="num">Deuda Restante</th>
+                  <th className="num" onClick={() => toggleSort('deuda')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Deuda Restante {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
                   <th>Estado</th>
                 </tr>
               </thead>

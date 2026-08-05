@@ -15,16 +15,35 @@ export default function TabFacturas() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
 
+  // Antes CADA factura se mostraba siempre completamente desplegada --
+  // con todos sus campos y botones a la vez. Con 12 facturas en un mismo
+  // expediente (caso real), eso eran cientos de campos en pantalla de
+  // golpe, sin importar que solo quisieras ver una. Ahora cada tarjeta
+  // empieza colapsada, mostrando solo un resumen de una linea (folio,
+  // CR, monto, estado) -- se expande individualmente con un clic. La
+  // que se abrio con foco especifico (ver efecto de abajo) empieza ya
+  // expandida, para no perder ese comportamiento.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpandida = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   // Al abrir el modal desde una tarjeta especifica del tablero de
   // Cobranza, el expediente puede traer varias facturas juntas -- sin
   // esto, el usuario tenia que buscar a mano cual era la que le
-  // interesaba entre todas las demas. Este efecto la encuentra y le hace
-  // scroll automatico apenas se abre la pestaña. Va antes del "if (!ctx)
-  // return null" de abajo porque los Hooks de React siempre deben
-  // llamarse en el mismo orden, sin condicionales por delante.
+  // interesaba entre todas las demas. Este efecto la encuentra, la
+  // expande, y le hace scroll automatico apenas se abre la pestaña. Va
+  // antes del "if (!ctx) return null" de abajo porque los Hooks de React
+  // siempre deben llamarse en el mismo orden, sin condicionales por
+  // delante.
   const focusInvoiceId = ctx?.focusInvoiceId ?? null;
   useEffect(() => {
     if (!focusInvoiceId) return;
+    setExpandedIds(prev => new Set(prev).add(focusInvoiceId));
     const el = document.getElementById(`factura-card-${focusInvoiceId}`);
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [focusInvoiceId]);
@@ -172,6 +191,7 @@ export default function TabFacturas() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {computedInvoices.map(({ inv, fin, d, isLate }: any, i: number) => {
                   const enFoco = inv.id === focusInvoiceId;
+                  const expandida = expandedIds.has(inv.id);
                   return (
                     <div
                       key={inv.id}
@@ -184,6 +204,25 @@ export default function TabFacturas() {
                         transition: 'background 1.2s ease, border-color 1.2s ease',
                       }}
                     >
+                      <div
+                        onClick={() => toggleExpandida(inv.id)}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
+                          {inv.collection?.contrareciboNumber && (
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '2px 8px', borderRadius: 4 }}>
+                              CR: {inv.collection.contrareciboNumber}
+                            </span>
+                          )}
+                          <span className="mono">{money(fin.invoiceTotal)}</span>
+                          <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                            {inv.creditCycle.status === 'collected' ? '✅ En Caja' : inv.creditCycle.status === 'paid' ? '🟡 Con el Contador' : isLate ? '🔴 Vencida' : '⏳ Por Cobrar'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{expandida ? '▲ Ocultar' : '▼ Ver detalles'}</span>
+                      </div>
+                      {expandida && (<>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
                         {!readOnly && (
@@ -503,6 +542,7 @@ export default function TabFacturas() {
                           <span className="mono" style={{ color: 'var(--ok)' }}>{money(fin.invoiceTotal - fin.costTotal - fin.commission)}</span>
                         </div>
                       </div>
+                      </>)}
                     </div>
                   );
                 })}

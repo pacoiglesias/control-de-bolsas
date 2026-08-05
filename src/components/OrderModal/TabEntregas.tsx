@@ -88,6 +88,29 @@ export default function TabEntregas() {
                 </div>
               )}
             </div>
+            {form.deliveries.length > 0 && (() => {
+              const totalEntregas = form.deliveries.length;
+              const facturadas = form.deliveries.filter((d: any) => d.invoiced).length;
+              const pctKilos = kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0;
+              const todoListo = facturadas === totalEntregas && kilosFaltantes <= 0.01;
+              return (
+                <div style={{
+                  marginBottom: 16, padding: 12, borderRadius: 8,
+                  background: todoListo ? 'var(--ok-bg, #d1fae5)' : 'var(--paper-sunk)',
+                  border: todoListo ? '1px solid var(--ok)' : '1px solid var(--line)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 600 }}>
+                      {todoListo ? '✅ Todo entregado y facturado — esta OC está lista para cerrarse sola' : `📦 ${facturadas} de ${totalEntregas} entregas facturadas`}
+                    </span>
+                    <span>{pctKilos}% de los kilos</span>
+                  </div>
+                  <div style={{ width: '100%', height: 6, background: 'var(--paper-sunk)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${pctKilos}%`, height: '100%', background: todoListo ? 'var(--ok)' : 'var(--accent)' }} />
+                  </div>
+                </div>
+              );
+            })()}
             {showPortal && <MaquilaDeliveriesSelector onSelect={handleImportMaquilaDelivery} onCancel={() => setShowPortal(false)} />}
             {form.items.length === 0 ? (
               <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>
