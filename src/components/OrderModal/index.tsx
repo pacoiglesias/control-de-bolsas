@@ -40,12 +40,14 @@ export default function OrderModal({
   onClose,
   readOnly = false,
   initialTab = 'resumen',
+  focusInvoiceId = null,
 }: {
   order: PurchaseOrder;
   config: FinancialConfig;
   onClose: () => void;
   readOnly?: boolean;
   initialTab?: 'resumen' | 'productos' | 'entregas' | 'facturas';
+  focusInvoiceId?: string | null;
 }) {
   const toast = useToast();
   const { user } = useAuth();
@@ -442,7 +444,7 @@ export default function OrderModal({
 
   const ctx = {
     form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
-    allOrders, knownClients, knownProviders, knownClientEmails, provName, config,
+    allOrders, knownClients, knownProviders, knownClientEmails, provName, config, focusInvoiceId,
     fallbackSale, fallbackCost, fallbackComm, kilosNum,
     kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem,
     processFacturaText, processPagoText, parseOCAndFill, emailClient, toast,

@@ -30,6 +30,16 @@ export default function Cobranza() {
   const { settings } = useSystemSettings();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  // Al hacer clic en UNA tarjeta especifica del tablero, el modal se abre
+  // mostrando TODAS las facturas del expediente (puede haber varias) sin
+  // ninguna senal de cual era la que el usuario realmente queria ver --
+  // obligandolo a buscarla entre las demas. Este id le dice a TabFacturas
+  // hacia cual debe hacer scroll y resaltar automaticamente al abrir.
+  const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
+  const abrirConFoco = (order: PurchaseOrder, invoiceId: string) => {
+    setFocusInvoiceId(invoiceId);
+    setSelected(order);
+  };
   // Recuerda el CR que se borro al mover una tarjeta de vuelta a Revision,
   // por si el movimiento fue accidental y la regresan a Por Cobrar poco
   // despues -- evita tener que volver a escribirlo desde cero.
@@ -1168,7 +1178,7 @@ export default function Cobranza() {
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
     payContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
     liquidateAccountantBlock, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, printConsolidatedCr, shareConsolidatedCr,
-    filterType, setFilterType, setSelected, moveInvoice
+    filterType, setFilterType, setSelected, abrirConFoco, moveInvoice
   };
 
   return (
@@ -1555,8 +1565,9 @@ export default function Cobranza() {
         <OrderModal
           order={orders.find((o) => o.id === selected.id) ?? selected}
           config={config}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); setFocusInvoiceId(null); }}
           initialTab="facturas"
+          focusInvoiceId={focusInvoiceId}
         />
       )}
     </>

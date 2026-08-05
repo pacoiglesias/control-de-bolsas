@@ -1,5 +1,17 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.64.0] - 5 Agosto 2026 (Resaltar factura especifica al abrir desde el tablero)
+
+### Mejorado
+- Al hacer clic en una tarjeta del tablero de Cobranza, el modal ahora hace scroll automatico y resalta la factura correspondiente -- antes mostraba el expediente completo sin distinguir cual era la relevante, obligando a buscarla entre las demas.
+
+
+## [v6.63.0] - 5 Agosto 2026 (Migracion automatica extendida -- Material Flotante corregido)
+
+### Corregido
+- "Material Flotante" mostraba -23,825.58 kg (negativo) despues de la restauracion automatica -- el registro de compra asociado tenia receivedKilos en 0. La migracion automatica ya lo corrige tambien, en la misma pasada.
+
+
 ## [v6.62.0] - 5 Agosto 2026 (Restauracion automatica -- sin abrir nada manualmente)
 
 ### Agregado

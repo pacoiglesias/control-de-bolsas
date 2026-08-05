@@ -547,3 +547,23 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Nota de mantenimiento:** Este archivo es temporal — debe eliminarse (junto con su import en `App.tsx`) en cuanto el usuario confirme que el expediente ya apareció restaurado, para no dejar código de un solo uso viviendo permanentemente en el sistema.
 **Commit:** `feat(migracion): restaurar automaticamente el expediente eliminado al iniciar sesion -- temporal`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.
+
+### Iteración 53: Migración automática extendida — corrige también el registro de compra asociado (COMPLETADO, entregado)
+**Fecha:** 2026-08-05
+**Archivo:** `src/lib/oneTimeMigrations.ts`
+**Contexto:** Confirmado en vivo: el expediente de los 10 contrarecibos ya se restauró solo (v6.62.0 funcionando). Pero "Material Flotante" mostraba **-23,825.58 kg** (negativo) — el registro de compra asociado a ese mismo expediente tenía `receivedKilos: 0` en vez de los 23,825.58 kg reales.
+**Solución:** La misma migración automática ahora también corrige ese campo, en la misma pasada, sin ninguna acción adicional del usuario.
+**Riesgo:** 🟡 Medio — mismas consideraciones que la Iteración 52 (escritura automática justificada por ser corrección de un dato ya identificado y confirmado).
+**Commit:** `feat(migracion): corregir tambien receivedKilos del registro de compra asociado`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.
+
+### Iteración 54: Al hacer clic en una tarjeta del tablero, ahora resalta la factura correspondiente en vez de mostrar todas por igual (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/Cobranza/index.tsx`, `src/components/Cobranza/TableroKanban.tsx`, `src/components/OrderModal/index.tsx`, `src/components/OrderModal/TabFacturas.tsx`
+**Pregunta del usuario:** al hacer clic en una tarjeta específica del tablero (ej. la que tiene 13 días de atraso), el modal muestra el expediente completo con todas sus facturas, sin distinguir cuál era la que se clicó — obligando a buscarla entre las demás.
+**Confirmado:** es correcto que un expediente pueda tener varias facturas (ya establecido en una conversación anterior) y el modal necesita mostrarlas todas para poder editarlas — pero no había ninguna señal de cuál era la relevante para lo que el usuario quería ver.
+**Solución:** Al hacer clic en una tarjeta, el modal ahora hace scroll automático hacia esa factura específica y la resalta visualmente (borde y fondo de color, con transición suave) — sin ocultar las demás, solo dejando clara cuál es la que se pidió ver.
+**Nota de calidad:** se encontró y corrigió un error real de ESLint (violación de Reglas de Hooks — un `useEffect` colocado después de un `return` condicional) antes de dar la tarea por terminada.
+**Riesgo:** 🟢 Bajo — aditivo, no cambia ningún dato ni cálculo.
+**Commit:** `feat(Cobranza): resaltar automaticamente la factura especifica al abrir desde el tablero`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0 errores/0 advertencias, 42/42 pruebas, build completo.

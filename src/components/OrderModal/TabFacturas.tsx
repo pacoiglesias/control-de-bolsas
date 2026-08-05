@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { Field, CopyButton } from '../ui';
 import { PasteTextModal } from '../PasteTextModal';
@@ -14,7 +14,21 @@ export default function TabFacturas() {
   const ctx = useOrderModal();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
-  
+
+  // Al abrir el modal desde una tarjeta especifica del tablero de
+  // Cobranza, el expediente puede traer varias facturas juntas -- sin
+  // esto, el usuario tenia que buscar a mano cual era la que le
+  // interesaba entre todas las demas. Este efecto la encuentra y le hace
+  // scroll automatico apenas se abre la pestaña. Va antes del "if (!ctx)
+  // return null" de abajo porque los Hooks de React siempre deben
+  // llamarse en el mismo orden, sin condicionales por delante.
+  const focusInvoiceId = ctx?.focusInvoiceId ?? null;
+  useEffect(() => {
+    if (!focusInvoiceId) return;
+    const el = document.getElementById(`factura-card-${focusInvoiceId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusInvoiceId]);
+
   if (!ctx) return null;
   const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice, allOrders } = ctx;
 
@@ -157,9 +171,19 @@ export default function TabFacturas() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {computedInvoices.map(({ inv, fin, d, isLate }: any, i: number) => {
-                  
+                  const enFoco = inv.id === focusInvoiceId;
                   return (
-                    <div key={inv.id} className="card" style={{ padding: 16, border: '1px solid var(--line)' }}>
+                    <div
+                      key={inv.id}
+                      id={`factura-card-${inv.id}`}
+                      className="card"
+                      style={{
+                        padding: 16,
+                        border: enFoco ? '2px solid var(--accent)' : '1px solid var(--line)',
+                        background: enFoco ? 'var(--accent-tint)' : undefined,
+                        transition: 'background 1.2s ease, border-color 1.2s ease',
+                      }}
+                    >
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <strong>Factura {inv.folio ? `#${inv.folio}` : '(sin folio)'}</strong>
                         {!readOnly && (

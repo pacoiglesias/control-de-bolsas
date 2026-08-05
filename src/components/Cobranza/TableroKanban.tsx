@@ -5,7 +5,7 @@ import { toDate, fmtDate } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 
 export default function TableroKanban() {
-  const { data, money, setSelected, moveInvoice } = useContext(CobranzaContext)!;
+  const { data, money, abrirConFoco, moveInvoice } = useContext(CobranzaContext)!;
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
 
   const cols = useMemo(() => {
@@ -93,7 +93,7 @@ export default function TableroKanban() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           opacity: 1 // can be bound to isDragging if desired
         }}
-        onClick={() => setSelected(o)}
+        onClick={() => abrirConFoco(o, x.inv.id)}
       >
         {x._posibleDuplicado && (
           <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '2px 6px', borderRadius: 4, marginBottom: 6, display: 'inline-block' }}>

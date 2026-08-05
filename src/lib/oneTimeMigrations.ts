@@ -15,8 +15,9 @@ import { logAction } from './logger';
  * sigue marcado como eliminado, y si es asi, lo restaura solo, sin que
  * nadie tenga que abrir el expediente ni tocar la Papelera.
  */
-const MARCA = 'cb_migracion_restaurar_trenHXXX_v1';
+const MARCA = 'cb_migracion_restaurar_trenHXXX_v2';
 const ID_EXPEDIENTE = 'trenHXXXa9nYzxB7Kxi5';
+const KILOS_REALES = 23825.58;
 
 export async function restaurarExpedienteAutomaticamente(userEmail: string | undefined | null) {
   if (typeof window === 'undefined' || !userEmail) return;
@@ -25,21 +26,26 @@ export async function restaurarExpedienteAutomaticamente(userEmail: string | und
   try {
     const ref = doc(db, PATHS.orders, ID_EXPEDIENTE);
     const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      localStorage.setItem(MARCA, 'ok-no-existe');
-      return;
+    if (snap.exists() && snap.data()?.isDeleted === true) {
+      await updateDoc(ref, {
+        isDeleted: deleteField(),
+        deletedAt: deleteField(),
+        deletedBy: deleteField(),
+      });
+      logAction(userEmail, 'Expediente Restaurado (Migracion Automatica)', { orderId: ID_EXPEDIENTE });
     }
-    if (snap.data()?.isDeleted !== true) {
-      localStorage.setItem(MARCA, 'ok-ya-restaurado');
-      return;
+
+    // El registro de compra asociado (mismo ID) tenia receivedKilos en 0
+    // en vez de los 23,825.58 kg reales que Andres entrego -- por eso
+    // "Material Flotante" salia negativo. Se corrige aqui tambien.
+    const refCompra = doc(db, PATHS.purchases, ID_EXPEDIENTE);
+    const snapCompra = await getDoc(refCompra);
+    if (snapCompra.exists() && Number(snapCompra.data()?.receivedKilos || 0) !== KILOS_REALES) {
+      await updateDoc(refCompra, { receivedKilos: KILOS_REALES });
+      logAction(userEmail, 'Compra Corregida (Migracion Automatica)', { purchaseId: ID_EXPEDIENTE, receivedKilos: KILOS_REALES });
     }
-    await updateDoc(ref, {
-      isDeleted: deleteField(),
-      deletedAt: deleteField(),
-      deletedBy: deleteField(),
-    });
-    logAction(userEmail, 'Expediente Restaurado (Migracion Automatica)', { orderId: ID_EXPEDIENTE });
-    localStorage.setItem(MARCA, 'ok-restaurado');
+
+    localStorage.setItem(MARCA, 'ok');
   } catch {
     // Si falla (permisos, red, lo que sea), simplemente no se marca --
     // se reintenta en la proxima carga. No se le muestra nada al usuario
