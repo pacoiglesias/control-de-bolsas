@@ -37,6 +37,13 @@ export const PATHS = {
   orders: 'purchaseOrders',
   expenses: 'expenses',
   purchases: 'purchases',
+  // Paso 1 de la migracion planeada (ver PLAN_DE_MEJORA_TOTAL.md): una
+  // coleccion nueva y en paralelo, donde cada factura vive como su
+  // propio documento independiente, en vez de anidada dentro de
+  // order.invoices[]. Se escribe en espejo junto al modelo actual --
+  // ningun archivo existente se toca todavia, todos siguen leyendo del
+  // modelo viejo exactamente igual que antes.
+  invoicesV2: 'invoicesV2',
   products: 'products',
   config: 'config',
   configFinancials: 'financials',

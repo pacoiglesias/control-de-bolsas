@@ -6,6 +6,7 @@ import { computeFinancials } from '../../lib/finance';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
 import { safeDeleteDoc, logAction } from '../../lib/logger';
+import { espejarFacturasV2 } from '../../lib/invoicesMirror';
 
 export function useOrderActions() {
   async function saveOrder({
@@ -237,6 +238,10 @@ export function useOrderActions() {
         facturas: updatedInvoices.length,
         cobrado: liveSummary.paidAmount,
       });
+      // Paso 1 de la migracion planeada (PLAN_DE_MEJORA_TOTAL.md) --
+      // espejar hacia la coleccion nueva en paralelo, sin bloquear ni
+      // arriesgar el guardado real de arriba, que ya se completo.
+      void espejarFacturasV2({ ...order, invoices: updatedInvoices, folio: form.folio, client: form.client } as any);
       toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {

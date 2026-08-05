@@ -1,5 +1,16 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.72.0] - 5 Agosto 2026 (Contrarecibos separados, MIGRACION traducido, seguridad reforzada)
+
+### Corregido
+- Se separo el permiso de eliminar (vs crear/editar) en expedientes -- ahora requiere el nivel mas alto, protegiendo contra borrados accidentales o no autorizados a nivel de base de datos, no solo de interfaz.
+- El marcador interno "MIGRACION" ya no se muestra tal cual como si fuera un cliente real -- traducido a "Historico (sin cliente registrado)" en los 6 lugares donde aparecia.
+
+### Mejorado
+- Cada contrarecibo dentro de un expediente ahora se muestra en su propia linea separada al expandir (con su monto y estado), en vez de un texto largo separado por comas.
+- Primer paso de la migracion de facturas a documentos independientes: coleccion nueva en paralelo (invoicesV2), sin tocar ningun archivo existente todavia.
+
+
 ## [v6.71.0] - 5 Agosto 2026 (Tablero y Lista ya no se contradicen)
 
 ### Corregido -- critico

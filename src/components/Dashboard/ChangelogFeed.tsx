@@ -372,7 +372,7 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
         {SYSTEM_CHANGELOG.map((item) => (
           <div key={item.version} style={{ padding: 16, background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 'var(--radius)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
-              <span className="badge badge-ok" style={{ fontSize: 13, fontWeight: 700 }}>Versión {item.version}</span>
+              <span className="badge" style={{ background: 'var(--ok)', fontSize: 13, fontWeight: 700 }}>Versión {item.version}</span>
               <span style={{ fontSize: 12, color: 'var(--accent-deep)', fontWeight: 600 }}>🕒 {item.date} — {item.time}</span>
             </div>
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)', marginBottom: 8 }}>{item.summary}</div>

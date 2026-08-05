@@ -1,7 +1,7 @@
 import { useContext, useMemo, useState } from 'react';
 import CobranzaContext from './CobranzaContext';
 import { daysLate } from '../../lib/finance';
-import { toDate, fmtDate } from '../../lib/format';
+import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 
 export default function TableroKanban() {
@@ -123,7 +123,7 @@ export default function TableroKanban() {
           <span style={{ fontSize: 13, fontWeight: 700, color: isOverdue ? '#b91c1c' : 'var(--ink)' }}>{money(amt)}</span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
-          {o.client} {o.department ? `(${o.department})` : ''}
+          {nombreClienteVisible(o.client)} {o.department ? `(${o.department})` : ''}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 11, background: cr ? '#bbf7d0' : '#e2e8f0', color: cr ? '#166534' : '#475569', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{cr ? `CR: ${cr}` : 'Sin CR'}</span>

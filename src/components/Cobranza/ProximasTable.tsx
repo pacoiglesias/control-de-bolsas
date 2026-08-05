@@ -1,6 +1,6 @@
 import { useCobranza } from './CobranzaContext';
 import { Card, Empty, CopyButton, StatusBadge } from '../ui';
-import { fmtDate } from '../../lib/format';
+import { fmtDate, nombreClienteVisible } from '../../lib/format';
 
 export default function ProximasTable() {
   const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, toast, filterType, setFilterType, setSelected } = useCobranza();
@@ -88,7 +88,7 @@ export default function ProximasTable() {
                         {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
                       </div>
                     </td>
-                    <td>{o.client ?? '—'}</td>
+                    <td>{nombreClienteVisible(o.client)}</td>
                     <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
                     <td className="num mono">
                       {d === null ? '—' : (

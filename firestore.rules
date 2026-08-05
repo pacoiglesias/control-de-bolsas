@@ -73,8 +73,24 @@ service cloud.firestore {
     match /purchaseOrders/{orderId} {
       // Todos los usuarios pueden leer expedientes (para empaquetar, checar estatus)
       allow read: if isAuthenticatedUser();
-      // Solo admins y managers pueden crear/modificar/borrar expedientes
-      allow create, update, delete: if isManagerOrAdmin();
+      // Managers y admins pueden crear/editar (uso diario del sistema).
+      allow create, update: if isManagerOrAdmin();
+      // Eliminar es mas sensible que editar -- en esta misma sesion se
+      // elimino por accidente un expediente con contrarecibos reales,
+      // mas de una vez. La proteccion de la interfaz (doble clic) ya se
+      // corrigio, pero la base de datos en si nunca distinguio "borrar"
+      // de "editar": cualquier manager podia hacer ambas cosas por
+      // igual. Ahora borrar requiere el nivel mas alto (super admin).
+      allow delete: if isSuperAdmin();
+    }
+
+    // Paso 1 de la migracion planeada (PLAN_DE_MEJORA_TOTAL.md, 3.4):
+    // coleccion nueva, en paralelo, donde cada factura vive como su
+    // propio documento -- se escribe en espejo junto al modelo actual,
+    // sin que ningun archivo existente dependa todavia de ella.
+    match /invoicesV2/{invoiceId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
     }
 
     // Catalogo de productos. Se alimenta solo desde OrderModal al guardar las

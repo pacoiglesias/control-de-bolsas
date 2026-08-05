@@ -11,7 +11,7 @@ import ProximasTable from './ProximasTable';
 import EstadoCuenta from './EstadoCuenta';
 import TableroKanban from './TableroKanban';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../../lib/finance';
-import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../../lib/format';
+import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
 import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
@@ -1369,7 +1369,7 @@ export default function Cobranza() {
                             <td className="mono" style={{ borderLeft: 'none' }}>{inv.collection?.sapDocument || '—'}</td>
                             <td className="mono">{inv.collection?.paymentDocument || '—'}</td>
                             <td className="mono">{inv.folio ?? o.folio ?? '—'}</td>
-                            <td>{o.client ?? '—'}</td>
+                            <td>{nombreClienteVisible(o.client)}</td>
                             <td className="mono">{fmtDate(inv.collection?.paidAt)}</td>
                             <td className="num mono">{(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
                             <td style={{ borderRight: 'none' }}>MXN</td>
@@ -1446,7 +1446,7 @@ export default function Cobranza() {
                             return (
                               <tr key={inv.id}>
                                 <td className="mono" style={{ borderLeft: 'none' }}>{inv.folio ?? o.folio ?? '—'}</td>
-                                <td>{o.client ?? '—'}</td>
+                                <td>{nombreClienteVisible(o.client)}</td>
                                 <td className="mono">{currentCr || '—'}</td>
                                 <td className="num mono" style={{ fontWeight: 700, color: 'var(--ok)' }}>
                                   {money(invTotal)}

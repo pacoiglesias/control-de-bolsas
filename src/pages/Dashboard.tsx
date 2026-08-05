@@ -433,7 +433,7 @@ return () => unsub();
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>Último Movimiento (Live)</span>
-                <span className="badge badge-ok" style={{ fontSize: 10 }}>● En vivo</span>
+                <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>● En vivo</span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
                 🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
@@ -458,7 +458,7 @@ return () => unsub();
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Versión del Sistema</span>
-              <span className="badge badge-ok" style={{ fontSize: 10 }}>v{__APP_VERSION__}</span>
+              <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>v{__APP_VERSION__}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
               📅 {SYSTEM_CHANGELOG[0]?.date ?? '—'}

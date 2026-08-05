@@ -747,3 +747,39 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — alinea la clasificación con la ya corregida y verificada en la Lista; no introduce ningún criterio nuevo.
 **Commit:** `fix(KanbanBoard): usar el mismo criterio que la lista para Pendiente de Facturar -- tablero y lista ya no se contradicen`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**
+
+### Iteración 70: Plan de Mejora Total, Etapas 1 y 2 (COMPLETADO)
+**Fecha:** 2026-08-05
+**Etapa 1 — 3 archivos con clases de estilo rotas corregidos:** `TabEntregas.tsx` (2 usos), `ChangelogFeed.tsx` (1 uso), `Dashboard.tsx` (2 usos). Se confirmó que `orderModalPrint.ts` (el 4to archivo de la lista original) en realidad NO tenía el bug — genera un documento HTML autocontenido para impresión con sus propios estilos, correctamente definidos ahí.
+**Etapa 2 — Auditoría de reglas de escritura de Firestore:** se encontró que `purchaseOrders` permitía `delete` (borrado físico real) al mismo nivel que `create`/`update` (cualquier manager) — sin ninguna protección adicional a nivel de base de datos para la acción más sensible. Se separó: crear/editar sigue en nivel manager (uso diario), pero eliminar ahora requiere el nivel más alto (super admin). Confirmado que el flujo normal de "Eliminar Expediente" usa borrado suave (`update` con `isDeleted:true`), no borrado físico — este cambio no afecta el uso diario, solo protege contra el peor caso.
+**Riesgo:** 🟢 Bajo — Etapa 1 puramente visual; Etapa 2 verificada contra el código real (nada llama `deleteDoc()` directo sobre purchaseOrders) y sintaxis balanceada.
+**Estado:** ✅ Verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, `firestore.rules` con sintaxis balanceada (no se pudo desplegar/lint real sin credenciales de Firebase CLI). **NO DESPLEGADO** — acumulando junto con las Etapas 3 y 4.
+
+### Iteración 71: Plan de Mejora Total, Etapa 3 (primer paso seguro) y Etapa 4 (diagnóstico real) (COMPLETADO)
+**Fecha:** 2026-08-05
+**Etapa 3 — Migración del modelo de facturas, primer paso (de 4):** se construyó la infraestructura en paralelo — nueva colección `invoicesV2` en Firestore, con reglas de seguridad propias, y una función `espejarFacturasV2()` que copia cada factura como documento independiente cada vez que se guarda un expediente. Es puramente aditivo: **ninguno de los 24 archivos que dependen del modelo actual se tocó** — todos siguen leyendo y escribiendo exactamente igual que antes. El espejo corre en segundo plano (`void`, sin bloquear), y si falla, no interrumpe el guardado real. Este es el paso 1 de 4 descritos en `PLAN_DE_MEJORA_TOTAL.md`; los pasos 2-4 (verificar el espejo sin discrepancias, migrar los 24 archivos uno por uno, apagar el modelo viejo) quedan para sesiones dedicadas con verificación en vivo.
+**De paso, en la misma revisión de seguridad:** se separó el permiso de `delete` de `create`/`update` en `purchaseOrders` (ver Iteración 70) y se agregaron las reglas correspondientes para `invoicesV2`.
+**Etapa 4 — Diagnóstico real de rendimiento (no implementado todavía, por riesgo):** se encontró que `Cobranza/index.tsx` (1,590 líneas) pasa un objeto `ctx` reconstruido en cada render, sin memoizar, como valor de su Context Provider — esto fuerza que todo componente consumidor (como el tablero Kanban) se vuelva a dibujar completo ante cualquier cambio de estado, incluso uno no relacionado. **Se decidió no implementar la corrección en esta sesión**: para que memoizar `ctx` tenga efecto real, las ~20 funciones que contiene también necesitarían envolverse en `useCallback` con sus dependencias exactas — un cambio de mayor alcance, con riesgo real de introducir bugs sutiles de "closures obsoletas" (funciones que capturan una versión vieja de una variable) difíciles de detectar con las pruebas automáticas actuales. Se prefirió diagnosticar con precisión y dejarlo para un ciclo dedicado, en vez de implementarlo a la carrera junto con las otras 3 etapas.
+**Riesgo:** 🟢 Bajo (Etapa 3, aditivo puro) / — (Etapa 4, diagnóstico sin cambio de código).
+**Commit:** `feat(migracion): paso 1 -- espejar facturas a coleccion invoicesV2 en paralelo, sin tocar el modelo actual`
+**Estado:** ✅ Etapa 3 compilada y verificada — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo, `firestore.rules` con sintaxis balanceada. Etapa 4 documentada como hallazgo, sin implementar. **NO DESPLEGADO** — acumulando junto con las Etapas 1 y 2.
+
+### Iteración 72: "MIGRACION" mostrado tal cual como si fuera un cliente real — traducido en toda la aplicación (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/lib/format.ts` (nueva función `nombreClienteVisible`), `src/pages/Orders.tsx`, `src/components/Cobranza/TableroKanban.tsx`, `src/components/Cobranza/ProximasTable.tsx`, `src/components/Cobranza/index.tsx`
+**Pregunta del usuario:** "¿MIGRACION? ¿Qué es eso?" — confundido con un marcador interno mostrado como si fuera un cliente real.
+**Causa:** "MIGRACION" es un valor interno guardado en el campo `client` para expedientes históricos donde nunca se capturó el nombre real del cliente al migrar los datos originales al sistema. Se mostraba tal cual, sin ninguna traducción, en **6 lugares distintos** del sistema.
+**Solución:** función compartida `nombreClienteVisible()` que traduce "MIGRACION" a **"Histórico (sin cliente registrado)"** — solo en lo que el usuario ve. El dato guardado en Firestore sigue siendo "MIGRACION" (varias comparaciones lógicas del sistema, ya corregidas en iteraciones anteriores, dependen de ese valor exacto para excluir estos expedientes de ciertos cálculos). Se aplicó de forma centralizada en los 6 lugares encontrados, en vez de corregir cada uno por separado (mismo tipo de error — un arreglo aplicado en un lugar pero olvidado en otro — que ya apareció varias veces en esta auditoría).
+**Riesgo:** 🟢 Bajo — puramente de visualización, no toca ningún dato ni cálculo.
+**Commit:** `feat(format): traducir el marcador interno MIGRACION a un texto legible, aplicado consistentemente en 6 lugares`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando.
+
+### Iteración 73: Cada contrarecibo se ve como su propia línea, no como texto mezclado (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/pages/Orders.tsx`
+**Pregunta del usuario, con la queja de fondo real:** un expediente con varios contrarecibos "no debería verse así" — mezclados.
+**Decisión consciente:** no se dividió el modelo de datos (eso sigue siendo un cambio de varias semanas, documentado en `PLAN_DE_MEJORA_TOTAL.md`, sección 3). Se resolvió el problema real que el usuario siente — que se vean mezclados — sin ese riesgo: es un cambio de presentación, no de estructura.
+**Solución:** la celda de CR ahora muestra, colapsada, un resumen simple ("12 contrarecibos — ver cada uno"). Al expandir, **cada contrarecibo aparece en su propia línea separada**, con su monto y su estado (Vencido/Por cobrar/Con contador/Cobrado) — visualmente distinguibles entre sí, no como un párrafo de texto con comas.
+**Riesgo:** 🟢 Bajo — puramente visual, mismo dato subyacente.
+**Commit:** `feat(Orders): cada contrarecibo se muestra en su propia linea al expandir, no como texto separado por comas`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.

@@ -137,9 +137,9 @@ export default function TabEntregas() {
                             disabled={readOnly || d.invoiced}
                           />
                           {d.invoiced ? (
-                            <span className="badge badge-ok">✅ Facturada</span>
+                            <span className="badge" style={{ background: 'var(--ok)' }}>✅ Facturada</span>
                           ) : (
-                            <span className="badge badge-warn">📝 Pendiente de facturar</span>
+                            <span className="badge" style={{ background: 'var(--warn)' }}>📝 Pendiente de facturar</span>
                           )}
                           <strong className="mono">{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
                         </div>

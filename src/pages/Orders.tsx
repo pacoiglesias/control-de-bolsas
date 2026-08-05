@@ -8,7 +8,7 @@ import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from '../components/OrderModal';
 import KanbanBoard from '../components/Orders/KanbanBoard';
-import { kilos, money } from '../lib/format';
+import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
@@ -360,38 +360,51 @@ export default function Orders() {
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
-                        {summary.invoices.some(i => i.collection?.contrareciboNumber) && (() => {
-                          const todosLosCr = Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))) as string[];
+                        {summary.invoices.some((i: any) => i.collection?.contrareciboNumber) && (() => {
+                          const conCr = summary.invoices.filter((i: any) => i.collection?.contrareciboNumber);
                           const expandido = crExpandido.has(o.id);
-                          const visibles = expandido ? todosLosCr : todosLosCr.slice(0, 3);
-                          const faltantes = todosLosCr.length - visibles.length;
+                          const ESTADO_LABEL: Record<string, { texto: string; color: string }> = {
+                            overdue: { texto: 'Vencido', color: 'var(--bad)' },
+                            pending: { texto: 'Por cobrar', color: 'var(--ink-soft)' },
+                            paid: { texto: 'Con contador', color: 'var(--warn)' },
+                            collected: { texto: 'Cobrado', color: 'var(--ok)' },
+                          };
+                          if (!expandido) {
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                              >
+                                <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>CR</span>
+                                <span style={{ fontSize: '0.85em', color: 'var(--accent)', textDecoration: 'underline' }}>
+                                  {conCr.length === 1 ? conCr[0].collection?.contrareciboNumber : `${conCr.length} contrarecibos — ver cada uno`}
+                                </span>
+                              </button>
+                            );
+                          }
                           return (
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em', flexShrink: 0 }}>CR</span>
-                              <span style={{ fontSize: '0.85em', color: 'var(--ink-soft)' }}>
-                                {visibles.join(', ')}
-                                {faltantes > 0 && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
-                                    style={{ marginLeft: 6, fontSize: '0.9em', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                                  >
-                                    +{faltantes} más
-                                  </button>
-                                )}
-                                {expandido && todosLosCr.length > 3 && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
-                                    style={{ marginLeft: 6, fontSize: '0.9em', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                                  >
-                                    ver menos
-                                  </button>
-                                )}
-                              </span>
+                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 220 }}>
+                              {conCr.map((inv: any) => {
+                                const estado = ESTADO_LABEL[inv.creditCycle?.status] || ESTADO_LABEL.pending;
+                                return (
+                                  <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8em', padding: '3px 6px', background: 'var(--paper-sunk)', borderRadius: 4 }}>
+                                    <span style={{ fontWeight: 700, color: '#047857' }}>{inv.collection.contrareciboNumber}</span>
+                                    <span className="mono">{money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0)}</span>
+                                    <span style={{ color: estado.color, fontWeight: 600 }}>{estado.texto}</span>
+                                  </div>
+                                );
+                              })}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
+                                style={{ fontSize: '0.8em', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '2px 0', textAlign: 'left' }}
+                              >
+                                ▲ ver compacto
+                              </button>
                             </div>
                           );
                         })()}
                       </td>
-                      <td>{o.client ?? '—'}</td>
+                      <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
                       <td className="num mono">{summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}</td>
