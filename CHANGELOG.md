@@ -1,5 +1,25 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.60.0] - 4 Agosto 2026 (Causa raiz real del scroll + flechas de navegacion + auditoria numerica)
+
+### Corregido — critico
+- **Causa raiz real del problema de scroll en modales**: `.modal-root`, `.modal-box` y `.modal-scrim` no tenian NINGUN estilo CSS en todo el sistema. El modal se dibujaba como un bloque normal sin limite de altura -- por eso el scroll interno nunca se activaba y la pagina completa tenia que estirarse. Ahora el modal es un overlay fijo y centrado de verdad, con su propio scroll interno funcional (encabezado fijo arriba, cuerpo con scroll abajo). Afecta a todos los modales del sistema.
+- **"Ganancia Comercial" con margen por kilo inflado** ($8.08/kg en vez de los ~$5/kg esperados) -- el KPI de kilos totales leia un campo de expediente que se quedo en 0 para un caso real, aunque sus facturas si tenian kilos correctos. Ahora usa la suma real de facturas como respaldo.
+
+### Agregado
+- **Flechas de navegacion (◀ ▶)** en los tres tableros Kanban (Cobranza, Compras, Entregas) -- un clic los desplaza, sin depender de gestos de mouse/trackpad poco descubribles.
+- Auditoria completa de las formulas financieras centrales (comision, deuda con Andres, proyeccion de flujo, antiguedad de vencimiento) -- verificadas correctas contra numeros reales.
+
+### Detectado (no corregido, requiere decision del usuario)
+- Duplicado real de datos confirmado: dos expedientes distintos contienen las mismas facturas 5927/5928 (folios `QMjuMVzzM3rPPchXlgZC` y `cTpSirJD5iv2lx56X4BB`). No se elimino nada -- requiere confirmar cual es el correcto antes de limpiar el sobrante.
+
+
+## [v6.59.0] - 4 Agosto 2026 (URGENTE: boton para restaurar expediente eliminado)
+
+### Agregado — critico
+- **No existia forma de deshacer "Eliminar Expediente" desde la interfaz.** Se agrego un boton "Restaurar Expediente" que aparece automaticamente cuando abres un expediente ya eliminado -- revierte el borrado exacto, sin tocar Firebase Console a mano.
+
+
 ## [v6.58.0] - 4 Agosto 2026 (Proveedor real de Andres, avisos de duplicados, 2 tableros Kanban nuevos)
 
 ### Corregido — crítico

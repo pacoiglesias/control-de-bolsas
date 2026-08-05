@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { PurchaseOrder } from '../../lib/types';
 import { computeDeliveredTotals } from '../../lib/deliveries';
 import { money, kilos as fmtKilos } from '../../lib/format';
+import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 
 /**
  * Tablero Kanban para Logistica de Entregas — completa la trilogia visual
@@ -101,7 +102,7 @@ export function EntregasKanban({
   ];
 
   return (
-    <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, marginTop: 16 }} className="table-scroll">
+    <KanbanScrollWrapper>
       {columnas.map(col => (
         <div key={col.key} style={colStyle(col.bg)}>
           <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -114,6 +115,6 @@ export function EntregasKanban({
           </div>
         </div>
       ))}
-    </div>
+    </KanbanScrollWrapper>
   );
 }

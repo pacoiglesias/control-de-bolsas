@@ -497,3 +497,34 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — agrega una columna, no quita ninguna.
 **Commit:** `fix(KanbanBoard): agregar columna faltante para expedientes ya cobrados y recolectados`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando, a petición del usuario.
+
+### Iteración 48: 🔴🔴 URGENTE — No existía forma de deshacer "Eliminar Expediente" desde la interfaz (COMPLETADO, entregado de inmediato)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`, `src/components/OrderModal/index.tsx`
+**Contexto:** El usuario eliminó accidentalmente el expediente con sus 10 contrarecibos reales (confirmado: `deletedBy: paco@cobertores.com`, hace minutos) mientras navegaba. El sistema no tenía ningún botón ni pantalla de "papelera" para deshacer un borrado — la única opción era editar el campo `isDeleted` directamente en Firebase Console.
+**Solución:** Se agregó `restoreOrder()`, la operación inversa exacta de `safeDeleteDoc()` (quita `isDeleted`/`deletedAt`/`deletedBy` en vez de ponerlos). El modal de expediente ahora muestra un botón **"↩️ Restaurar Expediente"** en lugar de "Eliminar" cuando el expediente ya está eliminado.
+**Confirmado:** el sistema nunca oculta los expedientes eliminados del lado del navegador (no hay ningún filtro `isDeleted` en el frontend) — así que el expediente eliminado sigue siendo visible y clickeable en la lista normal de Expedientes, permitiendo llegar al nuevo botón sin necesitar una pantalla de papelera separada.
+**Riesgo:** 🟢 Bajo — es la operación inversa exacta de una ya existente y probada.
+**Commit:** `feat(OrderModal): agregar boton para restaurar un expediente eliminado por accidente`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — dada la urgencia real de datos financieros afectados, se rompió el patrón de "acumular sin entregar" para esta corrección específica.
+
+### Iteración 49: 🔴🔴 CAUSA RAÍZ REAL del problema de scroll: el modal nunca tuvo estilos de overlay ni límite de altura (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/index.css`
+**Contexto:** El usuario reportó, en varias ocasiones distintas, que las barras de scroll "no se ven" tanto en la pantalla grande como en el modal de expediente. Los arreglos anteriores (color/grosor de la barra) eran correctos pero incompletos — atacaban el síntoma, no la causa.
+**Causa raíz encontrada, auditando el componente `Modal` directamente:** las clases `.modal-root`, `.modal-box`, y `.modal-scrim` — la estructura entera que debería convertir el modal en una ventana flotante centrada — **no tenían absolutamente ningún estilo CSS definido en todo el sistema**. El modal se renderizaba como un `<div>` normal metido en el flujo de la página, sin `position:fixed`, sin límite de altura. Por eso `.modal-body{overflow-y:auto}` nunca activaba ningún scroll interno — un `overflow-y:auto` no hace nada si el contenedor puede crecer sin límite. La página completa se estiraba para mostrar todo el contenido del expediente, en vez de que el modal hiciera scroll dentro de sí mismo.
+**Impacto:** Esto no era un problema de la barra de scroll — era que el modal, estructuralmente, nunca tuvo scroll interno que mostrar. Afecta a **todos los modales del sistema** (expedientes, compras, ajustes, todos usan el mismo componente `Modal`).
+**Solución:** Se agregaron los tres estilos faltantes: `.modal-root` como overlay fijo de pantalla completa y centrado, `.modal-scrim` como fondo oscuro semitransparente, `.modal-box` con altura máxima (90vh) y diseño de columna (encabezado fijo arriba, cuerpo con scroll propio abajo).
+**Riesgo:** 🟡 Medio-alto — toca la estructura visual de cada modal del sistema, no solo uno. Verificado: compila limpio, 42/42 pruebas (aunque estas no cubren comportamiento visual). **No se pudo confirmar visualmente en vivo** — el entorno de pruebas del navegador y el de código corren en redes separadas sin forma de servir la build local ahí.
+**Commit:** `fix(modal): agregar estilos faltantes de overlay/limite de altura -- el scroll interno nunca se activaba`
+**Estado:** ✅ Compilado y verificado. **NO DESPLEGADO** — a petición explícita del usuario ("no entregues hasta que te lo pida"). Dado que toca todos los modales, se recomienda ser la primera pantalla a revisar en la próxima instalación.
+
+### Iteración 50: Flechas de navegación en los 3 tableros Kanban + confirmado duplicado real de datos (COMPLETADO, sin desplegar)
+**Fecha:** 2026-08-04
+**Archivo:** `src/components/ui/KanbanScrollWrapper.tsx` (nuevo), `TableroKanban.tsx`, `ComprasKanban.tsx`, `EntregasKanban.tsx`
+**Contexto:** El usuario compartió una captura de pantalla mostrando que el scroll horizontal del tablero no es fácil de descubrir/usar.
+**Solución:** Se agregaron flechas visibles (◀ ▶) arriba de los tres tableros Kanban (Cobranza, Compras, Entregas) — un clic desplaza el tablero, sin depender de gestos de mouse/trackpad. Se extrajo a un componente compartido (`KanbanScrollWrapper`) para no triplicar la misma lógica.
+**Hallazgo adicional confirmado con la misma captura:** las tarjetas "duplicadas" que se ven en "Con el Contador" (5927/5928 dos veces) **son un duplicado real de datos**, no un bug de renderizado — se confirmó que existen dos documentos de expediente distintos (`QMjuMVzzM3rPPchXlgZC` y `cTpSirJD5iv2lx56X4BB`) con las mismas facturas. Es el mismo duplicado GT-570 identificado desde el inicio de esta sesión (en la Sábana original) y nunca limpiado. No se eliminó ningún dato — requiere que el usuario confirme cuál de los dos expedientes es el correcto antes de borrar el otro.
+**Riesgo:** 🟢 Bajo — la mejora de navegación es aditiva; el hallazgo del duplicado se reporta, no se actúa sobre él.
+**Commit:** `feat(kanban): flechas de navegacion horizontal en los 3 tableros`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.

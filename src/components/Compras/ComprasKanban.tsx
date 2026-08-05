@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
+import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 
 /**
  * Tablero Kanban para Compras — mismo patron visual que el de Cobranza
@@ -87,7 +88,7 @@ export function ComprasKanban({
   };
 
   return (
-    <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, marginTop: 16 }} className="table-scroll">
+    <KanbanScrollWrapper>
       <div style={colStyle('#f8fafc')}>
         <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           <span>📋 Pedido</span>
@@ -131,6 +132,6 @@ export function ComprasKanban({
           {cols.pagado.length === 0 && <div style={{ textAlign: 'center', color: '#86efac', fontSize: 13, marginTop: 20 }}>Nada liquidado todavía</div>}
         </div>
       </div>
-    </div>
+    </KanbanScrollWrapper>
   );
 }

@@ -383,7 +383,20 @@ textarea.input{min-height:80px;resize:vertical;line-height:1.5}
 .modal.wide{max-width:960px}
 .modal-head{padding:20px 24px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,0.6)}
 .modal-head h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-0.01em;color:var(--ink)}
-.modal-body{padding:24px;overflow-y:auto}
+/* .modal-root/.modal-box/.modal-scrim nunca tuvieron ningun estilo --
+   el modal era un <div> normal metido en el flujo de la pagina, sin
+   limite de altura. Por eso .modal-body nunca activaba su propio scroll
+   interno (overflow-y:auto no hace nada si el contenedor puede crecer
+   sin limite): la pagina entera se estiraba en vez de que la ventana
+   hiciera scroll adentro de si misma. Esta es la causa real detras de
+   "no se ve la barra de scroll en la subpantalla".
+*/
+.modal-root{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px}
+.modal-scrim{position:absolute;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(2px)}
+.modal-box{position:relative;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;background:var(--paper-raised);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden}
+.modal-box.wide{max-width:1100px}
+.modal-head{flex-shrink:0}
+.modal-body{padding:24px;overflow-y:auto;flex:1;min-height:0}
 .modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;flex-wrap:wrap}
 
 @keyframes slideUpModal{from{transform:translateY(20px) scale(0.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}

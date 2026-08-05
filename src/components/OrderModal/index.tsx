@@ -137,7 +137,7 @@ export default function OrderModal({
     allOrders,
   });
 
-  const { saveOrder, removeOrder } = useOrderActions();
+  const { saveOrder, removeOrder, restoreOrder } = useOrderActions();
 
   const liveSummary = useMemo(() => {
     // We construct a fake order object to pass to getOrderSummary
@@ -232,6 +232,12 @@ export default function OrderModal({
   async function remove() {
     await removeOrder({
       order, userEmail: user?.email, initialSummary, setBusy, toast, onClose
+    });
+  }
+
+  async function restore() {
+    await restoreOrder({
+      order, userEmail: user?.email, setBusy, toast, onClose
     });
   }
 
@@ -520,7 +526,11 @@ export default function OrderModal({
       </div>
 
       <div className="modal-actions" style={{ marginTop: 16, position: 'sticky', bottom: 0, background: 'var(--bg-modal)', padding: '16px 0', borderTop: '1px solid var(--line)', zIndex: 10 }}>
-        {!readOnly && (
+        {(order as any).isDeleted ? (
+          <button className="btn btn-primary" style={{ background: 'var(--ok)', borderColor: 'var(--ok)' }} onClick={() => void restore()} disabled={busy}>
+            {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '↩️ '} Restaurar Expediente
+          </button>
+        ) : !readOnly && (
           <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
             {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '🗑️ '} Eliminar Expediente
           </button>

@@ -2,6 +2,7 @@ import { useContext, useMemo, useState } from 'react';
 import CobranzaContext from './CobranzaContext';
 import { daysLate } from '../../lib/finance';
 import { toDate, fmtDate } from '../../lib/format';
+import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 
 export default function TableroKanban() {
   const { data, money, setSelected, moveInvoice } = useContext(CobranzaContext)!;
@@ -146,7 +147,7 @@ export default function TableroKanban() {
   });
 
   return (
-    <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, marginTop: 16 }}>
+    <KanbanScrollWrapper>
       
       {/* Columna En Revisión */}
       <div 
@@ -224,6 +225,6 @@ export default function TableroKanban() {
         </div>
       </div>
 
-    </div>
+    </KanbanScrollWrapper>
   );
 }

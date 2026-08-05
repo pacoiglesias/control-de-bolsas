@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, collection, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection, runTransaction, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PATHS } from '../../lib/firebase';
 import { Invoice } from '../../lib/types';
@@ -269,5 +269,32 @@ export function useOrderActions() {
     }
   }
 
-  return { saveOrder, removeOrder };
+  // Antes no habia ninguna forma de deshacer un "Eliminar Expediente"
+  // accidental desde la interfaz -- la unica opcion era editar el campo
+  // isDeleted a mano en Firebase Console. Esta es la operacion inversa
+  // exacta de safeDeleteDoc: quita isDeleted/deletedAt/deletedBy en vez
+  // de ponerlos.
+  async function restoreOrder({
+    order, userEmail, setBusy, toast, onClose,
+  }: any) {
+    if (!window.confirm(`¿Restaurar el expediente ${order.folio ?? order.oc ?? ''}? Volverá a aparecer en todas las pantallas.`))
+      return;
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, PATHS.orders, order.id), {
+        isDeleted: deleteField(),
+        deletedAt: deleteField(),
+        deletedBy: deleteField(),
+      });
+      logAction(userEmail, 'Expediente Restaurado', { orderId: order.id, folio: order.folio ?? '' });
+      toast('Expediente restaurado', 'ok');
+      onClose();
+    } catch (e) {
+      toast(`No se pudo restaurar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { saveOrder, removeOrder, restoreOrder };
 }
