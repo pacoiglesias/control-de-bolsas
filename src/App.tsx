@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -10,6 +10,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReloadPrompt from './components/ReloadPrompt';
+import { restaurarExpedienteAutomaticamente } from './lib/oneTimeMigrations';
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -46,6 +47,9 @@ function RouteFallback() {
 
 function Gate() {
   const { user, loading } = useAuth();
+  useEffect(() => {
+    if (user?.email) void restaurarExpedienteAutomaticamente(user.email);
+  }, [user?.email]);
   if (loading) {
     return (
       <div className="page" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--base)' }}>

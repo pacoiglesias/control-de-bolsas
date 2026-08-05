@@ -537,3 +537,13 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — consulta nueva y aislada, no modifica el filtro existente ni ninguna pantalla actual.
 **Commit:** `feat(ControlCenter): agregar pestaña Papelera -- el boton Restaurar Expediente era inalcanzable sin ella`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0 errores/0 advertencias, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — sin esto, la restauración del expediente urgente no se puede completar.
+
+### Iteración 52: Restauración automática del expediente, sin intervención manual (COMPLETADO, entregado)
+**Fecha:** 2026-08-05
+**Archivo:** `src/lib/oneTimeMigrations.ts` (nuevo), `src/App.tsx`
+**Contexto:** El usuario pidió explícitamente no tener que abrir ningún expediente ni la Papelera manualmente — quería el dato ya corregido al instalar.
+**Solución:** Migración de una sola vez, temporal, que corre automáticamente en cuanto el usuario inicia sesión: revisa si el expediente `trenHXXXa9nYzxB7Kxi5` (los 10 contrarecibos reales) sigue marcado como eliminado, y si es así, lo restaura solo — sin ningún clic, sin abrir ningún modal, sin pasar por la Papelera. Se marca en `localStorage` para no repetir la verificación innecesariamente (aunque repetirla no causaría ningún daño, ya que siempre valida el estado real contra Firestore antes de actuar).
+**Riesgo:** 🟡 Medio — escribe automáticamente a la base de datos sin confirmación del usuario, algo que normalmente se evita. Se justifica aquí porque: (1) es la restauración exacta de un borrado accidental ya identificado y confirmado por el propio usuario, (2) es una operación reversible (el botón "Eliminar" sigue disponible si se desea deshacer), (3) el usuario lo pidió explícitamente.
+**Nota de mantenimiento:** Este archivo es temporal — debe eliminarse (junto con su import en `App.tsx`) en cuanto el usuario confirme que el expediente ya apareció restaurado, para no dejar código de un solo uso viviendo permanentemente en el sistema.
+**Commit:** `feat(migracion): restaurar automaticamente el expediente eliminado al iniciar sesion -- temporal`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.

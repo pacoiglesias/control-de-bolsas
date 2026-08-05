@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.62.0] - 5 Agosto 2026 (Restauracion automatica -- sin abrir nada manualmente)
+
+### Agregado
+- **El expediente de tus 10 contrarecibos se restaura solo, automaticamente, en cuanto inicias sesion** -- sin abrir el expediente, sin usar la Papelera. Migracion temporal de un solo uso, se puede quitar despues de confirmar.
+
+
 ## [v6.61.0] - 4 Agosto 2026 (URGENTE: pestana Papelera -- el boton Restaurar era inalcanzable)
 
 ### Agregado — critico
