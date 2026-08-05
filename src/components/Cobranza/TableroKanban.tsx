@@ -41,14 +41,23 @@ export default function TableroKanban() {
     // expediente duplicado en la base de datos (como paso con la
     // migracion original), no un error de la pantalla. Se marca la
     // tarjeta en vez de esconderla, para que el usuario decida.
+    //
+    // OJO: varias facturas migradas comparten el folio generico "S/N"
+    // (no vacio, el texto literal "S/N") como placeholder -- si se usa
+    // como respaldo para comparar, TODAS las facturas de un mismo
+    // expediente migrado se marcan como duplicadas entre si, sin serlo.
+    // Un folio asi no distingue nada, asi que nunca cuenta como clave.
+    const FOLIOS_PLACEHOLDER = new Set(['s/n', 'sin folio', '']);
     const marcarDuplicados = (arr: any[]) => {
       const contador: Record<string, number> = {};
       arr.forEach((x) => {
-        const clave = x.cr || x.inv.folio || '';
+        const folioValido = !FOLIOS_PLACEHOLDER.has((x.inv.folio || '').trim().toLowerCase());
+        const clave = x.cr || (folioValido ? x.inv.folio : '') || '';
         if (clave) contador[clave] = (contador[clave] || 0) + 1;
       });
       arr.forEach((x) => {
-        const clave = x.cr || x.inv.folio || '';
+        const folioValido = !FOLIOS_PLACEHOLDER.has((x.inv.folio || '').trim().toLowerCase());
+        const clave = x.cr || (folioValido ? x.inv.folio : '') || '';
         x._posibleDuplicado = clave && contador[clave] > 1;
       });
     };

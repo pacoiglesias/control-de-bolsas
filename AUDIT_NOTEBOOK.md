@@ -677,3 +677,42 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — corrige qué campo se suma, no toca ningún dato ni cambia el estado de ninguna factura.
 **Commit:** `fix(TableroKanban): sumar el monto real de la factura en Con el Contador/En Caja Chica, no el saldo del cliente (siempre cero ahi)`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**
+
+### Iteración 64: 🔴 "Posible duplicado" se disparaba en falso — mismo bug de la Iteración 28, nunca corregido en paid/collected (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/Cobranza/index.tsx`, `src/components/Cobranza/TableroKanban.tsx`
+**Pedido del usuario:** auditoría completa de Cobranza y expedientes.
+**Hallazgo real, no cosmético:** las tarjetas en "Con el Contador" mostraban avisos de "⚠️ Posible duplicado — mismo CR en otra tarjeta" sin que existiera ningún duplicado real (verificado directamente contra Firestore: cada CR aparecía una sola vez en todo el sistema).
+**Causa raíz — el mismo bug de la Iteración 28, sin corregir aquí:** en esa iteración se corrigió que `open`/`lista` no calculaban el campo `cr` (solo hacían `.filter()`, no `.map()`). Pero **`paid` y `collected` tenían exactamente el mismo problema**, nunca revisado hasta ahora. El detector de duplicados leía `x.cr` (siempre `undefined` en esos dos arrays) y caía al respaldo del folio de la factura — que para las 12 facturas migradas de un mismo expediente es el mismo texto genérico **"S/N"**, marcándolas todas como duplicadas entre sí sin serlo.
+**Solución, en dos capas:**
+1. **Causa raíz:** `paid` y `collected` ahora calculan `cr` de la misma forma que `lista` — mismo patrón, consistente en todo el archivo.
+2. **Defensa adicional:** el detector de duplicados nunca vuelve a usar un folio placeholder ("S/N", "Sin Folio", vacío) como clave de comparación, sin importar de dónde venga el dato — para que este tipo de bug no pueda repetirse de otra forma en el futuro.
+**Riesgo:** 🟡 Medio — se movió la declaración de una función (`saldo`) para evitar un error real de orden de inicialización en tiempo de ejecución (TypeScript no lo marcaba, pero sí hubiera fallado al ejecutarse). Verificado con cuidado antes de dar por buena la corrección.
+**Commit:** `fix(Cobranza): calcular cr en paid/collected -- mismo bug de Iteracion 28 sin corregir ahi; blindar el detector de duplicados contra folios placeholder`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando.
+
+### Iteración 65: Facturas agrupadas por estado dentro del expediente — sin dividir la estructura de datos (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/TabFacturas.tsx`
+**Pregunta del usuario:** si no sería mejor dividir un expediente con muchas facturas, para que sea más ordenado, proactivo y fácil.
+**Análisis honesto antes de tocar código:** se verificó cuántos archivos dependen de la estructura actual (facturas anidadas dentro del expediente): **24 archivos distintos**. Dividir eso — mover cada factura a su propio documento raíz de Firestore — sería una reescritura masiva de todo el sistema, exactamente lo que el protocolo de auditoría del propio usuario prohíbe ("nunca reescrituras masivas", "nunca modificar múltiples módulos críticos a la vez"). Alto riesgo para conseguir lo mismo que se puede lograr de forma incremental y segura.
+**Solución elegida:** sin tocar el modelo de datos, las facturas dentro del expediente ahora se **agrupan visualmente por estado** — "🔴 Por Cobrar", "🟡 Con el Contador", "✅ Cobradas" — con un encabezado claro entre cada grupo, en vez de una lista plana mezclada. Combinado con el colapso por defecto (Iteración 59) y el resaltado al abrir desde el tablero (Iteración 54), el mismo expediente con 12 facturas ahora se siente ordenado sin haber cambiado ni un solo dato.
+**Refactorización necesaria:** se extrajo el contenido de cada tarjeta a una función `renderFacturaCard()` reutilizable, para poder insertar los encabezados de sección sin duplicar ~350 líneas de código.
+**Error real encontrado y corregido durante el proceso:** la extracción inicial dejó un `<div>` de cierre faltante (el que envuelve toda la lista), causando un error de compilación. Se identificó la causa exacta y se corrigió antes de dar la tarea por terminada — no se confió únicamente en que `tsc` no marcara error tras el primer intento.
+**Riesgo:** 🟡 Medio — refactorización de mayor alcance en un archivo grande, con verificación línea por línea de los tres puntos de unión críticos (inicio de función, cierre de función, cierre del render principal) antes de aceptar el resultado.
+**Commit:** `refactor(TabFacturas): agrupar facturas por estado sin dividir el modelo de datos -- extraer renderFacturaCard()`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando.
+
+### Iteración 66: Capturar una factura después de la OC — mucho más rápido e intuitivo (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/index.tsx`, `src/components/OrderModal/TabFacturas.tsx`
+**Pedido del usuario:** capturar una factura, cuando ya se tiene la OC y casi todos los datos, debería ser mucho más rápido — más orden, más proactivo, más intuitivo.
+**Mejoras implementadas, todas dirigidas al mismo momento exacto (crear una factura manual):**
+1. **Kilos pre-llenados con el remanente real** — antes siempre arrancaba en 0, obligando a calcular y escribir a mano, incluso para el caso más común (facturar lo que ya se entregó y aún no se ha facturado). Ahora el sistema hace esa cuenta solo.
+2. **Sugerencia visible antes de hacer clic** — junto al botón "+ Manual" ahora se ve "Sugerido: X kg", para que el usuario sepa qué esperar sin tener que adivinar ni abrir nada.
+3. **Se abre ya expandida y con foco** — reutilizando el mismo mecanismo de resaltado (Iteración 54): la factura recién creada no se pierde entre las demás.
+4. **El campo Folio recibe el foco del teclado automáticamente** — el usuario puede empezar a escribir de inmediato, sin un clic adicional para "entrar" al campo.
+**Error real encontrado y corregido en el proceso:** el cálculo nuevo usaba una variable (`kilosEntregados`) antes de su punto de declaración en el archivo — mismo tipo de error de orden de inicialización ya corregido dos veces antes en esta sesión. Se detectó y se movió el bloque completo a la posición correcta, verificado con cuidado antes de aceptar el resultado.
+**Riesgo:** 🟢 Bajo — todo aditivo (valores sugeridos, no forzados; el usuario puede cambiar el kilaje sugerido libremente).
+**Commit:** `feat(OrderModal): pre-llenar kilos con el remanente real, foco automatico, sugerencia visible antes de crear la factura`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.

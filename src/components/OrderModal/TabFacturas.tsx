@@ -44,12 +44,24 @@ export default function TabFacturas() {
   useEffect(() => {
     if (!focusInvoiceId) return;
     setExpandedIds(prev => new Set(prev).add(focusInvoiceId));
-    const el = document.getElementById(`factura-card-${focusInvoiceId}`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // El setTimeout espera un tick a que React termine de pintar la
+    // tarjeta ya expandida en el DOM -- sin esto, el input de folio
+    // todavia no existiria en el momento de intentar enfocarlo.
+    const t = setTimeout(() => {
+      const el = document.getElementById(`factura-card-${focusInvoiceId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // El campo de Folio es el primer input de texto de la tarjeta --
+      // se enfoca solo, listo para escribir, sin que el usuario tenga
+      // que hacer clic primero. Ahorra un paso en el caso mas comun:
+      // crear una factura nueva y capturar su folio de inmediato.
+      const inputFolio = el?.querySelector('input[type="text"], input:not([type])') as HTMLInputElement | null;
+      inputFolio?.focus();
+    }, 50);
+    return () => clearTimeout(t);
   }, [focusInvoiceId]);
 
   if (!ctx) return null;
-  const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice, allOrders } = ctx;
+  const { form, readOnly, computedInvoices, order, provName, config, processFacturaText, processParsedXml, processPagoText, toast, addInvoice, updateInvoice, removeInvoice, allOrders, kilosPendientesDeFacturar } = ctx;
 
   /**
    * Ningun numero de Contrarecibo, Folio de factura, u OC debe repetirse
@@ -120,79 +132,10 @@ export default function TabFacturas() {
     e.preventDefault();
   };
 
-  return (
-    <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
-                <p className="hint" style={{ margin: 0 }}>Facturas vinculadas a este pedido.</p>
-              </div>
-              {!readOnly && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
-                  
-                  <div 
-                    onDrop={handleDrop} 
-                    onDragOver={handleDragOver}
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ 
-                      border: '1px dashed var(--accent)', 
-                      borderRadius: 8, 
-                      padding: '6px 14px', 
-                      background: 'rgba(37,99,235,0.05)', 
-                      color: 'var(--accent)', 
-                      cursor: 'pointer', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 8, 
-                      fontSize: 13,
-                      fontWeight: 600,
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37,99,235,0.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(37,99,235,0.05)'}
-                  >
-                    <span>📄</span>
-                    <span>Arrastra o Carga XML</span>
-                  </div>
-
-                  <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
-
-                  <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
-
-                  {pegando === 'factura' && (
-                    <PasteTextModal
-                      title="Pegar texto de la Factura"
-                      placeholder="Pega aquí el texto completo copiado del PDF de la Factura…"
-                      onConfirm={(text) => processFacturaText(text)}
-                      onClose={() => setPegando(null)}
-                    />
-                  )}
-                  {pegando === 'complemento' && (
-                    <PasteTextModal
-                      title="Pegar texto del Complemento de Pago"
-                      placeholder="Pega aquí el texto completo copiado del PDF del Complemento de Pago…"
-                      onConfirm={(text) => processPagoText(text)}
-                      onClose={() => setPegando(null)}
-                    />
-                  )}
-
-                  <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
-                </div>
-              )}
-            </div>
-            {form.invoices.length === 0 ? (
-              <div className="empty">
-                <span className="empty-icon">🧾</span>
-                <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>Sin Facturas</strong>
-                No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {computedInvoices.map(({ inv, fin, d, isLate }: any, i: number) => {
-                  const enFoco = inv.id === focusInvoiceId;
-                  const expandida = expandedIds.has(inv.id);
-                  return (
+  function renderFacturaCard({ inv, fin, d, isLate, i }: any) {
+    const enFoco = inv.id === focusInvoiceId;
+    const expandida = expandedIds.has(inv.id);
+    return (
                     <div
                       key={inv.id}
                       id={`factura-card-${inv.id}`}
@@ -544,8 +487,121 @@ export default function TabFacturas() {
                       </div>
                       </>)}
                     </div>
+    );
+  }
+
+  return (
+    <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
+                <p className="hint" style={{ margin: 0 }}>Facturas vinculadas a este pedido.</p>
+              </div>
+              {!readOnly && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
+                  
+                  <div 
+                    onDrop={handleDrop} 
+                    onDragOver={handleDragOver}
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ 
+                      border: '1px dashed var(--accent)', 
+                      borderRadius: 8, 
+                      padding: '6px 14px', 
+                      background: 'rgba(37,99,235,0.05)', 
+                      color: 'var(--accent)', 
+                      cursor: 'pointer', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      fontSize: 13,
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37,99,235,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(37,99,235,0.05)'}
+                  >
+                    <span>📄</span>
+                    <span>Arrastra o Carga XML</span>
+                  </div>
+
+                  <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
+
+                  <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
+
+                  {pegando === 'factura' && (
+                    <PasteTextModal
+                      title="Pegar texto de la Factura"
+                      placeholder="Pega aquí el texto completo copiado del PDF de la Factura…"
+                      onConfirm={(text) => processFacturaText(text)}
+                      onClose={() => setPegando(null)}
+                    />
+                  )}
+                  {pegando === 'complemento' && (
+                    <PasteTextModal
+                      title="Pegar texto del Complemento de Pago"
+                      placeholder="Pega aquí el texto completo copiado del PDF del Complemento de Pago…"
+                      onConfirm={(text) => processPagoText(text)}
+                      onClose={() => setPegando(null)}
+                    />
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button className="btn btn-primary" onClick={addInvoice}>+ Manual</button>
+                    {kilosPendientesDeFacturar > 0.01 && (
+                      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                        Sugerido: {kilosPendientesDeFacturar.toLocaleString('es-MX')} kg
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {form.invoices.length === 0 ? (
+              <div className="empty">
+                <span className="empty-icon">🧾</span>
+                <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>Sin Facturas</strong>
+                No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {(() => {
+                  // Antes las facturas se mostraban en una sola lista
+                  // plana, sin ningun orden -- con varias facturas en
+                  // estados distintos (por cobrar, con el contador,
+                  // cobradas) mezcladas, se sentia desordenado. Se
+                  // reordenan por estado y se inserta un encabezado de
+                  // seccion cuando cambia el grupo -- mismo dato, mismas
+                  // tarjetas, sin tocar su contenido interno, solo mas
+                  // facil de leer de un vistazo.
+                  const ORDEN_ESTADO: Record<string, number> = { overdue: 0, pending: 0, paid: 1, collected: 2 };
+                  const TITULO_SECCION: Record<string, string> = {
+                    pending: '🔴 Por Cobrar', overdue: '🔴 Por Cobrar',
+                    paid: '🟡 Con el Contador', collected: '✅ Cobradas',
+                  };
+                  const ordenadas = [...computedInvoices].sort(
+                    (a: any, b: any) => (ORDEN_ESTADO[a.inv.creditCycle.status] ?? 9) - (ORDEN_ESTADO[b.inv.creditCycle.status] ?? 9)
                   );
-                })}
+                  return ordenadas.map((item: any, i: number) => {
+                    const { inv, fin, d, isLate } = item;
+                    const statusActual = inv.creditCycle.status;
+                    const statusAnterior = i > 0 ? ordenadas[i - 1].inv.creditCycle.status : null;
+                    const grupoActual = TITULO_SECCION[statusActual] || 'Otras';
+                    const grupoAnterior = statusAnterior ? (TITULO_SECCION[statusAnterior] || 'Otras') : null;
+                    const nuevaSeccion = grupoActual !== grupoAnterior;
+                    return (
+                      <React.Fragment key={inv.id}>
+                        {nuevaSeccion && (
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-soft)', marginTop: i > 0 ? 8 : 0, paddingBottom: 4, borderBottom: '1px solid var(--line)' }}>
+                            {grupoActual}
+                          </div>
+                        )}
+                        {renderFacturaCard({ inv, fin, d, isLate, i })}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </div>
             )}
           </>

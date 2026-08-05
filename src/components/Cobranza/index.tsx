@@ -818,20 +818,34 @@ export default function Cobranza() {
       return s.invoices.map((inv) => ({ o, inv }));
     });
 
-    const paid = allInvoices.filter(
-      (x) => x.inv.creditCycle.status === 'paid',
-    );
+    // Se mueve aqui arriba (antes vivia mas abajo) porque conCr la usa
+    // de inmediato, en la misma pasada de ejecucion -- declararla
+    // despues hubiera sido un uso antes de inicializar en tiempo real,
+    // aunque tsc no lo marcara como error de tipos.
+    const saldo = (inv: (typeof allInvoices)[number]['inv']) =>
+      Math.max((inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0) - (inv.collection?.paidAmount ?? 0), 0);
 
-    const collected = allInvoices.filter(
+    // Mismo bug de la Iteracion 28 (ahi para open/lista), nunca corregido
+    // aqui: `paid`/`collected` solo hacian .filter(), sin calcular `cr` --
+    // asi que cualquier consumidor que leyera `.cr` (como el detector de
+    // posibles duplicados del tablero) siempre encontraba undefined y
+    // caia al folio generico "S/N" compartido por muchas facturas
+    // migradas, marcandolas todas como duplicadas entre si sin serlo.
+    const conCr = (arr: any[]) => arr.map(({ o, inv }) => {
+      const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+      return { o, inv, d: daysLate(toDate(inv.creditCycle?.dueDate)), saldo: saldo(inv), hasCr: cr.length > 0, cr };
+    });
+    const paid = conCr(allInvoices.filter(
+      (x) => x.inv.creditCycle.status === 'paid',
+    ));
+
+    const collected = conCr(allInvoices.filter(
       (x) => x.inv.creditCycle.status === 'collected',
-    );
+    ));
 
     const open = allInvoices.filter(
       (x) => x.inv.creditCycle.status === 'pending' || x.inv.creditCycle.status === 'overdue',
     );
-
-    const saldo = (inv: (typeof allInvoices)[number]['inv']) =>
-      Math.max((inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0) - (inv.collection?.paidAmount ?? 0), 0);
 
     const porCliente: Record<string, Record<AgingKey, number> & { total: number }> = {};
     open.forEach(({ o, inv }) => {

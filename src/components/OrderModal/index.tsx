@@ -40,7 +40,7 @@ export default function OrderModal({
   onClose,
   readOnly = false,
   initialTab = 'resumen',
-  focusInvoiceId = null,
+  focusInvoiceId: focusInvoiceIdProp = null,
 }: {
   order: PurchaseOrder;
   config: FinancialConfig;
@@ -75,6 +75,8 @@ export default function OrderModal({
     return Array.from(set).sort();
   }, [allOrders]);
   const [busy, setBusy] = useState(false);
+  const [focusInvoiceIdLocal, setFocusInvoiceId] = useState<string | null>(null);
+  const focusInvoiceId = focusInvoiceIdLocal ?? focusInvoiceIdProp;
   const [tab, setTab] = useState<'resumen' | 'productos' | 'entregas' | 'facturas'>(initialTab);
 
   const initialSummary = useMemo(() => getOrderSummary(order), [order]);
@@ -387,20 +389,6 @@ export default function OrderModal({
   };
 
   // --- Handlers for Invoices ---
-  const addInvoice = () => {
-    const issue = new Date();
-    const due = addDays(issue, config.creditDays);
-    set('invoices', [
-      ...form.invoices,
-      { 
-        id: Date.now().toString(), 
-        folio: '', 
-        kilos: 0, 
-        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-        collection: { paidAmount: 0, contrareciboNumber: '', notes: '' }
-      }
-    ]);
-  };
   const updateInvoice = (index: number, updateFn: (inv: Invoice) => Invoice) => {
     const next = [...form.invoices];
     next[index] = updateFn(next[index]);
@@ -426,6 +414,41 @@ export default function OrderModal({
   );
   const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
   const kilosFaltantes = round2(kilosPedidos - kilosEntregados);
+
+  // Compartido: se usa tanto para pre-llenar la nueva factura como para
+  // mostrar el numero de forma proactiva junto al boton "+ Manual",
+  // antes de que el usuario haga clic.
+  const kilosPendientesDeFacturar = round2(Math.max(
+    kilosEntregados - form.invoices.reduce((acc: number, i: any) => acc + (i.kilos || 0), 0),
+    0
+  ));
+
+  const addInvoice = () => {
+    const issue = new Date();
+    const due = addDays(issue, config.creditDays);
+    // Antes: siempre arrancaba en 0 kilos, aunque el sistema YA SABE
+    // cuanto se entrego y cuanto ya se facturo -- el usuario tenia que
+    // escribirlo a mano cada vez, incluso para el caso mas comun
+    // (facturar lo que queda de una OC ya entregada). Ahora se
+    // pre-llena con el remanente real: kilos entregados menos lo que ya
+    // esta en otras facturas de este mismo expediente.
+    const nuevoId = Date.now().toString();
+    set('invoices', [
+      ...form.invoices,
+      { 
+        id: nuevoId, 
+        folio: '', 
+        kilos: kilosPendientesDeFacturar, 
+        creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: '' }
+      }
+    ]);
+    // Se abre ya expandida y con foco -- el mismo mecanismo que resalta
+    // una factura al llegar desde el tablero de Cobranza (Iteracion 54),
+    // reusado aqui para que la factura recien creada no se pierda entre
+    // las demas, sin necesitar un clic extra para abrirla.
+    setFocusInvoiceId(nuevoId);
+  };
 
   /**
    * Factura UNA entrega especifica, no el acumulado — ver Ciclo 26 en
@@ -468,7 +491,7 @@ export default function OrderModal({
     form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
     allOrders, knownClients, knownProviders, knownClientEmails, provName, config, focusInvoiceId,
     fallbackSale, fallbackCost, fallbackComm, kilosNum,
-    kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem,
+    kilosEntregados, kilosPedidos, kilosFaltantes, kilosPendientesDeFacturar, deliveredByItem,
     processFacturaText, processPagoText, parseOCAndFill, emailClient, toast,
     addItem, updateItem, removeItem,
     addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery,

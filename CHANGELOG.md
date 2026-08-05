@@ -1,5 +1,28 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.69.0] - 5 Agosto 2026 (Facturacion mejorada, totales corregidos, deteccion de duplicados real)
+
+### Corregido — critico
+- "Deuda con Andres" mostraba -$978,849.92 en vez de -$102,670.28 -- doble conteo entre dos correcciones anteriores. Se corrige sola al iniciar sesion.
+- "Con el Contador" y "En Caja Chica" siempre mostraban $0.00 de total, sin importar cuantas tarjetas tuvieran -- sumaban el saldo pendiente del cliente (siempre cero ahi) en vez del monto real de cada factura.
+- "Posible duplicado" se disparaba en falso en el tablero -- mismo bug de version anterior, nunca corregido para facturas ya pagadas/cobradas.
+
+### Mejorado -- flujo de facturacion
+- Boton de accion rapida "Marcar Pagado" directo en la tabla de Contrarecibos.
+- Facturas dentro de un expediente ahora se agrupan por estado (Por Cobrar / Con el Contador / Cobradas) en vez de una lista plana mezclada.
+- Al capturar una factura manual: los kilos se pre-llenan solos con el remanente real pendiente de facturar, se muestra la sugerencia antes de hacer clic, el campo Folio recibe el foco automaticamente, y la factura nueva se abre ya expandida.
+
+
+## [v6.68.0] - 5 Agosto 2026 (Facturacion mas rapida + facturas agrupadas por estado)
+
+### Mejorado
+- **Capturar una factura manual, mucho mas rapido**: kilos pre-llenados con el remanente real (entregado menos ya facturado), sugerencia visible antes de hacer clic, se abre expandida con el campo Folio listo para escribir de inmediato -- sin calculos ni clics de mas.
+- **Facturas agrupadas por estado dentro del expediente** (Por Cobrar / Con el Contador / Cobradas) -- mismo dato, mucho mas ordenado, sin tocar la estructura de datos.
+- Falso positivo de "posible duplicado" corregido (mismo bug de una iteracion anterior, sin corregir en dos columnas del tablero).
+- Totales de "Con el Contador" y "En Caja Chica" corregidos -- sumaban el saldo del cliente (siempre cero ahi) en vez del monto real.
+- Deuda con Andres corregida a la cifra real, verificada contra los datos reales del sistema.
+
+
 ## [v6.67.0] - 5 Agosto 2026 (Totales de Con el Contador / En Caja Chica corregidos)
 
 ### Corregido
