@@ -716,3 +716,34 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — todo aditivo (valores sugeridos, no forzados; el usuario puede cambiar el kilaje sugerido libremente).
 **Commit:** `feat(OrderModal): pre-llenar kilos con el remanente real, foco automatico, sugerencia visible antes de crear la factura`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.
+
+### Iteración 67: Lista de contrarecibos compacta en la vista de Expedientes (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/pages/Orders.tsx`
+**Problema:** el usuario mostró la pantalla real — el expediente con 12 contrarecibos los mostraba TODOS como un solo párrafo largo de texto separado por comas en la columna de la lista, aunque ya se había corregido esto mismo dentro del modal de edición (Iteración 65). La lista general seguía sin ese mismo criterio de orden.
+**Solución:** misma filosofía aplicada aquí — se muestran los primeros 3 contrarecibos y un botón "+9 más" para expandir el resto, sin perder ningún dato, solo evitando el bloque de texto ilegible por defecto. Expandible por fila individualmente.
+**Riesgo:** 🟢 Bajo — puramente visual, no cambia ningún dato.
+**Commit:** `feat(Orders): lista de CR compacta con expansion, mismo criterio que TabFacturas`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando.
+
+### Iteración 68: 🔴 "Pendiente de Facturar" en la lista de Expedientes tenía un significado distinto al mismo nombre en el Dashboard (COMPLETADO, entregado)
+**Fecha:** 2026-08-05
+**Archivo:** `src/pages/Orders.tsx`
+**Pregunta del usuario, con evidencia real:** por qué HIST-001 (dato histórico migrado, sin ninguna factura real pendiente) aparecía en "Pendiente de Facturar (1)", cuando lo único genuinamente pendiente era la OC 71/14014 ($81,780).
+**Dos causas reales, encontradas auditando el código, no solo el síntoma reportado:**
+1. **HIST-001 no debía contar** — el Dashboard ya excluye a los expedientes con cliente "MIGRACION" del cálculo de "Pendiente por Facturar" (datos históricos sin trazabilidad de facturas individuales), pero esta lista nunca tuvo esa misma exclusión.
+2. **Hallazgo más profundo, no reportado explícitamente pero encontrado al investigar:** el filtro "Pendiente de Facturar" de esta lista significaba **"cero facturas capturadas todavía"** (`status === 'pedido'`) — un concepto completamente distinto al mismo nombre en el KPI del Dashboard, que cuenta **kilos entregados sin facturar, sin importar si ya existe una factura parcial**. Con esa definición vieja, la OC 71/14014 — que ya tiene una factura parcial real capturada (folio 6159) y $81,780 genuinamente pendientes — **nunca habría aparecido en este filtro**, aunque sí sea, en la práctica, "pendiente de facturar".
+**Solución:** el filtro ahora significa lo mismo en los dos lugares del sistema — hay kilos entregados que todavía no se han facturado, sin importar si ya se capturó una factura parcial o ninguna. Se corrigió tanto el filtro de la lista como el contador del chip, para que ambos coincidan siempre.
+**Riesgo:** 🟡 Medio — cambia el criterio de un filtro usado activamente. Verificado con los dos casos reales del sistema (HIST-001 debe desaparecer, 71/14014 debe aparecer) antes de aceptar el resultado.
+**Commit:** `fix(Orders): Pendiente de Facturar ahora significa kilos sin facturar, no cero facturas capturadas -- mismo criterio que el Dashboard`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — afecta directamente qué se ve como dinero pendiente.
+
+### Iteración 69: 🔴 Tablero y Lista de Expedientes clasificaban "Pendiente de Facturar" de forma distinta (COMPLETADO, entregado)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/Orders/KanbanBoard.tsx`
+**Confirmado exactamente lo que el usuario reportó:** la Lista (recién corregida en la Iteración 68 para usar "kilos entregados sin facturar" como criterio) y el Tablero seguían usando dos lógicas distintas — el Tablero agrupaba únicamente por `status` puro, sin la corrección aplicada. Un expediente con una factura parcial ya capturada (como la OC 71/14014) aparecía en "Pendiente de Facturar" en la Lista, pero en "Con Contrarecibo" en el Tablero — mismos datos, dos respuestas distintas según qué pantalla se mirara.
+**Verificación adicional realizada:** se revisó si había también diferencias en los montos/totales mostrados (no solo en la clasificación) — confirmado que los valores por tarjeta vienen del mismo cálculo (`getOrderSummary`) que usa la Lista, así que esos ya eran consistentes entre ambas vistas.
+**Solución:** el Tablero ahora usa exactamente el mismo criterio que la Lista para la columna "Pendiente de Facturar" — kilos entregados mayores a kilos facturados, sin importar el status puro, excluyendo expedientes migrados igual que en la Iteración 68.
+**Riesgo:** 🟢 Bajo — alinea la clasificación con la ya corregida y verificada en la Lista; no introduce ningún criterio nuevo.
+**Commit:** `fix(KanbanBoard): usar el mismo criterio que la lista para Pendiente de Facturar -- tablero y lista ya no se contradicen`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**

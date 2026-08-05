@@ -1,5 +1,21 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.71.0] - 5 Agosto 2026 (Tablero y Lista ya no se contradicen)
+
+### Corregido -- critico
+- El tablero Kanban de Expedientes clasificaba "Pendiente de Facturar" con un criterio distinto al de la lista (recien corregida en v6.70) -- un expediente con factura parcial aparecia en un lugar en la lista y en otro en el tablero. Ahora ambos usan exactamente el mismo criterio.
+
+
+## [v6.70.0] - 5 Agosto 2026 (Pendiente de Facturar corregido de raiz + listas compactas)
+
+### Corregido -- critico
+- "Pendiente de Facturar" en Expedientes significaba "cero facturas capturadas", distinto al mismo nombre en el Dashboard ("kilos sin facturar, incluso con una factura parcial ya capturada"). Una OC facturada a medias, con saldo real pendiente, nunca aparecia en este filtro. Corregido para que signifique lo mismo en los dos lugares.
+- Expedientes migrados (MIGRACION) ya no cuentan como "Pendiente de Facturar" -- mismo criterio que ya usaba el Dashboard.
+
+### Mejorado
+- Lista de contrarecibos compacta en Expedientes (primeros 3 + expandir), mismo criterio ya aplicado dentro del expediente.
+
+
 ## [v6.69.0] - 5 Agosto 2026 (Facturacion mejorada, totales corregidos, deteccion de duplicados real)
 
 ### Corregido — critico

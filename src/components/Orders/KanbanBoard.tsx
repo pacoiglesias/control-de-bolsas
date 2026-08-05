@@ -20,7 +20,18 @@ const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: strin
 export default function KanbanBoard({ items, onSelect }: { items: OrderWithSummary[], onSelect: (o: PurchaseOrder) => void }) {
   // Group items by status
   const grouped = items.reduce((acc, item) => {
-    const status = item.s.status as OrderStatus;
+    // "Pendiente de Facturar" en la lista (Iteracion 68) significa
+    // "hay kilos entregados sin facturar", sin importar si ya existe una
+    // factura parcial -- distinto al status puro. Antes este tablero
+    // agrupaba solo por status, asi que un expediente con una factura
+    // parcial ya capturada (status='pending') aparecia aqui como
+    // "Con Contrarecibo" en vez de "Pendiente de Facturar", aunque la
+    // lista SI lo mostrara ahi -- mismos datos, dos lugares distintos
+    // del sistema en desacuerdo. Ahora usan el mismo criterio.
+    const tieneKilosSinFacturar = item.s.kilosDelivered > item.s.kilosInvoiced;
+    const status: OrderStatus = (tieneKilosSinFacturar && item.o.client !== 'MIGRACION')
+      ? 'pedido'
+      : item.s.status as OrderStatus;
     if (!acc[status]) acc[status] = [];
     acc[status].push(item);
     return acc;

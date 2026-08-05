@@ -68,6 +68,18 @@ export default function Orders() {
   );
 
   const [sortBy, setSortBy] = useState<'folio' | 'client' | 'deuda' | null>(null);
+  // La celda de CR mostraba TODOS los contrarecibos de un expediente como
+  // un solo parrafo de texto separado por comas -- con 12, se vuelve
+  // ilegible de un vistazo. Se compacta a los primeros 3 + un contador,
+  // expandible por fila individualmente.
+  const [crExpandido, setCrExpandido] = useState<Set<string>>(new Set());
+  const toggleCr = (orderId: string) => {
+    setCrExpandido(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const toggleSort = (campo: 'folio' | 'client' | 'deuda') => {
     if (sortBy === campo) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -80,7 +92,27 @@ export default function Orders() {
       // El estatus sale del resumen, igual que el contador del chip y que la
       // columna Estado. Antes el filtro leia o.creditCycle.status (el campo
       // viejo de la raiz): el chip decia "Vencidas (5)" y la tabla salia vacia.
-      if (filter !== 'all' && s.status !== filter) return false;
+      // "Pendiente de Facturar" antes significaba "cero facturas
+      // capturadas todavia" (status === 'pedido') -- un significado
+      // distinto al mismo nombre en el KPI del Dashboard, que cuenta
+      // kilos entregados sin facturar sin importar si ya existe una
+      // factura parcial. Con eso, un expediente facturado a medias
+      // (como una OC con una factura parcial real ya capturada, con
+      // saldo genuino pendiente) nunca aparecia aqui. Ahora el filtro
+      // significa lo mismo en los dos lugares: hay kilos entregados que
+      // todavia no se han facturado.
+      if (filter === 'pedido') {
+        if (s.kilosDelivered <= s.kilosInvoiced) return false;
+      } else if (filter !== 'all' && s.status !== filter) {
+        return false;
+      }
+      // El Dashboard ya excluye a los expedientes migrados (cliente
+      // "MIGRACION") del calculo de "Pendiente por Facturar", porque son
+      // datos historicos sin trazabilidad de facturas individuales -- no
+      // es que genuinamente falte facturar algo hoy. Esta lista no tenia
+      // esa misma exclusion, asi que mostraba a HIST-001 como pendiente
+      // cuando el Dashboard, correctamente, no lo contaba.
+      if (filter === 'pedido' && o.client === 'MIGRACION') return false;
       if (!q) return true;
       return [o.folio, o.client, o.fileName, o.collection?.contrareciboNumber, String(o.totalKilograms ?? '')]
         .join(' ')
@@ -113,9 +145,12 @@ export default function Orders() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: conResumen.length };
-    conResumen.forEach(({ s }) => {
+    let pendienteFacturar = 0;
+    conResumen.forEach(({ o, s }) => {
+      if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION') pendienteFacturar++;
       c[s.status] = (c[s.status] ?? 0) + 1;
     });
+    c.pedido = pendienteFacturar;
     return c;
   }, [conResumen]);
 
@@ -325,14 +360,36 @@ export default function Orders() {
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
-                        {summary.invoices.some(i => i.collection?.contrareciboNumber) && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                            <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>CR</span>
-                            <span style={{ fontSize: '0.85em', color: 'var(--ink-soft)' }}>
-                              {Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))).join(', ')}
-                            </span>
-                          </div>
-                        )}
+                        {summary.invoices.some(i => i.collection?.contrareciboNumber) && (() => {
+                          const todosLosCr = Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))) as string[];
+                          const expandido = crExpandido.has(o.id);
+                          const visibles = expandido ? todosLosCr : todosLosCr.slice(0, 3);
+                          const faltantes = todosLosCr.length - visibles.length;
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em', flexShrink: 0 }}>CR</span>
+                              <span style={{ fontSize: '0.85em', color: 'var(--ink-soft)' }}>
+                                {visibles.join(', ')}
+                                {faltantes > 0 && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
+                                    style={{ marginLeft: 6, fontSize: '0.9em', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                                  >
+                                    +{faltantes} más
+                                  </button>
+                                )}
+                                {expandido && todosLosCr.length > 3 && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
+                                    style={{ marginLeft: 6, fontSize: '0.9em', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                                  >
+                                    ver menos
+                                  </button>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td>{o.client ?? '—'}</td>
                       <td>{o.provider ?? '—'}</td>
