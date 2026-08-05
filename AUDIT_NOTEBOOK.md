@@ -528,3 +528,12 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — la mejora de navegación es aditiva; el hallazgo del duplicado se reporta, no se actúa sobre él.
 **Commit:** `feat(kanban): flechas de navegacion horizontal en los 3 tableros`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — a petición del usuario.
+
+### Iteración 51: 🔴🔴 URGENTE — El botón "Restaurar Expediente" era inalcanzable (COMPLETADO, entregado de inmediato)
+**Fecha:** 2026-08-04
+**Archivo:** `src/pages/Papelera.tsx` (nuevo), `src/pages/ControlCenter.tsx`
+**Problema:** El botón "Restaurar Expediente" agregado en la Iteración 48 vive dentro del modal de edición — pero `OrdersContext.tsx` filtra TODOS los expedientes con `isDeleted: true` desde la raíz del sistema, para que no aparezcan en ninguna pantalla normal. Resultado: no había forma de **abrir** un expediente eliminado para llegar al botón que lo restaura. Confirmado en vivo: búsqueda por folio, por CR, lista completa — el expediente de los 10 contrarecibos reales no aparecía en ningún lado.
+**Solución:** Nueva pestaña **"🗑️ Papelera"** en Centro de Control — hace su propia consulta a Firestore (`where isDeleted == true`), sin pasar por el filtro central, mostrando cada expediente eliminado con botón de restaurar directo ahí mismo.
+**Riesgo:** 🟢 Bajo — consulta nueva y aislada, no modifica el filtro existente ni ninguna pantalla actual.
+**Commit:** `feat(ControlCenter): agregar pestaña Papelera -- el boton Restaurar Expediente era inalcanzable sin ella`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0 errores/0 advertencias, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — sin esto, la restauración del expediente urgente no se puede completar.

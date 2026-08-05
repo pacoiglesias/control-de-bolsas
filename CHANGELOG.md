@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.61.0] - 4 Agosto 2026 (URGENTE: pestana Papelera -- el boton Restaurar era inalcanzable)
+
+### Agregado — critico
+- **Nueva pestana "Papelera" en Centro de Control.** El boton "Restaurar Expediente" (v6.59.0) vive dentro del modal de edicion, pero ningun expediente eliminado aparecia en ninguna lista ni busqueda del sistema -- no habia forma de ABRIR el expediente para llegar al boton. La Papelera hace su propia consulta, sin ese filtro, y permite restaurar directamente desde ahi.
+
+
 ## [v6.60.0] - 4 Agosto 2026 (Causa raiz real del scroll + flechas de navegacion + auditoria numerica)
 
 ### Corregido — critico
