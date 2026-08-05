@@ -655,3 +655,25 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟡 Medio — escritura automática a datos financieros reales. Mitigado con verificación exhaustiva contra Firestore antes de fijar el valor, no solo con la fórmula en abstracto.
 **Commit:** `fix(migracion): corregir doble conteo y ajustes de prueba contaminando la deuda con Andres`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — dinero real mostrado mal en pantalla, no puede esperar.
+
+### Iteración 62: Botón "Marcar Pagado" directo en la tabla de Contrarecibos (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/Dashboard/ContrarecibosTable.tsx`
+**Pedido del usuario:** poder marcar un contrarecibo como pagado directamente desde "Contrarecibos — Qué vence y cuándo", sin tener que abrir el expediente completo.
+**Solución elegida (de varias evaluadas):** botón "💰 Marcar Pagado" en cada fila, que reutiliza exactamente la misma lógica ya probada del expediente (transacción atómica, mismo cambio de estado). Al marcarse, la factura sale sola de esta tabla (el filtro ya existente solo muestra pendientes/vencidas) y aparece en la columna "Con el Contador" del tablero de Cobranza — ahí ya existe el siguiente paso ("Recibida del Contador → CAJA"), así que no se duplicó ese botón aquí también.
+**Por qué esta opción y no otras:** se consideró agregar también un botón de "pendiente de recoger" en esta misma tabla, pero como esa factura ya no calificaría para aparecer aquí (el filtro es específicamente "por vencer"), hubiera sido un botón sin sentido en este contexto — la acción correcta vive donde la factura realmente está después del primer paso.
+**De paso:** se encontró y quitó **otra copia** del mismo `console.log` de diagnóstico que se creía eliminado en la Iteración 60 (vivía en un archivo distinto, nunca se había revisado este).
+**Riesgo:** 🟡 Medio — escribe directamente a Firestore desde una pantalla nueva (antes solo el modal de expediente podía hacerlo). Mitigado: usa transacción atómica, mismo patrón ya probado.
+**Commit:** `feat(ContrarecibosTable): boton de accion rapida para marcar contrarecibo pagado`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO DESPLEGADO** — acumulando.
+
+### Iteración 63: 🔴 "Con el Contador" y "En Caja Chica" siempre mostraban $0.00 de total, sin importar cuántas tarjetas tuvieran (COMPLETADO, entregado)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/Cobranza/TableroKanban.tsx`
+**Problema reportado:** al mover una tarjeta a "Con el Contador" o "En Caja Chica", el total de esa columna se quedaba en $0.00 aunque tuviera varias tarjetas con montos reales.
+**Causa raíz confirmada:** el total de las 4 columnas se calculaba sumando `saldo` (monto de la factura menos lo que el cliente ya pagó) — correcto para "En Revisión" y "Por Cobrar" (el cliente todavía debe ese dinero), pero **siempre cero** para "Con el Contador" y "En Caja Chica", porque en esas dos columnas el cliente **ya pagó el 100%** — su saldo pendiente es cero por diseño, no por error de datos. La suma usaba el campo equivocado para esas dos columnas específicamente.
+**Auditoría adicional realizada (no solo el bug reportado):** se buscó el mismo patrón en todo el sistema. Confirmado: es el **único** lugar con este problema — todos los demás usos de `saldo` (en `ProximasTable.tsx` y el resto de `Cobranza/index.tsx`) ya estaban correctamente filtrados para solo incluir facturas donde el cliente aún debe.
+**Solución:** "Con el Contador" y "En Caja Chica" ahora suman el monto real de cada factura, no el saldo pendiente del cliente (que en esas columnas siempre es cero, correctamente). "En Revisión" y "Por Cobrar" siguen usando `saldo`, que ahí sí es lo correcto.
+**Riesgo:** 🟢 Bajo — corrige qué campo se suma, no toca ningún dato ni cambia el estado de ninguna factura.
+**Commit:** `fix(TableroKanban): sumar el monto real de la factura en Con el Contador/En Caja Chica, no el saldo del cliente (siempre cero ahi)`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**

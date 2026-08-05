@@ -1,5 +1,13 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.67.0] - 5 Agosto 2026 (Totales de Con el Contador / En Caja Chica corregidos)
+
+### Corregido
+- "Con el Contador" y "En Caja Chica" siempre mostraban $0.00 de total sin importar cuantas tarjetas tuvieran -- sumaban el saldo pendiente del CLIENTE (siempre cero ahi, porque el cliente ya pago) en vez del monto real de cada factura. Auditado el resto del sistema en busca del mismo patron: confirmado que era el unico lugar con el problema.
+- Boton "Marcar Pagado" agregado directo en la tabla de Contrarecibos.
+- Otra copia del console.log de diagnostico olvidado, eliminada.
+
+
 ## [v6.66.0] - 5 Agosto 2026 (URGENTE: Deuda con Andres corregida de -$978,849 a -$102,670)
 
 ### Corregido — critico, dinero real

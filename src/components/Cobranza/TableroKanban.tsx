@@ -55,12 +55,21 @@ export default function TableroKanban() {
     [colRevision, colPorCobrar, colContador, colCaja].forEach(marcarDuplicados);
 
     const sumaSaldo = (arr: any[]) => arr.reduce((acc, x) => acc + (x.saldo ?? 0), 0);
+    // "saldo" es (monto de la factura - lo ya pagado por el cliente) --
+    // correcto para "En Revision"/"Por Cobrar" (el cliente todavia debe
+    // ese dinero), pero para "Con el Contador"/"En Caja Chica" el cliente
+    // YA pago completo, asi que saldo siempre da 0 ahi, sin importar
+    // cuantas tarjetas haya. El total de esas dos columnas debe sumar el
+    // monto real de cada factura, no la deuda del cliente (que es cero
+    // a proposito, no un error de datos).
+    const montoFactura = (x: any) => x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0;
+    const sumaMonto = (arr: any[]) => arr.reduce((acc, x) => acc + montoFactura(x), 0);
 
     return {
       colRevision, colPorCobrar, colContador, colCaja,
       totales: {
         colRevision: sumaSaldo(colRevision), colPorCobrar: sumaSaldo(colPorCobrar),
-        colContador: sumaSaldo(colContador), colCaja: sumaSaldo(colCaja),
+        colContador: sumaMonto(colContador), colCaja: sumaMonto(colCaja),
       },
     };
   }, [data]);

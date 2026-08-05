@@ -1,7 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, Empty } from '../ui';
 import { money, fmtDate, toDate } from '../../lib/format';
 import type { PurchaseOrder } from '../../lib/types';
+import { doc, runTransaction, Timestamp } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { logAction } from '../../lib/logger';
 
 /**
  * Tabla pedida explícitamente por el usuario: "el cuadro de los
@@ -11,15 +16,22 @@ import type { PurchaseOrder } from '../../lib/types';
  * siempre refleja el estado real de cada factura con contrarecibo.
  */
 export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
   const filas = useMemo(() => {
     const ahora = Date.now();
     const out: {
+      orderId: string;
+      invoiceId: string;
       folio: string;
       contrarecibo: string;
       cliente: string;
       monto: number;
       vencimiento: Date | null;
       diasParaVencer: number | null;
+      status: string;
     }[] = [];
 
     for (const o of orders) {
@@ -28,27 +40,18 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
         if (!cr) continue; // Sin CR todavía, no es "contrarecibo" — es "factura en revisión".
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
 
-        // DIAGNOSTICO TEMPORAL — quitar en cuanto se confirme la causa.
-        if (typeof window !== 'undefined' && (window as any).__DEBUG_CR__ !== false) {
-          console.log('[ContrarecibosTable]', {
-            orderId: o.id,
-            invoiceId: inv.id,
-            cr,
-            status: inv.creditCycle?.status,
-            invoiceTotal: inv.financials?.invoiceTotal,
-            financialsRaw: inv.financials,
-          });
-        }
-
         const venc = toDate(inv.creditCycle?.dueDate);
         const dias = venc ? Math.round((venc.getTime() - ahora) / (24 * 3600 * 1000)) : null;
         out.push({
+          orderId: o.id,
+          invoiceId: inv.id,
           folio: inv.folio || o.folio || '(sin folio)',
           contrarecibo: cr,
           cliente: o.client || '—',
           monto: inv.financials?.invoiceTotal ?? 0,
           vencimiento: venc,
           diasParaVencer: dias,
+          status: inv.creditCycle?.status || 'pending',
         });
       }
     }
@@ -56,6 +59,38 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
     out.sort((a, b) => (a.diasParaVencer ?? 999) - (b.diasParaVencer ?? 999));
     return out;
   }, [orders]);
+
+  // Accion rapida pedida por el usuario: marcar un contrarecibo como
+  // pagado por el cliente directo desde esta tabla, sin tener que abrir
+  // el expediente completo solo para eso. Reutiliza exactamente la misma
+  // logica ya probada en TabFacturas.tsx (Cobrada por Cliente). Una vez
+  // marcada, la factura sale de esta tabla sola (el filtro de arriba solo
+  // incluye pending/overdue) y aparece en "Con el Contador" del tablero
+  // de Cobranza -- ahi ya existe el siguiente paso ("Recibida del
+  // Contador -> CAJA"), no hace falta duplicarlo aqui tambien.
+  async function marcarPagado(orderId: string, invoiceId: string, monto: number) {
+    setBusyId(invoiceId);
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, PATHS.orders, orderId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+        const data: any = snap.data();
+        const invoices = (data.invoices || []).map((i: any) =>
+          i.id === invoiceId
+            ? { ...i, creditCycle: { ...i.creditCycle, status: 'paid' }, collection: { ...i.collection, paidAmount: monto, paidAt: Timestamp.now() } }
+            : i
+        );
+        tx.update(ref, { invoices });
+      });
+      logAction(user?.email, 'Factura Marcada Pagada (Tabla Contrarecibos)', { orderId, invoiceId });
+      toast('✅ Marcada como pagada por el cliente. Pendiente de recibir del contador.', 'ok');
+    } catch (e) {
+      toast(`No se pudo marcar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const vigentes = filas.filter((f) => (f.diasParaVencer ?? 0) >= 0);
   const vencidos = filas.filter((f) => (f.diasParaVencer ?? 0) < 0);
@@ -75,6 +110,7 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
                 <th>Vencimiento</th>
                 <th className="num">Monto</th>
                 <th>Estado</th>
+                <th>Acción Rápida</th>
               </tr>
             </thead>
             <tbody>
@@ -102,6 +138,17 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
                           Vigente ({f.diasParaVencer} días)
                         </span>
                       )}
+                    </td>
+                    <td>
+                      <button
+                        className="btn"
+                        style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '4px 10px', fontSize: 13 }}
+                        disabled={busyId === f.invoiceId}
+                        onClick={() => void marcarPagado(f.orderId, f.invoiceId, f.monto)}
+                      >
+                        {busyId === f.invoiceId ? <span className="spinner" style={{ marginRight: 6 }}></span> : '💰 '}
+                        Marcar Pagado
+                      </button>
                     </td>
                   </tr>
                 );
