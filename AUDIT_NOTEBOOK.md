@@ -567,3 +567,15 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — aditivo, no cambia ningún dato ni cálculo.
 **Commit:** `feat(Cobranza): resaltar automaticamente la factura especifica al abrir desde el tablero`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0 errores/0 advertencias, 42/42 pruebas, build completo.
+
+### Iteración 55: "Eliminar Expediente" ahora requiere dos clics deliberados, no un diálogo que se cierra por reflejo (COMPLETADO)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/index.tsx`, `src/components/OrderModal/useOrderActions.ts`, `src/index.css`
+**Contexto:** El usuario preguntó qué más se puede mejorar para no volver a perder datos por accidente — confirmado a lo largo de esta sesión que expedientes reales se eliminaron sin querer más de una vez.
+**Verificado primero:** el problema de "tarjeta abre todo sin distinguir cuál" (Iteración 54) era específico de Cobranza — Compras y Entregas no lo tienen, porque ahí cada tarjeta ya corresponde 1:1 con lo que se abre.
+**Causa del riesgo real:** "Eliminar Expediente" dependía de un `window.confirm()` del navegador — un diálogo que, por costumbre, mucha gente cierra sin leer. Es exactamente el tipo de acción que se acepta por reflejo.
+**Solución:** Patrón de dos clics en el propio botón: el primer clic lo cambia a "⚠️ ¿Seguro? Clic para confirmar" (con pulso visual), y solo un **segundo clic deliberado**, dentro de los siguientes 4 segundos, elimina de verdad. Si no se confirma a tiempo, vuelve solo a su estado normal.
+**De paso:** se quitó el texto "esto no se puede deshacer" del flujo de eliminación — ya no es cierto, ahora existe la Papelera y la restauración automática.
+**Riesgo:** 🟢 Bajo — hace la acción destructiva más difícil de disparar por accidente, no más difícil de completar intencionalmente.
+**Commit:** `feat(OrderModal): confirmar eliminacion con dos clics deliberados en vez de un dialogo del navegador`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.

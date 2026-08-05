@@ -249,8 +249,6 @@ export function useOrderActions() {
   async function removeOrder({
     order, userEmail, initialSummary, setBusy, toast, onClose
   }: any) {
-    if (!window.confirm(`¿Eliminar el expediente ${order.folio ?? ''}? Esto no se puede deshacer.`))
-      return;
     setBusy(true);
     try {
       await safeDeleteDoc(userEmail, doc(db, PATHS.orders, order.id), order);

@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.65.0] - 5 Agosto 2026 (Eliminar expediente ahora requiere dos clics deliberados)
+
+### Mejorado — seguridad de datos
+- "Eliminar Expediente" ya no depende de un dialogo del navegador (facil de cerrar por reflejo) -- ahora requiere un segundo clic deliberado, dentro de 4 segundos, con aviso visual claro. Se quito el texto "esto no se puede deshacer", que ya no es cierto (existe Papelera y restauracion automatica).
+
+
 ## [v6.64.0] - 5 Agosto 2026 (Resaltar factura especifica al abrir desde el tablero)
 
 ### Mejorado

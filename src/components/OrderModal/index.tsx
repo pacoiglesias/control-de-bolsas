@@ -1,5 +1,5 @@
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
@@ -229,6 +229,28 @@ export default function OrderModal({
 
   function handlePrintConsolidatedPackage() {
     printConsolidatedPackage({ folio: form.folio, client: form.client, department: form.department, oc: form.oc, totalKilograms: form.totalKilograms, invoices: form.invoices, deliveries: form.deliveries, config, provName });
+  }
+
+  // Antes "Eliminar Expediente" disparaba un window.confirm() del
+  // navegador -- facil de cerrar por reflejo sin leerlo (asi se
+  // eliminaron por accidente expedientes reales en produccion, mas de
+  // una vez). Este patron de dos clics obliga a una segunda accion
+  // deliberada, separada en el tiempo, en vez de un solo dialogo.
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const confirmarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => { if (confirmarTimeoutRef.current) clearTimeout(confirmarTimeoutRef.current); };
+  }, []);
+
+  function clickEliminar() {
+    if (!confirmandoEliminar) {
+      setConfirmandoEliminar(true);
+      confirmarTimeoutRef.current = setTimeout(() => setConfirmandoEliminar(false), 4000);
+      return;
+    }
+    if (confirmarTimeoutRef.current) clearTimeout(confirmarTimeoutRef.current);
+    setConfirmandoEliminar(false);
+    void remove();
   }
 
   async function remove() {
@@ -533,8 +555,14 @@ export default function OrderModal({
             {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '↩️ '} Restaurar Expediente
           </button>
         ) : !readOnly && (
-          <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>
-            {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : '🗑️ '} Eliminar Expediente
+          <button
+            className="btn btn-danger"
+            onClick={clickEliminar}
+            disabled={busy}
+            style={confirmandoEliminar ? { background: '#7f1d1d', animation: 'pulse 1s infinite' } : undefined}
+          >
+            {busy ? <span className="spinner" style={{ marginRight: 8 }}></span> : confirmandoEliminar ? '⚠️ ' : '🗑️ '}
+            {confirmandoEliminar ? '¿Seguro? Clic para confirmar' : 'Eliminar Expediente'}
           </button>
         )}
         <button className="btn" onClick={handlePrintRemision} style={{ marginLeft: 12 }}>📄 Generar Remisión (PDF)</button>
