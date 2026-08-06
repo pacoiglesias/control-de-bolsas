@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.75.0] - 6 Agosto 2026 (URGENTE: bug critico de indices corregido + Complementos de Pago reales)
+
+### Corregido -- critico
+- Bug propio de indices en la vista agrupada de facturas (Iteracion 65): editar una factura podia corromper silenciosamente OTRA factura distinta del mismo expediente, si su posicion visual (agrupada por estado) no coincidia con su posicion real en el arreglo guardado. Verificado que no causo daño real en datos existentes -- corregido antes de que ocurriera.
+
+### Agregado
+- Parser de Complementos de Pago SAT reales (XML crudo, no solo texto tipo PDF) -- empareja por monto exacto contra facturas sin pagar, nunca aplica si hay ambiguedad.
+- Desglose visual de estados (Vencidas/Por Cobrar/Con el Contador/Cobradas) directo en la pestaña Resumen del expediente, clickeable.
+
+
 ## [v6.73.0] - 5 Agosto 2026 (Esperado vs Real en cobros -- automatizado)
 
 ### Agregado

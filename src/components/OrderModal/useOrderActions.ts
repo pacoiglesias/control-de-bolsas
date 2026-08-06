@@ -272,7 +272,30 @@ export function useOrderActions() {
       });
       // La migración ahora se hace síncrona en la transacción arriba, 
       // por lo que ya no es necesario el espejarFacturasV2 de background.
-      toast('Expediente actualizado', 'ok');
+
+      // Antes el toast siempre decia lo mismo ("Expediente actualizado"),
+      // sin importar que hubiera cambiado -- si editabas 3 facturas a la
+      // vez, no habia forma de confirmar de un vistazo cuales se
+      // guardaron realmente. Ahora compara antes/despues por id y arma
+      // un resumen real.
+      const antes = new Map<string, Invoice>((order.invoices || []).map((i: Invoice) => [i.id, i]));
+      let nuevas = 0, modificadas = 0;
+      for (const inv of updatedInvoices) {
+        const prev = antes.get(inv.id);
+        if (!prev) { nuevas++; continue; }
+        const cambioMonto = (prev.financials?.invoiceTotal ?? 0) !== (inv.financials?.invoiceTotal ?? 0);
+        const cambioCR = (prev.collection?.contrareciboNumber ?? '') !== (inv.collection?.contrareciboNumber ?? '');
+        const cambioEstado = (prev.creditCycle?.status ?? '') !== (inv.creditCycle?.status ?? '');
+        const cambioFolio = (prev.folio ?? '') !== (inv.folio ?? '');
+        if (cambioMonto || cambioCR || cambioEstado || cambioFolio) modificadas++;
+      }
+      const eliminadas = (order.invoices || []).length - (updatedInvoices.length - nuevas);
+      const partes: string[] = [];
+      if (nuevas > 0) partes.push(`${nuevas} factura${nuevas > 1 ? 's' : ''} nueva${nuevas > 1 ? 's' : ''}`);
+      if (modificadas > 0) partes.push(`${modificadas} modificada${modificadas > 1 ? 's' : ''}`);
+      if (eliminadas > 0) partes.push(`${eliminadas} eliminada${eliminadas > 1 ? 's' : ''}`);
+      const resumen = partes.length > 0 ? ` — ${partes.join(', ')}` : '';
+      toast(`Expediente actualizado${resumen}`, 'ok');
       onClose();
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');

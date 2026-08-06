@@ -492,7 +492,7 @@ export default function OrderModal({
   const ctx = {
     form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
     allOrders, knownClients, knownProviders, knownClientEmails, provName, config, focusInvoiceId,
-    fallbackSale, fallbackCost, fallbackComm, kilosNum,
+    fallbackSale, fallbackCost, fallbackComm, kilosNum, tab, setTab,
     kilosEntregados, kilosPedidos, kilosFaltantes, kilosPendientesDeFacturar, deliveredByItem,
     processFacturaText, processPagoText, parseOCAndFill, emailClient, toast,
     addItem, updateItem, removeItem,

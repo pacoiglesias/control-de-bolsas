@@ -838,3 +838,29 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Verificación final del proyecto completo con las 5 correcciones aplicadas:** `tsc` limpio (frontend y functions, con dependencias instaladas), `eslint` 0/0, 42/42 pruebas, build completo.
 **Riesgo de los hallazgos:** 🔴🔴 Alto — si el usuario hubiera guardado expedientes reales con el código sin corregir, se habría perdido silenciosamente la visibilidad de facturas reales, con datos financieros de por medio.
 **Estado:** ✅ Corregido y verificado.
+
+### Iteración 77: 🔴🔴🔴 CRÍTICO — bug propio de índices podía corromper la factura equivocada al editar (COMPLETADO, entregado de inmediato)
+**Fecha:** 2026-08-06
+**Archivo:** `src/components/OrderModal/TabFacturas.tsx`
+**Contexto:** al intentar corregir el CR de TH-739 → TH-879 (dato real confirmado con el documento oficial del contrarecibo), se detectó que el badge de OTRA factura completamente distinta (TH-680) también cambió a "TH-879" en la vista previa, antes de guardar.
+**Causa raíz, encontrada y confirmada:** en la Iteración 65 (agrupar facturas por estado), se reordenó el arreglo de facturas para mostrarlas agrupadas visualmente, pero el índice `i` usado para identificar cuál factura editar (`updateInvoice(i, ...)`) seguía siendo la posición dentro del arreglo **reordenado**, no la posición real dentro del arreglo **original** que efectivamente se guarda. Resultado: editar cualquier factura cuya posición visual (agrupada por estado) no coincidiera con su posición original terminaba modificando una factura completamente distinta — silenciosamente, sin ningún error.
+**Verificado, sin daño real:** se confirmó contra Firestore que los 12 contrarecibos del expediente principal siguen exactamente como se conocían — nunca se guardó ninguna edición con este código activo.
+**Solución:** el índice ahora se busca por el `id` estable de la factura dentro del arreglo original, nunca por su posición visual.
+**Riesgo:** 🔴🔴🔴 Crítico — afecta cualquier edición de facturas en un expediente con varias facturas en estados distintos (el caso más común e importante del sistema). Se verificaron todos los usos de `i` dentro de `renderFacturaCard` para confirmar que todos quedaron corregidos, no solo el reportado.
+**Commit:** `fix(TabFacturas): usar el id real de la factura para editar, no su posicion en el arreglo reordenado -- podia corromper una factura distinta a la que se veia en pantalla`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO** — riesgo real de corrupción de datos financieros mientras el bug siga activo en producción.
+
+### Iteración 78: Parser de Complementos de Pago SAT reales + desglose visual de estados en Resumen (COMPLETADO)
+**Fecha:** 2026-08-06
+**Archivo:** `src/hooks/useInvoiceParser.ts`, `src/components/OrderModal/TabResumen.tsx`, `src/components/OrderModal/index.tsx`
+**Pedido del usuario:** revisar el flujo de capturar los Complementos de Pago XML reales (los que Providencia genera al pagar), y mejorar la vista del expediente con muchas facturas.
+
+**Parser de Complementos de Pago — hallazgo real:** el botón "PEGAR COMPLEMENTO" ya existía, pero probado contra 3 XML reales de Complemento de Pago SAT que el usuario compartió, **ninguno de los 3 formatos existentes los reconocía** — todos esperaban texto renderizado tipo PDF ("IMP.PAGADO$", tablas con saltos de línea), mientras que el XML real trae atributos XML estándar (`Folio="5927" ImpPagado="92292.55"`).
+**Solución:** cuarto formato de parseo, específico para el XML crudo real. Dado que la mayoría de facturas migradas comparten el folio genérico "S/N" (no sirve para identificar cuál es cuál), se empareja por **monto exacto** contra facturas sin pagar — pero solo aplica el pago si exactamente una factura pendiente coincide con ese monto; si hay ambigüedad (dos facturas con el mismo saldo) o ninguna coincide, no aplica nada y avisa claramente, en vez de arriesgar aplicar el pago a la factura equivocada.
+**Verificado contra los 3 XML reales compartidos:** la extracción de `Folio`/`ImpPagado` funciona correctamente incluso con varios `DoctoRelacionado` en un mismo pago; confirmado que el caso con match exacto (folios 5927/5928, ya capturados en OC-HIST) aplicaría correctamente, y los casos sin datos capturados (folios 5950, 5876, 5877) correctamente no aplican nada y avisan.
+
+**Desglose visual en Resumen:** antes, saber cuántas facturas de un expediente estaban vencidas/con el contador/por cobrar/cobradas requería cambiar a la pestaña Facturas y escanear visualmente los grupos. Ahora aparece como chips clickeables directo en Resumen (la primera pestaña que se ve), cada uno lleva directo a Facturas al hacer clic.
+
+**Riesgo:** 🟡 Medio (parser) — escribe automáticamente `paidAmount` sin confirmación manual, mitigado por el emparejamiento estricto sin ambigüedad. 🟢 Bajo (desglose visual).
+**Commit:** `feat(pagos): parser de Complementos de Pago SAT reales por coincidencia exacta de monto; desglose de estados clickeable en Resumen`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.

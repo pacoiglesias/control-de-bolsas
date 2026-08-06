@@ -161,7 +161,7 @@ export default function TabFacturas() {
                           )}
                           <span className="mono">{money(fin.invoiceTotal)}</span>
                           <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                            {inv.creditCycle.status === 'collected' ? '✅ En Caja' : inv.creditCycle.status === 'paid' ? '🟡 Con el Contador' : isLate ? '🔴 Vencida' : '⏳ Por Cobrar'}
+                            {inv.creditCycle.status === 'collected' ? '✅ En Caja' : inv.creditCycle.status === 'paid' ? '🟡 Con el Contador' : isLate ? '🔴 Contrarecibo Vencido' : '⏳ Por Cobrar'}
                           </span>
                         </div>
                         <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{expandida ? '▲ Ocultar' : '▼ Ver detalles'}</span>
@@ -344,7 +344,7 @@ export default function TabFacturas() {
                               }));
                             }} disabled={readOnly} />
                         </Field>
-                        <Field label="Estado">
+                        <Field label="Estado del Contrarecibo">
                           <select className="input boxed" value={inv.creditCycle.status}
                             disabled={readOnly}
                             onChange={(e) => updateInvoice(i, (x: any) => ({
@@ -354,7 +354,7 @@ export default function TabFacturas() {
                             <option value="pending">Por cobrar</option>
                               <option value="paid">🟡 Con el contador</option>
                               <option value="collected">✅ Recibida</option>
-                              <option value="overdue">Vencida</option>
+                              <option value="overdue">Contrarecibo vencido</option>
                               <option value="manual_review">Revisión manual</option>
                           </select>
                           <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4, minHeight: 18, visibility: isLate ? 'visible' : 'hidden' }}>
@@ -635,6 +635,18 @@ export default function TabFacturas() {
                     const grupoActual = TITULO_SECCION[statusActual] || 'Otras';
                     const grupoAnterior = statusAnterior ? (TITULO_SECCION[statusAnterior] || 'Otras') : null;
                     const nuevaSeccion = grupoActual !== grupoAnterior;
+                    // BUG CRITICO encontrado y corregido: "i" aqui es la
+                    // posicion dentro del arreglo REORDENADO (ordenadas),
+                    // no la posicion real dentro de computedInvoices/
+                    // form.invoices. Pasarlo tal cual a updateInvoice()
+                    // editaba la factura que estuviera en esa posicion en
+                    // el arreglo ORIGINAL -- una factura completamente
+                    // distinta a la que se veia en pantalla, cada vez que
+                    // el orden visual no coincidia con el orden real
+                    // (que es casi siempre, dado que este mismo bloque
+                    // reordena por estado). Se busca el indice real por
+                    // el id estable de la factura, nunca por posicion.
+                    const indiceReal = computedInvoices.findIndex((x: any) => x.inv.id === inv.id);
                     return (
                       <React.Fragment key={inv.id}>
                         {nuevaSeccion && (
@@ -642,7 +654,7 @@ export default function TabFacturas() {
                             {grupoActual}
                           </div>
                         )}
-                        {renderFacturaCard({ inv, fin, d, isLate, i })}
+                        {renderFacturaCard({ inv, fin, d, isLate, i: indiceReal })}
                       </React.Fragment>
                     );
                   });

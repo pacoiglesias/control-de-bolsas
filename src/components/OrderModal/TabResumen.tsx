@@ -9,7 +9,7 @@ export default function TabResumen() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
   if (!ctx) return null;
-  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast } = ctx;
+  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast, setTab } = ctx;
 
   return (
     <>
@@ -75,6 +75,41 @@ export default function TabResumen() {
                 </Field>
               </div>
             </div>
+
+            {form.invoices.length > 0 && (() => {
+              // Antes, para saber cuantas facturas estaban vencidas, con
+              // el contador, o por cobrar, habia que cambiar a la pestaña
+              // Facturas y escanear visualmente los grupos -- informacion
+              // que se necesita de un vistazo para decidir que atender
+              // primero, no despues de un par de clics.
+              const conteo = { overdue: 0, pending: 0, paid: 0, collected: 0 };
+              for (const inv of form.invoices) {
+                const st = inv.creditCycle?.status;
+                if (st && st in conteo) conteo[st as keyof typeof conteo]++;
+              }
+              const chips = [
+                { key: 'overdue', label: 'Vencidas', color: 'var(--bad)', bg: '#fef2f2' },
+                { key: 'pending', label: 'Por Cobrar', color: 'var(--ink-soft)', bg: 'var(--paper-sunk)' },
+                { key: 'paid', label: 'Con el Contador', color: 'var(--warn)', bg: '#fffbeb' },
+                { key: 'collected', label: 'Cobradas', color: 'var(--ok)', bg: '#f0fdf4' },
+              ] as const;
+              return (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+                  {chips.filter(c => conteo[c.key] > 0).map(c => (
+                    <button
+                      key={c.key}
+                      onClick={() => setTab('facturas')}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999,
+                        border: `1px solid ${c.color}`, background: c.bg, color: c.color, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                      }}
+                    >
+                      {conteo[c.key]} {c.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
 
             <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
             <div className="calc-box">

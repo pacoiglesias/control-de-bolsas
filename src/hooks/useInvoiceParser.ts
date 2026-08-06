@@ -223,6 +223,67 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       
       return inv;
     });
+
+    // 4. XML crudo real de Complemento de Pago SAT (pago20:DoctoRelacionado).
+    // Los formatos 1-3 de arriba esperan texto renderizado tipo PDF
+    // ("IMP.PAGADO$", tablas con saltos de linea) -- el XML real trae
+    // atributos XML estandar (Folio="5927" ImpPagado="92292.55") que
+    // ninguno de esos tres reconoce. El folio de DoctoRelacionado casi
+    // nunca coincide con inv.folio (la mayoria de facturas migradas
+    // comparten el folio generico "S/N"), asi que se empareja por monto
+    // exacto en vez de folio -- pero SOLO si exactamente una factura sin
+    // pagar coincide con ese monto. Si hay ambiguedad (dos facturas
+    // pendientes con el mismo monto) o ninguna coincide, no se aplica
+    // nada: es preferible que el usuario lo aplique a mano a arriesgar
+    // pagar la factura equivocada.
+    if (updatedCount === 0) {
+      const docRelRegex = /DoctoRelacionado[^>]*?Folio="(\d+)"[^>]*?ImpPagado="([\d.]+)"/gi;
+      const fechaPagoMatch = text.match(/FechaPago="(\d{4}-\d{2}-\d{2})/);
+      const fechaPago = fechaPagoMatch ? Timestamp.fromDate(new Date(fechaPagoMatch[1] + 'T12:00:00Z')) : Timestamp.now();
+      const pagosDetectados: { folioDR: string; monto: number }[] = [];
+      let m;
+      while ((m = docRelRegex.exec(text)) !== null) {
+        pagosDetectados.push({ folioDR: m[1], monto: Number(m[2]) });
+      }
+      if (pagosDetectados.length > 0) {
+        const sinAplicar: string[] = [];
+        const resultado = nextInvoices.map(inv => {
+          const totalFactura = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+          const yaPagada = (inv.collection?.paidAmount || 0) >= totalFactura && totalFactura > 0;
+          if (yaPagada) return inv;
+          const candidatos = pagosDetectados.filter(p => Math.abs(p.monto - totalFactura) < 0.5);
+          if (candidatos.length !== 1) return inv; // 0 o ambiguo -> no tocar
+          // Confirmar que ese pago no calce igual de bien con otra factura sin pagar (ambiguedad cruzada)
+          const otrasQueCalzan = nextInvoices.filter(other => {
+            if (other.id === inv.id) return false;
+            const otroTotal = other.financials?.invoiceTotal ?? other.financials?.saleTotal ?? 0;
+            const otraYaPagada = (other.collection?.paidAmount || 0) >= otroTotal && otroTotal > 0;
+            return !otraYaPagada && Math.abs(candidatos[0].monto - otroTotal) < 0.5;
+          });
+          if (otrasQueCalzan.length > 0) return inv; // ambiguo entre facturas -> no tocar
+          updatedCount++;
+          return {
+            ...inv,
+            collection: {
+              ...(inv.collection || {}),
+              paidAmount: candidatos[0].monto,
+              contrareciboDate: fechaPago,
+              ...(crNumber ? { contrareciboNumber: crNumber } : {}),
+            },
+          };
+        });
+        if (updatedCount > 0) {
+          setInvoices(resultado);
+          toast(`Se actualizó el cobro de ${updatedCount} factura(s) por coincidencia de monto exacto.`, 'ok');
+          return;
+        }
+        pagosDetectados.forEach(p => sinAplicar.push(`$${p.monto.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`));
+        if (sinAplicar.length > 0) {
+          toast(`Se detectaron ${sinAplicar.length} pago(s) en el XML (${sinAplicar.join(', ')}) pero ninguno coincidió sin ambigüedad con una factura pendiente exacta. Aplícalo a mano.`, 'bad');
+          return;
+        }
+      }
+    }
     
     if (updatedCount > 0) {
       setInvoices(nextInvoices);
