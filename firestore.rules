@@ -94,6 +94,12 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    match /ledger/{ledgerId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
     // Catalogo de productos. Se alimenta solo desde OrderModal al guardar las
     // partidas de un expediente. Sin esta regla, la coleccion caia en el
     // match /{document=**} final: la pantalla Catalogo no cargaba nunca y el

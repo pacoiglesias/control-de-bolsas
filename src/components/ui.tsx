@@ -272,7 +272,7 @@ export function Modal({
   children,
   wide,
 }: {
-  title: string;
+  title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;

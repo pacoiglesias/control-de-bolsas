@@ -23,7 +23,7 @@ import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
 import { useDashboardStats } from '../hooks/useDashboardStats';
-import { SYSTEM_CHANGELOG } from '../components/Dashboard/ChangelogFeed';
+import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
 import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
 import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
