@@ -783,3 +783,16 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — puramente visual, mismo dato subyacente.
 **Commit:** `feat(Orders): cada contrarecibo se muestra en su propia linea al expandir, no como texto separado por comas`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.
+
+### Iteración 74: Esperado vs. Real — el sistema ya pregunta cuánto llegó de verdad al recibir del contador (COMPLETADO, entregado)
+**Fecha:** 2026-08-05
+**Archivo:** `src/components/OrderModal/TabFacturas.tsx`, `src/pages/CajaChica.tsx`
+**Pedido del usuario:** hacer visible la diferencia entre lo esperado y lo realmente recibido en efectivo, automatizado.
+**Causa confirmada primero, con matemática exacta:** la fórmula "Total × 0.93103" del Excel del usuario es correcta — implica una comisión real de **6.897%**, ligeramente distinta al 6.9% configurado en el sistema. El sistema, al recibir del contador, calculaba el monto neto con la comisión configurada y lo guardaba en Caja **sin nunca preguntar** cuánto había llegado realmente — cualquier diferencia real (como esta) se perdía en silencio.
+**Solución:**
+1. Al presionar "Recibida del Contador → CAJA", el sistema ahora muestra el monto esperado calculado y **pregunta cuánto se recibió realmente**, con el campo ya lleno con el valor esperado — un clic si coincide, se corrige si no. Se guardan ambos montos (esperado y real) y la diferencia en el registro de Caja.
+2. Nueva tarjeta **"⚖️ Esperado vs. Real — Diferencias en Cobros"** en la pantalla de Caja — lista automáticamente cada cobro donde hubo diferencia, con el acumulado total, para detectar patrones (como una comisión real distinta a la configurada) sin tener que revisar movimiento por movimiento.
+**Verificado que no se duplicó el arreglo a medias:** se confirmó que el botón equivalente en el Dashboard solo abre el modal — toda la lógica de guardado vive en un único lugar, ya corregido.
+**Riesgo:** 🟢 Bajo — aditivo, no cambia ningún cálculo existente, solo agrega la confirmación y el registro de la diferencia.
+**Commit:** `feat(Caja): preguntar el monto real recibido del contador y mostrar discrepancias vs lo esperado`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**

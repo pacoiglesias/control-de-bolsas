@@ -1,5 +1,12 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.73.0] - 5 Agosto 2026 (Esperado vs Real en cobros -- automatizado)
+
+### Agregado
+- Al recibir del contador, el sistema ahora pregunta el monto real recibido (con lo esperado ya calculado y puesto), en vez de asumir que siempre coinciden. Se guarda la diferencia si la hay.
+- Nueva tarjeta en Caja: "Esperado vs Real -- Diferencias en Cobros", con el acumulado, para detectar patrones sin revisar movimiento por movimiento.
+
+
 ## [v6.72.0] - 5 Agosto 2026 (Contrarecibos separados, MIGRACION traducido, seguridad reforzada)
 
 ### Corregido

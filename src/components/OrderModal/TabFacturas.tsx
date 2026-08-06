@@ -5,7 +5,7 @@ import { PasteTextModal } from '../PasteTextModal';
 import { fromInputDate, money, toInputDate, percent } from '../../lib/format';
 import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
-import { addDays } from '../../lib/finance';
+import { addDays, round2 } from '../../lib/finance';
 import type { OrderStatus } from '../../lib/types';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { sound } from '../../lib/sounds';
@@ -188,27 +188,55 @@ export default function TabFacturas() {
                             {inv.creditCycle.status === 'paid' && (
                               <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 13 }}
                                 onClick={async () => {
-                                  sound.playCash();
                                   const invTotal = fin.invoiceTotal;
                                   const commission = fin.commission;
-                                  const netAmount = invTotal - commission;
+                                  const netEsperado = invTotal - commission;
+                                  // Antes se calculaba el monto esperado y se
+                                  // guardaba en Caja como si fuera lo que
+                                  // realmente entro, sin preguntar nunca. Si
+                                  // el contador aplica una comision distinta
+                                  // (confirmado: pasa, 6.897% real vs 6.9%
+                                  // configurado), el sistema nunca se
+                                  // enteraba de la diferencia. Ahora se
+                                  // pregunta, con lo esperado ya puesto --
+                                  // un clic si coincide, se corrige si no.
+                                  const respuesta = window.prompt(
+                                    `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
+                                    netEsperado.toFixed(2)
+                                  );
+                                  if (respuesta === null) return; // cancelado
+                                  const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
+                                  if (isNaN(netReal) || netReal <= 0) {
+                                    toast('Monto inválido, no se registró nada.', 'bad');
+                                    return;
+                                  }
+                                  const diferencia = round2(netReal - netEsperado);
+                                  sound.playCash();
                                   // 1. Actualizar estado de la factura
                                   updateInvoice(i, (x: any) => ({
                                     ...x,
                                     creditCycle: { ...x.creditCycle, status: 'collected' },
                                     collection: { ...x.collection, collectedAt: Timestamp.now() }
                                   }));
-                                  // 2. Crear ingreso automático en Caja Chica
+                                  // 2. Crear ingreso automático en Caja Chica -- con el
+                                  // monto REAL confirmado, no el calculado a ciegas.
                                   try {
                                     await addDoc(collection(db, PATHS.expenses), {
                                       date: Timestamp.now(),
                                       concept: `Cobro factura #${inv.folio ?? '?'} (CR: ${inv.collection?.contrareciboNumber ?? '—'})`,
-                                      amount: netAmount,
+                                      amount: netReal,
                                       type: 'ingreso',
                                       notes: `Documento: $${(invTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${(commission ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+                                      montoEsperado: round2(netEsperado),
+                                      montoReal: round2(netReal),
+                                      diferencia,
                                       createdAt: serverTimestamp(),
                                     });
-                                    toast(`💵 Recibido del contador. $${netAmount.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
+                                    if (Math.abs(diferencia) > 0.01) {
+                                      toast(`💵 $${netReal.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', {minimumFractionDigits:2})}`, 'ok');
+                                    } else {
+                                      toast(`💵 Recibido del contador. $${netReal.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
+                                    }
                                   } catch {
                                     toast('Factura marcada, pero error al registrar en CAJA.', 'bad');
                                   }

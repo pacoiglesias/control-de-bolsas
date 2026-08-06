@@ -283,6 +283,39 @@ export default function CajaChica() {
         </Card>
       </motion.div>
 
+      {(() => {
+        // Cobros donde lo que realmente entro a Caja fue distinto de lo
+        // calculado (comision configurada vs comision real que aplico el
+        // contador). Antes esto nunca se registraba -- el sistema
+        // guardaba el monto calculado como si fuera el real, sin poder
+        // detectar el patron.
+        const conDiferencia = expenses.filter((e: any) => typeof e.diferencia === 'number' && Math.abs(e.diferencia) > 0.01);
+        if (conDiferencia.length === 0) return null;
+        const totalDiferencia = conDiferencia.reduce((a: number, e: any) => a + e.diferencia, 0);
+        return (
+          <Card title="⚖️ Esperado vs. Real — Diferencias en Cobros">
+            <p className="hint" style={{ marginBottom: 12 }}>
+              Cada vez que confirmas "Recibida del Contador", comparamos lo calculado contra lo que realmente escribiste que llegó.
+              {totalDiferencia !== 0 && (
+                <> Acumulado: <strong style={{ color: totalDiferencia > 0 ? 'var(--ok)' : 'var(--bad)' }}>{totalDiferencia > 0 ? '+' : ''}{money(totalDiferencia)}</strong></>
+              )}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {conDiferencia.map((e: any) => (
+                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 10px', background: 'var(--paper-sunk)', borderRadius: 6 }}>
+                  <span>{e.concept}</span>
+                  <span>Esperado: {money(e.montoEsperado)}</span>
+                  <span>Real: {money(e.montoReal)}</span>
+                  <strong style={{ color: e.diferencia > 0 ? 'var(--ok)' : 'var(--bad)' }}>
+                    {e.diferencia > 0 ? '+' : ''}{money(e.diferencia)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
+
       <Card
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
