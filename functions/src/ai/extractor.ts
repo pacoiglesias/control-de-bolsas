@@ -10,7 +10,7 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
  * para extraer los campos clave estructurados garantizados por schema.
  */
 export const parseDocumentData = onCall(
-  { secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 60 },
+  { secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 60, region: "us-central1" },
   async (request) => {
     // Solo usuarios autenticados pueden usar esto
     if (!request.auth) {
@@ -28,11 +28,16 @@ export const parseDocumentData = onCall(
 
     try {
       const prompt = `
-        Analiza este documento comercial (puede ser una Factura, una Orden de Compra o una Nota/Remisión).
-        Extrae la información financiera solicitada.
-        Si algún campo no está presente en el documento, devuélvelo como nulo, vacío o 0 según corresponda.
-        Asegúrate de que los montos numéricos no tengan comas ni signos de dólar, solo el número crudo.
-        Trata de inferir si es una 'factura', 'oc' (orden de compra) o 'remision'.
+        Eres un asistente experto en auditoría contable y extracción de datos comerciales.
+        Analiza este documento (puede ser una Factura, Orden de Compra, Remisión o Ticket).
+        Extrae la información financiera solicitada con máxima precisión.
+        
+        REGLAS ESTRICTAS:
+        1. Formato Numérico: Devuelve los montos crudos, sin signos de moneda ($) ni comas separadoras de miles. Ejemplo correcto: 12500.50
+        2. Clasificación: Infiere si es una 'factura', 'oc' (orden de compra), o 'remision'.
+        3. Kilos/Bultos: Si el documento es una nota de entrega o factura de plástico/bolsas, extrae el peso total en kilos y ponlo en 'kilosTotales'.
+        4. Impuestos: Extrae el IVA exacto. Si no está desglosado pero dice "IVA Incluido", no lo calcules, pon 0 en IVA y el total en Total.
+        5. Campos Faltantes: Si algún dato simplemente no viene en el PDF, devuélvelo como nulo o 0. ¡No inventes datos!
       `;
 
       const response = await ai.models.generateContent({

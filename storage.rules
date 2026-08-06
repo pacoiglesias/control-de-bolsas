@@ -13,7 +13,6 @@ service firebase.storage {
           request.auth.token.email == "paco.iglesias@gmail.com"
           || request.auth.token.email == "pacoismael@gmail.com"
           || request.auth.token.email == "paco@cobertores.com"
-          || request.auth.token.email == "admin@ruenisco.com"
         );
     }
 

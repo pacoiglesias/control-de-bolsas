@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { useOrdersContext } from '../context/OrdersContext';
+import { useExpensesContext } from '../context/ExpensesContext';
+import { useInvoicesContext } from '../context/InvoicesContext';
+import { generateOfflineHTML } from '../lib/exportOfflineHTML';
 
 // Importamos las vistas administrativas antiguas
 import Settings from './Settings';
@@ -14,6 +18,33 @@ type Tab = 'settings' | 'users' | 'backup' | 'logs' | 'papelera';
 export default function ControlCenter() {
   const { role } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('settings');
+  const { orders } = useOrdersContext();
+  const { expenses } = useExpensesContext();
+  const { invoices } = useInvoicesContext();
+
+  const handleExportHTML = () => {
+    // Calculamos algunos KPIs básicos para el snapshot
+    const totalPorCobrar = invoices.filter(i => i.creditCycle.status !== 'collected').reduce((sum, i) => sum + (i.financials?.invoiceTotal || 0), 0);
+    
+    const snapshotData = {
+      orders,
+      expenses,
+      kpis: {
+        porCobrar: totalPorCobrar,
+        cajaChica: 0, // Placeholder
+        enTransito: 0 // Placeholder
+      }
+    };
+    
+    const htmlString = generateOfflineHTML(snapshotData);
+    const blob = new Blob([htmlString], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ERP-Offline-Snapshot-${new Date().toISOString().split('T')[0]}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (role !== 'admin') {
     return <Navigate to="/" replace />;
@@ -21,9 +52,14 @@ export default function ControlCenter() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>Centro de Control</h1>
-        <p>Administración unificada del sistema, usuarios, respaldos y auditoría.</p>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1>Centro de Control</h1>
+          <p>Administración unificada del sistema, usuarios, respaldos y auditoría.</p>
+        </div>
+        <button className="btn btn-primary" onClick={handleExportHTML}>
+          ⬇️ Exportar ERP a HTML (Portátil)
+        </button>
       </div>
 
       <div className="tabs" style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '16px' }}>

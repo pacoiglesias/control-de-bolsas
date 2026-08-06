@@ -167,7 +167,17 @@ export default function TabEntregas() {
                                 <td className="num">
                                   <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
                                     defaultValue={qtyEnEsta}
-                                    onBlur={e => updateDeliveryItemQty(i, it.id, Number(e.target.value))}
+                                    onBlur={e => {
+                                      const val = Number(e.target.value);
+                                      const maxLogico = (it.quantity || 0) * 1.5; // Tolerancia del 50% sobre el pedido
+                                      if (it.quantity > 0 && val > maxLogico) {
+                                        if (!window.confirm(`⚠️ ADVERTENCIA DE SEGURIDAD\n\nEstás reportando una entrega de ${val.toLocaleString('es-MX')} kg, pero el pedido original es de solo ${it.quantity.toLocaleString('es-MX')} kg.\n\n¿Estás absolutamente seguro de que esto es correcto y no es un error de dedo?`)) {
+                                          e.target.value = String(qtyEnEsta); // Revertir valor
+                                          return;
+                                        }
+                                      }
+                                      updateDeliveryItemQty(i, it.id, val);
+                                    }}
                                     disabled={readOnly || d.invoiced}
                                   />
                                 </td>

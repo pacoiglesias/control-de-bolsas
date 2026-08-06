@@ -45,7 +45,7 @@ export function useDashboardStats(
     let liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
     const deudaTotalProvidencia = (kpis.porCobrar || 0) + (kpis.montoPendienteFacturar || 0);
-    const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config as any);
+    const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config);
     const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
 
     // Calcular Remisiones (Kilos entregados - Kilos facturados)

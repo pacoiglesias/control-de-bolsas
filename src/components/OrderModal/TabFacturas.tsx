@@ -527,8 +527,9 @@ export default function TabFacturas() {
                 <p className="hint" style={{ margin: 0 }}>Facturas vinculadas a este pedido.</p>
               </div>
               {!readOnly && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
+                <>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
                   
                   <div 
                     onDrop={handleDrop} 
@@ -585,6 +586,21 @@ export default function TabFacturas() {
                     )}
                   </div>
                 </div>
+
+                <div style={{ marginTop: 24, padding: '24px 0', borderTop: '1px solid var(--border)' }}>
+                  <GenAIReader 
+                    onDataExtracted={(data) => {
+                      if (data.folio) {
+                        toast(`Lector Inteligente detectó la factura ${data.folio}. Añadiendo a la lista...`, 'ok');
+                        addInvoice();
+                        setTimeout(() => {
+                           toast(`Usa el folio ${data.folio} por $${data.total || data.subtotal} en la nueva factura vacía`, 'info');
+                        }, 500);
+                      }
+                    }} 
+                  />
+                </div>
+                </>
               )}
             </div>
             {form.invoices.length === 0 ? (

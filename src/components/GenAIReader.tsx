@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { motion } from 'framer-motion';
 import { Spinner } from './ui';
@@ -52,8 +52,12 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
         reader.onerror = error => reject(error);
       });
 
-      const fn = httpsCallable(functions, 'parseDocumentData');
-      const res = await fn({ base64, mimeType: file.type });
+      toast('Analizando con IA...', 'info');
+
+      // Firebase AI Function en us-central1 (default)
+      const aiFunctions = getFunctions(app, 'us-central1');
+      const processDoc = httpsCallable(aiFunctions, 'parseDocumentData');
+      const res = await processDoc({ base64, mimeType: file.type });
       
       toast('Documento leído con éxito 🪄', 'ok');
       onDataExtracted(res.data);

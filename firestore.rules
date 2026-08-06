@@ -9,9 +9,9 @@ service cloud.firestore {
         && (
           request.auth.token.admin == true ||
           (request.auth.token.email != null && (
-            request.auth.token.email.matches(".*@ruenisco\\.com") ||
+            request.auth.token.email == "paco.iglesias@gmail.com" ||
             request.auth.token.email == "pacoismael@gmail.com" ||
-            request.auth.token.email == "paco@cobertores.com"
+            request.auth.token.email.matches(".*@cobertores\\.com")
           ))
         );
     }

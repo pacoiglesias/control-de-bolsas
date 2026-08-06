@@ -92,8 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isOwnerEmail =
           isMasterUser ||
           email === 'paco.iglesias@gmail.com' ||
-          email === 'pacoismael@gmail.com' ||
-          email.endsWith('@ruenisco.com');
+          email === 'pacoismael@gmail.com';
 
         if (!snap.exists() && isOwnerEmail) {
           try {

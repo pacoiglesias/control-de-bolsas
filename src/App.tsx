@@ -12,7 +12,6 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReloadPrompt from './components/ReloadPrompt';
-import { restaurarExpedienteAutomaticamente } from './lib/oneTimeMigrations';
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -54,11 +53,24 @@ function RouteFallback() {
   );
 }
 
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <InvoicesProvider>
+      <OrdersProvider>
+        <PurchasesProvider>
+          <ProductsProvider>
+            <ExpensesProvider>
+              {children}
+            </ExpensesProvider>
+          </ProductsProvider>
+        </PurchasesProvider>
+      </OrdersProvider>
+    </InvoicesProvider>
+  );
+}
+
 function Gate() {
   const { user, loading } = useAuth();
-  useEffect(() => {
-    if (user?.email) void restaurarExpedienteAutomaticamente(user.email);
-  }, [user?.email]);
   if (loading) {
     return (
       <div className="page" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--base)' }}>
@@ -70,23 +82,25 @@ function Gate() {
   if (!user) return <Login />;
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<Suspense fallback={<RouteFallback />}><Dashboard /></Suspense>} />
-          <Route path="ordenes" element={<Suspense fallback={<RouteFallback />}><Orders /></Suspense>} />
-          <Route path="cobranza" element={<Suspense fallback={<RouteFallback />}><Cobranza /></Suspense>} />
-          <Route path="caja-chica" element={<Suspense fallback={<RouteFallback />}><CajaChica /></Suspense>} />
-          <Route path="compras" element={<Suspense fallback={<RouteFallback />}><Compras /></Suspense>} />
-          <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
-          <Route path="audit" element={<Suspense fallback={<RouteFallback />}><AuditSync /></Suspense>} />
-          <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
-          <Route path="mining" element={<Suspense fallback={<RouteFallback />}><DataMining /></Suspense>} />
-          <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
-          <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-      <ReloadPrompt />
+      <AppProviders>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Suspense fallback={<RouteFallback />}><Dashboard /></Suspense>} />
+            <Route path="ordenes" element={<Suspense fallback={<RouteFallback />}><Orders /></Suspense>} />
+            <Route path="cobranza" element={<Suspense fallback={<RouteFallback />}><Cobranza /></Suspense>} />
+            <Route path="caja-chica" element={<Suspense fallback={<RouteFallback />}><CajaChica /></Suspense>} />
+            <Route path="compras" element={<Suspense fallback={<RouteFallback />}><Compras /></Suspense>} />
+            <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
+            <Route path="audit" element={<Suspense fallback={<RouteFallback />}><AuditSync /></Suspense>} />
+            <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
+            <Route path="mining" element={<Suspense fallback={<RouteFallback />}><DataMining /></Suspense>} />
+            <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
+            <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+        <ReloadPrompt />
+      </AppProviders>
     </ErrorBoundary>
   );
 }
@@ -95,22 +109,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <OrdersProvider>
-          <InvoicesProvider>
-            <PurchasesProvider>
-              <ProductsProvider>
-                <ExpensesProvider>
-                  <ToastProvider>
-                    <Routes>
-                      <Route path="/portal-maquilador" element={<Suspense fallback={<RouteFallback />}><MaquiladorPortal /></Suspense>} />
-                      <Route path="*" element={<Gate />} />
-                    </Routes>
-                  </ToastProvider>
-                </ExpensesProvider>
-              </ProductsProvider>
-            </PurchasesProvider>
-          </InvoicesProvider>
-        </OrdersProvider>
+        <ToastProvider>
+          <Routes>
+            <Route path="/portal-maquilador" element={<Suspense fallback={<RouteFallback />}><MaquiladorPortal /></Suspense>} />
+            <Route path="*" element={<Gate />} />
+          </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );
