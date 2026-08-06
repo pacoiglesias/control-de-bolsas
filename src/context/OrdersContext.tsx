@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, limit, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder } from '../lib/types';
-import { useInvoicesContext } from './InvoicesContext';
 
 /**
  * Suscripción ÚNICA a purchaseOrders.
@@ -42,11 +41,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     // Maestra si lo veia, porque esa pantalla usa una consulta distinta,
     // sin orderBy. Se ordena del lado del cliente para que ningun
     // documento pueda desaparecer por faltarle un campo.
-    const q = query(
-      collection(db, PATHS.orders), 
-      where('isArchived', '==', false),
-      limit(500)
-    );
+    const q = query(collection(db, PATHS.orders), limit(1000));
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -74,20 +69,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  const { invoices } = useInvoicesContext();
-
-  const ordersWithInvoices = useMemo(() => {
-    return orders.map(o => {
-      const orderInvoices = invoices.filter(inv => inv.orderId === o.id);
-      return {
-        ...o,
-        invoices: orderInvoices,
-        invoiceStatuses: orderInvoices.map(i => i.creditCycle?.status || 'pending')
-      };
-    });
-  }, [orders, invoices]);
-
-  const value = useMemo(() => ({ orders: ordersWithInvoices, loading, error }), [ordersWithInvoices, loading, error]);
+  const value = useMemo(() => ({ orders, loading, error }), [orders, loading, error]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

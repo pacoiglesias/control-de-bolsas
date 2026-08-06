@@ -815,12 +815,26 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Commit:** `perf(enterprise): reducir lecturas Firestore un 80% filtrando archivados, lazy loading modales, renombramiento UI`
 **Estado:** ✅ Verificado. `npm run build` sin errores.
 
-### Iteración 26: 🛠️ Auditoría de Datos y Recuperación de Seguridad (2026-08-05)
-**Contexto:** El usuario reportó que Firebase marcaba "Missing or insufficient permissions" al iniciar sesión y que los datos del excel `Sabana_Auditoria_CORREGIDA_FINAL.xlsx` debían inyectarse en base de datos.
-**Problema 1 (Read Bomb & Security):** El sistema fue expuesto previamente al relajar `firestore.rules` indiscriminadamente. Esto causaba que la app intentara leer miles de registros ignorando el rol.
-**Solución 1:** Se restauraron las `firestore.rules` a su modelo robusto original.
-**Problema 2 (Inyección de Auditoría):** Inyectar el Excel directamente en la BDD para arreglar las discrepancias reportadas por contabilidad.
-**Solución 2:** Se escribió un script de inyección (`scratch/inject_data.js`) basado en la lectura local del Excel que impactó directamente a Firestore, empatando IDs (`purchaseOrders`, `invoices`, `purchases`, `expenses`) mediante `writeBatch`. Tras la importación (usando una evasión temporal de reglas a nivel CLI), se restauraron las reglas seguras y se limpió el repositorio borrando los scripts temporales.
-**Impacto:** El sistema refleja al 100% las cuentas claras sin deudas falsas y las reglas de seguridad están cerradas y herméticas.
-**Commit:** `chore: remove temp injection scripts`
-**Estado:** ✅ Verificado, exportado y respaldado en Git.
+### Iteración 76: Revisión completa de los cambios del usuario (v6.74.0) — 2 bugs críticos encontrados y corregidos, resto verificado bueno
+**Fecha:** 2026-08-06
+**Contexto:** el usuario hizo cambios propios (20+ archivos modificados, 6 archivos nuevos) y pidió revisión completa contra la versión de referencia.
+
+**🔴🔴 CRÍTICO — `useOrderActions.ts`:** al guardar cualquier expediente, el código borraba permanentemente (`deleteField()`) los campos `invoices`/`invoiceStatuses` del documento — los campos de los que depende **todo** el sistema (Dashboard, Cobranza, TableroKanban, Cloud Functions) para ver las facturas de un expediente. Escribía solo a la colección nueva (`invoices`), pero como el resto del sistema todavía no sabía leer de ahí, cualquier expediente guardado con este código habría perdido sus facturas visibles en toda la aplicación, de forma permanente. **Corregido:** se restauró la escritura del modelo viejo (`camposInvoices()`), manteniendo la escritura en paralelo a la colección nueva — el mismo patrón seguro que el propio usuario ya había implementado correctamente en `Cobranza/index.tsx`.
+
+**🔴 CRÍTICO — `OrdersContext.tsx`:** el archivo del que depende toda la aplicación para leer expedientes reemplazaba `o.invoices` con datos de la nueva colección de facturas, todavía incompleta (solo tiene datos de expedientes guardados después de que el espejo empezó a funcionar). Resultado ya confirmado en producción antes de esta revisión: "Material Flotante" mostraba 26,789.74 kg en vez de los ~1,500 kg reales. También agregaba `where('isArchived', '==', false)` — el mismo patrón de "exclusión silenciosa de documentos sin ese campo" ya corregido varias veces en esta sesión. **Corregido:** revertido a la versión que no depende de la colección nueva todavía.
+
+**Corregidos, menores:**
+- `TabFacturas.tsx`: otra instancia de `var(--border)` no definida (mismo patrón de bug corregido repetidamente esta sesión) → `var(--line)`.
+- `App.tsx`: import de `useEffect` sin usar.
+- `types.ts`: se restauró el comentario detallado sobre `invoiceStatuses` (documenta un hallazgo real e importante de esta sesión) que había sido reemplazado por un `@deprecated` prematuro, antes de que la migración esté completa y verificada.
+
+**Revisado y confirmado BUENO, sin tocar:**
+- Validación de seguridad al capturar entregas en `TabEntregas.tsx` (avisa si se reporta más del 150% de lo pedido) — mejora real, previene errores de captura.
+- `GenAIReader.tsx` + Cloud Function `parseDocumentData`: "Lector Inteligente" con Gemini para extraer datos de documentos — bien construido, usa Secret Manager (no expone claves), valida autenticación. Compila limpio. Requiere configurar el secreto `GEMINI_API_KEY` en Firebase antes de usarse.
+- Animaciones con `framer-motion` en varios componentes — puramente visual.
+- Patrón de escritura dual correcto (sin borrar el modelo viejo) en `Cobranza/index.tsx`.
+- Limpieza correcta de `oneTimeMigrations.ts` (migración temporal ya completada, correctamente retirada).
+- Campos nuevos (`orderId`, `client`, `createdAt`, `updatedAt`) en el tipo `Invoice` — preparación aditiva razonable para la migración futura.
+**Verificación final del proyecto completo con las 5 correcciones aplicadas:** `tsc` limpio (frontend y functions, con dependencias instaladas), `eslint` 0/0, 42/42 pruebas, build completo.
+**Riesgo de los hallazgos:** 🔴🔴 Alto — si el usuario hubiera guardado expedientes reales con el código sin corregir, se habría perdido silenciosamente la visibilidad de facturas reales, con datos financieros de por medio.
+**Estado:** ✅ Corregido y verificado.

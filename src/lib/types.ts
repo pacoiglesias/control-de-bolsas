@@ -180,9 +180,28 @@ export interface PurchaseOrder {
   collection?: CollectionInfo;
 
   deliveries?: Delivery[];
-  /** @deprecated Las facturas ahora viven en su propia colección `invoices` */
+  /**
+   * Sigue siendo la fuente de verdad real y funcional. Se intento migrar
+   * las facturas a su propia coleccion (ver context/InvoicesContext.tsx),
+   * pero ese intento se revirtio: el nombre de la coleccion nunca
+   * coincidio con lo que la escribia (invoices vs invoicesV2), dejando
+   * a toda la app sin ver ninguna factura de ningun expediente. No
+   * marcar esto como deprecado hasta que la migracion este completa Y
+   * verificada con datos reales -- ver PLAN_DE_MEJORA_TOTAL.md, seccion 3.
+   */
   invoices?: Invoice[];
-  /** @deprecated Las facturas ahora viven en su propia colección `invoices` */
+  /**
+   * Copia desnormalizada de los estatus de `invoices[]`, en el mismo orden.
+   *
+   * Firestore no sabe consultar dentro de objetos de un arreglo, asi que este
+   * campo plano es lo que sostiene TODAS las consultas del sistema: el
+   * `array-contains-any` del Dashboard y de Cobranza, y el barrido nocturno
+   * `checkOverdueInvoices`. Un expediente sin este campo existe en la base
+   * pero es invisible para esas pantallas.
+   *
+   * Escribirlo siempre a traves de `camposInvoices()` en lib/invoiceOps.ts,
+   * que garantiza que viaje junto con `invoices` y `updatedAt`.
+   */
   invoiceStatuses?: string[];
   items?: PurchaseOrderItem[];
   

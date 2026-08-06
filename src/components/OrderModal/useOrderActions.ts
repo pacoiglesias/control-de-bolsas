@@ -4,6 +4,7 @@ import { PATHS } from '../../lib/firebase';
 import { Invoice } from '../../lib/types';
 import { computeFinancials } from '../../lib/finance';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
+import { camposInvoices } from '../../lib/invoiceOps';
 import { safeDeleteDoc, logAction } from '../../lib/logger';
 
 export function useOrderActions() {
@@ -150,8 +151,15 @@ export function useOrderActions() {
         // se mandaban siempre en el objeto, con valor `undefined` cuando
         // estaban vacios — eso hacia fallar el guardado de CUALQUIER
         // expediente que no llenara los tres, que es el caso mas comun.
-        // El arreglo de facturas ya no se guarda en el documento del expediente.
-        // Se borra si existía (por compatibilidad hacia atrás).
+        // El modelo nuevo (coleccion `invoices` independiente) se escribe
+        // en espejo mas abajo -- pero el resto del sistema (Dashboard,
+        // Cobranza, TableroKanban, y las Cloud Functions) TODAVIA lee
+        // exclusivamente de estos dos campos aqui. Borrarlos antes de que
+        // esos consumidores esten migrados deja al expediente sin
+        // facturas visibles en NINGUN lado de la app, de forma permanente
+        // en cuanto se guarda. Ver PLAN_DE_MEJORA_TOTAL.md, seccion 3.4:
+        // el modelo viejo se apaga solo hasta que los 24 archivos que
+        // dependen de el ya esten migrados y verificados, no antes.
         const datosBase: Record<string, unknown> = {
           folio: form.folio.trim(),
           client: form.client.trim(),
@@ -164,8 +172,7 @@ export function useOrderActions() {
           items: form.items,
           processedAt: order.processedAt ?? serverTimestamp(),
           isClosedShort: form.isClosedShort ?? false,
-          invoices: deleteField(),
-          invoiceStatuses: deleteField(),
+          ...camposInvoices(updatedInvoices),
         };
         if (ccp !== undefined) datosBase.customCostPrice = ccp;
         if (csp !== undefined) datosBase.customSellPrice = csp;

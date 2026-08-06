@@ -587,7 +587,7 @@ export default function TabFacturas() {
                   </div>
                 </div>
 
-                <div style={{ marginTop: 24, padding: '24px 0', borderTop: '1px solid var(--border)' }}>
+                <div style={{ marginTop: 24, padding: '24px 0', borderTop: '1px solid var(--line)' }}>
                   <GenAIReader 
                     onDataExtracted={(data) => {
                       if (data.folio) {
