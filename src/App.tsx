@@ -42,13 +42,13 @@ function RouteFallback() {
       transition={{ duration: 0.3 }}
     >
       <div className="page-head" style={{ marginBottom: 20 }}>
-        <div className="skeleton-row" style={{ width: '40%', height: 32, marginBottom: 8, borderRadius: 8 }}></div>
-        <div className="skeleton-row" style={{ width: '60%', height: 16, borderRadius: 6 }}></div>
+        <div className="skeleton" style={{ width: '40%', height: 32, marginBottom: 8, borderRadius: 8 }}></div>
+        <div className="skeleton" style={{ width: '60%', height: 16, borderRadius: 6 }}></div>
       </div>
       <div className="kpi-grid">
-        <motion.div className="skeleton-card" style={{ height: 120, borderRadius: 16, border: '1px solid rgba(226, 232, 240, 0.6)' }} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}></motion.div>
-        <motion.div className="skeleton-card" style={{ height: 120, borderRadius: 16, border: '1px solid rgba(226, 232, 240, 0.6)' }} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.2 }}></motion.div>
-        <motion.div className="skeleton-card" style={{ height: 120, borderRadius: 16, border: '1px solid rgba(226, 232, 240, 0.6)' }} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.4 }}></motion.div>
+        <div className="skeleton" style={{ height: 120, borderRadius: 16 }}></div>
+        <div className="skeleton" style={{ height: 120, borderRadius: 16 }}></div>
+        <div className="skeleton" style={{ height: 120, borderRadius: 16 }}></div>
       </div>
     </motion.div>
   );

@@ -5,7 +5,7 @@ import { useOrders } from '../hooks/useOrders';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
-import Omnibar from './Omnibar';
+import { CommandMenu } from './CommandMenu/CommandMenu';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -46,7 +46,7 @@ export default function Layout() {
   const { orders } = useOrders();
   const { settings } = useSystemSettings();
   const [navOpen, setNavOpen] = useState(false);
-  const [omnibarOpen, setOmnibarOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
   const nav = useNavigate();
@@ -88,15 +88,19 @@ export default function Layout() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        setOmnibarOpen(true);
+        setCommandOpen(o => !o);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
+
+    const handleCustomOpen = () => setCommandOpen(true);
+    document.addEventListener('open-command-menu', handleCustomOpen);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('open-command-menu', handleCustomOpen);
     };
   }, [nav]);
 
@@ -116,7 +120,6 @@ export default function Layout() {
 
   return (
     <div className="layout">
-      <Omnibar isOpen={omnibarOpen} onClose={() => setOmnibarOpen(false)} />
       <div className={`nav-scrim ${navOpen ? 'open' : ''}`} onClick={() => setNavOpen(false)} />
 
       <header className="topbar no-print">
@@ -195,6 +198,16 @@ export default function Layout() {
           </footer>
         </main>
       </div>
+
+      <CommandMenu
+        isOpen={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        orders={orders}
+        onSelectOrder={(orderId, _tab) => {
+          setCommandOpen(false);
+          nav(`/ordenes?id=${orderId}`);
+        }}
+      />
     </div>
   );
 }

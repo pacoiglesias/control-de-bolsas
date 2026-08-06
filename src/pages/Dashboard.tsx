@@ -25,8 +25,8 @@ import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidg
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { SYSTEM_CHANGELOG } from '../components/Dashboard/ChangelogFeed';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
-import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
+import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));

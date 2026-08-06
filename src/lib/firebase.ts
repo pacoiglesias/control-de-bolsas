@@ -45,4 +45,5 @@ export const PATHS = {
   uploadsPrefix: 'uploads',
   maquilaDeliveries: 'maquilaDeliveries',
   priceLists: 'price_lists',
+  ledger: 'ledger',
 } as const;

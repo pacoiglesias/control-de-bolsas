@@ -1464,7 +1464,8 @@ export default function Cobranza() {
                         </button>
                       </div>
                     </div>
-                    <table className="data-table" style={{ margin: 0, border: 'none' }}>
+                    <div className="table-scroll">
+                      <table className="data-table" style={{ margin: 0, border: 'none' }}>
                       <thead style={{ background: '#2563eb', color: '#fff' }}>
                         <tr>
                           <th style={{ color: '#fff', border: 'none' }}>Docto. SAP</th>
@@ -1508,6 +1509,7 @@ export default function Cobranza() {
                       </tfoot>
                     </table>
                   </div>
+                </div>
                 );
               })}
             </div>
