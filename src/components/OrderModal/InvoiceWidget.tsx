@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Field, CopyButton } from '../ui';
-import { fromInputDate, money, toInputDate } from '../../lib/format';
+import { fromInputDate, money, toInputDate, toDate } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
 import { addDays, computeFinancials } from '../../lib/finance';
 import type { Invoice, OrderStatus, PurchaseOrder } from '../../lib/types';
@@ -32,7 +32,8 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
     if (!localInvoice.creditCycle.dueDate) return null;
     const today = new Date();
     today.setHours(0,0,0,0);
-    const due = localInvoice.creditCycle.dueDate.toDate();
+    const due = toDate(localInvoice.creditCycle.dueDate);
+    if (!due) return null;
     due.setHours(0,0,0,0);
     return Math.floor((today.getTime() - due.getTime()) / (1000 * 3600 * 24));
   })();

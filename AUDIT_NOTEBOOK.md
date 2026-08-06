@@ -913,3 +913,10 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Verificación:** `npm run typecheck` completado exitosamente con 0 errores tras tipar y parsear todos los constructores y encadenamientos de Decimal.
 **Estado:** ✅ Completado - Precisión garantizada al 100%.
 
+### Iteración 84: FASE 6 - Desacoplamiento Visual (Drawers)
+**Fecha:** 2026-08-06
+**Archivo:** `src/components/Cobranza/InvoiceDrawer.tsx`, `src/components/Compras/PurchaseDrawer.tsx`
+**Contexto:** El usuario solicitó no tener la información revuelta al consultar expedientes desde Cobranza o Compras. El modal monolítico `OrderModal` sobrecargaba cognitivamente al usuario mostrándole kilos, entregas, etc., cuando solo necesitaba cobrar o pagar.
+**Solución:** Se implementó `InvoiceDrawer` para Cobranza y `PurchaseDrawer` para Compras. Ambos paneles son Drawers laterales enfocados exclusivamente en la transacción financiera seleccionada (Contrarecibos, Pagos). Se integraron exitosamente en `TableroKanban`, `ContrarecibosTable` y `Compras.tsx`.
+**Verificación:** `npm run build` completado exitosamente con 0 errores de TypeScript tras alinear las interfaces `Purchase` y los Timestamp fields.
+**Estado:** ✅ Completado - Desacoplamiento visual logrado.

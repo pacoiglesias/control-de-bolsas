@@ -1,5 +1,10 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.76.3] - 6 Agosto 2026 (Fase 6: Desacoplamiento Visual)
+
+### Agregado
+- `InvoiceDrawer` y `PurchaseDrawer`: Nuevos paneles laterales (Drawers) enfocados exclusivamente en la factura/pago seleccionado, resolviendo el problema de sobrecarga cognitiva ("cosas revueltas") al abrir un expediente completo desde Cobranza o Compras.
+- Integración del Drawer de Cobranza en la tabla de `ContrarecibosTable` del Dashboard.
 ## [v6.76.0] - 6 Agosto 2026 (URGENTE: folio bloqueado por expediente eliminado + espejo de facturas lleno)
 
 ### Corregido -- critico
@@ -780,4 +785,5 @@ Revisa **Configuración**: manda lo guardado en Firestore, no el valor por omisi
 **Solución:** Se integró la librería `decimal.js-light` para refactorizar los acumuladores de `getOrderSummary`, `calculateLiveMargenTotal` y la suma de `saldoCaja`, garantizando montos contables precisos y libres de deriva.
 **Verificación:** `npm run typecheck` completado exitosamente con 0 errores tras tipar y parsear todos los constructores y encadenamientos de Decimal.
 **Estado:** ✅ Completado - Precisión garantizada al 100%.
+
 

@@ -4,6 +4,7 @@ import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { camposInvoices } from '../lib/invoiceOps';
 import { round2 } from '../lib/finance';
+import { toDate } from '../lib/format';
 import { Card, Empty } from '../components/ui';
 import type { OrderStatus, Invoice, PurchaseOrder } from '../lib/types';
 
@@ -225,7 +226,7 @@ export default function AuditSync() {
         }
 
         const excelVenc = parseFechaExcel(row.FechaVencimiento);
-        const sysVenc = inv.creditCycle?.dueDate ? inv.creditCycle.dueDate.toDate() : null;
+        const sysVenc = toDate(inv.creditCycle?.dueDate);
         if (excelVenc && (!sysVenc || Math.abs(excelVenc.getTime() - sysVenc.getTime()) > 24 * 3600 * 1000)) {
           newDiffs.push({
             tab: 'cobranza', type: 'mod', campo: 'vencimiento',

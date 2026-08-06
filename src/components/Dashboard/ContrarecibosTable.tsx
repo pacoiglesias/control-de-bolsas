@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Card, Empty } from '../ui';
 import { money, fmtDate, toDate } from '../../lib/format';
 import type { PurchaseOrder } from '../../lib/types';
+import { useConfig } from '../../hooks/useConfig';
+import { InvoiceDrawer } from '../Cobranza/InvoiceDrawer';
 import { doc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -18,11 +20,15 @@ import { logAction } from '../../lib/logger';
 export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
   const { user } = useAuth();
   const toast = useToast();
+  const { config: dynamicConfig } = useConfig();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<{o: PurchaseOrder, inv: any} | null>(null);
 
   const filas = useMemo(() => {
     const ahora = Date.now();
     const out: {
+      order: PurchaseOrder;
+      invoice: any;
       orderId: string;
       invoiceId: string;
       folio: string;
@@ -43,6 +49,8 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
         const venc = toDate(inv.creditCycle?.dueDate);
         const dias = venc ? Math.round((venc.getTime() - ahora) / (24 * 3600 * 1000)) : null;
         out.push({
+          order: o,
+          invoice: inv,
           orderId: o.id,
           invoiceId: inv.id,
           folio: inv.folio || o.folio || '(sin folio)',
@@ -127,6 +135,13 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
                     </div>
                     <button
                       className="btn"
+                      style={{ background: 'var(--paper-raised)', color: 'var(--ink)', borderColor: 'var(--line-soft)', padding: '10px 16px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
+                      onClick={() => setDrawerTarget({ o: f.order, inv: f.invoice })}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      className="btn"
                       style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '10px 16px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
                       disabled={busyId === f.invoiceId}
                       onClick={() => void marcarPagado(f.orderId, f.invoiceId, f.monto)}
@@ -144,6 +159,15 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
               <span>🔴 Vencidos: <strong>{money(vencidos.reduce((s, f) => s + f.monto, 0))}</strong> ({vencidos.length})</span>
           </div>
         </>
+      )}
+
+      {drawerTarget && (
+        <InvoiceDrawer
+          invoice={drawerTarget.inv}
+          order={drawerTarget.o}
+          dynamicConfig={dynamicConfig}
+          onClose={() => setDrawerTarget(null)}
+        />
       )}
     </Card>
   );

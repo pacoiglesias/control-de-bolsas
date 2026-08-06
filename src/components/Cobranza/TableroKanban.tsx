@@ -4,10 +4,14 @@ import CobranzaContext from './CobranzaContext';
 import { daysLate } from '../../lib/finance';
 import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
+import { InvoiceDrawer } from './InvoiceDrawer';
+import { useConfig } from '../../hooks/useConfig';
 
 export default function TableroKanban() {
-  const { data, money, abrirConFoco, moveInvoice } = useContext(CobranzaContext)!;
+  const { data, money, moveInvoice } = useContext(CobranzaContext)!;
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<{o: any, inv: any} | null>(null);
+  const { config: dynamicConfig } = useConfig();
 
   const cols = useMemo(() => {
     const colRevision: any[] = [];
@@ -120,7 +124,7 @@ export default function TableroKanban() {
           cursor: 'grab',
           boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
         }}
-        onClick={() => abrirConFoco(o, x.inv.id)}
+        onClick={() => setDrawerTarget({ o: x.o, inv: x.inv })}
       >
         {x._posibleDuplicado && (
           <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '4px 8px', borderRadius: 6, marginBottom: 8, display: 'inline-block' }}>
@@ -220,7 +224,8 @@ export default function TableroKanban() {
   });
 
   return (
-    <KanbanScrollWrapper>
+    <>
+      <KanbanScrollWrapper>
       
       {/* Columna En Revisión */}
       <div 
@@ -307,5 +312,14 @@ export default function TableroKanban() {
       </div>
 
     </KanbanScrollWrapper>
+    {drawerTarget && (
+      <InvoiceDrawer
+        invoice={drawerTarget.inv}
+        order={drawerTarget.o}
+        dynamicConfig={dynamicConfig}
+        onClose={() => setDrawerTarget(null)}
+      />
+    )}
+    </>
   );
 }

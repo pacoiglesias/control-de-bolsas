@@ -7,7 +7,8 @@ import { useToast } from '../context/ToastContext';
 import { ComprasKpiGrid } from '../components/Compras/ComprasKpiGrid';
 import { PagarAndresModal } from '../components/Compras/PagarAndresModal';
 import { AndresLedgerTable } from '../components/Compras/AndresLedgerTable';
-import { OrderModal, RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderModals';
+import { PurchaseDrawer } from '../components/Compras/PurchaseDrawer';
+import { RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderModals';
 import { ComprasKanban } from '../components/Compras/ComprasKanban';
 import { exportToCsv, getPrintHeaderHtml, fmtDate } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
@@ -261,7 +262,13 @@ export default function Compras() {
         </Card>
       )}
 
-      {selected && <OrderModal purchase={selected} onClose={() => setSelected(null)} costPricePerKg={currentCostPerKg} />}
+      {selected && (
+        <PurchaseDrawer 
+          purchase={selected} 
+          folio={orderById.get(selected.id)?.folio} 
+          onClose={() => setSelected(null)} 
+        />
+      )}
       {pagarModalAmount !== null && <PagarAndresModal initialAmount={pagarModalAmount} onClose={() => setPagarModalAmount(null)} />}
       {ajusteModal && <AjusteModal selectedProvider={selectedProvider} onClose={() => setAjusteModal(false)} />}
       {deliveryOrder && <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} costPricePerKg={currentCostPerKg} />}
