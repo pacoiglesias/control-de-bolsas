@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
+import Decimal from 'decimal.js-light';
 import { motion } from 'framer-motion';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
@@ -217,7 +218,7 @@ return () => unsub();
     return n;
   }, [activeOrders]);
 
-  const saldoCaja = expenses.reduce((acc, e) => acc + (e.type === 'ingreso' ? e.amount : -e.amount), 0);
+  const saldoCaja = expenses.reduce((acc, e) => new Decimal(acc).plus(e.type === 'ingreso' ? e.amount : -e.amount).toNumber(), 0);
 
   if (loading || loadingExp) {
     return (

@@ -1,4 +1,5 @@
 import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from './types';
+import Decimal from 'decimal.js-light';
 
 /**
  * La formula vive en un solo lugar: functions/src/shared/finance.core.ts, que
@@ -121,19 +122,19 @@ export function getOrderSummary(o: PurchaseOrder) {
 
   const kilosDelivered = round2(deliveries.reduce((a, d) => a + d.kilos, 0));
   
-  let kilosInvoiced = 0, invoiceTotal = 0, saleTotal = 0, commission = 0, netCashFlow = 0, paidAmount = 0;
-  let tradeMargin = 0, realizedProfit = 0;
+  let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
+  let tradeMargin = new Decimal(0), realizedProfit = new Decimal(0);
   let hasOverdue = false, hasManual = false, hasPending = false, hasFacturado = false, allPaid = true, allPedido = true;
   let hasCollected = false;
   let maxDaysLate: number | null = null;
 
   for (const i of invoices) {
-    kilosInvoiced += i.kilos;
-    invoiceTotal += i.financials?.invoiceTotal || 0;
-    saleTotal += i.financials?.saleTotal || 0;
-    commission += i.financials?.commission || 0;
-    netCashFlow += i.financials?.netCashFlow || 0;
-    paidAmount += i.collection?.paidAmount || 0;
+    kilosInvoiced = kilosInvoiced.plus(i.kilos || 0);
+    invoiceTotal = invoiceTotal.plus(i.financials?.invoiceTotal || 0);
+    saleTotal = saleTotal.plus(i.financials?.saleTotal || 0);
+    commission = commission.plus(i.financials?.commission || 0);
+    netCashFlow = netCashFlow.plus(i.financials?.netCashFlow || 0);
+    paidAmount = paidAmount.plus(i.collection?.paidAmount || 0);
     
     // El margen se calcula SIEMPRE. Antes estaba condicionado a que la orden
     // tuviera un costo capturado a mano (`customCostPrice`), asi que cualquier
@@ -143,14 +144,16 @@ export function getOrderSummary(o: PurchaseOrder) {
     // costo efectivo (override si existe, configuracion si no), asi que
     // tradeMargin siempre trae un valor correcto.
     const invMargin = i.financials?.tradeMargin ?? 0;
-    tradeMargin += invMargin;
+    tradeMargin = tradeMargin.plus(invMargin);
 
     // Ganancia por cobros: si pagaron algo, la proporcion pagada de (Margen - Comision).
     const invTotal = i.financials?.invoiceTotal || 0;
     const invPaid = i.collection?.paidAmount || 0;
     if (invTotal > 0 && invPaid > 0) {
       const invCommission = i.financials?.commission || 0;
-      realizedProfit += (invPaid / invTotal) * (invMargin - invCommission);
+      const proportion = new Decimal(invPaid).dividedBy(invTotal);
+      const profitForThisInvoice = new Decimal(invMargin).minus(invCommission);
+      realizedProfit = realizedProfit.plus(proportion.times(profitForThisInvoice));
     }
 
     const s = i.creditCycle.status;
@@ -176,15 +179,6 @@ export function getOrderSummary(o: PurchaseOrder) {
     }
   }
 
-  kilosInvoiced = round2(kilosInvoiced);
-  invoiceTotal = round2(invoiceTotal);
-  saleTotal = round2(saleTotal);
-  commission = round2(commission);
-  netCashFlow = round2(netCashFlow);
-  paidAmount = round2(paidAmount);
-  tradeMargin = round2(tradeMargin);
-  realizedProfit = round2(realizedProfit);
-
   let status: OrderStatus = o.creditCycle?.status ?? 'pedido';
   // isClosedShort se puede activar SIN que exista todavia ninguna factura
   // (el aviso automatico de "completaste la entrega, ¿cerrar?" dispara
@@ -200,7 +194,7 @@ export function getOrderSummary(o: PurchaseOrder) {
     else if (hasPending) status = 'pending';
     else if (hasFacturado) status = 'facturado';
     else if (allPaid) {
-      if (kilosInvoiced < (o.totalKilograms || 0) && !o.isClosedShort) status = 'pending';
+      if (kilosInvoiced.toNumber() < (o.totalKilograms || 0) && !o.isClosedShort) status = 'pending';
       else status = hasCollected ? 'collected' : 'paid';
     } else if (allPedido) {
       if (o.isClosedShort) status = 'facturado'; // Caso raro: SI tiene facturas, pero todas siguen en estatus 'pedido'
@@ -212,14 +206,14 @@ export function getOrderSummary(o: PurchaseOrder) {
     invoices,
     deliveries,
     kilosDelivered,
-    kilosInvoiced,
-    invoiceTotal,
-    saleTotal,
-    commission,
-    netCashFlow,
-    tradeMargin,
-    realizedProfit,
-    paidAmount,
+    kilosInvoiced: round2(kilosInvoiced.toNumber()),
+    invoiceTotal: round2(invoiceTotal.toNumber()),
+    saleTotal: round2(saleTotal.toNumber()),
+    commission: round2(commission.toNumber()),
+    netCashFlow: round2(netCashFlow.toNumber()),
+    tradeMargin: round2(tradeMargin.toNumber()),
+    realizedProfit: round2(realizedProfit.toNumber()),
+    paidAmount: round2(paidAmount.toNumber()),
     status,
     maxDaysLate
   };
@@ -242,8 +236,8 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: nu
   let criticos30 = 0;
   let urgentes15 = 0;
   let recientes1 = 0;
-  let proyeccion7d = 0;
-  let proyeccion15d = 0;
+  let proyeccion7d = new Decimal(0);
+  let proyeccion15d = new Decimal(0);
 
   activeOrders.forEach(o => {
     const invoices = o.invoices || [];
@@ -271,11 +265,11 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: nu
         }
 
         if (predictiveLate !== null) {
-          const saldo = (inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0) - (inv.collection?.paidAmount ?? 0);
+          const saldo = new Decimal(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0).minus(inv.collection?.paidAmount ?? 0);
           // Si ya venció o vence en próximos 7 días
-          if (predictiveLate >= -7) proyeccion7d += saldo;
+          if (predictiveLate >= -7) proyeccion7d = proyeccion7d.plus(saldo);
           // Si ya venció o vence en próximos 15 días
-          if (predictiveLate >= -15) proyeccion15d += saldo;
+          if (predictiveLate >= -15) proyeccion15d = proyeccion15d.plus(saldo);
         }
       }
       if (s === 'paid') {
@@ -302,19 +296,19 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: nu
     });
   });
 
-  return { vencidas, proximas, criticos30, urgentes15, recientes1, porRecibir, proyeccion7d, proyeccion15d };
+  return { vencidas, proximas, criticos30, urgentes15, recientes1, porRecibir, proyeccion7d: proyeccion7d.toNumber(), proyeccion15d: proyeccion15d.toNumber() };
 }
 
 export function calculateLiveMargenTotal(activeOrders: PurchaseOrder[], defaultCostPricePerKg: number): number {
-  let liveMargenTotal = 0;
+  let liveMargenTotal = new Decimal(0);
   activeOrders.forEach(o => {
     (o.invoices || []).forEach(inv => {
       const invTotal = Number(inv.financials?.saleTotal ?? inv.financials?.invoiceTotal ?? 0);
       const comm = Number(inv.financials?.commission ?? 0);
       const matCost = Number(inv.financials?.costTotal ?? (inv.kilos * defaultCostPricePerKg));
-      liveMargenTotal += invTotal - matCost - comm;
+      liveMargenTotal = liveMargenTotal.plus(invTotal).minus(matCost).minus(comm);
     });
   });
-  return round2(liveMargenTotal);
+  return round2(liveMargenTotal.toNumber());
 }
 

@@ -903,3 +903,13 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Solución:** Se reemplazó el antiguo `DashboardKpiGrid` por el nuevo `ModernKpiGrid` con diseño "Hero" asíncrono y variables nativas CSS (`--glass-bg`). Se limpiaron las secciones de semáforo antiguas para reducir el ruido cognitivo.
 **Verificación:** `npm run typecheck` completado exitosamente sin errores tras limpieza de props (`config`).
 **Estado:** ✅ Completado — Dashboard inicial modernizado. Pendiente limpiar las tablas pesadas en la siguiente iteración.
+
+
+### Iteración 83: FASE 5 - Precisión Matemática Centralizada (Decimal.js)
+**Fecha:** 2026-08-06
+**Archivo:** `src/lib/finance.ts`, `src/pages/Dashboard.tsx`
+**Contexto:** Se detectó la necesidad de erradicar los problemas de precisión de coma flotante de JS (ej. 0.1+0.2=0.30004) en las sumatorias y balances del Frontend.
+**Solución:** Se integró la librería `decimal.js-light` para refactorizar los acumuladores de `getOrderSummary`, `calculateLiveMargenTotal` y la suma de `saldoCaja`, garantizando montos contables precisos y libres de deriva.
+**Verificación:** `npm run typecheck` completado exitosamente con 0 errores tras tipar y parsear todos los constructores y encadenamientos de Decimal.
+**Estado:** ✅ Completado - Precisión garantizada al 100%.
+

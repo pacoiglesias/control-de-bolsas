@@ -1,10 +1,7 @@
-import { doc, setDoc, getDocs, collection, runTransaction, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, setDoc, runTransaction, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PATHS } from '../../lib/firebase';
-import { Invoice } from '../../lib/types';
-import { computeFinancials } from '../../lib/finance';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
-import { camposInvoices } from '../../lib/invoiceOps';
 import { safeDeleteDoc, logAction } from '../../lib/logger';
 
 export function useOrderActions() {
@@ -79,50 +76,7 @@ export function useOrderActions() {
     try {
       const ref = doc(db, PATHS.orders, order.id);
       
-      const updatedInvoices = form.invoices.map((inv: any) => {
-        const snapshotCfg = {
-          ...dynamicConfig,
-          salePricePerKg: (form.customSellPrice !== undefined && form.customSellPrice !== '') ? dynamicConfig.salePricePerKg : (inv.financials?.salePricePerKg || dynamicConfig.salePricePerKg),
-          costPricePerKg: (form.customCostPrice !== undefined && form.customCostPrice !== '') ? dynamicConfig.costPricePerKg : (inv.financials?.costPricePerKg || dynamicConfig.costPricePerKg),
-          commissionRate: (form.customCommissionRate !== undefined && form.customCommissionRate !== '') ? dynamicConfig.commissionRate : (inv.financials?.commissionRate || dynamicConfig.commissionRate),
-        };
 
-        const crNum = inv.collection?.contrareciboNumber?.trim() || '';
-        const folioStr = inv.folio?.trim() || '';
-        const finalFolio = (crNum && !folioStr) ? 'S/N' : folioStr;
-
-        return {
-          ...inv,
-          folio: finalFolio,
-          financials: computeFinancials(inv.kilos, snapshotCfg),
-          collection: inv.collection ? {
-            ...inv.collection,
-            contrareciboNumber: crNum
-          } : undefined
-        };
-      });
-
-      const qs = await getDocs(collection(db, PATHS.orders));
-      for (const inv of updatedInvoices) {
-        if (!inv.folio || inv.folio === 'S/N') continue;
-        const upperFolio = inv.folio.toUpperCase();
-        for (const doc of qs.docs) {
-          if (doc.id === order.id) continue;
-          // Un expediente en la Papelera (isDeleted: true) no deberia
-          // "reservar" para siempre los folios de sus facturas -- sin
-          // este filtro, cualquier folio usado alguna vez en un
-          // expediente ya eliminado bloqueaba ese mismo folio de por
-          // vida en cualquier expediente nuevo, sin ningun aviso claro
-          // de por que (el toast de bloqueo aparece y desaparece solo).
-          if (doc.data().isDeleted) continue;
-          const otherInvoices = doc.data().invoices || [];
-          if (otherInvoices.some((x: Invoice) => x.folio && x.folio.toUpperCase() === upperFolio)) {
-            toast(`Bloqueado: El folio de factura ${inv.folio} ya está registrado en el expediente ${doc.data().folio || doc.id}.`, 'bad');
-            setBusy(false);
-            return;
-          }
-        }
-      }
 
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
@@ -179,7 +133,6 @@ export function useOrderActions() {
           items: form.items,
           processedAt: order.processedAt ?? serverTimestamp(),
           isClosedShort: form.isClosedShort ?? false,
-          ...camposInvoices(updatedInvoices),
         };
         if (ccp !== undefined) datosBase.customCostPrice = ccp;
         if (csp !== undefined) datosBase.customSellPrice = csp;
@@ -189,33 +142,9 @@ export function useOrderActions() {
         if (ocValue) datosBase.oc = ocValue;
 
         tx.set(ref, datosBase, { merge: true });
-
-        // Guardar cada factura como un documento independiente en la colección `invoices`
-        updatedInvoices.forEach((inv: any) => {
-          // Usamos el ID generado por el frontend (inv.id), o generamos uno si no lo tiene (aunque siempre debería tenerlo)
-          const invRef = doc(db, PATHS.invoices, inv.id);
-          const finalInv = {
-            ...inv,
-            orderId: order.id,
-            clientId: form.client.trim(),
-            oc: ocValue || '',
-            createdAt: inv.createdAt || order.createdAt || serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          };
-          tx.set(invRef, finalInv, { merge: true });
-        });
-
-        // Eliminar facturas que estaban en la BD pero el usuario borró en la UI
-        // Necesitamos saber los IDs que estaban en la BD. Por suerte, order.invoices
-        // tiene las originales antes de editar.
-        const originalInvoiceIds = (order.invoices || []).map((i: any) => i.id);
-        const currentInvoiceIds = updatedInvoices.map((i: any) => i.id);
-        const deletedIds = originalInvoiceIds.filter((id: string) => !currentInvoiceIds.includes(id));
         
-        deletedIds.forEach((id: string) => {
-          const invRef = doc(db, PATHS.invoices, id);
-          tx.delete(invRef);
-        });
+        // La gestion de facturas se ha movido completamente a useInvoiceActions.ts y InvoiceWidget.tsx.
+        // El merge: true garantiza que no borramos el arreglo de facturas existente en la BD.
       });
 
       try {
@@ -226,7 +155,7 @@ export function useOrderActions() {
         // silencio una correccion real cada vez que se guardaba CUALQUIER
         // cambio en el expediente, sin importar que tan ajeno fuera a la
         // entrega. Se usa la suma de kilos de las facturas como respaldo.
-        const kilosDeFacturasParaCompra = (form.invoices || []).reduce((acc: number, i: any) => acc + (i.kilos || 0), 0);
+        const kilosDeFacturasParaCompra = (order.invoices || []).reduce((acc: number, i: any) => acc + (i.kilos || 0), 0);
         const kilosParaCompra = kilosEntregados > 0 ? kilosEntregados : kilosDeFacturasParaCompra;
         if (kilosParaCompra > 0) {
           await upsertAndresPurchase({
@@ -274,35 +203,14 @@ export function useOrderActions() {
         orderId: order.id,
         folio: form.folio,
         kilos: kilosNum,
-        facturas: updatedInvoices.length,
+        facturas: order.invoices?.length || 0,
         cobrado: liveSummary.paidAmount,
       });
       // La migración ahora se hace síncrona en la transacción arriba, 
       // por lo que ya no es necesario el espejarFacturasV2 de background.
 
-      // Antes el toast siempre decia lo mismo ("Expediente actualizado"),
-      // sin importar que hubiera cambiado -- si editabas 3 facturas a la
-      // vez, no habia forma de confirmar de un vistazo cuales se
-      // guardaron realmente. Ahora compara antes/despues por id y arma
-      // un resumen real.
-      const antes = new Map<string, Invoice>((order.invoices || []).map((i: Invoice) => [i.id, i]));
-      let nuevas = 0, modificadas = 0;
-      for (const inv of updatedInvoices) {
-        const prev = antes.get(inv.id);
-        if (!prev) { nuevas++; continue; }
-        const cambioMonto = (prev.financials?.invoiceTotal ?? 0) !== (inv.financials?.invoiceTotal ?? 0);
-        const cambioCR = (prev.collection?.contrareciboNumber ?? '') !== (inv.collection?.contrareciboNumber ?? '');
-        const cambioEstado = (prev.creditCycle?.status ?? '') !== (inv.creditCycle?.status ?? '');
-        const cambioFolio = (prev.folio ?? '') !== (inv.folio ?? '');
-        if (cambioMonto || cambioCR || cambioEstado || cambioFolio) modificadas++;
-      }
-      const eliminadas = (order.invoices || []).length - (updatedInvoices.length - nuevas);
-      const partes: string[] = [];
-      if (nuevas > 0) partes.push(`${nuevas} factura${nuevas > 1 ? 's' : ''} nueva${nuevas > 1 ? 's' : ''}`);
-      if (modificadas > 0) partes.push(`${modificadas} modificada${modificadas > 1 ? 's' : ''}`);
-      if (eliminadas > 0) partes.push(`${eliminadas} eliminada${eliminadas > 1 ? 's' : ''}`);
-      const resumen = partes.length > 0 ? ` — ${partes.join(', ')}` : '';
-      toast(`Expediente actualizado${resumen}`, 'ok');
+      // El resumen de facturas guardadas ya no aplica aquí, porque se manejan independientemente.
+      toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');

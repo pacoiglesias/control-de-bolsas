@@ -100,66 +100,50 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
       {filas.length === 0 ? (
         <Empty>No hay contrarecibos activos por cobrar.</Empty>
       ) : (
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th className="sticky-col">Contrarecibo</th>
-                <th>Folio</th>
-                <th>Cliente</th>
-                <th>Vencimiento</th>
-                <th className="num">Monto</th>
-                <th>Estado</th>
-                <th>Acción Rápida</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((f, i) => {
-                const vencido = (f.diasParaVencer ?? 0) < 0;
-                const proximo = !vencido && (f.diasParaVencer ?? 99) <= 7;
-                return (
-                  <tr key={i}>
-                    <td className="mono sticky-col" style={{ fontWeight: 700 }}>{f.contrarecibo}</td>
-                    <td className="mono">{f.folio}</td>
-                    <td>{f.cliente}</td>
-                    <td>{f.vencimiento ? fmtDate(f.vencimiento) : '—'}</td>
-                    <td className="num mono">{money(f.monto)}</td>
-                    <td>
-                      {vencido ? (
-                        <span className="badge" style={{ background: 'var(--bad)' }}>
-                          Vencido hace {Math.abs(f.diasParaVencer ?? 0)} día(s)
-                        </span>
-                      ) : proximo ? (
-                        <span className="badge" style={{ background: 'var(--warn)' }}>
-                          Vence en {f.diasParaVencer} día(s)
-                        </span>
-                      ) : (
-                        <span className="badge" style={{ background: 'var(--ok)' }}>
-                          Vigente ({f.diasParaVencer} días)
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        className="btn"
-                        style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '4px 10px', fontSize: 13 }}
-                        disabled={busyId === f.invoiceId}
-                        onClick={() => void marcarPagado(f.orderId, f.invoiceId, f.monto)}
-                      >
-                        {busyId === f.invoiceId ? <span className="spinner" style={{ marginRight: 6 }}></span> : '💰 '}
-                        Marcar Pagado
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', gap: 24, marginTop: 12, fontSize: 13, color: 'var(--ink-soft)' }}>
-            <span>🟢 Vigentes: <strong>{money(vigentes.reduce((s, f) => s + f.monto, 0))}</strong> ({vigentes.length})</span>
-            <span>🔴 Vencidos: <strong>{money(vencidos.reduce((s, f) => s + f.monto, 0))}</strong> ({vencidos.length})</span>
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {filas.map((f, i) => {
+              const vencido = (f.diasParaVencer ?? 0) < 0;
+              const proximo = !vencido && (f.diasParaVencer ?? 99) <= 7;
+              return (
+                <div key={i} className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: 'var(--radius)', borderLeft: `6px solid ${vencido ? 'var(--bad)' : proximo ? 'var(--warn)' : 'var(--ok)'}` }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span className="mono" style={{ fontSize: 16, fontWeight: 700 }}>CR: {f.contrarecibo}</span>
+                      <span className="badge" style={{ background: 'var(--paper-sunk)', color: 'var(--ink)', fontSize: 12 }}>Folio {f.folio}</span>
+                      <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{f.cliente}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: vencido ? 'var(--bad)' : proximo ? 'var(--warn)' : 'var(--ok)' }}>
+                        {vencido ? `⚠️ Vencido hace ${Math.abs(f.diasParaVencer ?? 0)} día(s)` : proximo ? `⏳ Vence en ${f.diasParaVencer} día(s)` : `✅ Vigente (${f.diasParaVencer} días)`}
+                      </span>
+                      <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Vencimiento: {f.vencimiento ? fmtDate(f.vencimiento) : '—'}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--ink-faint)', fontWeight: 700 }}>Monto a Cobrar</div>
+                      <div className="mono" style={{ fontSize: 20, fontWeight: 800 }}>{money(f.monto)}</div>
+                    </div>
+                    <button
+                      className="btn"
+                      style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '10px 16px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
+                      disabled={busyId === f.invoiceId}
+                      onClick={() => void marcarPagado(f.orderId, f.invoiceId, f.monto)}
+                    >
+                      {busyId === f.invoiceId ? <span className="spinner" style={{ marginRight: 6 }}></span> : '💰 '}
+                      Marcar Pagado
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+          <div style={{ display: 'flex', gap: 24, marginTop: 24, fontSize: 14, background: 'var(--glass-bg)', padding: '12px 20px', borderRadius: 'var(--radius)', border: '1px solid var(--glass-border)' }}>
+              <span>🟢 Vigentes: <strong>{money(vigentes.reduce((s, f) => s + f.monto, 0))}</strong> ({vigentes.length})</span>
+              <span>🔴 Vencidos: <strong>{money(vencidos.reduce((s, f) => s + f.monto, 0))}</strong> ({vencidos.length})</span>
+          </div>
+        </>
       )}
     </Card>
   );

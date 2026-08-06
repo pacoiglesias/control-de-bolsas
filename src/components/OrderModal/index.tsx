@@ -95,20 +95,20 @@ function OrderModalShell({ onClose }: { onClose: () => void }) {
         );
       })()}
       
-      {/* Tabs */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('resumen'); }}>Resumen</button>
-        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('productos'); }}>
-          Productos <span className="badge">{form.items.length}</span>
+      {/* Tabs - Modernized Glassmorphism */}
+      <div className="glass-panel" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 24, padding: 6, borderRadius: 'var(--radius)', alignItems: 'center' }}>
+        <button className={`btn ${tab === 'resumen' ? 'btn-primary' : ''}`} style={tab !== 'resumen' ? {border: 'none', background: 'transparent'} : {border: 'none', boxShadow: 'var(--shadow-sm)'}} onClick={() => { sound.playPop(); setTab('resumen'); }}>Resumen</button>
+        <button className={`btn ${tab === 'productos' ? 'btn-primary' : ''}`} style={tab !== 'productos' ? {border: 'none', background: 'transparent'} : {border: 'none', boxShadow: 'var(--shadow-sm)'}} onClick={() => { sound.playPop(); setTab('productos'); }}>
+          Productos <span className="badge" style={tab !== 'productos' ? {background: 'var(--line)', color: 'var(--ink)'} : {}}>{form.items.length}</span>
         </button>
-        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('entregas'); }}>
-          Entregas <span className="badge">{form.deliveries.length}</span>
+        <button className={`btn ${tab === 'entregas' ? 'btn-primary' : ''}`} style={tab !== 'entregas' ? {border: 'none', background: 'transparent'} : {border: 'none', boxShadow: 'var(--shadow-sm)'}} onClick={() => { sound.playPop(); setTab('entregas'); }}>
+          Entregas <span className="badge" style={tab !== 'entregas' ? {background: 'var(--line)', color: 'var(--ink)'} : {}}>{form.deliveries.length}</span>
         </button>
-        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} onClick={() => { sound.playPop(); setTab('facturas'); }}>
-          Facturas <span className="badge">{form.invoices.length}</span>
+        <button className={`btn ${tab === 'facturas' ? 'btn-primary' : ''}`} style={tab !== 'facturas' ? {border: 'none', background: 'transparent'} : {border: 'none', boxShadow: 'var(--shadow-sm)'}} onClick={() => { sound.playPop(); setTab('facturas'); }}>
+          Facturas <span className="badge" style={tab !== 'facturas' ? {background: 'var(--line)', color: 'var(--ink)'} : {}}>{form.invoices.length}</span>
         </button>
-        <button className="btn" style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printConsolidatedPackage}>
-          🖨️ Paquete Consolidado (PDF)
+        <button className="btn" style={{ marginLeft: 'auto', background: 'linear-gradient(135deg, var(--accent), var(--accent-deep))', color: '#fff', border: 'none', fontWeight: 600, borderRadius: 'var(--radius-sm)' }} onClick={printConsolidatedPackage}>
+          🖨️ Exportar PDF
         </button>
       </div>
 

@@ -91,9 +91,7 @@ export interface OrderModalContextType {
   removeDelivery: (index: number) => void;
   
   // --- Handlers: Facturas ---
-  addInvoice: () => void;
-  updateInvoice: (index: number, updateFn: (inv: Invoice) => Invoice) => void;
-  removeInvoice: (index: number) => void;
+  // (Delegados a useInvoiceActions.ts y InvoiceWidget.tsx)
   facturarEntrega: (deliveryIndex: number) => void;
   
   // --- Impresiones ---

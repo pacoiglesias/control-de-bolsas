@@ -79,9 +79,9 @@
   --surface-sunken: var(--paper-sunk);
   --ink-muted: var(--ink-soft);
   --info-deep: #1d4ed8;
-  --glass-bg: rgba(255,255,255,0.7);
-  --glass-shadow: 0 8px 24px rgba(0,0,0,0.08);
-  --blur-radius: 12px;
+  --glass-bg: rgba(255,255,255,0.5);
+  --glass-shadow: 0 12px 32px rgba(0,0,0,0.12);
+  --blur-radius: 24px;
   --accent-sunk: var(--accent-tint);
 }
 
@@ -144,9 +144,9 @@
   --surface-sunken: var(--paper-sunk);
   --ink-muted: var(--ink-soft);
   --info-deep: #93c5fd;
-  --glass-bg: rgba(24,24,27,0.7);
-  --glass-shadow: 0 8px 24px rgba(0,0,0,0.5);
-  --blur-radius: 12px;
+  --glass-bg: rgba(24,24,27,0.5);
+  --glass-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  --blur-radius: 24px;
   --accent-sunk: var(--accent-tint);
 }
 *{box-sizing:border-box}
