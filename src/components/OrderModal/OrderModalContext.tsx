@@ -1,11 +1,14 @@
 import { createContext, useContext } from 'react';
+import type { OrderModalContextType } from './types';
 
-// Using 'any' for the context type to avoid exporting 50 types right now,
-// we just want to split the God Component first without breaking TS.
-const OrderModalContext = createContext<any>(null);
+const OrderModalContext = createContext<OrderModalContextType | null>(null);
 
-export function useOrderModal() {
-  return useContext(OrderModalContext);
+export function useOrderModal(): OrderModalContextType {
+  const context = useContext(OrderModalContext);
+  if (!context) {
+    throw new Error('useOrderModal must be used within an OrderModalProvider');
+  }
+  return context;
 }
 
 export default OrderModalContext;

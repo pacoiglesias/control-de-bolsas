@@ -164,6 +164,108 @@ export function CopyButton({ text, label }: { text: string; label?: string; }) {
   );
 }
 
+export function Drawer({
+  title,
+  onClose,
+  children,
+  side = 'right',
+  width = 500,
+}: {
+  title?: string;
+  onClose: () => void;
+  children: ReactNode;
+  side?: 'left' | 'right';
+  width?: number | string;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', handleEsc);
+    const overflowPrevio = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = overflowPrevio;
+    };
+  }, [onClose]);
+
+  return (
+    <AnimatePresence>
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: side === 'right' ? 'flex-end' : 'flex-start'
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+          }}
+        />
+        <motion.div
+          ref={boxRef}
+          initial={{ x: side === 'right' ? '100%' : '-100%', opacity: 0.5 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: side === 'right' ? '100%' : '-100%', opacity: 0.5 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          style={{
+            position: 'relative',
+            width: width,
+            maxWidth: '100vw',
+            height: '100%',
+            background: 'var(--bg)',
+            boxShadow: side === 'right' ? '-10px 0 30px rgba(0,0,0,0.1)' : '10px 0 30px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            borderLeft: side === 'right' ? '1px solid var(--line-soft)' : 'none',
+            borderRight: side === 'left' ? '1px solid var(--line-soft)' : 'none',
+            overflow: 'hidden'
+          }}
+        >
+          {title && (
+            <div style={{
+              padding: '24px',
+              borderBottom: '1px solid var(--line-soft)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--paper)',
+            }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>{title}</h2>
+              <button 
+                onClick={onClose} 
+                className="btn-icon" 
+                style={{ width: 32, height: 32, background: 'var(--bg-inset)', borderRadius: '50%' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            {children}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
+
 export function Modal({
   title,
   onClose,

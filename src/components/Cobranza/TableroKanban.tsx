@@ -142,6 +142,46 @@ export default function TableroKanban() {
             {isOverdue ? `Atraso: ${late} días` : (inv.creditCycle?.dueDate ? `Vence: ${fmtDate(inv.creditCycle.dueDate)}` : '')}
           </span>
         </div>
+        
+        {/* Quick Actions Bar */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+          {(inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') && (
+            <button 
+              className="btn" 
+              style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8 }}
+              onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
+            >
+              💸 Cobro Rápido
+            </button>
+          )}
+          {inv.creditCycle.status === 'paid' && (
+            <>
+              <button 
+                className="btn" 
+                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--ok)', color: '#fff', border: 'none', borderRadius: 8 }}
+                onClick={() => moveInvoice(o.id, inv.id, 'colCaja')}
+              >
+                ✅ Recibir Efectivo
+              </button>
+              <button 
+                className="btn" 
+                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--paper-sunk)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 8 }}
+                onClick={() => moveInvoice(o.id, inv.id, 'colPorCobrar')}
+              >
+                ↩️ Deshacer
+              </button>
+            </>
+          )}
+          {inv.creditCycle.status === 'collected' && (
+            <button 
+              className="btn" 
+              style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--paper-sunk)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 8 }}
+              onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
+            >
+              ↩️ Revertir
+            </button>
+          )}
+        </div>
       </motion.div>
     );
   };

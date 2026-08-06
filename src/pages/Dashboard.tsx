@@ -13,16 +13,20 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { Skeleton } from '../components/ui';
+import { Skeleton, Drawer } from '../components/ui';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
+import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { SYSTEM_CHANGELOG } from '../components/Dashboard/ChangelogFeed';
+import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
+import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
+import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -61,6 +65,11 @@ export default function Dashboard() {
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [monthFilter, setMonthFilter] = useState<string>('ALL');
+  const [showContrarecibosDrawer, setShowContrarecibosDrawer] = useState(false);
+  const [showSeguimientoDrawer, setShowSeguimientoDrawer] = useState(false);
+  const [showQuickInvoice, setShowQuickInvoice] = useState(false);
+  const [showQuickCollection, setShowQuickCollection] = useState(false);
+  const [showQuickPay, setShowQuickPay] = useState(false);
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -729,17 +738,59 @@ return () => unsub();
         </div>
       )}
 
-      <ModernKpiGrid k={k} role={role} saldoCaja={saldoCaja} config={config as any} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} />
-
-      {role !== 'viewer' && (
-        <div style={{ marginTop: 24 }}>
-          <ContrarecibosTable orders={activeOrders} />
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 32 }}>
+          <Skeleton style={{ height: 160, borderRadius: 20 }} />
+          <Skeleton style={{ height: 160, borderRadius: 20 }} />
+          <Skeleton style={{ height: 160, borderRadius: 20 }} />
+          <Skeleton style={{ height: 160, borderRadius: 20 }} />
         </div>
+      ) : (
+        <ModernKpiGrid k={k} role={role} saldoCaja={saldoCaja} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} config={config} />
       )}
 
-      <div style={{ marginTop: 24 }}>
-        <SeguimientoPedidosTable orders={activeOrders} />
-      </div>
+      <QuickActionsBar 
+        role={role}
+        onNewOrder={() => nav('/ordenes?nueva=1')}
+        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickCollection={() => setShowQuickCollection(true)}
+        onQuickPay={() => setShowQuickPay(true)}
+      />
+
+      {showContrarecibosDrawer && (
+        <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>
+          <ContrarecibosTable orders={activeOrders} />
+        </Drawer>
+      )}
+
+      {showSeguimientoDrawer && (
+        <Drawer title="Seguimiento de Pedidos" onClose={() => setShowSeguimientoDrawer(false)} width={1000}>
+          <SeguimientoPedidosTable orders={activeOrders} />
+        </Drawer>
+      )}
+
+      {showQuickInvoice && (
+        <QuickInvoiceModal 
+          orders={activeOrders} 
+          onClose={() => setShowQuickInvoice(false)} 
+        />
+      )}
+
+      {showQuickCollection && (
+        <QuickCollectionModal 
+          orders={activeOrders} 
+          onClose={() => setShowQuickCollection(false)} 
+        />
+      )}
+
+      {showQuickPay && (
+        <QuickPayModal 
+          orders={activeOrders} 
+          onClose={() => setShowQuickPay(false)} 
+        />
+      )}
 
       <Suspense fallback={null}>
         {showBackupsModal && (
