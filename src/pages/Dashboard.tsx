@@ -28,6 +28,7 @@ import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
 import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
 import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
+import { executeHardReset } from '../lib/hardResetData';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -84,6 +85,17 @@ export default function Dashboard() {
       toast(`No se pudieron recalcular los indicadores: ${(e as Error).message}`, 'bad');
     } finally {
       setRecalcBusy(false);
+    }
+  }
+
+  async function handleHardReset() {
+    if (!window.confirm('¿ESTÁS SEGURO? Esto borrará el historial y dejará SOLO las 18 transacciones del Excel del 6 de Agosto.')) return;
+    try {
+      await executeHardReset();
+      toast('Sincronización Maestra ejecutada con éxito. Revisa tus números.', 'ok');
+      await recalcStats();
+    } catch(e) {
+      toast(`Error en sincronización: ${(e as Error).message}`, 'bad');
     }
   }
 
@@ -528,6 +540,12 @@ return () => unsub();
           <div style={{ display: 'flex', gap: 8 }}>
             {k.pedidoPendiente.length > 0 && <button className="btn btn-primary" onClick={() => nav('/ordenes?filtro=pedido')}>Facturar Ahora</button>}
             {k.urgentes15 > 0 && <button className="btn" onClick={() => nav('/cobranza')}>Cobrar</button>}
+            <button className="btn" onClick={() => nav('/config')}>⚙️ Configuración</button>
+            {role === 'admin' && (
+              <button className="btn" style={{ background: 'var(--bad)', color: 'white' }} onClick={handleHardReset}>
+                ⚠️ SINCRONIZACIÓN EXCEL (6 AGO)
+              </button>
+            )}
           </div>
         </motion.div>
       )}
