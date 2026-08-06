@@ -8,6 +8,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { getOrderSummary } from '../lib/finance';
 import { camposInvoices } from '../lib/invoiceOps';
+import { GenAIReader } from '../components/GenAIReader';
 
 interface IncompleteInvoice {
   orderId: string;
@@ -90,7 +91,33 @@ export function FastEntry() {
     }
   };
 
-  
+  const handleGenAIData = (data: any) => {
+    if (activeTab === 'docs' && data.folio) {
+      const match = missing.find(m => {
+        const hasFolio = !!edits[`${m.orderId}___${m.invoiceId}___factura`] || !!m.currentFolio;
+        if (hasFolio) return false;
+        if (data.subtotal) return Math.abs(m.amount - data.subtotal) < 2;
+        if (data.total) return Math.abs(m.amount - data.total) < 2;
+        return true;
+      });
+      if (match) {
+        setEdits(prev => ({ ...prev, [`${match.orderId}___${match.invoiceId}___factura`]: data.folio }));
+        toast(`Folio ${data.folio} detectado y autocompletado para la OC ${match.orderFolio}.`, 'ok');
+      } else {
+        toast(`Se detectó el folio ${data.folio} pero no se encontró un expediente sin folio que coincida con el monto.`, 'info');
+      }
+    } else if (activeTab === 'logistics' && data.kilosTotales) {
+      const match = missingDeliveries.find(m => {
+        const hasEdit = !!logisticsEdits[m.order.id]?.kilos;
+        return !hasEdit && m.faltante >= data.kilosTotales;
+      });
+      if (match) {
+        setLogisticsEdits(prev => ({ ...prev, [match.order.id]: { kilos: String(data.kilosTotales), date: new Date().toISOString().split('T')[0] } }));
+        toast(`Se detectaron ${data.kilosTotales} kg para la OC ${match.order.oc || match.order.folio}.`, 'ok');
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (activeTab === 'docs') {
       await handleSaveDocs();
@@ -286,6 +313,7 @@ export function FastEntry() {
         </button>
       </div>
 
+      <GenAIReader onDataExtracted={handleGenAIData} compact />
       
       <div style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
         <button 

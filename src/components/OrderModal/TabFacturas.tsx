@@ -9,6 +9,7 @@ import { addDays, round2 } from '../../lib/finance';
 import type { OrderStatus } from '../../lib/types';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { sound } from '../../lib/sounds';
+import { GenAIReader } from '../GenAIReader';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();

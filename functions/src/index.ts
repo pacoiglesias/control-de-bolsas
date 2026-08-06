@@ -19,6 +19,9 @@ import {
   round2,
   type FinanceConfigCore,
 } from "./shared/finance.core";
+import { parseDocumentData } from "./ai/extractor";
+
+export { parseDocumentData };
 
 initializeApp();
 
