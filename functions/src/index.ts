@@ -20,9 +20,8 @@ import {
   type FinanceConfigCore,
 } from "./shared/finance.core";
 import { parseDocumentData } from "./ai/extractor";
-import { injectAuditoria } from "./injectAuditoria";
 
-export { parseDocumentData, injectAuditoria };
+export { parseDocumentData };
 
 initializeApp();
 
