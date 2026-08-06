@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
@@ -17,14 +17,16 @@ import { Skeleton } from '../components/ui';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
-import { SYSTEM_CHANGELOG, ChangelogModal } from '../components/Dashboard/ChangelogFeed';
 import { DashboardKpiGrid } from '../components/Dashboard/DashboardKpiGrid';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
-import { useDashboardStats } from '../hooks/useDashboardStats';
-import { CloudBackupsModal } from '../components/Dashboard/CloudBackupsModal';
-import { LiveLogsModal } from '../components/Dashboard/LiveLogsModal';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
+import { useDashboardStats } from '../hooks/useDashboardStats';
+import { SYSTEM_CHANGELOG } from '../components/Dashboard/ChangelogFeed';
+
+const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
+const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
+const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
 
 
 
@@ -739,23 +741,28 @@ return () => unsub();
         <SeguimientoPedidosTable orders={activeOrders} />
       </div>
 
-      {showBackupsModal && (
-        <CloudBackupsModal
-          onClose={() => setShowBackupsModal(false)}
-          cloudBackups={cloudBackups as any}
-          backupBusy={backupBusy}
-          handleCreateBackup={handleCreateBackup}
-          handleRestoreBackup={handleRestoreBackup as any}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showBackupsModal && (
+          <CloudBackupsModal 
+            onClose={() => setShowBackupsModal(false)}
+            cloudBackups={cloudBackups as any}
+            backupBusy={backupBusy}
+            handleCreateBackup={handleCreateBackup}
+            handleRestoreBackup={handleRestoreBackup as any}
+          />
+        )}
 
-      {showChangelogModal && (
-        <ChangelogModal onClose={() => setShowChangelogModal(false)} />
-      )}
+        {showChangelogModal && (
+          <ChangelogModalComponent onClose={() => setShowChangelogModal(false)} />
+        )}
 
-      {showLiveLogsModal && (
-        <LiveLogsModal onClose={() => setShowLiveLogsModal(false)} liveLogs={liveLogs as any} />
-      )}
+        {showLiveLogsModal && (
+          <LiveLogsModal 
+            onClose={() => setShowLiveLogsModal(false)}
+            liveLogs={liveLogs as any}
+          />
+        )}
+      </Suspense>
     </>
   );
 }

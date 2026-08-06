@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder } from '../lib/types';
 import { useInvoicesContext } from './InvoicesContext';
@@ -42,7 +42,11 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     // Maestra si lo veia, porque esa pantalla usa una consulta distinta,
     // sin orderBy. Se ordena del lado del cliente para que ningun
     // documento pueda desaparecer por faltarle un campo.
-    const q = query(collection(db, PATHS.orders), limit(1000));
+    const q = query(
+      collection(db, PATHS.orders), 
+      where('isArchived', '==', false),
+      limit(500)
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {

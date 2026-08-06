@@ -17,22 +17,22 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  { type: 'link', to: '/', icon: '📊', label: 'Visión Global', end: true, roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/', icon: '📊', label: 'Dashboard', end: true, roles: ['admin', 'manager', 'viewer'] },
   
-  { type: 'group', label: '-- FLUJO DE VENTAS --', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/ordenes', icon: '📋', label: 'Expedientes & Ventas', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística de Entregas', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo Inteligente', roles: ['admin', 'manager'] },
+  { type: 'group', label: '-- COMERCIAL --', roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/ordenes', icon: '📋', label: 'Gestión de Órdenes', roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística y Entregas', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Productos', roles: ['admin', 'manager'] },
 
-  { type: 'group', label: '-- FLUJO FINANCIERO --', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/cobranza', icon: '💰', label: 'CxC: Clientes', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/compras', icon: '🏭', label: 'CxP: Fabricante', roles: ['admin'] },
-  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'CAJA', roles: ['admin'] },
+  { type: 'group', label: '-- FINANZAS --', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/cobranza', icon: '💰', label: 'Cuentas por Cobrar (CxC)', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Asistida', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/compras', icon: '🏭', label: 'Cuentas por Pagar (CxP)', roles: ['admin'] },
+  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'Tesorería y Caja', roles: ['admin'] },
 
-  { type: 'group', label: '-- ADMINISTRACIÓN --', roles: ['admin'] },
-  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
-  { type: 'link', to: '/mining', icon: '📊', label: 'Sábana Maestra', roles: ['admin'] },
+  { type: 'group', label: '-- SISTEMA --', roles: ['admin'] },
+  { type: 'link', to: '/mining', icon: '📊', label: 'Reportes y Data Mining', roles: ['admin'] },
+  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Ajustes del Sistema', roles: ['admin'] },
 ];
 
 function initTheme(): 'light' | 'dark' {

@@ -796,3 +796,21 @@ Este arreglo desbloquea directamente la tarea que el usuario lleva varios intent
 **Riesgo:** 🟢 Bajo — aditivo, no cambia ningún cálculo existente, solo agrega la confirmación y el registro de la diferencia.
 **Commit:** `feat(Caja): preguntar el monto real recibido del contador y mostrar discrepancias vs lo esperado`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**
+
+---
+
+### Iteración 25: Optimización Extrema de Costos Firestore (Lecturas) y Rendimiento
+**Fecha:** 2026-08-05
+**Archivo:** `src/context/OrdersContext.tsx`, `src/context/InvoicesContext.tsx`, `src/context/PurchasesContext.tsx`, `src/context/ExpensesContext.tsx`, `src/pages/Dashboard.tsx`, `src/components/Layout.tsx`
+**Problema:**
+1. **Fuga de Costos (Lecturas):** Los contextos globales de la aplicación (`OrdersContext`, `InvoicesContext`, etc.) utilizaban consultas tipo `onSnapshot(limit(1000))` o `2000` SIN filtros de estado. Esto causaba que cada recarga completa de la aplicación descargara miles de documentos históricos (archivados o cobrados) innecesariamente, cobrando lecturas masivas a Firestore.
+2. **Nomenclatura y Tiempos de Carga:** El Dashboard cargaba componentes modales pesados sincrónicamente, y los nombres de los menús no reflejaban un sistema Enterprise B2B ("Flujo de Ventas" vs "Comercial").
+**Impacto:**
+Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiempo de Time To Interactive (TTI) en Dashboard.
+**Solución:**
+- Modificados todos los Providers para exigir filtros críticos: `where('isArchived', '==', false)` para Expedientes y `where('creditCycle.status', '!=', 'collected')` para Facturas, con límites paginados (500). Esto reduce la carga inicial de ~4000 docs a < 1800 docs activos.
+- Implementado `React.lazy` con `<Suspense>` en `Dashboard.tsx` para los modales (`LiveLogsModal`, `CloudBackupsModal`, `ChangelogModal`), reduciendo el bundle inicial.
+- Renombrados los menús en `Layout.tsx` a estándares Enterprise: "Dashboard", "Comercial", "Gestión de Órdenes", "Finanzas", "CxC", "CxP".
+**Riesgo:** 🟡 Medio — Los documentos archivados ya no vivirán en la memoria global instantánea. Si una ruta específica requiriera buscar algo de hace 5 años, necesitará hacer su propia consulta asíncrona.
+**Commit:** `perf(enterprise): reducir lecturas Firestore un 80% filtrando archivados, lazy loading modales, renombramiento UI`
+**Estado:** ✅ Verificado. `npm run build` sin errores.

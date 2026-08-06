@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Invoice } from '../lib/types';
 
@@ -20,7 +20,11 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
     // Al igual que OrdersContext, ordenamos en el cliente para evitar
     // exclusiones silenciosas por falta de campos en documentos viejos.
     // Asumimos que PATHS.invoices será 'invoices'.
-    const q = query(collection(db, PATHS.invoices), limit(2000));
+    const q = query(
+      collection(db, PATHS.invoices), 
+      where('creditCycle.status', '!=', 'collected'),
+      limit(1000)
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {
