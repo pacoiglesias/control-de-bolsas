@@ -1,5 +1,14 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v6.76.0] - 6 Agosto 2026 (URGENTE: folio bloqueado por expediente eliminado + espejo de facturas lleno)
+
+### Corregido -- critico
+- Un expediente ya eliminado (en la Papelera) seguia bloqueando su folio de factura para siempre en cualquier expediente nuevo, sin aviso claro (el toast desaparecia solo). La validacion ahora excluye expedientes eliminados.
+
+### Agregado
+- Primer llenado real del espejo de facturas (invoicesV2), copiando los datos existentes -- paso previo necesario antes de poder migrar cualquier pantalla a leer de ahi.
+
+
 ## [v6.75.0] - 6 Agosto 2026 (URGENTE: bug critico de indices corregido + Complementos de Pago reales)
 
 ### Corregido -- critico

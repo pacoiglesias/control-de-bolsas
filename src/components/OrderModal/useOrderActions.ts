@@ -108,6 +108,13 @@ export function useOrderActions() {
         const upperFolio = inv.folio.toUpperCase();
         for (const doc of qs.docs) {
           if (doc.id === order.id) continue;
+          // Un expediente en la Papelera (isDeleted: true) no deberia
+          // "reservar" para siempre los folios de sus facturas -- sin
+          // este filtro, cualquier folio usado alguna vez en un
+          // expediente ya eliminado bloqueaba ese mismo folio de por
+          // vida en cualquier expediente nuevo, sin ningun aviso claro
+          // de por que (el toast de bloqueo aparece y desaparece solo).
+          if (doc.data().isDeleted) continue;
           const otherInvoices = doc.data().invoices || [];
           if (otherInvoices.some((x: Invoice) => x.folio && x.folio.toUpperCase() === upperFolio)) {
             toast(`Bloqueado: El folio de factura ${inv.folio} ya está registrado en el expediente ${doc.data().folio || doc.id}.`, 'bad');

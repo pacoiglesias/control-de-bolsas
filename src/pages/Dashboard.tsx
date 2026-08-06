@@ -17,7 +17,7 @@ import { Skeleton } from '../components/ui';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
-import { DashboardKpiGrid } from '../components/Dashboard/DashboardKpiGrid';
+import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
@@ -729,7 +729,7 @@ return () => unsub();
         </div>
       )}
 
-      <DashboardKpiGrid k={k} role={role} saldoCaja={saldoCaja} config={config as any} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} />
+      <ModernKpiGrid k={k} role={role} saldoCaja={saldoCaja} config={config as any} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} />
 
       {role !== 'viewer' && (
         <div style={{ marginTop: 24 }}>

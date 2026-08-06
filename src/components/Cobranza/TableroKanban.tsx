@@ -110,10 +110,10 @@ export default function TableroKanban() {
         draggable
         onDragStart={(e: any) => onDragStart(e, o.id, inv.id)}
         style={{
-          background: 'rgba(255, 255, 255, 0.7)', 
+          background: 'var(--glass-bg)', 
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
-          border: x._posibleDuplicado ? '2px solid rgba(245, 158, 11, 0.5)' : isOverdue ? '2px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255, 255, 255, 0.5)', 
+          border: x._posibleDuplicado ? '2px solid rgba(245, 158, 11, 0.5)' : isOverdue ? '2px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--glass-border)', 
           borderRadius: 16, 
           padding: 16,
           marginBottom: 12,
@@ -175,7 +175,7 @@ export default function TableroKanban() {
     flexDirection: 'column' as const, 
     maxHeight: '75vh',
     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1px solid ${activeTarget === colId ? 'rgba(30, 41, 59, 0.1)' : 'rgba(255, 255, 255, 0.5)'}`,
+    border: `1px solid ${activeTarget === colId ? 'rgba(30, 41, 59, 0.1)' : 'var(--glass-border)'}`,
     boxShadow: 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3)'
   });
 

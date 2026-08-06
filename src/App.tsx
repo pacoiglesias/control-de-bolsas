@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -12,6 +12,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReloadPrompt from './components/ReloadPrompt';
+import { llenarEspejoDeFacturas } from './lib/fillInvoicesMirror';
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -71,6 +72,17 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 
 function Gate() {
   const { user, loading } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    const YA_CORRIO = 'cb_migracion_espejo_facturas_v1';
+    if (localStorage.getItem(YA_CORRIO)) return;
+    llenarEspejoDeFacturas()
+      .then(({ expedientes, facturas }) => {
+        localStorage.setItem(YA_CORRIO, '1');
+        console.log(`Espejo de facturas: ${facturas} facturas copiadas de ${expedientes} expedientes.`);
+      })
+      .catch((e) => console.warn('No se pudo llenar el espejo de facturas:', e));
+  }, [user]);
   if (loading) {
     return (
       <div className="page" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--base)' }}>

@@ -864,3 +864,42 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Riesgo:** 🟡 Medio (parser) — escribe automáticamente `paidAmount` sin confirmación manual, mitigado por el emparejamiento estricto sin ambigüedad. 🟢 Bajo (desglose visual).
 **Commit:** `feat(pagos): parser de Complementos de Pago SAT reales por coincidencia exacta de monto; desglose de estados clickeable en Resumen`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo.
+
+### Iteración 79: 🔴 Números casi invisibles en Cobranza — texto claro sobre fondo claro fijo en modo oscuro (COMPLETADO)
+**Fecha:** 2026-08-06
+**Archivo:** `src/components/Cobranza/TableroKanban.tsx`, `src/components/ui.tsx`
+**Pregunta del usuario, con evidencia:** "faltan números" en https://control-de-bolsas-69.web.app/cobranza — confirmado visualmente: varios montos aparecían casi invisibles.
+**Causa raíz encontrada:** las tarjetas del tablero Kanban de Cobranza usaban `background: 'rgba(255, 255, 255, 0.7)'` (blanco semi-transparente, fijo) para el efecto "vidrio". En modo oscuro, el color de texto (`--ink`) es `#F9FAFB` (casi blanco) — texto casi blanco sobre fondo casi blanco.
+**Hallazgo más amplio, al investigar la causa:** el mismo patrón (fondo fijo, sin adaptar al tema) existía también en el componente `Card` **compartido en toda la aplicación** (`ui.tsx`), usado en Dashboard, CajaChica, y numerosas pantallas más — no solo en Cobranza.
+**Buena noticia encontrada en el camino:** el sistema ya tenía las variables correctas (`--glass-bg`, `--glass-border`), bien definidas para ambos temas, usadas correctamente en otras partes (la barra superior, encabezados de tabla) — solo estos dos lugares nunca las usaron, con un color fijo puesto directamente en su lugar.
+**Solución:** reemplazar los colores fijos por `var(--glass-bg)` / `var(--glass-border)` en ambos archivos — mismo efecto visual en modo claro (donde ya se veía bien), contraste correcto en modo oscuro.
+**Riesgo:** 🟡 Medio — el componente `Card` se usa en toda la aplicación; se reutilizó exactamente el patrón y valor ya verificado en producción en otros elementos (topbar), en vez de inventar un valor nuevo sin probar.
+**Commit:** `fix(diseño): usar --glass-bg/--glass-border (ya definidas para ambos temas) en vez de colores fijos -- corrige numeros casi invisibles en modo oscuro, en Cobranza y en el componente Card compartido`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **NO ENTREGADO** — esperando indicación del usuario.
+
+### Iteración 80: 🔴 Bug real encontrado y corregido — folio duplicado bloqueaba guardados sin aviso claro (COMPLETADO)
+**Fecha:** 2026-08-06
+**Archivo:** `src/components/OrderModal/useOrderActions.ts`
+**Contexto:** al intentar agregar la factura 6098 (dato real, confirmado con el documento del contrarecibo TH-879), el botón "Guardar cambios" parecía no responder — probado con múltiples métodos de clic (mouse, JS nativo, eventos sintéticos), todos fallaban por igual.
+**Causa raíz encontrada:** un expediente ya eliminado (en la Papelera, `isDeleted: true`, con $0, un intento anterior abandonado) seguía "reservando" el folio 6098 para siempre — la validación de folio duplicado consultaba todos los expedientes sin excluir los eliminados. El aviso de bloqueo sí se mostraba, pero como un toast que desaparece solo, fácil de perderse.
+**Solución:** la validación ahora excluye expedientes eliminados, filtrando del lado del cliente (no con una consulta `!=` de Firestore, que hubiera excluido incorrectamente también a los documentos sin ese campo — el mismo patrón de exclusión silenciosa visto varias veces esta sesión).
+**Riesgo:** 🟢 Bajo — solo afecta la validación, no los datos.
+**Estado:** ✅ Verificado.
+
+### Iteración 81: Plan grande, Paso 2 — llenar el espejo de facturas con datos reales (COMPLETADO)
+**Fecha:** 2026-08-06
+**Archivo:** `src/lib/fillInvoicesMirror.ts` (nuevo), `src/App.tsx`
+**Contexto:** el usuario pidió avanzar el plan de migración de facturas de una vez. Antes de tocar ningún lector, se verificó el estado real del espejo (`invoicesV2`): **0 de 15 facturas reales** — completamente vacío, porque nadie había guardado exitosamente todavía con el código que lo alimenta (el intento de guardar la 6098 fallaba antes de llegar a esa parte, por el bug de la Iteración 80).
+**Solución:** función de migración que recorre los expedientes activos una sola vez y copia sus facturas reales al espejo — segura de correr más de una vez (usa `merge:true`), y de bajo riesgo porque solo **escribe** hacia una colección que **ningún lector del sistema consulta todavía**.
+**Decisión consciente, con la razón explicada:** no se migró ningún lector (Dashboard, Cobranza, reportes) en este mismo paso. Hacerlo ahora significaría que esas pantallas lean de una colección vacía hasta que esta migración corra en producción — el mismo tipo de apresuramiento que causó los dos bugs críticos de hoy (Iteraciones 76 y 77, ambos del propio intento del usuario de hacer esta migración de golpe). El orden correcto es: esta versión llena el espejo → el usuario la instala → en el siguiente ciclo, con el espejo ya lleno de datos reales, se migran los lectores uno por uno, verificando cada uno en vivo.
+**Riesgo:** 🟢 Bajo — puramente aditivo, no modifica el modelo de datos actual del que depende todo el sistema hoy.
+**Commit:** `fix(useOrderActions): excluir expedientes eliminados de la validacion de folio duplicado; feat(migracion): llenar invoicesV2 con los datos reales existentes`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio, `eslint` 0/0, 42/42 pruebas, build completo. **ENTREGADO DE INMEDIATO.**
+
+### Iteración 82: FASE 6 — Ejecución Iterativa (Dashboard ModernKpiGrid)
+**Fecha:** 2026-08-06
+**Archivo:** `src/components/Dashboard/ModernKpiGrid.tsx`, `src/pages/Dashboard.tsx`
+**Contexto:** Iniciando la modernización visual (Glassmorphism) y operativa del Dashboard según el nuevo estándar (Staff Engineer).
+**Solución:** Se reemplazó el antiguo `DashboardKpiGrid` por el nuevo `ModernKpiGrid` con diseño "Hero" asíncrono y variables nativas CSS (`--glass-bg`). Se limpiaron las secciones de semáforo antiguas para reducir el ruido cognitivo.
+**Verificación:** `npm run typecheck` completado exitosamente sin errores tras limpieza de props (`config`).
+**Estado:** ✅ Completado — Dashboard inicial modernizado. Pendiente limpiar las tablas pesadas en la siguiente iteración.

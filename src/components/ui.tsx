@@ -118,10 +118,10 @@ export function Card({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
       style={{
-        background: 'rgba(255, 255, 255, 0.85)',
+        background: 'var(--glass-bg)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(226, 232, 240, 0.6)',
+        border: '1px solid var(--glass-border)',
         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
         borderRadius: '20px',
         overflow: 'hidden'
