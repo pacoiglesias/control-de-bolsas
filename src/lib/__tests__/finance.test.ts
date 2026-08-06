@@ -24,6 +24,7 @@ function orden(parcial: Partial<PurchaseOrder>): PurchaseOrder {
 function factura(status: OrderStatus, kilos = 100) {
   return {
     id: `inv-${status}`,
+    orderId: 'oc-1',
     folio: 'F-1',
     kilos,
     financials: computeFinancials(kilos, cfg),

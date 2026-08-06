@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder } from '../lib/types';
+import { useInvoicesContext } from './InvoicesContext';
 
 /**
  * Suscripción ÚNICA a purchaseOrders.
@@ -69,7 +70,20 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  const value = useMemo(() => ({ orders, loading, error }), [orders, loading, error]);
+  const { invoices } = useInvoicesContext();
+
+  const ordersWithInvoices = useMemo(() => {
+    return orders.map(o => {
+      const orderInvoices = invoices.filter(inv => inv.orderId === o.id);
+      return {
+        ...o,
+        invoices: orderInvoices,
+        invoiceStatuses: orderInvoices.map(i => i.creditCycle?.status || 'pending')
+      };
+    });
+  }, [orders, invoices]);
+
+  const value = useMemo(() => ({ orders: ordersWithInvoices, loading, error }), [ordersWithInvoices, loading, error]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

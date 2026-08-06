@@ -27,7 +27,7 @@ export async function espejarFacturasV2(order: PurchaseOrder) {
   try {
     const batch = writeBatch(db);
     for (const inv of invoices) {
-      const ref = doc(db, PATHS.invoicesV2, inv.id);
+      const ref = doc(db, PATHS.invoices, inv.id);
       batch.set(ref, {
         orderId: order.id,
         orderFolio: order.folio ?? null,

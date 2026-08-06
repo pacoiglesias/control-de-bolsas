@@ -3,10 +3,8 @@ import { db } from '../../lib/firebase';
 import { PATHS } from '../../lib/firebase';
 import { Invoice } from '../../lib/types';
 import { computeFinancials } from '../../lib/finance';
-import { camposInvoices } from '../../lib/invoiceOps';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
 import { safeDeleteDoc, logAction } from '../../lib/logger';
-import { espejarFacturasV2 } from '../../lib/invoicesMirror';
 
 export function useOrderActions() {
   async function saveOrder({
@@ -152,6 +150,8 @@ export function useOrderActions() {
         // se mandaban siempre en el objeto, con valor `undefined` cuando
         // estaban vacios — eso hacia fallar el guardado de CUALQUIER
         // expediente que no llenara los tres, que es el caso mas comun.
+        // El arreglo de facturas ya no se guarda en el documento del expediente.
+        // Se borra si existía (por compatibilidad hacia atrás).
         const datosBase: Record<string, unknown> = {
           folio: form.folio.trim(),
           client: form.client.trim(),
@@ -164,19 +164,44 @@ export function useOrderActions() {
           items: form.items,
           processedAt: order.processedAt ?? serverTimestamp(),
           isClosedShort: form.isClosedShort ?? false,
-          ...camposInvoices(updatedInvoices),
+          invoices: deleteField(),
+          invoiceStatuses: deleteField(),
         };
         if (ccp !== undefined) datosBase.customCostPrice = ccp;
         if (csp !== undefined) datosBase.customSellPrice = csp;
         if (ccr !== undefined) datosBase.customCommissionRate = ccr;
-        // "Folio" y "OC" son documentos distintos (folio interno corto vs
-        // numero real de Orden de Compra) — se guardan por separado, sin
-        // pisarse. Solo se incluye si tiene contenido, para no repetir el
-        // bug de mandar `undefined` y tronar el guardado completo.
+        // "Folio" y "OC" son documentos distintos
         const ocValue = (form as any).oc?.trim?.();
         if (ocValue) datosBase.oc = ocValue;
 
         tx.set(ref, datosBase, { merge: true });
+
+        // Guardar cada factura como un documento independiente en la colección `invoices`
+        updatedInvoices.forEach((inv: any) => {
+          // Usamos el ID generado por el frontend (inv.id), o generamos uno si no lo tiene (aunque siempre debería tenerlo)
+          const invRef = doc(db, PATHS.invoices, inv.id);
+          const finalInv = {
+            ...inv,
+            orderId: order.id,
+            clientId: form.client.trim(),
+            oc: ocValue || '',
+            createdAt: inv.createdAt || order.createdAt || serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          };
+          tx.set(invRef, finalInv, { merge: true });
+        });
+
+        // Eliminar facturas que estaban en la BD pero el usuario borró en la UI
+        // Necesitamos saber los IDs que estaban en la BD. Por suerte, order.invoices
+        // tiene las originales antes de editar.
+        const originalInvoiceIds = (order.invoices || []).map((i: any) => i.id);
+        const currentInvoiceIds = updatedInvoices.map((i: any) => i.id);
+        const deletedIds = originalInvoiceIds.filter((id: string) => !currentInvoiceIds.includes(id));
+        
+        deletedIds.forEach((id: string) => {
+          const invRef = doc(db, PATHS.invoices, id);
+          tx.delete(invRef);
+        });
       });
 
       try {
@@ -238,10 +263,8 @@ export function useOrderActions() {
         facturas: updatedInvoices.length,
         cobrado: liveSummary.paidAmount,
       });
-      // Paso 1 de la migracion planeada (PLAN_DE_MEJORA_TOTAL.md) --
-      // espejar hacia la coleccion nueva en paralelo, sin bloquear ni
-      // arriesgar el guardado real de arriba, que ya se completo.
-      void espejarFacturasV2({ ...order, invoices: updatedInvoices, folio: form.folio, client: form.client } as any);
+      // La migración ahora se hace síncrona en la transacción arriba, 
+      // por lo que ya no es necesario el espejarFacturasV2 de background.
       toast('Expediente actualizado', 'ok');
       onClose();
     } catch (e) {

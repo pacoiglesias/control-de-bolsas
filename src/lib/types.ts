@@ -135,6 +135,8 @@ export interface Delivery {
 
 export interface Invoice {
   id: string;
+  orderId: string; // Relación con el expediente padre
+  client?: string; // Copia para mostrar en el tablero sin buscar el expediente
   uuid?: string;
   folio?: string;
   oc?: string;
@@ -142,6 +144,8 @@ export interface Invoice {
   financials?: OrderFinancials;
   creditCycle: CreditCycle;
   collection?: CollectionInfo;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
 }
 
 export interface PurchaseOrderItem {
@@ -176,19 +180,9 @@ export interface PurchaseOrder {
   collection?: CollectionInfo;
 
   deliveries?: Delivery[];
+  /** @deprecated Las facturas ahora viven en su propia colección `invoices` */
   invoices?: Invoice[];
-  /**
-   * Copia desnormalizada de los estatus de `invoices[]`, en el mismo orden.
-   *
-   * Firestore no sabe consultar dentro de objetos de un arreglo, asi que este
-   * campo plano es lo que sostiene TODAS las consultas del sistema: el
-   * `array-contains-any` del Dashboard y de Cobranza, y el barrido nocturno
-   * `checkOverdueInvoices`. Un expediente sin este campo existe en la base
-   * pero es invisible para esas pantallas.
-   *
-   * Escribirlo siempre a traves de `camposInvoices()` en lib/invoiceOps.ts,
-   * que garantiza que viaje junto con `invoices` y `updatedAt`.
-   */
+  /** @deprecated Las facturas ahora viven en su propia colección `invoices` */
   invoiceStatuses?: string[];
   items?: PurchaseOrderItem[];
   

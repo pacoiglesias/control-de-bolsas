@@ -1,5 +1,5 @@
-
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
@@ -136,9 +136,10 @@ export default function OrderModal({
   // during the previous render". Va aqui arriba, incondicional, como el resto.
   const { processFacturaText, processPagoText } = useInvoiceParser({
     invoices: form.invoices,
-    setInvoices: (newInvoices: Invoice[]) => set('invoices', newInvoices),
+    setInvoices: (invoices) => set('invoices', invoices),
     config,
     allOrders,
+    orderId: order.id || ''
   });
 
   const { saveOrder, removeOrder, restoreOrder } = useOrderActions();
@@ -436,7 +437,8 @@ export default function OrderModal({
     set('invoices', [
       ...form.invoices,
       { 
-        id: nuevoId, 
+        id: nuevoId,
+        orderId: order.id || '',
         folio: '', 
         kilos: kilosPendientesDeFacturar, 
         creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
@@ -458,7 +460,7 @@ export default function OrderModal({
   function facturarEntrega(deliveryIndex: number) {
     const delivery = form.deliveries[deliveryIndex];
     if (!delivery) return;
-    const result = buildInvoiceFromDelivery(delivery, dynamicConfig);
+    const result = buildInvoiceFromDelivery(delivery, dynamicConfig, order.id || '');
     if ('error' in result) {
       toast(result.error, 'bad');
       return;
@@ -575,19 +577,28 @@ export default function OrderModal({
       </div>
 
       {/* TABS CONTENT */}
-      <div style={{ minHeight: '50vh', maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
-        
-        {/* RESUMEN */}
-        {tab === 'resumen' && <TabResumen />}
+      <div style={{ minHeight: '50vh', maxHeight: '60vh', overflowY: 'auto', overflowX: 'hidden', paddingRight: 8, position: 'relative' }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            {/* RESUMEN */}
+            {tab === 'resumen' && <TabResumen />}
 
-        {/* PRODUCTOS */}
-        {tab === 'productos' && <TabProductos />}
+            {/* PRODUCTOS */}
+            {tab === 'productos' && <TabProductos />}
 
-        {/* ENTREGAS */}
-        {tab === 'entregas' && <TabEntregas />}
+            {/* ENTREGAS */}
+            {tab === 'entregas' && <TabEntregas />}
 
-        {/* FACTURAS */}
-        {tab === 'facturas' && <TabFacturas />}
+            {/* FACTURAS */}
+            {tab === 'facturas' && <TabFacturas />}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>

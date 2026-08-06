@@ -14,6 +14,7 @@ import { useToast } from '../context/ToastContext';
 import { computeFinancials } from '../lib/finance';
 import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
+import MigrationTools from '../components/MigrationTools';
 
 export default function Settings() {
   const { config, loading: loadingCfg, exists } = useConfig();
@@ -428,6 +429,8 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+      
+      <MigrationTools />
 
       <Card title="Respaldos y Paquete Offline (v6.23.0)">
         <div style={{ padding: 16 }}>

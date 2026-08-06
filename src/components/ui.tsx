@@ -19,18 +19,76 @@ export function KpiCard({
   hero?: boolean;
   onClick?: () => void;
 }) {
+  const getGradient = () => {
+    switch(tone) {
+      case 'ok': return 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(5,150,105,0.2) 100%)';
+      case 'bad': return 'linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(220,38,38,0.2) 100%)';
+      case 'warn': return 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)';
+      case 'cash': return 'linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(2,132,199,0.2) 100%)';
+      default: return 'linear-gradient(135deg, rgba(30,41,59,0.4) 0%, rgba(15,23,42,0.6) 100%)';
+    }
+  };
+
+  const getBorderColor = () => {
+    switch(tone) {
+      case 'ok': return 'rgba(16,185,129,0.3)';
+      case 'bad': return 'rgba(239,68,68,0.3)';
+      case 'warn': return 'rgba(245,158,11,0.3)';
+      case 'cash': return 'rgba(56,189,248,0.3)';
+      default: return 'rgba(255,255,255,0.1)';
+    }
+  };
+
   return (
-    <div
-      className={`kpi-card ${tone ?? ''} ${hero ? 'hero' : ''} ${onClick ? 'clickable' : ''}`}
+    <motion.div
+      className={`kpi-card ${hero ? 'hero' : ''}`}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+      whileHover={onClick ? { y: -4, scale: 1.02, boxShadow: `0 10px 30px -10px ${getBorderColor()}` } : undefined}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      style={{
+        background: getGradient(),
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${getBorderColor()}`,
+        borderRadius: '16px',
+        padding: hero ? '24px' : '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        cursor: onClick ? 'pointer' : 'default',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+      }}
     >
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
-      {sub ? <div className="kpi-sub">{sub}</div> : null}
-    </div>
+      <div style={{
+        fontSize: hero ? '14px' : '12px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        color: 'var(--ink-soft)',
+        marginBottom: hero ? '8px' : '4px'
+      }}>{label}</div>
+      <div style={{
+        fontSize: hero ? '32px' : '24px',
+        fontWeight: 800,
+        color: 'var(--ink)',
+        letterSpacing: '-0.02em',
+        lineHeight: 1.2
+      }}>{value}</div>
+      {sub ? <div style={{
+        fontSize: '13px',
+        color: 'var(--ink-faint)',
+        marginTop: '8px',
+        lineHeight: 1.4
+      }}>{sub}</div> : null}
+    </motion.div>
   );
 }
 
@@ -54,17 +112,33 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section className="card">
+    <motion.section 
+      className="card"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      style={{
+        background: 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(226, 232, 240, 0.6)',
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+        borderRadius: '20px',
+        overflow: 'hidden'
+      }}
+    >
       {title || actions ? (
-        <header className="card-head">
-          {title ? <h3>{title}</h3> : null}
-          {hint ? <span className="hint">{hint}</span> : null}
-          <span className="spacer" />
+        <header className="card-head" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.5)', padding: '20px 24px', background: 'rgba(248, 250, 252, 0.4)' }}>
+          {title ? <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em', margin: 0 }}>{title}</h3> : null}
+          {hint ? <span className="hint" style={{ background: 'rgba(226, 232, 240, 0.5)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginLeft: 12 }}>{hint}</span> : null}
+          <span className="spacer" style={{ flex: 1 }} />
           {actions}
         </header>
       ) : null}
-      {children}
-    </section>
+      <div style={{ padding: '0' }}>
+        {children}
+      </div>
+    </motion.section>
   );
 }
 
@@ -309,3 +383,64 @@ export function PrintHeader({ title, subtitle }: { title: string; subtitle?: str
     </div>
   );
 }
+
+export function Dropdown({
+  trigger,
+  children,
+  align = 'right'
+}: {
+  trigger: ReactNode;
+  children: ReactNode;
+  align?: 'left' | 'right';
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="dropdown-container" ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <div onClick={() => setIsOpen(!isOpen)} style={{ cursor: 'pointer' }}>
+        {trigger}
+      </div>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              [align]: 0,
+              marginTop: '8px',
+              minWidth: '200px',
+              background: 'var(--glass-bg, rgba(255, 255, 255, 0.85))',
+              backdropFilter: 'blur(var(--blur-radius, 12px))',
+              WebkitBackdropFilter: 'blur(var(--blur-radius, 12px))',
+              border: '1px solid var(--glass-border, rgba(226, 232, 240, 0.6))',
+              boxShadow: 'var(--glass-shadow, 0 10px 25px -5px rgba(0, 0, 0, 0.1))',
+              borderRadius: '12px',
+              zIndex: 50,
+              padding: '8px 0',
+              overflow: 'hidden'
+            }}
+            onClick={() => setIsOpen(false)} // Close on item click
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+

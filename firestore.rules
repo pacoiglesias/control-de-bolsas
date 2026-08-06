@@ -88,9 +88,10 @@ service cloud.firestore {
     // coleccion nueva, en paralelo, donde cada factura vive como su
     // propio documento -- se escribe en espejo junto al modelo actual,
     // sin que ningun archivo existente dependa todavia de ella.
-    match /invoicesV2/{invoiceId} {
+    match /invoices/{invoiceId} {
       allow read: if isAuthenticatedUser();
       allow write: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // Catalogo de productos. Se alimenta solo desde OrderModal al guardar las
@@ -98,6 +99,11 @@ service cloud.firestore {
     // match /{document=**} final: la pantalla Catalogo no cargaba nunca y el
     // guardado de cualquier expediente con partidas terminaba en error.
     match /products/{productId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
+    }
+
+    match /price_lists/{listId} {
       allow read: if isAuthenticatedUser();
       allow write: if isManagerOrAdmin();
     }
@@ -118,7 +124,10 @@ service cloud.firestore {
     }
 
     match /expenses/{expenseId} {
-      allow read, write: if isSuperAdmin();
+      // El Super Admin puede leer y escribir.
+      // El Maquilador (usuario anónimo sin rol) puede leer los egresos que pertenezcan a la categoría "Maquila".
+      allow read: if isSuperAdmin() || (request.auth != null && resource.data.category == 'Maquila');
+      allow write: if isSuperAdmin();
     }
 
     match /purchases/{purchaseId} {
@@ -175,6 +184,13 @@ service cloud.firestore {
         && request.resource.data.timestamp == request.time;
       allow update: if false;
       allow delete: if isSuperAdmin();
+    }
+
+    // Logs de errores del frontend
+    match /error_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if true; // Permitir que el cliente escriba errores
+      allow update, delete: if false;
     }
 
     // Todo lo demás queda cerrado.

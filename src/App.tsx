@@ -1,11 +1,13 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { OrdersProvider } from './context/OrdersContext';
 import { PurchasesProvider } from './context/PurchasesContext';
 import { ProductsProvider } from './context/ProductsContext';
 import { ExpensesProvider } from './context/ExpensesContext';
+import { InvoicesProvider } from './context/InvoicesContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -31,17 +33,24 @@ const DataMining = lazy(() => import('./pages/DataMining'));
 
 function RouteFallback() {
   return (
-    <div className="page" style={{ padding: 20 }}>
+    <motion.div 
+      className="page" 
+      style={{ padding: 20 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <div className="page-head" style={{ marginBottom: 20 }}>
-        <div className="skeleton-row" style={{ width: '40%', height: 32, marginBottom: 8 }}></div>
-        <div className="skeleton-row" style={{ width: '60%', height: 16 }}></div>
+        <div className="skeleton-row" style={{ width: '40%', height: 32, marginBottom: 8, borderRadius: 8 }}></div>
+        <div className="skeleton-row" style={{ width: '60%', height: 16, borderRadius: 6 }}></div>
       </div>
       <div className="kpi-grid">
-        <div className="skeleton-card" style={{ height: 100 }}></div>
-        <div className="skeleton-card" style={{ height: 100 }}></div>
-        <div className="skeleton-card" style={{ height: 100 }}></div>
+        <motion.div className="skeleton-card" style={{ height: 120, borderRadius: 16, border: '1px solid rgba(226, 232, 240, 0.6)' }} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}></motion.div>
+        <motion.div className="skeleton-card" style={{ height: 120, borderRadius: 16, border: '1px solid rgba(226, 232, 240, 0.6)' }} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.2 }}></motion.div>
+        <motion.div className="skeleton-card" style={{ height: 120, borderRadius: 16, border: '1px solid rgba(226, 232, 240, 0.6)' }} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.4 }}></motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -87,18 +96,20 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <OrdersProvider>
-          <PurchasesProvider>
-            <ProductsProvider>
-              <ExpensesProvider>
-                <ToastProvider>
-                  <Routes>
-                    <Route path="/portal-maquilador" element={<Suspense fallback={<RouteFallback />}><MaquiladorPortal /></Suspense>} />
-                    <Route path="*" element={<Gate />} />
-                  </Routes>
-                </ToastProvider>
-              </ExpensesProvider>
-            </ProductsProvider>
-          </PurchasesProvider>
+          <InvoicesProvider>
+            <PurchasesProvider>
+              <ProductsProvider>
+                <ExpensesProvider>
+                  <ToastProvider>
+                    <Routes>
+                      <Route path="/portal-maquilador" element={<Suspense fallback={<RouteFallback />}><MaquiladorPortal /></Suspense>} />
+                      <Route path="*" element={<Gate />} />
+                    </Routes>
+                  </ToastProvider>
+                </ExpensesProvider>
+              </ProductsProvider>
+            </PurchasesProvider>
+          </InvoicesProvider>
         </OrdersProvider>
       </AuthProvider>
     </BrowserRouter>

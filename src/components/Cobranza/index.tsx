@@ -120,6 +120,17 @@ export default function Cobranza() {
         if (!nuevas) throw new Error('La factura ya no está en el expediente');
 
         tx.update(ref, camposInvoices(nuevas));
+
+        // ==== MIGRACION V2: Dual-write ====
+        const invModificada = nuevas.find(x => x.id === invoiceId);
+        if (invModificada) {
+          tx.set(doc(db, PATHS.invoices, invoiceId), {
+            ...invModificada,
+            orderId,
+            client: snap.data().client ?? '',
+            department: snap.data().department ?? '',
+          }, { merge: true });
+        }
       });
       toast(`Vencimiento reprogramado al ${nuevaFecha.toLocaleDateString('es-MX')}`, 'ok');
     } catch (e) {
@@ -156,6 +167,17 @@ export default function Cobranza() {
         if (!nuevas) throw new Error('La factura ya no está en el expediente');
 
         tx.update(ref, camposInvoices(nuevas));
+
+        // ==== MIGRACION V2: Dual-write ====
+        const invModificada = nuevas.find(x => x.id === invoiceId);
+        if (invModificada) {
+          tx.set(doc(db, PATHS.invoices, invoiceId), {
+            ...invModificada,
+            orderId,
+            client: snap.data().client ?? '',
+            department: snap.data().department ?? '',
+          }, { merge: true });
+        }
       });
       toast(`Complemento marcado como ${nextStatus === 'issued' ? 'Emitido' : 'Pendiente'}`, 'ok');
     } catch (e) {
@@ -185,6 +207,17 @@ export default function Cobranza() {
         if (!nuevas) throw new Error('La factura ya no está en el expediente');
 
         tx.update(ref, camposInvoices(nuevas));
+
+        // ==== MIGRACION V2: Dual-write ====
+        const invModificada = nuevas.find(x => x.id === invoiceId);
+        if (invModificada) {
+          tx.set(doc(db, PATHS.invoices, invoiceId), {
+            ...invModificada,
+            orderId,
+            client: snap.data().client ?? '',
+            department: snap.data().department ?? '',
+          }, { merge: true });
+        }
       });
       toast(`Factura cobrada con éxito.`, 'ok');
     } catch (e) {
@@ -238,7 +271,18 @@ export default function Cobranza() {
                 paymentDocument: doctoPago
               },
             }));
-            if (nuevas) invoices = nuevas;
+            if (nuevas) {
+              invoices = nuevas;
+              const invModificada = nuevas.find(x => x.id === invoiceId);
+              if (invModificada) {
+                tx.set(doc(db, PATHS.invoices, invoiceId), {
+                  ...invModificada,
+                  orderId: id,
+                  client: snap.data().client ?? '',
+                  department: snap.data().department ?? '',
+                }, { merge: true });
+              }
+            }
           }
           tx.update(ref, camposInvoices(invoices));
         });
@@ -355,7 +399,18 @@ export default function Cobranza() {
               creditCycle: { ...x.creditCycle, status: 'collected' },
               collection: { ...x.collection, collectedAt: Timestamp.now(), transferRef: transferRef || x.collection?.transferRef || '' },
             }));
-            if (nuevas) invoices = nuevas;
+            if (nuevas) {
+              invoices = nuevas;
+              const invModificada = nuevas.find(x => x.id === invoiceId);
+              if (invModificada) {
+                tx.set(doc(db, PATHS.invoices, invoiceId), {
+                  ...invModificada,
+                  orderId: id,
+                  client: snap.data().client ?? '',
+                  department: snap.data().department ?? '',
+                }, { merge: true });
+              }
+            }
           }
           tx.update(ref, camposInvoices(invoices));
         });
@@ -432,7 +487,18 @@ export default function Cobranza() {
                 collectedAt: null,
               },
             }));
-            if (nuevas) invoices = nuevas;
+            if (nuevas) {
+              invoices = nuevas;
+              const invModificada = nuevas.find(x => x.id === invoiceId);
+              if (invModificada) {
+                tx.set(doc(db, PATHS.invoices, invoiceId), {
+                  ...invModificada,
+                  orderId: id,
+                  client: snap.data().client ?? '',
+                  department: snap.data().department ?? '',
+                }, { merge: true });
+              }
+            }
           }
           tx.update(ref, camposInvoices(invoices));
         });
@@ -1176,6 +1242,17 @@ export default function Cobranza() {
 
         if (!nuevas) throw new Error('La factura no está en el expediente');
         tx.update(ref, camposInvoices(nuevas));
+
+        // ==== MIGRACION V2: Dual-write ====
+        const invModificada = nuevas.find(x => x.id === invoiceId);
+        if (invModificada) {
+          tx.set(doc(db, PATHS.invoices, invoiceId), {
+            ...invModificada,
+            orderId,
+            client: snap.data().client ?? '',
+            department: snap.data().department ?? '',
+          }, { merge: true });
+        }
 
         if (expenseData) {
           tx.set(doc(db, PATHS.expenses, expenseData.id), expenseData);

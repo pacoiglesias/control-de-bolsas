@@ -10,9 +10,10 @@ interface UseInvoiceParserProps {
   setInvoices: (invoices: Invoice[]) => void;
   config: FinanceConfigCore;
   allOrders?: any[];
+  orderId?: string;
 }
 
-export function useInvoiceParser({ invoices, setInvoices, config, allOrders = [] }: UseInvoiceParserProps) {
+export function useInvoiceParser({ invoices, setInvoices, config, allOrders = [], orderId = '' }: UseInvoiceParserProps) {
   const toast = useToast();
 
   const processFacturaText = (text: string) => {
@@ -60,9 +61,9 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       }
     }
 
-    // Creating object that strictly satisfies the Invoice interface
     const newInvoice: Invoice = {
       id: Date.now().toString(),
+      orderId: orderId,
       folio: finalFolio,
       kilos: kilos,
       oc: oc,
@@ -112,6 +113,7 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
 
     const newInvoice: Invoice = {
       id: Date.now().toString(),
+      orderId: orderId,
       folio: data.uuid,
       kilos: totalKilos, // O 0 si preferimos que lo llenen manual
       oc: '',

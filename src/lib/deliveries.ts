@@ -103,6 +103,7 @@ export function computeDeliveredTotals(deliveries: Delivery[]): {
 export function buildInvoiceFromDelivery(
   delivery: Delivery,
   config: FinancialConfig,
+  orderId: string,
 ): { invoice: Invoice; updatedDelivery: Delivery; kilos: number } | { error: string } {
   if (delivery.invoiced) return { error: 'Esta entrega ya fue facturada.' };
   const kilosDeEstaEntrega = round2(
@@ -116,6 +117,7 @@ export function buildInvoiceFromDelivery(
   const newInvoiceId = Date.now().toString();
   const invoice: Invoice = {
     id: newInvoiceId,
+    orderId,
     folio: '',
     kilos: kilosDeEstaEntrega,
     financials: computeFinancials(kilosDeEstaEntrega, config),

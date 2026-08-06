@@ -1,4 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { collection, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { Card } from './ui';
 
 interface Props {
@@ -22,6 +24,19 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    try {
+      const errorLogRef = doc(collection(db, 'error_logs'));
+      setDoc(errorLogRef, {
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Timestamp.now(),
+      }).catch(err => console.error("No se pudo guardar el log de error en Firestore", err));
+    } catch (e) {
+      console.error("No se pudo inicializar la escritura en Firestore", e);
+    }
   }
 
   public render() {

@@ -410,6 +410,14 @@ export default function AuditSync() {
       porOrden.forEach((_entry, orderId) => {
         const entry = porOrden.get(orderId)!;
         batch.set(doc(db, PATHS.orders, orderId), camposInvoices(entry.invoices), { merge: true });
+        
+        // Nva arquitectura: escribir directamente a la colección de facturas (dual-write)
+        for (const inv of entry.invoices) {
+          batch.set(doc(db, PATHS.invoices, inv.id), {
+            ...inv,
+            orderId // Ensure orderId is present
+          }, { merge: true });
+        }
       });
 
       // Facturas nuevas: se agrupan en UN expediente nuevo por cliente en
@@ -421,6 +429,7 @@ export default function AuditSync() {
           const venc = parseFechaExcel(item.fechaVencimiento);
           return {
             id: `${newOrderRef.id}-imp-${i}`,
+            orderId: newOrderRef.id,
             folio: item.folio || '',
             kilos: item.kilos || 0,
             financials: { salePricePerKg: 0, costPricePerKg: 0, netCashFlow: 0, invoiceTotal: item.montoVenta || 0 },
@@ -439,6 +448,15 @@ export default function AuditSync() {
           processedAt: serverTimestamp(),
           ...camposInvoices(invoices),
         });
+        
+        // Nva arquitectura: escribir nuevas facturas a la colección de facturas (dual-write)
+        for (const inv of invoices) {
+          batch.set(doc(db, PATHS.invoices, inv.id), {
+            ...inv,
+            orderId: newOrderRef.id
+          }, { merge: true });
+        }
+        
         aplicados += items.length;
       }
 

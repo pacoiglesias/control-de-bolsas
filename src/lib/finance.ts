@@ -97,6 +97,7 @@ export function getOrderSummary(o: PurchaseOrder) {
   if (invoices.length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
     invoices.push({
       id: o.id + '-inv0',
+      orderId: o.id,
       folio: o.folio,
       kilos: o.totalKilograms || 0,
       financials: o.financials,
