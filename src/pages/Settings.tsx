@@ -12,6 +12,7 @@ import { getOrderSummary } from '../lib/finance';
 import { Card, Field, Spinner } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials } from '../lib/finance';
+import { camposInvoices } from '../lib/invoiceOps';
 import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
@@ -154,7 +155,7 @@ export default function Settings() {
 
           batch.update(doc(db, PATHS.orders, o.id), {
             financials: computeFinancials(o.totalKilograms ?? 0, config),
-            invoices: updatedInvoices,
+            ...camposInvoices(updatedInvoices),
             updatedAt: serverTimestamp(),
           });
         });

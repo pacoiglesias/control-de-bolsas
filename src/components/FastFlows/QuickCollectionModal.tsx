@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
+import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder } from '../../lib/types';
 import { money, nombreClienteVisible } from '../../lib/format';
@@ -47,7 +48,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
       };
 
       const updatedInvoices = order.invoices?.map(i => i.id === inv.id ? updatedInv : i) || [];
-      await updateDoc(doc(db, PATHS.orders, order.id), { invoices: updatedInvoices });
+      await updateDoc(doc(db, PATHS.orders, order.id), camposInvoices(updatedInvoices));
 
       toast('🗂️ Contrarecibo asignado. Pasó a "Por Cobrar".', 'ok');
       onClose();

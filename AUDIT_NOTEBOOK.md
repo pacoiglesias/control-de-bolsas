@@ -938,3 +938,25 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 2. **Data Mining:** Se agregó `html2pdf.js` en `DataMining.tsx` con un template string para generar un PDF estilizado de la Sábana Maestra.
 **Verificación:** `npm run build` falló por un error de sintaxis en el template literal (escapes incorrectos). Se corrigió y el build posterior pasó limpio.
 **Estado:** ✅ Completado - Fase 3 terminada y en Producción.
+
+### Iteración 87: Auditoría completa de v7.0.0 (sesión externa) — 4 bugs críticos de sincronización, 1 funcionalidad perdida restaurada
+**Fecha:** 2026-08-06
+**Contexto:** el usuario compartió una versión (v7.0.0) desarrollada de forma independiente, con más de 30 archivos nuevos o modificados, y pidió una revisión completa antes de entregar.
+
+**🔴 4 bugs críticos del mismo patrón, encontrados y corregidos:**
+Cuatro flujos de escritura distintos actualizaban el campo `invoices` de un expediente directamente (`{ invoices: updatedInvoices }`), sin pasar por el helper `camposInvoices()` que mantiene sincronizado `invoiceStatuses` — el campo plano del que dependen todas las consultas del sistema (Dashboard, Cobranza, `checkOverdueInvoices`). Sin ese helper, la factura afectada queda invisible para esas consultas hasta que alguien vuelva a guardar el expediente completo por otro camino.
+- `src/components/FastFlows/QuickCollectionModal.tsx` (asignar CR rápido)
+- `src/components/FastFlows/QuickInvoiceModal.tsx` (facturar entrega rápido)
+- `src/components/FastFlows/QuickPayModal.tsx` (marcar factura pagada por el cliente)
+- `src/pages/Settings.tsx` — el de mayor impacto: "Recalcular Precios" afecta todos los expedientes abiertos de una sola vez.
+**Solución:** las cuatro escrituras ahora usan `...camposInvoices(updatedInvoices)` en vez de `invoices: updatedInvoices` directo.
+
+**🔴 Funcionalidad perdida, restaurada:** el botón "Recibida del Contador → CAJA" (con el flujo de confirmación de monto real vs esperado) no existía en ningún archivo del proyecto — se perdió al extraer `InvoiceWidget.tsx` como componente independiente. La tarjeta "Esperado vs Real" de Caja seguía describiendo esta acción por nombre, pero no tenía nada que la alimentara. Se restauró completo en `InvoiceWidget.tsx`, incluyendo el método `playCash()` que faltaba en `src/lib/sounds.ts`.
+
+**🟡 2 instancias del mismo bug de exclusión silenciosa** (`where(campo, '!=', valor)` excluye documentos donde el campo no existe) en `src/context/InvoicesContext.tsx` — mismo patrón ya corregido antes en otra copia de este archivo. Corregido filtrando del lado del cliente.
+
+**2 arreglos cosméticos** (`CommandMenu.tsx`: ternario usado como sentencia; `Orders/KanbanBoard.tsx`: `let` nunca reasignado).
+
+**Revisado y confirmado correcto, sin tocar:** `Sparkline.tsx`, `SpeedDial.tsx`, `Compras/PurchaseDrawer.tsx`, `lib/ocr.ts` (heurística de extracción razonable, no un bug de código), `Respaldo.tsx` (mejora de rendimiento genuina del usuario: de escaneo completo a consultas en lotes con `where('folio', 'in', lote)`), `ui.tsx`/`Cobranza/TableroKanban.tsx` (ya usan `var(--glass-bg)` correctamente), `Orders/KanbanBoard.tsx` (la fórmula de prioridad monto×urgencia agregada por el usuario es matemáticamente correcta), `OrderModal/useOrderActions.ts` / `InvoiceWidget.tsx` (patrón de guardado de una sola factura, con escritura dual al espejo y manejo de errores correcto — una sospecha inicial de función indefinida resultó ser un error de la propia revisión, corregido en el momento).
+**Riesgo de los hallazgos:** 🔴🔴 Alto — los 4 bugs de sincronización tienen impacto financiero directo (facturas que dejan de ser visibles en Cobranza/Dashboard sin ningún aviso), especialmente el de `Settings.tsx` que afecta a todos los expedientes de golpe.
+**Estado:** ✅ Corregido y verificado — `tsc` limpio (frontend y functions), `eslint` con solo 2 warnings preexistentes cosméticos, 42/42 pruebas, build completo.

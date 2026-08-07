@@ -8,6 +8,16 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.1',
+    date: '6 de Agosto de 2026',
+    time: '11:59 PM',
+    summary: 'Correcciones urgentes: sincronización de facturas con el resto del sistema, y confirmación de cobro restaurada',
+    highlights: [
+      'Cuatro flujos rápidos (asignar CR, facturar, cobrar, recalcular precios) dejaban facturas invisibles en Dashboard/Cobranza al guardar de forma directa.',
+      'Restaurado el botón "Recibida del Contador → CAJA" con confirmación de monto real, perdido al separar el widget de factura.',
+    ]
+  },
+  {
     version: 'v6.76.1',
     date: '6 de Agosto de 2026',
     time: '03:30 PM',

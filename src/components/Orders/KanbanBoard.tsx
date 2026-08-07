@@ -42,7 +42,7 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
   return (
     <KanbanScrollWrapper>
       {KANBAN_COLUMNS.map(col => {
-        let colItems = grouped[col.id] || [];
+        const colItems = grouped[col.id] || [];
         
         // Kanban Inteligente: Ordenar por prioridad (Monto * Cercanía)
         if (col.id === 'pending' || col.id === 'overdue') {

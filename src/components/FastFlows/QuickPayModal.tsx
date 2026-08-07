@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
+import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder } from '../../lib/types';
 import { money, nombreClienteVisible } from '../../lib/format';
@@ -45,7 +46,7 @@ export function QuickPayModal({ orders, onClose }: { orders: any[]; onClose: () 
       };
 
       const updatedInvoices = order.invoices?.map((i: any) => i.id === inv.id ? updatedInv : i) || [];
-      await updateDoc(doc(db, PATHS.orders, order.id), { invoices: updatedInvoices });
+      await updateDoc(doc(db, PATHS.orders, order.id), camposInvoices(updatedInvoices));
 
       toast('💸 Cobro registrado. Ahora el contador tiene el dinero.', 'ok');
       if (pendingInvoices.length === 1) onClose(); // Auto-close if it was the last one

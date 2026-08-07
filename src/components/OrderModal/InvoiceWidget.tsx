@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Field, CopyButton } from '../ui';
 import { fromInputDate, money, toInputDate, toDate } from '../../lib/format';
-import { Timestamp } from 'firebase/firestore';
-import { addDays, computeFinancials } from '../../lib/finance';
+import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDays, computeFinancials, round2 } from '../../lib/finance';
+import { db, PATHS } from '../../lib/firebase';
+import { sound } from '../../lib/sounds';
 import type { Invoice, OrderStatus, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from './useInvoiceActions';
+import { useToast } from '../../context/ToastContext';
 
 interface InvoiceWidgetProps {
   invoice: Invoice;
@@ -20,6 +23,7 @@ interface InvoiceWidgetProps {
 
 export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig, readOnly, expanded, onToggleExpand, enFoco }: InvoiceWidgetProps) {
   const { saveInvoice, deleteInvoice } = useInvoiceActions();
+  const toast = useToast();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
   
   // Track if there are local unsaved changes
@@ -109,6 +113,49 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                 {hasChanges && (
                   <button className="btn btn-primary" onClick={handleSave} style={{ padding: '4px 12px', fontSize: 13 }}>
                     💾 Guardar Cambios
+                  </button>
+                )}
+                {localInvoice.creditCycle.status === 'paid' && (
+                  <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 13 }}
+                    onClick={async () => {
+                      const invTotal = fin.invoiceTotal;
+                      const commission = fin.commission || 0;
+                      const netEsperado = invTotal - commission;
+                      const respuesta = window.prompt(
+                        `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
+                        netEsperado.toFixed(2)
+                      );
+                      if (respuesta === null) return;
+                      const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
+                      if (isNaN(netReal) || netReal <= 0) {
+                        toast('Monto inválido, no se registró nada.', 'bad');
+                        return;
+                      }
+                      const diferencia = round2(netReal - netEsperado);
+                      sound.playCash();
+                      try {
+                        await addDoc(collection(db, PATHS.expenses), {
+                          date: Timestamp.now(),
+                          concept: `Cobro factura #${localInvoice.folio ?? '?'} (CR: ${localInvoice.collection?.contrareciboNumber ?? '—'})`,
+                          amount: netReal,
+                          type: 'ingreso',
+                          notes: `Documento: $${invTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} — Comisión: $${commission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+                          montoEsperado: round2(netEsperado),
+                          montoReal: round2(netReal),
+                          diferencia,
+                          createdAt: serverTimestamp(),
+                        });
+                        await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, {});
+                        if (Math.abs(diferencia) > 0.01) {
+                          toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
+                        } else {
+                          toast(`💵 Recibido del contador. $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA.`, 'ok');
+                        }
+                      } catch {
+                        toast('No se pudo registrar en CAJA.', 'bad');
+                      }
+                    }}>
+                    💵 Recibida del Contador → CAJA
                   </button>
                 )}
                 <button className="btn btn-danger" onClick={() => deleteInvoice(order, localInvoice.id)} style={{ padding: '4px 12px', fontSize: 13 }}>

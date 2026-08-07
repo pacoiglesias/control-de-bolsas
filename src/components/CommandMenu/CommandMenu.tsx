@@ -28,7 +28,7 @@ export function CommandMenu({ isOpen, onClose, orders, products = [], onSelectOr
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        isOpen ? onClose() : document.dispatchEvent(new CustomEvent('open-command-menu'));
+        if (isOpen) onClose(); else document.dispatchEvent(new CustomEvent('open-command-menu'));
       }
       if (e.key === 'Escape' && isOpen) {
         onClose();

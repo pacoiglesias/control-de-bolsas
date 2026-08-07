@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
+import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { money, nombreClienteVisible } from '../../lib/format';
@@ -92,7 +93,7 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
       
       const payload = {
         deliveries: updatedDeliveries,
-        invoices: updatedInvoices
+        ...camposInvoices(updatedInvoices)
       };
 
       await updateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);

@@ -189,6 +189,27 @@ class SoundEngine {
       osc.stop(ctx.currentTime + 0.1);
     } catch { /* ignore */ }
   }
+
+  playCash() {
+    if (this.muted) return;
+    try {
+      const ctx = this.getCtx();
+      [880, 1320].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        const start = ctx.currentTime + i * 0.08;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.15, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + 0.25);
+        osc.start(start);
+        osc.stop(start + 0.25);
+      });
+    } catch { /* ignore */ }
+  }
 }
 
 export const sound = new SoundEngine();

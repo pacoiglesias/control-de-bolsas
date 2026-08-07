@@ -1,5 +1,13 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v7.0.1] - 6 Agosto 2026 (URGENTE: 4 escrituras directas desincronizaban las facturas del resto del sistema)
+
+### Corregido -- critico
+- QuickCollectionModal, QuickInvoiceModal, QuickPayModal y Settings (Recalcular Precios) escribian `invoices` directamente en vez de usar camposInvoices() -- el campo del que dependen TODAS las consultas del sistema (Dashboard, Cobranza) quedaba desincronizado, pudiendo hacer que una factura recien modificada desapareciera de esas pantallas hasta el siguiente guardado completo del expediente. El de Settings es el mas grave: afecta a todos los expedientes abiertos de una sola vez.
+- El boton "Recibida del Contador -> CAJA" (con la confirmacion de monto real vs esperado) habia desaparecido al extraer InvoiceWidget.tsx como componente propio -- restaurado completo, incluyendo el sonido playCash() que faltaba en sounds.ts.
+- Mismo bug de exclusion silenciosa de Firestore (where 'campo', '!=', valor) ya corregido antes en InvoicesContext.tsx.
+
+
 ## [v6.76.3] - 6 Agosto 2026 (Fase 6: Desacoplamiento Visual)
 
 ### Agregado
