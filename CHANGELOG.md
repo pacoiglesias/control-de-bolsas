@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v7.0.2] - 7 Agosto 2026 (URGENTE: Portal del Maquilador -- error al cargar ordenes)
+
+### Corregido -- critico
+- La funcion del servidor que carga las ordenes del Portal del Maquilador consultaba por un campo (isArchived) que probablemente aun no tiene indice de Firestore creado, causando que la consulta fallara directamente ("Error al cargar ordenes") en vez de solo mostrar datos incompletos. Corregido para no depender de ese indice.
+
+
 ## [v7.0.1] - 6 Agosto 2026 (URGENTE: 4 escrituras directas desincronizaban las facturas del resto del sistema)
 
 ### Corregido -- critico

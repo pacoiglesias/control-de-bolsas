@@ -960,3 +960,14 @@ Cuatro flujos de escritura distintos actualizaban el campo `invoices` de un expe
 **Revisado y confirmado correcto, sin tocar:** `Sparkline.tsx`, `SpeedDial.tsx`, `Compras/PurchaseDrawer.tsx`, `lib/ocr.ts` (heurística de extracción razonable, no un bug de código), `Respaldo.tsx` (mejora de rendimiento genuina del usuario: de escaneo completo a consultas en lotes con `where('folio', 'in', lote)`), `ui.tsx`/`Cobranza/TableroKanban.tsx` (ya usan `var(--glass-bg)` correctamente), `Orders/KanbanBoard.tsx` (la fórmula de prioridad monto×urgencia agregada por el usuario es matemáticamente correcta), `OrderModal/useOrderActions.ts` / `InvoiceWidget.tsx` (patrón de guardado de una sola factura, con escritura dual al espejo y manejo de errores correcto — una sospecha inicial de función indefinida resultó ser un error de la propia revisión, corregido en el momento).
 **Riesgo de los hallazgos:** 🔴🔴 Alto — los 4 bugs de sincronización tienen impacto financiero directo (facturas que dejan de ser visibles en Cobranza/Dashboard sin ningún aviso), especialmente el de `Settings.tsx` que afecta a todos los expedientes de golpe.
 **Estado:** ✅ Corregido y verificado — `tsc` limpio (frontend y functions), `eslint` con solo 2 warnings preexistentes cosméticos, 42/42 pruebas, build completo.
+
+### Iteración 88: 🔴 Portal del Maquilador — "Error al cargar órdenes" (COMPLETADO)
+**Fecha:** 2026-08-07
+**Archivo:** `functions/src/index.ts`
+**Contexto:** el usuario reportó que el PIN de acceso al Portal del Maquilador funciona, pero después aparece "Error al cargar órdenes".
+**Causa raíz:** la Cloud Function `getActiveMaquilaOrders` consultaba con `.where("isArchived", "==", false)` sobre la colección completa de expedientes — una consulta sobre un campo que probablemente no tiene índice creado todavía (función nueva de este proyecto), lo cual hace que Firestore lance un error explícito en vez de simplemente devolver resultados incompletos, explicando el mensaje de error visto.
+**Solución:** se trae la colección completa y se filtra `isArchived` del lado del servidor sin `where()`, evitando la dependencia de un índice — mismo patrón seguro ya usado varias veces esta sesión.
+**Verificado:** se revisaron las otras 4 consultas `where()` de este mismo archivo (sobre el campo `invoiceStatuses`) — todas usan un campo ya establecido en producción desde hace tiempo, con su índice ya creado; no se tocaron.
+**Riesgo:** 🟢 Bajo — solo cambia cómo se obtienen los datos, no qué datos se devuelven.
+**Commit:** `fix(functions): getActiveMaquilaOrders -- filtrar isArchived del lado del servidor sin where(), evita depender de un indice de Firestore que aun no existe`
+**Estado:** ✅ Compilado y verificado — `tsc` limpio (frontend y functions), `eslint` sin cambios (2 warnings preexistentes), 42/42 pruebas, build completo. **Requiere `firebase deploy --only functions` para tomar efecto** — el mismo paso pendiente de la Iteración 78.

@@ -170,13 +170,12 @@ export const getActiveMaquilaOrders = onCall(async (request) => {
   }
 
   // Original getActiveMaquilaOrders logic
-  const snapshot = await db.collection(COL_ORDERS)
-    .where("isArchived", "==", false)
-    .get();
+  const snapshot = await db.collection(COL_ORDERS).get();
 
   const activeOrders: any[] = [];
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
+    if (data.isArchived) return;
     const status = data.creditCycle?.status || "pedido";
     if (status === "pedido" || status === "pending" || status === "overdue") {
       const deliveries = data.deliveries || [];
