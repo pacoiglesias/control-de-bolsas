@@ -34,6 +34,7 @@ const NAV: NavItem[] = [
   { type: 'group', label: '-- SISTEMA --', roles: ['admin'] },
   { type: 'link', to: '/mining', icon: '📊', label: 'Reportes y Data Mining', roles: ['admin'] },
   { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Ajustes del Sistema', roles: ['admin'] },
+  { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
 ];
 
 function initTheme(): 'light' | 'dark' {
@@ -168,6 +169,7 @@ export default function Layout() {
                   to={it.to!}
                   end={it.end}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => sound.playSwoosh()}
                 >
                   <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
                   <span>{it.label}</span>

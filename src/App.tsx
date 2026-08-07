@@ -31,6 +31,7 @@ const Catalog = lazy(() => import('./pages/Catalog'));
 const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m.FastEntry })));
 const AuditSync = lazy(() => import('./pages/AuditSync'));
 const DataMining = lazy(() => import('./pages/DataMining'));
+const Users = lazy(() => import('./pages/Users'));
 
 function RouteFallback() {
   return (
@@ -113,6 +114,7 @@ function Gate() {
             <Route path="mining" element={<Suspense fallback={<RouteFallback />}><DataMining /></Suspense>} />
             <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
             <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
+            <Route path="usuarios" element={<Suspense fallback={<RouteFallback />}><Users /></Suspense>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

@@ -30,10 +30,6 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
   const [shake, setShake] = useState(false);
   const toast = useToast();
 
-  const addDigit = (d: string) => {
-    if (digits.length >= 6) return;
-    setDigits(prev => prev + d);
-  };
   const del = () => setDigits(prev => prev.slice(0, -1));
 
   const tryLogin = async (pin: string) => {
@@ -59,7 +55,7 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
 
   const handleDigit = (d: string) => {
     const next = digits + d;
-    if (next.length <= 6) {
+    if (next.length <= 4) {
       setDigits(next);
       if (next.length >= 4) tryLogin(next);
     }
@@ -84,7 +80,7 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
 
         {/* Dots de PIN */}
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          {[0,1,2,3,4,5].map(i => (
+          {[0,1,2,3].map(i => (
             <div key={i} style={{
               width: 14, height: 14, borderRadius: '50%',
               background: i < digits.length ? '#a78bfa' : 'rgba(255,255,255,0.2)',

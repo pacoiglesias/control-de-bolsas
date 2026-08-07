@@ -66,7 +66,7 @@ async function readConfig(): Promise<FinanceConfigCore> {
   };
 }
 
-export const getActiveMaquilaOrders = onCall({ invoker: "public" }, async (request) => {
+export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, async (request) => {
 
   const { action, pin } = request.data || {};
   const db = getFirestore();
