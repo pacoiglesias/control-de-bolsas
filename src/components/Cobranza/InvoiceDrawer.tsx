@@ -4,6 +4,7 @@ import { money, toInputDate } from '../../lib/format';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { Timestamp } from 'firebase/firestore';
+import { extractCr } from '../../lib/finance';
 
 interface InvoiceDrawerProps {
   invoice: Invoice;
@@ -35,7 +36,7 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
     onClose();
   };
 
-  const cr = localInvoice.collection?.contrareciboNumber || order.collection?.contrareciboNumber;
+  const cr = extractCr(localInvoice, order);
   const isLate = localInvoice.creditCycle.status === 'overdue';
   
   return (

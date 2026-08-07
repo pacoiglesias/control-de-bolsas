@@ -26,6 +26,17 @@ export type {
   DynamicFinancialsResult,
 } from '../../functions/src/shared/finance.core';
 
+export function extractCr(inv: any, o?: any): string {
+  let cr = (inv?.collection?.contrareciboNumber || o?.collection?.contrareciboNumber || '').trim();
+  if (!cr) {
+    const f1 = (inv?.folio || '').trim().toUpperCase();
+    const f2 = (o?.folio || '').trim().toUpperCase();
+    if (f1.startsWith('TH-') || f1.startsWith('GT-')) cr = f1;
+    else if (f2.startsWith('TH-') || f2.startsWith('GT-')) cr = f2;
+  }
+  return cr;
+}
+
 /**
  * Normaliza texto para comparaciones que no deben depender de acentos ni
  * mayusculas -- "Andres" vs "Andrés" son el mismo proveedor para cualquier

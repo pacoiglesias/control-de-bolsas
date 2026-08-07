@@ -10,7 +10,7 @@ import AgingTable from './AgingTable';
 import ProximasTable from './ProximasTable';
 import EstadoCuenta from './EstadoCuenta';
 import TableroKanban from './TableroKanban';
-import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey } from '../../lib/finance';
+import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey, extractCr } from '../../lib/finance';
 import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -906,7 +906,7 @@ export default function Cobranza() {
     // caia al folio generico "S/N" compartido por muchas facturas
     // migradas, marcandolas todas como duplicadas entre si sin serlo.
     const conCr = (arr: any[]) => arr.map(({ o, inv }) => {
-      const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+      const cr = extractCr(inv, o);
       return { o, inv, d: daysLate(toDate(inv.creditCycle?.dueDate)), saldo: saldo(inv), hasCr: cr.length > 0, cr };
     });
     const paid = conCr(allInvoices.filter(
@@ -939,7 +939,7 @@ export default function Cobranza() {
 
     const crCounts: Record<string, number> = {};
     open.forEach(({ o, inv }) => {
-      const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
+      const cr = extractCr(inv, o);
       if (cr) {
         crCounts[cr] = (crCounts[cr] || 0) + 1;
       }
@@ -962,7 +962,7 @@ export default function Cobranza() {
     }> = {};
 
     allInvoices.forEach(({ o, inv }) => {
-      const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || 'SIN-CR').trim();
+      const cr = extractCr(inv, o) || 'SIN-CR';
       if (!crGroups[cr]) {
         crGroups[cr] = {
           cr,
@@ -1007,7 +1007,7 @@ export default function Cobranza() {
 
     const lista = open
       .map(({ o, inv }) => {
-        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+        const cr = extractCr(inv, o);
         const hasCr = cr.length > 0;
         const d = daysLate(toDate(inv.creditCycle?.dueDate));
         return { o, inv, d, saldo: saldo(inv), hasCr, cr };

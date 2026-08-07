@@ -1,7 +1,7 @@
 import { useContext, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CobranzaContext from './CobranzaContext';
-import { daysLate } from '../../lib/finance';
+import { daysLate, extractCr } from '../../lib/finance';
 import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { InvoiceDrawer } from './InvoiceDrawer';
@@ -96,7 +96,7 @@ export default function TableroKanban() {
   const renderCard = (x: any) => {
     const o = x.o;
     const inv = x.inv;
-    const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
+    const cr = extractCr(inv, o);
     const amt = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
     const late = daysLate(toDate(inv.creditCycle?.dueDate));
     const isOverdue = late !== null && late > 0;
