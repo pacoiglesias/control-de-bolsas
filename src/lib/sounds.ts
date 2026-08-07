@@ -2,6 +2,24 @@ class SoundEngine {
   private ctx: AudioContext | null = null;
   private muted = false;
 
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const unlock = () => {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        if (this.ctx.state === 'suspended') {
+          void this.ctx.resume();
+        }
+        // Once unlocked, remove listeners
+        window.removeEventListener('click', unlock);
+        window.removeEventListener('touchstart', unlock);
+      };
+      window.addEventListener('click', unlock);
+      window.addEventListener('touchstart', unlock);
+    }
+  }
+
   private getCtx() {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();

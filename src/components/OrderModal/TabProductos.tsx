@@ -3,6 +3,7 @@ import { useOrderModal } from './OrderModalContext';
 import { PasteTextModal } from '../PasteTextModal';
 import { money } from '../../lib/format';
 import type { PurchaseOrderItem } from '../../lib/types';
+import { processPdfOrder } from '../../lib/ocr';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
@@ -93,7 +94,39 @@ export default function TabProductos() {
       }));
       toast(`Detectado: ${newItems.length} artículos. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
     } else {
-      toast('No se detectó ningún artículo ni folio. Revisa el texto pegado.', 'bad');
+      toast('No se detectó ningún artículo detallado, pero el texto fue analizado.', 'info');
+    }
+  }
+
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    toast('🤖 Analizando documento con Inteligencia Local...', 'info');
+    try {
+      const ocrResult = await processPdfOrder(file);
+      console.log('OCR Output:', ocrResult);
+      handlePasteOC(ocrResult.rawText);
+      
+      // Fallback update if handlePasteOC failed to find anything
+      setForm((f: any) => ({
+        ...f,
+        folio: f.folio || ocrResult.folio || '',
+        oc: f.oc || ocrResult.folio || '',
+        totalKilograms: f.totalKilograms || (ocrResult.kilos ? String(ocrResult.kilos) : f.totalKilograms),
+        items: f.items.length === 0 && ocrResult.product ? [{
+          id: Date.now().toString(),
+          code: '',
+          description: ocrResult.product,
+          quantity: ocrResult.kilos || 0,
+          unitPrice: ocrResult.kilos && ocrResult.total ? ocrResult.total / ocrResult.kilos : 0,
+          amount: ocrResult.total || 0,
+          unit: 'Kilos'
+        }] : f.items
+      }));
+      
+    } catch (err: any) {
+      toast(`Error al leer PDF: ${err.message}`, 'bad');
     }
   }
 
@@ -129,7 +162,11 @@ export default function TabProductos() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
               {!readOnly && (
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <label className="btn btn-primary" style={{ cursor: 'pointer', margin: 0, background: 'var(--ok)', borderColor: 'var(--ok)' }}>
+                    🤖 Escanear OC (PDF)
+                    <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} />
+                  </label>
                   <button className="btn" onClick={() => setPegandoOC(true)} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 Pegar Texto OC</button>
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar Artículo</button>
                 </div>

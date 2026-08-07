@@ -928,3 +928,13 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Solución:** Se integró un `SpeedDial` animado que reemplaza a los botones monolíticos centrales. Se agregaron gráficas de tendencia (`Sparklines`) detrás de los KPIs y un acomodo matemático `(Monto Total) * (Días Retraso)` en el Kanban inteligente. También se actualizó la infraestructura de audio (`Cha-Ching` y `Swoosh`).
 **Verificación:** El build se rompió brevemente por una función prop sobrante y una importación React 17+ innecesaria, se corrigieron ambos e integraron. `npm run build` pasó limpio.
 **Estado:** ✅ Completado - Interacciones y visuales implementados. Avanzando a automatización OCR (Fase 3).
+
+### Iteración 86: FASE 3 V10 - Automatización OCR y Data Mining (Exportación PDF)
+**Fecha:** 2026-08-06
+**Archivo:** `src/lib/ocr.ts`, `src/components/OrderModal/TabProductos.tsx`, `src/pages/DataMining.tsx`
+**Contexto:** El usuario solicitó un lector local gratuito de PDFs de Órdenes de Compra y poder exportar la Sábana Maestra a un reporte ejecutivo presentable.
+**Solución:** 
+1. **OCR Local:** Se instaló `pdfjs-dist` y se creó `ocr.ts` para leer el texto en el RAM del navegador cliente sin coste de servidor. Se inyectó el botón de Escaneo en `TabProductos`.
+2. **Data Mining:** Se agregó `html2pdf.js` en `DataMining.tsx` con un template string para generar un PDF estilizado de la Sábana Maestra.
+**Verificación:** `npm run build` falló por un error de sintaxis en el template literal (escapes incorrectos). Se corrigió y el build posterior pasó limpio.
+**Estado:** ✅ Completado - Fase 3 terminada y en Producción.

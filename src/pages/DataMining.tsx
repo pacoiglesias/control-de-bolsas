@@ -87,6 +87,77 @@ export default function DataMining() {
     XLSX.writeFile(wb, `Sabana_Maestra_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const handleExportPdf = async () => {
+    // Dynamic import to avoid bloating the initial bundle
+    const html2pdf = (await import('html2pdf.js')).default;
+    
+    // Generar el HTML para el Reporte Ejecutivo
+    const html = `
+      <div style="font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1a;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 20px; margin-bottom: 30px;">
+          <div>
+            <h1 style="margin: 0; color: #1e3a8a; font-size: 28px;">Reporte Ejecutivo Integral</h1>
+            <p style="margin: 5px 0 0; color: #64748b;">Sábana Maestra de Operaciones · Data Mining</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-weight: bold; font-size: 18px; color: #1e3a8a;">Control de Órdenes</p>
+            <p style="margin: 5px 0 0; color: #64748b; font-size: 14px;">Fecha: ${new Date().toLocaleDateString('es-MX')}</p>
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+          <div style="background: #f8fafc; padding: 20px; border-radius: 8px; flex: 1; margin-right: 15px; border-left: 4px solid #1e3a8a;">
+            <p style="margin: 0 0 5px; font-size: 12px; color: #64748b;">TOTAL FACTURADO (REPORTE)</p>
+            <h2 style="margin: 0; font-size: 24px;">${money(processedData.reduce((acc: any, r: any) => acc + r.facturado, 0))}</h2>
+          </div>
+          <div style="background: #f8fafc; padding: 20px; border-radius: 8px; flex: 1; margin-right: 15px; border-left: 4px solid #10b981;">
+            <p style="margin: 0 0 5px; font-size: 12px; color: #64748b;">GANANCIA NETA (REPORTE)</p>
+            <h2 style="margin: 0; font-size: 24px; color: #10b981;">${money(processedData.reduce((acc: any, r: any) => acc + r.gananciaNeta, 0))}</h2>
+          </div>
+          <div style="background: #f8fafc; padding: 20px; border-radius: 8px; flex: 1; border-left: 4px solid #f59e0b;">
+            <p style="margin: 0 0 5px; font-size: 12px; color: #64748b;">ÓRDENES VISIBLES</p>
+            <h2 style="margin: 0; font-size: 24px;">${processedData.length}</h2>
+          </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+          <thead>
+            <tr style="background-color: #f1f5f9; color: #475569; text-align: left;">
+              <th style="padding: 10px; border-bottom: 2px solid #cbd5e1;">Folio</th>
+              <th style="padding: 10px; border-bottom: 2px solid #cbd5e1;">Cliente</th>
+              <th style="padding: 10px; border-bottom: 2px solid #cbd5e1;">Fecha</th>
+              <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; text-align: right;">Ped / Ent (kg)</th>
+              <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; text-align: right;">Facturado</th>
+              <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; text-align: right;">Ganancia Neta</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${processedData.map((row: any) => `
+              <tr style="border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+                <td style="padding: 10px;"><strong>${row.folio || 'N/A'}</strong></td>
+                <td style="padding: 10px;">${row.client || 'N/A'}</td>
+                <td style="padding: 10px;">${fmtDate(row.fechaPedido)}</td>
+                <td style="padding: 10px; text-align: right;">${kilos(row.kilosPedidos)} / ${kilos(row.kilosEntregados)}</td>
+                <td style="padding: 10px; text-align: right; font-family: monospace;">${money(row.facturado)}</td>
+                <td style="padding: 10px; text-align: right; font-family: monospace; color: #10b981;">${money(row.gananciaNeta)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    const opt: any = {
+      margin: 10,
+      filename: `Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(html).save();
+  };
+
   if (loading || configLoading) return <div className="p-8">Cargando Sábana Maestra...</div>;
   if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
 
@@ -104,8 +175,11 @@ export default function DataMining() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-primary" onClick={() => void handleExport()}>
-            📊 Exportar a Excel
+          <button className="btn" onClick={() => void handleExport()} style={{ background: 'var(--bg-card)', border: '1px solid var(--line)' }}>
+            📊 Exportar Sábana (Excel)
+          </button>
+          <button className="btn btn-primary" onClick={() => void handleExportPdf()} style={{ background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', border: 'none', color: '#fff', boxShadow: 'var(--shadow-md)' }}>
+            📄 Reporte Ejecutivo (PDF)
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sound } from '../../lib/sounds';
 
 export function SpeedDial({
   onNewOrder,
@@ -28,7 +29,7 @@ export function SpeedDial({
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => { setOpen(false); onNewExpense(); }}
+              onClick={() => { sound.playPop(); setOpen(false); onNewExpense(); }}
               className="speed-dial-action"
               style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', border: '1px solid var(--glass-border)', padding: '10px 16px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600 }}
             >
@@ -37,7 +38,7 @@ export function SpeedDial({
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => { setOpen(false); onFastEntry(); }}
+              onClick={() => { sound.playPop(); setOpen(false); onFastEntry(); }}
               className="speed-dial-action"
               style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', border: '1px solid var(--ok)', padding: '10px 16px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ok)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600 }}
             >
@@ -46,7 +47,7 @@ export function SpeedDial({
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => { setOpen(false); onManualSale(); }}
+              onClick={() => { sound.playPop(); setOpen(false); onManualSale(); }}
               className="speed-dial-action"
               style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', border: '1px solid var(--glass-border)', padding: '10px 16px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600 }}
             >
@@ -55,7 +56,7 @@ export function SpeedDial({
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => { setOpen(false); onNewOrder(); }}
+              onClick={() => { sound.playPop(); setOpen(false); onNewOrder(); }}
               className="speed-dial-action"
               style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '10px 16px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', fontWeight: 600 }}
             >
@@ -68,7 +69,11 @@ export function SpeedDial({
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.9 }}
-        onClick={() => setOpen(!open)}
+        onClick={() => { 
+          if (!open) sound.playSwoosh();
+          else sound.playPop();
+          setOpen(!open);
+        }}
         style={{
           width: 60, height: 60, borderRadius: 30,
           background: 'linear-gradient(135deg, var(--accent), var(--accent-deep))',
