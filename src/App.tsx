@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { UndoProvider } from './context/UndoContext';
 import { OrdersProvider } from './context/OrdersContext';
 import { PurchasesProvider } from './context/PurchasesContext';
 import { ProductsProvider } from './context/ProductsContext';
@@ -61,7 +62,11 @@ function AppProviders({ children }: { children: React.ReactNode }) {
         <PurchasesProvider>
           <ProductsProvider>
             <ExpensesProvider>
-              {children}
+              <ToastProvider>
+                <UndoProvider>
+                  {children}
+                </UndoProvider>
+              </ToastProvider>
             </ExpensesProvider>
           </ProductsProvider>
         </PurchasesProvider>

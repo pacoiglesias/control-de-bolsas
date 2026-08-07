@@ -22,6 +22,7 @@ import { useToast } from '../../context/ToastContext';
 import { logAction } from '../../lib/logger';
 import { sound } from '../../lib/sounds';
 import type { PurchaseOrder } from '../../lib/types';
+import confetti from 'canvas-confetti';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -222,6 +223,8 @@ export default function Cobranza() {
           }, { merge: true });
         }
       });
+      sound.playChaChing();
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
       toast(`Factura cobrada con éxito.`, 'ok');
     } catch (e) {
       toast(`Error al cobrar factura: ${(e as Error).message}`, 'bad');
@@ -290,6 +293,8 @@ export default function Cobranza() {
           tx.update(ref, camposInvoices(invoices));
         });
       });
+      sound.playChaChing();
+      confetti({ particleCount: 250, spread: 120, origin: { y: 0.5 } });
       toast(`Contrarecibo ${crNumber} cobrado exitosamente`, 'ok');
     } catch (e) {
       toast(`Error al procesar el cobro en bloque: ${(e as Error).message}`, 'bad');

@@ -3,7 +3,7 @@ import { doc, collection, setDoc, serverTimestamp, Timestamp } from 'firebase/fi
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Empty, Field, Modal, Skeleton } from '../components/ui';
+import { Card, Empty, Field, Drawer, Skeleton } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
@@ -357,63 +357,74 @@ export default function CajaChica() {
         {expenses.length === 0 ? (
           <Empty>No hay movimientos de caja registrados.</Empty>
         ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Concepto</th>
-                  <th>Tipo</th>
-                  <th className="num">Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map((e, index) => (
-                  <motion.tr 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: Math.min(index * 0.05, 0.5) }}
-                    key={e.id} 
-                    onClick={() => setSelected(e)} 
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.date)}</td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{e.concept}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+            {expenses.map((e, index) => (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(index * 0.03, 0.3) }}
+                key={e.id} 
+                onClick={() => setSelected(e)} 
+                style={{ 
+                  background: 'var(--glass-bg)', 
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: 12, 
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px -1px rgba(0,0,0,0.02)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                }}
+                whileHover={{ scale: 1.01, boxShadow: '0 8px 15px -3px rgba(0,0,0,0.05)' }}
+                whileTap={{ scale: 0.99 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ 
+                    width: 44, height: 44, borderRadius: 12, 
+                    background: e.type === 'ingreso' ? '#dcfce7' : '#fee2e2',
+                    color: e.type === 'ingreso' ? '#166534' : '#991b1b',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, flexShrink: 0
+                  }}>
+                    {e.type === 'ingreso' ? '📥' : '📤'}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)', marginBottom: 2 }}>{e.concept}</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                      <span className="mono">{fmtDate(e.date)}</span>
                       {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
-                        <div style={{ marginTop: 6 }}>
-                           <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>● Abono a Proveedor</span>
-                        </div>
+                        <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                          ● Abono a Proveedor
+                        </span>
                       )}
-                    </td>
-                    <td>
-                      <span className={`badge`} style={{ 
-                        background: e.type === 'ingreso' ? '#dcfce7' : '#fee2e2', 
-                        color: e.type === 'ingreso' ? '#166534' : '#991b1b',
-                        border: `1px solid ${e.type === 'ingreso' ? '#bbf7d0' : '#fecaca'}`
-                      }}>
-                        {e.type === 'ingreso' ? '↑ INGRESO' : '↓ EGRESO'}
-                      </span>
-                    </td>
-                    <td className="num mono" style={{ color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--bad)', fontWeight: 600, fontSize: 16 }}>
-                      {e.type === 'ingreso' ? '+' : '-'}{money(e.amount)}
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+                <div className="mono" style={{ 
+                  color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--ink)', 
+                  fontWeight: 800, 
+                  fontSize: 17,
+                  textAlign: 'right'
+                }}>
+                  {e.type === 'ingreso' ? '+' : '-'}{money(e.amount)}
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
       </Card>
 
       {selected && (
-        <ExpenseModal expense={selected} onClose={() => setSelected(null)} provName={provName} />
+        <ExpenseDrawer expense={selected} onClose={() => setSelected(null)} provName={provName} />
       )}
     </>
   );
 }
 
-function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
+function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
   const { user } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -478,7 +489,7 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
   }
 
   return (
-    <Modal title={expense.createdAt ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose}>
+    <Drawer title={expense.createdAt ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose} width={500}>
       <div className="form-grid">
         <Field label="Fecha">
           <input className="input boxed mono" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
@@ -512,6 +523,6 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
           {busy ? 'Guardando…' : 'Guardar'}
         </button>
       </div>
-    </Modal>
+    </Drawer>
   );
 }

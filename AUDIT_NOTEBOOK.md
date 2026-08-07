@@ -920,3 +920,11 @@ Miles de lecturas diarias fantasma consumiendo el budget de Firebase; mayor tiem
 **Solución:** Se implementó `InvoiceDrawer` para Cobranza y `PurchaseDrawer` para Compras. Ambos paneles son Drawers laterales enfocados exclusivamente en la transacción financiera seleccionada (Contrarecibos, Pagos). Se integraron exitosamente en `TableroKanban`, `ContrarecibosTable` y `Compras.tsx`.
 **Verificación:** `npm run build` completado exitosamente con 0 errores de TypeScript tras alinear las interfaces `Purchase` y los Timestamp fields.
 **Estado:** ✅ Completado - Desacoplamiento visual logrado.
+
+### Iteración 85: FASE 2 V10 - Dashboard 2.0 y Micro-Interacciones
+**Fecha:** 2026-08-06
+**Archivo:** `src/components/Dashboard/SpeedDial.tsx`, `src/components/Dashboard/ModernKpiGrid.tsx`, `src/components/Dashboard/Sparkline.tsx`, `src/components/Orders/KanbanBoard.tsx`
+**Contexto:** El usuario aprobó la versión V10 (Phase 1 core/cache finalizada) y solicitó continuar con la Fase 2: agregar inteligencia al Kanban, un Speed Dial en el Dashboard y micro-interacciones (sonidos, confeti).
+**Solución:** Se integró un `SpeedDial` animado que reemplaza a los botones monolíticos centrales. Se agregaron gráficas de tendencia (`Sparklines`) detrás de los KPIs y un acomodo matemático `(Monto Total) * (Días Retraso)` en el Kanban inteligente. También se actualizó la infraestructura de audio (`Cha-Ching` y `Swoosh`).
+**Verificación:** El build se rompió brevemente por una función prop sobrante y una importación React 17+ innecesaria, se corrigieron ambos e integraron. `npm run build` pasó limpio.
+**Estado:** ✅ Completado - Interacciones y visuales implementados. Avanzando a automatización OCR (Fase 3).

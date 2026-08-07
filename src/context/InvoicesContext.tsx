@@ -27,6 +27,7 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
     );
     const unsub = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snap) => {
         const docs = snap.docs
           .map((d) => ({ id: d.id, ...(d.data() as Omit<Invoice, 'id'>) }));

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Modal } from '../ui';
+import { Drawer } from '../ui';
 import { sound } from '../../lib/sounds';
 import type { FinancialConfig, PurchaseOrder } from '../../lib/types';
 import type { TabName } from './types';
@@ -41,7 +41,7 @@ function OrderModalShell({ onClose }: { onClose: () => void }) {
   } = ctx as any; // Need to clean up some types later if missing in Context. We can safely destructure from ctx since we know it's there.
 
   return (
-    <Modal wide title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
+    <Drawer width={1000} title={`Expediente ${order.folio ?? '(sin folio)'}`} onClose={onClose}>
       <datalist id="catalog-products">
         {products?.map((p: any) => (
           <option key={p.id} value={p.description} />
@@ -167,7 +167,7 @@ function OrderModalShell({ onClose }: { onClose: () => void }) {
           </button>
         )}
       </div>
-    </Modal>
+    </Drawer>
   );
 }
 

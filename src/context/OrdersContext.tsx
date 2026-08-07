@@ -44,6 +44,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     const q = query(collection(db, PATHS.orders), limit(1000));
     const unsub = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snap) => {
         const docs = snap.docs
           .filter((d: any) => !d.data().isDeleted)

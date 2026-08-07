@@ -26,6 +26,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     const unsub = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snap) => {
         const items = snap.docs
           .filter((d: any) => !d.data().isDeleted)

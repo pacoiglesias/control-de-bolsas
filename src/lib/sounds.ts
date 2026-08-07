@@ -42,7 +42,7 @@ class SoundEngine {
     } catch { /* ignore audio errs */ }
   }
 
-  playCash() {
+  playChaChing() {
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -51,18 +51,56 @@ class SoundEngine {
       osc.connect(gain);
       gain.connect(ctx.destination);
       
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.05);
-      osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.1);
-      osc.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.15);
+      // High-pitched "cha"
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(1800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.05);
+      
+      // Then "ching"
+      osc.frequency.setValueAtTime(2500, ctx.currentTime + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
       
       gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
       
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
+    } catch { /* ignore */ }
+  }
+
+  playSwoosh() {
+    if (this.muted) return;
+    try {
+      const ctx = this.getCtx();
+      const bufferSize = ctx.sampleRate * 0.2; // 0.2 seconds
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      // Generate noise
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      // Sweep the filter frequency down to simulate a swoosh
+      filter.frequency.setValueAtTime(1000, ctx.currentTime);
+      filter.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      
+      noise.start();
     } catch { /* ignore */ }
   }
 

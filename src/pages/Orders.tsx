@@ -33,7 +33,7 @@ export default function Orders() {
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
-  const [viewMode, setViewMode] = useState<'list'|'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'>('kanban');
   
   const [page, setPage] = useState(1);
   const pageSize = 50;

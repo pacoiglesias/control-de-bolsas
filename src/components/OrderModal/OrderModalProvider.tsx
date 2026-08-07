@@ -16,6 +16,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useUndo } from '../../context/UndoContext';
 import { useProducts } from '../../hooks/useProducts';
 import { useOrders } from '../../hooks/useOrders';
 import { useInvoiceParser } from '../../hooks/useInvoiceParser';
@@ -45,6 +46,7 @@ export function OrderModalProvider({
   children
 }: OrderModalProviderProps) {
   const toast = useToast();
+  const { executeWithUndo } = useUndo();
   const { user } = useAuth();
   const { products } = useProducts();
   const { settings } = useSystemSettings();
@@ -234,9 +236,21 @@ export function OrderModalProvider({
   }
 
   async function remove() {
-    await removeOrder({
-      order, userEmail: user?.email, initialSummary, setBusy, toast, onClose
-    });
+    await executeWithUndo(
+      async () => {
+        await removeOrder({
+          order, userEmail: user?.email, initialSummary, setBusy, toast: () => {}, onClose
+        });
+      },
+      async () => {
+        await restoreOrder({
+          order, userEmail: user?.email, setBusy, toast: () => {}, onClose: () => {}
+        });
+      },
+      `Expediente ${order.folio} eliminado`,
+      10000
+    );
+    onClose();
   }
 
   async function restore() {

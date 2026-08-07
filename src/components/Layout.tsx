@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
+import { useProducts } from '../hooks/useProducts';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
@@ -44,6 +45,7 @@ function initTheme(): 'light' | 'dark' {
 export default function Layout() {
   const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
+  const { products } = useProducts();
   const { settings } = useSystemSettings();
   const [navOpen, setNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -203,9 +205,14 @@ export default function Layout() {
         isOpen={commandOpen}
         onClose={() => setCommandOpen(false)}
         orders={orders}
+        products={products}
         onSelectOrder={(orderId, _tab) => {
           setCommandOpen(false);
           nav(`/ordenes?id=${orderId}`);
+        }}
+        onSelectProduct={() => {
+          setCommandOpen(false);
+          nav(`/catalogo`);
         }}
       />
     </div>

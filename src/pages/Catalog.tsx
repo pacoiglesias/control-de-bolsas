@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { motion } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
@@ -209,126 +210,142 @@ export default function Catalog() {
         {analytics.length === 0 ? (
           <p className="hint">Aún no hay productos en tu catálogo. Se agregarán automáticamente al guardar nuevas órdenes.</p>
         ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Semáforo</th>
-                  <th>Código</th>
-                  <th>Descripción</th>
-                  <th className="num">Precio Sug.</th>
-                  <th className="num">Veces Pedido</th>
-                  <th className="num">Total Histórico</th>
-                  <th>Último Pedido</th>
-                  <th className="num">Frecuencia</th>
-                  <th>Próximo Esperado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {analytics.map(p => (
-                  <tr key={p.id}>
-                    <td style={{ textAlign: 'center' }}>
-                      {p.status === 'red' && <span title="Ya deberían pedir pronto o van tarde" style={{ fontSize: 20 }}>🔴</span>}
-                      {p.status === 'yellow' && <span title="Pedido próximo" style={{ fontSize: 20 }}>🟡</span>}
-                      {p.status === 'green' && <span title="Surtido recientemente" style={{ fontSize: 20 }}>🟢</span>}
-                      {p.status === 'unknown' && <span title="Faltan datos para predecir (sólo 1 pedido)" style={{ fontSize: 20 }}>⚪</span>}
-                    </td>
-                    <td className="mono">
-                      <input
-                        className="input boxed mono"
-                        style={{ width: '100px', fontSize: '12px' }}
-                        defaultValue={p.code || ''}
-                        placeholder="Sin código"
-                        onBlur={async (e) => {
-                          if (e.target.value !== (p.code || '')) {
-                            try {
-                              await updateDoc(doc(db, PATHS.products, p.id), { code: e.target.value.trim() });
-                            } catch (err) {
-                              toast(`No se pudo guardar el código: ${(err as Error).message}`, 'bad');
-                            }
-                          }
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="input boxed"
-                        style={{ minWidth: 220, fontWeight: 600 }}
-                        defaultValue={p.description}
-                        onBlur={async (e) => {
-                          if (e.target.value.trim() && e.target.value !== p.description) {
-                            try {
-                              await updateDoc(doc(db, PATHS.products, p.id), { description: e.target.value.trim() });
-                            } catch (err) {
-                              toast(`No se pudo guardar la descripción: ${(err as Error).message}`, 'bad');
-                            }
-                          }
-                        }}
-                      />
-                    </td>
-                    <td className="num mono">
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-                        <input
-                          className="input boxed mono"
-                          style={{ width: 80 }}
-                          type="number" step="0.01"
-                          defaultValue={p.defaultPrice}
-                          onBlur={async (e) => {
-                            const v = Number(e.target.value);
-                            if (!isNaN(v) && v !== p.defaultPrice) {
-                              try {
-                                await updateDoc(doc(db, PATHS.products, p.id), { defaultPrice: v });
-                              } catch (err) {
-                                toast(`No se pudo guardar el precio: ${(err as Error).message}`, 'bad');
-                              }
-                            }
-                          }}
-                        />
-                        <input
-                          className="input boxed"
-                          style={{ width: 50, fontSize: 11 }}
-                          defaultValue={p.unit}
-                          onBlur={async (e) => {
-                            if (e.target.value.trim() && e.target.value !== p.unit) {
-                              try {
-                                await updateDoc(doc(db, PATHS.products, p.id), { unit: e.target.value.trim() });
-                              } catch (err) {
-                                toast(`No se pudo guardar la unidad: ${(err as Error).message}`, 'bad');
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-                    </td>
-                    <td className="num">{p.orderCount}</td>
-                    <td className="num">{p.totalQty.toLocaleString('es-MX')} {p.unit}</td>
-                    <td className="mono">{p.lastDate ? p.lastDate.toLocaleDateString('es-MX') : '—'}</td>
-                    <td className="num">{p.avgDays > 0 ? `Cada ${Math.round(p.avgDays)} días` : '—'}</td>
-                    <td className="mono" style={{ fontWeight: p.status === 'red' ? 700 : 400, color: p.status === 'red' ? 'var(--bad)' : 'inherit' }}>
-                      {p.nextDate ? p.nextDate.toLocaleDateString('es-MX') : '—'}
-                    </td>
-                    <td>
-                      <button
-                        className="btn-icon"
-                        title="Eliminar del catálogo (no borra el historial de pedidos)"
-                        onClick={async () => {
-                          if (!window.confirm(`¿Eliminar "${p.description}" del catálogo?`)) return;
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16, padding: '4px 0' }}>
+            {analytics.map((p, index) => (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(index * 0.02, 0.2) }}
+                key={p.id}
+                style={{
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: 16,
+                  padding: 20,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                  position: 'relative'
+                }}
+              >
+                <button
+                  className="btn-icon"
+                  style={{ position: 'absolute', top: 12, right: 12, opacity: 0.5 }}
+                  title="Eliminar del catálogo"
+                  onClick={async () => {
+                    if (!window.confirm(`¿Eliminar "${p.description}" del catálogo?`)) return;
+                    try {
+                      await safeDeleteDoc(user?.email, doc(db, PATHS.products, p.id), p);
+                      toast('Producto eliminado del catálogo.', 'ok');
+                    } catch (err) {
+                      toast(`No se pudo eliminar: ${(err as Error).message}`, 'bad');
+                    }
+                  }}
+                >
+                  ✕
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 24 }}>
+                  <div style={{ fontSize: 24, lineHeight: 1 }}>
+                    {p.status === 'red' && <span title="Ya deberían pedir pronto o van tarde">🔴</span>}
+                    {p.status === 'yellow' && <span title="Pedido próximo">🟡</span>}
+                    {p.status === 'green' && <span title="Surtido recientemente">🟢</span>}
+                    {p.status === 'unknown' && <span title="Faltan datos para predecir">⚪</span>}
+                  </div>
+                  <input
+                    className="input boxed"
+                    style={{ flex: 1, fontWeight: 700, fontSize: 16, padding: '8px 12px', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}
+                    defaultValue={p.description}
+                    placeholder="Descripción del producto"
+                    onBlur={async (e) => {
+                      if (e.target.value.trim() && e.target.value !== p.description) {
+                        try {
+                          await updateDoc(doc(db, PATHS.products, p.id), { description: e.target.value.trim() });
+                        } catch (err) {
+                          toast(`Error: ${(err as Error).message}`, 'bad');
+                        }
+                      }
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="input boxed mono"
+                    style={{ flex: 1, fontSize: 13, background: 'rgba(255,255,255,0.5)' }}
+                    defaultValue={p.code || ''}
+                    placeholder="SKU / Código"
+                    onBlur={async (e) => {
+                      if (e.target.value !== (p.code || '')) {
+                        try {
+                          await updateDoc(doc(db, PATHS.products, p.id), { code: e.target.value.trim() });
+                        } catch (err) {
+                          toast(`Error: ${(err as Error).message}`, 'bad');
+                        }
+                      }
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 4, width: '120px' }}>
+                    <input
+                      className="input boxed mono"
+                      style={{ flex: 2, background: 'rgba(255,255,255,0.5)' }}
+                      type="number" step="0.01"
+                      defaultValue={p.defaultPrice}
+                      placeholder="Precio"
+                      onBlur={async (e) => {
+                        const v = Number(e.target.value);
+                        if (!isNaN(v) && v !== p.defaultPrice) {
                           try {
-                            await safeDeleteDoc(user?.email, doc(db, PATHS.products, p.id), p);
-                            toast('Producto eliminado del catálogo.', 'ok');
+                            await updateDoc(doc(db, PATHS.products, p.id), { defaultPrice: v });
                           } catch (err) {
-                            toast(`No se pudo eliminar: ${(err as Error).message}`, 'bad');
+                            toast(`Error: ${(err as Error).message}`, 'bad');
                           }
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        }
+                      }}
+                    />
+                    <input
+                      className="input boxed"
+                      style={{ flex: 1, padding: '0 4px', textAlign: 'center', background: 'rgba(255,255,255,0.5)' }}
+                      defaultValue={p.unit}
+                      placeholder="Ud"
+                      onBlur={async (e) => {
+                        if (e.target.value.trim() && e.target.value !== p.unit) {
+                          try {
+                            await updateDoc(doc(db, PATHS.products, p.id), { unit: e.target.value.trim() });
+                          } catch (err) {
+                            toast(`Error: ${(err as Error).message}`, 'bad');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  <div style={{ flex: 1, minWidth: '45%', background: 'rgba(0,0,0,0.02)', padding: '10px 12px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 2 }}>Histórico</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.orderCount} pedidos <span style={{ opacity: 0.5 }}>({p.totalQty.toLocaleString('es-MX')} {p.unit})</span></div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: '45%', background: 'rgba(0,0,0,0.02)', padding: '10px 12px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--ink-soft)', fontWeight: 700, marginBottom: 2 }}>Frecuencia</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.avgDays > 0 ? `Cada ${Math.round(p.avgDays)} días` : '—'}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    Último: <strong>{p.lastDate ? p.lastDate.toLocaleDateString('es-MX') : '—'}</strong>
+                  </div>
+                  <div style={{ fontSize: 12, color: p.status === 'red' ? 'var(--bad)' : 'var(--ink)' }}>
+                    Próximo: <strong style={{ fontWeight: 800 }}>{p.nextDate ? p.nextDate.toLocaleDateString('es-MX') : '—'}</strong>
+                  </div>
+                </div>
+
+              </motion.div>
+            ))}
           </div>
         )}
       </Card>

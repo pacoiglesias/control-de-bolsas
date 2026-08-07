@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ResponsiveMoney } from '../ui';
 import { money } from '../../lib/format';
+import { Sparkline } from './Sparkline';
 
 interface ModernKpiGridProps {
   k: any;
@@ -37,14 +38,17 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         }}
       >
         <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.05, filter: 'grayscale(1)' }}>📈</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Ventas {monthFilter === 'ALL' ? 'Totales' : 'del Mes'}
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ink)', margin: '8px 0', letterSpacing: '-1px' }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.ventasTotal || 0} />
         </div>
+        <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
+          <Sparkline data={[120, 150, 130, 180, 140, 200, 170]} width={240} height={40} color="var(--accent)" />
+        </div>
         {!isViewer && (
-          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)' }} />
             Utilidad Bruta: {money(k.margenTotal || 0)}
           </div>
@@ -71,13 +75,16 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         }}
       >
         <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.05, filter: 'grayscale(1)' }}>🏦</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Dinero en la Calle
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: k.porCobrar > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px' }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color: k.porCobrar > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.dineroRealARecibir || k.porCobrar || 0} />
         </div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500 }}>
+        <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.2, zIndex: 0 }}>
+          <Sparkline data={[200, 180, 190, 150, 160, 130, 120]} width={240} height={40} color="var(--warn)" />
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500, zIndex: 1 }}>
           {k.porCobrarSinCR > 0 ? `Facturas + CR + Por Facturar` : 'Saldo neto esperado'}
         </div>
       </motion.div>
@@ -103,13 +110,16 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           }}
         >
           <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.1, filter: 'grayscale(1)' }}>💵</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Caja Chica (Líquido)
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: '#064e3b', margin: '8px 0', letterSpacing: '-1px' }}>
-            <ResponsiveMoney value={saldoCaja} />
-          </div>
-          <div style={{ fontSize: 13, color: '#047857', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
+          Caja Chica
+        </div>
+        <div style={{ fontSize: 32, fontWeight: 900, color: '#fff', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+          <ResponsiveMoney value={saldoCaja} />
+        </div>
+        <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
+          <Sparkline data={[50, 60, 55, 70, 80, 75, 90]} width={240} height={40} color="#fff" />
+        </div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
             Efectivo real en mano
           </div>
         </motion.div>
