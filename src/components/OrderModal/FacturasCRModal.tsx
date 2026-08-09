@@ -44,7 +44,7 @@ export function FacturasCRModal({ onClose }: { onClose: () => void }) {
       <div style={{
         display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20,
         padding: '12px 16px', borderRadius: 10,
-        background: 'var(--paper-sunk)', border: '1px solid var(--line)'
+        background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', border: '1px solid var(--line)'
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: 0.8 }}>

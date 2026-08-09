@@ -316,7 +316,7 @@ export function calculateLiveMargenTotal(activeOrders: PurchaseOrder[], defaultC
     (o.invoices || []).forEach(inv => {
       const invTotal = Number(inv.financials?.saleTotal ?? inv.financials?.invoiceTotal ?? 0);
       const comm = Number(inv.financials?.commission ?? 0);
-      const matCost = Number(inv.financials?.costTotal ?? (inv.kilos * defaultCostPricePerKg));
+      const matCost = Number(inv.financials?.costTotal ?? new Decimal(inv.kilos).times(defaultCostPricePerKg).toNumber());
       liveMargenTotal = liveMargenTotal.plus(invTotal).minus(matCost).minus(comm);
     });
   });

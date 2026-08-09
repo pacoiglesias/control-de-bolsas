@@ -1,23 +1,17 @@
-import { useState, useMemo, useCallback, ReactNode, useRef, useEffect } from 'react';
+import { useState, useMemo, ReactNode, useRef, useEffect } from 'react';
 import { computeFinancials, configEfectiva, getOrderSummary, daysLate, round2 } from '../../lib/finance';
 import {
   computeDeliveredTotals,
-  migrateLegacyDeliveries,
-  newDeliveryEvent,
-  updateDeliveryField as updateDeliveryFieldLib,
-  updateDeliveryItemQuantity,
-  removeDeliveryAt,
-  buildInvoiceFromDelivery,
+  migrateLegacyDeliveries
 } from '../../lib/deliveries';
 import { toDate } from '../../lib/format';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
-import type { FinancialConfig, PurchaseOrder, PurchaseOrderItem, Delivery } from '../../lib/types';
+import type { FinancialConfig, PurchaseOrder } from '../../lib/types';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useUndo } from '../../context/UndoContext';
-import { useProducts } from '../../hooks/useProducts';
 import { useOrders } from '../../hooks/useOrders';
 import { useInvoiceParser } from '../../hooks/useInvoiceParser';
 
@@ -25,6 +19,7 @@ import OrderModalContext from './OrderModalContext';
 import { printRemision, printPreFactura, printConsolidatedPackage } from './orderModalPrint';
 import type { TabName } from './types';
 import { useOrderActions } from './useOrderActions';
+import { useOrderForm } from './useOrderForm';
 
 export interface OrderModalProviderProps {
   order: PurchaseOrder;
@@ -48,7 +43,6 @@ export function OrderModalProvider({
   const toast = useToast();
   const { executeWithUndo } = useUndo();
   const { user } = useAuth();
-  const { products } = useProducts();
   const { settings } = useSystemSettings();
   const provName = settings?.providerName || 'Andrés';
   
@@ -104,28 +98,11 @@ export function OrderModalProvider({
     [order, initialSummary.deliveries],
   );
 
-  const [form, setForm] = useState({
-    folio: order.folio ?? '',
-    client: order.client ?? '',
-    clientEmail: order.clientEmail ?? '',
-    department: order.department ?? '',
-    provider: order.provider ?? '',
-    oc: order.oc ?? '',
-    totalKilograms: String(order.totalKilograms ?? ''),
-    estimatedDeliveryDate: order.estimatedDeliveryDate ?? null,
-    deliveries: migratedDeliveries,
-    invoices: initialSummary.invoices,
-    items: order.items ?? [],
-    customCostPrice: order.customCostPrice !== undefined ? String(order.customCostPrice) : '',
-    customSellPrice: order.customSellPrice !== undefined ? String(order.customSellPrice) : '',
-    customCommissionRate: order.customCommissionRate !== undefined ? String(order.customCommissionRate * 100) : '',
-    isClosedShort: order.isClosedShort ?? false,
-  });
-
-  const set = useCallback(<K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v })), []);
+  const { form, setForm, set } = useOrderForm(order, migratedDeliveries, initialSummary.invoices);
 
   const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
-  const kilosNum = Number(form.totalKilograms) || 0;
+  const totalKilograms = form.totalKilograms || (form.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0).toString();
+  const kilosNum = Number(totalKilograms) || 0;
 
   const fallbackCost = form.invoices[0]?.financials?.costPricePerKg ?? config.costPricePerKg;
   const fallbackSale = form.invoices[0]?.financials?.salePricePerKg ?? config.salePricePerKg;
@@ -178,7 +155,7 @@ export function OrderModalProvider({
 
   const { deliveredByItem, kilosEntregados } = useMemo(
     () => computeDeliveredTotals(form.deliveries),
-    [form.deliveries],
+    [form.deliveries]
   );
   
   const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
@@ -299,95 +276,9 @@ export function OrderModalProvider({
     }
   }
 
-  // Handlers for Items
-  const addItem = () => {
-    set('items', [
-      ...form.items,
-      { id: Date.now().toString(), quantity: 0, unit: 'Kilos', description: '', unitPrice: config.salePricePerKg, amount: 0 }
-    ]);
-  };
-  const updateItem = <F extends keyof PurchaseOrderItem>(index: number, field: F, value: PurchaseOrderItem[F]) => {
-    const next = [...form.items];
-    next[index] = { ...next[index], [field]: value };
-    
-    if (field === 'description') {
-      const matchedProd = products.find(p => p.description === value);
-      if (matchedProd) {
-        next[index].code = matchedProd.code || '';
-        next[index].unit = matchedProd.unit;
-        next[index].unitPrice = matchedProd.defaultPrice;
-      }
-    }
-    
-    if (field === 'code' && value) {
-      const matchedProd = products.find(p => p.code?.toUpperCase() === String(value).toUpperCase() || p.id === String(value).toUpperCase());
-      if (matchedProd) {
-        next[index].description = matchedProd.description;
-        next[index].unit = matchedProd.unit;
-        next[index].unitPrice = matchedProd.defaultPrice;
-      }
-    }
-    
-    if (field === 'quantity' || field === 'unitPrice' || field === 'description') {
-      next[index].amount = Number((next[index].quantity * next[index].unitPrice).toFixed(2));
-    }
-    set('items', next);
-  };
-  const removeItem = (index: number) => {
-    if (window.confirm('¿Eliminar este artículo?')) {
-      const next = [...form.items];
-      next.splice(index, 1);
-      set('items', next);
-    }
-  };
 
-  // Handlers for Deliveries
-  const addDelivery = () => {
-    set('deliveries', [...form.deliveries, newDeliveryEvent(form.items)]);
-  };
-  const updateDelivery = <F extends keyof Delivery>(index: number, field: F, value: Delivery[F]) => {
-    set('deliveries', updateDeliveryFieldLib(form.deliveries, index, field, value));
-  };
-  const updateDeliveryItemQty = (deliveryIndex: number, itemId: string, quantity: number) => {
-    const nextDeliveries = updateDeliveryItemQuantity(form.deliveries, deliveryIndex, itemId, quantity);
-    const { kilosEntregados: nextKilos } = computeDeliveredTotals(nextDeliveries);
-    const kilosPeds = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-    
-    if (nextKilos > kilosPeds) {
-      toast(`Error: No puedes registrar ${nextKilos.toLocaleString('es-MX')} kg si la OC ampara ${kilosPeds.toLocaleString('es-MX')} kg.`, 'bad');
-      return;
-    }
-    set('deliveries', nextDeliveries);
-  };
-  const removeDelivery = (index: number) => {
-    const result = removeDeliveryAt(form.deliveries, index);
-    if ('error' in result) {
-      toast(result.error, 'bad');
-      return;
-    }
-    if (window.confirm('¿Eliminar esta entrega?')) {
-      set('deliveries', result.deliveries);
-    }
-  };
 
-  // Handlers for Invoices have been removed and delegated to useInvoiceActions.ts and InvoiceWidget.tsx
-  // Except facturarEntrega which needs to create a new invoice based on delivery.
-  // We can just keep a simplified version or rely on the actual implementation.
-  function facturarEntrega(deliveryIndex: number) {
-    const delivery = form.deliveries[deliveryIndex];
-    if (!delivery) return;
-    const result = buildInvoiceFromDelivery(delivery, dynamicConfig, order.id || '');
-    if ('error' in result) {
-      toast(result.error, 'bad');
-      return;
-    }
-    const nextDeliveries = [...form.deliveries];
-    nextDeliveries[deliveryIndex] = result.updatedDelivery;
-    setForm((f) => ({ ...f, deliveries: nextDeliveries }));
-    // We would need to save the invoice here via useInvoiceActions, but we lack the hook in this component.
-    // As a workaround, we alert the user to save the order and then add the invoice manually.
-    toast(`Entrega procesada. Ve a la pestaña Facturas y presiona '+ Manual' con ${result.kilos.toLocaleString('es-MX')} kg.`, 'ok');
-  }
+  // Logic for Items and Deliveries has been moved to useOrderProducts and useOrderDeliveries
 
   const ctx = {
     form, setForm, set, readOnly, dynamicConfig, liveSummary, computedInvoices, order,
@@ -395,9 +286,6 @@ export function OrderModalProvider({
     fallbackSale, fallbackCost, fallbackComm, kilosNum, tab, setTab,
     kilosEntregados, kilosPedidos, kilosFaltantes, kilosPendientesDeFacturar, deliveredByItem,
     processFacturaText, processPagoText, processParsedXml, parseOCAndFill, emailClient, toast,
-    addItem, updateItem, removeItem,
-    addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery,
-    facturarEntrega,
     printRemision: handlePrintRemision, printPreFactura: handlePrintPreFactura, printConsolidatedPackage: handlePrintConsolidatedPackage,
     save, remove, restore, clickEliminar, confirmandoEliminar, busy, setBusy, retryAI
   };

@@ -4,12 +4,14 @@ import { PasteTextModal } from '../PasteTextModal';
 import { money } from '../../lib/format';
 import type { PurchaseOrderItem } from '../../lib/types';
 import { processPdfOrder } from '../../lib/ocr';
+import { useOrderProducts } from './useOrderProducts';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
   if (!ctx) return null;
-  const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast, addItem, updateItem, removeItem } = ctx;
+  const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast } = ctx;
+  const { addItem, updateItem, removeItem } = useOrderProducts(form.items, setForm, config);
 
   /**
    * Extrae folio, proveedor y CADA ARTICULO (codigo, descripcion, cantidad,
@@ -175,7 +177,7 @@ export default function TabProductos() {
             {form.items.length === 0 ? (
               <p className="hint">No hay artículos detallados. La IA extrae estos datos automáticamente del PDF de la Orden de Compra.</p>
             ) : (
-              <div className="table-scroll">
+              <div className="table-scroll glass-panel" style={{ borderRadius: 'var(--radius)', padding: '16px' }}>
                 <table className="data-table" style={{ width: '100%', marginBottom: 12 }}>
                   <thead>
                     <tr>

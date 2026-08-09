@@ -26,7 +26,7 @@ export default function TabResumen() {
                 📋 Pegar Texto de OC (Autollenado)
               </button>
             </div>
-            <div className="form-grid">
+            <div className="form-grid glass-panel" style={{ padding: '24px', borderRadius: '16px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)' }}>
               <Field label="Folio Interno del Pedido">
                 <input className="input boxed mono" defaultValue={form.folio} onBlur={(e) => set('folio', e.target.value)} disabled={readOnly} />
               </Field>
@@ -112,7 +112,7 @@ export default function TabResumen() {
             })()}
 
             <h4 style={{ marginTop: 24, marginBottom: 12 }}>Estado Global</h4>
-            <div className="calc-box">
+            <div className="calc-box glass-panel" style={{ padding: '24px', borderRadius: '16px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)' }}>
               <div className="calc-line">
                 <span>Kilos Pedidos</span>
                 <span className="mono">{kilos(kilosNum)}</span>

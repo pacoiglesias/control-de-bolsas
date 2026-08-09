@@ -87,7 +87,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
         </label>
 
         {selectedData && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ background: 'var(--paper-sunk)', padding: 16, borderRadius: 12, border: '1px solid var(--line)', marginBottom: 20 }}>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', padding: 16, borderRadius: 12, border: '1px solid var(--line)', marginBottom: 20 }}>
             <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>2. Número de Contrarecibo</label>
             <input 
               type="text" 

@@ -80,19 +80,13 @@ export interface OrderModalContextType {
   emailClient: () => void;
   
   // --- Handlers: Productos ---
-  addItem: () => void;
-  updateItem: <F extends keyof PurchaseOrderItem>(index: number, field: F, value: PurchaseOrderItem[F]) => void;
-  removeItem: (index: number) => void;
+  // (Delegados a useOrderProducts.ts)
   
   // --- Handlers: Entregas ---
-  addDelivery: () => void;
-  updateDelivery: <F extends keyof Delivery>(index: number, field: F, value: Delivery[F]) => void;
-  updateDeliveryItemQty: (deliveryIndex: number, itemId: string, quantity: number) => void;
-  removeDelivery: (index: number) => void;
+  // (Delegados a useOrderDeliveries.ts)
   
   // --- Handlers: Facturas ---
   // (Delegados a useInvoiceActions.ts y InvoiceWidget.tsx)
-  facturarEntrega: (deliveryIndex: number) => void;
   
   // --- Impresiones ---
   printRemision: () => void;

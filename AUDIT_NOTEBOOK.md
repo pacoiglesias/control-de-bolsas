@@ -971,3 +971,13 @@ Cuatro flujos de escritura distintos actualizaban el campo `invoices` de un expe
 **Riesgo:** 🟢 Bajo — solo cambia cómo se obtienen los datos, no qué datos se devuelven.
 **Commit:** `fix(functions): getActiveMaquilaOrders -- filtrar isArchived del lado del servidor sin where(), evita depender de un indice de Firestore que aun no existe`
 **Estado:** ✅ Compilado y verificado — `tsc` limpio (frontend y functions), `eslint` sin cambios (2 warnings preexistentes), 42/42 pruebas, build completo. **Requiere `firebase deploy --only functions` para tomar efecto** — el mismo paso pendiente de la Iteración 78.
+
+### Iteración 89: Fase 3 — Desacoplamiento Operativo y Optimización React (COMPLETADO)
+**Fecha:** 2026-08-08
+**Archivos:** `OrdersContext.tsx`, `InvoicesContext.tsx`, `PurchasesContext.tsx`, `ExpensesContext.tsx`, `ProductsContext.tsx`, `src/lib/finance.ts`, `FacturasCRModal.tsx`, `QuickCollectionModal.tsx`, `task.md`, `OrderModalProvider.tsx` (entre otros para desacoplamiento).
+**Problemas Resueltos:**
+1. **Billing Loops en Firestore (Fase 3.3):** Validado el uso correcto de `[]` como dependencia en todos los `useEffect` con `onSnapshot`. Se optimizó el renderizado con `useMemo` en contextos superiores (`ProductsContext`, `ExpensesContext`).
+2. **Centralización Matemática (Fase 3.8):** Reemplazo de multiplicación nativa riesgosa (`*`) por métodos seguros de `Decimal.js` (`.times().toNumber()`) en el calculo de `liveMargenTotal` de `finance.ts`.
+3. **Consistencia Visual Glassmorphism (Fase 3.10):** Se aplicó `--glass-bg` y `backdrop-filter: blur(12px)` a las ventanas de `FacturasCRModal.tsx` y `QuickCollectionModal.tsx` igualando al Dashboard. Verificada disponibilidad del `Skeleton` nativo.
+4. **Desacoplamiento Monolítico (Fase 3.1):** `OrderModal` se rompió en submódulos lógicos (`useOrderForm.ts`, `useOrderDeliveries.ts`, etc.).
+**Estado:** ✅ Verificado - tsc limpio, build exitoso.

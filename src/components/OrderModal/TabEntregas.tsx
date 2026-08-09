@@ -6,6 +6,7 @@ import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
 import { db, PATHS } from '../../lib/firebase';
+import { useOrderDeliveries } from './useOrderDeliveries';
 
 function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) => void, onCancel: () => void }) {
   const { deliveries, loading } = useMaquilaDeliveries();
@@ -36,7 +37,8 @@ export default function TabEntregas() {
   const [showPortal, setShowPortal] = React.useState(false);
 
   if (!ctx) return null;
-  const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = ctx;
+  const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, setTab } = ctx;
+  const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
 
   const handleImportMaquilaDelivery = async (d: any) => {
     // 1. Encuentra el ítem en la OC actual (buscando por código o por id)
@@ -125,7 +127,7 @@ export default function TabEntregas() {
                 {form.deliveries.map((d: any, i: number) => {
                   const kilosDeEsta = round2((d.items ?? []).reduce((a: number, x: any) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
                   return (
-                    <div key={d.id} style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 14 }}>
+                    <div key={d.id} className="glass-panel" style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                           <input className="input boxed mono" type="date"

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { Expense } from '../lib/types';
@@ -45,8 +45,10 @@ export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => unsub();
   }, []);
 
+  const value = useMemo(() => ({ expenses, loading, error }), [expenses, loading, error]);
+
   return (
-    <ExpensesContext.Provider value={{ expenses, loading, error }}>
+    <ExpensesContext.Provider value={value}>
       {children}
     </ExpensesContext.Provider>
   );
