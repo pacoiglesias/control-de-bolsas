@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.4',
+    date: '8 de Agosto de 2026',
+    time: '07:20 PM',
+    summary: 'Fase 5 (Etapas 2 y 3): Colaboración Multi-jugador, Analítica Predictiva, Aprobación de Excedentes y Máscaras de Moneda.',
+    highlights: [
+      'Indicadores de Presencia en Tiempo Real: Ve quién más está conectado y en qué pantalla para evitar colisiones.',
+      'Analítica Predictiva: El Dashboard ahora proyecta el flujo de caja a 30 días con base en las fechas de vencimiento reales.',
+      'Flujo de Aprobación de Maquila: El portal de maquiladores ahora permite registrar kilos excedentes, dejándolos en estado de "Aprobación Pendiente".',
+      'Formatos Monetarios (Masking): Se integró el componente CurrencyInput en Caja Chica y Ajustes para auto-formatear monedas (ej. 1000 -> $1,000.00).'
+    ]
+  },
+  {
     version: 'v7.0.3',
     date: '8 de Agosto de 2026',
     time: '06:45 PM',
