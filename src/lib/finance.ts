@@ -131,7 +131,7 @@ export function getOrderSummary(o: PurchaseOrder) {
     }
   }
 
-  const kilosDelivered = round2(deliveries.reduce((a, d) => a + d.kilos, 0));
+  const kilosDelivered = round2(deliveries.reduce((a, d) => a + Number(d.kilos || 0), 0));
   
   let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
   let tradeMargin = new Decimal(0), realizedProfit = new Decimal(0);
@@ -140,7 +140,7 @@ export function getOrderSummary(o: PurchaseOrder) {
   let maxDaysLate: number | null = null;
 
   for (const i of invoices) {
-    kilosInvoiced = kilosInvoiced.plus(i.kilos || 0);
+    kilosInvoiced = kilosInvoiced.plus(Number(i.kilos || 0));
     invoiceTotal = invoiceTotal.plus(i.financials?.invoiceTotal || 0);
     saleTotal = saleTotal.plus(i.financials?.saleTotal || 0);
     commission = commission.plus(i.financials?.commission || 0);

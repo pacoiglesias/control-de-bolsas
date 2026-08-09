@@ -247,7 +247,7 @@ export default function OcTracking() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ocGroups.map(group => {
           const totalAmt = group.invoices.reduce((s, i) => s + i.amount, 0);
-          const totalKilos = group.invoices.reduce((s, i) => s + i.kilos, 0);
+          const totalKilos = group.invoices.reduce((s, i) => s + Number(i.kilos), 0);
           const paidCount = group.invoices.filter(i => i.paid).length;
           const allPaid = group.invoices.length > 0 && paidCount === group.invoices.length;
           const nonePaid = paidCount === 0;
@@ -262,12 +262,12 @@ export default function OcTracking() {
           }
 
           const summary = group.order ? getOrderSummary(group.order) : null;
-          const kilosPedidos = group.order?.totalKilograms ?? 0;
-          const kilosEntregados = summary?.kilosDelivered ?? 0;
+          const kilosPedidos = Number(group.order?.totalKilograms ?? 0);
+          const kilosEntregados = Number(summary?.kilosDelivered ?? 0);
           const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
           // Usar totalKilos (facturados) también desde summary para consistencia, 
           // aunque aquí es de 'invoices' de la agrupación, usemos summary si existe.
-          const kilosFacturados = summary?.kilosInvoiced ?? totalKilos;
+          const kilosFacturados = Number(summary?.kilosInvoiced ?? totalKilos);
 
           return (
             <div
