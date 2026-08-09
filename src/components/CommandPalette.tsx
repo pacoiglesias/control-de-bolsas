@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useOrdersContext } from '../context/OrdersContext';
 import { usePurchases } from '../hooks/usePurchases';
-import { useExpenses } from '../hooks/useExpenses';
 import { money } from '../lib/format';
 
 export function CommandPalette() {
@@ -11,7 +10,6 @@ export function CommandPalette() {
 
   const { orders } = useOrdersContext();
   const { purchases } = usePurchases();
-  const { expenses } = useExpenses();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -52,9 +50,8 @@ export function CommandPalette() {
 
     const matchedPurchases = purchases.filter(
       (p) =>
-        p.folio?.toLowerCase().includes(q) ||
         p.provider?.toLowerCase().includes(q)
-    ).map(p => ({ type: 'purchase', id: p.id, label: `Compra ${p.folio}`, desc: p.provider, val: money(p.totalAmount || 0) }));
+    ).map(p => ({ type: 'purchase', id: p.id, label: `Compra ${p.id.substring(0,6)}`, desc: p.provider, val: money(p.totalAmount || 0) }));
 
     results = [...matchedOrders, ...matchedPurchases].slice(0, 10);
   }

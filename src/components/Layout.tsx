@@ -7,6 +7,7 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 import { CommandMenu } from './CommandMenu/CommandMenu';
+import { OnlineUsers } from './OnlineUsers';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -131,6 +132,7 @@ export default function Layout() {
         </button>
         <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
         <span className="spacer" />
+        <OnlineUsers />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
           {isOnline ? 'Sistema OK' : 'Sin conexión'}

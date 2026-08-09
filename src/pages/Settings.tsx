@@ -10,6 +10,7 @@ import { Navigate } from 'react-router-dom';
 import { logAction } from '../lib/logger';
 import { getOrderSummary } from '../lib/finance';
 import { Card, Field, Spinner } from '../components/ui';
+import { CurrencyInput } from '../components/CurrencyInput';
 import { useToast } from '../context/ToastContext';
 import { computeFinancials } from '../lib/finance';
 import { camposInvoices } from '../lib/invoiceOps';
@@ -291,12 +292,12 @@ export default function Settings() {
         <div style={{ padding: 16 }}>
           <div className="form-grid">
             <Field label="Precio de venta por kilo">
-              <input className="input boxed mono" type="number" step="0.01" value={form.salePricePerKg}
-                onChange={(e) => setForm({ ...form, salePricePerKg: Number(e.target.value) })} />
+              <CurrencyInput className="input boxed mono" value={form.salePricePerKg}
+                onChange={(val) => setForm({ ...form, salePricePerKg: val })} />
             </Field>
             <Field label="Costo por kilo">
-              <input className="input boxed mono" type="number" step="0.01" value={form.costPricePerKg}
-                onChange={(e) => setForm({ ...form, costPricePerKg: Number(e.target.value) })} />
+              <CurrencyInput className="input boxed mono" value={form.costPricePerKg}
+                onChange={(val) => setForm({ ...form, costPricePerKg: val })} />
             </Field>
             <Field label="Comisión del contador (%)">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -371,8 +372,8 @@ export default function Settings() {
           </p>
           <div className="form-grid">
             <Field label="Deuda Histórica inicial con Andrés ($)">
-              <input className="input boxed mono" type="number" step="0.01" value={form.historicalDebtAndres ?? 0}
-                onChange={(e) => setForm({ ...form, historicalDebtAndres: Number(e.target.value) })} />
+              <CurrencyInput className="input boxed mono" value={form.historicalDebtAndres ?? 0}
+                onChange={(val) => setForm({ ...form, historicalDebtAndres: val })} />
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
                 Valores positivos indican que le debes (pasivo). Si pones 102670.28, le debes eso a Andrés.
               </div>

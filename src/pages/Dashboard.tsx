@@ -29,6 +29,7 @@ import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
 import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
 import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
+import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -425,7 +426,11 @@ return () => unsub();
         />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>
+      {role === 'admin' && (
+        <CashflowProjection orders={activeOrders} />
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24, marginTop: role === 'admin' ? 16 : 24 }}>
         
         {role === 'admin' && (
           <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>

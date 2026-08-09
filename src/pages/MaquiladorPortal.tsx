@@ -185,8 +185,8 @@ export default function MaquiladorPortal() {
     e.preventDefault();
     if (!orderId) return toast('Selecciona una orden de compra', 'bad');
     if (!kilos || isNaN(Number(kilos)) || Number(kilos) <= 0) return toast('Ingresa kilos válidos', 'bad');
-    if (selectedOrder && Number(kilos) > selectedOrder.pendingKilos)
-      return toast(`Máximo ${selectedOrder.pendingKilos} kg pendientes`, 'bad');
+    
+    const requiresApproval = selectedOrder && Number(kilos) > selectedOrder.pendingKilos;
 
     setSaving(true);
     try {
@@ -196,7 +196,7 @@ export default function MaquiladorPortal() {
         folio: selectedOrder.folio,
         productDescription: selectedOrder.productDescription,
         kilos: Number(kilos),
-        status: 'pending',
+        status: requiresApproval ? 'pending_approval' : 'pending',
         createdAt: serverTimestamp(),
       });
       setHistorial(h => [{
@@ -206,7 +206,13 @@ export default function MaquiladorPortal() {
         kilos: Number(kilos),
         date: new Date(),
       }, ...h]);
-      toast(`✅ Entrega de ${kilos} kg registrada exitosamente`, 'ok');
+      
+      if (requiresApproval) {
+        toast(`⚠ Entrega de ${kilos} kg excede lo pedido. Queda pendiente de aprobación por administración.`, 'ok');
+      } else {
+        toast(`✓ Entrega de ${kilos} kg registrada exitosamente`, 'ok');
+      }
+
       setKilos('');
       setOrderId('');
       recargar();
@@ -317,7 +323,7 @@ export default function MaquiladorPortal() {
                     type="number" step="0.01" inputMode="decimal"
                     value={kilos}
                     onChange={e => setKilos(e.target.value)}
-                    placeholder={`Máx. ${selectedOrder.pendingKilos} kg`}
+                    placeholder={`Normal: hasta ${selectedOrder.pendingKilos} kg`}
                     style={{
                       width: '100%', boxSizing: 'border-box',
                       padding: '16px', fontSize: 28, fontWeight: 800, textAlign: 'center',

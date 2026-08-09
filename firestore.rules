@@ -199,6 +199,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /presence/{uid} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isAuthenticatedUser() && request.auth.uid == uid;
+    }
+
     // Todo lo demás queda cerrado.
     match /{document=**} {
       allow read, write: if false;

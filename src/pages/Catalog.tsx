@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Field, Spinner, Skeleton } from '../components/ui';
+import { Card, Field, Skeleton } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { safeDeleteDoc } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';

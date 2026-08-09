@@ -66,6 +66,7 @@ async function readConfig(): Promise<FinanceConfigCore> {
   };
 }
 
+// Force deploy to fix CORS/IAM policy
 export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, async (request) => {
 
   const { action, pin } = request.data || {};

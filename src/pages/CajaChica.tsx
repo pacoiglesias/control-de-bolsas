@@ -4,6 +4,7 @@ import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
 import { Card, Empty, Field, Drawer, Skeleton } from '../components/ui';
+import { CurrencyInput } from '../components/CurrencyInput';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
@@ -507,7 +508,7 @@ function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClo
           <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder={`Ej. ${provName}`} />
         </Field>
         <Field label="Monto">
-          <input className="input boxed mono" type="number" step="0.01" value={form.amount} onChange={(e) => set('amount', e.target.value)} />
+          <CurrencyInput className="input boxed mono" value={Number(form.amount) || 0} onChange={(val) => set('amount', String(val))} />
         </Field>
         <Field label="Notas adicionales" full>
           <textarea className="input boxed" value={form.notes} onChange={(e) => set('notes', e.target.value)} />

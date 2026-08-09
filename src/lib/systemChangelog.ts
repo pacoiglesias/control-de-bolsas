@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.3',
+    date: '8 de Agosto de 2026',
+    time: '06:45 PM',
+    summary: 'Fase 5: UI/UX Glassmorphism, Skeleton Loaders, Command Palette Global (Ctrl+K) y Notificaciones Deshacer (Undo).',
+    highlights: [
+      'Implementado diseño Glassmorphism con sombras profundas y desenfoque, nueva tipografía.',
+      'Añadidos Skeleton Loaders animados en todo el sistema para cargas más elegantes.',
+      'Lanzamiento de Command Palette Global: presiona Ctrl+K en cualquier lugar para buscar expedientes.',
+      'Soporte completo Offline-First vía PWA (Progressive Web App) para seguir operando sin red.',
+      'Soporte para notificaciones flotantes con opción "Deshacer" en varias pantallas operativas.'
+    ]
+  },
+  {
     version: 'v7.0.1',
     date: '6 de Agosto de 2026',
     time: '11:59 PM',
