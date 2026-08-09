@@ -9,6 +9,7 @@ import { PurchasesProvider } from './context/PurchasesContext';
 import { ProductsProvider } from './context/ProductsContext';
 import { ExpensesProvider } from './context/ExpensesContext';
 import { InvoicesProvider } from './context/InvoicesContext';
+import { CommandPalette } from './components/CommandPalette';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -65,6 +66,7 @@ function AppProviders({ children }: { children: React.ReactNode }) {
             <ExpensesProvider>
               <ToastProvider>
                 <UndoProvider>
+                  <CommandPalette />
                   {children}
                 </UndoProvider>
               </ToastProvider>

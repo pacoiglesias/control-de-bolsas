@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { getOrderSummary } from '../lib/finance';
 import { money, kilos, percent, fmtDate } from '../lib/format';
-import { StatusBadge } from '../components/ui';
+import { Skeleton, StatusBadge } from '../components/ui';
 import { useConfig } from '../hooks/useConfig';
 
 export default function DataMining() {
@@ -158,7 +158,11 @@ export default function DataMining() {
     html2pdf().set(opt).from(html).save();
   };
 
-  if (loading || configLoading) return <div className="p-8">Cargando Sábana Maestra...</div>;
+  if (loading || configLoading) return (
+    <div className="p-8">
+      <Skeleton className="skeleton-card" style={{ height: '80vh' }} />
+    </div>
+  );
   if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
 
   // KPIs Rápidos

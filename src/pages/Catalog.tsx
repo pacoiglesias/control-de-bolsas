@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Field, Spinner } from '../components/ui';
+import { Card, Field, Spinner, Skeleton } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { safeDeleteDoc } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
@@ -90,7 +90,12 @@ export default function Catalog() {
     });
   }, [products, orders]);
 
-  if (pLoad || oLoad) return <Spinner />;
+  if (pLoad || oLoad) return (
+    <div className="content">
+      <Skeleton className="skeleton-card" style={{ height: 200, marginBottom: 24 }} />
+      <Skeleton className="skeleton-card" style={{ height: 400 }} />
+    </div>
+  );
   if (pErr || oErr) return <div className="alert bad">Error cargando catálogo</div>;
 
   return (

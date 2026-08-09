@@ -396,13 +396,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
     throw error;
   }
 }
-
-export const parseUploadedPDF = onObjectFinalized(
-  {
-    // MAX_INTENTOS veces, asi que esto no dispara reintentos infinitos.
-    retry: true,
-  },
-  async (event) => {
+export const parseUploadedPDF = onObjectFinalized(async (event) => {
     const filePath = event.data.name;
     const contentType = event.data.contentType ?? "";
 

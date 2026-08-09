@@ -53,9 +53,10 @@ export function useOrderActions() {
         if (!continuar) return;
       }
     }
-    const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined;
-    const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined;
-    const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) : undefined;
+    // Congelamos siempre el precio para evitar fluctuaciones si la config global cambia
+    const ccp = form.customCostPrice !== '' ? Number(form.customCostPrice) : (dynamicConfig as any).costPricePerKg;
+    const csp = form.customSellPrice !== '' ? Number(form.customSellPrice) : (dynamicConfig as any).salePricePerKg;
+    const ccr = form.customCommissionRate !== '' ? Number(form.customCommissionRate) / 100 : (dynamicConfig as any).commissionRate;
 
     if ((ccp !== undefined && isNaN(ccp)) || (csp !== undefined && isNaN(csp)) || (ccr !== undefined && isNaN(ccr))) {
       toast('Por favor, ingresa solo números válidos en Costo, Precio o Comisión.', 'bad');
@@ -134,9 +135,11 @@ export function useOrderActions() {
           processedAt: order.processedAt ?? serverTimestamp(),
           isClosedShort: form.isClosedShort ?? false,
         };
-        if (ccp !== undefined) datosBase.customCostPrice = ccp;
-        if (csp !== undefined) datosBase.customSellPrice = csp;
-        if (ccr !== undefined) datosBase.customCommissionRate = ccr;
+        // Siempre guardamos los precios para congelar los históricos
+        datosBase.customCostPrice = ccp;
+        datosBase.customSellPrice = csp;
+        datosBase.customCommissionRate = ccr;
+        
         // "Folio" y "OC" son documentos distintos
         const ocValue = (form as any).oc?.trim?.();
         if (ocValue) datosBase.oc = ocValue;
