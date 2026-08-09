@@ -8,6 +8,15 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.9',
+    date: '8 de Agosto de 2026',
+    time: '11:55 PM',
+    summary: 'Hotfix: Cálculo de Kilos Surtidos',
+    highlights: [
+      'Corregido el cálculo de Kilos Surtidos en la vista de Por OC para considerar correctamente las cantidades detalladas por producto en las entregas.'
+    ]
+  },
+  {
     version: 'v7.0.7',
     date: '8 de Agosto de 2026',
     time: '11:30 PM',
