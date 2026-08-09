@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.7',
+    date: '8 de Agosto de 2026',
+    time: '11:30 PM',
+    summary: 'Fase 7: Omnipresencia, Flujo Rápido y Mejoras en Por OC',
+    highlights: [
+      'Command Palette Global: Navega a cualquier módulo o busca expedientes y compras al instante presionando Ctrl+K.',
+      'Filtros Interactivos: Reemplazados los menús desplegables por "Chips" animados en Expedientes y Compras.',
+      'Input Masking: Entradas de dinero con formato automático (CurrencyInput) en Caja Chica y facturas.',
+      'Mejoras en Por OC: Rediseño Glassmorphism, métricas claras de faltantes y barra de avance de entregas.',
+      'Validaciones Cruzadas: Alerta visual si el precio capturado en un producto difiere del Catálogo Inteligente.'
+    ]
+  },
+  {
     version: 'v7.0.6',
     date: '8 de Agosto de 2026',
     time: '11:00 PM',

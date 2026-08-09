@@ -273,10 +273,22 @@ export default function OcTracking() {
             <div
               key={group.oc}
               style={{
-                background: 'var(--paper-raised)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
+                background: 'var(--glass-bg, #ffffff)',
+                backdropFilter: 'var(--glass-blur, none)',
+                WebkitBackdropFilter: 'var(--glass-blur, none)',
+                border: '1px solid var(--glass-border, var(--border))',
+                borderRadius: 12,
                 overflow: 'hidden',
+                boxShadow: 'var(--glass-shadow, 0 1px 3px rgba(0,0,0,0.05))',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.08)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'var(--glass-shadow, 0 1px 3px rgba(0,0,0,0.05))';
               }}
             >
               {/* Cabecera del grupo */}
@@ -296,24 +308,39 @@ export default function OcTracking() {
                   <div style={{ fontWeight: 700, fontSize: 15, fontFamily: 'monospace' }}>
                     OC: {group.oc} {group.order?.client && <span style={{color: 'var(--muted)', fontWeight: 400, marginLeft: 8}}>{group.order.client}</span>}
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                    <span style={{ color: 'var(--text)' }}>Pedida: {kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
-                    {' · '}
-                    <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Surtido: {kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
-                    {' · '}
-                    <span style={{ color: 'var(--info)' }}>Faltan: {kilosFaltantes.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
-                    {' · '}
-                    <span style={{ color: kilosFacturados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--text)' }}>Facturada: {kilosFacturados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: 'var(--ink)' }}>Pedida:</span> <strong>{kilosPedidos > 0 ? kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '—'} kg</strong>
+                    </div>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Surtida:</span> <strong>{kilosEntregados > 0 ? kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '—'} kg</strong>
+                    </div>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: kilosFaltantes > 0 ? 'var(--info)' : 'var(--ok)' }}>Por Surtir:</span> <strong>{kilosFaltantes > 0 ? kilosFaltantes.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '0'} kg</strong>
+                    </div>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: kilosFacturados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--text)' }}>Facturada:</span> <strong>{kilosFacturados > 0 ? kilosFacturados.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '—'} kg</strong>
+                    </div>
+                    {kilosEntregados > kilosFacturados && (
+                      <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', padding: '4px 8px', borderRadius: 6, fontWeight: 600 }}>
+                        ⏳ Pendiente de Facturar: {(kilosEntregados - kilosFacturados).toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg
+                      </div>
+                    )}
                   </div>
                   {kilosPedidos > 0 && (
-                    <div style={{ marginTop: 8, maxWidth: 300 }}>
-                      <ProgressBar current={kilosFacturados} max={kilosPedidos} color={kilosFacturados >= kilosPedidos ? 'var(--ok)' : 'var(--accent)'} />
+                    <div style={{ marginTop: 12, maxWidth: 400 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: 'var(--muted)', fontWeight: 600 }}>
+                        <span>Avance de Surtido</span>
+                        <span>{Math.round((kilosEntregados / kilosPedidos) * 100)}%</span>
+                      </div>
+                      <ProgressBar current={kilosEntregados} max={kilosPedidos} color={kilosEntregados >= kilosPedidos ? 'var(--ok)' : 'var(--accent)'} />
                     </div>
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{money(totalAmt)}</div>
-                  <div style={{ fontSize: 12, color: statusColor, marginTop: 2 }}>{statusLabel}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monto Facturado</div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>{money(totalAmt)}</div>
+                  <div style={{ fontSize: 12, color: statusColor, marginTop: 4, fontWeight: 600, background: 'var(--surface-alt)', padding: '2px 8px', borderRadius: 12, display: 'inline-block' }}>{statusLabel}</div>
                 </div>
                 <button
                   className="btn"

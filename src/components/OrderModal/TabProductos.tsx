@@ -5,12 +5,14 @@ import { money } from '../../lib/format';
 import type { PurchaseOrderItem } from '../../lib/types';
 import { processPdfOrder } from '../../lib/ocr';
 import { useOrderProducts } from './useOrderProducts';
+import { useProducts } from '../../hooks/useProducts';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
   if (!ctx) return null;
   const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast } = ctx;
+  const { products } = useProducts();
   const { addItem, updateItem, removeItem } = useOrderProducts(form.items, setForm, config);
 
   /**
@@ -222,8 +224,18 @@ export default function TabProductos() {
                             defaultValue={it.description} onBlur={e => updateItem(i, 'description', e.target.value)} disabled={readOnly} />
                         </td>
                         <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
-                            defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                            {(() => {
+                              const cat = products?.find((p: any) => p.description === it.description);
+                              const cp = cat?.defaultPrice || 0;
+                              const difiere = cp > 0 && Math.abs(it.unitPrice - cp) > 0.01;
+                              return difiere ? (
+                                <span title={`Difiere del catálogo (${money(cp)})`} style={{ cursor: 'help', fontSize: 16 }}>⚠️</span>
+                              ) : null;
+                            })()}
+                            <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
+                              defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
+                          </div>
                         </td>
                         <td className="num mono" style={{ verticalAlign: 'middle', fontWeight: 600 }}>
                           {money(it.amount)}

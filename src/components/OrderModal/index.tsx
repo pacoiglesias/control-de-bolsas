@@ -13,6 +13,7 @@ import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
 import TabEntregas from './TabEntregas';
 import { money } from '../../lib/format';
+import { useProducts } from '../../hooks/useProducts';
 
 // ─── Identidad visual de cada documento ───────────────────────────────────────
 const BADGE = {
@@ -45,7 +46,6 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     order,
     form,
     readOnly,
-    products,
     knownClients,
     knownProviders,
     knownClientEmails,
@@ -68,6 +68,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
 
   // Estado local: ¿mostrar el modal de Facturas & CR?
   const [showCRModal, setShowCRModal] = useState(initialOpenCR);
+  const { products } = useProducts();
 
   // CRs únicos del expediente para mostrar en la cabecera
   const crs = [...new Set(

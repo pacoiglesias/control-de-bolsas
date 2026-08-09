@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useOrdersContext } from '../context/OrdersContext';
 import { usePurchases } from '../hooks/usePurchases';
+import { useNavigate } from 'react-router-dom';
 import { money } from '../lib/format';
 
 export function CommandPalette() {
@@ -10,6 +11,18 @@ export function CommandPalette() {
 
   const { orders } = useOrdersContext();
   const { purchases } = usePurchases();
+  const navigate = useNavigate();
+
+  const ROUTES = [
+    { label: 'Ir a Dashboard', path: '/', icon: '📊' },
+    { label: 'Ir a Expedientes (Órdenes)', path: '/ordenes', icon: '📂' },
+    { label: 'Ir a Caja Chica', path: '/caja-chica', icon: '💰' },
+    { label: 'Ir a Compras y Proveedores', path: '/compras', icon: '🛒' },
+    { label: 'Ir a Por OC (Entregas)', path: '/oc', icon: '📦' },
+    { label: 'Ir a Catálogo Inteligente', path: '/catalogo', icon: '🏷️' },
+    { label: 'Ir a Data Mining', path: '/mining', icon: '⛏️' },
+    { label: 'Ir a Centro de Control', path: '/centro-control', icon: '⚙️' }
+  ];
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,15 +66,30 @@ export function CommandPalette() {
         p.provider?.toLowerCase().includes(q)
     ).map(p => ({ type: 'purchase', id: p.id, label: `Compra ${p.id.substring(0,6)}`, desc: p.provider, val: money(p.totalAmount || 0) }));
 
-    results = [...matchedOrders, ...matchedPurchases].slice(0, 10);
+    const matchedRoutes = ROUTES.filter(r => 
+      r.label.toLowerCase().includes(q)
+    ).map(r => ({ type: 'route', id: r.path, label: r.label, desc: 'Navegación', val: r.icon }));
+
+    results = [...matchedRoutes, ...matchedOrders, ...matchedPurchases].slice(0, 10);
+  } else {
+    // Default suggestions when empty
+    results = ROUTES.slice(0, 5).map(r => ({ type: 'route', id: r.path, label: r.label, desc: 'Navegación', val: r.icon }));
   }
 
   const navigateTo = (type: string, id: string) => {
     setIsOpen(false);
-    if (type === 'order') {
-      window.dispatchEvent(new CustomEvent('open-order-modal', { detail: id }));
+    if (type === 'route') {
+      navigate(id);
+    } else if (type === 'order') {
+      navigate('/ordenes');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-order-modal', { detail: id }));
+      }, 100);
     } else if (type === 'purchase') {
-      window.dispatchEvent(new CustomEvent('open-purchase-modal', { detail: id }));
+      navigate('/compras');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-purchase-modal', { detail: id }));
+      }, 100);
     }
   };
 

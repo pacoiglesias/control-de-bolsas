@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Field, CopyButton } from '../ui';
+import { CurrencyInput } from '../CurrencyInput';
 import { fromInputDate, money, toInputDate, toDate } from '../../lib/format';
 import { Timestamp, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { addDays, computeFinancials, round2 } from '../../lib/finance';
@@ -229,10 +230,11 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
             </Field>
             <Field label="Monto Cobrado">
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input className="input boxed mono" type="number" step="0.01" 
-                  value={localInvoice.collection?.paidAmount !== undefined ? localInvoice.collection.paidAmount : ''}
+                <CurrencyInput 
+                  className="input boxed mono"
+                  value={localInvoice.collection?.paidAmount || 0}
                   disabled={readOnly}
-                  onChange={e => updateField(['collection', 'paidAmount'], Number(e.target.value))} 
+                  onChange={val => updateField(['collection', 'paidAmount'], val)} 
                   style={{ flex: 1 }}
                 />
               </div>

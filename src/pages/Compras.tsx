@@ -165,27 +165,39 @@ export default function Compras() {
 
       {tab === 'ordenes' && (
         <Card title="Control de Órdenes (OC)">
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <input 
-                type="search" 
-                className="input boxed" 
-                placeholder="Buscar por folio o concepto..." 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-                style={{ maxWidth: 300 }}
-              />
-              <select className="input boxed" value={filter} onChange={e => setFilter(e.target.value as 'activas'|'completadas'|'todas')}>
-                <option value="activas">Solo Activas (Pendientes de llegar)</option>
-                <option value="completadas">Solo Completadas (Llegó el 100%)</option>
-                <option value="todas">Mostrar Todas</option>
-              </select>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16, justifyContent: 'space-between' }}>
+              <div className="chip-row">
+                <button 
+                  className={`chip ${filter === 'todas' ? 'active' : ''}`}
+                  onClick={() => setFilter('todas')}
+                >
+                  Todas
+                </button>
+                <button 
+                  className={`chip ${filter === 'activas' ? 'active' : ''}`}
+                  onClick={() => setFilter('activas')}
+                >
+                  🔴 Pendientes
+                </button>
+                <button 
+                  className={`chip ${filter === 'completadas' ? 'active' : ''}`}
+                  onClick={() => setFilter('completadas')}
+                >
+                  ✅ Completadas
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input 
+                  className="search-input" 
+                  placeholder="Buscar proveedor o referencia..." 
+                  value={search} 
+                  onChange={e => setSearch(e.target.value)} 
+                  style={{ maxWidth: 300 }}
+                />
+                <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
+                <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
-              <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
-            </div>
-          </div>
           {view === 'tablero' ? (
             <ComprasKanban purchases={provPurchases} orderById={orderById} onSelect={setSelected} />
           ) : provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (() => {
