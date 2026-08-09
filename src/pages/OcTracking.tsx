@@ -7,8 +7,8 @@ import OrderModal from '../components/OrderModal';
 import { EntregasKanban } from '../components/OcTracking/EntregasKanban';
 import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-// money vivia duplicada aqui con su propia implementacion. Una sola.
 import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
+import { getOrderSummary } from '../lib/finance';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -261,13 +261,13 @@ export default function OcTracking() {
             statusLabel = allPaid ? '✅ Cobradas' : nonePaid ? '🔴 Pendientes' : `🟡 Parcial (${paidCount}/${group.invoices.length})`;
           }
 
+          const summary = group.order ? getOrderSummary(group.order) : null;
           const kilosPedidos = group.order?.totalKilograms ?? 0;
-          
-          const kilosEntregados = group.order?.deliveries?.reduce((acc, d) => {
-             const itemsTotal = d.items?.reduce((s, it) => s + (Number(it.quantity)||0), 0) || 0;
-             return acc + (itemsTotal > 0 ? itemsTotal : (Number(d.kilos)||0));
-          }, 0) ?? 0;
+          const kilosEntregados = summary?.kilosDelivered ?? 0;
           const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
+          // Usar totalKilos (facturados) también desde summary para consistencia, 
+          // aunque aquí es de 'invoices' de la agrupación, usemos summary si existe.
+          const kilosFacturados = summary?.kilosInvoiced ?? totalKilos;
 
           return (
             <div
@@ -303,11 +303,11 @@ export default function OcTracking() {
                     {' · '}
                     <span style={{ color: 'var(--info)' }}>Faltan: {kilosFaltantes.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                     {' · '}
-                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--text)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                    <span style={{ color: kilosFacturados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--text)' }}>Facturada: {kilosFacturados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
                   </div>
                   {kilosPedidos > 0 && (
                     <div style={{ marginTop: 8, maxWidth: 300 }}>
-                      <ProgressBar current={totalKilos} max={kilosPedidos} color={totalKilos >= kilosPedidos ? 'var(--ok)' : 'var(--accent)'} />
+                      <ProgressBar current={kilosFacturados} max={kilosPedidos} color={kilosFacturados >= kilosPedidos ? 'var(--ok)' : 'var(--accent)'} />
                     </div>
                   )}
                 </div>

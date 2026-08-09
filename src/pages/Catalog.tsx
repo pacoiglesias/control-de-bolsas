@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Field, Skeleton } from '../components/ui';
+import { Card, Field, Skeleton, Drawer } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { safeDeleteDoc } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +19,7 @@ export default function Catalog() {
   // ni de corregir descripcion, unidad o precio sin ir a otra pantalla.
   const [nuevo, setNuevo] = useState({ code: '', description: '', unit: 'kg', defaultPrice: '' });
   const [creando, setCreando] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const analytics = useMemo(() => {
     if (!products || !orders) return [];
@@ -260,73 +261,34 @@ export default function Catalog() {
                     {p.status === 'green' && <span title="Surtido recientemente">🟢</span>}
                     {p.status === 'unknown' && <span title="Faltan datos para predecir">⚪</span>}
                   </div>
-                  <input
-                    className="input boxed"
-                    style={{ flex: 1, fontWeight: 700, fontSize: 16, padding: '8px 12px', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}
-                    defaultValue={p.description}
-                    placeholder="Descripción del producto"
-                    onBlur={async (e) => {
-                      if (e.target.value.trim() && e.target.value !== p.description) {
-                        try {
-                          await updateDoc(doc(db, PATHS.products, p.id), { description: e.target.value.trim() });
-                        } catch (err) {
-                          toast(`Error: ${(err as Error).message}`, 'bad');
-                        }
-                      }
-                    }}
-                  />
+                  <div style={{ flex: 1, fontWeight: 700, fontSize: 16 }}>
+                    {p.description}
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    className="input boxed mono"
-                    style={{ flex: 1, fontSize: 13, background: 'rgba(255,255,255,0.5)' }}
-                    defaultValue={p.code || ''}
-                    placeholder="SKU / Código"
-                    onBlur={async (e) => {
-                      if (e.target.value !== (p.code || '')) {
-                        try {
-                          await updateDoc(doc(db, PATHS.products, p.id), { code: e.target.value.trim() });
-                        } catch (err) {
-                          toast(`Error: ${(err as Error).message}`, 'bad');
-                        }
-                      }
-                    }}
-                  />
-                  <div style={{ display: 'flex', gap: 4, width: '120px' }}>
-                    <input
-                      className="input boxed mono"
-                      style={{ flex: 2, background: 'rgba(255,255,255,0.5)' }}
-                      type="number" step="0.01"
-                      defaultValue={p.defaultPrice}
-                      placeholder="Precio"
-                      onBlur={async (e) => {
-                        const v = Number(e.target.value);
-                        if (!isNaN(v) && v !== p.defaultPrice) {
-                          try {
-                            await updateDoc(doc(db, PATHS.products, p.id), { defaultPrice: v });
-                          } catch (err) {
-                            toast(`Error: ${(err as Error).message}`, 'bad');
-                          }
-                        }
-                      }}
-                    />
-                    <input
-                      className="input boxed"
-                      style={{ flex: 1, padding: '0 4px', textAlign: 'center', background: 'rgba(255,255,255,0.5)' }}
-                      defaultValue={p.unit}
-                      placeholder="Ud"
-                      onBlur={async (e) => {
-                        if (e.target.value.trim() && e.target.value !== p.unit) {
-                          try {
-                            await updateDoc(doc(db, PATHS.products, p.id), { unit: e.target.value.trim() });
-                          } catch (err) {
-                            toast(`Error: ${(err as Error).message}`, 'bad');
-                          }
-                        }
-                      }}
-                    />
+                <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--ink)' }}>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ color: 'var(--ink-soft)' }}>SKU: </span>
+                    <strong className="mono">{p.code || '—'}</strong>
                   </div>
+                  <div>
+                    <span style={{ color: 'var(--ink-soft)' }}>Precio: </span>
+                    <strong className="mono">${Number(p.defaultPrice || 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--ink-soft)' }}>Ud: </span>
+                    <strong>{p.unit}</strong>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <button 
+                    className="btn" 
+                    style={{ padding: '6px 12px', fontSize: 12 }} 
+                    onClick={() => setEditingProduct(p)}
+                  >
+                    ✏️ Editar Producto
+                  </button>
                 </div>
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
@@ -354,6 +316,89 @@ export default function Catalog() {
           </div>
         )}
       </Card>
+
+      {editingProduct && (
+        <EditProductDrawer 
+          product={editingProduct} 
+          onClose={() => setEditingProduct(null)} 
+        />
+      )}
     </>
+  );
+}
+
+function EditProductDrawer({ product, onClose }: { product: any, onClose: () => void }) {
+  const toast = useToast();
+  const [form, setForm] = useState({
+    code: product.code || '',
+    description: product.description || '',
+    unit: product.unit || '',
+    defaultPrice: product.defaultPrice || 0
+  });
+  const [busy, setBusy] = useState(false);
+
+  async function handleSave() {
+    if (!form.description.trim()) {
+      return toast('La descripción es obligatoria', 'bad');
+    }
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, PATHS.products, product.id), {
+        code: form.code.trim(),
+        description: form.description.trim(),
+        unit: form.unit.trim(),
+        defaultPrice: Number(form.defaultPrice)
+      });
+      toast('Producto actualizado correctamente', 'ok');
+      onClose();
+    } catch (err: any) {
+      toast(`Error al actualizar: ${err.message}`, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Drawer title="Editar Producto" onClose={onClose} width={500}>
+      <div className="form-grid">
+        <Field label="Código (SKU)">
+          <input 
+            className="input boxed mono" 
+            value={form.code} 
+            onChange={e => setForm({...form, code: e.target.value})} 
+          />
+        </Field>
+        <Field label="Descripción">
+          <input 
+            className="input boxed" 
+            value={form.description} 
+            onChange={e => setForm({...form, description: e.target.value})} 
+          />
+        </Field>
+        <Field label="Unidad">
+          <input 
+            className="input boxed" 
+            value={form.unit} 
+            onChange={e => setForm({...form, unit: e.target.value})} 
+          />
+        </Field>
+        <Field label="Precio Sugerido">
+          <input 
+            className="input boxed mono" 
+            type="number" step="0.01"
+            value={form.defaultPrice} 
+            onChange={e => setForm({...form, defaultPrice: e.target.value})} 
+          />
+        </Field>
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={busy}>
+          {busy ? 'Guardando...' : 'Guardar Cambios'}
+        </button>
+        <button className="btn" style={{ flex: 1 }} onClick={onClose} disabled={busy}>
+          Cancelar
+        </button>
+      </div>
+    </Drawer>
   );
 }

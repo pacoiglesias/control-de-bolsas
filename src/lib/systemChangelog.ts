@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.6',
+    date: '8 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Corrección OcTracking y Mejoras en Catálogo',
+    highlights: [
+      'OcTracking: Cálculos de kilos centralizados usando getOrderSummary.',
+      'Catalog: Eliminación de edición onBlur en tarjetas.',
+      'Catalog: Implementación de un Drawer dedicado para editar productos.'
+    ]
+  },
+  {
     version: 'v7.0.5',
     date: '8 de Agosto de 2026',
     time: '08:15 PM',
