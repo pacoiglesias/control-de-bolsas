@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
@@ -36,7 +36,8 @@ export default function Orders() {
   const [viewMode, setViewMode] = useState<'list'|'kanban'>('kanban');
   
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 30;
+  const observerTarget = useRef(null);
 
   useEffect(() => {
     const q = params.get('q');
@@ -135,8 +136,29 @@ export default function Orders() {
   }, [conResumen, filter, search, sortBy, sortDir]);
 
   const paginatedRows = useMemo(() => {
-    return rows.slice((page - 1) * pageSize, page * pageSize);
+    return rows.slice(0, page * pageSize);
   }, [rows, page]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && rows.length > page * pageSize) {
+          setPage(p => p + 1);
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [observerTarget, page, rows.length]);
 
   // Resetear página al cambiar filtro o búsqueda
   useEffect(() => {
@@ -443,16 +465,15 @@ export default function Orders() {
                 </tr>
               </tfoot>
             </table>
-          </div>
+              
+              {rows.length > page * pageSize && (
+                <div ref={observerTarget} style={{ height: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 10 }}>
+                  <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }}></div>
+                </div>
+              )}
+            </div>
         )}
         
-        {rows.length > pageSize && (
-          <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-            <button className="btn" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Anterior</button>
-            <span style={{ padding: '4px 12px', fontSize: '0.9em' }}>Página {page} de {Math.ceil(rows.length / pageSize)}</span>
-            <button className="btn" disabled={page >= Math.ceil(rows.length / pageSize)} onClick={() => setPage(p => p + 1)}>Siguiente</button>
-          </div>
-        )}
       </Card>
 
       {selected && (

@@ -17,6 +17,7 @@ import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finan
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
 import { motion } from 'framer-motion';
+import { useUndo } from '../context/UndoContext';
 
 export default function CajaChica() {
   const { role } = useAuth();
@@ -428,6 +429,7 @@ export default function CajaChica() {
 function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
   const { user } = useAuth();
   const toast = useToast();
+  const { executeWithUndo } = useUndo();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     date: toInputDate(expense.date),
@@ -471,22 +473,23 @@ function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClo
   }
 
   async function remove() {
-    if (!window.confirm('¿Borrar este movimiento?')) return;
-    setBusy(true);
-    try {
-      await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
-      await logAction(user?.email, 'Gasto Eliminado', {
-        id: expense.id,
-        concept: expense.concept,
-        amount: expense.amount
-      });
-      toast('Borrado', 'ok');
-      onClose();
-    } catch (e) {
-      toast(`Error: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBusy(false);
-    }
+    executeWithUndo(
+      async () => {
+        await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
+        await logAction(user?.email, 'Gasto Eliminado', {
+          id: expense.id,
+          concept: expense.concept,
+          amount: expense.amount
+        });
+        onClose();
+      },
+      async () => {
+        const ref = doc(db, PATHS.expenses, expense.id);
+        await setDoc(ref, expense);
+        await logAction(user?.email, 'Borrado de Gasto Deshecho', { id: expense.id });
+      },
+      `Movimiento de caja eliminado: ${expense.concept}`
+    );
   }
 
   return (

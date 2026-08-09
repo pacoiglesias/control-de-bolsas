@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.5',
+    date: '8 de Agosto de 2026',
+    time: '08:15 PM',
+    summary: 'Fase 6 (Inteligencia y Fricción Cero): Tarjetas proactivas, Snack-bar Undo y Tablas de Scroll Infinito.',
+    highlights: [
+      'Tarjetas Proactivas en Dashboard: Alertas automáticas para cobrar facturas y aprobar entregas excedentes de maquila.',
+      'Deshacer (Undo) tipo Snack-bar: Posibilidad de deshacer borrados accidentales en movimientos de Caja Chica mediante un mensaje flotante sin bloquear la UI.',
+      'Tablas de Scroll Infinito: La tabla de expedientes ahora carga exponencialmente a medida que haces scroll en vez de saturar la memoria inicial, usando Intersection Observer.'
+    ]
+  },
+  {
     version: 'v7.0.4',
     date: '8 de Agosto de 2026',
     time: '07:20 PM',

@@ -30,6 +30,7 @@ import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
 import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
 import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
+import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -427,7 +428,10 @@ return () => unsub();
       )}
 
       {role === 'admin' && (
-        <CashflowProjection orders={activeOrders} />
+        <>
+          <SmartAlerts orders={activeOrders} />
+          <CashflowProjection orders={activeOrders} />
+        </>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24, marginTop: role === 'admin' ? 16 : 24 }}>
