@@ -21,7 +21,17 @@ const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
   { key: 'facturado', label: 'Facturado' },
   { key: 'pending', label: 'Con CR' },
   { key: 'overdue', label: 'Vencidas' },
-  { key: 'paid', label: 'Cobradas' },
+  // Se llamaba "Cobradas", pero el estado 'paid' significa que la factura
+  // ya esta en manos del contador para su tramite -- el dinero todavia NO
+  // esta en caja. El badge de cada fila (STATUS_LABEL en types.ts) ya
+  // decia "🟡 Con el Contador"; el chip del filtro decia otra cosa
+  // distinta para el mismo estado, y el usuario entraba esperando ver
+  // dinero cobrado y encontraba filas que contradecian el nombre del
+  // filtro que acababa de tocar. El estado que de verdad significa "ya
+  // esta el dinero en caja" es 'collected' ("✅ Recibida"), que no tiene
+  // chip propio -- fuera de alcance de este cambio, solo se corrige el
+  // nombre para que dejen de contradecirse.
+  { key: 'paid', label: '🟡 Con el Contador' },
   { key: 'manual_review', label: 'Revisión' },
 ];
 
