@@ -1031,3 +1031,19 @@ Se deriva un margen esperado de `config.salePricePerKg`/`costPricePerKg` vigente
 
 **Riesgo de esta iteración:** 🟢 Ninguno — es documentación y auditoría, cero líneas de código de producción tocadas.
 **Estado:** ✅ Auditoría y plan entregados. **Ejecución de los Pasos 1-4 pendiente de aprobación explícita del usuario**, uno a la vez, cada uno con su propia verificación (`tsc`/`build`) y commit antes de avanzar al siguiente — tal como exige el perfil.
+
+### Iteración 92: Deploy separado (Hosting vs Functions) tras un fallo real en producción; promptDialog reemplaza los 6 window.prompt() reales (COMPLETADO)
+**Fecha:** 2026-08-10
+**Contexto:** el usuario corrió `DESPLEGAR_MEJORAS_2026-08-09.bat` (Iteración 90). `git push` y el build (vite + tsc) terminaron bien, pero `firebase deploy` falló en el paso de Functions con `Error: User code failed to load. Cannot determine backend specification. Timeout after 10000` — y como el script deployaba TODO junto (Hosting+Firestore+Storage+Functions en una sola llamada), ese fallo tumbó también Hosting, así que ninguno de los cambios de hoy llegó a producción pese a que el build sí había terminado limpio.
+
+**Causa raíz del timeout de Functions:** se revisó `functions/src/index.ts` y `functions/src/ai/extractor.ts` completos — no hay código bloqueante, `await` a nivel de módulo, ni loops infinitos; las definiciones de funciones (`onCall`, `onSchedule`, `onObjectFinalized`, etc.) siguen el patrón estándar de Firebase Functions v2. El log muestra `Serving at port 8651` justo antes del timeout, lo que apunta a que la propia terminal de Firebase no pudo completar la conexión local (loopback) que usa para "descubrir" las funciones — la causa más común de ese síntoma específico en Windows es el Firewall/antivirus bloqueando esa conexión local, o `firebase-tools` desactualizado. No se pudo reproducir ni confirmar en este entorno (sin credenciales reales de despliegue), así que se documenta como diagnóstico probable, no confirmado.
+
+**Solución aplicada — desacoplar el deploy en vez de solo reintentar:**
+- `package.json`: nuevos scripts `deploy:hosting` (`build && firebase deploy --only hosting,firestore,storage`) y `deploy:functions` (`firebase deploy --only functions`), independientes entre sí.
+- `DESPLEGAR_MEJORAS_2026-08-09.bat` / `_AUTO.bat` (fuera de git, no versionados): ahora publican Hosting primero; si Functions falla después, Hosting ya quedó en producción — con mensaje de diagnóstico explicando las causas probables y cómo reintentar solo ese paso.
+
+**Trabajo adicional del mismo turno — `promptDialog`:** siguiendo el mismo patrón que `confirmDialog` (Iteración 90), se creó `src/lib/promptDialog.tsx` (API imperativa, `<input>` real dentro de un `<Modal/>`) y se reemplazaron los 6 `window.prompt()` reales que quedaban: 4 en `Cobranza/index.tsx` (Docto. SAP, Docto. Pago, referencia de transferencia, número de Contrarecibo), 1 en `Cobranza/ProximasTable.tsx` (reprogramar vencimiento — ahora con `<input type="date">` real en vez de pedir texto libre "aaaa-mm-dd"), 1 en `OrderModal/InvoiceWidget.tsx` (monto real recibido en Caja).
+
+**Verificación:** `tsc -b` y `vite build` limpios sobre el árbol completo. Commits `a297311` (deploy split) y `5322c88` (promptDialog) en `audit/workspace-2026-08-01`.
+**Riesgo:** 🟢 Bajo — el cambio de deploy es puramente de orquestación (no cambia qué se publica, solo en qué orden y si un fallo bloquea al otro); `promptDialog` es la misma sustitución mecánica ya validada con `confirmDialog`.
+**Estado:** ✅ Completado y committeado. **Pendiente que el usuario vuelva a correr el `.bat`** para confirmar en vivo si el Firewall/antivirus era la causa del timeout de Functions -- si persiste, revisar `firebase-tools --version` y actualizar con `npm install -g firebase-tools`.
