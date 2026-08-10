@@ -83,8 +83,18 @@ export function extractStats(data: any): Record<string, any> {
   }
   
   const isManual = status === 'manual_review' ? 1 : 0;
-  
-  if (status !== 'manual_review') {
+
+  // ANTES: este bloque completo (kilos, vendido, margen, porCobrar, etc.)
+  // se saltaba ENTERO para cualquier expediente en 'manual_review' -- no
+  // solo la factura en revision, TODO el expediente quedaba en cero en el
+  // agregado (Dashboard). Por eso "Deuda Total Providencia" nunca incluia
+  // las "Facturas en Revision": el usuario las lleva en su propia hoja de
+  // calculo como dinero real ya adeudado (total factura, solo falta que
+  // Providencia le asigne numero de contrarecibo), pero el sistema las
+  // trataba como si no existieran. No habia ningun comentario que
+  // justificara el salto como decision deliberada -- todo apunta a que
+  // era un descuido, no una regla de negocio real.
+  {
     // ANTES: `kilos` solo leia data.totalKilograms -- un campo a nivel
     // expediente que en varios casos (como el que agrupa 10 contrarecibos
     // reales de la migracion) nunca se actualizo y se quedo en 0, aunque
@@ -156,12 +166,16 @@ export function extractStats(data: any): Record<string, any> {
             paymentDaysCount += 1;
           }
         }
-      } else if (s === 'pending' || s === 'overdue') {
+      } else if (s === 'pending' || s === 'overdue' || s === 'manual_review') {
         porCobrar += saldo;
         // Dos gestiones distintas: sin CR se persigue para que el cliente
         // emita el contrarecibo; con CR ya se sabe cuando vence y solo
         // queda esperar. El usuario ya las llevaba separadas en su propia
         // hoja de calculo; el sistema las mezclaba en un solo numero.
+        // 'manual_review' cae aqui tambien: son facturas reales enviadas a
+        // revision, todavia sin numero de contrarecibo asignado -- dinero
+        // adeudado de verdad, exactamente como el usuario ya las cuenta en
+        // su hoja de calculo bajo "Facturas en Revision".
         const tieneCr = !!(inv.collection?.contrareciboNumber || data.collection?.contrareciboNumber);
         if (tieneCr) porCobrarConCR += saldo; else porCobrarSinCR += saldo;
         // "vencido" cuenta por FECHA, no solo por el estatus guardado: sin
@@ -187,7 +201,10 @@ export function extractStats(data: any): Record<string, any> {
   // Monto pendiente por facturar (kilos entregados - kilos facturados)
   let kilosPendientesFacturar = 0;
   let entregados = 0;
-  if (status !== 'manual_review' && data.client !== 'MIGRACION') {
+  // Igual que arriba: ya no se excluye 'manual_review' de este calculo --
+  // solo MIGRACION sigue excluido (son datos historicos sin trazabilidad
+  // real de entregas/facturas, ver el comentario original de esta regla).
+  if (data.client !== 'MIGRACION') {
     let kilosFacturados = 0;
     for (const inv of invoices) {
       kilosFacturados += Number(inv.kilos || 0);
