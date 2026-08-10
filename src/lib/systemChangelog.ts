@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.21',
+    date: '10 de Agosto de 2026',
+    time: '4:40 PM',
+    summary: 'El archivo de despliegue (DESPLEGAR_MEJORAS_2026-08-09_AUTO.bat) ahora hace todo solo, sin necesitar terminal',
+    highlights: [
+      'El deploy de Functions llevaba dos intentos fallidos seguidos con "Cannot determine backend specification. Timeout" -- normalmente hay que abrir una terminal y correr "npm install -g firebase-tools" a mano.',
+      'Ahora el mismo archivo .bat lo hace automáticamente como primer paso, antes de tocar git o Firebase -- solo hay que darle doble clic, no hace falta escribir nada en ninguna terminal.',
+      'También se agregó verificación de que Node, npm y git estén instalados antes de empezar, y un reintento automático (con 15s de espera) si el primer intento de publicar Functions falla.',
+      'Al final ya no se cierra solo -- muestra un resumen en pantalla (Hosting: publicado/falló, Functions: publicado/falló) y espera a que presiones una tecla.'
+    ]
+  },
+  {
     version: 'v7.0.20',
     date: '10 de Agosto de 2026',
     time: '3:55 PM',
