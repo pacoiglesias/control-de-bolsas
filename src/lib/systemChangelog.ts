@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.20',
+    date: '10 de Agosto de 2026',
+    time: '3:55 PM',
+    summary: 'El Dashboard decía "7 órdenes sin facturar" y Órdenes decía "0" -- ambos medían cosas distintas',
+    highlights: [
+      'El aviso del Dashboard ("Tienes X órdenes con entregas pero sin facturar") contaba expedientes por su estatus interno (sin ninguna factura creada), sin fijarse si de verdad tenían entregas registradas.',
+      'El chip "Pendiente de Facturar" de Órdenes cuenta distinto: kilos entregados por encima de lo ya facturado, sin importar el estatus -- la misma fórmula que ya usaba el monto en pesos de al lado en el Dashboard.',
+      'Resultado: un expediente "pedido" sin ninguna entrega aún contaba en el aviso aunque no había nada pendiente de verdad; y un expediente con entregas parciales pero ya con alguna factura no contaba, aunque sí le faltaba por facturar.',
+      'Ahora ambos usan la misma definición (kilos entregados vs. facturados). Importante: entra al Dashboard y presiona "Recalcular Indicadores" una vez para que el número ya refleje el conteo correcto.'
+    ]
+  },
+  {
     version: 'v7.0.19',
     date: '10 de Agosto de 2026',
     time: '2:10 PM',

@@ -237,10 +237,22 @@ export function extractStats(data: any): Record<string, any> {
     isPending: status === 'pending' ? 1 : 0,
     isOverdue: status === 'overdue' ? 1 : 0,
     isManual,
-    // "pedido" = expediente sin ninguna factura creada: lo que falta por
-    // facturar. Contador aparte porque no existia ninguno visible en el
-    // panel y el usuario perdio de vista donde se ve este pendiente.
-    isPedido: status === 'pedido' ? 1 : 0,
+    // "pedido" = expediente con kilos entregados por encima de lo ya
+    // facturado: lo que falta por facturar. Antes esto comparaba
+    // status === 'pedido' (cero facturas creadas), que es una definicion
+    // completamente distinta a la que ya usa montoPendienteFacturar arriba
+    // (kilos entregados - kilos facturados) -- asi que un expediente con
+    // status 'facturado'/'pending' pero con MAS entregas que facturas
+    // (ej. entregas parciales sin su factura correspondiente) contaba en
+    // el monto en pesos del Dashboard pero NO en este contador de ordenes,
+    // y viceversa: un expediente 'pedido' sin ninguna entrega registrada
+    // contaba aqui aunque no hubiera nada realmente "pendiente de
+    // facturar" todavia. Resultado real reportado por el usuario: el
+    // Dashboard decia "7 ordenes con entregas pero sin facturar" mientras
+    // el chip "Pendiente de Facturar" de Ordenes (que SI usa kilos
+    // entregados vs facturados, ver Orders.tsx) mostraba 0. Ahora ambos
+    // usan la misma definicion basada en kilos.
+    isPedido: kilosPendientesFacturar > 0 ? 1 : 0,
   };
 }
 
