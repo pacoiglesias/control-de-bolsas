@@ -8,6 +8,27 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.19',
+    date: '10 de Agosto de 2026',
+    time: '2:10 PM',
+    summary: 'Pegar el texto de una Factura decía "agregada" pero no se guardaba',
+    highlights: [
+      'En Facturas & Contrarecibos, el botón "Pegar Texto (PDF)" mostraba el aviso "Factura agregada" pero en realidad no escribía nada en el expediente -- quedó así desde un refactor anterior que dejó esa conexión sin terminar ("handle it properly later").',
+      'De paso, el número de folio se extraía mal: si el PDF traía la línea "FOLIO FISCAL (UUID)", el sistema tomaba literalmente la palabra "FISCAL" como número de factura en vez del folio real (ej. 6098).',
+      'Y si la factura tenía más de un renglón en kilos, solo se contaba el primero -- ahora se suman todos.',
+      'Ya guarda de verdad (mismo camino que "+ Manual"), extrae el folio real buscando primero el encabezado "Factura ####", y solo confirma éxito cuando el guardado terminó.'
+    ]
+  },
+  {
+    version: 'v7.0.18',
+    date: '10 de Agosto de 2026',
+    time: '12:50 PM',
+    summary: 'La Bitácora de Cambios ya refleja las versiones recientes',
+    highlights: [
+      'De v7.0.10 a v7.0.17 se habían ido subiendo sin anotar aquí qué cambió en cada una -- se repobló la bitácora completa con las 8 versiones faltantes.'
+    ]
+  },
+  {
     version: 'v7.0.17',
     date: '10 de Agosto de 2026',
     time: '12:32 PM',

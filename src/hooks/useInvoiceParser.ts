@@ -7,7 +7,7 @@ import type { ParsedInvoiceData } from '../lib/xmlParser';
 
 interface UseInvoiceParserProps {
   invoices: Invoice[];
-  setInvoices: (invoices: Invoice[]) => void;
+  setInvoices: (invoices: Invoice[]) => void | Promise<void>;
   config: FinanceConfigCore;
   allOrders?: any[];
   orderId?: string;
@@ -16,16 +16,27 @@ interface UseInvoiceParserProps {
 export function useInvoiceParser({ invoices, setInvoices, config, allOrders = [], orderId = '' }: UseInvoiceParserProps) {
   const toast = useToast();
 
-  const processFacturaText = (text: string) => {
-    const shortFolioMatch = text.match(/Folio\s*=\s*["']([^"']+)["']/i) || text.match(/FOLIO\s+(\w+)/i);
-    const shortFolio = shortFolioMatch ? shortFolioMatch[1] : '';
+  const processFacturaText = async (text: string) => {
+    // Prioridad de extracción del folio real de la factura:
+    // 1) "Factura 6097" (encabezado estándar de los CFDI de Elemental Denim y similares)
+    // 2) Folio="..." (estilo atributo XML)
+    // 3) UUID del CFDI como último recurso
+    // OJO: antes había un fallback /FOLIO\s+(\w+)/i que hacía match contra la
+    // línea "FOLIO FISCAL (UUID)" del propio documento y capturaba literalmente
+    // la palabra "FISCAL" como folio -- se eliminó por ser el origen de ese bug.
+    const facturaHeaderMatch = text.match(/\bFactura\s+(\d+)\b/i);
+    const xmlAttrMatch = text.match(/Folio\s*=\s*["']([^"']+)["']/i);
+    const shortFolio = facturaHeaderMatch ? facturaHeaderMatch[1] : (xmlAttrMatch ? xmlAttrMatch[1] : '');
     const uuidMatch = text.match(/[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}/i);
     const uuid = uuidMatch ? uuidMatch[0].toUpperCase() : '';
-    
+
     const finalFolio = shortFolio || uuid;
-    
-    const kilosMatch = text.match(/([\d,]+(?:\.\d+)?)\s*(?:KGM|KILOGRAMO|KG)/i);
-    const kilos = kilosMatch ? Number(kilosMatch[1].replace(/,/g, '')) : 0;
+
+    // Suma los kilos de TODOS los renglones de concepto (antes solo se tomaba
+    // el primer match, así que una factura con 2+ conceptos en KG se
+    // registraba con solo la cantidad del primero).
+    const kilosMatches = [...text.matchAll(/([\d,]+(?:\.\d+)?)\s*(?:KGM|KILOGRAMO|KG)\b/gi)];
+    const kilos = kilosMatches.reduce((sum, m) => sum + (Number(m[1].replace(/,/g, '')) || 0), 0);
     
     const dateMatch = text.match(/\|(\d{4}-\d{2}-\d{2})T/);
     const issueDateStr = dateMatch ? dateMatch[1] : '';
@@ -79,11 +90,20 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       }
     };
 
-    setInvoices([...invoices, newInvoice]);
-    toast(`Factura agregada. Folio: ${finalFolio || 'No encontrado'}, Kilos: ${kilos || 0}`, 'ok');
+    // Antes esto llamaba a setInvoices() y mostraba el toast de éxito de
+    // forma incondicional -- pero el setInvoices que pasa OrderModalProvider
+    // era un no-op ("handle it properly later"), así que la factura nunca se
+    // guardaba en Firestore aunque la UI dijera "Factura agregada". Ahora se
+    // espera a que el guardado real termine antes de confirmar éxito.
+    try {
+      await setInvoices([...invoices, newInvoice]);
+      toast(`Factura agregada. Folio: ${finalFolio || 'No encontrado'}, Kilos: ${kilos || 0}`, 'ok');
+    } catch (e: any) {
+      toast(`No se pudo guardar la factura: ${e?.message || 'error desconocido'}`, 'bad');
+    }
   };
 
-  const processParsedXml = (data: ParsedInvoiceData) => {
+  const processParsedXml = async (data: ParsedInvoiceData) => {
     // Validación Antiduplicados
     const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
     if (currentInvoicesFolios.includes(data.uuid)) {
@@ -129,11 +149,15 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       }
     };
 
-    setInvoices([...invoices, newInvoice]);
-    toast(`Factura XML Procesada. UUID: ${data.uuid}. Subtotal: $${data.subTotal}`, 'ok');
+    try {
+      await setInvoices([...invoices, newInvoice]);
+      toast(`Factura XML Procesada. UUID: ${data.uuid}. Subtotal: $${data.subTotal}`, 'ok');
+    } catch (e: any) {
+      toast(`No se pudo guardar la factura: ${e?.message || 'error desconocido'}`, 'bad');
+    }
   };
 
-  const processPagoText = (text: string) => {
+  const processPagoText = async (text: string) => {
     const cleanText = text.replace(/[\s-]/g, '').toUpperCase();
     const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     let updatedCount = 0;
@@ -273,8 +297,12 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
           };
         });
         if (updatedCount > 0) {
-          setInvoices(resultado);
-          toast(`Se actualizó el cobro de ${updatedCount} factura(s) por coincidencia de monto exacto.`, 'ok');
+          try {
+            await setInvoices(resultado);
+            toast(`Se actualizó el cobro de ${updatedCount} factura(s) por coincidencia de monto exacto.`, 'ok');
+          } catch (e: any) {
+            toast(`No se pudo guardar el cobro: ${e?.message || 'error desconocido'}`, 'bad');
+          }
           return;
         }
         pagosDetectados.forEach(p => sinAplicar.push(`$${p.monto.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`));
@@ -286,8 +314,12 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     }
     
     if (updatedCount > 0) {
-      setInvoices(nextInvoices);
-      toast(`Se actualizó el cobro de ${updatedCount} factura(s) con éxito.${skippedCount > 0 ? ` Se omitieron ${skippedCount} pago(s) duplicado(s).` : ''}`, 'ok');
+      try {
+        await setInvoices(nextInvoices);
+        toast(`Se actualizó el cobro de ${updatedCount} factura(s) con éxito.${skippedCount > 0 ? ` Se omitieron ${skippedCount} pago(s) duplicado(s).` : ''}`, 'ok');
+      } catch (e: any) {
+        toast(`No se pudo guardar el cobro: ${e?.message || 'error desconocido'}`, 'bad');
+      }
     } else if (skippedCount > 0) {
       toast(`Se omitieron ${skippedCount} pago(s) porque ya estaban registrados previamente.`, 'bad');
     } else {

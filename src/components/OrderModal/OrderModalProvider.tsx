@@ -21,6 +21,7 @@ import OrderModalContext from './OrderModalContext';
 import { printRemision, printPreFactura, printConsolidatedPackage } from './orderModalPrint';
 import type { TabName } from './types';
 import { useOrderActions } from './useOrderActions';
+import { useInvoiceActions } from './useInvoiceActions';
 import { useOrderForm } from './useOrderForm';
 import { confirmDialog } from '../../lib/confirmDialog';
 
@@ -119,12 +120,26 @@ export function OrderModalProvider({
     [config, ccp, csp, ccr],
   );
 
+  const { saveInvoice } = useInvoiceActions();
+
   const { processFacturaText, processPagoText, processParsedXml } = useInvoiceParser({
     invoices: order.invoices || [],
-    setInvoices: () => {
-      // NOTE: With the decoupling of Invoices, the parse function might need to be moved to InvoiceWidget or handled differently.
-      // For now, since parsing usually adds a new invoice, we might need a context function that uses useInvoiceActions.
-      // Let's keep this as a no-op or handle it properly later.
+    // Antes esto era un no-op ("handle it properly later") y por eso pegar
+    // el texto de una factura mostraba "Factura agregada" sin guardar nada
+    // en Firestore. Ahora se compara el arreglo resultante contra las
+    // facturas actuales del expediente y se persiste (vía saveInvoice, el
+    // mismo camino que usa "+ Manual" y la edición normal de una factura)
+    // cada factura nueva o modificada -- cubre tanto agregar una factura
+    // (processFacturaText/processParsedXml) como actualizar el cobro de
+    // varias a la vez (processPagoText).
+    setInvoices: async (updated) => {
+      const currentById = new Map((order.invoices || []).map((i) => [i.id, i]));
+      for (const inv of updated) {
+        const prev = currentById.get(inv.id);
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(inv)) {
+          await saveInvoice(order, inv, dynamicConfig);
+        }
+      }
     },
     config,
     allOrders,

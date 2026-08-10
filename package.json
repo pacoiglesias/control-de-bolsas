@@ -1,7 +1,7 @@
 {
   "name": "control-bolsas-v7",
   "private": true,
-  "version": "7.0.18",
+  "version": "7.0.19",
   "type": "module",
   "description": "ERP Control Bolsas — Master Track. React + Vite + Firebase.",
   "scripts": {
