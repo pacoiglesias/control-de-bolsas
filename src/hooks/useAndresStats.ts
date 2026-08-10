@@ -101,7 +101,12 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     const o = orderById.get(p.id);
     if (!o?.estimatedDeliveryDate) return false;
     const kilosFaltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
-    return kilosFaltan > 0.01 && o.estimatedDeliveryDate.toMillis() < hoy;
+    // Igual que en OrdersContext.tsx y SeguimientoPedidosTable.tsx: el campo
+    // puede estar presente pero no ser un Timestamp real (datos migrados o
+    // capturados por otra via). Antes esto llamaba .toMillis() directo --
+    // si tronaba, se caia toda la pantalla de Compras al calcular alertas.
+    const ms = o.estimatedDeliveryDate?.toMillis?.();
+    return kilosFaltan > 0.01 && ms !== undefined && ms < hoy;
   }), [provPurchases, orderById, hoy]);
 
   return {

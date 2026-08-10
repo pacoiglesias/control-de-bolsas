@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -132,23 +132,32 @@ function Gate() {
     );
   }
   if (!user) return <Login />;
+  // Cada pantalla lleva su propio ErrorBoundary, ademas del global de mas
+  // abajo (que sigue cubriendo Layout: nav, header, los avisos de
+  // OverdueBanner/DeliveryDueBanner). Antes un error en cualquier pantalla
+  // -- como el bug real de Seguimiento de Pedidos que se encontro esta
+  // misma sesion -- tumbaba TODA la aplicacion a la pantalla "Algo salio
+  // mal", incluyendo la barra lateral: no habia forma de navegar a otra
+  // seccion sin recargar. Ahora solo se cae el contenido de esa pantalla;
+  // el resto de la app sigue funcionando y se puede navegar a otro lado.
+  const seccion = (el: ReactNode) => <ErrorBoundary><Suspense fallback={<RouteFallback />}>{el}</Suspense></ErrorBoundary>;
   return (
     <ErrorBoundary>
       <AppProviders>
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<Suspense fallback={<RouteFallback />}><Dashboard /></Suspense>} />
-            <Route path="ordenes" element={<Suspense fallback={<RouteFallback />}><Orders /></Suspense>} />
-            <Route path="cobranza" element={<Suspense fallback={<RouteFallback />}><Cobranza /></Suspense>} />
-            <Route path="caja-chica" element={<Suspense fallback={<RouteFallback />}><CajaChica /></Suspense>} />
-            <Route path="compras" element={<Suspense fallback={<RouteFallback />}><Compras /></Suspense>} />
-            <Route path="centro-control" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
-            <Route path="audit" element={<Suspense fallback={<RouteFallback />}><AuditSync /></Suspense>} />
-            <Route path="oc" element={<Suspense fallback={<RouteFallback />}><OcTracking /></Suspense>} />
-            <Route path="mining" element={<Suspense fallback={<RouteFallback />}><DataMining /></Suspense>} />
-            <Route path="catalogo" element={<Suspense fallback={<RouteFallback />}><Catalog /></Suspense>} />
-            <Route path="captura-rapida" element={<Suspense fallback={<RouteFallback />}><FastEntry /></Suspense>} />
-            <Route path="usuarios" element={<Suspense fallback={<RouteFallback />}><Users /></Suspense>} />
+            <Route index element={seccion(<Dashboard />)} />
+            <Route path="ordenes" element={seccion(<Orders />)} />
+            <Route path="cobranza" element={seccion(<Cobranza />)} />
+            <Route path="caja-chica" element={seccion(<CajaChica />)} />
+            <Route path="compras" element={seccion(<Compras />)} />
+            <Route path="centro-control" element={seccion(<ControlCenter />)} />
+            <Route path="audit" element={seccion(<AuditSync />)} />
+            <Route path="oc" element={seccion(<OcTracking />)} />
+            <Route path="mining" element={seccion(<DataMining />)} />
+            <Route path="catalogo" element={seccion(<Catalog />)} />
+            <Route path="captura-rapida" element={seccion(<FastEntry />)} />
+            <Route path="usuarios" element={seccion(<Users />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

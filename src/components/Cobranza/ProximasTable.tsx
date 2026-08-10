@@ -149,7 +149,8 @@ export default function ProximasTable() {
                           style={{ padding: '2px 6px', fontSize: '10px', background: 'var(--bg-card)', border: '1px solid var(--line)', color: 'var(--ink)' }}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const actual = inv.creditCycle.dueDate ? new Date(inv.creditCycle.dueDate.toMillis()).toISOString().slice(0, 10) : '';
+                            const dueMs = inv.creditCycle.dueDate?.toMillis?.();
+                            const actual = dueMs !== undefined ? new Date(dueMs).toISOString().slice(0, 10) : '';
                             const input = await promptDialog({ message: 'Nueva fecha de vencimiento:', defaultValue: actual, inputType: 'date' });
                             if (!input) return;
                             const nuevaFecha = new Date(`${input}T00:00:00`);
