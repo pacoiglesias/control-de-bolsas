@@ -29,8 +29,14 @@ export function SeguimientoPedidosTable({ orders }: { orders: PurchaseOrder[] })
         };
       })
       .sort((a, b) => {
-        const ta = a.fecha ? a.fecha.toMillis() : 0;
-        const tb = b.fecha ? b.fecha.toMillis() : 0;
+        // Igual que en OrdersContext.tsx: no todos los expedientes tienen
+        // `processedAt` como Timestamp valido (hay al menos uno migrado sin
+        // el campo, y datos capturados de formas distintas pueden no serlo).
+        // Antes esto llamaba a.fecha.toMillis() directo -- si `fecha` era
+        // truthy pero no un Timestamp real, tronaba en pleno render y el
+        // ErrorBoundary tumbaba TODA la app al abrir Seguimiento de Pedidos.
+        const ta = a.fecha?.toMillis?.() ?? 0;
+        const tb = b.fecha?.toMillis?.() ?? 0;
         return tb - ta;
       });
   }, [orders]);
