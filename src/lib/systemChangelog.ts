@@ -8,6 +8,88 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.17',
+    date: '10 de Agosto de 2026',
+    time: '12:32 PM',
+    summary: 'Corrección crítica: las facturas "En Revisión" ya no desaparecían de los indicadores del Dashboard',
+    highlights: [
+      'El servidor ponía en CERO todo el expediente (kilos, venta, margen, por cobrar) cuando tenía una factura marcada "Revisión Manual" -- no solo esa factura, el expediente completo.',
+      'Por eso "Deuda Total Providencia" nunca coincidía con lo que se lleva a mano en Excel: las facturas en revisión eran invisibles para el sistema aunque son dinero real adeudado.',
+      'Corregido y probado con datos reales. Importante: si tu Dashboard todavía se ve desfasado, entra y presiona "Recalcular Estadísticas" una vez.'
+    ]
+  },
+  {
+    version: 'v7.0.16',
+    date: '10 de Agosto de 2026',
+    time: '12:15 PM',
+    summary: 'Un error en una pantalla ya no tumba TODO el sistema',
+    highlights: [
+      'Antes, si algo fallaba en cualquier pantalla, toda la aplicación se caía a "Algo salió mal" -- incluyendo el menú, sin poder navegar a otro lado sin recargar.',
+      'Ahora cada sección (Dashboard, Órdenes, Cobranza, Compras, etc.) se aísla: si algo truena ahí, solo esa pantalla se ve afectada.',
+      'Blindadas 2 alertas más (Compras y Cobranza) contra fechas mal formadas, mismo tipo de bug que causó el problema de Seguimiento de Pedidos.'
+    ]
+  },
+  {
+    version: 'v7.0.15',
+    date: '10 de Agosto de 2026',
+    time: '11:47 AM',
+    summary: 'Ya no se pierden cambios sin guardar por accidente',
+    highlights: [
+      'Cerrar el expediente con Escape, clic afuera, o "Cancelar" borraba en silencio todo lo capturado (una OC pegada, entregas, precios) si no habías presionado "Guardar cambios".',
+      'Ahora, si hay cambios sin guardar, se pregunta antes de cerrar.'
+    ]
+  },
+  {
+    version: 'v7.0.14',
+    date: '10 de Agosto de 2026',
+    time: '11:40 AM',
+    summary: 'Vista previa al pegar la OC, guía para tu primer expediente, y aviso de entregas próximas',
+    highlights: [
+      'Pegar el texto de la OC ya no llena el formulario a ciegas: ahora muestra primero lo detectado (folio, cliente, artículos, kilos) para confirmar o cancelar.',
+      'Si la lista de Órdenes está vacía, ahora invita directo a "Subir / Pegar tu primera OC".',
+      'Nuevo aviso: si un pedido tiene fecha de entrega en 3 días o menos (o ya vencida) y todavía le faltan kilos por entregar, se avisa en toda la app.'
+    ]
+  },
+  {
+    version: 'v7.0.13',
+    date: '10 de Agosto de 2026',
+    time: '11:29 AM',
+    summary: 'Nuevo filtro "Recibidas" y aviso de facturas vencidas visible en cualquier pantalla',
+    highlights: [
+      'Nuevo chip de filtro "✅ Recibidas" en Órdenes: separa lo que ya está 100% cobrado de lo que solo está "Con el Contador".',
+      'Nuevo aviso de facturas recién vencidas, visible al abrir cualquier pantalla -- antes solo se veía si entrabas manualmente a la Bitácora del sistema.'
+    ]
+  },
+  {
+    version: 'v7.0.12',
+    date: '10 de Agosto de 2026',
+    time: '11:22 AM',
+    summary: 'Corregida etiqueta confusa: "Cobradas" ahora dice "Con el Contador"',
+    highlights: [
+      'El chip de filtro en Órdenes decía "Cobradas" para facturas que en realidad todavía no tienen el dinero en caja (están con el contador) -- contradecía la etiqueta de cada fila. Ya dice lo mismo en los dos lugares.'
+    ]
+  },
+  {
+    version: 'v7.0.11',
+    date: '10 de Agosto de 2026',
+    time: '11:14 AM',
+    summary: 'Corrección crítica: el autollenado de OC ahora extrae los kilos y artículos reales',
+    highlights: [
+      'Con una OC real se detectó que "Pegar Texto de OC" subía kilos equivocados (tomaba una medida del producto, como el "120" de "120X125 CM", como si fueran los kilos pedidos).',
+      'Reescrito el lector de texto de OC: ahora extrae cada artículo (código, cantidad, descripción, precio) de forma correcta, y los dos botones de "Pegar Texto de OC" usan el mismo lector.'
+    ]
+  },
+  {
+    version: 'v7.0.10',
+    date: '10 de Agosto de 2026',
+    time: '11:00 AM',
+    summary: 'Corrección crítica: "Seguimiento de Pedidos" ya no bloqueaba el sistema, y ahora muestra los pedidos desde que se crean',
+    highlights: [
+      'Abrir "Seguimiento de Pedidos" podía tumbar toda la aplicación si algún expediente tenía una fecha mal formada -- corregido.',
+      'Un pedido recién creado (recién pegada la OC, sin factura todavía) no aparecía en Seguimiento hasta la primera factura -- ahora aparece desde el primer momento.'
+    ]
+  },
+  {
     version: 'v7.0.9',
     date: '8 de Agosto de 2026',
     time: '11:55 PM',
