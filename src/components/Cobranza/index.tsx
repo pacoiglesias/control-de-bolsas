@@ -24,6 +24,7 @@ import { sound } from '../../lib/sounds';
 import type { PurchaseOrder } from '../../lib/types';
 import confetti from 'canvas-confetti';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { promptDialog } from '../../lib/promptDialog';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -236,8 +237,8 @@ export default function Cobranza() {
     if (!crNumber) return;
     if (!(await confirmDialog(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`))) return;
     
-    const doctoSap = window.prompt('Docto. SAP (Opcional):') || '';
-    const doctoPago = window.prompt('Docto. Pago (Opcional, ej. TR_3583):') || '';
+    const doctoSap = (await promptDialog('Docto. SAP (Opcional):')) || '';
+    const doctoPago = (await promptDialog('Docto. Pago (Opcional, ej. TR_3583):')) || '';
 
     const invoicesToPay = data.open.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
@@ -355,7 +356,7 @@ export default function Cobranza() {
     // Referencia de la transferencia (ej. "TR_3583"), distinta del numero de
     // contrarecibo (ej. "GT-570"): sin ella no se puede conciliar el deposito
     // contra el estado de cuenta bancario despues.
-    const transferRef = (window.prompt('Referencia de la transferencia (opcional, ej. TR_3583):') || '').trim();
+    const transferRef = ((await promptDialog('Referencia de la transferencia (opcional, ej. TR_3583):')) || '').trim();
 
     const invoicesToCollect = data.paid.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
@@ -1157,10 +1158,10 @@ export default function Cobranza() {
     } else if (targetCol === 'colPorCobrar') {
       if (currentCol === 'colRevision') {
          const crAnterior = crRecordados.current[invoiceId] || '';
-         const promptCr = window.prompt(
-           crAnterior ? `Ingresa el número de Contrarecibo (CR):\n\n(Antes tenía "${crAnterior}" — bórralo del cuadro si es un número distinto)` : 'Ingresa el número de Contrarecibo (CR):',
-           crAnterior,
-         );
+         const promptCr = await promptDialog({
+           message: crAnterior ? `Ingresa el número de Contrarecibo (CR):\n\n(Antes tenía "${crAnterior}" — bórralo del cuadro si es un número distinto)` : 'Ingresa el número de Contrarecibo (CR):',
+           defaultValue: crAnterior,
+         });
          if (!promptCr) return;
          newCr = promptCr.trim();
       } else if (currentCol === 'colContador') {

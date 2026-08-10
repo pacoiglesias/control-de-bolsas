@@ -9,6 +9,7 @@ import { sound } from '../../lib/sounds';
 import type { Invoice, OrderStatus, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
+import { promptDialog } from '../../lib/promptDialog';
 
 interface InvoiceWidgetProps {
   invoice: Invoice;
@@ -122,10 +123,10 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                       const invTotal = fin.invoiceTotal;
                       const commission = fin.commission || 0;
                       const netEsperado = invTotal - commission;
-                      const respuesta = window.prompt(
-                        `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
-                        netEsperado.toFixed(2)
-                      );
+                      const respuesta = await promptDialog({
+                        message: `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
+                        defaultValue: netEsperado.toFixed(2),
+                      });
                       if (respuesta === null) return;
                       const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
                       if (isNaN(netReal) || netReal <= 0) {

@@ -1,6 +1,7 @@
 import { useCobranza } from './CobranzaContext';
 import { Card, Empty, CopyButton, StatusBadge } from '../ui';
 import { fmtDate, nombreClienteVisible } from '../../lib/format';
+import { promptDialog } from '../../lib/promptDialog';
 
 export default function ProximasTable() {
   const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, toast, filterType, setFilterType, setSelected } = useCobranza();
@@ -146,10 +147,10 @@ export default function ProximasTable() {
                         <button
                           className="btn-small"
                           style={{ padding: '2px 6px', fontSize: '10px', background: 'var(--bg-card)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             const actual = inv.creditCycle.dueDate ? new Date(inv.creditCycle.dueDate.toMillis()).toISOString().slice(0, 10) : '';
-                            const input = window.prompt('Nueva fecha de vencimiento (aaaa-mm-dd):', actual);
+                            const input = await promptDialog({ message: 'Nueva fecha de vencimiento:', defaultValue: actual, inputType: 'date' });
                             if (!input) return;
                             const nuevaFecha = new Date(`${input}T00:00:00`);
                             if (isNaN(nuevaFecha.getTime())) {
