@@ -15,6 +15,8 @@ import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReloadPrompt from './components/ReloadPrompt';
 import { llenarEspejoDeFacturas } from './lib/fillInvoicesMirror';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, PATHS } from './lib/firebase';
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -83,13 +85,39 @@ function Gate() {
   useEffect(() => {
     if (!user) return;
     const YA_CORRIO = 'cb_migracion_espejo_facturas_v1';
+    // FIX 2026-08-09: la bandera "ya corrió" vivía solo en localStorage, es
+    // decir, por navegador/dispositivo -- cualquier equipo nuevo, perfil
+    // distinto o limpieza de caché volvía a disparar un recorrido completo
+    // de TODOS los expedientes activos (lectura sin límite) más una
+    // reescritura en lote de sus facturas, en cada primer login. Se mueve
+    // la bandera a un documento en Firestore (compartido por todo el
+    // sistema, no por dispositivo) para que la migración corra una sola
+    // vez de verdad. Se conserva un caché local de solo-lectura para no
+    // gastar ni siquiera esa 1 lectura de Firestore en cada login posterior
+    // desde el mismo navegador.
     if (localStorage.getItem(YA_CORRIO)) return;
-    llenarEspejoDeFacturas()
-      .then(({ expedientes, facturas }) => {
-        localStorage.setItem(YA_CORRIO, '1');
+
+    const flagRef = doc(db, PATHS.config, 'migrations');
+    (async () => {
+      try {
+        const snap = await getDoc(flagRef);
+        if (snap.exists() && snap.data()?.espejoFacturasV1) {
+          localStorage.setItem(YA_CORRIO, '1');
+          return;
+        }
+        const { expedientes, facturas } = await llenarEspejoDeFacturas();
         console.log(`Espejo de facturas: ${facturas} facturas copiadas de ${expedientes} expedientes.`);
-      })
-      .catch((e) => console.warn('No se pudo llenar el espejo de facturas:', e));
+        localStorage.setItem(YA_CORRIO, '1');
+        // Si el usuario no tiene permisos de escritura en /config (no es
+        // Super Admin), esto puede fallar en silencio -- no es grave: la
+        // migración en sí ya corrió y quedó guardada, solo no se pudo
+        // marcar la bandera global. La próxima vez que un Super Admin
+        // entre, la marcará.
+        await setDoc(flagRef, { espejoFacturasV1: true, espejoFacturasV1At: serverTimestamp() }, { merge: true }).catch(() => {});
+      } catch (e) {
+        console.warn('No se pudo llenar el espejo de facturas:', e);
+      }
+    })();
   }, [user]);
   if (loading) {
     return (

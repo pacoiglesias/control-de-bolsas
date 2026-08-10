@@ -84,14 +84,20 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
   return (
     <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {alerts.map(a => {
-        const bg = a.type === 'danger' ? 'rgba(239, 68, 68, 0.15)' : a.type === 'warning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)';
-        const color = a.type === 'danger' ? '#fca5a5' : a.type === 'warning' ? '#fcd34d' : '#93c5fd';
-        const border = a.type === 'danger' ? 'rgba(239, 68, 68, 0.3)' : a.type === 'warning' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+        // FIX 2026-08-09: los colores estaban fijos en hex (pensados solo
+        // para tema oscuro) y el texto del mensaje forzaba blanco (`#fff`)
+        // sobre un fondo casi blanco en tema claro (el predeterminado del
+        // sistema) -- las alertas de facturas vencidas quedaban ilegibles.
+        // Se reemplaza por las variables de tema ya usadas en `.kpi-card`
+        // (--bad/--warn/--info y sus -bg), que ya están calibradas para
+        // tener buen contraste en ambos temas.
+        const bg = a.type === 'danger' ? 'var(--bad-bg)' : a.type === 'warning' ? 'var(--warn-bg)' : 'var(--info-bg)';
+        const color = a.type === 'danger' ? 'var(--bad)' : a.type === 'warning' ? 'var(--warn)' : 'var(--info)';
 
         return (
-          <div key={a.id} style={{ 
-            background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '12px 16px',
-            display: 'flex', alignItems: 'center', gap: 12, color: '#fff'
+          <div key={a.id} style={{
+            background: bg, border: `1px solid ${color}`, borderRadius: 12, padding: '12px 16px',
+            display: 'flex', alignItems: 'center', gap: 12, color
           }}>
             <span style={{ fontSize: 20 }}>{a.icon}</span>
             <div style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{a.message}</div>
