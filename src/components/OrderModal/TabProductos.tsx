@@ -6,6 +6,8 @@ import type { PurchaseOrderItem } from '../../lib/types';
 import { processPdfOrder } from '../../lib/ocr';
 import { useOrderProducts } from './useOrderProducts';
 import { useProducts } from '../../hooks/useProducts';
+import { parseOrdenDeCompra } from '../../lib/ocParser';
+import { Timestamp } from 'firebase/firestore';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
@@ -24,79 +26,29 @@ export default function TabProductos() {
   function handlePasteOC(text: string) {
     if (!text) return;
 
-    const lines = text.split('\n');
-    const newItems: PurchaseOrderItem[] = [];
+    // Parser unico compartido con el boton "Pegar Texto de OC" de la
+    // pestaña Expediente -- ver src/lib/ocParser.ts para el porque.
+    const parsed = parseOrdenDeCompra(text);
 
-    for (const line of lines) {
-      const numsMatch = line.match(/(.*?)\s+((?:[\d,]+\.\d{2,4}\s*)+)$/);
-      if (numsMatch) {
-        const rawDesc = numsMatch[1].trim();
-        const nums = numsMatch[2].trim().split(/\s+/).map(n => Number(n.replace(/,/g, '')));
+    const newFolio = form.folio || parsed.folio;
+    const newOc = (form as any).oc || parsed.oc;
+    const newProvider = form.provider || parsed.provider;
+    const newClient = form.client || parsed.client;
 
-        if (nums.length >= 3 && !rawDesc.toLowerCase().includes('subtotal') && !rawDesc.toLowerCase().includes('total')) {
-          let code = '';
-          let cleanDesc = rawDesc;
-          const parts = cleanDesc.split(/\s+/);
-          if (/^\d+$/.test(parts[0])) {
-            parts.shift(); // Remove leading row number
-          }
-          // Check if first word looks like a product code (letters+numbers or hyphens, >4 chars)
-          if (parts.length > 1 && /^[a-zA-Z0-9-]{5,}$/.test(parts[0])) {
-            code = parts.shift() || '';
-          }
-          cleanDesc = parts.join(' ');
-
-          newItems.push({
-            id: Date.now().toString() + Math.random().toString().slice(2, 6),
-            code: code,
-            description: cleanDesc,
-            quantity: nums[0],
-            unitPrice: nums[1],
-            amount: nums[nums.length - 1],
-            unit: 'Kilos'
-          });
-        }
-      }
-    }
-
-    let newFolio = form.folio;
-    let newOc = (form as any).oc;
-    let newProvider = form.provider;
-    let newClient = form.client;
-
-    // Folio (interno, corto, ej "71/14014") y OC (numero real y largo de
-    // la Orden de Compra, ej "120267114014") son DOS documentos distintos
-    // -- no deben mezclarse ni pisarse uno al otro. Antes solo se
-    // capturaba uno de los dos (el que apareciera primero en el texto),
-    // descartando el otro por completo.
-    const folioMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\n]+)/i);
-    const ocMatch = text.match(/CDB OC:\s*([^\n]+)/i) || text.match(/Orden de Compra\s*\n\s*([^\n]+)/i);
-    if (!newFolio && folioMatch) newFolio = folioMatch[1].trim();
-    if (!newOc && ocMatch) newOc = ocMatch[1].trim();
-
-    const providerMatch = text.match(/Proveedor\s*\n\s*([^\n]+)/i);
-    if (!newProvider && providerMatch) {
-      newProvider = providerMatch[1].trim();
-    }
-
-    if (!newClient && lines.length > 0) {
-      const firstLine = lines[0].split('|')[0].trim();
-      if (firstLine.length > 5 && firstLine.length < 100 && !firstLine.includes(':')) {
-        newClient = firstLine;
-      }
-    }
-
-    if (newItems.length > 0 || newFolio !== form.folio || newOc !== (form as any).oc) {
+    if (parsed.items.length > 0 || newFolio !== form.folio || newOc !== (form as any).oc) {
       setForm((f: any) => ({
         ...f,
         folio: newFolio,
         oc: newOc,
         provider: newProvider,
         client: newClient,
-        items: [...f.items, ...newItems],
-        totalKilograms: newItems.length > 0 ? String(newItems.reduce((acc, it) => acc + (it.quantity || 0), 0)) : f.totalKilograms
+        items: [...f.items, ...parsed.items],
+        totalKilograms: parsed.items.length > 0
+          ? String(f.items.reduce((acc: number, it: PurchaseOrderItem) => acc + (it.quantity || 0), 0) + parsed.totalKilograms)
+          : f.totalKilograms,
+        estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : f.estimatedDeliveryDate,
       }));
-      toast(`Detectado: ${newItems.length} artículos. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
+      toast(`Detectado: ${parsed.items.length} artículos, ${parsed.totalKilograms.toLocaleString('es-MX')} kg. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
     } else {
       toast('No se detectó ningún artículo detallado, pero el texto fue analizado.', 'info');
     }

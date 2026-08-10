@@ -14,6 +14,8 @@ import { useToast } from '../../context/ToastContext';
 import { useUndo } from '../../context/UndoContext';
 import { useOrders } from '../../hooks/useOrders';
 import { useInvoiceParser } from '../../hooks/useInvoiceParser';
+import { parseOrdenDeCompra } from '../../lib/ocParser';
+import { Timestamp } from 'firebase/firestore';
 
 import OrderModalContext from './OrderModalContext';
 import { printRemision, printPreFactura, printConsolidatedPackage } from './orderModalPrint';
@@ -239,29 +241,23 @@ export function OrderModalProvider({
 
   function parseOCAndFill(text: string) {
     if (!text) return;
-    const folioMatch = text.match(/CDB OC:\s*([\w]+)/i) || text.match(/No\.\s*Ord\.\s*de\s*Compra:\s*([^\s\n\r]+)/i);
-    const folio = folioMatch ? folioMatch[1].trim() : '';
-    const isProvidencia = text.match(/PROVIDENCIA/i);
-    const client = isProvidencia ? 'GRUPO TEXTIL PROVIDENCIA SA DE CV' : '';
+    const parsed = parseOrdenDeCompra(text);
 
-    const itemsMatch = [...text.matchAll(/([\d,]+(?:\.\d+)?)\s+[\d,]+(?:\.\d+)?\s+[\d,]+(?:\.\d+)?\s+[\d,]+(?:\.\d+)?/g)];
-    let kilos = 0;
-    if (itemsMatch.length > 0) {
-      itemsMatch.forEach(m => kilos += Number(m[1].replace(/,/g, '')));
-    } else {
-      const altMatch = text.match(/(?:BOLSA|BULTO)[^\n\r]*?([\d,]+(?:\.\d+)?)/i);
-      if (altMatch) kilos = Number(altMatch[1].replace(/,/g, ''));
-    }
-
-    setForm(f => ({
+    setForm((f: any) => ({
       ...f,
-      folio: folio || f.folio,
-      client: client || f.client,
-      totalKilograms: kilos > 0 ? kilos.toString() : f.totalKilograms,
-      provider: provName
+      folio: parsed.folio || f.folio,
+      oc: parsed.oc || f.oc,
+      client: parsed.client || f.client,
+      provider: parsed.provider || f.provider || provName,
+      totalKilograms: parsed.totalKilograms > 0 ? parsed.totalKilograms.toString() : f.totalKilograms,
+      estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : f.estimatedDeliveryDate,
+      items: parsed.items.length > 0 ? [...f.items, ...parsed.items] : f.items,
     }));
 
-    toast(`OC procesada. Folio: ${folio || '?'}, Kilos: ${kilos > 0 ? kilos : '?'}`, 'ok');
+    const detalle = parsed.items.length > 0
+      ? `${parsed.items.length} artículo(s), ${parsed.totalKilograms.toLocaleString('es-MX')} kg`
+      : `Kilos: ${parsed.totalKilograms > 0 ? parsed.totalKilograms : '?'}`;
+    toast(`OC procesada. Folio: ${parsed.folio || '?'} · OC: ${parsed.oc || '?'} · ${detalle}`, 'ok');
   }
 
   async function retryAI() {
