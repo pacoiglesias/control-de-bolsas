@@ -8,6 +8,7 @@ import type { TabName } from './types';
 import { OrderModalProvider } from './OrderModalProvider';
 import { useOrderModal } from './OrderModalContext';
 import { FacturasCRModal } from './FacturasCRModal';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
@@ -68,6 +69,28 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
 
   // Estado local: ¿mostrar el modal de Facturas & CR?
   const [showCRModal, setShowCRModal] = useState(initialOpenCR);
+
+  // Antes, cerrar el expediente (X, Escape, clic afuera, o el boton
+  // "Cancelar") descartaba SIEMPRE lo escrito sin avisar -- form vive en
+  // estado local hasta que se presiona "Guardar cambios" explicitamente.
+  // Pegar una OC entera, capturar entregas o editar precios y luego cerrar
+  // sin querer (un Escape reflejo, un clic afuera del modal) borraba todo
+  // sin ningun aviso. Se compara el formulario actual contra una foto del
+  // momento en que se abrio el expediente; si cambio algo, se pide
+  // confirmacion antes de cerrar. Despues de "Guardar cambios" el cierre
+  // sigue siendo directo (save() ya usa el onClose original del contexto).
+  const [snapshotInicial] = useState(() => JSON.stringify(form));
+  const hayCambiosSinGuardar = !readOnly && JSON.stringify(form) !== snapshotInicial;
+  const handleClose = async () => {
+    if (hayCambiosSinGuardar) {
+      const confirmar = await confirmDialog({
+        message: 'Tienes cambios sin guardar en este expediente. Si cierras ahora, se perderán.\n\n¿Cerrar sin guardar?',
+        danger: true,
+      });
+      if (!confirmar) return;
+    }
+    onClose();
+  };
   const { products } = useProducts();
 
   // CRs únicos del expediente para mostrar en la cabecera
@@ -118,7 +141,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
             </div>
           </div>
         }
-        onClose={onClose}
+        onClose={handleClose}
       >
         {/* datalists para autocomplete */}
         <datalist id="catalog-products">
@@ -290,7 +313,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
           <button className="btn" style={{ marginLeft: 8, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}
             onClick={handlePrintPreFactura}>📋 Pre-Factura</button>
           <span className="spacer" />
-          <button className="btn" onClick={onClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
+          <button className="btn" onClick={handleClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
           {!readOnly && (
             <button className="btn btn-primary" onClick={() => save && save()} disabled={busy}>
               {busy ? 'Guardando…' : 'Guardar cambios'}
