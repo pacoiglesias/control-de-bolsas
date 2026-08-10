@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { Field, StatusBadge } from '../ui';
 import { PasteTextModal } from '../PasteTextModal';
+import { OCPreviewModal } from '../OCPreviewModal';
 import { fromInputDate, money, toInputDate, kilos } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { parseOrdenDeCompra, type ParsedOC } from '../../lib/ocParser';
 
 export default function TabResumen() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
+  const [preview, setPreview] = useState<ParsedOC | null>(null);
   if (!ctx) return null;
-  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, parseOCAndFill, emailClient, toast, setTab } = ctx;
+  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, applyParsedOC, emailClient, toast, setTab } = ctx;
 
   return (
     <>
@@ -18,8 +21,15 @@ export default function TabResumen() {
               <PasteTextModal
                 title="Pegar texto de la OC"
                 placeholder="Pega aquí el texto completo copiado de la Orden de Compra (OC)…"
-                onConfirm={(text) => parseOCAndFill(text)}
+                onConfirm={(text) => { setPegandoOC(false); setPreview(parseOrdenDeCompra(text)); }}
                 onClose={() => setPegandoOC(false)}
+              />
+            )}
+            {preview && (
+              <OCPreviewModal
+                parsed={preview}
+                onConfirm={() => { applyParsedOC(preview); setPreview(null); }}
+                onCancel={() => setPreview(null)}
               />
             )}
             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>

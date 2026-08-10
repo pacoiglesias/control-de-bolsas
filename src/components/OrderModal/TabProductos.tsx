@@ -1,86 +1,100 @@
 import { useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { PasteTextModal } from '../PasteTextModal';
+import { OCPreviewModal } from '../OCPreviewModal';
 import { money } from '../../lib/format';
 import type { PurchaseOrderItem } from '../../lib/types';
 import { processPdfOrder } from '../../lib/ocr';
 import { useOrderProducts } from './useOrderProducts';
 import { useProducts } from '../../hooks/useProducts';
-import { parseOrdenDeCompra } from '../../lib/ocParser';
+import { parseOrdenDeCompra, type ParsedOC } from '../../lib/ocParser';
 import { Timestamp } from 'firebase/firestore';
 
 export default function TabProductos() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
+  const [preview, setPreview] = useState<ParsedOC | null>(null);
   if (!ctx) return null;
   const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast } = ctx;
   const { products } = useProducts();
   const { addItem, updateItem, removeItem } = useOrderProducts(form.items, setForm, config);
 
-  /**
-   * Extrae folio, proveedor y CADA ARTICULO (codigo, descripcion, cantidad,
-   * precio) del texto pegado de una OC. Antes vivia embebido dentro de un
-   * window.prompt() de una sola linea -- fragil para pegar un documento
-   * completo. Ahora recibe el texto ya capturado por un modal de verdad.
-   */
-  function handlePasteOC(text: string) {
-    if (!text) return;
-
-    // Parser unico compartido con el boton "Pegar Texto de OC" de la
-    // pestaña Expediente -- ver src/lib/ocParser.ts para el porque.
-    const parsed = parseOrdenDeCompra(text);
-
+  // Aplica lo que ya se le mostro al usuario en OCPreviewModal -- separado
+  // de la extraccion para que pegar el texto ya no escriba el formulario a
+  // ciegas (ver el comentario de ocParser.ts sobre el bug real de kilos).
+  function aplicarPreview(parsed: ParsedOC) {
     const newFolio = form.folio || parsed.folio;
     const newOc = (form as any).oc || parsed.oc;
     const newProvider = form.provider || parsed.provider;
     const newClient = form.client || parsed.client;
 
-    if (parsed.items.length > 0 || newFolio !== form.folio || newOc !== (form as any).oc) {
-      setForm((f: any) => ({
-        ...f,
-        folio: newFolio,
-        oc: newOc,
-        provider: newProvider,
-        client: newClient,
-        items: [...f.items, ...parsed.items],
-        totalKilograms: parsed.items.length > 0
-          ? String(f.items.reduce((acc: number, it: PurchaseOrderItem) => acc + (it.quantity || 0), 0) + parsed.totalKilograms)
-          : f.totalKilograms,
-        estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : f.estimatedDeliveryDate,
-      }));
-      toast(`Detectado: ${parsed.items.length} artículos, ${parsed.totalKilograms.toLocaleString('es-MX')} kg. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
-    } else {
-      toast('No se detectó ningún artículo detallado, pero el texto fue analizado.', 'info');
-    }
+    setForm((f: any) => ({
+      ...f,
+      folio: newFolio,
+      oc: newOc,
+      provider: newProvider,
+      client: newClient,
+      items: [...f.items, ...parsed.items],
+      totalKilograms: parsed.items.length > 0
+        ? String(f.items.reduce((acc: number, it: PurchaseOrderItem) => acc + (it.quantity || 0), 0) + parsed.totalKilograms)
+        : f.totalKilograms,
+      estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : f.estimatedDeliveryDate,
+    }));
+    toast(`OC aplicada: ${parsed.items.length} artículos, ${parsed.totalKilograms.toLocaleString('es-MX')} kg. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
+  }
+
+  /**
+   * Extrae folio, proveedor y CADA ARTICULO (codigo, descripcion, cantidad,
+   * precio) del texto pegado de una OC -- pero ya no lo aplica directo,
+   * primero lo muestra en OCPreviewModal para que se pueda cancelar si
+   * algo se interpreto mal.
+   */
+  function handlePasteOC(text: string) {
+    if (!text) return;
+    // Parser unico compartido con el boton "Pegar Texto de OC" de la
+    // pestaña Expediente -- ver src/lib/ocParser.ts para el porque.
+    setPreview(parseOrdenDeCompra(text));
   }
 
   async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     toast('🤖 Analizando documento con Inteligencia Local...', 'info');
     try {
       const ocrResult = await processPdfOrder(file);
       console.log('OCR Output:', ocrResult);
-      handlePasteOC(ocrResult.rawText);
-      
-      // Fallback update if handlePasteOC failed to find anything
-      setForm((f: any) => ({
-        ...f,
-        folio: f.folio || ocrResult.folio || '',
-        oc: f.oc || ocrResult.folio || '',
-        totalKilograms: f.totalKilograms || (ocrResult.kilos ? String(ocrResult.kilos) : f.totalKilograms),
-        items: f.items.length === 0 && ocrResult.product ? [{
-          id: Date.now().toString(),
-          code: '',
-          description: ocrResult.product,
-          quantity: ocrResult.kilos || 0,
-          unitPrice: ocrResult.kilos && ocrResult.total ? ocrResult.total / ocrResult.kilos : 0,
-          amount: ocrResult.total || 0,
-          unit: 'Kilos'
-        }] : f.items
-      }));
-      
+      // El escaneo de PDF ya pasa por su propio OCR local antes de llegar
+      // aqui (mas lento y con su propio nivel de confianza) -- se aplica
+      // directo, igual que antes. La vista previa manual (OCPreviewModal)
+      // es para el texto pegado a mano, donde el unico "filtro" hasta hoy
+      // era la regex del navegador.
+      const parsed = parseOrdenDeCompra(ocrResult.rawText);
+      if (parsed.items.length > 0 || parsed.folio || parsed.oc) {
+        aplicarPreview(parsed);
+      } else if (ocrResult.product) {
+        // Fallback: el parser de texto no encontro nada reconocible, pero
+        // el OCR local si extrajo un producto/kilos/total de forma
+        // estructurada -- se usa eso en vez de dejar el expediente vacio.
+        setForm((f: any) => ({
+          ...f,
+          folio: f.folio || ocrResult.folio || '',
+          oc: f.oc || ocrResult.folio || '',
+          totalKilograms: f.totalKilograms || (ocrResult.kilos ? String(ocrResult.kilos) : f.totalKilograms),
+          items: f.items.length === 0 ? [{
+            id: Date.now().toString(),
+            code: '',
+            description: ocrResult.product,
+            quantity: ocrResult.kilos || 0,
+            unitPrice: ocrResult.kilos && ocrResult.total ? ocrResult.total / ocrResult.kilos : 0,
+            amount: ocrResult.total || 0,
+            unit: 'Kilos'
+          }] : f.items
+        }));
+        toast('OC aplicada con datos parciales del OCR.', 'ok');
+      } else {
+        toast('No se detectó ningún dato reconocible en el PDF.', 'info');
+      }
     } catch (err: any) {
       toast(`Error al leer PDF: ${err.message}`, 'bad');
     }
@@ -92,8 +106,15 @@ export default function TabProductos() {
               <PasteTextModal
                 title="Pegar texto de la OC"
                 placeholder="Pega aquí el texto completo copiado del PDF de la Orden de Compra (OC)…"
-                onConfirm={handlePasteOC}
+                onConfirm={(text) => { setPegandoOC(false); handlePasteOC(text); }}
                 onClose={() => setPegandoOC(false)}
+              />
+            )}
+            {preview && (
+              <OCPreviewModal
+                parsed={preview}
+                onConfirm={() => { aplicarPreview(preview); setPreview(null); }}
+                onCancel={() => setPreview(null)}
               />
             )}
             {kilosEntregados > 0 && form.deliveries.some((d: any) => !d.invoiced) && (

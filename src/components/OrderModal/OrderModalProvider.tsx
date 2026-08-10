@@ -14,7 +14,7 @@ import { useToast } from '../../context/ToastContext';
 import { useUndo } from '../../context/UndoContext';
 import { useOrders } from '../../hooks/useOrders';
 import { useInvoiceParser } from '../../hooks/useInvoiceParser';
-import { parseOrdenDeCompra } from '../../lib/ocParser';
+import { parseOrdenDeCompra, type ParsedOC } from '../../lib/ocParser';
 import { Timestamp } from 'firebase/firestore';
 
 import OrderModalContext from './OrderModalContext';
@@ -239,10 +239,12 @@ export function OrderModalProvider({
     });
   }
 
-  function parseOCAndFill(text: string) {
-    if (!text) return;
-    const parsed = parseOrdenDeCompra(text);
-
+  // Aplica al formulario lo que ya se le mostro al usuario en el modal de
+  // vista previa (OCPreviewModal) -- separado de parseOCAndFill para que
+  // pegar el texto ya no escriba el formulario a ciegas. Antes, si el
+  // parser interpretaba mal algo, el usuario se enteraba hasta despues de
+  // guardado (asi paso con el bug real de kilos: 120 en vez de 3,700).
+  function applyParsedOC(parsed: ParsedOC) {
     setForm((f: any) => ({
       ...f,
       folio: parsed.folio || f.folio,
@@ -257,7 +259,15 @@ export function OrderModalProvider({
     const detalle = parsed.items.length > 0
       ? `${parsed.items.length} artículo(s), ${parsed.totalKilograms.toLocaleString('es-MX')} kg`
       : `Kilos: ${parsed.totalKilograms > 0 ? parsed.totalKilograms : '?'}`;
-    toast(`OC procesada. Folio: ${parsed.folio || '?'} · OC: ${parsed.oc || '?'} · ${detalle}`, 'ok');
+    toast(`OC aplicada. Folio: ${parsed.folio || '?'} · OC: ${parsed.oc || '?'} · ${detalle}`, 'ok');
+  }
+
+  // Se mantiene por compatibilidad (nadie mas la llama ya dentro de este
+  // codebase, TabResumen ahora usa el flujo de vista previa), pero sigue
+  // disponible en el contexto por si algun otro punto de entrada la usa.
+  function parseOCAndFill(text: string) {
+    if (!text) return;
+    applyParsedOC(parseOrdenDeCompra(text));
   }
 
   async function retryAI() {
@@ -282,7 +292,7 @@ export function OrderModalProvider({
     allOrders, knownClients, knownProviders, knownClientEmails, provName, config, focusInvoiceId,
     fallbackSale, fallbackCost, fallbackComm, kilosNum, tab, setTab,
     kilosEntregados, kilosPedidos, kilosFaltantes, kilosPendientesDeFacturar, deliveredByItem,
-    processFacturaText, processPagoText, processParsedXml, parseOCAndFill, emailClient, toast,
+    processFacturaText, processPagoText, processParsedXml, parseOCAndFill, applyParsedOC, emailClient, toast,
     printRemision: handlePrintRemision, printPreFactura: handlePrintPreFactura, printConsolidatedPackage: handlePrintConsolidatedPackage,
     save, remove, restore, clickEliminar, confirmandoEliminar, busy, setBusy, retryAI
   };

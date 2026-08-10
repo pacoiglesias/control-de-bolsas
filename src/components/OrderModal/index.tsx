@@ -85,7 +85,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     if (!form.client.trim() || !form.provider.trim())
       return { texto: 'Faltan datos básicos (cliente o proveedor).', boton: 'Ir a Resumen', ir: 'resumen' as TabName, tono: '#fef3c7' };
     if (form.items.length === 0)
-      return { texto: 'Agrega los productos de esta Orden de Compra.', boton: 'Ir a Productos', ir: 'productos' as TabName, tono: '#fef3c7' };
+      return { texto: 'Agrega los productos de esta Orden de Compra (o usa "📋 Pegar Texto OC" / "🤖 Escanear OC" para autollenarlos).', boton: 'Ir a Productos', ir: 'productos' as TabName, tono: '#fef3c7' };
     if (entregasSinFacturar > 0)
       return { texto: `${entregasSinFacturar} entrega(s) sin facturar.`, boton: 'Ir a Facturar', ir: 'entregas' as TabName, tono: '#dbeafe' };
     if (kilosFaltantes > 0.01)

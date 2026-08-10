@@ -338,7 +338,32 @@ export default function Orders() {
         </div>
 
         {rows.length === 0 ? (
-          <Empty>No hay órdenes en este filtro.</Empty>
+          <Empty icon="📭">
+            {filter === 'all' && !search ? (
+              // Lista totalmente vacia (no solo un filtro sin resultados):
+              // antes solo decia "No hay ordenes en este filtro" sin ninguna
+              // pista de por donde empezar. El boton de arriba ("📥 Subir /
+              // Pegar OC") ya existe -- aqui solo se repite la invitacion
+              // donde el usuario esta mirando, en vez de que tenga que
+              // encontrarlo solo en la barra de acciones.
+              <>
+                <p style={{ margin: '0 0 16px' }}>Todavía no hay ningún expediente. Así se arranca uno:</p>
+                {role !== 'viewer' && (
+                  <button className="btn btn-primary" onClick={() => {
+                    setInitialModalTab('productos');
+                    setSelected({
+                      id: doc(collection(db, PATHS.orders)).id,
+                      creditCycle: { status: 'pedido' }
+                    } as PurchaseOrder);
+                  }}>
+                    📥 Subir / Pegar tu primera OC
+                  </button>
+                )}
+              </>
+            ) : (
+              'No hay órdenes en este filtro.'
+            )}
+          </Empty>
         ) : viewMode === 'kanban' ? (
           <div style={{ padding: '20px 16px' }}>
             <KanbanBoard items={rows} onSelect={setSelected} />

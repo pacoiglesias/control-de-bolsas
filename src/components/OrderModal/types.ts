@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { PurchaseOrder, PurchaseOrderItem, Delivery, Invoice, FinancialConfig, OrderFinancials } from '../../lib/types';
 import type { ParsedInvoiceData } from '../../lib/xmlParser';
+import type { ParsedOC } from '../../lib/ocParser';
 import { getOrderSummary } from '../../lib/finance';
 
 export type OrderSummary = ReturnType<typeof getOrderSummary>;
@@ -77,6 +78,7 @@ export interface OrderModalContextType {
   processPagoText: (text: string) => void;
   processParsedXml: (data: ParsedInvoiceData) => void;
   parseOCAndFill: (text: string) => void;
+  applyParsedOC: (parsed: ParsedOC) => void;
   emailClient: () => void;
   
   // --- Handlers: Productos ---
