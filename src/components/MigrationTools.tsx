@@ -5,6 +5,7 @@ import { Card, Spinner } from './ui';
 import { useToast } from '../context/ToastContext';
 import { money } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
+import { confirmDialog } from '../lib/confirmDialog';
 
 export default function MigrationTools() {
   const [busy, setBusy] = useState(false);
@@ -14,7 +15,7 @@ export default function MigrationTools() {
   const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
 
   async function executeMigration(dryRun: boolean) {
-    if (!dryRun && !window.confirm('¿ESTÁS SEGURO? Esto escribirá en la base de datos real y eliminará el arreglo de facturas de los expedientes.')) {
+    if (!dryRun && !(await confirmDialog({ message: '¿ESTÁS SEGURO? Esto escribirá en la base de datos real y eliminará el arreglo de facturas de los expedientes.', danger: true }))) {
       return;
     }
     setBusy(true);

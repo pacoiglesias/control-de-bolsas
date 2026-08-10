@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import type { Delivery, Invoice } from '../../lib/types';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function useOrderDeliveries(
   setForm: React.Dispatch<React.SetStateAction<any>>,
@@ -51,8 +52,8 @@ export function useOrderDeliveries(
     });
   }, [setForm]);
 
-  const removeDelivery = useCallback((index: number) => {
-    if (window.confirm('¿Eliminar esta entrega?')) {
+  const removeDelivery = useCallback(async (index: number) => {
+    if (await confirmDialog({ message: '¿Eliminar esta entrega?', danger: true })) {
       setForm((f: any) => {
         const next = [...f.deliveries];
         next.splice(index, 1);

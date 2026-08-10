@@ -7,6 +7,7 @@ import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
 import { db, PATHS } from '../../lib/firebase';
 import { useOrderDeliveries } from './useOrderDeliveries';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) => void, onCancel: () => void }) {
   const { deliveries, loading } = useMaquilaDeliveries();
@@ -169,12 +170,13 @@ export default function TabEntregas() {
                                 <td className="num">
                                   <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
                                     defaultValue={qtyEnEsta}
-                                    onBlur={e => {
+                                    onBlur={async e => {
                                       const val = Number(e.target.value);
                                       const maxLogico = (it.quantity || 0) * 1.5; // Tolerancia del 50% sobre el pedido
                                       if (it.quantity > 0 && val > maxLogico) {
-                                        if (!window.confirm(`⚠️ ADVERTENCIA DE SEGURIDAD\n\nEstás reportando una entrega de ${val.toLocaleString('es-MX')} kg, pero el pedido original es de solo ${it.quantity.toLocaleString('es-MX')} kg.\n\n¿Estás absolutamente seguro de que esto es correcto y no es un error de dedo?`)) {
-                                          e.target.value = String(qtyEnEsta); // Revertir valor
+                                        const inputEl = e.target;
+                                        if (!(await confirmDialog({ message: `⚠️ ADVERTENCIA DE SEGURIDAD\n\nEstás reportando una entrega de ${val.toLocaleString('es-MX')} kg, pero el pedido original es de solo ${it.quantity.toLocaleString('es-MX')} kg.\n\n¿Estás absolutamente seguro de que esto es correcto y no es un error de dedo?`, danger: true }))) {
+                                          inputEl.value = String(qtyEnEsta); // Revertir valor
                                           return;
                                         }
                                       }

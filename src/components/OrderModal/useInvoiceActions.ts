@@ -4,6 +4,7 @@ import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { computeFinancials } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function useInvoiceActions() {
   const toast = useToast();
@@ -75,7 +76,7 @@ export function useInvoiceActions() {
   }
 
   async function deleteInvoice(order: PurchaseOrder, invoiceId: string) {
-    if (!window.confirm('¿Seguro que deseas eliminar esta factura?')) return;
+    if (!(await confirmDialog({ message: '¿Seguro que deseas eliminar esta factura?', danger: true }))) return;
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
       const invRef = doc(db, PATHS.invoices, invoiceId);

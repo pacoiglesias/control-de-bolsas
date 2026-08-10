@@ -8,6 +8,7 @@ import { Card, Field, Skeleton, Drawer } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { safeDeleteDoc } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
+import { confirmDialog } from '../lib/confirmDialog';
 
 export default function Catalog() {
   const { user } = useAuth();
@@ -242,7 +243,7 @@ export default function Catalog() {
                   style={{ position: 'absolute', top: 12, right: 12, opacity: 0.5 }}
                   title="Eliminar del catálogo"
                   onClick={async () => {
-                    if (!window.confirm(`¿Eliminar "${p.description}" del catálogo?`)) return;
+                    if (!(await confirmDialog({ message: `¿Eliminar "${p.description}" del catálogo?`, danger: true }))) return;
                     try {
                       await safeDeleteDoc(user?.email, doc(db, PATHS.products, p.id), p);
                       toast('Producto eliminado del catálogo.', 'ok');

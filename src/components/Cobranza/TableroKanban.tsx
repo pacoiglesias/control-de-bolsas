@@ -7,6 +7,19 @@ import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { InvoiceDrawer } from './InvoiceDrawer';
 import { useConfig } from '../../hooks/useConfig';
 
+// FIX 2026-08-10 (Staff Engineer -- task ERP #12): este tablero tenía sus
+// 4 columnas con degradados y colores de texto en hex/rgba fijos (pensados
+// solo para fondo claro) -- en modo oscuro se veían como 4 "islas" de modo
+// claro dentro de una app oscura. TONE centraliza el color por columna
+// usando variables CSS que ya cambian solas en [data-theme="dark"] (ver
+// src/index.css), igual que el resto del sistema.
+const TONE: Record<string, { color: string; bg: string }> = {
+  colRevision: { color: 'var(--ink-soft)', bg: 'var(--paper-sunk)' },
+  colPorCobrar: { color: 'var(--bad)', bg: 'var(--bad-bg)' },
+  colContador: { color: 'var(--warn)', bg: 'var(--warn-bg)' },
+  colCaja: { color: 'var(--ok)', bg: 'var(--ok-bg)' },
+};
+
 export default function TableroKanban() {
   const { data, money, moveInvoice } = useContext(CobranzaContext)!;
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
@@ -127,22 +140,22 @@ export default function TableroKanban() {
         onClick={() => setDrawerTarget({ o: x.o, inv: x.inv })}
       >
         {x._posibleDuplicado && (
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '4px 8px', borderRadius: 6, marginBottom: 8, display: 'inline-block' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--warn)', background: 'var(--warn-bg)', padding: '4px 8px', borderRadius: 6, marginBottom: 8, display: 'inline-block' }}>
             ⚠️ Posible duplicado — mismo CR en otra tarjeta
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'flex-start' }}>
           <strong style={{ fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>{inv.folio || o.folio || 'Sin Folio'}</strong>
-          <span style={{ fontSize: 15, fontWeight: 800, color: isOverdue ? '#dc2626' : 'var(--ink)', letterSpacing: '-0.02em' }}>{money(amt)}</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: isOverdue ? 'var(--bad)' : 'var(--ink)', letterSpacing: '-0.02em' }}>{money(amt)}</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 12, fontWeight: 500 }}>
           {nombreClienteVisible(o.client)} {o.department ? <span style={{ opacity: 0.7 }}>({o.department})</span> : ''}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 10, borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: 11, background: cr ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.1)', color: cr ? '#166534' : '#475569', padding: '4px 8px', borderRadius: 6, fontWeight: 700, letterSpacing: '0.02em' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 10, borderTop: '1px solid var(--line-soft)' }}>
+          <span style={{ fontSize: 11, background: cr ? 'var(--ok-bg)' : 'var(--paper-sunk)', color: cr ? 'var(--ok)' : 'var(--ink-soft)', padding: '4px 8px', borderRadius: 6, fontWeight: 700, letterSpacing: '0.02em' }}>
             {cr ? `CR: ${cr}` : 'Sin CR'}
           </span>
-          <span style={{ fontSize: 11, color: isOverdue ? '#dc2626' : 'var(--ink-soft)', fontWeight: isOverdue ? 700 : 500 }}>
+          <span style={{ fontSize: 11, color: isOverdue ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: isOverdue ? 700 : 500 }}>
             {isOverdue ? `Atraso: ${late} días` : (inv.creditCycle?.dueDate ? `Vence: ${fmtDate(inv.creditCycle.dueDate)}` : '')}
           </span>
         </div>
@@ -208,18 +221,18 @@ export default function TableroKanban() {
     }
   };
 
-  const getColStyle = (colId: string, baseBg: string) => ({
-    flex: '0 0 320px', 
-    background: activeTarget === colId ? 'rgba(30, 41, 59, 0.05)' : baseBg,
+  const getColStyle = (colId: string) => ({
+    flex: '0 0 320px',
+    background: activeTarget === colId ? 'color-mix(in srgb, var(--ink) 6%, transparent)' : TONE[colId].bg,
     backdropFilter: 'blur(12px)',
     WebkitBackdropFilter: 'blur(12px)',
-    borderRadius: 20, 
-    padding: 20, 
-    display: 'flex', 
-    flexDirection: 'column' as const, 
+    borderRadius: 20,
+    padding: 20,
+    display: 'flex',
+    flexDirection: 'column' as const,
     maxHeight: '75vh',
     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1px solid ${activeTarget === colId ? 'rgba(30, 41, 59, 0.1)' : 'var(--glass-border)'}`,
+    border: `1px solid ${activeTarget === colId ? 'color-mix(in srgb, var(--ink) 15%, transparent)' : 'var(--glass-border)'}`,
     boxShadow: 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3)'
   });
 
@@ -228,86 +241,86 @@ export default function TableroKanban() {
       <KanbanScrollWrapper>
       
       {/* Columna En Revisión */}
-      <div 
-        style={getColStyle('colRevision', 'linear-gradient(180deg, rgba(248, 250, 252, 0.7) 0%, rgba(241, 245, 249, 0.5) 100%)')}
+      <div
+        style={getColStyle('colRevision')}
         onDragOver={handleDragOver}
         onDragEnter={() => setActiveTarget('colRevision')}
         onDragLeave={() => setActiveTarget(null)}
         onDrop={(e) => handleDrop(e, 'colRevision')}
       >
-        <div style={{ fontWeight: 800, color: '#334155', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
+        <div style={{ fontWeight: 800, color: TONE.colRevision.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
           <span>🔎 En Revisión (Sin CR)</span>
-          <span style={{ background: 'rgba(51, 65, 85, 0.1)', color: '#334155', padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colRevision.length}</span>
+          <span style={{ background: 'var(--paper-raised)', color: TONE.colRevision.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colRevision.length}</span>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed rgba(0,0,0,0.1)' }}>Total: {money(cols.totales.colRevision)}</div>
+        <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed var(--line-soft)' }}>Total: {money(cols.totales.colRevision)}</div>
         <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
           <AnimatePresence>
             {cols.colRevision.map(renderCard)}
           </AnimatePresence>
-          {cols.colRevision.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
+          {cols.colRevision.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
         </div>
       </div>
 
       {/* Columna Por Cobrar */}
-      <div 
-        style={getColStyle('colPorCobrar', 'linear-gradient(180deg, rgba(254, 242, 242, 0.7) 0%, rgba(254, 226, 226, 0.5) 100%)')}
+      <div
+        style={getColStyle('colPorCobrar')}
         onDragOver={handleDragOver}
         onDragEnter={() => setActiveTarget('colPorCobrar')}
         onDragLeave={() => setActiveTarget(null)}
         onDrop={(e) => handleDrop(e, 'colPorCobrar')}
       >
-        <div style={{ fontWeight: 800, color: '#991b1b', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
+        <div style={{ fontWeight: 800, color: TONE.colPorCobrar.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
           <span>⏳ Por Cobrar (Con CR)</span>
-          <span style={{ background: 'rgba(153, 27, 27, 0.1)', color: '#991b1b', padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colPorCobrar.length}</span>
+          <span style={{ background: 'var(--paper-raised)', color: TONE.colPorCobrar.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colPorCobrar.length}</span>
         </div>
-        <div style={{ fontSize: 13, color: '#991b1b', opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed rgba(153, 27, 27, 0.2)' }}>Total: {money(cols.totales.colPorCobrar)}</div>
+        <div style={{ fontSize: 13, color: TONE.colPorCobrar.color, opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed color-mix(in srgb, var(--bad) 20%, transparent)' }}>Total: {money(cols.totales.colPorCobrar)}</div>
         <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
           <AnimatePresence>
             {cols.colPorCobrar.map(renderCard)}
           </AnimatePresence>
-          {cols.colPorCobrar.length === 0 && <div style={{ textAlign: 'center', color: '#fca5a5', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
+          {cols.colPorCobrar.length === 0 && <div style={{ textAlign: 'center', color: 'color-mix(in srgb, var(--bad) 60%, var(--ink-faint))', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
         </div>
       </div>
 
       {/* Columna Con Contador */}
-      <div 
-        style={getColStyle('colContador', 'linear-gradient(180deg, rgba(255, 251, 235, 0.8) 0%, rgba(254, 243, 199, 0.6) 100%)')}
+      <div
+        style={getColStyle('colContador')}
         onDragOver={handleDragOver}
         onDragEnter={() => setActiveTarget('colContador')}
         onDragLeave={() => setActiveTarget(null)}
         onDrop={(e) => handleDrop(e, 'colContador')}
       >
-        <div style={{ fontWeight: 800, color: '#b45309', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
+        <div style={{ fontWeight: 800, color: TONE.colContador.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
           <span>🟡 Con el Contador</span>
-          <span style={{ background: 'rgba(180, 83, 9, 0.1)', color: '#b45309', padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colContador.length}</span>
+          <span style={{ background: 'var(--paper-raised)', color: TONE.colContador.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colContador.length}</span>
         </div>
-        <div style={{ fontSize: 13, color: '#b45309', opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed rgba(180, 83, 9, 0.2)' }}>Total: {money(cols.totales.colContador)}</div>
+        <div style={{ fontSize: 13, color: TONE.colContador.color, opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed color-mix(in srgb, var(--warn) 20%, transparent)' }}>Total: {money(cols.totales.colContador)}</div>
         <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
           <AnimatePresence>
             {cols.colContador.map(renderCard)}
           </AnimatePresence>
-          {cols.colContador.length === 0 && <div style={{ textAlign: 'center', color: '#fcd34d', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
+          {cols.colContador.length === 0 && <div style={{ textAlign: 'center', color: 'color-mix(in srgb, var(--warn) 60%, var(--ink-faint))', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
         </div>
       </div>
 
       {/* Columna En Caja */}
-      <div 
-        style={getColStyle('colCaja', 'linear-gradient(180deg, rgba(240, 253, 244, 0.8) 0%, rgba(220, 252, 231, 0.6) 100%)')}
+      <div
+        style={getColStyle('colCaja')}
         onDragOver={handleDragOver}
         onDragEnter={() => setActiveTarget('colCaja')}
         onDragLeave={() => setActiveTarget(null)}
         onDrop={(e) => handleDrop(e, 'colCaja')}
       >
-        <div style={{ fontWeight: 800, color: '#166534', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
+        <div style={{ fontWeight: 800, color: TONE.colCaja.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
           <span>✅ En Caja Chica</span>
-          <span style={{ background: 'rgba(22, 101, 52, 0.1)', color: '#166534', padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colCaja.length}</span>
+          <span style={{ background: 'var(--paper-raised)', color: TONE.colCaja.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colCaja.length}</span>
         </div>
-        <div style={{ fontSize: 13, color: '#166534', opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed rgba(22, 101, 52, 0.2)' }}>Total: {money(cols.totales.colCaja)}</div>
+        <div style={{ fontSize: 13, color: TONE.colCaja.color, opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed color-mix(in srgb, var(--ok) 20%, transparent)' }}>Total: {money(cols.totales.colCaja)}</div>
         <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
           <AnimatePresence>
             {cols.colCaja.map(renderCard)}
           </AnimatePresence>
-          {cols.colCaja.length === 0 && <div style={{ textAlign: 'center', color: '#86efac', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
+          {cols.colCaja.length === 0 && <div style={{ textAlign: 'center', color: 'color-mix(in srgb, var(--ok) 60%, var(--ink-faint))', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
         </div>
       </div>
 

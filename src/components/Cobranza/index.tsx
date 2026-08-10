@@ -23,6 +23,7 @@ import { logAction } from '../../lib/logger';
 import { sound } from '../../lib/sounds';
 import type { PurchaseOrder } from '../../lib/types';
 import confetti from 'canvas-confetti';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -190,7 +191,7 @@ export default function Cobranza() {
   }
 
   async function payInvoiceExact(orderId: string, invoiceId: string, amountToPay: number) {
-    if (!window.confirm(`¿Confirmas el cobro exacto por $${amountToPay.toLocaleString('es-MX', {minimumFractionDigits:2})} de esta factura?`)) return;
+    if (!(await confirmDialog(`¿Confirmas el cobro exacto por $${amountToPay.toLocaleString('es-MX', {minimumFractionDigits:2})} de esta factura?`))) return;
 
     try {
       await runTransaction(db, async (tx) => {
@@ -233,7 +234,7 @@ export default function Cobranza() {
 
   async function payContrareciboBlock(crNumber: string) {
     if (!crNumber) return;
-    if (!window.confirm(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`)) return;
+    if (!(await confirmDialog(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`))) return;
     
     const doctoSap = window.prompt('Docto. SAP (Opcional):') || '';
     const doctoPago = window.prompt('Docto. Pago (Opcional, ej. TR_3583):') || '';
@@ -303,7 +304,7 @@ export default function Cobranza() {
 
   async function undoContrareciboBlock(crNumber: string) {
     if (!crNumber) return;
-    if (!window.confirm(`¿Seguro que quieres DESHACER el cobro del Contrarecibo ${crNumber}? Las facturas volverán a pendientes.`)) return;
+    if (!(await confirmDialog({ message: `¿Seguro que quieres DESHACER el cobro del Contrarecibo ${crNumber}? Las facturas volverán a pendientes.`, danger: true }))) return;
     
     const invoicesToUndo = data.paid.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
@@ -349,7 +350,7 @@ export default function Cobranza() {
 
   async function collectContrareciboBlock(crNumber: string, netCobrado: number) {
     if (!crNumber) return;
-    if (!window.confirm(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en CAJA.`)) return;
+    if (!(await confirmDialog(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en CAJA.`))) return;
 
     // Referencia de la transferencia (ej. "TR_3583"), distinta del numero de
     // contrarecibo (ej. "GT-570"): sin ella no se puede conciliar el deposito
@@ -454,7 +455,7 @@ export default function Cobranza() {
 
   async function revertCollectedContrareciboBlock(crNumber: string) {
     if (!crNumber) return;
-    if (!window.confirm(`¿DESHACER RECOLECCIÓN del Contrarecibo ${crNumber}? El lote regresará a "Por Recoger Dinero" y se registrará un egreso de reversión en CAJA.`)) return;
+    if (!(await confirmDialog({ message: `¿DESHACER RECOLECCIÓN del Contrarecibo ${crNumber}? El lote regresará a "Por Recoger Dinero" y se registrará un egreso de reversión en CAJA.`, danger: true }))) return;
     
     const invoicesToRevert = data.collected.filter(({ o, inv }) => 
       (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
@@ -531,7 +532,7 @@ export default function Cobranza() {
 
   async function liquidateAccountantBlock(crNumber: string) {
     if (!crNumber) return;
-    if (!window.confirm(`¿Seguro que quieres MARCAR como pagada (liquidada) la comisión al contador para el CR ${crNumber}?`)) return;
+    if (!(await confirmDialog(`¿Seguro que quieres MARCAR como pagada (liquidada) la comisión al contador para el CR ${crNumber}?`))) return;
 
     // Buscamos todas las facturas de ese CR (que esten paid o collected)
     const allCrInvoices = [...data.paid, ...data.collected].filter(({ o, inv }) => 
@@ -1147,7 +1148,7 @@ export default function Cobranza() {
       // numero que se borra se recuerda para poder restaurarlo con un
       // clic si fue un movimiento accidental.
       const crActual = inv.collection?.contrareciboNumber || '';
-      if (!window.confirm(`Esto borra el número de Contrarecibo (${crActual}) de esta factura. ¿Seguro que quieres moverla a Revisión?`)) {
+      if (!(await confirmDialog(`Esto borra el número de Contrarecibo (${crActual}) de esta factura. ¿Seguro que quieres moverla a Revisión?`))) {
         return;
       }
       if (crActual) crRecordados.current[invoiceId] = crActual;
@@ -1171,7 +1172,7 @@ export default function Cobranza() {
       if (currentCol === 'colPorCobrar') {
          newStatus = 'paid';
       } else if (currentCol === 'colCaja') {
-         if (!window.confirm('¿Seguro que quieres deshacer la recolección? Se registrará un egreso de reversión en Caja para cuadrar.')) return;
+         if (!(await confirmDialog('¿Seguro que quieres deshacer la recolección? Se registrará un egreso de reversión en Caja para cuadrar.'))) return;
          
          const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 47) * (1 + (config.ivaRate || 0.16)));
          const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 47) * (config.commissionRate || 0));
@@ -1191,7 +1192,7 @@ export default function Cobranza() {
       }
     } else if (targetCol === 'colCaja') {
       if (currentCol === 'colContador') {
-         if (!window.confirm(`¿Confirmas que se recibió el EFECTIVO/TRANSFERENCIA por la factura ${inv.folio || o.folio}? Se registrará el ingreso en Caja.`)) return;
+         if (!(await confirmDialog(`¿Confirmas que se recibió el EFECTIVO/TRANSFERENCIA por la factura ${inv.folio || o.folio}? Se registrará el ingreso en Caja.`))) return;
 
          const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 47) * (1 + (config.ivaRate || 0.16)));
          const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 47) * (config.commissionRate || 0));

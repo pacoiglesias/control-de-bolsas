@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Skeleton, Modal, Field, Card } from '../components/ui';
 import { safeDeleteDoc } from '../lib/logger';
+import { confirmDialog } from '../lib/confirmDialog';
 
 interface UserData {
   id: string;
@@ -125,7 +126,7 @@ export default function Users() {
   };
 
   const handleDelete = async (userId: string, email: string) => {
-    if (!window.confirm(`¿Seguro que deseas REVOCAR EL ACCESO al usuario ${email}?`)) return;
+    if (!(await confirmDialog({ message: `¿Seguro que deseas REVOCAR EL ACCESO al usuario ${email}?`, danger: true }))) return;
     try {
       // Solo borramos el doc en admins. Al hacer esto, las reglas de Firestore bloquean al usuario.
       await safeDeleteDoc(user?.email, doc(db, "admins", userId), { id: userId });

@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { Skeleton, Drawer } from '../components/ui';
+import { confirmDialog } from '../lib/confirmDialog';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
@@ -175,7 +176,7 @@ return () => unsub();
   }
 
   async function handleRestoreBackup(snap: CloudSnapshotMeta) {
-    if (!window.confirm(`⚠️ ¿Deseas restaurar el respaldo del ${snap.createdAt?.toLocaleString('es-MX')}?\n\nEsto actualizará el estado de la nube con este punto de restauración.`)) {
+    if (!(await confirmDialog({ message: `⚠️ ¿Deseas restaurar el respaldo del ${snap.createdAt?.toLocaleString('es-MX')}?\n\nEsto actualizará el estado de la nube con este punto de restauración.`, danger: true }))) {
       return;
     }
     setBackupBusy(true);
@@ -325,7 +326,7 @@ return () => unsub();
   }
 
   async function handleRecibir(r: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }) {
-    if (!window.confirm(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`)) return;
+    if (!(await confirmDialog(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`))) return;
     
     try {
       // 1. Encontrar la orden para actualizar el invoice especifico

@@ -4,6 +4,7 @@ import { db, PATHS } from '../../lib/firebase';
 import { Modal, Field } from '../ui';
 import { useToast } from '../../context/ToastContext';
 import { toInputDate, fromInputDate, money } from '../../lib/format';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function PagarAndresModal({ 
   onClose,
@@ -28,7 +29,7 @@ export function PagarAndresModal({
     if (isNaN(val) || val <= 0) return toast('El monto debe ser mayor a cero.', 'bad');
     if (!pagoAbono.concept.trim()) return toast('El concepto es obligatorio.', 'bad');
     
-    if (!confirm(`¿Confirmas registrar un abono de $${val.toLocaleString('es-MX')} a Andrés?`)) return;
+    if (!(await confirmDialog(`¿Confirmas registrar un abono de $${val.toLocaleString('es-MX')} a Andrés?`))) return;
     
     setBusy(true);
     try {

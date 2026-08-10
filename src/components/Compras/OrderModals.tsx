@@ -10,6 +10,7 @@ import { newDeliveryEvent, updateDeliveryField, updateDeliveryItemQuantity, comp
 import { logAction, safeDeleteDoc } from '../../lib/logger';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { round2 } from '../../lib/finance';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Purchase, onClose: () => void, costPricePerKg: number }) {
   const { user } = useAuth();
@@ -54,7 +55,7 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
   }
 
   async function remove() {
-    if (!window.confirm('¿Borrar esta orden?')) return;
+    if (!(await confirmDialog({ message: '¿Borrar esta orden?', danger: true }))) return;
     setBusy(true);
     try {
       await safeDeleteDoc(user?.email, doc(db, PATHS.purchases, purchase.id), purchase);

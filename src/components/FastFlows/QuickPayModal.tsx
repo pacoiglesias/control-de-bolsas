@@ -6,6 +6,7 @@ import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder } from '../../lib/types';
 import { money, nombreClienteVisible } from '../../lib/format';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function QuickPayModal({ orders, onClose }: { orders: any[]; onClose: () => void }) {
   const toast = useToast();
@@ -26,7 +27,7 @@ export function QuickPayModal({ orders, onClose }: { orders: any[]; onClose: () 
   const [saving, setSaving] = useState(false);
 
   const handlePay = async (item: { order: PurchaseOrder, inv: any, cr: string }) => {
-    if (!window.confirm(`¿Confirmas que el cliente YA PAGÓ la factura ${item.inv.folio}? Pasará al Contador.`)) return;
+    if (!(await confirmDialog(`¿Confirmas que el cliente YA PAGÓ la factura ${item.inv.folio}? Pasará al Contador.`))) return;
 
     setSaving(true);
     try {

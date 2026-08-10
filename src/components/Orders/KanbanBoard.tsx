@@ -9,14 +9,20 @@ type OrderWithSummary = {
   s: any; // getOrderSummary return type
 };
 
+// FIX 2026-08-10 (Staff Engineer -- task ERP #12): antes cada columna traía
+// su propio color/bg en hex fijo (pensado solo para modo claro) -- en modo
+// oscuro esa combinación de fondo casi blanco + texto casi negro se veía
+// como una "isla" de modo claro dentro de una app oscura. Ahora usan
+// variables CSS (var(--...)) que ya cambian solas según [data-theme="dark"],
+// igual que el resto del sistema (ver src/index.css).
 const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: string }[] = [
-  { id: 'pedido', label: 'Pendiente de Facturar', color: '#0f172a', bg: '#f8fafc' },
-  { id: 'facturado', label: 'Facturado', color: '#1d4ed8', bg: '#eff6ff' },
-  { id: 'pending', label: 'Con Contrarecibo', color: '#b45309', bg: '#fef3c7' },
-  { id: 'overdue', label: 'Vencidas', color: '#b91c1c', bg: '#fef2f2' },
-  { id: 'manual_review', label: 'Revisión Manual', color: '#c2410c', bg: '#ffedd5' },
-  { id: 'paid', label: 'Con el Contador', color: '#15803d', bg: '#f0fdf4' },
-  { id: 'collected', label: '✅ Cobrado y Recolectado', color: '#047857', bg: '#ecfdf5' },
+  { id: 'pedido', label: 'Pendiente de Facturar', color: 'var(--ink)', bg: 'var(--paper-sunk)' },
+  { id: 'facturado', label: 'Facturado', color: 'var(--info)', bg: 'var(--info-bg)' },
+  { id: 'pending', label: 'Con Contrarecibo', color: 'var(--warn)', bg: 'var(--warn-bg)' },
+  { id: 'overdue', label: 'Vencidas', color: 'var(--bad)', bg: 'var(--bad-bg)' },
+  { id: 'manual_review', label: 'Revisión Manual', color: 'var(--kanban-review)', bg: 'var(--kanban-review-bg)' },
+  { id: 'paid', label: 'Con el Contador', color: 'var(--ok)', bg: 'var(--ok-bg)' },
+  { id: 'collected', label: '✅ Cobrado y Recolectado', color: 'var(--kanban-collected)', bg: 'var(--kanban-collected-bg)' },
 ];
 
 export default function KanbanBoard({ items, onSelect }: { items: OrderWithSummary[], onSelect: (o: PurchaseOrder) => void }) {
@@ -54,12 +60,12 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
         }
 
         return (
-          <div key={col.id} className="kanban-column" style={{ minWidth: 320, width: 320, background: col.bg, borderRadius: 20, padding: 16, border: `1px solid ${col.color}20`, display: 'flex', flexDirection: 'column', maxHeight: '75vh', boxShadow: 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3), 0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+          <div key={col.id} className="kanban-column" style={{ minWidth: 320, width: 320, background: col.bg, borderRadius: 20, padding: 16, border: `1px solid color-mix(in srgb, ${col.color} 20%, transparent)`, display: 'flex', flexDirection: 'column', maxHeight: '75vh', boxShadow: 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3), 0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '0 4px' }}>
               <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: col.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {col.label}
               </h3>
-              <span style={{ background: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600, color: col.color, border: `1px solid ${col.color}30` }}>
+              <span style={{ background: 'var(--paper-raised)', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 600, color: col.color, border: `1px solid color-mix(in srgb, ${col.color} 30%, transparent)` }}>
                 {colItems.length}
               </span>
             </div>

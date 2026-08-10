@@ -4,6 +4,7 @@ import { Field, StatusBadge } from '../ui';
 import { PasteTextModal } from '../PasteTextModal';
 import { fromInputDate, money, toInputDate, kilos } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export default function TabResumen() {
   const ctx = useOrderModal();
@@ -177,8 +178,8 @@ export default function TabResumen() {
               </div>
               {form.isClosedShort && <span className="badge" style={{ background: 'var(--warn)' }}>🔒 Cierre Forzado</span>}
               {!form.isClosedShort && liveSummary.status === 'pending' && kilosNum - liveSummary.kilosDelivered > 0 && (
-                <button className="btn btn-primary" style={{ background: 'var(--ink)', borderColor: 'var(--ink)', fontSize: 12 }} onClick={() => {
-                  if (window.confirm('¿Seguro que deseas forzar el cierre de esta Orden? Ya no aparecerá como pendiente en almacén aunque falten kilos.')) {
+                <button className="btn btn-primary" style={{ background: 'var(--ink)', borderColor: 'var(--ink)', fontSize: 12 }} onClick={async () => {
+                  if (await confirmDialog('¿Seguro que deseas forzar el cierre de esta Orden? Ya no aparecerá como pendiente en almacén aunque falten kilos.')) {
                     set('isClosedShort', true);
                     toast('Orden marcada para cierre. Haz clic en Guardar Cambios.', 'ok');
                   }

@@ -3,6 +3,7 @@ import { db } from '../../lib/firebase';
 import { PATHS } from '../../lib/firebase';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
 import { safeDeleteDoc, logAction } from '../../lib/logger';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function useOrderActions() {
   async function saveOrder({
@@ -33,7 +34,7 @@ export function useOrderActions() {
     if (folioTrim) {
       const duplicado = allOrders.find((o: any) => o.id !== order.id && (o.folio ?? '').trim() === folioTrim);
       if (duplicado) {
-        const continuar = window.confirm(
+        const continuar = await confirmDialog(
           `Ya existe otro expediente con el folio "${folioTrim}" (cliente: ${duplicado.client || '—'}). ` +
           `¿Seguro que quieres guardar de todos modos?`,
         );
@@ -46,7 +47,7 @@ export function useOrderActions() {
     if (ocTrim) {
       const ocDuplicada = allOrders.find((o: any) => o.id !== order.id && (o.oc ?? '').trim() === ocTrim);
       if (ocDuplicada) {
-        const continuar = window.confirm(
+        const continuar = await confirmDialog(
           `Ya existe otro expediente con el número de OC "${ocTrim}" (cliente: ${ocDuplicada.client || '—'}). ` +
           `¿Seguro que quieres guardar de todos modos?`,
         );
@@ -251,7 +252,7 @@ export function useOrderActions() {
   async function restoreOrder({
     order, userEmail, setBusy, toast, onClose,
   }: any) {
-    if (!window.confirm(`¿Restaurar el expediente ${order.folio ?? order.oc ?? ''}? Volverá a aparecer en todas las pantallas.`))
+    if (!(await confirmDialog(`¿Restaurar el expediente ${order.folio ?? order.oc ?? ''}? Volverá a aparecer en todas las pantallas.`)))
       return;
     setBusy(true);
     try {

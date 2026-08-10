@@ -6,6 +6,7 @@ import { camposInvoices } from '../lib/invoiceOps';
 import { round2 } from '../lib/finance';
 import { toDate } from '../lib/format';
 import { Card, Empty } from '../components/ui';
+import { confirmDialog } from '../lib/confirmDialog';
 import type { OrderStatus, Invoice, PurchaseOrder } from '../lib/types';
 
 /**
@@ -353,7 +354,7 @@ export default function AuditSync() {
     const confirmMsg = conError > 0
       ? `Hay ${conError} renglón(es) con errores que NO se van a aplicar. ¿Aplicar los otros ${aplicables.length} ajustes de todos modos?`
       : `¿Aplicar estos ${aplicables.length} ajustes al sistema? Esta acción no se puede deshacer con un botón.`;
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog({ message: confirmMsg, danger: conError === 0 }))) return;
 
     setIsProcessing(true);
     const batch = writeBatch(db);

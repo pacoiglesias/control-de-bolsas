@@ -20,6 +20,7 @@ import { printRemision, printPreFactura, printConsolidatedPackage } from './orde
 import type { TabName } from './types';
 import { useOrderActions } from './useOrderActions';
 import { useOrderForm } from './useOrderForm';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export interface OrderModalProviderProps {
   order: PurchaseOrder;
@@ -175,7 +176,7 @@ export function OrderModalProvider({
     const isOverLimit = kilosEntregadosActuales <= (kilosPedidosActuales * (1 + tol / 100));
 
     if (kilosEntregadosActuales > 0 && isUnderLimit && isOverLimit && !finalIsClosedShort && (liveSummary.status === 'pedido' || liveSummary.status === 'pending')) {
-      if (window.confirm('Has completado los kilos pedidos. ¿Deseas marcar esta orden como finalizada para que deje de aparecer como pendiente en almacén?')) {
+      if (await confirmDialog('Has completado los kilos pedidos. ¿Deseas marcar esta orden como finalizada para que deje de aparecer como pendiente en almacén?')) {
         finalIsClosedShort = true;
         set('isClosedShort', true);
       }

@@ -17,6 +17,7 @@ import { camposInvoices } from '../lib/invoiceOps';
 import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
+import { confirmDialog } from '../lib/confirmDialog';
 
 export default function Settings() {
   const { config, loading: loadingCfg, exists } = useConfig();
@@ -46,7 +47,7 @@ export default function Settings() {
     if (busy) return;
     const amount = Number(initialCash);
     if (isNaN(amount) || amount === 0) return toast('Ingresa un monto válido', 'bad');
-    if (!confirm(`¿Confirmas registrar un Saldo Inicial en Caja Chica por $${amount.toLocaleString('es-MX')}?`)) return;
+    if (!(await confirmDialog(`¿Confirmas registrar un Saldo Inicial en Caja Chica por $${amount.toLocaleString('es-MX')}?`))) return;
     setBusy(true);
     try {
       await addDoc(collection(db, PATHS.expenses), {
@@ -140,7 +141,7 @@ export default function Settings() {
       toast('No hay órdenes abiertas que recalcular.', 'bad');
       return;
     }
-    if (!window.confirm(`Se recalcularán ${target.length} órdenes con los precios actuales. ¿Continuar?`))
+    if (!(await confirmDialog(`Se recalcularán ${target.length} órdenes con los precios actuales. ¿Continuar?`)))
       return;
     setBusy(true);
     try {

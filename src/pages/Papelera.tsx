@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { logAction } from '../lib/logger';
 import { Card, Empty, Spinner } from '../components/ui';
+import { confirmDialog } from '../lib/confirmDialog';
 
 /**
  * OrdersContext filtra TODOS los expedientes con isDeleted=true desde la
@@ -41,7 +42,7 @@ export default function Papelera() {
   }, []);
 
   async function restaurar(item: any) {
-    if (!window.confirm(`¿Restaurar el expediente ${item.folio ?? item.oc ?? '(sin folio)'}? Volverá a aparecer en todas las pantallas.`)) return;
+    if (!(await confirmDialog(`¿Restaurar el expediente ${item.folio ?? item.oc ?? '(sin folio)'}? Volverá a aparecer en todas las pantallas.`))) return;
     setBusyId(item.id);
     try {
       await updateDoc(doc(db, PATHS.orders, item.id), {

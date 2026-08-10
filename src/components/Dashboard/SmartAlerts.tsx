@@ -4,10 +4,12 @@ import { db, PATHS } from '../../lib/firebase';
 import { PurchaseOrder } from '../../lib/types';
 import { money } from '../../lib/format';
 import { useNavigate } from 'react-router-dom';
+import { useConfig } from '../../hooks/useConfig';
 
 export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const nav = useNavigate();
+  const { config } = useConfig();
 
   useEffect(() => {
     const q = query(collection(db, PATHS.maquilaDeliveries), where('status', '==', 'pending_approval'));
@@ -27,6 +29,23 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
     let nearDueCount = 0;
     let nearDueTotal = 0;
 
+    // FIX 2026-08-10 (Staff Engineer -- task ERP #13): alerta de margen
+    // anómalo. Antes un error de captura (costo mal escrito, precio de
+    // venta con un cero de más/de menos, kilos duplicados) solo se notaba
+    // hasta que alguien revisaba la factura una por una en el expediente --
+    // no había ninguna señal proactiva en el Dashboard. El margen
+    // "esperado" se deriva de la configuración global vigente
+    // (salePricePerKg vs costPricePerKg); se marca como anómala cualquier
+    // factura ya facturada cuyo margen real (financials.tradeMargin /
+    // financials.saleTotal, calculado por computeFinancials en finance.ts)
+    // esté muy por debajo de ese esperado, o sea negativo (pérdida).
+    const expectedMarginRate = config.salePricePerKg > 0
+      ? (config.salePricePerKg - config.costPricePerKg) / config.salePricePerKg
+      : 0;
+    let marginAnomalyCount = 0;
+    let worstMarginFolio = '';
+    let worstMarginRate = Infinity;
+
     for (const o of orders) {
       if (!o.invoices) continue;
       for (const inv of o.invoices) {
@@ -38,6 +57,21 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
           } else if (dueMs <= now + threeDaysMs) {
             nearDueCount++;
             nearDueTotal += (inv.financials?.invoiceTotal || 0);
+          }
+        }
+
+        const saleTotal = inv.financials?.saleTotal ?? 0;
+        if (expectedMarginRate > 0 && saleTotal > 0) {
+          const actualMarginRate = (inv.financials?.tradeMargin ?? 0) / saleTotal;
+          // Anómala: margen negativo (pérdida real) o menos de la mitad
+          // del margen que la configuración actual dice que debería dar.
+          const esAnomala = actualMarginRate < 0 || actualMarginRate < expectedMarginRate * 0.5;
+          if (esAnomala) {
+            marginAnomalyCount++;
+            if (actualMarginRate < worstMarginRate) {
+              worstMarginRate = actualMarginRate;
+              worstMarginFolio = inv.folio || o.folio || o.oc || 'sin folio';
+            }
           }
         }
       }
@@ -76,8 +110,21 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
       });
     }
 
+    if (marginAnomalyCount > 0) {
+      list.push({
+        id: 'margin_anomaly',
+        type: 'warning',
+        icon: '📉',
+        message: marginAnomalyCount === 1
+          ? `La factura ${worstMarginFolio} tiene un margen anómalo (muy por debajo de lo esperado o en pérdida). Revisa el costo/precio capturado.`
+          : `${marginAnomalyCount} factura(s) con margen anómalo (muy por debajo de lo esperado o en pérdida), incluida ${worstMarginFolio}. Revisa el costo/precio capturado.`,
+        action: 'Revisar Órdenes',
+        onClick: () => nav('/ordenes')
+      });
+    }
+
     return list;
-  }, [orders, pendingApprovals, nav]);
+  }, [orders, pendingApprovals, nav, config.salePricePerKg, config.costPricePerKg]);
 
   if (alerts.length === 0) return null;
 

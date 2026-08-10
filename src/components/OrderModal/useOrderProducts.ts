@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { PurchaseOrderItem, FinancialConfig } from '../../lib/types';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 export function useOrderProducts(
   items: PurchaseOrderItem[],
@@ -25,8 +26,8 @@ export function useOrderProducts(
     });
   }, [setForm]);
 
-  const removeItem = useCallback((index: number) => {
-    if (window.confirm('¿Seguro que deseas eliminar esta partida?')) {
+  const removeItem = useCallback(async (index: number) => {
+    if (await confirmDialog({ message: '¿Seguro que deseas eliminar esta partida?', danger: true })) {
       setForm((f: any) => {
         const nextItems = [...f.items];
         nextItems.splice(index, 1);
