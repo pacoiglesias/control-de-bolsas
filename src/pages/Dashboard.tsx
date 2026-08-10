@@ -200,6 +200,17 @@ return () => unsub();
       });
     }, [globalOrders, deptFilter]);
 
+    // Seguimiento de Pedidos necesita ver el expediente DESDE que se pega la
+    // OC (status 'pedido', invoiceStatuses todavia vacio porque no existe
+    // ninguna factura) -- ahi es justo donde empieza a importar dar
+    // seguimiento a entregas. Con `activeOrders` (que exige invoiceStatuses
+    // con pending/overdue/manual_review/paid) un pedido recien creado era
+    // invisible en esta tabla hasta la primera factura, contradiciendo el
+    // proposito de la pantalla ("OC, Entregas, Pagos y Cobros").
+    const seguimientoOrders = useMemo(() => {
+      return globalOrders.filter((o: PurchaseOrder) => deptFilter === 'ALL' || o.department === deptFilter);
+    }, [globalOrders, deptFilter]);
+
   const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses);
 
   // El contador de "Vencido" del agregado del servidor cuenta EXPEDIENTES,
@@ -769,7 +780,7 @@ return () => unsub();
 
       {showSeguimientoDrawer && (
         <Drawer title="Seguimiento de Pedidos" onClose={() => setShowSeguimientoDrawer(false)} width={1000}>
-          <SeguimientoPedidosTable orders={activeOrders} />
+          <SeguimientoPedidosTable orders={seguimientoOrders} />
         </Drawer>
       )}
 
