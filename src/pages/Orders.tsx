@@ -27,11 +27,12 @@ const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
   // decia "🟡 Con el Contador"; el chip del filtro decia otra cosa
   // distinta para el mismo estado, y el usuario entraba esperando ver
   // dinero cobrado y encontraba filas que contradecian el nombre del
-  // filtro que acababa de tocar. El estado que de verdad significa "ya
-  // esta el dinero en caja" es 'collected' ("✅ Recibida"), que no tiene
-  // chip propio -- fuera de alcance de este cambio, solo se corrige el
-  // nombre para que dejen de contradecirse.
+  // filtro que acababa de tocar.
   { key: 'paid', label: '🟡 Con el Contador' },
+  // 'collected' es el estado que de verdad significa "ya esta el dinero
+  // en caja" -- antes no tenia chip propio, asi que no habia forma de ver
+  // de un vistazo solo lo que ya esta 100% cobrado sin restar a mano.
+  { key: 'collected', label: '✅ Recibidas' },
   { key: 'manual_review', label: 'Revisión' },
 ];
 

@@ -8,6 +8,7 @@ import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 import { CommandMenu } from './CommandMenu/CommandMenu';
 import { OnlineUsers } from './OnlineUsers';
+import { OverdueBanner } from './OverdueBanner';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -196,6 +197,7 @@ export default function Layout() {
 
         <main className="main">
           <div className="content">
+            <OverdueBanner />
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
