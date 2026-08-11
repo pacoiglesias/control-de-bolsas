@@ -42,7 +42,9 @@ const MAX_UPLOAD_MB = 5;
 const COL_ORDERS = "purchaseOrders";
 
 const DEFAULTS = {
-  salePricePerKg: 47,
+  // 2026-08-10: bajó de 47 a 43 (confirmado por el usuario). Debe
+  // coincidir con DEFAULT_CONFIG.salePricePerKg en src/lib/types.ts.
+  salePricePerKg: 43,
   costPricePerKg: 42,
   commissionRate: 0.08,
   creditDays: 30,

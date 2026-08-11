@@ -62,7 +62,7 @@ export default function CajaChica() {
     if (!o.invoices) return acc;
     return acc + o.invoices.reduce((sum, inv) => {
       if (inv.creditCycle.status === 'paid') {
-        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 47) * (1 + (config?.ivaRate ?? 0.16)));
+        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16)));
         const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
         return sum + (totalFactura - comision);
       }

@@ -29,10 +29,17 @@ export interface FinancialConfig {
 }
 
 export const DEFAULT_CONFIG: FinancialConfig = {
-  /** Subtotal por kilo, SIN IVA. Con el 16% da los 54.52 que aparecen en los
-   *  contrarecibos y facturas: 47 × 1.16 = 54.52. No poner 54.52 aquí, o el
-   *  sistema le sumaría el IVA otra vez. */
-  salePricePerKg: 47,
+  /** Subtotal por kilo, SIN IVA. Con el 16% da el total que aparece en los
+   *  contrarecibos y facturas: 43 × 1.16 = 49.88. No poner 49.88 aquí, o el
+   *  sistema le sumaría el IVA otra vez.
+   *  ACTUALIZADO 2026-08-10 (Iteracion 98): el precio real bajó de 47 a 43
+   *  (verificado contra la hoja de control del usuario, "COSTO VENTA A
+   *  PROVIDENCIA = 43 mas IVA", y confirmado directamente por el usuario:
+   *  "el precio antes era 47 ahora ya es de 43"). Este valor es solo el
+   *  RESPALDO para expedientes que no traigan su propio precio capturado --
+   *  los que ya tienen un precio propio en financials.salePricePerKg no
+   *  cambian con este ajuste. */
+  salePricePerKg: 43,
   costPricePerKg: 42,
   /** Honorario del contador por la gestión de cobro: 8% del SUBTOTAL. */
   commissionRate: 0.08,

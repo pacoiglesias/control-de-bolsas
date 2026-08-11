@@ -1161,3 +1161,23 @@ Adicionalmente, el aviso superior del Dashboard ("Tienes X contrarecibos vencido
 **Hallazgo adicional (documentado, NO corregido en esta iteración -- requiere decisión del usuario):** al filtrar el Dashboard por departamento ("TH" o "GT" en vez de "Toda la Empresa"), el sistema muestra "El sistema no tiene órdenes registradas aún" aunque sí existen expedientes con folios TH-xxx/GT-xxx. Causa probable (no confirmada al 100%): el campo `department` de cada expediente (distinto del PREFIJO del folio/CR, que es solo una convención de nombres) probablemente nunca se llenó al capturar estos expedientes -- el filtro por departamento SÍ funciona (lee `stats/dashboard_TH`/`dashboard_GT`, generados correctamente por `recalcDashboardStats`), simplemente no hay ningún expediente con ese campo poblado. Se le preguntó al usuario si quiere que se infiera y rellene `department` automáticamente a partir del prefijo del folio (TH- → "TH", GT- → "GT") antes de tocar datos de producción sin su confirmación.
 
 **Estado:** ✅ Bug de autocontradicción corregido (v7.0.23), verificado con `tsc -b` limpio. Pendiente: build+deploy, recalcular indicadores, y verificar en vivo si el monto de $ vencido también cuadra o si hace falta investigar mas a fondo. Filtro TH/GT: diagnosticado, corrección pendiente de confirmación del usuario.
+
+### Iteración 98: precio de venta de respaldo $47 → $43/kg (v7.0.24) (COMPLETADO)
+**Fecha:** 2026-08-10
+
+Al cruzar el Dashboard contra la hoja de control del usuario, la hoja marca "COSTO VENTA A PROVIDENCIA = 43 mas IVA" (S25/T25), distinto del respaldo ($47) que trae el sistema para cuando un expediente no tiene su propio precio capturado. Confirmado directamente por el usuario: *"el precio antes era 47 ahora ya es de 43"*.
+
+**Corrección:** actualizado en los 7 lugares donde estaba escrito como literal (no hay un único punto central):
+- `src/lib/types.ts` — `DEFAULT_CONFIG.salePricePerKg`
+- `functions/src/index.ts` — `DEFAULTS.salePricePerKg`
+- `functions/src/stats.ts` — cálculo de `montoPendienteFacturar`
+- `src/pages/CajaChica.tsx` — cálculo de total de factura al reconstruirlo desde kilos
+- `src/components/Cobranza/index.tsx` — reversión de recolección y confirmación de cobro (2 pares)
+- `src/components/OrderModal/orderModalPrint.ts` — impresión de pre-factura/remisión (3 usos)
+- `src/pages/AuditSync.tsx` — reconstrucción de kilos cuando el Excel de auditoría no los trae
+
+No se tocaron `seedData.ts` (datos de demostración) ni los archivos de prueba (`math.test.ts`, `finance.test.ts`), que usan 47 como valor de ejemplo arbitrario, no como configuración real.
+
+**Verificación:** `tsc -b` (frontend) y `tsc` (functions) limpios, 0 errores.
+
+**Estado:** ✅ Corregido, verificado, listo para desplegar junto con v7.0.22/23.

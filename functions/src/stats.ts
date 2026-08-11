@@ -236,8 +236,9 @@ export function extractStats(data: any): Record<string, any> {
     kilosPendientesFacturar = faltantes;
   }
   
-  // Utilizar el precio de venta configurado en el expediente (snapshot/custom), no $47 fijo.
-  const customPrice = data.financials?.salePricePerKg || 47; 
+  // Utilizar el precio de venta configurado en el expediente (snapshot/custom), no un valor fijo.
+  // 2026-08-10: el respaldo bajó de 47 a 43 (confirmado por el usuario).
+  const customPrice = data.financials?.salePricePerKg || 43;
   // Nota: Si el IVA es distinto de 16%, debería leerse de data.financials.ivaRate, pero 
   // para mantener la estructura actual de los KPIs que asume 16% agregamos fallback a 1.16
   const ivaRate = data.financials?.ivaRate ?? 0.16;

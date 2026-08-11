@@ -148,10 +148,11 @@ export default function AuditSync() {
           // rastro al presionar el boton.
           const montoVenta = Number(row.MontoVenta) || 0;
           // Si el Excel no trae Kilos, se calcula con el precio estandar
-          // (47/kg + IVA 16%) para que la factura NO nazca con kilos=0 —
-          // esa fue la causa raiz de que un monto corregido se "borrara"
-          // solo la siguiente vez que alguien guardara el expediente.
-          const kilosExcel = Number(row.Kilos) || round2(montoVenta / (47 * 1.16));
+          // (43/kg + IVA 16%, actualizado 2026-08-10 -- antes 47) para que
+          // la factura NO nazca con kilos=0 — esa fue la causa raiz de que
+          // un monto corregido se "borrara" solo la siguiente vez que
+          // alguien guardara el expediente.
+          const kilosExcel = Number(row.Kilos) || round2(montoVenta / (43 * 1.16));
           newDiffs.push({
             tab: 'cobranza', type: 'new',
             label: `Factura ${row.FacturaFolio || '(nueva)'} — ${row.Cliente || 'sin cliente'}`,

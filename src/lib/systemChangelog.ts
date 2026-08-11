@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.24',
+    date: '10 de Agosto de 2026',
+    time: '7:00 PM',
+    summary: 'El precio de venta de respaldo bajó de $47 a $43/kg (confirmado por Paco), actualizado en los 7 lugares del sistema donde estaba escrito',
+    highlights: [
+      'Solo afecta expedientes que NO traigan su propio precio capturado (financials.salePricePerKg) -- los que ya tienen un precio propio guardado no cambian.',
+      'Se actualizó en: la configuración por defecto del sistema, el cálculo del Dashboard (kilos pendientes por facturar), Caja Chica, Cobranza (reversiones y confirmaciones de cobro), las 3 impresiones de remisión/pre-factura, y la sincronización de auditoría (AuditSync).',
+      'Antes estaba desincronizado en 7 lugares distintos del código -- cambiarlo en Configuración no lo actualizaba en todos, así que un ajuste de precio real como este habría quedado a medias sin revisar el código directamente.'
+    ]
+  },
+  {
     version: 'v7.0.23',
     date: '10 de Agosto de 2026',
     time: '6:40 PM',

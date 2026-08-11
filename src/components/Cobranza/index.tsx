@@ -1175,8 +1175,8 @@ export default function Cobranza() {
       } else if (currentCol === 'colCaja') {
          if (!(await confirmDialog('¿Seguro que quieres deshacer la recolección? Se registrará un egreso de reversión en Caja para cuadrar.'))) return;
          
-         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 47) * (1 + (config.ivaRate || 0.16)));
-         const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 47) * (config.commissionRate || 0));
+         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+         const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 43) * (config.commissionRate || 0));
          const net = invTotal - comision;
 
          expenseData = {
@@ -1195,8 +1195,8 @@ export default function Cobranza() {
       if (currentCol === 'colContador') {
          if (!(await confirmDialog(`¿Confirmas que se recibió el EFECTIVO/TRANSFERENCIA por la factura ${inv.folio || o.folio}? Se registrará el ingreso en Caja.`))) return;
 
-         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 47) * (1 + (config.ivaRate || 0.16)));
-         const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 47) * (config.commissionRate || 0));
+         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+         const comision = inv.financials?.commission ?? (inv.kilos * (config.salePricePerKg || 43) * (config.commissionRate || 0));
          const net = invTotal - comision;
 
          expenseData = {
