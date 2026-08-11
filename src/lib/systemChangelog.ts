@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.30',
+    date: '12 de Agosto de 2026',
+    time: '12:10 AM',
+    summary: 'DESPLEGAR_ROBUSTO.bat ya no parece congelarse en el paso de dependencias -- sin cambios en la app',
+    highlights: [
+      'El paso "dependencias y pruebas" hacía una reinstalación completa de node_modules (npm ci, que borra todo y reinstala) dos veces seguidas, sin mostrar nada en pantalla -- en Windows con antivirus eso puede tardar varios minutos en silencio absoluto, indistinguible de estar colgado.',
+      'Ahora solo instala dependencias si de verdad faltan (node_modules no existe), muestra un aviso de que puede tardar la primera vez, y va marcando OK en cada sub-paso para que se vea que sigue avanzando.',
+      'En despliegues repetidos -- lo normal después del primero -- este paso ahora tarda segundos en vez de minutos.'
+    ]
+  },
+  {
     version: 'v7.0.29',
     date: '11 de Agosto de 2026',
     time: '11:50 PM',

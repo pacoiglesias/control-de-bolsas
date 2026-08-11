@@ -1270,3 +1270,17 @@ Se sacaron del repositorio (superados, contenido ya integrado o commits de esa f
 **Verificación:** revisión manual de paréntesis (`grep -n "[()]"`) confirmando que solo quedan los estructurales de los bloques `if`/`else`, ninguno dentro de texto de `echo`.
 
 **Estado:** ✅ `DESPLEGAR_ROBUSTO.bat` corregido y enriquecido. Pendiente que el usuario corra `LIMPIAR_BATS_VIEJOS.bat` una vez para borrar los 6 archivos físicos, y luego `DESPLEGAR_ROBUSTO.bat` para publicar todo lo pendiente (v7.0.25 a v7.0.29).
+
+### Iteración 105: "Paso 4/7" de `DESPLEGAR_ROBUSTO.bat` parecía congelarse (v7.0.30) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Archivo:** `DESPLEGAR_ROBUSTO.bat`
+
+El usuario reportó que el script se quedaba "pensando" en el Paso 4/7 ("dependencias y pruebas de la fórmula financiera") y preguntó si era complicado hacer un `.bat` de build y deploy. No era un cuelgue real: ese paso corría `npm ci` (reinstalación COMPLETA de `node_modules`, borra todo y reinstala desde cero) dos veces seguidas -- una para el proyecto, otra para `functions/` -- con TODA la salida redirigida al log (`>> "%LOGFILE%" 2>&1`), sin un solo `echo` en pantalla entre el encabezado "Paso 4/7..." y el resultado final. En Windows con antivirus activo, una reinstalación completa de dependencias de un proyecto de este tamaño (React, Firebase, Vite, Recharts, xlsx, pdfjs, y en `functions/` el SDK de Gemini) puede tardar varios minutos -- con la pantalla completamente en blanco durante todo ese tiempo, es indistinguible de un cuelgue real.
+
+**Solución:** dos cambios. Primero, `npm ci` (que SIEMPRE borra y reinstala todo) se cambió por lógica condicional: si `node_modules` ya existe, se omite la instalación por completo (la mayoría de los despliegues no cambian dependencias); si no existe, se corre `npm install` una sola vez con un aviso explícito de que puede tardar. Igual para `functions\node_modules`. Segundo, se agregó un `echo   OK.` después de cada sub-paso (dependencias del proyecto, dependencias de functions, pruebas) para que la ventana muestre avance real en vez de quedarse en blanco.
+
+**Impacto esperado:** el primer despliegue después de este cambio sigue tardando lo normal (instala todo una vez). A partir del segundo despliegue en adelante, este paso pasa de varios minutos en silencio a segundos, porque casi nunca hace falta reinstalar nada.
+
+**Verificación:** revisión de paréntesis (`grep -n "[()]"`) repetida tras el cambio -- ninguno literal dentro de bloques `if`.
+
+**Estado:** ✅ Corregido. No requiere ninguna acción adicional del usuario más allá de volver a correr `DESPLEGAR_ROBUSTO.bat`.

@@ -16,9 +16,10 @@ echo   Que hace, en orden:
 echo     1. Verifica tu sesion de Firebase.
 echo     2. Fija el proyecto correcto.
 echo     3. Actualiza firebase-tools a la ultima version.
-echo     4. Instala dependencias exactas y corre las pruebas de la
-echo        formula financiera -- si algo cambio el resultado de los
-echo        calculos de dinero, NO se despliega nada.
+echo     4. Instala dependencias solo si hacen falta (mas rapido en
+echo        despliegues repetidos) y corre las pruebas de la formula
+echo        financiera -- si algo cambio el resultado de los calculos
+echo        de dinero, NO se despliega nada.
 echo     5. git push.
 echo     6. Build + Hosting/Firestore/Storage.
 echo     7. Cloud Functions, con el limite de descubrimiento ampliado
@@ -103,15 +104,45 @@ echo.
 echo  ------------------------------------------------------------
 echo   Paso 4/7: dependencias y pruebas de la formula financiera...
 echo  ------------------------------------------------------------
-call npm ci >> "%LOGFILE%" 2>&1
-if errorlevel 1 (
-  echo   [AVISO] npm ci fallo. Intentando con npm install...
+if exist "node_modules" (
+  echo   node_modules ya existe, se omite reinstalar -- mas rapido.
+  echo   Si acabas de cambiar package.json, borra la carpeta
+  echo   node_modules una vez y vuelve a correr este script.
+) else (
+  echo   Instalando dependencias del proyecto -- la primera vez esto
+  echo   puede tardar varios minutos, no cierres la ventana aunque
+  echo   no veas movimiento...
   call npm install >> "%LOGFILE%" 2>&1
+  if errorlevel 1 (
+    color 0C
+    echo.
+    echo   [ERROR] No se pudieron instalar las dependencias del
+    echo   proyecto. Revisa DEPLOY_LOG.txt.
+    echo.
+    pause
+    exit /b 1
+  )
+  echo   OK.
 )
-call npm --prefix functions ci >> "%LOGFILE%" 2>&1
-if errorlevel 1 (
+
+if exist "functions\node_modules" (
+  echo   functions\node_modules ya existe, se omite reinstalar.
+) else (
+  echo   Instalando dependencias de functions...
   call npm --prefix functions install >> "%LOGFILE%" 2>&1
+  if errorlevel 1 (
+    color 0C
+    echo.
+    echo   [ERROR] No se pudieron instalar las dependencias de
+    echo   functions. Revisa DEPLOY_LOG.txt.
+    echo.
+    pause
+    exit /b 1
+  )
+  echo   OK.
 )
+
+echo   Corriendo pruebas de la formula financiera...
 call npm test >> "%LOGFILE%" 2>&1
 if errorlevel 1 (
   color 0C
