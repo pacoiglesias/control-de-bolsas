@@ -210,11 +210,25 @@ export function extractStats(data: any): Record<string, any> {
       kilosFacturados += Number(inv.kilos || 0);
     }
     
-    // Kilos Entregados = suma de entregas si existen, sino 0. 
+    // Kilos Entregados = suma de entregas si existen, sino 0.
     // NO asumas que entregados = totalKilograms (kilos pedidos).
+    // FIX 2026-08-10 (Iteracion 96): antes esto solo leia d.kilos, ignorando
+    // d.items[] por completo. El calculo "gemelo" del cliente (getOrderSummary
+    // en src/lib/finance.ts) SI prioriza la suma de d.items[].quantity cuando
+    // existe, y solo cae a d.kilos como respaldo -- son dos formulas distintas
+    // para el mismo dato. En una entrega donde items[] y kilos quedaron
+    // desincronizados (ej. se edito el desglose por producto pero el campo
+    // kilos "total" viejo no se actualizo), el Dashboard (este archivo)
+    // contaba una cosa y la pantalla de Facturar (el cliente) contaba otra --
+    // exactamente el mismo tipo de "7 vs 0" reportado y corregido en
+    // Iteracion 95, pero via una ruta distinta. Ahora usan la misma regla.
     if (data.deliveries && data.deliveries.length > 0) {
       for (const d of data.deliveries) {
-         entregados += Number(d.kilos || 0);
+        if (d.items && d.items.length > 0) {
+          entregados += d.items.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+        } else {
+          entregados += Number(d.kilos || 0);
+        }
       }
     }
 

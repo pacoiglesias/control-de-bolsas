@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.22',
+    date: '10 de Agosto de 2026',
+    time: '6:10 PM',
+    summary: 'El Dashboard seguía sin cuadrar con Facturar (1 vs 0) después del fix de la versión anterior -- causa distinta, mismo síntoma',
+    highlights: [
+      'Después de publicar v7.0.20/21 y presionar "Recalcular Indicadores", el Dashboard bajó de 7 a 1 -- pero la pantalla de Facturar seguía en 0. Faltaba una segunda causa, independiente de la primera.',
+      'Al calcular los kilos entregados de un expediente, el Dashboard (función en la nube) solo leía el campo "kilos" total de cada entrega. La pantalla de Facturar (en el navegador) usa una regla más completa: si la entrega tiene su desglose por producto (items), suma eso; si no, usa el campo "kilos". Son dos formulas para el mismo dato.',
+      'Cuando una entrega vieja tenía el desglose por producto editado pero el campo "kilos" total sin actualizar, cada lado contaba un número distinto -- exactamente la misma familia de error que "7 vs 0", pero en la lectura de entregas en vez de en la definición de "pendiente".',
+      'Ya usan la misma regla en los dos lados. Vuelve a presionar "Recalcular Indicadores" en el Dashboard después de este despliegue.'
+    ]
+  },
+  {
     version: 'v7.0.21',
     date: '10 de Agosto de 2026',
     time: '4:40 PM',
