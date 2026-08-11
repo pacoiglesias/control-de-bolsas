@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.26',
+    date: '11 de Agosto de 2026',
+    time: '9:15 PM',
+    summary: 'Nuevo panel en el Dashboard: facturas ya emitidas que siguen esperando el número de contrarecibo -- antes esa espera era invisible',
+    highlights: [
+      'El flujo real (OC → entregas → factura → contrarecibo → depósito → comisión → caja) ya tenía casi todas sus etapas cubiertas con alertas en el Dashboard: pendientes de facturar, vencimiento de contrarecibo, y "Por Recibir del Contador". La única que faltaba: una factura ya emitida a la que todavía no le anotan el número de contrarecibo -- mientras tanto no aparecía en ninguna tabla ni alerta.',
+      'Nuevo panel "🧾 Facturadas, sin contrarecibo capturado": lista cada factura en esa espera, ordenada por la que lleva más días sin CR, con un botón para capturarlo ahí mismo sin salir del Dashboard.',
+      'No requiere datos nuevos -- usa el mismo modelo que ya existía (creditCycle.issueDate, collection.contrareciboNumber), solo faltaba mostrarlo.'
+    ]
+  },
+  {
     version: 'v7.0.25',
     date: '10 de Agosto de 2026',
     time: '8:05 PM',

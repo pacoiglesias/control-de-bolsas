@@ -32,6 +32,7 @@ import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
 import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
+import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -648,6 +649,13 @@ return () => unsub();
           )}
         </div>
       )}
+
+      {/* AGREGADO 2026-08-11 (Iteracion 101): la unica etapa del flujo real
+          del usuario (OC -> entregas -> factura -> contrarecibo -> deposito
+          -> comision -> caja) que no tenia ninguna alerta -- una factura ya
+          emitida que sigue esperando que Providencia entregue el numero de
+          contrarecibo era invisible hasta este panel. */}
+      <FacturasSinCRPanel orders={activeOrders} />
 
       {k.porRecibir.length > 0 && (() => {
         const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
