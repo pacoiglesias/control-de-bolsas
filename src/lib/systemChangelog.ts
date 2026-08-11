@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.35',
+    date: '11 de Agosto de 2026',
+    time: '12:20 PM',
+    summary: 'El campo "Folio" de una factura ya no invita a inventar un número cuando en realidad solo hay contrarecibo',
+    highlights: [
+      'La mayoría de los contrarecibos capturados en el sistema no tienen un número de factura real detrás -- solo el CR, el monto y las fechas. El campo "Folio" no lo dejaba claro, así que se prestaba a escribir un número inventado nada más para no dejarlo vacío.',
+      'Ahora el campo dice explícitamente "Folio (opcional si no hay factura, solo CR)" con un texto de ejemplo que invita a dejarlo vacío. El sistema ya manejaba esto internamente (guarda "S/N" si se deja en blanco) -- este cambio solo lo hace visible.',
+      'Primer paso de un pendiente más grande: hacer que capturar OC, entregas y contrarecibos sea más simple e intuitivo en general -- sigue en curso.'
+    ]
+  },
+  {
     version: 'v7.0.34',
     date: '11 de Agosto de 2026',
     time: '11:40 AM',

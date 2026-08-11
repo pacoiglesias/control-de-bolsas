@@ -190,9 +190,19 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
           </div>
 
           <div className="form-grid">
-            <Field label="Folio">
+            {/* FIX 2026-08-11 (Iteracion 110): a peticion del usuario, quien
+                aclaro que la mayoria de los contrarecibos capturados NO
+                tienen un numero de factura real detras (a diferencia de
+                casos como 6167/6159, que si son facturas propiamente
+                dichas en revision) -- este campo se dejaba sin ninguna
+                senal de que es opcional, invitando a escribir folios
+                inventados solo para "llenar el campo". Si se deja vacio,
+                saveInvoice() ya usa "S/N" automaticamente (ver
+                useInvoiceActions.ts) -- este cambio solo lo hace visible. */}
+            <Field label="Folio (opcional si no hay factura, solo CR)">
               <div style={{ display: 'flex', gap: 4 }}>
-                <input className="input boxed mono" value={localInvoice.folio || ''} 
+                <input className="input boxed mono" value={localInvoice.folio || ''}
+                  placeholder="Déjalo vacío si no tienes el folio de la factura"
                   onChange={e => updateField(['folio'], e.target.value.toUpperCase())} disabled={readOnly} />
                 {localInvoice.folio && <CopyButton text={localInvoice.folio} />}
               </div>
