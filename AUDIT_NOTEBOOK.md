@@ -1304,3 +1304,19 @@ El usuario corrió `DESPLEGAR_ROBUSTO.bat` y el Paso 4/7 se detuvo con "[ERROR] 
 **Verificación:** `npm test` -- 40/40 pruebas de `finance.test.ts` y `math.test.ts` en verde. `tsc -b` limpio.
 
 **Estado:** ✅ Corregido. El usuario puede volver a correr `DESPLEGAR_ROBUSTO.bat`; el Paso 4/7 ya debería pasar.
+
+### Iteración 107: Dashboard decía "1 orden pendiente por facturar" que no existía en ningún otro lado del sistema (v7.0.32) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Archivo:** `functions/src/stats.ts`
+
+El usuario reportó: *"en el dashboard aparece Tienes 1 órdenes con entregas pero sin facturar. y al apretar el botón de facturar, no funciona no aparece la opción de facturar"*. Se reprodujo en producción con navegación en vivo: el Dashboard mostraba "Tienes 1 órdenes con entregas pero sin facturar" con un botón "Facturar Ahora"; al darle clic, llevaba a `/ordenes?filtro=pedido`, donde el chip decía **"Pendiente de Facturar (0)"** y la lista/tablero mostraban "No hay órdenes en este filtro" -- el botón, literalmente, no llevaba a ningún lado. Se probó "🔄 Recalcular Indicadores" dos veces: otros KPIs cambiaron (confirmando que sí corrió), pero el contador de "1" no se movió -- descartando caché desactualizado.
+
+**Causa raíz:** en `extractStats()` (server), `kilosPendientesFacturar = Math.max(0, entregados - kilosFacturados)` sumaba `entregados` y `kilosFacturados` con `+=` de punto flotante crudo, sin redondear. El cliente (`getOrderSummary()` en `src/lib/finance.ts`), que calcula el mismo par de cifras para el chip de Órdenes y el tablero Kanban, sí redondea `kilosDelivered` y `kilosInvoiced` a 2 decimales (`round2`, vía Decimal.js) ANTES de compararlos. Con varias facturas o entregas de kilos con decimales, la resta del servidor podía dejar un residuo de punto flotante como `0.00000000003` -- técnicamente mayor que cero, así que `isPedido` se encendía en 1, aunque para el cliente (que sí redondea) los kilos entregados y facturados fueran exactamente iguales. Esto también explica por qué "Recalcular Indicadores" no lo arreglaba: el recálculo reutiliza la misma `extractStats()`, así que reproducía el mismo residuo cada vez.
+
+Se descartaron por el camino otras dos hipótesis antes de llegar a esta: (1) que el tablero Kanban y el chip de la lista usaran datos distintos -- revisando `Orders.tsx` se confirmó que ambos, y el propio `<KanbanBoard items={rows}>`, parten del mismo arreglo `conResumen` (memoizado una sola vez) y de la misma fórmula `s.kilosDelivered > s.kilosInvoiced`, así que no pueden desacordar entre sí por construcción; (2) que la orden 12026439713 (folio 43/9713) fuera la responsable -- al recalcular su caso a mano (sin entregas reales, una factura de 172 kg) tanto el cliente como el servidor la excluyen correctamente de "pendiente" (172 redondeado contra 172 redondeado), así que esa orden en particular no era el origen del "1", aunque sí tiene otras inconsistencias de datos sin resolver (ver pendientes).
+
+**Fix:** se redondean `entregados` y `kilosFacturados` a 2 decimales (mismo `round2` que ya usa el resto del archivo) justo antes de restarlos, igualando el comportamiento al del cliente.
+
+**Verificación:** `npx tsc --noEmit` en `functions/` limpio. `npm test` (raíz) -- 40/40 pruebas de fórmulas financieras en verde (esta fórmula no las toca, pero se corrió como gate estándar). Pendiente verificación en vivo tras el próximo deploy: confirmar que el Dashboard deja de mostrar "1 órdenes pendientes" fantasma y que "Recalcular Indicadores" lo refleje.
+
+**Estado:** ✅ Corregido y verificado localmente. Pendiente deploy del usuario (`DESPLEGAR_ROBUSTO.bat`) y una corrida de "🔄 Recalcular Indicadores" después del deploy para limpiar el contador ya guardado en `stats/dashboard` (el fix corrige el cálculo hacia adelante, pero el valor ya persistido en Firestore quedó con el residuo viejo hasta que se recalcule).

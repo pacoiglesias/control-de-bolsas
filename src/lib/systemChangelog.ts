@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.32',
+    date: '11 de Agosto de 2026',
+    time: '9:10 AM',
+    summary: 'El Dashboard decía "Tienes 1 órdenes con entregas pero sin facturar" sin que ninguna orden real apareciera al dar clic en "Facturar Ahora" -- era un residuo de punto flotante, no una orden perdida',
+    highlights: [
+      'El contador del servidor sumaba los kilos entregados y los kilos facturados con suma directa de JavaScript, sin redondear -- con varias facturas o entregas de kilos decimales, la resta podía dejar un residuo microscópico (como 0.00000000003) que técnicamente es "mayor que cero" y encendía la alerta, aunque para cualquier propósito real los kilos entregados y facturados fueran idénticos.',
+      'El cliente (la pantalla de Órdenes y su chip "Pendiente de Facturar") sí redondea a 2 decimales antes de comparar -- por eso el chip decía (0) mientras el Dashboard insistía en 1, y "Recalcular Indicadores" no lo arreglaba: reutiliza la misma fórmula, así que recalculaba el mismo residuo una y otra vez.',
+      'Ahora el servidor redondea los kilos entregados y facturados antes de restarlos, igual que el cliente. Confirmado con tsc y con los 40 tests de fórmulas financieras.'
+    ]
+  },
+  {
     version: 'v7.0.31',
     date: '12 de Agosto de 2026',
     time: '12:40 AM',

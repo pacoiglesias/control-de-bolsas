@@ -232,7 +232,21 @@ export function extractStats(data: any): Record<string, any> {
       }
     }
 
-    const faltantes = Math.max(0, entregados - kilosFacturados);
+    // FIX 2026-08-11 (Iteracion 107): entregados y kilosFacturados se sumaban
+    // con += de punto flotante sin redondear, a diferencia del cliente
+    // (getOrderSummary en src/lib/finance.ts), que SI redondea kilosDelivered
+    // y kilosInvoiced a 2 decimales (round2) antes de comparar. Con varias
+    // facturas/entregas de kilos decimales, la resta podia quedar en un
+    // residuo de punto flotante como 0.00000000003 -- mayor que 0, asi que
+    // isPedido se marcaba en 1 aunque para cualquier proposito practico
+    // (y para el cliente, que si redondea) los kilos entregados y
+    // facturados eran identicos. Esto explicaba el "Tienes 1 ordenes con
+    // entregas pero sin facturar" del Dashboard que no correspondia a
+    // ninguna orden real en el chip "Pendiente de Facturar" de Ordenes, y
+    // que "Recalcular Indicadores" no corregia porque reutiliza esta misma
+    // formula. Redondear ambos operandos antes de restar iguala el
+    // resultado al del cliente.
+    const faltantes = Math.max(0, round2(entregados) - round2(kilosFacturados));
     kilosPendientesFacturar = faltantes;
   }
   
