@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.34',
+    date: '11 de Agosto de 2026',
+    time: '11:40 AM',
+    summary: '$109,040 de una factura real desaparecían de Cuentas por Cobrar por un estatus corrupto -- y el botón "Guardar Cambios" se quedaba prendido para siempre incluso cuando el guardado sí funcionaba',
+    highlights: [
+      'La factura #6097 (Contrarecibo TH-879, $109,040.00) tenía un valor de estatus que no coincidía con ninguna de las 5 opciones válidas del sistema -- por eso aparecía agrupada en "Otras" en vez de "Por Cobrar" dentro del expediente, y por eso Cuentas por Cobrar la excluía por completo de su tablero y de su total. El dinero era real y estaba correctamente facturado; solo era invisible para cobranza. Corregido: el total de "Pendientes de Cobro" pasó de $940,130.34 a $1,049,170.34, cuadrando exacto contra el libro de control del usuario.',
+      'Al corregir esa factura se descubrió un bug aparte: después de guardar una factura con éxito, el aviso "⚠️ Tienes cambios sin guardar" y el botón "💾 Guardar Cambios" se quedaban visibles para siempre -- el sistema SÍ guardaba, pero la pantalla seguía pidiendo guardar de nuevo. Causa: comparaba el formulario contra la factura recién guardada con JSON.stringify, y el guardado le agrega campos que el formulario nunca tuvo (fecha de actualización, cálculos financieros recalculados), así que nunca volvían a verse "iguales" aunque todo estuviera bien.',
+      'Se eliminó también, por confirmado como dato falso (no existía en el libro de control del usuario), un expediente fantasma "TH-713B" de $108,647.46 sin ninguna orden de compra ni cliente capturado detrás.'
+    ]
+  },
+  {
     version: 'v7.0.33',
     date: '11 de Agosto de 2026',
     time: '10:20 AM',

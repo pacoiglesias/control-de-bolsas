@@ -27,9 +27,27 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const { saveInvoice, deleteInvoice } = useInvoiceActions();
   const toast = useToast();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
-  
-  // Track if there are local unsaved changes
-  const hasChanges = JSON.stringify(invoice) !== JSON.stringify(localInvoice);
+
+  // FIX 2026-08-11 (Iteracion 109): "hasChanges" comparaba localInvoice
+  // contra la prop `invoice` con JSON.stringify -- pero handleSave() (via
+  // saveInvoice() en useInvoiceActions.ts) escribe a Firestore un objeto
+  // CON CAMPOS QUE EL SERVIDOR NORMALIZA (updatedAt: Timestamp.now(),
+  // financials recalculados, folio, orderId, clientId, oc...) que
+  // localInvoice nunca tuvo. Cuando el listener en tiempo real traia de
+  // vuelta esa version normalizada como la nueva prop `invoice`, YA NO
+  // coincidia con localInvoice -- asi que "Tienes cambios sin guardar" y
+  // el boton "Guardar Cambios" se quedaban visibles PARA SIEMPRE, incluso
+  // justo despues de un guardado exitoso. Eso hizo parecer, al corregir el
+  // estatus atorado de la factura 6097 (CR TH-879), que el guardado habia
+  // fallado dos veces seguidas -- en realidad SI se guardo ambas veces
+  // (confirmado end-to-end: Cobranza paso de contar $940,130.34 a
+  // $1,049,170.34, exacto contra el Excel de control). Un flag explicito
+  // que se prende en cada edicion y se apaga solo cuando handleSave()
+  // termina sin error es inmune a esta discrepancia de forma, porque no
+  // depende de que la prop y el estado local vuelvan a verse identicos
+  // byte a byte.
+  const [dirty, setDirty] = useState(false);
+  const hasChanges = dirty;
 
   const baseFin = computeFinancials(localInvoice.kilos, dynamicConfig);
   const fin = { ...baseFin, ...localInvoice.financials };
@@ -46,6 +64,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const isLate = (localInvoice.creditCycle.status === 'overdue' || localInvoice.creditCycle.status === 'pending') && d !== null && d > 0;
 
   const updateField = (fieldPath: string[], value: any) => {
+    setDirty(true);
     setLocalInvoice(prev => {
       const next = { ...prev };
       let current: any = next;
@@ -61,8 +80,11 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const handleSave = async () => {
     try {
       await saveInvoice(order, localInvoice, dynamicConfig);
+      setDirty(false);
     } catch (error) {
-      // toast already handled in useInvoiceActions
+      // toast already handled in useInvoiceActions -- se deja "dirty" en
+      // true a proposito: si fallo, los cambios siguen sin guardar de
+      // verdad y el boton debe seguir ofreciendo reintentar.
     }
   };
 
