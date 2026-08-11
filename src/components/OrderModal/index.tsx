@@ -153,6 +153,10 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
         <datalist id="known-providers">
           {knownProviders.map((p: string) => <option key={p} value={p} />)}
         </datalist>
+        <datalist id="known-departments">
+          <option value="TH" />
+          <option value="GT" />
+        </datalist>
         <datalist id="known-client-emails">
           {knownClientEmails.map((e: string) => <option key={e} value={e} />)}
         </datalist>

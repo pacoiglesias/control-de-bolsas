@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.25',
+    date: '10 de Agosto de 2026',
+    time: '8:05 PM',
+    summary: 'El filtro "TH" / "GT" del Dashboard decía "sistema sin órdenes registradas" -- faltaba el campo para capturarlo',
+    highlights: [
+      'El campo "Departamento" de cada expediente ya existía en la base de datos y ya alimentaba el filtro TH/GT del Dashboard Maestro, pero nunca hubo un campo en el formulario del expediente para llenarlo -- por eso siempre estaba vacío en todos los expedientes, aunque el folio dijera "TH-xxx" o "GT-xxx" (eso es solo el nombre, no el campo real).',
+      'Ahora hay un campo "Departamento (opcional)" junto a Cliente y Proveedor en cada expediente.',
+      'Después de este despliegue hace falta llenarlo en los expedientes existentes (TH-768, TH-804, TH-836, TH-713B, TH-739 → TH; GT-597, GT-624, GT-651, GT-713, GT-742 → GT) para que el filtro empiece a mostrar algo.'
+    ]
+  },
+  {
     version: 'v7.0.24',
     date: '10 de Agosto de 2026',
     time: '7:00 PM',

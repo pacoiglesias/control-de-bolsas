@@ -1181,3 +1181,16 @@ No se tocaron `seedData.ts` (datos de demostración) ni los archivos de prueba (
 **Verificación:** `tsc -b` (frontend) y `tsc` (functions) limpios, 0 errores.
 
 **Estado:** ✅ Corregido, verificado, listo para desplegar junto con v7.0.22/23.
+
+### Iteración 99: captura de factura 6167 en vivo + campo "Departamento" faltante en el formulario (v7.0.25) (COMPLETADO)
+**Fecha:** 2026-08-10
+
+**Factura 6167 capturada en vivo:** nuevo expediente OC 120267114014 (Grupo Textil Providencia, proveedor Andres), 1,500 kg, factura #6167 vía "Pegar Texto (PDF)" -- confirmó en producción que el fix de la Iteración 94/95 (parser de folio/kilos) funciona correctamente ("Factura agregada. Folio: 6167, Kilos: 1500", "Factura guardada correctamente"). En el primer intento el total quedó mal ($74,820 en vez de $81,780 reales) porque se capturó justo antes de que el deploy de v7.0.24 (precio de respaldo $43) quedara en vivo, mientras la factura real usa $47/kg (precio vigente el día que se emitió). El botón "Eliminar" de una factura individual pide confirmar con un segundo clic dentro de 3 segundos -- clics manuales secuenciales (incluso con `double_click`) no lo lograron de forma confiable vía Claude-in-Chrome, igual que con los duplicados de la Iteración 94. Se resolvió ejecutando el clic dos veces directamente en el contexto de JS de la página (`javascript_tool`, sin la latencia de los round-trips del protocolo de automatización), lo que sí cayó dentro de la ventana de 3 segundos. Se volvió a capturar la factura ya con el precio correcto ($47/kg) puesto explícitamente en el expediente: total final $81,780.00, exacto al documento real.
+
+**Campo "Departamento" agregado al formulario:** al intentar rellenar el campo `department` de los 10 expedientes TH-xxx/GT-xxx existentes (aprobado por el usuario para resolver el filtro vacío de la Iteración 97), se descubrió que **nunca existió un campo en el formulario del expediente para capturarlo** -- `department` está en el modelo de datos (`src/lib/types.ts`), se guarda en cada `save()` (`useOrderActions.ts`), y el Dashboard ya lo lee correctamente para el filtro TH/GT (`o.department === deptFilter`), pero no había ningún `<input>` en `TabResumen.tsx` que lo expusiera -- por eso estaba vacío en el 100% de los expedientes, no por descuido del usuario. Se agregó el campo "Departamento (opcional)" junto a Cliente/Proveedor, con datalist sugiriendo TH/GT.
+
+**Pendiente:** una vez desplegado v7.0.25, hace falta llenar el campo en los 10 expedientes existentes (TH-768, TH-804, TH-836, TH-713B, TH-739 → TH; GT-597, GT-624, GT-651, GT-713, GT-742 → GT) -- ya con el campo visible, esto es una edición simple sin la fricción del botón de doble-clic.
+
+**Verificación:** `tsc -b` limpio, 0 errores. Verificado en vivo: factura 6167 con total exacto $81,780.00.
+
+**Estado:** ✅ Factura 6167 capturada y verificada en producción. Campo Departamento agregado, código listo para desplegar. Backfill de los 10 expedientes pendiente hasta después del deploy.

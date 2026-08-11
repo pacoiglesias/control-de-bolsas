@@ -54,6 +54,16 @@ export default function TabResumen() {
               <Field label="Proveedor">
                 <input className="input boxed" list="known-providers" defaultValue={form.provider} onBlur={(e) => set('provider', e.target.value)} disabled={readOnly} />
               </Field>
+              {/* AGREGADO 2026-08-10 (Iteracion 98): el campo "department" ya
+                  existia en el modelo de datos y alimenta el filtro TH/GT del
+                  Dashboard Maestro, pero nunca tuvo un campo en este formulario
+                  para llenarlo -- por eso ese filtro siempre mostraba "sin
+                  ordenes registradas" aunque sí hubiera expedientes TH-xxx/
+                  GT-xxx: el nombre del folio es solo una convencion, el campo
+                  real quedaba vacio en todos los expedientes. */}
+              <Field label="Departamento (opcional)">
+                <input className="input boxed" list="known-departments" placeholder="Ej. TH o GT" defaultValue={form.department} onBlur={(e) => set('department', e.target.value)} disabled={readOnly} />
+              </Field>
               <Field label="Kilos Pedidos (Total)">
                 <input className="input boxed mono" type="number" step="0.01" defaultValue={form.totalKilograms}
                   onBlur={(e) => set('totalKilograms', e.target.value)} disabled={readOnly} />
