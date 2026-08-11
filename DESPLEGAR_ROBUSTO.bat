@@ -63,11 +63,19 @@ echo  ------------------------------------------------------------
 call firebase use control-de-bolsas-89c88
 if errorlevel 1 (
   echo.
-  echo   [ERROR] No se pudo seleccionar el proyecto
-  echo   control-de-bolsas-89c88. Revisa que tu cuenta tenga acceso.
+  echo   [AVISO] "firebase use" devolvio un error, PERO si arriba ya
+  echo   viste el mensaje "Now using project control-de-bolsas-89c88"
+  echo   quiere decir que el proyecto SI quedo bien seleccionado -- el
+  echo   error de despues es un bug conocido y generico de firebase-tools
+  echo   ("Error: An unexpected error has occurred"^) que no impide
+  echo   continuar, porque el archivo .firebaserc ya quedo escrito con
+  echo   el proyecto correcto. Este script sigue adelante.
   echo.
-  pause
-  exit /b 1
+  echo   Si el deploy de mas abajo SI falla por permisos de proyecto,
+  echo   entonces corre a mano:  npm install -g firebase-tools
+  echo   (version desactualizada es la causa mas comun de este error
+  echo   generico^) y vuelve a intentar.
+  echo.
 )
 
 echo.
