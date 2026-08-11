@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Drawer, Field, Card } from '../ui';
 import { money } from '../../lib/format';
 import type { Purchase } from '../../lib/types';
@@ -15,6 +16,7 @@ interface PurchaseDrawerProps {
 export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps) {
   const [localPurchase, setLocalPurchase] = useState<Purchase>(purchase);
   const toast = useToast();
+  const nav = useNavigate();
   const hasChanges = JSON.stringify(purchase) !== JSON.stringify(localPurchase);
   
   const updateField = (fieldPath: string[], value: any) => {
@@ -75,6 +77,19 @@ export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps
               <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{localPurchase.expectedKilos} kg</div>
             </div>
           </div>
+          {/* Vinculo cruzado Andres <-> Providencia (2026-08-11): Purchase.id
+              y PurchaseOrder.id son siempre el mismo documento. Si hay folio
+              es porque ya existe el expediente ligado del lado de Órdenes. */}
+          {folio && (
+            <button
+              type="button"
+              className="btn"
+              style={{ marginTop: 12, fontSize: 12, padding: '6px 10px', width: '100%' }}
+              onClick={() => nav(`/ordenes?abrir=${purchase.id}`)}
+            >
+              📋 Ver orden en Providencia →
+            </button>
+          )}
         </div>
 
         <Card title="Cuentas por Pagar">

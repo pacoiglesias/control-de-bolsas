@@ -71,6 +71,23 @@ export default function Orders() {
     }
   }, [params, setParams]);
 
+  // Vinculo cruzado Andres <-> Providencia (2026-08-11): permite abrir un
+  // expediente especifico desde fuera de esta pantalla (ej. el boton "Ver
+  // orden en Providencia" del modulo de Compras) sin tener que buscarlo a
+  // mano en la lista. Espera a que `orders` este cargado porque el id
+  // llega por URL antes de que la suscripcion de Firestore resuelva.
+  useEffect(() => {
+    const abrirId = params.get('abrir');
+    if (!abrirId || orders.length === 0) return;
+    const found = orders.find((o) => o.id === abrirId);
+    if (found) {
+      setSelected(found);
+      const newParams = new URLSearchParams(params);
+      newParams.delete('abrir');
+      setParams(newParams, { replace: true });
+    }
+  }, [params, orders, setParams]);
+
   // El resumen de cada expediente se calcula UNA vez y se reutiliza en el
   // filtro, en los contadores, en la tabla y en los totales. Antes
   // getOrderSummary corria ~10 veces por renglon en cada tecla escrita.

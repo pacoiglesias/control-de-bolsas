@@ -1217,3 +1217,20 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Verificación:** `tsc -b` limpio, 0 errores. Lógica de filtro/orden probada en `/tmp/test_facturas_sin_cr.mjs` (script standalone sin firebase-admin, ya que el sandbox no puede cargarlo): 4 facturas de prueba (sin CR reciente, con CR, cobrada, sin CR antigua) → resultado correcto, 2 filas, ordenadas por más días esperando primero.
 
 **Estado:** ✅ Código listo, `tsc -b` limpio. Pendiente que el usuario despliegue con su `.bat`.
+
+### Iteración 102: vínculo cruzado Andrés ↔ Providencia, implementado (v7.0.27) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Archivo:** `src/pages/Orders.tsx`, `src/pages/Compras.tsx`, `src/components/OrderModal/TabResumen.tsx`, `src/components/Compras/PurchaseDrawer.tsx`
+
+La Iteración 100 dejó esto como propuesta documentada; el usuario pidió explícitamente que se construyera ("hazlas no las quiero documentadas las quiero operacionales"). Se implementó el vínculo de navegación en ambas direcciones, aprovechando que `Purchase.id === PurchaseOrder.id` siempre (ya sincronizados por `upsertAndresPurchase()`):
+
+- **Orders.tsx:** nuevo `useEffect` que lee `?abrir=<id>` de la URL, busca el expediente en `orders` y lo abre en el modal (mismo patrón que ya existía para `?nueva=1`).
+- **TabResumen.tsx:** usa `usePurchases()` para verificar si existe una `Purchase` con el mismo `id` que la orden actual (`compraLigada`). Si existe, muestra el botón "🏭 Ver compra en Andrés →" junto al campo de costo, que navega a `/compras?abrir=<id>`.
+- **Compras.tsx:** mismo patrón `useEffect` con `?abrir=<id>`, busca en `provPurchases` y abre el `PurchaseDrawer`.
+- **PurchaseDrawer.tsx:** el prop `folio` (que Compras.tsx ya calculaba con `orderById.get(selected.id)?.folio`) ahora también controla un botón "📋 Ver orden en Providencia →" que navega a `/ordenes?abrir=<purchase.id>`. Si `folio` es `undefined` (compra sin expediente ligado, ej. un anticipo suelto), el botón no aparece.
+
+No hizo falta ninguna consulta nueva a Firestore ni cambio de modelo de datos -- todo el vínculo ya existía, solo faltaba el puente de UI.
+
+**Verificación:** `tsc -b` limpio, 0 errores.
+
+**Estado:** ✅ Código listo, `tsc -b` limpio. Pendiente que el usuario despliegue con su `.bat` (junto con v7.0.25 y v7.0.26, que también siguen pendientes de deploy).

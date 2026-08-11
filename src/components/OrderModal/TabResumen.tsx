@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrderModal } from './OrderModalContext';
 import { Field, StatusBadge } from '../ui';
 import { PasteTextModal } from '../PasteTextModal';
@@ -7,13 +8,23 @@ import { fromInputDate, money, toInputDate, kilos } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { parseOrdenDeCompra, type ParsedOC } from '../../lib/ocParser';
+import { usePurchases } from '../../hooks/usePurchases';
 
 export default function TabResumen() {
   const ctx = useOrderModal();
+  const nav = useNavigate();
+  const { purchases } = usePurchases();
   const [pegandoOC, setPegandoOC] = useState(false);
   const [preview, setPreview] = useState<ParsedOC | null>(null);
   if (!ctx) return null;
-  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, applyParsedOC, emailClient, toast, setTab } = ctx;
+  const { form, set, readOnly, liveSummary, provName, fallbackSale, fallbackCost, fallbackComm, kilosNum, applyParsedOC, emailClient, toast, setTab, order } = ctx;
+  // Vinculo cruzado Andres <-> Providencia (2026-08-11): Purchase.id y
+  // PurchaseOrder.id son SIEMPRE el mismo documento (se sincronizan solos
+  // via upsertAndresPurchase() al guardar la orden) -- no hace falta
+  // ninguna consulta extra, solo confirmar que ya existe la compra ligada
+  // antes de ofrecer el atajo (un expediente recien creado, sin guardar
+  // todavia, no tiene compra que mostrar).
+  const compraLigada = purchases.find((p) => p.id === order.id);
 
   return (
     <>
@@ -87,8 +98,18 @@ export default function TabResumen() {
                     onBlur={(e) => set('customSellPrice', e.target.value)} defaultValue={form.customSellPrice} disabled={readOnly} placeholder={`Ej. ${fallbackSale}`} />
                 </Field>
                 <Field label={`Costo Compra (${provName}) $/kg`}>
-                  <input className="input boxed mono" type="number" step="0.01" 
+                  <input className="input boxed mono" type="number" step="0.01"
                     onBlur={(e) => set('customCostPrice', e.target.value)} defaultValue={form.customCostPrice} disabled={readOnly} placeholder={`Ej. ${fallbackCost}`} />
+                  {compraLigada && (
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ marginTop: 6, fontSize: 11, padding: '4px 8px', width: '100%' }}
+                      onClick={() => nav(`/compras?abrir=${order.id}`)}
+                    >
+                      🏭 Ver compra en Andrés →
+                    </button>
+                  )}
                 </Field>
                 <Field label={`Comisión Contabilidad %`}>
                   <input className="input boxed mono" type="number" step="0.01" 

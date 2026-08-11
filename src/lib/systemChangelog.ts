@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.27',
+    date: '11 de Agosto de 2026',
+    time: '10:05 PM',
+    summary: 'Vínculo directo entre un expediente (Providencia) y su compra ligada en Andrés -- antes había que buscarla a mano en otra pantalla',
+    highlights: [
+      'Cada expediente ya estaba conectado por debajo con su compra en Andrés (comparten el mismo ID desde que se guarda la orden), pero no había ningún botón en la pantalla para saltar de uno a otro -- se sentían como "dos sistemas separados" aunque los datos ya estuvieran ligados.',
+      'Nuevo botón "🏭 Ver compra en Andrés" en el expediente (pestaña Resumen), junto al costo de compra -- solo aparece si ya existe la compra ligada.',
+      'Nuevo botón "📋 Ver orden en Providencia" en el detalle de la compra (módulo Compras) -- solo aparece si ya existe el expediente ligado.',
+      'Ambos abren la pantalla correspondiente con el registro ya seleccionado, sin tener que buscarlo en la lista.'
+    ]
+  },
+  {
     version: 'v7.0.26',
     date: '11 de Agosto de 2026',
     time: '9:15 PM',

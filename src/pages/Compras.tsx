@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAndresStats } from '../hooks/useAndresStats';
 import { useSystemSettings } from '../hooks/useSystemSettings';
@@ -39,6 +39,24 @@ export default function Compras() {
   const [filter, setFilter] = useState<'activas'|'completadas'|'todas'>('activas');
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'lista' | 'tablero'>('lista');
+  const [params, setParams] = useSearchParams();
+
+  // Vinculo cruzado Andres <-> Providencia (2026-08-11): permite abrir la
+  // compra ligada a un expediente especifico desde fuera de esta pantalla
+  // (el boton "Ver compra en Andrés" del expediente en Órdenes) sin tener
+  // que buscarla a mano en la lista.
+  useEffect(() => {
+    const abrirId = params.get('abrir');
+    if (!abrirId || provPurchases.length === 0) return;
+    const found = provPurchases.find((p) => p.id === abrirId);
+    if (found) {
+      setTab('ordenes');
+      setSelected(found);
+      const newParams = new URLSearchParams(params);
+      newParams.delete('abrir');
+      setParams(newParams, { replace: true });
+    }
+  }, [params, provPurchases, setParams]);
 
   if (error) return <div className="alert bad">{error}</div>;
   if (!loading && role !== 'admin') return <Navigate to="/" replace />;
