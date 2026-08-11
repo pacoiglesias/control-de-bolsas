@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.31',
+    date: '12 de Agosto de 2026',
+    time: '12:40 AM',
+    summary: 'El deploy se detenía en "las pruebas fallaron" -- eran 4 pruebas con el precio viejo ($47/kg) hardcodeado, no un error nuevo en los cálculos',
+    highlights: [
+      'Cuando el precio de venta de respaldo bajó de $47 a $43/kg (v7.0.24), 4 pruebas automáticas se quedaron comparando contra los montos calculados con el precio viejo -- el código calculaba bien con $43, las pruebas comparaban contra $47 y por eso "fallaban".',
+      'Actualizados los montos esperados en las pruebas al precio vigente ($43/kg). Confirmado: los 40 tests de fórmulas financieras pasan.',
+      'Hallazgo real que sí vale la pena revisar: con el precio de respaldo actual ($43/kg venta, $42/kg costo, 8% de comisión), el margen por kilo sin precio propio capturado queda negativo (-$2.44/kg) -- si algún expediente depende de ese respaldo en vez de tener su propio precio acordado, está perdiendo dinero en la fórmula. No se tocó ningún precio real, solo se documenta para que se revise.'
+    ]
+  },
+  {
     version: 'v7.0.30',
     date: '12 de Agosto de 2026',
     time: '12:10 AM',

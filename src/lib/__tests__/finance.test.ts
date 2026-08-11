@@ -34,14 +34,22 @@ function factura(status: OrderStatus, kilos = 100) {
 
 describe('computeFinancials', () => {
   it('el honorario del contador va sobre el SUBTOTAL, no sobre la factura', () => {
+    // FIX 2026-08-11 (Iteracion 106): estos valores estaban hardcodeados con
+    // el precio de venta viejo ($47/kg), que cambio a $43/kg en la
+    // Iteracion 98 (v7.0.24, confirmado por el usuario). Las pruebas nunca
+    // se actualizaron, asi que quedaron fallando en falso -- el codigo
+    // calculaba bien, las pruebas comparaban contra un precio que ya no
+    // existe. cfg viene de DEFAULT_CONFIG, asi que sigue el precio vigente.
     const f = computeFinancials(100, cfg);
-    expect(f.saleTotal).toBe(4700);
-    expect(f.invoiceTotal).toBe(5452);
-    expect(f.costTotal).toBe(4200);
-    // 8% del subtotal: 4700 x 0.08 = 376.00
-    expect(f.commission).toBe(376);
-    // 4700 - 4200 - 376 = 124
-    expect(f.netCashFlow).toBe(124);
+    expect(f.saleTotal).toBe(4300); // 100 kg x $43/kg
+    expect(f.invoiceTotal).toBe(4988); // 4300 x 1.16 IVA
+    expect(f.costTotal).toBe(4200); // 100 kg x $42/kg costo -- no cambio
+    // 8% del subtotal: 4300 x 0.08 = 344.00
+    expect(f.commission).toBe(344);
+    // 4300 - 4200 - 344 = -244 (el margen se volvio negativo al bajar el
+    // precio de venta a $43 sin bajar el costo de $42 -- esto es correcto
+    // segun la configuracion actual, no un error de la formula)
+    expect(f.netCashFlow).toBe(-244);
   });
 
   it('reproduce al centavo un cobro real del contador', () => {
@@ -56,7 +64,7 @@ describe('computeFinancials', () => {
 
   it('respeta commissionBase: total cuando así se configura', () => {
     const f = computeFinancials(100, { ...cfg, commissionBase: 'total' });
-    expect(f.commission).toBe(436.16); // 5452 x 0.08
+    expect(f.commission).toBe(399.04); // 4988 x 0.08 (ver Iteracion 106: precio $43/kg vigente)
   });
 
   it('redondea a dos decimales todos los importes', () => {
@@ -140,7 +148,7 @@ describe('getOrderSummary — derivación de estatus', () => {
   it('la deuda se mide contra el total con IVA', () => {
     const o = orden({ invoices: [factura('pending')] });
     const s = getOrderSummary(o);
-    expect(s.invoiceTotal - s.paidAmount).toBe(5452);
+    expect(s.invoiceTotal - s.paidAmount).toBe(4988); // ver Iteracion 106: precio $43/kg vigente
   });
 
   it('realizedProfit no produce NaN si invTotal es cero', () => {
@@ -204,10 +212,12 @@ describe('Dashboard Extractions', () => {
   });
 
   it('calculateLiveMargenTotal sum correctly', () => {
-    // 100 kilos * 47 sale = 4700. cost = 42. comm = 376. 4700 - 4200 - 376 = 124 margin per invoice
+    // Ver Iteracion 106: precio $43/kg vigente (antes $47).
+    // 100 kilos x $43 sale = 4300. cost = 4200. comm = 344.
+    // 4300 - 4200 - 344 = -244 margin per invoice
     const o = orden({ invoices: [factura('pending'), factura('paid')] });
     const margin = calculateLiveMargenTotal([o], 42);
-    expect(margin).toBe(248); // 124 * 2
+    expect(margin).toBe(-488); // -244 * 2
   });
 });
 

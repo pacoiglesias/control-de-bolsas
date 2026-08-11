@@ -1284,3 +1284,23 @@ El usuario reportó que el script se quedaba "pensando" en el Paso 4/7 ("depende
 **Verificación:** revisión de paréntesis (`grep -n "[()]"`) repetida tras el cambio -- ninguno literal dentro de bloques `if`.
 
 **Estado:** ✅ Corregido. No requiere ninguna acción adicional del usuario más allá de volver a correr `DESPLEGAR_ROBUSTO.bat`.
+
+### Iteración 106: `npm test` fallaba en el deploy -- 4 pruebas con el precio de $47/kg hardcodeado (v7.0.31) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Archivo:** `src/lib/__tests__/finance.test.ts`
+
+El usuario corrió `DESPLEGAR_ROBUSTO.bat` y el Paso 4/7 se detuvo con "[ERROR] Las pruebas fallaron. NO se despliega nada." Se reprodujo `npm test` localmente: 4 de 40 pruebas fallaban, las 4 con el mismo patrón (`expected X to be Y` donde Y era siempre el resultado calculado con el precio de venta viejo, $47/kg). Causa: `src/lib/__tests__/finance.test.ts` usa `cfg = { ...DEFAULT_CONFIG }`, así que automáticamente sigue el precio vigente -- pero los VALORES ESPERADOS de 4 pruebas estaban escritos a mano con los montos que daba el precio de $47/kg, de antes de la Iteración 98 (v7.0.24, que bajó el precio a $43/kg a petición del usuario). El código nunca dejó de calcular bien; las pruebas comparaban contra un precio que ya no existe.
+
+**Pruebas corregidas** (todas en `computeFinancials`/`getOrderSummary`/`calculateLiveMargenTotal`, recalculadas a mano con $43/kg venta, $42/kg costo, 8% comisión sobre subtotal):
+- `el honorario del contador va sobre el SUBTOTAL...`: saleTotal 4700→4300, invoiceTotal 5452→4988, commission 376→344, netCashFlow 124→**-244**.
+- `respeta commissionBase: total...`: commission 436.16→399.04.
+- `la deuda se mide contra el total con IVA`: 5452→4988.
+- `calculateLiveMargenTotal sum correctly`: 248→**-488**.
+
+**Hallazgo importante, no corregido a propósito (es un dato real, no un bug de código):** con los valores de respaldo actuales ($43/kg venta, $42/kg costo, 8% comisión sobre subtotal), el margen por kilo es **negativo** (-$2.44/kg) para cualquier expediente que dependa del precio de respaldo en vez de tener su propio `customSellPrice`/`customCostPrice` capturado. Esto es matemáticamente correcto dado el precio actual -- no se cambió ningún valor de negocio, solo se documenta aquí para que el usuario lo revise: si hay expedientes usando el respaldo sin precio propio, están registrando pérdida en la fórmula.
+
+**Limitación de esta sesión:** el archivo `src/lib/__tests__/xmlParser.test.ts` (usa entorno `jsdom`) no pudo verificarse en el sandbox -- `node -e "require('jsdom')"` no daba ninguna salida (ni éxito ni error), consistente con que las instalaciones de `npm install` en el sandbox se interrumpieron dos veces por timeout de la herramienta (~178s) antes de completar `node_modules` por completo. No está relacionado con ningún cambio de esta sesión; es una limitación del entorno de verificación, no del código.
+
+**Verificación:** `npm test` -- 40/40 pruebas de `finance.test.ts` y `math.test.ts` en verde. `tsc -b` limpio.
+
+**Estado:** ✅ Corregido. El usuario puede volver a correr `DESPLEGAR_ROBUSTO.bat`; el Paso 4/7 ya debería pasar.
