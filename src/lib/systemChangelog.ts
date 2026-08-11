@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.23',
+    date: '10 de Agosto de 2026',
+    time: '6:40 PM',
+    summary: '"Urgencias (Vencido)" mostraba un monto en pesos mayor a cero junto con "0 facturas fuera de fecha" -- las dos mitades del mismo aviso no eran calculadas por la misma vía',
+    highlights: [
+      'El conteo de facturas vencidas leía la fecha de vencimiento con dueDate?.toMillis?.(), que solo funciona si esa fecha se guardó como Timestamp nativo de Firestore. Cualquier factura con esa fecha guardada en otro formato (ej. datos migrados) se saltaba en silencio del conteo, aunque sí estuviera vencida y sí se sumara al monto en pesos de al lado -- por eso el dinero decía "$296,095.40" y las facturas decían "0" al mismo tiempo.',
+      'Ahora usa el mismo parseo tolerante que ya usa el Dashboard del lado del servidor (acepta Timestamp, Date o texto/número).',
+      'De paso, el aviso "Tienes X contrarecibos vencidos" en la parte de arriba del Dashboard contaba por EXPEDIENTE (un expediente con varias facturas contaba como 1, aunque tuviera varios contrarecibos vencidos adentro) en vez de por FACTURA, que es lo que dice la propia etiqueta -- ya cuenta igual que el resto de la pantalla.',
+      'Vuelve a presionar "🔄 Recalcular Indicadores" después de este despliegue.'
+    ]
+  },
+  {
     version: 'v7.0.22',
     date: '10 de Agosto de 2026',
     time: '6:10 PM',

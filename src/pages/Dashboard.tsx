@@ -226,8 +226,28 @@ return () => unsub();
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
         const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
         if (!cr) continue;
-        const venc = inv.creditCycle?.dueDate?.toMillis?.();
-        if (venc && venc < ahora) n++;
+        // FIX 2026-08-10 (Iteracion 97): antes esto leia dueDate?.toMillis?.(),
+        // que SOLO funciona si dueDate quedo guardado como Timestamp nativo de
+        // Firestore. Cualquier factura cuyo dueDate se haya guardado como
+        // string/Date normal (ej. datos migrados o escritos desde un flujo
+        // distinto) hacia que venc quedara `undefined`, y la condicion
+        // `if (venc && venc < ahora)` la saltaba en silencio -- SIN contarla
+        // como vencida aunque lo fuera. Resultado real visto en produccion:
+        // la tarjeta "Urgencias (Vencido)" mostraba un monto de dinero mayor
+        // a cero pero "0 facturas fuera de fecha" al mismo tiempo -- las dos
+        // mitades del mismo letrero, calculadas con dos formulas distintas
+        // que no estaban de acuerdo. Ahora usa el mismo parseo tolerante
+        // (Timestamp, Date, o string/numero) que ya usa el servidor
+        // (toDate() en functions/src/stats.ts) para esta misma comprobacion.
+        const rawDue = inv.creditCycle?.dueDate as any;
+        let venc: number | null = null;
+        if (rawDue) {
+          if (typeof rawDue.toMillis === 'function') venc = rawDue.toMillis();
+          else if (typeof rawDue.toDate === 'function') venc = rawDue.toDate().getTime();
+          else if (rawDue instanceof Date) venc = rawDue.getTime();
+          else { const d = new Date(rawDue); if (!isNaN(d.getTime())) venc = d.getTime(); }
+        }
+        if (venc !== null && venc < ahora) n++;
       }
     }
     return n;
@@ -597,13 +617,22 @@ return () => unsub();
         </div>
       </div>
 
-      {(k.overdue.length > 0 || k.review.length > 0) && (
+      {/* FIX 2026-08-10 (Iteracion 97): este aviso usaba k.overdue.length, un
+          conteo por EXPEDIENTE que viene del agregado cacheado del servidor
+          (counters.overdueOrders) -- pero la etiqueta dice "contrarecibo(s)",
+          que es por FACTURA, no por expediente. Un expediente con varias
+          facturas (ej. el de la migracion original) contaba como 1 aunque
+          tuviera varios contrarecibos vencidos adentro. contrarecibosVencidosCount
+          ya cuenta por factura y en vivo (mismo criterio de fecha que usa el
+          monto en pesos de al lado), asi que ambas mitades del aviso ahora
+          salen de la misma fuente. */}
+      {(contrarecibosVencidosCount > 0 || k.review.length > 0) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-          {k.overdue.length > 0 && (
+          {contrarecibosVencidosCount > 0 && (
             <div className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 20 }}>⚠️</span>
               <div style={{ flex: 1 }}>
-                <strong>Atención:</strong> Tienes {k.overdue.length} contrarecibo{k.overdue.length > 1 ? 's' : ''} vencido{k.overdue.length > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
+                <strong>Atención:</strong> Tienes {contrarecibosVencidosCount} contrarecibo{contrarecibosVencidosCount > 1 ? 's' : ''} vencido{contrarecibosVencidosCount > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
               </div>
               <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
             </div>
