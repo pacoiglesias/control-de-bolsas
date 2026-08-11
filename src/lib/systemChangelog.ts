@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.33',
+    date: '11 de Agosto de 2026',
+    time: '10:20 AM',
+    summary: 'El texto de "Deuda Histórica con Andrés" en Ajustes decía lo contrario de lo que hace la fórmula -- por eso el saldo con Andrés salía volteado (a favor en vez de deuda)',
+    highlights: [
+      'La fórmula del saldo con Andrés (usada igual en 3 archivos: Compras, Dashboard y Caja Chica) trata "Deuda Histórica" como un ANTICIPO a tu favor cuando es positiva -- lo dice su propio comentario en el código ("Negativo = Deuda, Positivo = Saldo a Favor"). Pero el texto de ayuda junto al campo en Ajustes decía justo lo opuesto: "valores positivos indican que le debes a Andrés". Cualquiera que capturara ese campo siguiendo la instrucción en pantalla iba a terminar con el saldo invertido.',
+      'Corregido el texto para que describa lo que la fórmula realmente hace. No se tocó la fórmula ni ningún cálculo -- es un cambio de texto explicativo únicamente.',
+      'Pendiente (requiere acción del usuario, no de código): el valor ya capturado en ese campo ($1,227,839.35) se guardó bajo la instrucción incorrecta y por eso el saldo con Andrés en vivo sale "+$39,670.27 a favor" cuando, según el Excel de control, debería ser "-$102,670.27 de deuda". El valor corregido que hay que capturar es $1,085,498.81 -- verificado para que el resultado cuadre exactamente con el Excel.'
+    ]
+  },
+  {
     version: 'v7.0.32',
     date: '11 de Agosto de 2026',
     time: '9:10 AM',

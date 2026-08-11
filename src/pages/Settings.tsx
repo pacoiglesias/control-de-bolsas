@@ -376,7 +376,18 @@ export default function Settings() {
               <CurrencyInput className="input boxed mono" value={form.historicalDebtAndres ?? 0}
                 onChange={(val) => setForm({ ...form, historicalDebtAndres: val })} />
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Valores positivos indican que le debes (pasivo). Si pones 102670.28, le debes eso a Andrés.
+                {/* FIX 2026-08-11 (Iteracion 108): este texto decia lo
+                    contrario de lo que hace la formula. saldoProveedor =
+                    Pagado - Compras + Historico (ver useAndresStats.ts,
+                    useDashboardStats.ts, CajaChica.tsx -- las 3 copias
+                    coinciden y traen el comentario "Negativo = Deuda,
+                    Positivo = Saldo a Favor"). Un valor positivo aqui SUMA
+                    a favor, no resta -- asi que "si pones 102670.28, le
+                    debes eso a Andres" era literalmente lo opuesto de lo
+                    que el sistema hace con ese numero. Alguien capturo un
+                    valor de buena fe siguiendo esta instruccion y el
+                    resultado salio invertido en la pantalla de Compras. */}
+                Valores positivos indican un saldo a tu favor (anticipo ya pagado antes de usar el sistema). Valores negativos indican que le debes a Andrés. Si le debes $102,670.28, pon -102670.28.
               </div>
             </Field>
             

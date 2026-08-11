@@ -1320,3 +1320,26 @@ Se descartaron por el camino otras dos hipótesis antes de llegar a esta: (1) qu
 **Verificación:** `npx tsc --noEmit` en `functions/` limpio. `npm test` (raíz) -- 40/40 pruebas de fórmulas financieras en verde (esta fórmula no las toca, pero se corrió como gate estándar). Pendiente verificación en vivo tras el próximo deploy: confirmar que el Dashboard deja de mostrar "1 órdenes pendientes" fantasma y que "Recalcular Indicadores" lo refleje.
 
 **Estado:** ✅ Corregido y verificado localmente. Pendiente deploy del usuario (`DESPLEGAR_ROBUSTO.bat`) y una corrida de "🔄 Recalcular Indicadores" después del deploy para limpiar el contador ya guardado en `stats/dashboard` (el fix corrige el cálculo hacia adelante, pero el valor ya persistido en Firestore quedó con el residuo viejo hasta que se recalcule).
+
+### Iteración 108: Reconciliación contra el Excel maestro + saldo con Andrés volteado (v7.0.33) (PARCIAL -- requiere acción del usuario)
+**Fecha:** 2026-08-11
+**Archivo:** `src/pages/Settings.tsx`
+
+El usuario subió `EXCEL ACTUALIZADO0508.xlsx` (su libro de control: contrarecibos, facturas en revisión, saldo con Andrés, pagos cobrados) con la instrucción de reconciliarlo contra el sistema en vivo y corregir lo que no cuadrara.
+
+**Reconciliación (navegación en vivo contra bolsas.cobertores.com):**
+- ✅ Los 9 contrarecibos restantes (TH-836, GT-742, TH-804, GT-713, TH-768, TH-739, GT-651, GT-624, GT-597) y los 3 cobros ya en caja chica (TR_3620, TR_3640, TR_3583) coinciden al peso y a la fecha con el Excel.
+- ❌ **TH-879 incompleto:** el Excel dice $136,300.00 total; el sistema solo trae la factura 6098 ($27,260.00) bajo ese CR. Falta la factura 6097. Verificado contra el PDF real de la factura 6097 (subido por el usuario en esta conversación): $109,040.00 exactos, 2,000 kg a $47/kg + IVA, fecha 27/Jul/2026, OC 120267113870. $27,260 + $109,040 = $136,300 -- cuadra exacto. **Pendiente: capturar esta factura en el sistema** (el usuario confirmó los datos: fecha CR 03/Ago/2026, vencimiento 02/Sep/2026, total $136,300.00).
+- ❌ **Contrarecibo "TH-713B" ($108,647.46) no existe en el Excel.** No se identificó su origen. GT-713 (el CR "real" del Excel, $69,001.60) sí está capturado por separado y correctamente -- TH-713B es una entrada adicional, no una mala etiqueta de ese mismo registro. Pendiente que el usuario confirme si es real o hay que eliminarlo.
+- ❌ **Factura 6159 ($79,826.00), listada en el Excel como "en revisión sin CR", no está capturada.** Ya era un pendiente conocido de antes; sigue sin el PDF fuente.
+- ❌ **Saldo con Andrés invertido, causa raíz encontrada:** el Excel dice que Paco le debe $102,670.27 a Andrés. El módulo de Compras en vivo decía "+$39,670.27 Saldo a favor" -- signo contrario y ~$142,340 de diferencia. La fórmula (idéntica en `useAndresStats.ts`, `useDashboardStats.ts` y `CajaChica.tsx`: `saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica`, con el comentario propio del código "Negativo = Deuda, Positivo = Saldo a Favor") es internamente consistente en los tres archivos. El problema es que el texto de ayuda junto al campo "Deuda Histórica inicial con Andrés" en Ajustes del Sistema decía **lo contrario**: "Valores positivos indican que le debes (pasivo)". Quien capturó el valor actual ($1,227,839.35, positivo) siguiendo esa instrucción esperaba registrar una deuda -- pero la fórmula lo trató como un anticipo a favor, empujando el saldo hacia el lado equivocado.
+
+  Despejando la fórmula con los valores reales del libro mayor en vivo (0 en pagos registrados, $1,188,169.08 en material recibido), el valor que hace que el saldo en vivo cuadre exactamente con la deuda de $102,670.27 del Excel es **$1,085,498.81** (en el mismo campo, bajo la fórmula sin tocar).
+
+  **Se corrigió el texto de ayuda** en `Settings.tsx` para que describa lo que la fórmula realmente hace (positivo = a favor, negativo = deuda), evitando que una futura captura repita el mismo error. **No se tocó la fórmula** (afecta 3 archivos y ya es internamente consistente) ni ningún registro transaccional.
+
+  **No se pudo completar la corrección del valor en vivo:** el intento de escribir $1,085,498.81 en el campo desde el navegador fue bloqueado por el clasificador de seguridad de la sesión (edición de configuración financiera en producción). Queda como acción pendiente del usuario: entrar a Ajustes del Sistema → Saldos Iniciales (Arranque) → "Deuda Histórica inicial con Andrés" → reemplazar el valor actual por **1085498.81** → Guardar configuración.
+
+**Verificación:** `tsc --noEmit` limpio tras el cambio de texto (no toca ningún cálculo).
+
+**Estado:** 🟡 Diagnóstico completo y verificado al centavo contra el Excel; texto de ayuda corregido en código (pendiente deploy). Tres acciones de datos pendientes de que el usuario las autorice/ejecute: (1) capturar factura 6097 bajo TH-879, (2) confirmar origen de TH-713B, (3) actualizar el campo "Deuda Histórica con Andrés" a $1,085,498.81.
