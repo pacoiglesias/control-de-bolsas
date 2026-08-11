@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.28',
+    date: '11 de Agosto de 2026',
+    time: '11:20 PM',
+    summary: 'Corregido el timeout "Cannot determine backend specification" que tumbaba el deploy de Functions, más un .bat de despliegue más robusto',
+    highlights: [
+      'La librería de IA (Gemini, para el lector inteligente de documentos) se cargaba completa apenas Firebase revisaba las funciones para publicarlas -- no cuando de verdad se usaba. Esa librería es pesada, y cargarla contaba contra el límite de 10 segundos que usa Firebase en esa revisión, causando el error de timeout visto al desplegar.',
+      'Ahora esa librería se carga solo cuando el lector de IA se usa de verdad, no durante la revisión de Firebase.',
+      'Nuevo DESPLEGAR_ROBUSTO.bat: verifica la sesión de Firebase antes de empezar, fija el proyecto correcto, amplía el límite de espera de Functions a 60 segundos como respaldo adicional, y reintenta una vez automáticamente si el primer intento de Functions falla.'
+    ]
+  },
+  {
     version: 'v7.0.27',
     date: '11 de Agosto de 2026',
     time: '10:05 PM',

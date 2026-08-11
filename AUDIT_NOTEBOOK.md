@@ -1234,3 +1234,19 @@ No hizo falta ninguna consulta nueva a Firestore ni cambio de modelo de datos --
 **Verificación:** `tsc -b` limpio, 0 errores.
 
 **Estado:** ✅ Código listo, `tsc -b` limpio. Pendiente que el usuario despliegue con su `.bat` (junto con v7.0.25 y v7.0.26, que también siguen pendientes de deploy).
+
+### Iteración 103: fix del timeout "Cannot determine backend specification" en deploy de Functions (v7.0.28 / functions v7.0.3) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Archivo:** `functions/src/ai/extractor.ts`, `DESPLEGAR_ROBUSTO.bat` (nuevo)
+
+El usuario reportó que `npm run deploy:functions` falló con `Error: User code failed to load. Cannot determine backend specification. Timeout after 10000`, y pidió un `.bat` que "configure todo, rectifique login firebase, etc." Este mismo error ya había ocurrido antes (2026-08-09, documentado en `DESPLEGAR_MEJORAS_2026-08-09.bat` con teorías sin confirmar sobre antivirus/firewall).
+
+**Causa raíz encontrada:** `functions/src/ai/extractor.ts` importaba `@google/genai` (el SDK de Gemini) a nivel de módulo (`import { GoogleGenAI, Type } from "@google/genai"`). El comando `firebase deploy --only functions` primero hace una fase de "descubrimiento": carga TODO el código de `functions/` solo para leer la configuración de cada función declarada (no para ejecutarlas), con un límite de 10 segundos por defecto. `@google/genai` es una librería pesada (arrastra `google-auth-library` y otras dependencias) -- cargarla contaba contra ese límite de 10s aunque nadie estuviera usando el lector de IA en ese momento. Esto coincide con la propia URL que trae el mensaje de error de Firebase (`avoid_deployment_timeouts_during_initialization`), que recomienda exactamente esto: mover imports pesados a dentro del handler.
+
+**Solución:** el import de `@google/genai` se movió a un import dinámico dentro del handler (`const { GoogleGenAI, Type } = await import("@google/genai")`), para que solo se cargue cuando la función `parseDocumentData` se ejecuta de verdad, no durante el descubrimiento del deploy. Verificado en el `.js` compilado (`functions/lib/ai/extractor.js`): el `require("@google/genai")` ahora queda envuelto en `Promise.resolve().then(() => ...)`, diferido, y solo quedan a nivel de módulo los imports livianos del propio SDK de Firebase Functions.
+
+**Además**, nuevo `DESPLEGAR_ROBUSTO.bat`: verifica la sesión de Firebase (`firebase login:list`, reautentica si hace falta), fija el proyecto (`firebase use control-de-bolsas-89c88`), sube `FUNCTIONS_DISCOVERY_TIMEOUT` a 60 segundos como respaldo adicional (por si algún otro import pesado aparece en el futuro), y reintenta el deploy de Functions una vez automáticamente si el primer intento falla.
+
+**Verificación:** `tsc` de `functions/` limpio, 0 errores. Confirmado en el `.js` compilado que el `require` pesado quedó diferido.
+
+**Estado:** ✅ Código y `.bat` listos. Pendiente que el usuario corra `DESPLEGAR_ROBUSTO.bat` (incluye todo lo pendiente de v7.0.25 a v7.0.28).
