@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.29',
+    date: '11 de Agosto de 2026',
+    time: '11:50 PM',
+    summary: 'Limpieza de scripts .bat -- sin cambios en la app. Corregido un bug de sintaxis que cerraba DESPLEGAR_ROBUSTO.bat de golpe',
+    highlights: [
+      'DESPLEGAR_ROBUSTO.bat tenía paréntesis mal escapados dentro de bloques "if" que rompían el interprete de Windows y cerraban la ventana antes de tiempo. Corregido, y además se le sumaron las pruebas automáticas y la instalación exacta de dependencias que ya traía INSTALL_AND_DEPLOY.bat, más la actualización automática de firebase-tools y el registro en DEPLOY_LOG.txt.',
+      '6 scripts .bat viejos (versiones de instalador de hace semanas, deploys de una fecha específica ya publicados) quedaron fuera del repositorio -- superados por DESPLEGAR_ROBUSTO.bat. Nuevo LIMPIAR_BATS_VIEJOS.bat para borrarlos del disco con un clic.',
+      'CONTROL_MAESTRO.bat ahora manda al script robusto en vez de un "firebase deploy" sin pruebas ni reintentos.'
+    ]
+  },
+  {
     version: 'v7.0.28',
     date: '11 de Agosto de 2026',
     time: '11:20 PM',

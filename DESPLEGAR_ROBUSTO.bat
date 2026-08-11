@@ -10,31 +10,44 @@ echo    DESPLIEGUE ROBUSTO - Control Bolsas ERP
 echo  ============================================================
 echo.
 echo   Este script NO BORRA NADA. Publica en produccion los commits
-echo   locales ya verificados (build limpio, tsc sin errores).
+echo   locales ya verificados.
 echo.
-echo   Diferencias contra el .bat anterior:
-echo     1. Verifica tu sesion de Firebase ANTES de empezar (si
-echo        expiro, te pide reautenticarte antes de intentar nada).
-echo     2. Fija el proyecto correcto (control-de-bolsas-89c88) por
-echo        si la CLI quedo apuntando a otro.
-echo     3. Sube el tiempo limite del "descubrimiento" de Functions
-echo        de 10 segundos (el valor por defecto de Firebase) a 60 --
-echo        esto es lo que causaba el error "Cannot determine backend
-echo        specification. Timeout after 10000" que viste. Ademas, el
-echo        codigo del lector de IA (Gemini) ya se corrigio para
-echo        cargar su libreria SOLO cuando de verdad se usa, en vez
-echo        de cargarla siempre que se revisan las funciones -- esa
-echo        libreria es pesada y era la causa mas probable del timeout.
-echo     4. Reintenta el deploy de Functions automaticamente una vez
-echo        mas si el primer intento falla por timeout.
+echo   Que hace, en orden:
+echo     1. Verifica tu sesion de Firebase.
+echo     2. Fija el proyecto correcto.
+echo     3. Actualiza firebase-tools a la ultima version.
+echo     4. Instala dependencias exactas y corre las pruebas de la
+echo        formula financiera -- si algo cambio el resultado de los
+echo        calculos de dinero, NO se despliega nada.
+echo     5. git push.
+echo     6. Build + Hosting/Firestore/Storage.
+echo     7. Cloud Functions, con el limite de descubrimiento ampliado
+echo        a 60 segundos y reintento automatico si falla.
+echo.
+echo   Todo el detalle tecnico queda en DEPLOY_LOG.txt, por si algo
+echo   falla y hay que revisar el mensaje completo.
 echo.
 pause
 
 cd /d "%~dp0"
+set "LOGFILE=%~dp0DEPLOY_LOG.txt"
+echo ============================================================ > "%LOGFILE%"
+echo  DEPLOY - Control Bolsas ERP >> "%LOGFILE%"
+echo  Inicio: %date% %time% >> "%LOGFILE%"
+echo ============================================================ >> "%LOGFILE%"
+
+if not exist "firebase.json" (
+  color 0C
+  echo.
+  echo   [ERROR] No estas en la carpeta del proyecto.
+  echo.
+  pause
+  exit /b 1
+)
 
 echo.
 echo  ------------------------------------------------------------
-echo   Paso 1/6: verificando sesion de Firebase...
+echo   Paso 1/7: verificando sesion de Firebase...
 echo  ------------------------------------------------------------
 call firebase login:list >nul 2>nul
 if errorlevel 1 (
@@ -58,7 +71,7 @@ if errorlevel 1 (
 
 echo.
 echo  ------------------------------------------------------------
-echo   Paso 2/6: fijando el proyecto correcto...
+echo   Paso 2/7: fijando el proyecto correcto...
 echo  ------------------------------------------------------------
 call firebase use control-de-bolsas-89c88
 if errorlevel 1 (
@@ -66,27 +79,61 @@ if errorlevel 1 (
   echo   [AVISO] "firebase use" devolvio un error, PERO si arriba ya
   echo   viste el mensaje "Now using project control-de-bolsas-89c88"
   echo   quiere decir que el proyecto SI quedo bien seleccionado -- el
-  echo   error de despues es un bug conocido y generico de firebase-tools
-  echo   ("Error: An unexpected error has occurred"^) que no impide
+  echo   error de despues es un bug conocido y generico de firebase-tools:
+  echo   "Error: An unexpected error has occurred" -- no impide
   echo   continuar, porque el archivo .firebaserc ya quedo escrito con
   echo   el proyecto correcto. Este script sigue adelante.
-  echo.
-  echo   Si el deploy de mas abajo SI falla por permisos de proyecto,
-  echo   entonces corre a mano:  npm install -g firebase-tools
-  echo   (version desactualizada es la causa mas comun de este error
-  echo   generico^) y vuelve a intentar.
   echo.
 )
 
 echo.
 echo  ------------------------------------------------------------
-echo   Paso 3/6: subiendo commits a GitHub...
+echo   Paso 3/7: actualizando firebase-tools...
+echo  ------------------------------------------------------------
+echo --- Paso 3/7: npm install -g firebase-tools --- >> "%LOGFILE%"
+call npm install -g firebase-tools >> "%LOGFILE%" 2>&1
+if errorlevel 1 (
+  echo   [AVISO] No se pudo actualizar firebase-tools. Se sigue con
+  echo   la version ya instalada.
+) else (
+  echo   OK.
+)
+
+echo.
+echo  ------------------------------------------------------------
+echo   Paso 4/7: dependencias y pruebas de la formula financiera...
+echo  ------------------------------------------------------------
+call npm ci >> "%LOGFILE%" 2>&1
+if errorlevel 1 (
+  echo   [AVISO] npm ci fallo. Intentando con npm install...
+  call npm install >> "%LOGFILE%" 2>&1
+)
+call npm --prefix functions ci >> "%LOGFILE%" 2>&1
+if errorlevel 1 (
+  call npm --prefix functions install >> "%LOGFILE%" 2>&1
+)
+call npm test >> "%LOGFILE%" 2>&1
+if errorlevel 1 (
+  color 0C
+  echo.
+  echo   [ERROR] Las pruebas fallaron. NO se despliega nada.
+  echo   Algo cambio el resultado de los calculos de dinero -- revisa
+  echo   DEPLOY_LOG.txt antes de continuar.
+  echo.
+  pause
+  exit /b 1
+)
+echo   OK: calculos verificados.
+
+echo.
+echo  ------------------------------------------------------------
+echo   Paso 5/7: subiendo commits a GitHub...
 echo  ------------------------------------------------------------
 git push
 if errorlevel 1 (
   echo.
-  echo   [AVISO] git push fallo. Revisa el mensaje de arriba (puede
-  echo   ser que falte "git pull" primero). El despliegue de abajo
+  echo   [AVISO] git push fallo. Revisa el mensaje de arriba -- puede
+  echo   ser que falte "git pull" primero. El despliegue de abajo
   echo   puede seguir de todas formas.
   echo.
   pause
@@ -94,7 +141,7 @@ if errorlevel 1 (
 
 echo.
 echo  ------------------------------------------------------------
-echo   Paso 4/6: build + publicar Hosting/Firestore/Storage...
+echo   Paso 6/7: build + publicar Hosting/Firestore/Storage...
 echo  ------------------------------------------------------------
 call npm run deploy:hosting
 if errorlevel 1 (
@@ -114,33 +161,31 @@ echo.
 
 echo.
 echo  ------------------------------------------------------------
-echo   Paso 5/6: publicar Functions (intento 1, timeout ampliado)...
+echo   Paso 7/7: publicar Functions, timeout ampliado, intento 1...
 echo  ------------------------------------------------------------
 set FUNCTIONS_DISCOVERY_TIMEOUT=60
 call npm run deploy:functions
 if errorlevel 1 (
   echo.
-  echo   [AVISO] Intento 1 de Functions fallo. Reintentando una vez
-  echo   mas antes de rendirse -- a veces el primer intento falla por
-  echo   una descarga en frio de dependencias y el segundo si pasa...
+  echo   [AVISO] Intento 1 de Functions fallo. Esperando 15 segundos
+  echo   y reintentando una vez mas antes de rendirse...
   echo.
+  timeout /t 15 /nobreak >nul
   echo  ------------------------------------------------------------
-  echo   Paso 6/6: publicar Functions (intento 2)...
+  echo   Paso 7/7: publicar Functions, intento 2...
   echo  ------------------------------------------------------------
   call npm run deploy:functions
   if errorlevel 1 (
     echo.
     echo   [AVISO] Functions no se pudo publicar en 2 intentos, PERO
-    echo   el sitio del Paso 4 SI quedo publicado -- no se perdio nada.
+    echo   el sitio del Paso 6 SI quedo publicado -- no se perdio nada.
     echo.
     echo   Si el error sigue diciendo "Cannot determine backend
     echo   specification" o "Timeout", intenta:
     echo     - Cierra antivirus/firewall momentaneamente y reintenta
     echo       "npm run deploy:functions" a mano.
-    echo     - Corre: npm install -g firebase-tools   (por si esta
-    echo       desactualizado^)
-    echo     - Si el error es otro (no timeout^), copialo y compartelo
-    echo       para revisar el codigo de functions/.
+    echo     - Si el error NO es de timeout, copialo de DEPLOY_LOG.txt
+    echo       y compartelo para revisar el codigo de functions/.
     echo.
     pause
     exit /b 1

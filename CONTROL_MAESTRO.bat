@@ -56,13 +56,11 @@ goto menu
 :subir
 cls
 echo =======================================================
-echo Compilando y subiendo el sistema a Produccion...
-echo (Recuerda que si hiciste git push, GitHub ya lo esta haciendo)
+echo Este menu ya no despliega directo -- usa el script
+echo dedicado, que hace pruebas, sube GitHub y reintenta
+echo Functions si hace falta.
 echo =======================================================
-call npm run deploy
-echo.
-echo ¡Despliegue finalizado!
-pause
+call DESPLEGAR_ROBUSTO.bat
 goto menu
 
 :salir

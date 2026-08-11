@@ -1250,3 +1250,23 @@ El usuario reportó que `npm run deploy:functions` falló con `Error: User code 
 **Verificación:** `tsc` de `functions/` limpio, 0 errores. Confirmado en el `.js` compilado que el `require` pesado quedó diferido.
 
 **Estado:** ✅ Código y `.bat` listos. Pendiente que el usuario corra `DESPLEGAR_ROBUSTO.bat` (incluye todo lo pendiente de v7.0.25 a v7.0.28).
+
+### Iteración 104: `DESPLEGAR_ROBUSTO.bat` se cerraba solo + limpieza general de scripts .bat (v7.0.29) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Archivo:** `DESPLEGAR_ROBUSTO.bat`, `CONTROL_MAESTRO.bat`, `LIMPIAR_BATS_VIEJOS.bat` (nuevo)
+
+El usuario reportó que `DESPLEGAR_ROBUSTO.bat` (recién creado en la Iteración 103) se cerraba antes de tiempo. Causa: varias líneas `echo` dentro de bloques `if errorlevel 1 ( ... )` tenían un paréntesis de apertura `(` sin escapar seguido de un paréntesis de cierre `^)` sí escapado -- ese desbalance confunde al parser de `cmd.exe`, que sigue contando el bloque como abierto más allá de donde realmente termina, y el script se corta en un punto arbitrario. Se corrigió quitando TODOS los paréntesis literales de las líneas `echo` dentro de bloques `if` (más confiable que depender del escape `^`, que es notoriamente inconsistente en cmd.exe), reemplazándolos por guiones o dos puntos.
+
+**De paso**, a petición del usuario ("revisa todos los bat de mi carpeta, y borra lo que no necesitemos, pero aprende de los que estan bien para que hagas uno bueno"), se auditaron los 14 `.bat` de la raíz del proyecto:
+
+Se quedan (utilidades distintas entre sí, sin redundancia): `CONECTAR_FIREBASE.bat`, `CONFIGURAR_CLAVE_GEMINI.bat`, `CONTROL_MAESTRO.bat`, `CREAR_ZIP_PARA_CLAUDE.bat`, `DIAGNOSTICO.bat`, `PROTEGER_CODIGO.bat`, `PUSH_TO_GIT.bat`, `REPARAR_PERMISOS_MAQUILADOR.bat`, `DESPLEGAR_ROBUSTO.bat`.
+
+Se sacaron del repositorio (superados, contenido ya integrado o commits de esa fecha ya publicados hace tiempo): `INSTALAR_v6.76.0.bat`, `INSTALAR_v7.0.1.bat`, `INSTALAR_v7.0.2.bat` (instaladores de parches ZIP de versiones muy anteriores a la 7.0.29 actual, workflow ya reemplazado por git), `INSTALL_AND_DEPLOY.bat` (su lógica de `npm ci` + `npm test` + orden de deploy se absorbió dentro de `DESPLEGAR_ROBUSTO.bat`), `DESPLEGAR_MEJORAS_2026-08-09.bat` y `DESPLEGAR_MEJORAS_2026-08-09_AUTO.bat` (deploys atados a commits específicos del 2026-08-09, ya publicados; su idea de actualizar `firebase-tools` automáticamente y loguear a archivo también se absorbió en `DESPLEGAR_ROBUSTO.bat`).
+
+**Limitación encontrada:** el sandbox no pudo eliminar físicamente esos 6 archivos (`rm`/`git rm` fallaron con "Operation not permitted" en todos, igual que otras operaciones de archivo documentadas antes en esta sesión sobre esta misma carpeta montada). Se usó `git rm --cached` para sacarlos del control de versiones (sí funcionó) y se dejó `LIMPIAR_BATS_VIEJOS.bat` para que el usuario los borre físicamente del disco con un clic desde su propia máquina. El único no versionado en git (`DESPLEGAR_MEJORAS_2026-08-09.bat`) se copió primero a `Respaldos/` antes de intentar borrarlo, por seguridad.
+
+**`CONTROL_MAESTRO.bat`:** su opción 3 ("Construir y Subir a Producción") llamaba a `npm run deploy` en crudo, sin pruebas ni reintentos -- ahora llama a `DESPLEGAR_ROBUSTO.bat`.
+
+**Verificación:** revisión manual de paréntesis (`grep -n "[()]"`) confirmando que solo quedan los estructurales de los bloques `if`/`else`, ninguno dentro de texto de `echo`.
+
+**Estado:** ✅ `DESPLEGAR_ROBUSTO.bat` corregido y enriquecido. Pendiente que el usuario corra `LIMPIAR_BATS_VIEJOS.bat` una vez para borrar los 6 archivos físicos, y luego `DESPLEGAR_ROBUSTO.bat` para publicar todo lo pendiente (v7.0.25 a v7.0.29).
