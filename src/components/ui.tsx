@@ -271,11 +271,27 @@ export function Modal({
   onClose,
   children,
   wide,
+  elevated,
 }: {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  // FIX 2026-08-11: confirmDialog()/promptDialog() (ConfirmDialogHost /
+  // PromptDialogHost) se renderizan como componentes normales, montados una
+  // sola vez cerca de la raiz de la app -- NO usan un portal. Cuando se
+  // invocan DESDE ADENTRO de un modal ya abierto (p. ej. el aviso "Has
+  // completado los kilos pedidos..." al guardar un expediente), su <div
+  // className="modal-root"> queda mas arriba en el DOM que el modal del
+  // expediente, y con el mismo z-index ambos quedan "empatados": el
+  // navegador pinta encima al que aparece DESPUES en el arbol, que es el
+  // expediente -- el confirm queda invisible y sin poder darle click, con
+  // el guardado colgado esperando esa respuesta para siempre (indistinguible
+  // de un boton roto). Se detecto en vivo intentando registrar una entrega
+  // de 3,700kg: "Guardar cambios" parecia no hacer nada. `elevated` le da a
+  // ESTE modal un z-index mayor para que un confirm/prompt anidado SIEMPRE
+  // quede encima, sin importar el orden en el DOM.
+  elevated?: boolean;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   // onClose casi siempre es una funcion nueva en cada render del padre. Antes
@@ -346,7 +362,7 @@ export function Modal({
 
   return (
     <AnimatePresence>
-      <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div className={`modal-root${elevated ? ' modal-root--top' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <motion.div 
           className="modal-scrim" 
           onClick={onClose} 

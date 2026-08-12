@@ -61,7 +61,7 @@ export function ConfirmDialogHost() {
   };
 
   return (
-    <Modal title={state.title ?? 'Confirmar acción'} onClose={() => settle(false)}>
+    <Modal title={state.title ?? 'Confirmar acción'} onClose={() => settle(false)} elevated>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div style={{ color: 'var(--ink-soft)', lineHeight: 1.6, fontSize: 14, whiteSpace: 'pre-line' }}>{state.message}</div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>

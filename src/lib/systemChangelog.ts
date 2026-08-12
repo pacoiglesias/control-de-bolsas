@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.38',
+    date: '11 de Agosto de 2026',
+    time: '8:15 PM',
+    summary: 'Bug real encontrado en vivo: "Guardar cambios" en un expediente podía quedarse colgado sin avisar nada, si el sistema necesitaba preguntar algo antes de guardar',
+    highlights: [
+      'Al registrar la entrega de 3,700kg del pedido 43/9713 (para preparar el pago a Andrés), "Guardar cambios" parecía no hacer nada -- ningún error, ningún aviso, la ventana se quedaba exactamente igual sin importar cuántas veces se le diera clic.',
+      'La causa: al completar los kilos pedidos, el sistema pregunta "¿Deseas marcar esta orden como finalizada?" ANTES de guardar -- pero esa pregunta se dibuja como una ventana normal, no "por encima de todo" como debería. Como ya había otra ventana abierta (la del expediente), las dos quedaban empatadas y el navegador pintaba la del expediente por encima, dejando la pregunta invisible y sin poder darle clic. El guardado se quedaba esperando una respuesta que nunca podía llegar por la pantalla.',
+      'Mismo riesgo en cualquier otra pregunta o dato que el sistema pida mientras ya hay una ventana abierta (por ejemplo, al borrar una entrega desde dentro del expediente). Corregido de raíz: esas preguntas ahora siempre se dibujan por encima de cualquier otra ventana, sin importar cuál se abrió primero.',
+      'La entrega de 3,700kg del pedido 43/9713 quedó registrada correctamente una vez destrabado: Kilos Pedidos/Entregados 3,700kg, Proveedor "Andres", y el Libro Mayor de Compras ya refleja "Entrega (Amortización) OC-43/9713 $155,400.00" -- el monto que hay que prepararle a Andrés por esta entrega.'
+    ]
+  },
+  {
     version: 'v7.0.37',
     date: '11 de Agosto de 2026',
     time: '6:10 PM',

@@ -459,6 +459,13 @@ textarea.input{min-height:80px;resize:vertical;line-height:1.5}
    "no se ve la barra de scroll en la subpantalla".
 */
 .modal-root{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px}
+/* FIX 2026-08-11: confirmDialog()/promptDialog() no usan portal -- si se
+   invocan desde DENTRO de otro modal ya abierto, sin esto quedan pintados
+   debajo de el (empatados en z-index, pierde el que aparece antes en el
+   DOM) y se vuelven invisibles e inalcanzables con clicks, dejando la
+   promesa que esperan colgada para siempre. Ver components/ui.tsx (prop
+   `elevated` de Modal). */
+.modal-root.modal-root--top{z-index:1200}
 .modal-scrim{position:absolute;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(2px)}
 .modal-box{position:relative;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;background:var(--paper-raised);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden}
 .modal-box.wide{max-width:1100px}

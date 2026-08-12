@@ -77,7 +77,7 @@ export function PromptDialogHost() {
   };
 
   return (
-    <Modal title={state.title ?? 'Ingresa un valor'} onClose={() => settle(null)}>
+    <Modal title={state.title ?? 'Ingresa un valor'} onClose={() => settle(null)} elevated>
       <form
         onSubmit={(e) => {
           e.preventDefault();
