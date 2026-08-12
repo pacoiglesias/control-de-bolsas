@@ -100,7 +100,14 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
       .filter(Boolean)
   )] as string[];
 
-  const invoiceCount: number = form.invoices?.length ?? 0;
+  // FIX 2026-08-11: antes leia form.invoices (estado local del formulario,
+  // sembrado solo UNA VEZ al abrir el expediente via getOrderSummary) --
+  // TabFacturas.tsx en cambio siempre lee order.invoices (el objeto vivo,
+  // persistido). Esa divergencia era la causa secundaria del badge
+  // "1 factura" fantasma: el badge decia 1 (heredado de la sintesis vieja
+  // de getOrderSummary) mientras la lista de TabFacturas, leyendo el dato
+  // real, aparecia vacia. Se unifica en la misma fuente viva.
+  const invoiceCount: number = order?.invoices?.length ?? 0;
 
   // ── Siguiente paso automático ──────────────────────────────────────────────
   const siguientePaso = (() => {

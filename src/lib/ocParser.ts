@@ -43,16 +43,50 @@ const MESES: Record<string, number> = {
 // numeros con decimales (medidas como "1.20 M X 1.60 M"), porque el motor
 // de regex solo se detiene cuando encuentra exactamente 3 tokens
 // decimales consecutivos justo antes del fin de linea.
-const ITEM_LINE_RE = /^\s*\d+\s+(\S+)\s+([\d,]+\.\d+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/gm;
+//
+// FIX 2026-08-11: no todas las OCs traen la Cantidad en esa posicion. Al
+// capturar la OC 71/14114 (Iteracion 115, AUDIT_NOTEBOOK.md), el texto
+// extraido del PDF traia el orden {No.} {Codigo} {Descripcion...}
+// {Cantidad} {P.U.} {Dtos} {Importe} -- la Cantidad DESPUES de la
+// descripcion, no antes -- y "Pegar Texto de OC" no detecto ni un solo
+// articulo. El regex de arriba exigia la Cantidad pegada justo despues
+// del Codigo; con este segundo formato no hay match en absoluto. En vez
+// de mantener dos regex de linea completa (con el riesgo real de que
+// diverjan otra vez, como paso antes -- ver el comentario de archivo),
+// se separa en dos pasos: primero se aisla SIEMPRE el bloque entre
+// Codigo y los 3 numeros finales (P.U./Dtos/Importe, que nunca cambian
+// de lugar), y luego se busca la Cantidad como un numero pegado al
+// PRINCIPIO o al FINAL de ese bloque -- cualquiera de los dos formatos
+// reales encontrados hasta ahora.
+const ITEM_LINE_RE = /^\s*\d+\s+(\S+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/gm;
+const NUM_RE = /^([\d,]+\.\d+)$/;
+
+/** Separa el bloque intermedio en {cantidad, descripcion}, sin importar de que lado quedo el numero. */
+function splitCantidadYDescripcion(bloque: string): { cantidad: number; descripcion: string } | null {
+  const partes = bloque.trim().split(/\s+/);
+  if (partes.length < 2) return null;
+  if (NUM_RE.test(partes[0])) {
+    // Formato "Cantidad Descripcion..." (Codigo pegado a la Cantidad)
+    return { cantidad: Number(partes[0].replace(/,/g, '')), descripcion: partes.slice(1).join(' ') };
+  }
+  const ultima = partes[partes.length - 1];
+  if (NUM_RE.test(ultima)) {
+    // Formato "Descripcion... Cantidad" (Cantidad pegada a los 3 numeros finales)
+    return { cantidad: Number(ultima.replace(/,/g, '')), descripcion: partes.slice(0, -1).join(' ') };
+  }
+  return null;
+}
 
 export function parseOrdenDeCompra(text: string): ParsedOC {
   const items: PurchaseOrderItem[] = [];
   if (text) {
     for (const m of text.matchAll(ITEM_LINE_RE)) {
-      const [, code, cantidadStr, descRaw, puStr, , importeStr] = m;
-      const desc = descRaw.trim();
+      const [, code, bloque, puStr, , importeStr] = m;
+      const partido = splitCantidadYDescripcion(bloque);
+      if (!partido) continue;
+      const desc = partido.descripcion.trim();
       if (/subtotal|^total$/i.test(desc)) continue;
-      const quantity = Number(cantidadStr.replace(/,/g, ''));
+      const quantity = partido.cantidad;
       if (!quantity || quantity <= 0) continue;
       items.push({
         id: Date.now().toString() + Math.random().toString(36).slice(2, 8),

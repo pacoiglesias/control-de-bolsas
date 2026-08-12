@@ -1465,3 +1465,36 @@ Segunda de las dos Órdenes de Compra que el usuario pidió capturar en el mismo
 
 **Riesgo:** 🟡 Medio -- dato financiero real (deuda con proveedor), verificado contra el PDF original y contra 2 pantallas tras recargar.
 **Estado:** ✅ Verificado end-to-end. Pendiente: revisar el parser de "Pegar OC" para listas con comas de miles; proponer mejora concreta al flujo completo OC→entrega→CxP.
+
+**⚠️ CORRECCIÓN POSTERIOR (ver Iteración 116):** las cifras de arriba ($273,000.00 para esta OC y $428,400.00 de total combinado) usaban el Costo Compra por default del sistema, $42/kg -- que resultó estar mal. El usuario confirmó que el costo real pactado con Andrés es **$38/kg**, no $42. Con la corrección, esta OC pasa a **$247,000.00** y el total combinado con la Iteración 113 pasa a **$387,600.00**. Los montos de esta entrada quedan como registro histórico de lo que se calculó en el momento; los correctos son los de la Iteración 116.
+
+### Iteración 116: Corrección de datos -- Costo Compra (Andrés) a $38/kg en las dos OCs nuevas, no $42 (COMPLETADO)
+**Fecha:** 2026-08-11
+**Alcance:** Corrección de datos en vivo, no código.
+
+El usuario avisó directamente: "lo que le debo a andres es a 38 pesos kilo y las nuevas OC de providencia son a 43". Ambas OCs nuevas (Iteraciones 113 y 115) se habían capturado dejando el campo "Costo Compra (Andrés) $/kg" en blanco a propósito, para heredar el default del sistema -- pero ese default está en $42/kg, y no en los $38/kg que el usuario realmente paga hoy. Corregido el campo a 38 explícito en ambos expedientes.
+
+**Verificado contra Compras → Cuentas por Pagar (CxP) → Libro Mayor Cronológico** tras guardar cada uno:
+- OC 43/9713 (3,700kg): antes $155,400.00 (a $42/kg) → corregido a **$140,600.00** (a $38/kg).
+- OC 71/14114 (6,500kg): antes $273,000.00 (a $42/kg) → corregido a **$247,000.00** (a $38/kg).
+- **Total corregido a preparar para Andrés por estas dos entregas: $387,600.00** (antes $428,400.00).
+
+El usuario después pidió reconfirmación directa de que Costo Compra y Precio Venta no quedaron cruzados entre sí ("yo le compro a andres a 38 y vendo a providencia a 43"). Verificado en pantalla, ambos expedientes, campo por campo:
+- 71/14114: Precio Venta Acordado = **43**, Costo Compra (Andrés) = **38**. ✅ Correcto.
+- 43/9713: Costo Compra (Andrés) = **38**. ✅ Correcto. (Precio Venta Acordado en este expediente es 47 -- un valor previo a esta sesión, de la orden original antes de cualquier corrección; no forma parte de lo que el usuario pidió corregir esta vez y no se tocó.)
+
+**Pendiente para el usuario, no resuelto esta sesión:** el default del sistema (Ajustes del Sistema → Costo Compra por kg) sigue en $42/kg. Si $38/kg es la tarifa vigente en general (no solo de estas dos OCs), conviene actualizar ese default también -- para no repetir este mismo error en la próxima OC que se capture sin especificar el costo a mano. No se cambió porque no quedó claro si el usuario quiere ese default actualizado también o si $38 aplica solo a este lote.
+
+**Riesgo:** 🟡 Medio -- dato financiero real (deuda con proveedor), corregido y verificado 2 veces contra el Libro Mayor.
+**Estado:** ✅ Verificado y confirmado con el usuario.
+
+### Iteración 117: Corregido el parser de "Pegar OC" para OCs con Cantidad después de la descripción, y el badge fantasma de "1 factura" (v7.0.39) (COMPLETADO)
+**Fecha:** 2026-08-11
+**Alcance:** Corrección de código, dos bugs.
+
+**Bug 1 -- `parseOrdenDeCompra` (`src/lib/ocParser.ts`) no detectaba artículos en la OC 71/14114 (Iteración 115).** El regex de línea esperaba siempre el orden `{No.} {Código} {Cantidad} {Descripción...} {P.U.} {Dtos} {Importe}` -- pero el texto extraído del PDF de esa OC traía la Cantidad DESPUÉS de la descripción, no antes. Corregido separando la lectura en dos pasos: primero se aísla siempre el bloque entre el Código y los 3 números finales (P.U./Dtos/Importe, que nunca cambian de posición), y luego se busca la Cantidad como un número pegado al principio o al final de ese bloque -- cubre ambos formatos vistos hasta ahora. Verificado con un script de prueba standalone contra ambos formatos (el original de la OC 43/9713 y el nuevo de la OC 71/14114); `tsc -b` limpio.
+
+**Bug 2 -- badge "Facturas & Contrarecibos [1 factura]" aparecía en expedientes recién creados sin ninguna factura real.** Causa raíz en `getOrderSummary()` (`src/lib/finance.ts`): una regla pensada para sintetizar una factura fantasma solo en expedientes VIEJOS migrados (usando "tener folio" como única señal disponible de que ya se había facturado) disparaba también en CUALQUIER expediente nuevo con folio y sin entregas todavía -- que es el estado normal y transitorio de un expediente recién creado antes de su primera entrega, no solo de datos legado. Corregido: la condición ahora exige la señal genuina de dato viejo (`o.financials.saleTotal > 0`, un campo a nivel de la orden que solo se llena en migraciones antiguas), quitando la rama `o.folio ||` que disparaba con casi cualquier expediente. De paso se corrigió una segunda causa: el número del badge (`src/components/OrderModal/index.tsx`) leía `form.invoices` (estado local, sembrado una sola vez al abrir el expediente) en vez de `order.invoices` (el dato vivo que sí usa la lista de abajo, `TabFacturas.tsx`) -- ahora ambos leen la misma fuente.
+
+**Riesgo:** 🟢 Bajo -- ambos son correcciones de lectura/visualización, no tocan escritura de datos financieros.
+**Estado:** ✅ `tsc -b` limpio. Versión 7.0.39. Pendiente: commit, build completo y deploy.

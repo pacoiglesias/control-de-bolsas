@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.39',
+    date: '11 de Agosto de 2026',
+    time: '9:40 PM',
+    summary: '"Pegar Texto de OC" ya detecta los artículos aunque la Cantidad venga después de la descripción, y el badge de "1 factura" ya no aparece en expedientes recién creados que todavía no tienen factura',
+    highlights: [
+      'Al capturar la OC 71/14114 se encontró que "Pegar Texto de OC" no detectó ni un solo artículo -- el texto extraído del PDF traía la Cantidad DESPUÉS de la descripción del producto, en vez de antes (como sí venía en la OC 43/9713 usada para probar el parser originalmente). El sistema tuvo que capturarse a mano, artículo por artículo.',
+      'Corregido: el lector ahora aísla siempre el bloque entre el Código y los 3 números finales de la línea (Precio Unitario, Descuento, Importe, que nunca cambian de posición), y dentro de ese bloque busca la Cantidad al principio O al final -- cubre ambos formatos de OC vistos hasta ahora.',
+      'Se corrigió también un badge equivocado: un expediente recién creado, antes de registrar su primera entrega, podía mostrar "Facturas & Contrarecibos [1 factura]" sin que existiera ninguna factura real -- la lista de abajo aparecía vacía, contradiciendo el número de arriba. La causa: una regla pensada solo para expedientes VIEJOS migrados (usar el folio como señal de "ya se facturó") disparaba también en cualquier expediente nuevo con folio, que es casi todos. Ahora esa regla solo aplica a datos genuinamente viejos, y el número del badge se lee siempre del mismo lugar que la lista de abajo.'
+    ]
+  },
+  {
     version: 'v7.0.38',
     date: '11 de Agosto de 2026',
     time: '8:15 PM',

@@ -105,8 +105,19 @@ export function getOrderSummary(o: PurchaseOrder) {
   // factura aqui lo marcaria como "FACTURADO" con kilos completos sin que
   // exista ninguna factura real, exactamente el caso de un expediente
   // recien capturado con "Pendiente de Facturar".
+  // FIX 2026-08-11: la condicion original disparaba con solo "o.folio ||
+  // ...", pero CASI TODO expediente (nuevo o viejo) tiene folio. Eso hacia
+  // que cualquier expediente recien creado -- que aun no ha recibido su
+  // primera entrega, un estado transitorio normal -- mostrara un badge
+  // fantasma de "1 factura" sin que existiera ninguna factura real (el
+  // guard de tieneEntregasExplicitas no alcanzaba a cubrir el hueco entre
+  // "crear el expediente" y "registrar la primera entrega"). o.financials
+  // (a nivel de ORDEN, distinto de invoice.financials) solo se llena en
+  // datos VIEJOS migrados sin trazabilidad de facturas -- es la unica
+  // senal confiable de "esto es un expediente legado", asi que se usa
+  // como condicion unica, quitando la rama o.folio.
   const tieneEntregasExplicitas = (o.deliveries?.length || 0) > 0;
-  if (invoices.length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
+  if (invoices.length === 0 && !tieneEntregasExplicitas && (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0)) {
     invoices.push({
       id: o.id + '-inv0',
       orderId: o.id,
