@@ -1,5 +1,7 @@
 export interface ParsedInvoiceData {
   uuid: string;
+  folio: string;
+  oc: string;
   fecha: string;
   subTotal: number;
   total: number;
@@ -50,6 +52,18 @@ export function parseXmlInvoice(xmlString: string): ParsedInvoiceData {
   const subTotal = Number(getAttr(comprobante, "SubTotal") || "0");
   const total = Number(getAttr(comprobante, "Total") || "0");
 
+  // Folio = el numero de factura "humano" (ej. "6159") que Providencia usa
+  // para referenciarla en sus contrarecibos. El XML del CFDI SIEMPRE trae
+  // este atributo en el nodo raiz (a diferencia del texto pegado de un PDF,
+  // donde a veces no aparece de forma reconocible) -- por eso, a diferencia
+  // de processFacturaText, aqui no hace falta ningun fallback con regex.
+  const folio = getAttr(comprobante, "Folio");
+
+  // El numero de OC casi siempre viaja en CondicionesDePago como "OC 12026...".
+  const condicionesDePago = getAttr(comprobante, "CondicionesDePago");
+  const ocMatch = condicionesDePago.match(/OC\s*(\w+)/i);
+  const oc = ocMatch ? ocMatch[1] : '';
+
   let timbre = xmlDoc.getElementsByTagName("tfd:TimbreFiscalDigital")[0];
   if (!timbre) timbre = xmlDoc.getElementsByTagName("TimbreFiscalDigital")[0];
   const uuid = timbre ? getAttr(timbre, "UUID") : "";
@@ -77,6 +91,8 @@ export function parseXmlInvoice(xmlString: string): ParsedInvoiceData {
 
   return {
     uuid: uuid.toUpperCase(),
+    folio,
+    oc,
     fecha,
     subTotal,
     total,

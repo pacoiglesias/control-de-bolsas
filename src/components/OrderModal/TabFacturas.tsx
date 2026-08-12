@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase/firestore';
 import { addDays } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
+import { parseXmlInvoice } from '../../lib/xmlParser';
 import type { Invoice } from '../../lib/types';
 
 export default function TabFacturas() {
@@ -39,11 +40,27 @@ export default function TabFacturas() {
   if (!ctx) return null;
   
   // NOTE: We now read invoices from the ACTUAL order in context, not the unsaved form state.
-  const { order, readOnly, provName, config, dynamicConfig, processFacturaText, processPagoText, toast, kilosPendientesDeFacturar } = ctx;
+  const { order, readOnly, provName, config, dynamicConfig, processFacturaText, processPagoText, processParsedXml, toast, kilosPendientesDeFacturar } = ctx;
   const invoices = order.invoices || [];
 
-  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.target.value = '';
+  // FIX 2026-08-11: este handler existia desde antes como un stub vacio
+  // ("e.target.value = ''") -- el <input type="file" accept=".xml"> estaba
+  // en el DOM pero ningun boton visible llamaba a fileInputRef.current.click(),
+  // asi que la funcionalidad de subir el XML real del CFDI (ya implementada
+  // en lib/xmlParser.ts + useInvoiceParser.processParsedXml, con pruebas
+  // unitarias incluidas) nunca era alcanzable desde la interfaz. Se detecto
+  // al preguntar el usuario "el sistema tiene para leer los xml de facturas?".
+  const handleXmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permitir volver a subir el mismo archivo si hace falta reintentar
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = parseXmlInvoice(text);
+      await processParsedXml(parsed);
+    } catch (err: any) {
+      toast(`No se pudo leer el XML: ${err?.message || 'archivo inválido'}`, 'bad');
+    }
   };
 
   const addInvoiceLocal = async () => {
@@ -79,7 +96,8 @@ export default function TabFacturas() {
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
-            
+
+            <button className="btn" onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }} title="Sube el archivo .xml del CFDI timbrado por el SAT. Se lee el Folio, kilos, OC y fecha directo del archivo, sin copiar/pegar texto.">📄 Subir XML</button>
             <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
             <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
 

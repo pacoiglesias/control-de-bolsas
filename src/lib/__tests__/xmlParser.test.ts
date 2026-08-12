@@ -8,7 +8,7 @@ describe('xmlParser', () => {
   it('extrae correctamente los datos de un CFDI 4.0 válido', () => {
     // Para probar DOMParser en vitest (entorno JSDOM), DOMParser ya está disponible gracias a jsdom
     const xml = `<?xml version="1.0" encoding="utf-8"?>
-<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Fecha="2026-08-01T12:00:00" SubTotal="1000.00" Total="1160.00">
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Folio="6159" Fecha="2026-08-01T12:00:00" SubTotal="1000.00" Total="1160.00" CondicionesDePago="OC 120267114014">
   <cfdi:Emisor Rfc="XAXX010101000" Nombre="EMPRESA PATITO SA DE CV" />
   <cfdi:Receptor Rfc="XXXX010101000" Nombre="CLIENTE FELIZ" />
   <cfdi:Conceptos>
@@ -23,6 +23,8 @@ describe('xmlParser', () => {
     const result = parseXmlInvoice(xml);
 
     expect(result.uuid).toBe('12345678-ABCD-ABCD-ABCD-1234567890AB');
+    expect(result.folio).toBe('6159');
+    expect(result.oc).toBe('120267114014');
     expect(result.fecha).toBe('2026-08-01T12:00:00');
     expect(result.subTotal).toBe(1000);
     expect(result.total).toBe(1160);

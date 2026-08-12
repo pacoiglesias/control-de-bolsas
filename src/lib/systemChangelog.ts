@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.36',
+    date: '11 de Agosto de 2026',
+    time: '5:50 PM',
+    summary: 'Se capturó la factura 6159 ($79,826.00) y se conectó -- por fin -- la carga del XML real de una factura, que ya estaba programada pero nunca tenía botón para usarse',
+    highlights: [
+      'Factura #6159 (OC 120267114014, mismo expediente que la #6167) capturada con sus 3 conceptos: 1,464.16 kg, $79,826.00 total, emitida 03/Ago/2026. Verificado en Cuentas por Cobrar: "En Revisión (Sin CR)" ahora suma $161,606.00 (6159 + 6167), exacto contra el control del usuario.',
+      'Al preguntar el usuario si el sistema podía leer el XML de una factura (el archivo que timbra el SAT, no el texto copiado de un PDF), se encontró que SÍ existía todo el código para hacerlo -- lib/xmlParser.ts, con pruebas unitarias, y processParsedXml ya conectado al contexto del expediente -- pero el botón para usarlo nunca se agregó a la pantalla: el <input type="file"> estaba oculto en el HTML sin que nada lo activara, y su manejador de evento estaba vacío. Una función completa, lista, invisible.',
+      'Se agregó el botón "📄 Subir XML" junto a "Pegar Texto (PDF)" en Facturas & Contrarecibos. Sube el .xml, lo lee y llena Folio, kilos, OC y fecha directo del archivo -- sin copiar y pegar nada.',
+      'De paso, xmlParser.ts no leía el atributo Folio="6159" del CFDI -- solo el UUID largo (ej. 8F5BDFBE-357C-...) -- así que una factura subida por XML se habría guardado con ese UUID como número de factura en vez del folio real que Providencia usa para dar seguimiento. Corregido para leer el Folio humano igual que ya hacía "Pegar Texto (PDF)", con el mismo candado que impide usar TH-/GT- como folio de factura (esos prefijos son exclusivos de contrarecibos).'
+    ]
+  },
+  {
     version: 'v7.0.35',
     date: '11 de Agosto de 2026',
     time: '12:20 PM',
