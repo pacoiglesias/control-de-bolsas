@@ -11,6 +11,7 @@ import type { Invoice } from '../../lib/types';
 export default function TabFacturas() {
   const ctx = useOrderModal();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const pagoFileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -63,6 +64,27 @@ export default function TabFacturas() {
     }
   };
 
+  // El "Complemento de Pago" que libera un contrarecibo tambien llega como
+  // XML timbrado por el SAT (nodo pago20:Pago con uno o mas
+  // pago20:DoctoRelacionado, cada uno con Folio e ImpPagado). processPagoText
+  // ya sabe leer ese formato -- su "Formato 4" busca exactamente esos
+  // atributos con una expresion regular sobre el texto crudo -- porque hasta
+  // hoy la unica forma de llegar a el era copiar/pegar el texto visible del
+  // PDF. Aqui simplemente se lee el archivo .xml tal cual y se le pasa el
+  // texto crudo a la misma funcion: no hace falta un parser nuevo, el que ya
+  // existe fue escrito pensando en XML crudo desde el principio.
+  const handlePagoXmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      await processPagoText(text);
+    } catch (err: any) {
+      toast(`No se pudo leer el XML del pago: ${err?.message || 'archivo inválido'}`, 'bad');
+    }
+  };
+
   const addInvoiceLocal = async () => {
     const issue = new Date();
     const due = addDays(issue, config.creditDays);
@@ -96,10 +118,12 @@ export default function TabFacturas() {
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
+            <input type="file" accept=".xml" ref={pagoFileInputRef} style={{ display: 'none' }} onChange={handlePagoXmlUpload} />
 
             <button className="btn" onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }} title="Sube el archivo .xml del CFDI timbrado por el SAT. Se lee el Folio, kilos, OC y fecha directo del archivo, sin copiar/pegar texto.">📄 Subir XML</button>
             <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
             <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
+            <button className="btn" onClick={() => pagoFileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }} title="Sube el archivo .xml del Complemento de Pago timbrado por el SAT. Se detecta el monto pagado y la fecha directo del archivo, sin copiar/pegar texto.">📄 Subir XML de Pago</button>
 
             {pegando === 'factura' && (
               <PasteTextModal

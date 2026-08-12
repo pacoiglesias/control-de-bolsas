@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.0.37',
+    date: '11 de Agosto de 2026',
+    time: '6:10 PM',
+    summary: 'Registrar el pago de un contrarecibo ya no exige copiar y pegar el texto del Complemento -- se puede subir el .xml del SAT directo',
+    highlights: [
+      'El usuario pidió mejorar el registro de un pago liberado hoy. "💰 Pegar Complemento" solo aceptaba texto copiado a mano del PDF -- se agregó "📄 Subir XML de Pago" al lado, que lee el archivo .xml del Complemento de Pago del SAT directamente.',
+      'No hizo falta escribir un parser nuevo: la función que ya procesaba el texto pegado (processPagoText) tenía un "Formato 4" pensado justo para esto -- busca los atributos Folio="..." e ImpPagado="..." tal como aparecen en el XML crudo (nodo DoctoRelacionado del Complemento de Pago). Solo faltaba poder darle el archivo directo en vez de obligar a copiar/pegar su texto.',
+      'Mismo patrón que "📄 Subir XML" para facturas (v7.0.36): un botón, un input de archivo oculto, sin cambiar el comportamiento existente de "Pegar Complemento" para quien prefiera seguir así.'
+    ]
+  },
+  {
     version: 'v7.0.36',
     date: '11 de Agosto de 2026',
     time: '5:50 PM',
