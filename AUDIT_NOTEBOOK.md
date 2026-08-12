@@ -1442,4 +1442,26 @@ Causa raíz del bloqueo descrito en la Iteración 113: `confirmDialog()` y `prom
 **Verificación:** `tsc -b` limpio. No se pudo correr `npm test` en este entorno (limitación conocida del sandbox, ver Iteración 110) -- pendiente confirmarlo en la máquina del usuario antes del deploy. Cambio de CSS/props de bajo riesgo, sin tocar lógica de negocio ni escrituras a Firestore.
 **Riesgo:** 🟢 Bajo (visual/estructural), pero de **impacto alto** si no se corrige: cualquier guardado que dispare una confirmación anidada (finalizar pedido, folio/OC duplicado, borrar una entrega) puede quedar colgado sin ningún aviso visible al usuario.
 **Commit:** pendiente de este mismo ciclo.
-**Estado:** ✅ Listo para el próximo deploy.
+**Estado:** ✅ Listo para el próximo deploy. **El sistema en vivo (v7.0.35) todavía tiene el bug** -- volvió a aparecer, tal cual, al guardar el segundo expediente de la Iteración 115. Se destrabó otra vez manualmente. Urge desplegar v7.0.38.
+
+### Iteración 115: Segunda OC capturada -- expediente 71/14114 (120267114114), 6,500kg / $279,500.00 (COMPLETADO)
+**Fecha:** 2026-08-11
+**Alcance:** Corrección de datos en vivo, no código.
+
+Segunda de las dos Órdenes de Compra que el usuario pidió capturar en el mismo mensaje ("esas son dos ordenes de Compra, así las recibo, hay que crear el pedido de kilos para que le prepare el dinero a Andrés"). PDF: OC-71-14114.pdf -- Folio 71/14114, OC 120267114114, Cliente GRUPO TEXTIL PROVIDENCIA SA DE CV TH-ALMACEN-1, 6 productos por 6,500kg totales a $43.00/kg ($279,500.00), crédito 30 días, fecha pedido 10-agosto-2026.
+
+**Se probó primero "📥 Subir/Pegar OC"** (el flujo dedicado para esto) pegando el texto extraído del PDF: detectó correctamente Folio, Cliente, Proveedor y Fecha de Entrega, pero **no detectó ningún artículo línea por línea** ("No se detectaron artículos individuales") a pesar de que el mismo formato de texto (`Cantidad P.U. ... Importe` con comas de miles, ej. "1,000.0000") sí es el que trae el PDF real. Se capturaron los 6 productos a mano vía "+ Agregar Artículo" en su lugar. **Pendiente para una futura iteración:** revisar por qué `parseOCAndFill` no reconoce este formato con comas de miles -- ya se corrigió una vez este mismo parser (ver Iteración/tarea "Corregir parseOCAndFill para extraer items reales"), así que puede ser una regresión o un caso con comas que el arreglo anterior no cubrió.
+
+**Corrección de datos aplicada:** Proveedor "N0342 - ELEMENTAL DENIM" (código de catálogo del cliente, no el proveedor real) corregido a "Andres", igual que en la Iteración 113 -- mismo patrón exacto, confirma que es un problema sistemático de cómo llega el campo Proveedor en estas OCs, no un caso aislado. Departamento fijado a "TH". Precio Venta Acordado fijado a $43/kg (el que trae la OC del cliente, no el default del sistema de $47). Costo Compra y Comisión se dejaron en blanco a propósito para heredar el default del sistema ($42/kg y 6.9%).
+
+**Mismo bug de guardado colgado que la Iteración 113/114** (el aviso "¿marcar como finalizada?" quedó invisible detrás del modal, otra vez, porque el sistema en vivo aún no tiene el fix de la Iteración 114) -- se destrabó de la misma manera.
+
+**Resultado verificado en 2 pantallas tras recargar:** expediente 120267114114 con 6,500kg pedidos = 6,500kg entregados; Compras → Libro Mayor Cronológico muestra **"Entrega (Amortización) OC-71/14114 $273,000.00"** (6,500kg × $42/kg costo, NO los $279,500.00 de venta -- correcto: lo que se le debe a Andrés es a precio de costo, no al precio que paga Providencia) y "Kilos Recibidos" subió a 40,989.74 kg. Ese es el monto ($273,000.00) que hay que prepararle a Andrés por esta segunda entrega.
+
+**Con esto quedan capturadas las dos OCs que trajo el usuario.** Ambas verificadas end-to-end contra el Libro Mayor de Compras:
+- OC 43/9713: $155,400.00 (Iteración 113)
+- OC 71/14114: $273,000.00 (esta iteración)
+- **Total a preparar para Andrés por estas dos entregas: $428,400.00**
+
+**Riesgo:** 🟡 Medio -- dato financiero real (deuda con proveedor), verificado contra el PDF original y contra 2 pantallas tras recargar.
+**Estado:** ✅ Verificado end-to-end. Pendiente: revisar el parser de "Pegar OC" para listas con comas de miles; proponer mejora concreta al flujo completo OC→entrega→CxP.
