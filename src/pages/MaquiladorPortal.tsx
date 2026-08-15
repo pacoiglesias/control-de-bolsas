@@ -75,7 +75,7 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 56, marginBottom: 8 }}>🏭</div>
           <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: 0 }}>Portal Maquilador</h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: 6, fontSize: 14 }}>Elemental Denim · Providencia</p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: 6, fontSize: 14 }}>Control de Entregas · Providencia</p>
         </div>
 
         {/* Dots de PIN */}
@@ -243,7 +243,7 @@ export default function MaquiladorPortal() {
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
               🏭 Portal Maquilador
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}>Andrés · Elemental Denim</div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}>Andrés · Maquila Providencia</div>
           </div>
           <button
             onClick={recargar}

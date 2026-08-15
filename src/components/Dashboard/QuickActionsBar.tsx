@@ -7,10 +7,11 @@ interface QuickActionsBarProps {
   onQuickInvoice: () => void;
   onQuickCollection: () => void;
   onQuickPay: () => void;
+  onOpenCorteMensual?: () => void;
   role: string | null;
 }
 
-export function QuickActionsBar({ onOpenContrarecibos, onOpenSeguimiento, onNewOrder, onQuickInvoice, onQuickCollection, onQuickPay, role }: QuickActionsBarProps) {
+export function QuickActionsBar({ onOpenContrarecibos, onOpenSeguimiento, onNewOrder, onQuickInvoice, onQuickCollection, onQuickPay, onOpenCorteMensual, role }: QuickActionsBarProps) {
   return (
     <div style={{ display: 'flex', gap: 16, marginBottom: 32, flexWrap: 'wrap' }}>
       <motion.button 
@@ -42,6 +43,18 @@ export function QuickActionsBar({ onOpenContrarecibos, onOpenSeguimiento, onNewO
         </motion.button>
       )}
 
+      {onOpenCorteMensual && (
+        <motion.button
+          whileHover={{ scale: 1.02, y: -2 }}
+          whileTap={{ scale: 0.98 }}
+          className="btn"
+          style={{ padding: '16px 20px', fontSize: 15, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.15) 100%)', border: '1px solid #3b82f6', color: '#1d4ed8', fontWeight: 700 }}
+          onClick={onOpenCorteMensual}
+        >
+          <span style={{ fontSize: 18 }}>📑</span> Corte Mensual
+        </motion.button>
+      )}
+
       {role === 'admin' && (
         <motion.a 
           href="/portal-maquilador"
@@ -50,7 +63,7 @@ export function QuickActionsBar({ onOpenContrarecibos, onOpenSeguimiento, onNewO
           whileTap={{ scale: 0.98 }}
           className="quick-btn portal"
         >
-          <span className="icon">🏭</span> Ver Portal Proveedor
+          <span className="icon">🏭</span> Portal Proveedor
         </motion.a>
       )}
 

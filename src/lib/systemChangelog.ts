@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.5.0',
+    date: '15 de Agosto de 2026',
+    time: '11:15 PM',
+    summary: 'Corte Mensual para Contabilidad en 1 Clic, Asistente de Foto de Remisión Providencia y Centro de Notificaciones Proactivas Push',
+    highlights: [
+      'Generador de Corte Mensual para Contabilidad: selector de mes que calcula facturación, cobranza de Providencia, costo de Andrés ($42/kg) y utilidad real neta con exportación en PDF oficial y Excel (.xlsx) de 3 pestañas.',
+      'Asistente de Foto de Remisión / Báscula: sube o pega (Ctrl+V) la foto del comprobante sellado por Providencia recibido por WhatsApp y registra la entrega en 1 clic.',
+      'Centro de Alertas y Notificaciones Push en vivo: campanita en el menú superior con badges de contrarecibos por vencer, facturas sin CR > 3 días y soporte para notificaciones web del navegador.'
+    ]
+  },
+  {
     version: 'v7.4.0',
     date: '15 de Agosto de 2026',
     time: '11:00 PM',

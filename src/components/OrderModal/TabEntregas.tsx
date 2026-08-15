@@ -33,9 +33,12 @@ function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) 
   );
 }
 
+import { FotoRemisionModal } from './FotoRemisionModal';
+
 export default function TabEntregas() {
   const ctx = useOrderModal();
   const [showPortal, setShowPortal] = React.useState(false);
+  const [showFotoModal, setShowFotoModal] = React.useState(false);
 
   if (!ctx) return null;
   const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, setTab } = ctx;
@@ -73,24 +76,58 @@ export default function TabEntregas() {
     }
   };
 
+  const handleAddDeliveryFromPhoto = (kilosVal: number, folioRemision: string, notasVal: string, fotoUrl?: string) => {
+    const firstItem = form.items[0];
+    const newDel = {
+      id: crypto.randomUUID(),
+      date: Timestamp.now(),
+      kilos: kilosVal,
+      items: firstItem ? [{ itemId: firstItem.id, quantity: kilosVal }] : [],
+      invoiced: false,
+      notes: `${folioRemision ? `[Remisión ${folioRemision}] ` : ''}${notasVal}`,
+      photoUrl: fotoUrl,
+    };
+    setForm((f: any) => ({ ...f, deliveries: [...(f.deliveries || []), newDel] }));
+    toast(`✅ Entrega de ${kilosVal.toLocaleString('es-MX')} kg registrada desde remisión`, 'ok');
+  };
+
   return (
     <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
-                <p className="hint" style={{ margin: '4px 0 0' }}>
-                  Cada vez que {provName} entrega, se captura como un evento con fecha y cantidades por producto.
-                  Entregado en total: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
-                  {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
-                </p>
-              </div>
-              {!readOnly && form.items.length > 0 && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn" style={{ background: 'var(--brand)', color: 'white' }} onClick={() => setShowPortal(true)}>📥 Importar del Portal</button>
-                  <button className="btn btn-primary" onClick={addDelivery}>+ Nueva Entrega</button>
-                </div>
-              )}
-            </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
+          <p className="hint" style={{ margin: '4px 0 0' }}>
+            Cada vez que {provName} entrega en Providencia, se captura con fecha y kilos.
+            Entregado: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
+            {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
+          </p>
+        </div>
+        {!readOnly && form.items.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="btn"
+              style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.15) 100%)', borderColor: '#3b82f6', color: '#1d4ed8', fontWeight: 700 }}
+              onClick={() => setShowFotoModal(true)}
+            >
+              📷 Foto / Remisión
+            </button>
+            <button className="btn" style={{ background: 'var(--brand)', color: 'white' }} onClick={() => setShowPortal(true)}>
+              📥 Importar Portal
+            </button>
+            <button className="btn btn-primary" onClick={addDelivery}>
+              + Nueva Entrega
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showFotoModal && (
+        <FotoRemisionModal
+          onClose={() => setShowFotoModal(false)}
+          onAddDeliveryFromPhoto={handleAddDeliveryFromPhoto}
+          kilosFaltantes={kilosFaltantes}
+        />
+      )}
             {form.deliveries.length > 0 && (() => {
               const totalEntregas = form.deliveries.length;
               const facturadas = form.deliveries.filter((d: any) => d.invoiced).length;

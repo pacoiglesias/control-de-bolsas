@@ -1257,3 +1257,25 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 6. **Diseño Web Responsive Fluido y Táctil:** Optimización total para dispositivos móviles, tablets, laptops y pantallas 4K con cuadrículas adaptativas de KPIs, scroll horizontal fluido en tablas, modales ajustables al 94vh del viewport y botones táctiles ergonómicos de 42px.
 
 **Estado:** ✅ Verificado, Compilado y Desplegado en Vivo a Firebase Hosting (`https://control-de-bolsas-69.web.app`) y 10 Cloud Functions. Tests Vitest: 45/45 (100%).
+
+### Iteración 105: Corte Mensual Contable, Asistente de Foto de Remisión Providencia y Notificaciones Push Proactivas (v7.5.0) (COMPLETADO)
+**Fecha:** 2026-08-15
+**Archivos:** `src/components/Dashboard/CorteMensualModal.tsx`, `src/components/OrderModal/FotoRemisionModal.tsx`, `src/components/OrderModal/TabEntregas.tsx`, `src/components/NotificationsCenter.tsx`, `src/components/Layout.tsx`, `src/components/Dashboard/QuickActionsBar.tsx`, `src/pages/Dashboard.tsx`, `package.json`, `src/lib/systemChangelog.ts`
+
+**Mejoras Integrales Implementadas:**
+1. **Generador de Corte Mensual para Contabilidad y Dirección:**
+   - Modal interactivo con selector de mes (`CorteMensualModal.tsx`) accesible desde la barra de acciones rápidas del Dashboard.
+   - Calcula de forma inmediata: Facturación Emitida, Cobranza Real Recibida, Kilos Cobrados, Costo Andrés ($42/kg) y Utilidad Neta Real del periodo.
+   - **Exportación en PDF Oficial:** Formato membretado listo para imprimir o enviar a contabilidad con desglose de facturas y firmas de conformidad.
+   - **Exportación en Excel (.xlsx):** Libro de cálculo con 3 pestañas especializadas: `Resumen_Ejecutivo`, `Facturas_Cobradas` y `Pagos_Andres`.
+2. **Asistente de Foto / Remisión de Entrega (Captura Directa con Pegado Ctrl+V):**
+   - En la pestaña de entregas de cada expediente (`TabEntregas.tsx`), botón `📷 Foto / Remisión` (`FotoRemisionModal.tsx`).
+   - Permite arrastrar o pegar directamente con `Ctrl + V` la foto de la remisión sellada por Providencia (recibida por WhatsApp) para registrar kilos pesados en báscula y notas en un solo clic.
+3. **Centro de Alertas y Notificaciones Push en Vivo:**
+   - Componente `NotificationsCenter.tsx` en el Topbar con contador visual y badges diferenciados (Contrarecibos vencidos, Facturas sin CR > 3 días, Entregas pendientes de facturar).
+   - Integración nativa con la API de Notificaciones del navegador (`Notification.requestPermission()`).
+4. **Actualización de Versión a v7.5.0 Enterprise:**
+   - Actualizado `package.json` a `7.5.0`.
+   - Publicada la versión `v7.5.0` en la Bitácora de Parches del sistema (`systemChangelog.ts`).
+
+**Estado:** ✅ Verificado y Desplegado en Producción.

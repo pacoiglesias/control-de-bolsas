@@ -79,7 +79,7 @@ export default function CajaChica() {
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Reporte de CAJA - ERP Bolsas Elemental</title>
+          <title>Reporte de Caja y Tesorería - Providencia</title>
           <style>
             body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
             table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }

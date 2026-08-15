@@ -10,6 +10,7 @@ import { CommandMenu } from './CommandMenu/CommandMenu';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
+import { NotificationsCenter } from './NotificationsCenter';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -135,18 +136,21 @@ export default function Layout() {
         <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
         <span className="spacer" />
         <OnlineUsers />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 12, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
-          {isOnline ? 'Sistema OK' : 'Sin conexión'}
+          {isOnline ? 'Online' : 'Offline'}
         </div>
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          aria-label="Cambiar tema"
-          title="Ctrl+K para Buscar"
-        >
-          ◐
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <NotificationsCenter />
+          <button
+            className="icon-btn"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label="Cambiar tema"
+            title="Cambiar tema Claro / Oscuro"
+          >
+            ◐
+          </button>
+        </div>
       </header>
 
       <div className="app-shell">

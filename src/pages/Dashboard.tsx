@@ -38,6 +38,7 @@ import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
 const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
+const CorteMensualModal = lazy(() => import('../components/Dashboard/CorteMensualModal').then(m => ({ default: m.CorteMensualModal })));
 
 
 
@@ -77,6 +78,7 @@ export default function Dashboard() {
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
   const [showQuickCollection, setShowQuickCollection] = useState(false);
   const [showQuickPay, setShowQuickPay] = useState(false);
+  const [showCorteMensual, setShowCorteMensual] = useState(false);
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -818,6 +820,7 @@ return () => unsub();
         onQuickInvoice={() => setShowQuickInvoice(true)}
         onQuickCollection={() => setShowQuickCollection(true)}
         onQuickPay={() => setShowQuickPay(true)}
+        onOpenCorteMensual={() => setShowCorteMensual(true)}
       />
 
       {showContrarecibosDrawer && (
@@ -854,6 +857,17 @@ return () => unsub();
       )}
 
       <Suspense fallback={null}>
+        {showCorteMensual && (
+          <CorteMensualModal
+            onClose={() => setShowCorteMensual(false)}
+            orders={activeOrders}
+            expenses={expenses}
+            purchases={purchases}
+            config={config}
+            settings={settings}
+          />
+        )}
+
         {showBackupsModal && (
           <CloudBackupsModal 
             onClose={() => setShowBackupsModal(false)}
