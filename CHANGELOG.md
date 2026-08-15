@@ -1,5 +1,395 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v7.0.2] - 7 Agosto 2026 (URGENTE: Portal del Maquilador -- error al cargar ordenes)
+
+### Corregido -- critico
+- La funcion del servidor que carga las ordenes del Portal del Maquilador consultaba por un campo (isArchived) que probablemente aun no tiene indice de Firestore creado, causando que la consulta fallara directamente ("Error al cargar ordenes") en vez de solo mostrar datos incompletos. Corregido para no depender de ese indice.
+
+
+## [v7.0.1] - 6 Agosto 2026 (URGENTE: 4 escrituras directas desincronizaban las facturas del resto del sistema)
+
+### Corregido -- critico
+- QuickCollectionModal, QuickInvoiceModal, QuickPayModal y Settings (Recalcular Precios) escribian `invoices` directamente en vez de usar camposInvoices() -- el campo del que dependen TODAS las consultas del sistema (Dashboard, Cobranza) quedaba desincronizado, pudiendo hacer que una factura recien modificada desapareciera de esas pantallas hasta el siguiente guardado completo del expediente. El de Settings es el mas grave: afecta a todos los expedientes abiertos de una sola vez.
+- El boton "Recibida del Contador -> CAJA" (con la confirmacion de monto real vs esperado) habia desaparecido al extraer InvoiceWidget.tsx como componente propio -- restaurado completo, incluyendo el sonido playCash() que faltaba en sounds.ts.
+- Mismo bug de exclusion silenciosa de Firestore (where 'campo', '!=', valor) ya corregido antes en InvoicesContext.tsx.
+
+
+## [v6.76.3] - 6 Agosto 2026 (Fase 6: Desacoplamiento Visual)
+
+### Agregado
+- `InvoiceDrawer` y `PurchaseDrawer`: Nuevos paneles laterales (Drawers) enfocados exclusivamente en la factura/pago seleccionado, resolviendo el problema de sobrecarga cognitiva ("cosas revueltas") al abrir un expediente completo desde Cobranza o Compras.
+- Integración del Drawer de Cobranza en la tabla de `ContrarecibosTable` del Dashboard.
+## [v6.76.0] - 6 Agosto 2026 (URGENTE: folio bloqueado por expediente eliminado + espejo de facturas lleno)
+
+### Corregido -- critico
+- Un expediente ya eliminado (en la Papelera) seguia bloqueando su folio de factura para siempre en cualquier expediente nuevo, sin aviso claro (el toast desaparecia solo). La validacion ahora excluye expedientes eliminados.
+
+### Agregado
+- Primer llenado real del espejo de facturas (invoicesV2), copiando los datos existentes -- paso previo necesario antes de poder migrar cualquier pantalla a leer de ahi.
+
+
+## [v6.75.0] - 6 Agosto 2026 (URGENTE: bug critico de indices corregido + Complementos de Pago reales)
+
+### Corregido -- critico
+- Bug propio de indices en la vista agrupada de facturas (Iteracion 65): editar una factura podia corromper silenciosamente OTRA factura distinta del mismo expediente, si su posicion visual (agrupada por estado) no coincidia con su posicion real en el arreglo guardado. Verificado que no causo daño real en datos existentes -- corregido antes de que ocurriera.
+
+### Agregado
+- Parser de Complementos de Pago SAT reales (XML crudo, no solo texto tipo PDF) -- empareja por monto exacto contra facturas sin pagar, nunca aplica si hay ambiguedad.
+- Desglose visual de estados (Vencidas/Por Cobrar/Con el Contador/Cobradas) directo en la pestaña Resumen del expediente, clickeable.
+
+
+## [v6.73.0] - 5 Agosto 2026 (Esperado vs Real en cobros -- automatizado)
+
+### Agregado
+- Al recibir del contador, el sistema ahora pregunta el monto real recibido (con lo esperado ya calculado y puesto), en vez de asumir que siempre coinciden. Se guarda la diferencia si la hay.
+- Nueva tarjeta en Caja: "Esperado vs Real -- Diferencias en Cobros", con el acumulado, para detectar patrones sin revisar movimiento por movimiento.
+
+
+## [v6.72.0] - 5 Agosto 2026 (Contrarecibos separados, MIGRACION traducido, seguridad reforzada)
+
+### Corregido
+- Se separo el permiso de eliminar (vs crear/editar) en expedientes -- ahora requiere el nivel mas alto, protegiendo contra borrados accidentales o no autorizados a nivel de base de datos, no solo de interfaz.
+- El marcador interno "MIGRACION" ya no se muestra tal cual como si fuera un cliente real -- traducido a "Historico (sin cliente registrado)" en los 6 lugares donde aparecia.
+
+### Mejorado
+- Cada contrarecibo dentro de un expediente ahora se muestra en su propia linea separada al expandir (con su monto y estado), en vez de un texto largo separado por comas.
+- Primer paso de la migracion de facturas a documentos independientes: coleccion nueva en paralelo (invoicesV2), sin tocar ningun archivo existente todavia.
+
+
+## [v6.71.0] - 5 Agosto 2026 (Tablero y Lista ya no se contradicen)
+
+### Corregido -- critico
+- El tablero Kanban de Expedientes clasificaba "Pendiente de Facturar" con un criterio distinto al de la lista (recien corregida en v6.70) -- un expediente con factura parcial aparecia en un lugar en la lista y en otro en el tablero. Ahora ambos usan exactamente el mismo criterio.
+
+
+## [v6.70.0] - 5 Agosto 2026 (Pendiente de Facturar corregido de raiz + listas compactas)
+
+### Corregido -- critico
+- "Pendiente de Facturar" en Expedientes significaba "cero facturas capturadas", distinto al mismo nombre en el Dashboard ("kilos sin facturar, incluso con una factura parcial ya capturada"). Una OC facturada a medias, con saldo real pendiente, nunca aparecia en este filtro. Corregido para que signifique lo mismo en los dos lugares.
+- Expedientes migrados (MIGRACION) ya no cuentan como "Pendiente de Facturar" -- mismo criterio que ya usaba el Dashboard.
+
+### Mejorado
+- Lista de contrarecibos compacta en Expedientes (primeros 3 + expandir), mismo criterio ya aplicado dentro del expediente.
+
+
+## [v6.69.0] - 5 Agosto 2026 (Facturacion mejorada, totales corregidos, deteccion de duplicados real)
+
+### Corregido — critico
+- "Deuda con Andres" mostraba -$978,849.92 en vez de -$102,670.28 -- doble conteo entre dos correcciones anteriores. Se corrige sola al iniciar sesion.
+- "Con el Contador" y "En Caja Chica" siempre mostraban $0.00 de total, sin importar cuantas tarjetas tuvieran -- sumaban el saldo pendiente del cliente (siempre cero ahi) en vez del monto real de cada factura.
+- "Posible duplicado" se disparaba en falso en el tablero -- mismo bug de version anterior, nunca corregido para facturas ya pagadas/cobradas.
+
+### Mejorado -- flujo de facturacion
+- Boton de accion rapida "Marcar Pagado" directo en la tabla de Contrarecibos.
+- Facturas dentro de un expediente ahora se agrupan por estado (Por Cobrar / Con el Contador / Cobradas) en vez de una lista plana mezclada.
+- Al capturar una factura manual: los kilos se pre-llenan solos con el remanente real pendiente de facturar, se muestra la sugerencia antes de hacer clic, el campo Folio recibe el foco automaticamente, y la factura nueva se abre ya expandida.
+
+
+## [v6.68.0] - 5 Agosto 2026 (Facturacion mas rapida + facturas agrupadas por estado)
+
+### Mejorado
+- **Capturar una factura manual, mucho mas rapido**: kilos pre-llenados con el remanente real (entregado menos ya facturado), sugerencia visible antes de hacer clic, se abre expandida con el campo Folio listo para escribir de inmediato -- sin calculos ni clics de mas.
+- **Facturas agrupadas por estado dentro del expediente** (Por Cobrar / Con el Contador / Cobradas) -- mismo dato, mucho mas ordenado, sin tocar la estructura de datos.
+- Falso positivo de "posible duplicado" corregido (mismo bug de una iteracion anterior, sin corregir en dos columnas del tablero).
+- Totales de "Con el Contador" y "En Caja Chica" corregidos -- sumaban el saldo del cliente (siempre cero ahi) en vez del monto real.
+- Deuda con Andres corregida a la cifra real, verificada contra los datos reales del sistema.
+
+
+## [v6.67.0] - 5 Agosto 2026 (Totales de Con el Contador / En Caja Chica corregidos)
+
+### Corregido
+- "Con el Contador" y "En Caja Chica" siempre mostraban $0.00 de total sin importar cuantas tarjetas tuvieran -- sumaban el saldo pendiente del CLIENTE (siempre cero ahi, porque el cliente ya pago) en vez del monto real de cada factura. Auditado el resto del sistema en busca del mismo patron: confirmado que era el unico lugar con el problema.
+- Boton "Marcar Pagado" agregado directo en la tabla de Contrarecibos.
+- Otra copia del console.log de diagnostico olvidado, eliminada.
+
+
+## [v6.66.0] - 5 Agosto 2026 (URGENTE: Deuda con Andres corregida de -$978,849 a -$102,670)
+
+### Corregido — critico, dinero real
+- "Deuda con Andres" mostraba -$978,849.92 en vez de -$102,670.28. Causa: doble conteo (un ajuste anterior no considero una restauracion automatica posterior) mas 6 movimientos de prueba "[AJUSTE]" contaminando el calculo con hasta $400,000 que nunca se habian revisado. Todo corregido en la misma migracion automatica, verificado contra Firestore antes de fijar el valor.
+
+
+## [v6.65.0] - 5 Agosto 2026 (Eliminar expediente ahora requiere dos clics deliberados)
+
+### Mejorado — seguridad de datos
+- "Eliminar Expediente" ya no depende de un dialogo del navegador (facil de cerrar por reflejo) -- ahora requiere un segundo clic deliberado, dentro de 4 segundos, con aviso visual claro. Se quito el texto "esto no se puede deshacer", que ya no es cierto (existe Papelera y restauracion automatica).
+
+
+## [v6.64.0] - 5 Agosto 2026 (Resaltar factura especifica al abrir desde el tablero)
+
+### Mejorado
+- Al hacer clic en una tarjeta del tablero de Cobranza, el modal ahora hace scroll automatico y resalta la factura correspondiente -- antes mostraba el expediente completo sin distinguir cual era la relevante, obligando a buscarla entre las demas.
+
+
+## [v6.63.0] - 5 Agosto 2026 (Migracion automatica extendida -- Material Flotante corregido)
+
+### Corregido
+- "Material Flotante" mostraba -23,825.58 kg (negativo) despues de la restauracion automatica -- el registro de compra asociado tenia receivedKilos en 0. La migracion automatica ya lo corrige tambien, en la misma pasada.
+
+
+## [v6.62.0] - 5 Agosto 2026 (Restauracion automatica -- sin abrir nada manualmente)
+
+### Agregado
+- **El expediente de tus 10 contrarecibos se restaura solo, automaticamente, en cuanto inicias sesion** -- sin abrir el expediente, sin usar la Papelera. Migracion temporal de un solo uso, se puede quitar despues de confirmar.
+
+
+## [v6.61.0] - 4 Agosto 2026 (URGENTE: pestana Papelera -- el boton Restaurar era inalcanzable)
+
+### Agregado — critico
+- **Nueva pestana "Papelera" en Centro de Control.** El boton "Restaurar Expediente" (v6.59.0) vive dentro del modal de edicion, pero ningun expediente eliminado aparecia en ninguna lista ni busqueda del sistema -- no habia forma de ABRIR el expediente para llegar al boton. La Papelera hace su propia consulta, sin ese filtro, y permite restaurar directamente desde ahi.
+
+
+## [v6.60.0] - 4 Agosto 2026 (Causa raiz real del scroll + flechas de navegacion + auditoria numerica)
+
+### Corregido — critico
+- **Causa raiz real del problema de scroll en modales**: `.modal-root`, `.modal-box` y `.modal-scrim` no tenian NINGUN estilo CSS en todo el sistema. El modal se dibujaba como un bloque normal sin limite de altura -- por eso el scroll interno nunca se activaba y la pagina completa tenia que estirarse. Ahora el modal es un overlay fijo y centrado de verdad, con su propio scroll interno funcional (encabezado fijo arriba, cuerpo con scroll abajo). Afecta a todos los modales del sistema.
+- **"Ganancia Comercial" con margen por kilo inflado** ($8.08/kg en vez de los ~$5/kg esperados) -- el KPI de kilos totales leia un campo de expediente que se quedo en 0 para un caso real, aunque sus facturas si tenian kilos correctos. Ahora usa la suma real de facturas como respaldo.
+
+### Agregado
+- **Flechas de navegacion (◀ ▶)** en los tres tableros Kanban (Cobranza, Compras, Entregas) -- un clic los desplaza, sin depender de gestos de mouse/trackpad poco descubribles.
+- Auditoria completa de las formulas financieras centrales (comision, deuda con Andres, proyeccion de flujo, antiguedad de vencimiento) -- verificadas correctas contra numeros reales.
+
+### Detectado (no corregido, requiere decision del usuario)
+- Duplicado real de datos confirmado: dos expedientes distintos contienen las mismas facturas 5927/5928 (folios `QMjuMVzzM3rPPchXlgZC` y `cTpSirJD5iv2lx56X4BB`). No se elimino nada -- requiere confirmar cual es el correcto antes de limpiar el sobrante.
+
+
+## [v6.59.0] - 4 Agosto 2026 (URGENTE: boton para restaurar expediente eliminado)
+
+### Agregado — critico
+- **No existia forma de deshacer "Eliminar Expediente" desde la interfaz.** Se agrego un boton "Restaurar Expediente" que aparece automaticamente cuando abres un expediente ya eliminado -- revierte el borrado exacto, sin tocar Firebase Console a mano.
+
+
+## [v6.58.0] - 4 Agosto 2026 (Proveedor real de Andres, avisos de duplicados, 2 tableros Kanban nuevos)
+
+### Corregido — crítico
+- **El registro de compra tomaba el proveedor del texto de la OC pegada** (a veces el propio negocio del usuario, ej. "Elemental Denim") **en vez del proveedor real que entrega el material** (Andrés). Ahora siempre usa el proveedor configurado globalmente en Centro de Control, sin importar qué diga el expediente individual. Corregir un expediente ya existente basta con volver a guardarlo — se autocorrige.
+- **Deuda Histórica con Andrés** ajustada de -$123,175.56 a **+$21,824.44**, verificada con el propio cálculo del usuario contra su saldo real ($102,670.28).
+- **Expedientes completamente cobrados desaparecían del tablero Kanban** de Expedientes & Ventas — faltaba una columna para el estado final ("collected"), de 7 estados posibles solo había 6 columnas.
+
+### Agregado
+- **Sin ninguna protección contra duplicar números de Contrarecibo, Factura, u OC entre expedientes** — corregido: ahora avisa (con confirmación, no bloqueo) si el número ya existe en otro expediente del sistema.
+- **Tablero Kanban para Logística de Entregas** — completa la trilogía visual (Compras → Entregas → Cobranza), columnas: Pedido → En Camino → Entregado sin facturar → Facturado por cobrar → Cobrado.
+- Columna "✅ Cobrado y Recolectado" agregada al tablero de Expedientes; columna `paid` renombrada de "Cobradas" a "Con el Contador" (más preciso).
+
+
+## [v6.57.0] - 4 Agosto 2026 (Auditoria completa: numeros cuadrados contra Excel, 0 errores)
+
+Verificacion final antes de esta entrega: `tsc` limpio (frontend y funciones),
+`eslint` 0 errores / 0 avisos, **42/42 pruebas**, build completo en ambos
+proyectos. Todo lo de aqui abajo ya esta en el codigo, verificado.
+
+### 🔴 Critico
+- **"Pendiente por Facturar" y "Deuda Total Providencia" ya cuadran exacto
+  contra el Excel** ($161,606.00 y $1,319,423.80). Causa: el guardado de un
+  expediente migrado se bloqueaba por campos de resumen sin llenar (kilos,
+  proveedor) ajenos al cambio que se intentaba hacer.
+- **"Material Flotante" volvia a quedar negativo despues de CUALQUIER
+  guardado** en el expediente migrado — `upsertAndresPurchase()` recalculaba
+  el registro de compra ligado desde "entregas", y para expedientes que solo
+  tienen kilos a nivel factura (sin arreglo de entregas), lo dejaba en 0
+  cada vez, borrando correcciones anteriores sin avisar.
+- **"Ganancia Comercial" con margen por kilo inflado** ($8.08/kg calculado
+  vs ~$5/kg real del negocio) — el conteo de "kilos totales" del servidor
+  leia un campo de resumen vacio en vez de sumar las facturas reales.
+- **"Por Recibir del Contador" mostraba $440,559.13 en vez de $427,997.50**
+  — dos facturas importadas por XML nunca capturaron el campo de comision,
+  mostrando -$0.00 en vez del ~6.9% real. Corregido en cliente y servidor.
+- **Corregir un numero de Contrarecibo (CR) se revertia solo** al perder el
+  foco del campo — el prefijo (TH-/GT-) se reescribia siempre con el
+  departamento del expediente, descartando lo que el usuario acababa de
+  escribir.
+
+### Corregido
+- Al abrir un expediente, la pagina "saltaba" por no compensar el ancho de
+  la barra de scroll que se ocultaba de fondo.
+- Mover una tarjeta en Cobranza de "Por Cobrar" a "Revision" borraba el CR
+  sin ninguna confirmacion.
+
+### Mejorado / Nuevo
+- **Tarjeta "Por Recibir del Contador" rediseñada**: flujo claro en 3 pasos
+  (Cobrado por el cliente − Comision del contador = Lo que entra a Caja),
+  en vez de una sola cifra sin contexto.
+- **Tablero Kanban para Compras (Andres)**: nueva vista alternable en
+  "Ordenes de Compra", mismo lenguaje visual que ya funciona en Cobranza
+  (Pedido → En Transito → Recibido, Falta Pagar → Pagado).
+- Barra de scroll de la pantalla principal reforzada de forma explicita.
+
+
+## [v6.56.0] - 4 Agosto 2026 (Paquete grande: 4 correcciones críticas + 6 mejoras)
+
+### 🔴 Crítico
+- **"Deuda con Andrés" mostraba -$1,248,344.64 en vez de -$102,670.27.** Dos bugs reales: (1) el cálculo del Dashboard sumaba TODAS las compras del sistema sin filtrar por proveedor; (2) donde sí filtraba (Compras), comparaba "andres" sin acento contra datos guardados como "Andrés" con acento, y nunca coincidían. Ambos corregidos con una función compartida que ignora acentos y mayúsculas en cualquier comparación de proveedor.
+- **Corregir un número de Contrarecibo (CR) se revertía siempre, sin aviso.** El campo reconstruía el valor usando el departamento del expediente como prefijo fijo, descartando lo que el usuario acababa de escribir — cualquier corrección con un prefijo distinto (TH-/GT-) se revertía sola al salir del campo.
+- **23 variables de color/estilo (CSS) usadas en más de 20 archivos, nunca definidas en ningún lado.** Auditoría completa del código encontró que tarjetas, fondos y bordes en varias pantallas (incluido el tablero de Cobranza) quedaban visualmente transparentes o de bajo contraste por esta causa — no una pantalla aislada, un patrón repetido por todo el sistema.
+- **Sábana Maestra (/mining) se caía por completo** con "Cannot read properties of undefined" al ordenar u buscar expedientes migrados sin fecha o sin folio.
+
+### Corregido
+- Guardar cualquier edición en un expediente migrado (como corregir un CR) quedaba bloqueado por validaciones de campos totalmente ajenos al cambio ("Kilos totales" y "Proveedor" del resumen, nunca llenados en la migración original).
+- Expediente nuevo con entregas capturadas aparecía como "FACTURADO" sin ninguna factura real.
+- Mover una tarjeta en el tablero de Cobranza de vuelta a "Revisión" borraba el número de Contrarecibo sin ninguna confirmación.
+- Barra de scroll vertical del tablero Kanban prácticamente invisible (recortada contra apenas 4px de espacio reservado).
+- Barra de scroll global (vertical y horizontal, toda la aplicación) con bajo contraste en modo claro.
+
+### Mejorado
+- Identificadores de OC, Folio y Contrarecibo ahora llevan insignias de color fijas y distintas — ya no se confunden entre sí.
+- Caja Chica usa el mismo tipo de pantalla de carga (skeleton) que el resto del sistema, en vez de un ícono genérico.
+- Columna fija en tablas anchas (Expedientes, Contrarecibos, Seguimiento de Pedidos) al hacer scroll lateral.
+- Tarjeta "Flujo de Efectivo Providencia" con barra de composición visual y colores por categoría.
+
+
+## [v6.47.0] - 3 Agosto 2026 (CRÍTICO: documentos invisibles por orderBy)
+
+### Corregido — crítico, máxima prioridad
+- **Expedientes, compras, gastos de caja y productos podían desaparecer por completo del sistema, sin ningún error, si les faltaba el campo exacto usado para ordenar la lista.** Confirmado: el expediente con los 10 contrarecibos originales (de la migración inicial) era invisible en Dashboard, Cobranza, Compras y Expedientes por esta causa — solo la Auditoría Maestra lo veía, porque usa una consulta distinta.
+- Las cuatro fuentes de datos principales (`Orders`, `Purchases`, `Expenses`, `Products`) ya no dependen de `orderBy` de Firestore — se ordenan del lado del cliente, sin posibilidad de excluir un documento por un campo faltante.
+
+Este es probablemente el hallazgo más importante de toda la sesión de auditoría: explica por qué cifras que ya se habían corregido en la base de datos seguían sin aparecer correctamente en el sistema.
+
+
+## [v6.46.0] - 3 Agosto 2026 (Seguimiento de Pedidos reemplaza gráfica de ganancias)
+
+### Cambiado
+- **"Ganancias Estimadas por Fecha de Factura" eliminada** (a petición explícita del usuario) y reemplazada por **"Seguimiento de Pedidos"**: una tabla con cada OC, sus kilos pedidos/entregados/facturados con porcentaje de avance, total, cobrado, y estatus.
+- Bundle del Dashboard más liviano al quitar esa dependencia de gráficas.
+
+
+## [v6.45.0] - 3 Agosto 2026 (Flujo Providencia con líneas claras)
+
+### Mejorado
+- El panel "Flujo de Efectivo Providencia" ahora muestra "Facturas en Revisión (sin CR)" y "Contrarecibos (con CR)" como líneas separadas y claramente etiquetadas, en vez de una sola cifra combinada con el desglose en texto pequeño sin etiqueta.
+
+### Aclarado, no era un error
+- "Total Vendido" depende del selector "Mes P&L" — selecciona "Histórico Global" para ver el acumulado completo.
+- El botón "Subir OC (PDF)" ya está corregido desde v6.42.0; si sigue fallando, falta desplegar esa versión.
+
+
+## [v6.44.0] - 3 Agosto 2026 (Sábana visual reparada + tabla de contrarecibos)
+
+### Corregido — crítico
+- **12 facturas reales con `Estatus: "issued"`** (valor inválido, residuo de la migración original) y **10 con monto en $0** — corregidas con datos reales, entregado archivo listo para subir.
+- **Botón "Subir Sábana Modificada" invisible**: usaba una variable CSS (`var(--brand)`) que no existe en el proyecto. Reconstruida toda la pantalla con los estilos reales del sistema.
+- **Sin forma de cancelar** una carga en la Auditoría Maestra — agregado en dos lugares.
+- **3 botones duplicados** que descargaban el mismo archivo en el Dashboard, consolidados en 1.
+
+### Agregado
+- **Tabla de contrarecibos por vencer** en Visión Global: folio, cliente, vencimiento, monto y estado (vigente / próximo a vencer / vencido con días de atraso), con totales.
+
+### Corregido con documento real
+- "Pendiente por Facturar" bajó de $161,606.00 a **$81,780.00**, confirmado contra la Factura 6159 real (factura la mitad exacta de la OC-71-14014).
+
+
+## [v6.43.0] - 3 Agosto 2026 (isClosedShort corregido, Compras a tarjetas, Reprogramar)
+
+### Corregido — crítico
+- **`isClosedShort` no cumplía su promesa** cuando se cerraba una OC antes de facturarla: el estatus se quedaba pegado en "pedido" para siempre. Corregido en `getOrderSummary()`.
+- **Buscador y filtro de Compras no hacían nada** — controles visuales sin conectar a la lista. Ya funcionan de verdad.
+
+### Agregado
+- **Compras rediseñado a tarjetas** (folio, cliente, barra de progreso, monto, recepción rápida) en vez de tabla.
+- **"📅 Reprogramar"** en Cobranza — cambia la fecha de vencimiento de una factura en un clic.
+
+### Verificado, sin cambios necesarios
+- `html2pdf.js` (982 KB): confirmado que ya carga de forma perezosa, solo al generar un PDF real.
+
+
+## [v6.42.0] - 3 Agosto 2026 (Auditoría completa de menús y rutas)
+
+### Corregido
+- **Dos rutas muertas más**, encontradas en un barrido completo de todo el proyecto (no solo la pantalla donde se reportó el problema original): un botón duplicado en el Dashboard apuntando a `/subir`, y un mensaje de "sistema sin órdenes" apuntando a `/seed` — ambas rutas ya no existen.
+
+### Verificado, sin cambios necesarios
+- Los 10 enlaces del menú principal contra las rutas reales: coinciden todos.
+- Todo `overflow: hidden` del proyecto: ninguno bloquea el scroll de página, solo usos locales legítimos.
+- Los dos tableros Kanban: scroll horizontal/vertical bien implementado.
+- Cobertura de tablas anchas con desplazamiento en móvil: completa.
+
+
+## [v6.41.0] - 3 Agosto 2026 (La sábana por fin coincide; botón de OC reparado)
+
+### Corregido — crítico
+- **Descarga y subida de la sábana nunca coincidían.** Confirmado: el código de este repo ya genera el formato correcto (`Auditoria_Cobranza`/`Auditoria_CajaChica` con `ID_SISTEMA`); producción corre una versión anterior. Desplegar esta versión resuelve el desajuste de raíz.
+- **"Subir OC (PDF)" navegaba a una ruta eliminada** (`/subir`), regresando al inicio sin aviso. Ahora abre un expediente nuevo directo en la pestaña donde se pega y extrae el texto de la OC.
+- **Botón de sábana estática eliminado.** Descargaba un archivo congelado (`plantilla_llena.xlsx`) sin relación con los datos reales — riesgo de subir información vieja pensando que era actual.
+- **Data Mining exportaba los datos equivocados**: llamaba a una función con parámetros que no acepta (silenciados con `as any`), descargando el volcado genérico en vez de su propio análisis.
+- Corregido el nombre de autoría en el pie de página.
+
+### ⚠️ Acción requerida
+Después de desplegar, revisar `/caja-chica`: hay un movimiento de prueba de $8 que dejó el saldo mostrado en $9 — hay que borrarlo manualmente.
+
+
+## [v6.40.0] - 3 Agosto 2026 (Seguridad del Portal Maquilador + limpieza total de tipos + WhatsApp)
+
+### Corregido — crítico (seguridad)
+- **El PIN del Portal Maquilador era públicamente legible** por cualquiera, sin sesión — vivía en un documento con `allow read: if true`. Movido a un documento admin-only; el cliente ya nunca ve el valor real.
+- **La función en la nube no exigía PIN para la acción principal** (listar/registrar entregas), solo para el estado de cuenta. Ahora lo exige para cualquier acción.
+- **`FastEntry.tsx` no sincronizaba `invoiceStatuses`** — mismo bug ya corregido en otras pantallas.
+
+### Corregido — calidad de código
+- **Eliminado `@ts-nocheck` de los 8 archivos que lo tenían.** Cada uno reveló bugs reales: un destructuring de 40 valores usando solo 10-13, una API de `toast` inexistente que habría tronado en producción, y 5 funciones usadas sin importar (`sound`, `addDoc`, `addDays`, entre otras).
+- **`eslint`: de 15 errores y 192 avisos a 0 y 0** en todo el proyecto.
+
+### Agregado
+- Botón "💬 WhatsApp" en Cobranza — enlace real con el mensaje precargado, no solo copiar al portapapeles.
+- Botón de recepción rápida en Compras renombrado a "📦 Recibir Kilos Rápidos".
+
+### Pendiente, con razón explícita
+- División de `Dashboard.tsx` en componentes más chicos.
+- Rediseño visual de Compras a tarjetas (la función ya existe, falta el layout).
+- Lectura automática de PDF con IA — no se reintroduce sin confirmar que sigue siendo lo que se quiere, dado que se retiró antes por decisión explícita.
+
+
+## [v6.39.0] - 3 Agosto 2026 (Scroll bloqueado — reparado)
+
+### Corregido — crítico
+- **El scroll dejaba de funcionar en toda la aplicación** después de un fallo dentro de un modal (reportado en `/caja-chica`, pero afecta cualquier pantalla). El bloqueo de scroll de fondo del componente `Modal` se reiniciaba en cada render mientras estaba abierto; si algo tronaba a mitad de una interacción, la limpieza podía no completarse y el `body` quedaba con scroll bloqueado para siempre.
+- Corregido de raíz (el efecto ya no se reinicia en cada render) y con una red de seguridad adicional: el bloqueo se libera solo al cambiar de página, sin depender de que la limpieza anterior se haya ejecutado bien.
+
+### Continuación en curso
+- Limpieza de `@ts-nocheck`: 6 de 8 archivos completamente resueltos. `TabFacturas.tsx` tiene ya los imports reales corregidos (la causa más probable de fallos dentro de modales) pero el candado temporal sigue puesto para no bloquear esta entrega urgente.
+
+
+## [v6.38.0] - 3 Agosto 2026 (Saldo histórico corregido en Compras + revisión responsive)
+
+### Corregido — crítico
+- **La tabla de movimientos con Andrés en `/compras` ignoraba el ajuste histórico real** (-$123,175.56 configurado). El saldo principal de la pantalla sí lo usaba correctamente; la tabla de detalle y su reporte impreso arrancaban en $0, desfasados del número principal.
+
+### Mejorado
+- Revisión de diseño responsive: confirmado que el sistema sí adapta bien a móvil (menú colapsable, botones táctiles, sin zoom automático en inputs). Agregado el desplazamiento horizontal faltante en 2 tablas.
+
+
+## [v6.37.0] - 3 Agosto 2026 (Auditoría Maestra reparada)
+
+### Corregido — crítico
+- **Signo invertido en movimientos nuevos de Caja Chica** al crearlos desde la Auditoría Maestra: un anticipo se guardaba como "ingreso" y un cobro como "egreso" — exactamente al revés.
+- **`invoiceStatuses` no se sincronizaba** al cambiar el estatus de una factura desde el Excel — el resto del sistema seguía viendo el estatus viejo.
+- **Los renglones nuevos ahora sí detectan el proveedor** por el texto del concepto, y se **valida el estatus** contra los valores reales del sistema antes de aplicarlo.
+- Corregida la hoja "Auditoria_Compras" del Excel descargable: exportaba campos que no existen en el modelo (`subtotal`, `iva`, `total`) y siempre salía en blanco.
+
+### Verificado
+- Probado de extremo a extremo con una sábana sintética idéntica a los datos reales del negocio, incluyendo un caso de estatus inválido a propósito.
+
+## [v6.36.0] - 2 Agosto 2026 (UI Glassmorphism, Kanban Drag & Drop y Refactorización Compras)
+
+### Añadido — Proactividad y Estética Premium
+- **Kanban Drag & Drop (Fase 6):** Arrastrar y soltar facturas libremente en el tablero de cobranza. Transiciones inteligentes con validación de negocio (ej. preguntar por Contrarecibo al mover a "Por Cobrar").
+- **Sincronización Mágica de Caja Chica:** Al mover una factura a "En Caja Chica" desde el Kanban, el sistema inyecta automáticamente el movimiento de ingreso de efectivo correspondiente usando una transacción atómica. Si se deshace el movimiento, se inyecta un egreso de reversión. Las métricas financieras "Cobrado" y "Caja" ahora cuadran perfectamente sin depender de captura manual.
+- **Glassmorphism Global:** Implementación de tarjetas y modales esmerilados mediante variables CSS `--glass-*` y la clase `.glass-modal`, dotando al sistema de una estética moderna y premium.
+- **Atajos Contextuales (Quick Actions):** Integración de botones proactivos directamente en los indicadores principales. (ej. "Recolectar a Caja Chica" desde el Dashboard, o "Liquidar Deuda" desde Compras).
+
+### Mejorado — Deuda Técnica
+- **Desacoplamiento de `Compras.tsx`:** Reducción monumental de ~880 líneas a ~160 líneas. La lógica de estado se extrajo a `useAndresStats.ts`, y la UI de tablas y modales se dividió en microcomponentes dedicados (`OrderModals.tsx`, `AndresLedgerTable.tsx`), mejorando drásticamente su mantenibilidad a largo plazo.
+- **Performance de Renderizado:** Reducción de sobrecarga en el render inicial al separar el estado de los componentes visuales. Resolvimos falsos positivos y errores de tipado de TypeScript.
+
+## [v6.35.0] - 2 Agosto 2026 (Reconciliación de ramas + facturas sin CR vencidas)
+
+### Corregido — crítico
+- **`checkOverdueInvoices` marcaba como vencidas facturas sin contrarecibo.** El plazo de crédito arranca cuando Providencia emite el CR, no al enviar la factura a revisión. Verificado contra datos reales: la diferencia en "Vencido" era exactamente el monto de las facturas sin CR. Se agregó además una reparación automática para las facturas ya mal marcadas.
+
+### Reconciliado
+- Unificadas las tres ramas de trabajo que habían divergido (`optimize/workspace-2026-07-29-ciclo2`, `main`/`feature/ux-quality-audit`, `audit/workspace-2026-08-01`) más una copia local en v6.34.0 sin subir. Se tomó la copia local como base y se le sumó lo que solo existía en GitHub.
+- Sincronizadas las versiones de `package.json` y `functions/package.json`, que estaban desfasadas entre sí.
+- Eliminados archivos sueltos sin uso en la raíz del proyecto.
+
 ## [v6.30.0] - 1 Agosto 2026 (Enterprise Release)
 
 ### Añadido — Mejoras UI/UX y Sistema
@@ -400,3 +790,14 @@ Revisa **Configuración**: manda lo guardado en Firestore, no el valor por omisi
 * Creación del ERP base en React/Vite.
 * Conexión básica con Firebase (Auth, Firestore, Storage).
 * Implementación original de la IA (GenAI) para extraer únicamente Total de Kilos y Folio.
+
+
+### Iteración 83: FASE 5 - Precisión Matemática Centralizada (Decimal.js)
+**Fecha:** 2026-08-06
+**Archivo:** `src/lib/finance.ts`, `src/pages/Dashboard.tsx`
+**Contexto:** Se detectó la necesidad de erradicar los problemas de precisión de coma flotante de JS (ej. 0.1+0.2=0.30004) en las sumatorias y balances del Frontend.
+**Solución:** Se integró la librería `decimal.js-light` para refactorizar los acumuladores de `getOrderSummary`, `calculateLiveMargenTotal` y la suma de `saldoCaja`, garantizando montos contables precisos y libres de deriva.
+**Verificación:** `npm run typecheck` completado exitosamente con 0 errores tras tipar y parsear todos los constructores y encadenamientos de Decimal.
+**Estado:** ✅ Completado - Precisión garantizada al 100%.
+
+

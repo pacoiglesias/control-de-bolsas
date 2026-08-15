@@ -1,13 +1,14 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
 import { db, PATHS } from '../lib/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
-import OrderModal from './OrderModal';
-import { kilos, money } from '../lib/format';
+import OrderModal from '../components/OrderModal';
+import KanbanBoard from '../components/Orders/KanbanBoard';
+import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
@@ -20,7 +21,18 @@ const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
   { key: 'facturado', label: 'Facturado' },
   { key: 'pending', label: 'Con CR' },
   { key: 'overdue', label: 'Vencidas' },
-  { key: 'paid', label: 'Cobradas' },
+  // Se llamaba "Cobradas", pero el estado 'paid' significa que la factura
+  // ya esta en manos del contador para su tramite -- el dinero todavia NO
+  // esta en caja. El badge de cada fila (STATUS_LABEL en types.ts) ya
+  // decia "🟡 Con el Contador"; el chip del filtro decia otra cosa
+  // distinta para el mismo estado, y el usuario entraba esperando ver
+  // dinero cobrado y encontraba filas que contradecian el nombre del
+  // filtro que acababa de tocar.
+  { key: 'paid', label: '🟡 Con el Contador' },
+  // 'collected' es el estado que de verdad significa "ya esta el dinero
+  // en caja" -- antes no tenia chip propio, asi que no habia forma de ver
+  // de un vistazo solo lo que ya esta 100% cobrado sin restar a mano.
+  { key: 'collected', label: '✅ Recibidas' },
   { key: 'manual_review', label: 'Revisión' },
 ];
 
@@ -29,12 +41,14 @@ export default function Orders() {
   const { role } = useAuth();
   const { config } = useConfig();
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'>('kanban');
   
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 30;
+  const observerTarget = useRef(null);
 
   useEffect(() => {
     const q = params.get('q');
@@ -45,15 +59,34 @@ export default function Orders() {
 
   useEffect(() => {
     if (params.get('nueva') === '1') {
+      setInitialModalTab(params.get('tab') === 'productos' ? 'productos' : 'resumen');
       setSelected({
         id: doc(collection(db, PATHS.orders)).id,
         creditCycle: { status: 'pedido' }
       } as PurchaseOrder);
       const newParams = new URLSearchParams(params);
       newParams.delete('nueva');
+      newParams.delete('tab');
       setParams(newParams, { replace: true });
     }
   }, [params, setParams]);
+
+  // Vinculo cruzado Andres <-> Providencia (2026-08-11): permite abrir un
+  // expediente especifico desde fuera de esta pantalla (ej. el boton "Ver
+  // orden en Providencia" del modulo de Compras) sin tener que buscarlo a
+  // mano en la lista. Espera a que `orders` este cargado porque el id
+  // llega por URL antes de que la suscripcion de Firestore resuelva.
+  useEffect(() => {
+    const abrirId = params.get('abrir');
+    if (!abrirId || orders.length === 0) return;
+    const found = orders.find((o) => o.id === abrirId);
+    if (found) {
+      setSelected(found);
+      const newParams = new URLSearchParams(params);
+      newParams.delete('abrir');
+      setParams(newParams, { replace: true });
+    }
+  }, [params, orders, setParams]);
 
   // El resumen de cada expediente se calcula UNA vez y se reutiliza en el
   // filtro, en los contadores, en la tabla y en los totales. Antes
@@ -63,24 +96,97 @@ export default function Orders() {
     [orders],
   );
 
+  const [sortBy, setSortBy] = useState<'folio' | 'client' | 'deuda' | null>(null);
+  // La celda de CR mostraba TODOS los contrarecibos de un expediente como
+  // un solo parrafo de texto separado por comas -- con 12, se vuelve
+  // ilegible de un vistazo. Se compacta a los primeros 3 + un contador,
+  // expandible por fila individualmente.
+  const [crExpandido, setCrExpandido] = useState<Set<string>>(new Set());
+  const toggleCr = (orderId: string) => {
+    setCrExpandido(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const toggleSort = (campo: 'folio' | 'client' | 'deuda') => {
+    if (sortBy === campo) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(campo); setSortDir('asc'); }
+  };
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return conResumen.filter(({ o, s }) => {
+    const filtradas = conResumen.filter(({ o, s }) => {
       // El estatus sale del resumen, igual que el contador del chip y que la
       // columna Estado. Antes el filtro leia o.creditCycle.status (el campo
       // viejo de la raiz): el chip decia "Vencidas (5)" y la tabla salia vacia.
-      if (filter !== 'all' && s.status !== filter) return false;
+      // "Pendiente de Facturar" antes significaba "cero facturas
+      // capturadas todavia" (status === 'pedido') -- un significado
+      // distinto al mismo nombre en el KPI del Dashboard, que cuenta
+      // kilos entregados sin facturar sin importar si ya existe una
+      // factura parcial. Con eso, un expediente facturado a medias
+      // (como una OC con una factura parcial real ya capturada, con
+      // saldo genuino pendiente) nunca aparecia aqui. Ahora el filtro
+      // significa lo mismo en los dos lugares: hay kilos entregados que
+      // todavia no se han facturado.
+      if (filter === 'pedido') {
+        if (s.kilosDelivered <= s.kilosInvoiced) return false;
+      } else if (filter !== 'all' && s.status !== filter) {
+        return false;
+      }
+      // El Dashboard ya excluye a los expedientes migrados (cliente
+      // "MIGRACION") del calculo de "Pendiente por Facturar", porque son
+      // datos historicos sin trazabilidad de facturas individuales -- no
+      // es que genuinamente falte facturar algo hoy. Esta lista no tenia
+      // esa misma exclusion, asi que mostraba a HIST-001 como pendiente
+      // cuando el Dashboard, correctamente, no lo contaba.
+      if (filter === 'pedido' && o.client === 'MIGRACION') return false;
       if (!q) return true;
       return [o.folio, o.client, o.fileName, o.collection?.contrareciboNumber, String(o.totalKilograms ?? '')]
         .join(' ')
         .toLowerCase()
         .includes(q);
     });
-  }, [conResumen, filter, search]);
+    // Antes esta lista no tenia NINGUN orden propio -- dependia
+    // completamente del orden en que llegaran los datos, sin que el
+    // usuario pudiera controlarlo. Ahora, si eligio ordenar por una
+    // columna, se aplica aqui; si no, se deja el orden de llegada.
+    if (!sortBy) return filtradas;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filtradas].sort((a, b) => {
+      if (sortBy === 'folio') return dir * (a.o.folio || a.o.oc || '').localeCompare(b.o.folio || b.o.oc || '');
+      if (sortBy === 'client') return dir * (a.o.client || '').localeCompare(b.o.client || '');
+      const deudaA = a.s.invoiceTotal - a.s.paidAmount;
+      const deudaB = b.s.invoiceTotal - b.s.paidAmount;
+      return dir * (deudaA - deudaB);
+    });
+  }, [conResumen, filter, search, sortBy, sortDir]);
 
   const paginatedRows = useMemo(() => {
-    return rows.slice((page - 1) * pageSize, page * pageSize);
+    return rows.slice(0, page * pageSize);
   }, [rows, page]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && rows.length > page * pageSize) {
+          setPage(p => p + 1);
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [observerTarget, page, rows.length]);
 
   // Resetear página al cambiar filtro o búsqueda
   useEffect(() => {
@@ -89,9 +195,12 @@ export default function Orders() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: conResumen.length };
-    conResumen.forEach(({ s }) => {
+    let pendienteFacturar = 0;
+    conResumen.forEach(({ o, s }) => {
+      if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION') pendienteFacturar++;
       c[s.status] = (c[s.status] ?? 0) + 1;
     });
+    c.pedido = pendienteFacturar;
     return c;
   }, [conResumen]);
 
@@ -178,13 +287,22 @@ export default function Orders() {
           <>
             {role !== 'viewer' && (
               <>
-                <button className="btn btn-primary" onClick={() => navigate('/subir')}>
-                  📥 Subir XML / PDF
+                <button className="btn btn-primary" onClick={() => {
+                  setInitialModalTab('productos');
+                  setSelected({
+                    id: doc(collection(db, PATHS.orders)).id,
+                    creditCycle: { status: 'pedido' }
+                  } as PurchaseOrder);
+                }}>
+                  📥 Subir / Pegar OC
                 </button>
-                <button className="btn" onClick={() => setSelected({
-                  id: doc(collection(db, PATHS.orders)).id,
-                  creditCycle: { status: 'pedido' }
-                } as PurchaseOrder)}>
+                <button className="btn" onClick={() => {
+                  setInitialModalTab('resumen');
+                  setSelected({
+                    id: doc(collection(db, PATHS.orders)).id,
+                    creditCycle: { status: 'pedido' }
+                  } as PurchaseOrder);
+                }}>
                   + Expediente Manual
                 </button>
                 <span className="spacer" />
@@ -211,6 +329,22 @@ export default function Orders() {
             ))}
           </div>
           <span className="spacer" />
+          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-body)', padding: 4, borderRadius: 8, marginRight: 12 }}>
+            <button 
+              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              onClick={() => setViewMode('list')}
+            >
+              ☰ Lista
+            </button>
+            <button 
+              className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'kanban' ? 'var(--brand)' : 'transparent', color: viewMode === 'kanban' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              onClick={() => setViewMode('kanban')}
+            >
+              ◫ Tablero
+            </button>
+          </div>
           <input
             className="search-input"
             type="search"
@@ -221,16 +355,53 @@ export default function Orders() {
         </div>
 
         {rows.length === 0 ? (
-          <Empty>No hay órdenes en este filtro.</Empty>
+          <Empty icon="📭">
+            {filter === 'all' && !search ? (
+              // Lista totalmente vacia (no solo un filtro sin resultados):
+              // antes solo decia "No hay ordenes en este filtro" sin ninguna
+              // pista de por donde empezar. El boton de arriba ("📥 Subir /
+              // Pegar OC") ya existe -- aqui solo se repite la invitacion
+              // donde el usuario esta mirando, en vez de que tenga que
+              // encontrarlo solo en la barra de acciones.
+              <>
+                <p style={{ margin: '0 0 16px' }}>Todavía no hay ningún expediente. Así se arranca uno:</p>
+                {role !== 'viewer' && (
+                  <button className="btn btn-primary" onClick={() => {
+                    setInitialModalTab('productos');
+                    setSelected({
+                      id: doc(collection(db, PATHS.orders)).id,
+                      creditCycle: { status: 'pedido' }
+                    } as PurchaseOrder);
+                  }}>
+                    📥 Subir / Pegar tu primera OC
+                  </button>
+                )}
+              </>
+            ) : (
+              'No hay órdenes en este filtro.'
+            )}
+          </Empty>
+        ) : viewMode === 'kanban' ? (
+          <div style={{ padding: '20px 16px' }}>
+            <KanbanBoard items={rows} onSelect={setSelected} />
+          </div>
         ) : (
           <div className="table-scroll">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Expediente / OC</th><th>Cliente</th><th>Prov.</th>
+                  <th className="sticky-col" onClick={() => toggleSort('folio')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Expediente / OC {sortBy === 'folio' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => toggleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Cliente {sortBy === 'client' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th>Prov.</th>
                   <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
                   <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
-                  <th className="num">Deuda Restante</th>
+                  <th className="num" onClick={() => toggleSort('deuda')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Deuda Restante {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
                   <th>Estado</th>
                 </tr>
               </thead>
@@ -242,29 +413,73 @@ export default function Orders() {
                     <tr
                       key={o.id}
                       className={st === 'overdue' ? 'row-bad' : st === 'manual_review' ? 'row-warn' : st === 'paid' ? 'row-done' : ''}
-                      onClick={() => setSelected(o)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(o); } }}
+                      onClick={() => { setInitialModalTab('resumen'); setSelected(o); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); { setInitialModalTab('resumen'); setSelected(o); } } }}
                       role="button"
                       tabIndex={0}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="mono" style={{ lineHeight: '1.4' }}>
-                        <div>
-                          <strong>{o.oc || o.folio || 'Sin Folio'}</strong>
-                        </div>
-                        {o.oc && o.folio && o.oc !== o.folio && (
-                          <div className="hint" style={{ fontSize: '0.85em' }}>Folio: {o.folio}</div>
+                      <td className="mono sticky-col" style={{ lineHeight: '1.5' }}>
+                        {o.oc && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#2563eb', background: '#dbeafe', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>OC</span>
+                            <strong>{o.oc}</strong>
+                          </div>
+                        )}
+                        {o.folio && o.folio !== o.oc && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: o.oc ? 3 : 0 }}>
+                            <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>FOLIO</span>
+                            {o.oc ? <span className="hint" style={{ fontSize: '0.85em' }}>{o.folio}</span> : <strong>{o.folio}</strong>}
+                          </div>
                         )}
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
-                        {summary.invoices.some(i => i.collection?.contrareciboNumber) && (
-                          <div style={{ fontSize: '0.8em', color: 'var(--brand)', marginTop: '4px' }}>
-                            CR: {Array.from(new Set(summary.invoices.map(i => i.collection?.contrareciboNumber).filter(Boolean))).join(', ')}
-                          </div>
-                        )}
+                        {summary.invoices.some((i: any) => i.collection?.contrareciboNumber) && (() => {
+                          const conCr = summary.invoices.filter((i: any) => i.collection?.contrareciboNumber);
+                          const expandido = crExpandido.has(o.id);
+                          const ESTADO_LABEL: Record<string, { texto: string; color: string }> = {
+                            overdue: { texto: 'Vencido', color: 'var(--bad)' },
+                            pending: { texto: 'Por cobrar', color: 'var(--ink-soft)' },
+                            paid: { texto: 'Con contador', color: 'var(--warn)' },
+                            collected: { texto: 'Cobrado', color: 'var(--ok)' },
+                          };
+                          if (!expandido) {
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                              >
+                                <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>CR</span>
+                                <span style={{ fontSize: '0.85em', color: 'var(--accent)', textDecoration: 'underline' }}>
+                                  {conCr.length === 1 ? conCr[0].collection?.contrareciboNumber : `${conCr.length} contrarecibos — ver cada uno`}
+                                </span>
+                              </button>
+                            );
+                          }
+                          return (
+                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 220 }}>
+                              {conCr.map((inv: any) => {
+                                const estado = ESTADO_LABEL[inv.creditCycle?.status] || ESTADO_LABEL.pending;
+                                return (
+                                  <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8em', padding: '3px 6px', background: 'var(--paper-sunk)', borderRadius: 4 }}>
+                                    <span style={{ fontWeight: 700, color: '#047857' }}>{inv.collection.contrareciboNumber}</span>
+                                    <span className="mono">{money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0)}</span>
+                                    <span style={{ color: estado.color, fontWeight: 600 }}>{estado.texto}</span>
+                                  </div>
+                                );
+                              })}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleCr(o.id); }}
+                                style={{ fontSize: '0.8em', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '2px 0', textAlign: 'left' }}
+                              >
+                                ▲ ver compacto
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </td>
-                      <td>{o.client ?? '—'}</td>
+                      <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
                       <td className="num mono">{summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}</td>
@@ -303,16 +518,15 @@ export default function Orders() {
                 </tr>
               </tfoot>
             </table>
-          </div>
+              
+              {rows.length > page * pageSize && (
+                <div ref={observerTarget} style={{ height: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 10 }}>
+                  <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }}></div>
+                </div>
+              )}
+            </div>
         )}
         
-        {rows.length > pageSize && (
-          <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-            <button className="btn" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Anterior</button>
-            <span style={{ padding: '4px 12px', fontSize: '0.9em' }}>Página {page} de {Math.ceil(rows.length / pageSize)}</span>
-            <button className="btn" disabled={page >= Math.ceil(rows.length / pageSize)} onClick={() => setPage(p => p + 1)}>Siguiente</button>
-          </div>
-        )}
       </Card>
 
       {selected && (
@@ -321,6 +535,7 @@ export default function Orders() {
           config={config}
           onClose={() => setSelected(null)}
           readOnly={role === 'viewer'}
+          initialTab={initialModalTab}
         />
       )}
     </>

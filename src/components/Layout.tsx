@@ -2,9 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
+import { useProducts } from '../hooks/useProducts';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
+import { CommandMenu } from './CommandMenu/CommandMenu';
+import { OnlineUsers } from './OnlineUsers';
+import { OverdueBanner } from './OverdueBanner';
+import { DeliveryDueBanner } from './DeliveryDueBanner';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -16,22 +21,23 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  { type: 'link', to: '/', icon: '📊', label: 'Visión Global', end: true, roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/', icon: '📊', label: 'Dashboard', end: true, roles: ['admin', 'manager', 'viewer'] },
   
-  { type: 'group', label: '-- FLUJO DE VENTAS --', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/ordenes', icon: '📋', label: 'Expedientes & Ventas', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística de Entregas', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo Inteligente', roles: ['admin', 'manager'] },
+  { type: 'group', label: '-- COMERCIAL --', roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/ordenes', icon: '📋', label: 'Gestión de Órdenes', roles: ['admin', 'manager', 'viewer'] },
+  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística y Entregas', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Productos', roles: ['admin', 'manager'] },
 
-  { type: 'group', label: '-- FLUJO FINANCIERO --', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/cobranza', icon: '💰', label: 'CxC: Clientes', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/compras', icon: '🏭', label: 'CxP: Fabricante', roles: ['admin'] },
-  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'CAJA', roles: ['admin'] },
+  { type: 'group', label: '-- FINANZAS --', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/cobranza', icon: '💰', label: 'Cuentas por Cobrar (CxC)', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Asistida', roles: ['admin', 'manager'] },
+  { type: 'link', to: '/compras', icon: '🏭', label: 'Cuentas por Pagar (CxP)', roles: ['admin'] },
+  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'Tesorería y Caja', roles: ['admin'] },
 
-  { type: 'group', label: '-- ADMINISTRACIÓN --', roles: ['admin'] },
-  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
-  { type: 'link', to: '/fix-data', icon: '🛠️', label: 'Cuadre Maestro', roles: ['admin'] },
+  { type: 'group', label: '-- SISTEMA --', roles: ['admin'] },
+  { type: 'link', to: '/mining', icon: '📊', label: 'Reportes y Data Mining', roles: ['admin'] },
+  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Ajustes del Sistema', roles: ['admin'] },
+  { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
 ];
 
 function initTheme(): 'light' | 'dark' {
@@ -43,12 +49,24 @@ function initTheme(): 'light' | 'dark' {
 export default function Layout() {
   const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
+  const { products } = useProducts();
   const { settings } = useSystemSettings();
   const [navOpen, setNavOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
   const nav = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Red de seguridad: si algun modal llegara a fallar a mitad de una
+  // interaccion sin completar su limpieza (ver el bloqueo de scroll en
+  // components/ui.tsx), el body podia quedarse con overflow:hidden para
+  // siempre — el scroll dejaba de funcionar en toda la app, no solo en la
+  // pantalla donde paso. Esto lo libera solo, cada vez que se cambia de
+  // ruta, sin depender de que la limpieza del modal se haya ejecutado bien.
+  useEffect(() => {
+    document.body.style.overflow = '';
+  }, [location.pathname]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -76,16 +94,19 @@ export default function Layout() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        const term = window.prompt('Buscar expediente, folio o cliente:');
-        if (term) nav(`/ordenes?q=${encodeURIComponent(term)}`);
+        setCommandOpen(o => !o);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
+
+    const handleCustomOpen = () => setCommandOpen(true);
+    document.addEventListener('open-command-menu', handleCustomOpen);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('open-command-menu', handleCustomOpen);
     };
   }, [nav]);
 
@@ -104,8 +125,8 @@ export default function Layout() {
   }, [orders]);
 
   return (
-    <>
-      <div className={`scrim ${navOpen ? 'show' : ''}`} onClick={() => setNavOpen(false)} />
+    <div className="layout">
+      <div className={`nav-scrim ${navOpen ? 'open' : ''}`} onClick={() => setNavOpen(false)} />
 
       <header className="topbar no-print">
         <button className="icon-btn" onClick={() => setNavOpen((v) => !v)} aria-label="Abrir menú">
@@ -113,6 +134,7 @@ export default function Layout() {
         </button>
         <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
         <span className="spacer" />
+        <OnlineUsers />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
           {isOnline ? 'Sistema OK' : 'Sin conexión'}
@@ -151,6 +173,7 @@ export default function Layout() {
                   to={it.to!}
                   end={it.end}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => sound.playSwoosh()}
                 >
                   <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
                   <span>{it.label}</span>
@@ -175,14 +198,31 @@ export default function Layout() {
 
         <main className="main">
           <div className="content">
+            <OverdueBanner />
+            <DeliveryDueBanner orders={orders} />
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Elver Gonzalez &copy; 2026<br/>
+            Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>
       </div>
-    </>
+
+      <CommandMenu
+        isOpen={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        orders={orders}
+        products={products}
+        onSelectOrder={(orderId, _tab) => {
+          setCommandOpen(false);
+          nav(`/ordenes?id=${orderId}`);
+        }}
+        onSelectProduct={() => {
+          setCommandOpen(false);
+          nav(`/catalogo`);
+        }}
+      />
+    </div>
   );
 }

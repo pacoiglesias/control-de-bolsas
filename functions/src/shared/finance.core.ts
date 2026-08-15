@@ -119,8 +119,11 @@ export function configEfectiva(
     // pero la nueva metrica se guiara por la captura real.
   }
   
-  const comision = Number(custom.customCommissionRate);
-  if (Number.isFinite(comision) && comision >= 0) cfg.commissionRate = comision;
+  let comision = Number(custom.customCommissionRate);
+  if (Number.isFinite(comision) && comision >= 0) {
+    if (comision > 1) comision = comision / 100;
+    cfg.commissionRate = comision;
+  }
   return cfg;
 }
 

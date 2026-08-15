@@ -29,6 +29,20 @@ export const compactKilos = (n: number | undefined | null): string => {
 export const percent = (n: number | undefined | null): string =>
   `${((Number(n) || 0) * 100).toLocaleString('es-MX', { maximumFractionDigits: 3 })}%`;
 
+/**
+ * "MIGRACION" es un marcador interno para expedientes historicos donde
+ * nunca se capturo el nombre real del cliente al migrar los datos --
+ * no es un cliente de verdad. Mostrarlo tal cual en pantalla ("Cliente:
+ * MIGRACION") confunde mas que ayuda. Esta funcion traduce SOLO lo que
+ * el usuario ve; el dato guardado en Firestore sigue siendo "MIGRACION"
+ * (varias comparaciones logicas del sistema dependen de ese valor
+ * exacto para excluir estos expedientes de ciertos calculos).
+ */
+export function nombreClienteVisible(client: string | null | undefined): string {
+  if (client === 'MIGRACION') return 'Histórico (sin cliente registrado)';
+  return client || '—';
+}
+
 /** Firestore devuelve Timestamp; los formularios y calculos usan Date. */
 export function toDate(ts: Timestamp | Date | null | undefined): Date | null {
   if (!ts) return null;

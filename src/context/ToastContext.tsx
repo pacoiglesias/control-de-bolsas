@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import toast, { Toaster } from 'react-hot-toast';
 import { sound } from '../lib/sounds';
 
-type Tone = 'info' | 'ok' | 'bad';
+export type Tone = 'info' | 'ok' | 'bad';
 interface ToastAction {
   label: string;
   onClick: () => void;

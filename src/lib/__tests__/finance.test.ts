@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal } from '../finance';
+import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto, computeAndresRequirement, getSuggestedNextAction } from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
- * Estas dos funciones son donde un error se traduce directamente en dinero mal
- * contado. Cada prueba de aquí corresponde a un defecto real que llegó a
- * producción, no a un caso inventado.
+ * Estas funciones son donde un error se traduce directamente en dinero mal
+ * contado. Cada prueba de aquí corresponde a un defecto real o regla de negocio.
  */
 
 const cfg = { ...DEFAULT_CONFIG };
@@ -24,6 +23,7 @@ function orden(parcial: Partial<PurchaseOrder>): PurchaseOrder {
 function factura(status: OrderStatus, kilos = 100) {
   return {
     id: `inv-${status}`,
+    orderId: 'oc-1',
     folio: 'F-1',
     kilos,
     financials: computeFinancials(kilos, cfg),
@@ -34,13 +34,13 @@ function factura(status: OrderStatus, kilos = 100) {
 describe('computeFinancials', () => {
   it('el honorario del contador va sobre el SUBTOTAL, no sobre la factura', () => {
     const f = computeFinancials(100, cfg);
-    expect(f.saleTotal).toBe(4700);
-    expect(f.invoiceTotal).toBe(5452);
+    expect(f.saleTotal).toBe(4300);
+    expect(f.invoiceTotal).toBe(4988);
     expect(f.costTotal).toBe(4200);
-    // 8% del subtotal: 4700 x 0.08 = 376.00
-    expect(f.commission).toBe(376);
-    // 4700 - 4200 - 376 = 124
-    expect(f.netCashFlow).toBe(124);
+    // 8% del subtotal: 4300 x 0.08 = 344.00
+    expect(f.commission).toBe(344);
+    // 4300 - 4200 - 344 = -244
+    expect(f.netCashFlow).toBe(-244);
   });
 
   it('reproduce al centavo un cobro real del contador', () => {
@@ -55,7 +55,7 @@ describe('computeFinancials', () => {
 
   it('respeta commissionBase: total cuando así se configura', () => {
     const f = computeFinancials(100, { ...cfg, commissionBase: 'total' });
-    expect(f.commission).toBe(436.16); // 5452 x 0.08
+    expect(f.commission).toBe(399.04); // 4988 x 0.08
   });
 
   it('redondea a dos decimales todos los importes', () => {
@@ -139,7 +139,17 @@ describe('getOrderSummary — derivación de estatus', () => {
   it('la deuda se mide contra el total con IVA', () => {
     const o = orden({ invoices: [factura('pending')] });
     const s = getOrderSummary(o);
-    expect(s.invoiceTotal - s.paidAmount).toBe(5452);
+    expect(s.invoiceTotal - s.paidAmount).toBe(4988);
+  });
+
+  it('realizedProfit no produce NaN si invTotal es cero', () => {
+    // Si una factura tiene monto total 0, no debe causar división por cero
+    const o = orden({ invoices: [factura('paid', 0)] });
+    // Modificamos manualmente el total a 0
+    (o.invoices![0] as any).total = 0;
+    const s = getOrderSummary(o);
+    expect(s.realizedProfit).toBe(0);
+    expect(Number.isNaN(s.realizedProfit)).toBe(false);
   });
 });
 
@@ -196,7 +206,59 @@ describe('Dashboard Extractions', () => {
     // 100 kilos * 47 sale = 4700. cost = 42. comm = 376. 4700 - 4200 - 376 = 124 margin per invoice
     const o = orden({ invoices: [factura('pending'), factura('paid')] });
     const margin = calculateLiveMargenTotal([o], 42);
-    expect(margin).toBe(248); // 124 * 2
+    expect(margin).toBe(-488);
   });
 });
 
+
+describe('normalizarTexto', () => {
+  it('trata "Andres" y "Andrés" como el mismo proveedor', () => {
+    expect(normalizarTexto('Andrés')).toBe(normalizarTexto('Andres'));
+    expect(normalizarTexto('ANDRÉS')).toBe(normalizarTexto('andres'));
+  });
+
+  it('ignora mayusculas, acentos y espacios sobrantes', () => {
+    expect(normalizarTexto('  Providencia  ')).toBe('providencia');
+    expect(normalizarTexto('José Nava')).toBe('jose nava');
+  });
+
+  it('maneja null/undefined sin tronar', () => {
+    expect(normalizarTexto(null)).toBe('');
+    expect(normalizarTexto(undefined)).toBe('');
+  });
+});
+
+describe('computeAndresRequirement & getSuggestedNextAction', () => {
+  it('calcula requerimiento para Andrés con mensaje de WhatsApp', () => {
+    const o = orden({
+      totalKilograms: 1000,
+      client: 'Grupo Providencia',
+      folio: 'OC-999',
+    });
+    const req = computeAndresRequirement(o, cfg);
+    expect(req.kilos).toBe(1000);
+    expect(req.costTotal).toBe(42000);
+    expect(req.saleTotal).toBe(43000);
+    expect(req.invoiceTotal).toBe(49880);
+    expect(req.whatsappMessage).toContain('Andrés');
+    expect(req.whatsappMessage).toContain('OC-999');
+  });
+
+  it('sugiere siguiente paso pedir a Andrés para una OC nueva', () => {
+    const o = orden({ totalKilograms: 500, deliveries: [], invoices: [] });
+    const action = getSuggestedNextAction(o, cfg);
+    expect(action.key).toBe('pedir_andres');
+    expect(action.targetTab).toBe('andres');
+  });
+
+  it('sugiere facturar entrega si Andrés ya entregó', () => {
+    const o = orden({
+      totalKilograms: 500,
+      deliveries: [{ id: 'd1', date: null, kilos: 500, invoiced: false }],
+      invoices: [],
+    });
+    const action = getSuggestedNextAction(o, cfg);
+    expect(action.key).toBe('facturar_entrega');
+    expect(action.targetTab).toBe('facturas');
+  });
+});

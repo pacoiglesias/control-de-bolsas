@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Card, Skeleton } from '../components/ui';
+import { Timestamp } from 'firebase/firestore';
 import { useOrders } from '../hooks/useOrders';
 import { Invoice } from '../lib/types';
 import { db, PATHS } from '../lib/firebase';
 import { doc, runTransaction } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { getOrderSummary } from '../lib/finance';
+import { camposInvoices } from '../lib/invoiceOps';
+import { GenAIReader } from '../components/GenAIReader';
 
 interface IncompleteInvoice {
   orderId: string;
@@ -22,6 +25,9 @@ export function FastEntry() {
   const toast = useToast();
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'logistics' | 'docs'>('logistics');
+  const [logisticsEdits, setLogisticsEdits] = useState<Record<string, { kilos: string, date: string }>>({});
+
 
   const activeOrders = useMemo(() => {
     return orders.filter(o => {
@@ -32,6 +38,15 @@ export function FastEntry() {
   
   // Refs for keyboard navigation
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const missingDeliveries = useMemo(() => {
+    return activeOrders.map(o => {
+      const pedidos = o.totalKilograms ?? 0;
+      const entregados = o.deliveries?.reduce((a, b) => a + (b.kilos || 0), 0) ?? 0;
+      const faltante = pedidos - entregados;
+      return { order: o, pedidos, entregados, faltante };
+    }).filter(x => x.faltante > 0);
+  }, [activeOrders]);
 
   const missing = useMemo(() => {
     const list: IncompleteInvoice[] = [];
@@ -76,7 +91,113 @@ export function FastEntry() {
     }
   };
 
+  const handleGenAIData = (data: any) => {
+    if (activeTab === 'docs' && data.folio) {
+      const match = missing.find(m => {
+        const hasFolio = !!edits[`${m.orderId}___${m.invoiceId}___factura`] || !!m.currentFolio;
+        if (hasFolio) return false;
+        if (data.subtotal) return Math.abs(m.amount - data.subtotal) < 2;
+        if (data.total) return Math.abs(m.amount - data.total) < 2;
+        return true;
+      });
+      if (match) {
+        setEdits(prev => ({ ...prev, [`${match.orderId}___${match.invoiceId}___factura`]: data.folio }));
+        toast(`Folio ${data.folio} detectado y autocompletado para la OC ${match.orderFolio}.`, 'ok');
+      } else {
+        toast(`Se detectó el folio ${data.folio} pero no se encontró un expediente sin folio que coincida con el monto.`, 'info');
+      }
+    } else if (activeTab === 'logistics' && data.kilosTotales) {
+      const match = missingDeliveries.find(m => {
+        const hasEdit = !!logisticsEdits[m.order.id]?.kilos;
+        return !hasEdit && m.faltante >= data.kilosTotales;
+      });
+      if (match) {
+        setLogisticsEdits(prev => ({ ...prev, [match.order.id]: { kilos: String(data.kilosTotales), date: new Date().toISOString().split('T')[0] } }));
+        toast(`Se detectaron ${data.kilosTotales} kg para la OC ${match.order.oc || match.order.folio}.`, 'ok');
+      }
+    }
+  };
+
   const handleSave = async () => {
+    if (activeTab === 'docs') {
+      await handleSaveDocs();
+    } else {
+      await handleSaveLogistics();
+    }
+  };
+
+  const handleSaveLogistics = async () => {
+    const keys = Object.keys(logisticsEdits);
+    if (keys.length === 0) {
+      toast('No hay entregas por guardar.', 'info');
+      return;
+    }
+
+    // Validate over-delivery
+    for (const orderId of keys) {
+      const val = logisticsEdits[orderId];
+      if (!val.kilos || !val.date) continue;
+      
+      const k = Number(val.kilos);
+      if (isNaN(k) || k <= 0) {
+        toast('Los kilos deben ser un número mayor a 0.', 'bad');
+        return;
+      }
+      
+      const orderInfo = missingDeliveries.find(x => x.order.id === orderId);
+      if (!orderInfo) continue;
+      
+      if (orderInfo.entregados + k > orderInfo.pedidos) {
+        toast(`Error: La entrega de ${k} kg para la OC ${orderInfo.order.oc || orderInfo.order.folio} supera lo permitido. Faltante real: ${orderInfo.faltante} kg. El portal de Providencia rechazará esto.`, 'bad');
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      await runTransaction(db, async (tx) => {
+        const refs = keys.map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+
+        refs.forEach(({ id, ref }, index) => {
+          const snap = snaps[index];
+          if (!snap.exists()) return;
+          
+          const val = logisticsEdits[id];
+          if (!val.kilos || !val.date) return;
+          
+          const deliveries = snap.data().deliveries ?? [];
+          const k = Number(val.kilos);
+          const [yyyy, mm, dd] = val.date.split('-');
+          const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd), 12, 0, 0);
+
+          deliveries.push({
+            id: Date.now().toString() + Math.random().toString(36).substring(7),
+            date: Timestamp.fromDate(d),
+            kilos: k,
+            invoiced: false
+          });
+          
+          tx.update(ref, { deliveries });
+        });
+      });
+
+      toast(`Entregas registradas exitosamente.`, 'ok');
+      setLogisticsEdits({});
+    } catch (e: any) {
+      console.error(e);
+      toast('Error guardando las entregas: ' + e.message, 'bad');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDocs = async () => {
+
     const keys = Object.keys(edits);
     if (keys.length === 0) {
       toast('No hay cambios por guardar.', 'info');
@@ -127,7 +248,7 @@ export function FastEntry() {
           const snap = snaps[index];
           if (!snap.exists()) return;
           
-          let invoices: Invoice[] = snap.data().invoices ?? [];
+          const invoices: Invoice[] = snap.data().invoices ?? [];
           const updates = updatesByOrder[id];
           
           let modified = false;
@@ -148,7 +269,7 @@ export function FastEntry() {
           });
           
           if (modified) {
-            tx.update(ref, { invoices });
+            tx.update(ref, camposInvoices(invoices));
           }
         });
       });
@@ -187,12 +308,93 @@ export function FastEntry() {
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--ink)' }}>⚡ Captura Rápida</h1>
           <p style={{ margin: 0, marginTop: 4, color: 'var(--ink-soft)' }}>Ingresa folios y contrarecibos velozmente con el teclado.</p>
         </div>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving || Object.keys(edits).length === 0} style={{ padding: '8px 24px', fontSize: 16 }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving || (activeTab === 'docs' ? Object.keys(edits).length === 0 : Object.keys(logisticsEdits).length === 0)} style={{ padding: '8px 24px', fontSize: 16 }}>
           {saving ? 'Guardando...' : 'Guardar Todo'}
         </button>
       </div>
 
+      <GenAIReader onDataExtracted={handleGenAIData} compact />
+      
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
+        <button 
+          className={`btn ${activeTab === 'logistics' ? 'btn-primary' : ''}`} 
+          style={{ borderRadius: '8px 8px 0 0', borderBottom: activeTab === 'logistics' ? 'none' : '' }}
+          onClick={() => setActiveTab('logistics')}
+        >
+          🚚 Entregas de Andrés
+        </button>
+        <button 
+          className={`btn ${activeTab === 'docs' ? 'btn-primary' : ''}`} 
+          style={{ borderRadius: '8px 8px 0 0', borderBottom: activeTab === 'docs' ? 'none' : '' }}
+          onClick={() => setActiveTab('docs')}
+        >
+          📄 Facturas y Contrarecibos
+        </button>
+      </div>
+
       <div style={{ marginTop: 24 }}>
+        {activeTab === 'logistics' ? (
+          <Card title={`Envíos Pendientes de Entregar (${missingDeliveries.length})`} hint="No puedes pasarte de la OC">
+            {missingDeliveries.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-soft)' }}>
+                Todas las OCs activas ya fueron entregadas físicamente al 100%.
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>OC / Orden</th>
+                      <th>Cliente</th>
+                      <th className="num">Pedida (kg)</th>
+                      <th className="num">Entregada (kg)</th>
+                      <th className="num">Faltante</th>
+                      <th className="num" style={{width: 140}}>Fecha Entrega</th>
+                      <th className="num" style={{width: 140}}>Kilos Nuevos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {missingDeliveries.map((m) => {
+                      const edit = logisticsEdits[m.order.id] || { kilos: '', date: new Date().toISOString().split('T')[0] };
+                      const willExceed = Number(edit.kilos) > m.faltante;
+
+                      return (
+                        <tr key={m.order.id}>
+                          <td className="mono">{m.order.oc || m.order.folio}</td>
+                          <td style={{ fontSize: 12 }}>{m.order.client}</td>
+                          <td className="num">{m.pedidos.toLocaleString('es-MX')}</td>
+                          <td className="num">{m.entregados.toLocaleString('es-MX')}</td>
+                          <td className="num" style={{ fontWeight: 600 }}>{m.faltante.toLocaleString('es-MX')}</td>
+                          <td className="num">
+                            <input 
+                              type="date"
+                              className="input boxed"
+                              style={{ width: '100%', minWidth: 130 }}
+                              value={edit.date}
+                              onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, date: e.target.value }})}
+                            />
+                          </td>
+                          <td className="num">
+                            <input 
+                              type="number"
+                              className="input boxed"
+                              style={{ width: '100%', minWidth: 100, textAlign: 'right', borderColor: willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '') }}
+                              placeholder="Kilos"
+                              value={edit.kilos}
+                              onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }})}
+                            />
+                            {willExceed && <div style={{color: 'var(--bad)', fontSize: 10, marginTop: 4, textAlign: 'right'}}>¡Supera la OC!</div>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        ) : (
+
         <Card title={`Facturas o Contrarecibos Pendientes (${missing.length})`} hint="Ingresa los datos">
           {missing.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-soft)' }}>
@@ -256,6 +458,7 @@ export function FastEntry() {
             </div>
           )}
         </Card>
+        )}
       </div>
     </div>
   );

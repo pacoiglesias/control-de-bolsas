@@ -29,10 +29,17 @@ export interface FinancialConfig {
 }
 
 export const DEFAULT_CONFIG: FinancialConfig = {
-  /** Subtotal por kilo, SIN IVA. Con el 16% da los 54.52 que aparecen en los
-   *  contrarecibos y facturas: 47 × 1.16 = 54.52. No poner 54.52 aquí, o el
-   *  sistema le sumaría el IVA otra vez. */
-  salePricePerKg: 47,
+  /** Subtotal por kilo, SIN IVA. Con el 16% da el total que aparece en los
+   *  contrarecibos y facturas: 43 × 1.16 = 49.88. No poner 49.88 aquí, o el
+   *  sistema le sumaría el IVA otra vez.
+   *  ACTUALIZADO 2026-08-10 (Iteracion 98): el precio real bajó de 47 a 43
+   *  (verificado contra la hoja de control del usuario, "COSTO VENTA A
+   *  PROVIDENCIA = 43 mas IVA", y confirmado directamente por el usuario:
+   *  "el precio antes era 47 ahora ya es de 43"). Este valor es solo el
+   *  RESPALDO para expedientes que no traigan su propio precio capturado --
+   *  los que ya tienen un precio propio en financials.salePricePerKg no
+   *  cambian con este ajuste. */
+  salePricePerKg: 43,
   costPricePerKg: 42,
   /** Honorario del contador por la gestión de cobro: 8% del SUBTOTAL. */
   commissionRate: 0.08,
@@ -135,6 +142,8 @@ export interface Delivery {
 
 export interface Invoice {
   id: string;
+  orderId: string; // Relación con el expediente padre
+  client?: string; // Copia para mostrar en el tablero sin buscar el expediente
   uuid?: string;
   folio?: string;
   oc?: string;
@@ -142,6 +151,8 @@ export interface Invoice {
   financials?: OrderFinancials;
   creditCycle: CreditCycle;
   collection?: CollectionInfo;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
 }
 
 export interface PurchaseOrderItem {
@@ -176,6 +187,15 @@ export interface PurchaseOrder {
   collection?: CollectionInfo;
 
   deliveries?: Delivery[];
+  /**
+   * Sigue siendo la fuente de verdad real y funcional. Se intento migrar
+   * las facturas a su propia coleccion (ver context/InvoicesContext.tsx),
+   * pero ese intento se revirtio: el nombre de la coleccion nunca
+   * coincidio con lo que la escribia (invoices vs invoicesV2), dejando
+   * a toda la app sin ver ninguna factura de ningun expediente. No
+   * marcar esto como deprecado hasta que la migracion este completa Y
+   * verificada con datos reales -- ver PLAN_DE_MEJORA_TOTAL.md, seccion 3.
+   */
   invoices?: Invoice[];
   /**
    * Copia desnormalizada de los estatus de `invoices[]`, en el mismo orden.
@@ -199,6 +219,7 @@ export interface PurchaseOrder {
   processedAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
   aiError?: string;
+  isClosedShort?: boolean;
 }
 
 export interface Expense {
@@ -258,3 +279,32 @@ export interface Product {
   lastOrderDate?: any;
   createdAt?: any;
 }
+
+export interface AndresRequirement {
+  orderId: string;
+  folio: string;
+  client: string;
+  kilos: number;
+  costPricePerKg: number;
+  costTotal: number;
+  salePricePerKg: number;
+  saleTotal: number;
+  invoiceTotal: number;
+  commissionEst: number;
+  netProfitEst: number;
+  profitPerKg: number;
+  items: PurchaseOrderItem[];
+  whatsappMessage: string;
+}
+
+export interface NextActionInfo {
+  key: 'pedir_andres' | 'esperar_entrega' | 'facturar_entrega' | 'pedir_contrarecibo' | 'avisar_contador' | 'recibir_caja' | 'completada';
+  title: string;
+  description: string;
+  actionLabel?: string;
+  badgeTone: 'info' | 'warn' | 'bad' | 'ok';
+  targetTab?: 'resumen' | 'andres' | 'entregas' | 'facturas' | 'costos';
+  whatsappType?: 'andres' | 'providencia' | 'contador';
+  whatsappText?: string;
+}
+

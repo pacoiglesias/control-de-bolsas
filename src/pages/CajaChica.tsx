@@ -3,7 +3,8 @@ import { doc, collection, setDoc, serverTimestamp, Timestamp } from 'firebase/fi
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
-import { Card, Empty, Field, Modal, Spinner } from '../components/ui';
+import { Card, Empty, Field, Drawer, Skeleton } from '../components/ui';
+import { CurrencyInput } from '../components/CurrencyInput';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { usePurchases } from '../hooks/usePurchases';
@@ -12,30 +13,39 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
-import { computeCommissionFromInvoiceTotal } from '../lib/finance';
+import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
+import { motion } from 'framer-motion';
+import { useUndo } from '../context/UndoContext';
 
 export default function CajaChica() {
   const { role } = useAuth();
   const { expenses, loading, error } = useExpenses();
   const { orders } = useOrders();
-  const { purchases: provPurchases } = usePurchases();
+  const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
   const { settings } = useSystemSettings();
   const [selected, setSelected] = useState<Expense | null>(null);
 
-  const saldo = settings?.cajaChicaBalance ?? expenses.reduce((acc, e) => {
+
+
+  const saldo = expenses.reduce((acc, e) => {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
   }, 0);
 
   // Calc deuda real con el proveedor
   const provName = settings?.providerName || 'Andrés';
+  // ANTES: "provPurchases" no filtraba por proveedor pese al nombre --
+  // era TODAS las compras del sistema, de cualquier proveedor. Una sola
+  // compra registrada para otro caso (o con acento distinto en el nombre)
+  // inflaba esta tarjeta sin relacion real con Andres.
+  const provPurchases = allPurchases.filter(p => normalizarTexto(p.provider) === normalizarTexto(provName));
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
   const currentCostPerKg = config?.costPricePerKg || 42;
   const totalPurchasesCost = Number((totalReceivedKilos * currentCostPerKg).toFixed(2));
   
-  const provExpenses = expenses.filter(e => e.provider?.toLowerCase() === provName.toLowerCase());
+  const provExpenses = expenses.filter(e => normalizarTexto(e.provider) === normalizarTexto(provName));
   const totalPagado = provExpenses.reduce((acc, e) => {
     if (e.type === 'egreso') return acc + e.amount;
     if (e.type === 'ingreso') return acc - e.amount;
@@ -43,14 +53,16 @@ export default function CajaChica() {
   }, 0);
   
   const deudaHistorica = config?.historicalDebtAndres || 0;
-  const deudaReal = totalPurchasesCost - totalPagado + deudaHistorica;
+  // Negativo = Deuda (Recibimos mas de lo que pagamos o tenemos deuda historica en negativo)
+  // Positivo = Saldo a Favor / Anticipo (Pagamos mas de lo que recibimos)
+  const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
   // Calc dinero en tránsito (estatus 'paid')
   const dineroEnTransito = orders.reduce((acc, o) => {
     if (!o.invoices) return acc;
     return acc + o.invoices.reduce((sum, inv) => {
       if (inv.creditCycle.status === 'paid') {
-        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 47) * (1 + (config?.ivaRate ?? 0.16)));
+        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16)));
         const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
         return sum + (totalFactura - comision);
       }
@@ -152,7 +164,20 @@ export default function CajaChica() {
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
   }
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <>
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 220, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: '55%', height: 16 }} />
+        </div>
+        <div className="kpi-grid" style={{ marginBottom: 24 }}>
+          {[1, 2, 3].map(i => <Skeleton key={i} className="skeleton-card" style={{ height: 90 }} />)}
+        </div>
+        {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="skeleton-row" style={{ height: 52, marginBottom: 8 }} />)}
+      </>
+    );
+  }
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 
@@ -163,36 +188,150 @@ export default function CajaChica() {
         <p>Control de efectivo, comisiones contables y gastos diversos.</p>
       </div>
 
-      <div className="kpi-grid" style={{ marginBottom: 24 }}>
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="kpi-grid" 
+        style={{ marginBottom: 32 }}
+      >
         <Card title="💰 SALDO EN CAJA">
-          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)' }}>
-            {money(saldo)}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)', letterSpacing: '-1px' }}>
+                {money(saldo)}
+              </div>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 14 }}>Efectivo físico disponible en caja actualmente.</p>
+            </div>
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>Efectivo disponible actualmente.</p>
         </Card>
         
         <Card title="🚚 DINERO EN TRÁNSITO">
-          <div className="num" style={{ fontSize: 36, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)' }}>
-            {money(dineroEnTransito)}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)', letterSpacing: '-1px' }}>
+                {money(dineroEnTransito)}
+              </div>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>Cobrado por los contadores, pendiente de entregar a caja.</p>
+            </div>
+            <motion.button 
+              whileHover={dineroEnTransito > 0 ? { scale: 1.02 } : {}}
+              whileTap={dineroEnTransito > 0 ? { scale: 0.98 } : {}}
+              className="btn btn-primary" 
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                background: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--bg-inset)', 
+                borderColor: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--border)', 
+                color: dineroEnTransito > 0 ? '#000' : 'var(--hint)', 
+                fontWeight: 'bold',
+                cursor: dineroEnTransito > 0 ? 'pointer' : 'not-allowed',
+                opacity: dineroEnTransito > 0 ? 1 : 0.6
+              }} 
+              disabled={dineroEnTransito <= 0}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: 'Recolección de Contabilidad',
+                amount: dineroEnTransito,
+                type: 'ingreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              📥 {dineroEnTransito > 0 ? 'Recolectar Efectivo a Caja' : 'Nada por recolectar'}
+            </motion.button>
           </div>
-          <p className="hint" style={{ marginTop: 4, marginBottom: 0 }}>En manos de los contadores, listo para recoger.</p>
         </Card>
-        <Card title={`⚖️ DEUDA CON ${provName.toUpperCase()}`}>
-          <div style={{ padding: 16 }}>
-            <h2 className={deudaReal > 0 ? 'text-bad' : deudaReal < 0 ? 'text-ok' : ''}>
-              {deudaReal > 0 ? '+' : ''}{money(deudaReal)}
-            </h2>
-            <p className="hint" style={{ marginTop: 8 }}>
-            {deudaReal > 0 ? `Saldo a favor de ${provName} (le debes).` : deudaReal < 0 ? `Saldo a tu favor (${provName} te debe).` : 'Cuentas saldadas.'}
+
+        <Card title={`⚖️ ESTADO CON ${provName.toUpperCase()}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldoProveedor < 0 ? 'var(--bad)' : saldoProveedor > 0 ? 'var(--ok)' : 'var(--ink)', letterSpacing: '-1px' }}>
+                {saldoProveedor < 0 ? '-' : '+'}{money(Math.abs(saldoProveedor))}
+              </div>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 8, fontSize: 14 }}>
+                {saldoProveedor < 0 ? `Deuda activa (Total a pagar a ${provName}).` : saldoProveedor > 0 ? `Saldo a favor (${provName} te debe).` : 'Cuentas completamente saldadas.'}
+              </p>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8, marginBottom: 12 }}>
+               Fórmula: <strong>Pagado</strong> ({money(totalPagado)}) - <strong>Compras</strong> ({money(totalPurchasesCost)}) + <strong>Histórico</strong> ({money(deudaHistorica)})
+            </div>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="btn btn-primary" 
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                background: saldoProveedor < 0 ? 'var(--bad)' : '#0ea5e9', 
+                borderColor: saldoProveedor < 0 ? 'var(--bad)' : '#0ea5e9', 
+                color: '#fff', 
+                fontWeight: 'bold' 
+              }} 
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: saldoProveedor < 0 ? `Abono a ${provName}` : `Anticipo a ${provName}`,
+                provider: provName,
+                amount: saldoProveedor < 0 ? Math.abs(saldoProveedor) : 0,
+                type: 'egreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              {saldoProveedor < 0 ? '💸 Pagar Deuda Exacta' : '💸 Dar Anticipo / Pago a Cuenta'}
+            </motion.button>
+          </div>
+        </Card>
+      </motion.div>
+
+      {(() => {
+        // Cobros donde lo que realmente entro a Caja fue distinto de lo
+        // calculado (comision configurada vs comision real que aplico el
+        // contador). Antes esto nunca se registraba -- el sistema
+        // guardaba el monto calculado como si fuera el real, sin poder
+        // detectar el patron.
+        const conDiferencia = expenses.filter((e: any) => typeof e.diferencia === 'number' && Math.abs(e.diferencia) > 0.01);
+        if (conDiferencia.length === 0) return null;
+        const totalDiferencia = conDiferencia.reduce((a: number, e: any) => a + e.diferencia, 0);
+        return (
+          <Card title="⚖️ Esperado vs. Real — Diferencias en Cobros">
+            <p className="hint" style={{ marginBottom: 12 }}>
+              Cada vez que confirmas "Recibida del Contador", comparamos lo calculado contra lo que realmente escribiste que llegó.
+              {totalDiferencia !== 0 && (
+                <> Acumulado: <strong style={{ color: totalDiferencia > 0 ? 'var(--ok)' : 'var(--bad)' }}>{totalDiferencia > 0 ? '+' : ''}{money(totalDiferencia)}</strong></>
+              )}
             </p>
-          </div>
-        </Card>
-      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {conDiferencia.map((e: any) => (
+                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 10px', background: 'var(--paper-sunk)', borderRadius: 6 }}>
+                  <span>{e.concept}</span>
+                  <span>Esperado: {money(e.montoEsperado)}</span>
+                  <span>Real: {money(e.montoReal)}</span>
+                  <strong style={{ color: e.diferencia > 0 ? 'var(--ok)' : 'var(--bad)' }}>
+                    {e.diferencia > 0 ? '+' : ''}{money(e.diferencia)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
 
       <Card
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn btn-primary no-print" onClick={() => setSelected({
+            <button className="btn no-print" style={{ background: '#047857', color: 'white', borderColor: '#047857', fontWeight: 600 }} onClick={() => setSelected({
+              id: doc(collection(db, PATHS.expenses)).id,
+              date: Timestamp.fromDate(new Date()),
+              concept: '',
+              amount: 0,
+              type: 'ingreso',
+              createdAt: null,
+            } as Expense)}>
+              ➕ Ingreso
+            </button>
+            <button className="btn no-print" style={{ background: '#b91c1c', color: 'white', borderColor: '#b91c1c', fontWeight: 600 }} onClick={() => setSelected({
               id: doc(collection(db, PATHS.expenses)).id,
               date: Timestamp.fromDate(new Date()),
               concept: '',
@@ -200,7 +339,7 @@ export default function CajaChica() {
               type: 'egreso',
               createdAt: null,
             } as Expense)}>
-              + Registrar Gasto / Ingreso
+              ➖ Egreso
             </button>
             <span className="spacer" />
             <button className="btn no-print" onClick={exportCajaChicaCsv}>📥 Exportar Excel (CSV)</button>
@@ -220,47 +359,77 @@ export default function CajaChica() {
         {expenses.length === 0 ? (
           <Empty>No hay movimientos de caja registrados.</Empty>
         ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Concepto</th>
-                  <th>Tipo</th>
-                  <th className="num">Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map((e) => (
-                  <tr key={e.id} onClick={() => setSelected(e)} style={{ cursor: 'pointer' }}>
-                    <td className="mono">{fmtDate(e.date)}</td>
-                    <td>{e.concept}</td>
-                    <td>
-                      <span className={`badge ${e.type === 'ingreso' ? 'b-ok' : 'b-bad'}`}>
-                        {e.type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="num mono" style={{ color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--bad)' }}>
-                      {e.type === 'ingreso' ? '+' : '-'}{money(e.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+            {expenses.map((e, index) => (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(index * 0.03, 0.3) }}
+                key={e.id} 
+                onClick={() => setSelected(e)} 
+                style={{ 
+                  background: 'var(--glass-bg)', 
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: 12, 
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px -1px rgba(0,0,0,0.02)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                }}
+                whileHover={{ scale: 1.01, boxShadow: '0 8px 15px -3px rgba(0,0,0,0.05)' }}
+                whileTap={{ scale: 0.99 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ 
+                    width: 44, height: 44, borderRadius: 12, 
+                    background: e.type === 'ingreso' ? '#dcfce7' : '#fee2e2',
+                    color: e.type === 'ingreso' ? '#166534' : '#991b1b',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, flexShrink: 0
+                  }}>
+                    {e.type === 'ingreso' ? '📥' : '📤'}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)', marginBottom: 2 }}>{e.concept}</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                      <span className="mono">{fmtDate(e.date)}</span>
+                      {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
+                        <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                          ● Abono a Proveedor
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="mono" style={{ 
+                  color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--ink)', 
+                  fontWeight: 800, 
+                  fontSize: 17,
+                  textAlign: 'right'
+                }}>
+                  {e.type === 'ingreso' ? '+' : '-'}{money(e.amount)}
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
       </Card>
 
       {selected && (
-        <ExpenseModal expense={selected} onClose={() => setSelected(null)} provName={provName} />
+        <ExpenseDrawer expense={selected} onClose={() => setSelected(null)} provName={provName} />
       )}
     </>
   );
 }
 
-function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
+function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
   const { user } = useAuth();
   const toast = useToast();
+  const { executeWithUndo } = useUndo();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     date: toInputDate(expense.date),
@@ -304,26 +473,27 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
   }
 
   async function remove() {
-    if (!window.confirm('¿Borrar este movimiento?')) return;
-    setBusy(true);
-    try {
-      await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
-      await logAction(user?.email, 'Gasto Eliminado', {
-        id: expense.id,
-        concept: expense.concept,
-        amount: expense.amount
-      });
-      toast('Borrado', 'ok');
-      onClose();
-    } catch (e) {
-      toast(`Error: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBusy(false);
-    }
+    executeWithUndo(
+      async () => {
+        await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
+        await logAction(user?.email, 'Gasto Eliminado', {
+          id: expense.id,
+          concept: expense.concept,
+          amount: expense.amount
+        });
+        onClose();
+      },
+      async () => {
+        const ref = doc(db, PATHS.expenses, expense.id);
+        await setDoc(ref, expense);
+        await logAction(user?.email, 'Borrado de Gasto Deshecho', { id: expense.id });
+      },
+      `Movimiento de caja eliminado: ${expense.concept}`
+    );
   }
 
   return (
-    <Modal title={expense.createdAt ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose}>
+    <Drawer title={expense.createdAt ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose} width={500}>
       <div className="form-grid">
         <Field label="Fecha">
           <input className="input boxed mono" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
@@ -341,14 +511,14 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
           <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder={`Ej. ${provName}`} />
         </Field>
         <Field label="Monto">
-          <input className="input boxed mono" type="number" step="0.01" value={form.amount} onChange={(e) => set('amount', e.target.value)} />
+          <CurrencyInput className="input boxed mono" value={Number(form.amount) || 0} onChange={(val) => set('amount', String(val))} />
         </Field>
         <Field label="Notas adicionales" full>
           <textarea className="input boxed" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
         </Field>
       </div>
       <div className="modal-actions" style={{ marginTop: 24 }}>
-        {expense.createdAt && (
+        {expense.createdAt !== null && (
           <button className="btn btn-danger" onClick={() => void remove()} disabled={busy}>Eliminar</button>
         )}
         <span className="spacer" />
@@ -357,6 +527,6 @@ function ExpenseModal({ expense, onClose, provName }: { expense: Expense; onClos
           {busy ? 'Guardando…' : 'Guardar'}
         </button>
       </div>
-    </Modal>
+    </Drawer>
   );
 }

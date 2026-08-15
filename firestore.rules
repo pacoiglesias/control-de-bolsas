@@ -3,22 +3,23 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Función principal para verificar si el usuario es administrador.
-    // Basado en Custom Claims (token.admin) o correos permitidos.
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.token.admin == true ||
-        (request.auth.token.email != null && (
-          request.auth.token.email.matches(".*@ruenisco\\.com$") ||
-          request.auth.token.email == "pacoismael@gmail.com" ||
-          request.auth.token.email == "paco@cobertores.com" ||
-          request.auth.token.email.matches("^admin@.*")
-        ))
-      );
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && (
+          request.auth.token.admin == true ||
+          (request.auth.token.email != null && (
+            request.auth.token.email == "paco.iglesias@gmail.com" ||
+            request.auth.token.email == "pacoismael@gmail.com" ||
+            request.auth.token.email.matches(".*@cobertores\\.com")
+          ))
+        );
     }
 
-    // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager
+    // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager.
     function isAuthenticatedUser() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid))
           || isAdmin()
@@ -41,6 +42,10 @@ service cloud.firestore {
 
     function esAdminReal() {
       return isSuperAdmin();
+    }
+
+    function isAllowedOwnerEmail() {
+      return isAdmin();
     }
 
     match /admins/{uid} {
@@ -68,8 +73,31 @@ service cloud.firestore {
     match /purchaseOrders/{orderId} {
       // Todos los usuarios pueden leer expedientes (para empaquetar, checar estatus)
       allow read: if isAuthenticatedUser();
-      // Solo admins y managers pueden crear/modificar/borrar expedientes
-      allow create, update, delete: if isManagerOrAdmin();
+      // Managers y admins pueden crear/editar (uso diario del sistema).
+      allow create, update: if isManagerOrAdmin();
+      // Eliminar es mas sensible que editar -- en esta misma sesion se
+      // elimino por accidente un expediente con contrarecibos reales,
+      // mas de una vez. La proteccion de la interfaz (doble clic) ya se
+      // corrigio, pero la base de datos en si nunca distinguio "borrar"
+      // de "editar": cualquier manager podia hacer ambas cosas por
+      // igual. Ahora borrar requiere el nivel mas alto (super admin).
+      allow delete: if isSuperAdmin();
+    }
+
+    // Paso 1 de la migracion planeada (PLAN_DE_MEJORA_TOTAL.md, 3.4):
+    // coleccion nueva, en paralelo, donde cada factura vive como su
+    // propio documento -- se escribe en espejo junto al modelo actual,
+    // sin que ningun archivo existente dependa todavia de ella.
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ledger/{ledgerId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // Catalogo de productos. Se alimenta solo desde OrderModal al guardar las
@@ -77,6 +105,11 @@ service cloud.firestore {
     // match /{document=**} final: la pantalla Catalogo no cargaba nunca y el
     // guardado de cualquier expediente con partidas terminaba en error.
     match /products/{productId} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isManagerOrAdmin();
+    }
+
+    match /price_lists/{listId} {
       allow read: if isAuthenticatedUser();
       allow write: if isManagerOrAdmin();
     }
@@ -97,7 +130,10 @@ service cloud.firestore {
     }
 
     match /expenses/{expenseId} {
-      allow read, write: if isSuperAdmin();
+      // El Super Admin puede leer y escribir.
+      // El Maquilador (usuario anónimo sin rol) puede leer los egresos que pertenezcan a la categoría "Maquila".
+      allow read: if isSuperAdmin() || (request.auth != null && resource.data.category == 'Maquila');
+      allow write: if isSuperAdmin();
     }
 
     match /purchases/{purchaseId} {
@@ -107,9 +143,28 @@ service cloud.firestore {
     match /stats/{statId} {
       allow read: if isAuthenticatedUser();
     }
+    
+    match /maquilaDeliveries/{deliveryId} {
+      allow read: if isAuthenticatedUser();
+      // El maquilador se autentica anónimamente para enviar su reporte
+      allow create: if request.auth != null;
+      allow update, delete: if isManagerOrAdmin();
+    }
 
     match /system_settings/global {
       allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // El PIN del portal maquilador vive APARTE de system_settings/global.
+    // Las reglas de Firestore son por documento, no por campo: si el PIN
+    // siguiera en el documento publico de arriba (necesario para que Login
+    // muestre el logo/nombre antes de autenticarse), cualquiera podria
+    // leerlo directo sin necesidad de acertarlo. Solo el backend (Cloud
+    // Functions, que usa el Admin SDK y no pasa por estas reglas) necesita
+    // leerlo de verdad.
+    match /system_settings_private/maquila {
+      allow read: if isSuperAdmin();
       allow write: if isSuperAdmin();
     }
 
@@ -135,6 +190,18 @@ service cloud.firestore {
         && request.resource.data.timestamp == request.time;
       allow update: if false;
       allow delete: if isSuperAdmin();
+    }
+
+    // Logs de errores del frontend
+    match /error_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if true; // Permitir que el cliente escriba errores
+      allow update, delete: if false;
+    }
+
+    match /presence/{uid} {
+      allow read: if isAuthenticatedUser();
+      allow write: if isAuthenticatedUser() && request.auth.uid == uid;
     }
 
     // Todo lo demás queda cerrado.

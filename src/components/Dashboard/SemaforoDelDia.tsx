@@ -1,0 +1,257 @@
+import { useMemo } from 'react';
+import { money } from '../../lib/format';
+import { getOrderSummary, round2 } from '../../lib/finance';
+import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
+
+interface SemaforoDelDiaProps {
+  orders: PurchaseOrder[];
+  purchases: Purchase[];
+  config: FinancialConfig;
+  nav: (path: string) => void;
+  onOpenQuickInvoice?: () => void;
+  onOpenQuickCollection?: () => void;
+}
+
+export function SemaforoDelDia({
+  orders,
+  purchases,
+  config,
+  nav,
+  onOpenQuickInvoice,
+  onOpenQuickCollection,
+}: SemaforoDelDiaProps) {
+  const metrics = useMemo(() => {
+    let porPedirKilos = 0;
+    let porPedirOCs = 0;
+    let porFacturarKilos = 0;
+    let porFacturarMonto = 0;
+    let sinContrareciboCount = 0;
+    let porRecibirContadorMonto = 0;
+    let porRecibirContadorCount = 0;
+
+    const salePrice = config?.salePricePerKg || 43;
+    const ivaRate = config?.ivaRate || 0.16;
+
+    orders.forEach((o) => {
+      if (o.isClosedShort) return;
+      const summary = getOrderSummary(o);
+      const totalKilos = Number(o.totalKilograms) || 0;
+      const kilosEntregados = summary.kilosDelivered;
+      const kilosFacturados = summary.kilosInvoiced;
+
+      // 1. Por pedir a Andrés (OCs sin entregas y sin facturas)
+      if (kilosEntregados <= 0 && summary.invoices.length === 0 && totalKilos > 0) {
+        porPedirKilos += totalKilos;
+        porPedirOCs++;
+      }
+
+      // 2. Por facturar (Andrés entregó a Providencia pero faltan facturas)
+      if (kilosEntregados > kilosFacturados + 0.01) {
+        const delta = kilosEntregados - kilosFacturados;
+        porFacturarKilos += delta;
+        const sub = delta * (o.customSellPrice || salePrice);
+        porFacturarMonto += sub * (1 + ivaRate);
+      }
+
+      // 3. Facturas sin contrarecibo
+      (o.invoices || []).forEach((inv) => {
+        const cr = (inv.collection?.contrareciboNumber || '').trim();
+        const st = inv.creditCycle.status;
+        if (!cr && (st === 'facturado' || st === 'pending' || (inv.folio && inv.folio.length > 0))) {
+          sinContrareciboCount++;
+        }
+        if (st === 'paid') {
+          const tot = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+          const comm = inv.financials?.commission ?? (tot * (config?.commissionRate || 0.08));
+          porRecibirContadorMonto += (tot - comm);
+          porRecibirContadorCount++;
+        }
+      });
+    });
+
+    // 4. Andrés en producción (kilos pedidos en compras vs entregados)
+    const andresPendienteKilos = purchases.reduce((acc, p) => {
+      const faltan = (p.expectedKilos || 0) - (p.receivedKilos || 0);
+      return acc + Math.max(0, faltan);
+    }, 0);
+
+    return {
+      porPedirKilos: round2(porPedirKilos),
+      porPedirOCs,
+      andresPendienteKilos: round2(andresPendienteKilos),
+      porFacturarKilos: round2(porFacturarKilos),
+      porFacturarMonto: round2(porFacturarMonto),
+      sinContrareciboCount,
+      porRecibirContadorMonto: round2(porRecibirContadorMonto),
+      porRecibirContadorCount,
+    };
+  }, [orders, purchases, config]);
+
+  return (
+    <div
+      style={{
+        background: 'var(--paper)',
+        border: '1px solid var(--line)',
+        borderRadius: 14,
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-soft)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>🚦</span> Semáforo Operativo del Día
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-soft)' }}>
+            (Flujo de trabajo en tiempo real)
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+          Haz clic en cualquier bloque para actuar al instante
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+        {/* 1. Por pedir a Andrés */}
+        <div
+          onClick={() => nav('/ordenes?filtro=pedido')}
+          className="clickable"
+          style={{
+            background: metrics.porPedirOCs > 0 ? 'rgba(59,130,246,0.08)' : 'var(--paper-sunk)',
+            border: `1px solid ${metrics.porPedirOCs > 0 ? '#3b82f6' : 'var(--line)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 18 }}>📦</span>
+            <span className="badge" style={{ background: metrics.porPedirOCs > 0 ? '#3b82f6' : 'var(--ink-faint)', color: '#fff', fontSize: 10 }}>
+              {metrics.porPedirOCs} OC{metrics.porPedirOCs !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            1. Por Pedir a Andrés
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: metrics.porPedirOCs > 0 ? '#1d4ed8' : 'var(--ink)', marginTop: 2 }}>
+            {metrics.porPedirKilos.toLocaleString('es-MX')} kg
+          </div>
+        </div>
+
+        {/* 2. Andrés Fabricando */}
+        <div
+          onClick={() => nav('/compras')}
+          className="clickable"
+          style={{
+            background: metrics.andresPendienteKilos > 0 ? 'rgba(139,92,246,0.08)' : 'var(--paper-sunk)',
+            border: `1px solid ${metrics.andresPendienteKilos > 0 ? '#8b5cf6' : 'var(--line)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 18 }}>🏭</span>
+            <span className="badge" style={{ background: metrics.andresPendienteKilos > 0 ? '#8b5cf6' : 'var(--ink-faint)', color: '#fff', fontSize: 10 }}>
+              En Producción
+            </span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            2. Andrés por Entregar
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: metrics.andresPendienteKilos > 0 ? '#6d28d9' : 'var(--ink)', marginTop: 2 }}>
+            {metrics.andresPendienteKilos.toLocaleString('es-MX')} kg
+          </div>
+        </div>
+
+        {/* 3. Por Facturar */}
+        <div
+          onClick={() => {
+            if (onOpenQuickInvoice) onOpenQuickInvoice();
+            else nav('/ordenes');
+          }}
+          className="clickable"
+          style={{
+            background: metrics.porFacturarKilos > 0 ? 'rgba(245,158,11,0.1)' : 'var(--paper-sunk)',
+            border: `1px solid ${metrics.porFacturarKilos > 0 ? '#f59e0b' : 'var(--line)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 18 }}>📄</span>
+            <span className="badge" style={{ background: metrics.porFacturarKilos > 0 ? '#f59e0b' : 'var(--ink-faint)', color: '#fff', fontSize: 10 }}>
+              {metrics.porFacturarKilos.toLocaleString('es-MX')} kg
+            </span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            3. Entregas por Facturar
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: metrics.porFacturarKilos > 0 ? '#b45309' : 'var(--ink)', marginTop: 2 }}>
+            {money(metrics.porFacturarMonto)}
+          </div>
+        </div>
+
+        {/* 4. Facturas sin Contrarecibo */}
+        <div
+          onClick={() => {
+            if (onOpenQuickCollection) onOpenQuickCollection();
+            else nav('/cobranza');
+          }}
+          className="clickable"
+          style={{
+            background: metrics.sinContrareciboCount > 0 ? 'rgba(239,68,68,0.08)' : 'var(--paper-sunk)',
+            border: `1px solid ${metrics.sinContrareciboCount > 0 ? '#ef4444' : 'var(--line)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 18 }}>⏳</span>
+            <span className="badge" style={{ background: metrics.sinContrareciboCount > 0 ? '#ef4444' : 'var(--ink-faint)', color: '#fff', fontSize: 10 }}>
+              {metrics.sinContrareciboCount} pendientes
+            </span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            4. En Espera de CR
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: metrics.sinContrareciboCount > 0 ? '#b91c1c' : 'var(--ink)', marginTop: 2 }}>
+            {metrics.sinContrareciboCount} factura{metrics.sinContrareciboCount !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        {/* 5. Con el Contador por Recoger */}
+        <div
+          onClick={() => nav('/cobranza')}
+          className="clickable"
+          style={{
+            background: metrics.porRecibirContadorMonto > 0 ? 'rgba(16,185,129,0.1)' : 'var(--paper-sunk)',
+            border: `1px solid ${metrics.porRecibirContadorMonto > 0 ? '#10b981' : 'var(--line)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 18 }}>💵</span>
+            <span className="badge" style={{ background: metrics.porRecibirContadorMonto > 0 ? '#10b981' : 'var(--ink-faint)', color: '#fff', fontSize: 10 }}>
+              {metrics.porRecibirContadorCount} cobradas
+            </span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            5. Listo para Caja
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: metrics.porRecibirContadorMonto > 0 ? '#047857' : 'var(--ink)', marginTop: 2 }}>
+            {money(metrics.porRecibirContadorMonto)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

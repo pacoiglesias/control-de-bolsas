@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
-import OrderModal from './OrderModal';
-import { KpiCard, Skeleton } from '../components/ui';
+import OrderModal from '../components/OrderModal';
+import { EntregasKanban } from '../components/OcTracking/EntregasKanban';
+import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-// money vivia duplicada aqui con su propia implementacion. Una sola.
 import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
+import { getOrderSummary } from '../lib/finance';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -31,6 +33,7 @@ export default function OcTracking() {
   const { settings } = useSystemSettings();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [view, setView] = useState<'lista' | 'tablero'>('lista');
 
   const ocGroups = useMemo<OcGroup[]>(() => {
     const map = new Map<string, { order: PurchaseOrder; invoices: OcGroup['invoices'] }>();
@@ -61,6 +64,13 @@ export default function OcTracking() {
 
     return Array.from(map.entries())
       .map(([oc, data]) => ({ oc, order: data.order, invoices: data.invoices }))
+      .filter(g => {
+        // Filtrar órdenes que ya están totalmente entregadas y con contrarecibo
+        if (g.invoices.length === 0) return true; // Falta todo
+        // Si hay alguna factura sin CR o que no esté pagada/cobrada
+        const allHaveCR = g.invoices.every(inv => inv.cr);
+        return !allHaveCR;
+      })
       .sort((a, b) => {
         if (a.oc === 'SIN-OC') return 1;
         if (b.oc === 'SIN-OC') return -1;
@@ -115,15 +125,15 @@ export default function OcTracking() {
             <tbody>
               ${pendingOrders.length > 0 ? pendingOrders.map(g => {
                 const pedidos = g.order?.totalKilograms ?? 0;
-                const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
-                const faltante = pedidos - entregados;
+                const hasCR = g.invoices.length > 0 && g.invoices.every((i: any) => i.cr);
+                const faltante = hasCR ? 0 : pedidos;
                 return `
                   <tr>
                     <td><strong>${escapeHtml(g.oc)}</strong></td>
                     <td>${escapeHtml(g.order?.client || '—')}</td>
                     <td class="num">${pedidos.toLocaleString('es-MX')}</td>
-                    <td class="num">${entregados.toLocaleString('es-MX')}</td>
-                    <td class="num" style="color: #b91c1c; font-weight: bold;">${faltante.toLocaleString('es-MX')}</td>
+                    <td class="num">${hasCR ? '✅ Entregado' : '⏳ Pendiente'}</td>
+                    <td class="num" style="color: #b91c1c; font-weight: bold;">${hasCR ? '0' : faltante.toLocaleString('es-MX')}</td>
                     <td style="text-align: center;"><div class="check-box"></div></td>
                   </tr>
                 `;
@@ -146,9 +156,9 @@ export default function OcTracking() {
 
   function printManifiesto() {
     const pendingOrders = ocGroups.filter(g => {
-      const pedidos = g.order?.totalKilograms ?? 0;
-      const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
-      return pedidos > 0 && entregados < pedidos;
+      if (g.invoices.length === 0) return true; // Sin facturas = pendiente de entrega
+      // Si alguna factura NO tiene contrarecibo, significa que falta entregar evidencia/material
+      return g.invoices.some(inv => !inv.cr);
     });
 
     const html = getManifiestoHtml(pendingOrders);
@@ -160,9 +170,8 @@ export default function OcTracking() {
 
   async function shareManifiesto() {
     const pendingOrders = ocGroups.filter(g => {
-      const pedidos = g.order?.totalKilograms ?? 0;
-      const entregados = g.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
-      return pedidos > 0 && entregados < pedidos;
+      if (g.invoices.length === 0) return true;
+      return g.invoices.some(inv => !inv.cr);
     });
 
     const html = getManifiestoHtml(pendingOrders);
@@ -202,13 +211,19 @@ export default function OcTracking() {
           Orden de Compra. Haz clic en cualquier renglón para editar el expediente.
         </p>
         <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareManifiesto}>
-              <span className="icon">📤</span> Compartir PDF
-            </button>
-            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printManifiesto}>
-              📈 Imprimir Manifiesto
-            </button>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareManifiesto}>
+                <span className="icon">📤</span> Compartir PDF
+              </button>
+              <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printManifiesto}>
+                📈 Imprimir Manifiesto
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
+              <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
+            </div>
           </div>
         </div>
       </div>
@@ -226,10 +241,13 @@ export default function OcTracking() {
       </div>
 
       {/* Tabla de OCs */}
+      {view === 'tablero' ? (
+        <EntregasKanban orders={orders} onSelect={setSelectedOrder} />
+      ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ocGroups.map(group => {
           const totalAmt = group.invoices.reduce((s, i) => s + i.amount, 0);
-          const totalKilos = group.invoices.reduce((s, i) => s + i.kilos, 0);
+          const totalKilos = group.invoices.reduce((s, i) => s + Number(i.kilos), 0);
           const paidCount = group.invoices.filter(i => i.paid).length;
           const allPaid = group.invoices.length > 0 && paidCount === group.invoices.length;
           const nonePaid = paidCount === 0;
@@ -243,17 +261,34 @@ export default function OcTracking() {
             statusLabel = allPaid ? '✅ Cobradas' : nonePaid ? '🔴 Pendientes' : `🟡 Parcial (${paidCount}/${group.invoices.length})`;
           }
 
-          const kilosPedidos = group.order?.totalKilograms ?? 0;
-          const kilosEntregados = group.order?.deliveries?.reduce((a: any, b: any) => a + b.kilos, 0) ?? 0;
+          const summary = group.order ? getOrderSummary(group.order) : null;
+          const kilosPedidos = Number(group.order?.totalKilograms ?? 0);
+          const kilosEntregados = Number(summary?.kilosDelivered ?? 0);
+          const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
+          // Usar totalKilos (facturados) también desde summary para consistencia, 
+          // aunque aquí es de 'invoices' de la agrupación, usemos summary si existe.
+          const kilosFacturados = Number(summary?.kilosInvoiced ?? totalKilos);
 
           return (
             <div
               key={group.oc}
               style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
+                background: 'var(--glass-bg, #ffffff)',
+                backdropFilter: 'var(--glass-blur, none)',
+                WebkitBackdropFilter: 'var(--glass-blur, none)',
+                border: '1px solid var(--glass-border, var(--border))',
+                borderRadius: 12,
                 overflow: 'hidden',
+                boxShadow: 'var(--glass-shadow, 0 1px 3px rgba(0,0,0,0.05))',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.08)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'var(--glass-shadow, 0 1px 3px rgba(0,0,0,0.05))';
               }}
             >
               {/* Cabecera del grupo */}
@@ -273,17 +308,39 @@ export default function OcTracking() {
                   <div style={{ fontWeight: 700, fontSize: 15, fontFamily: 'monospace' }}>
                     OC: {group.oc} {group.order?.client && <span style={{color: 'var(--muted)', fontWeight: 400, marginLeft: 8}}>{group.order.client}</span>}
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                    <span style={{ color: 'var(--text)' }}>Pedida: {kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
-                    {' · '}
-                    <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--info)' }}>Entregada: {kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
-                    {' · '}
-                    <span style={{ color: totalKilos >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Facturada: {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</span>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: 'var(--ink)' }}>Pedida:</span> <strong>{kilosPedidos > 0 ? kilosPedidos.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '—'} kg</strong>
+                    </div>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: kilosEntregados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--warn)' }}>Surtida:</span> <strong>{kilosEntregados > 0 ? kilosEntregados.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '—'} kg</strong>
+                    </div>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: kilosFaltantes > 0 ? 'var(--info)' : 'var(--ok)' }}>Por Surtir:</span> <strong>{kilosFaltantes > 0 ? kilosFaltantes.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '0'} kg</strong>
+                    </div>
+                    <div style={{ background: 'var(--surface-alt)', padding: '4px 8px', borderRadius: 6 }}>
+                      <span style={{ color: kilosFacturados >= kilosPedidos && kilosPedidos > 0 ? 'var(--ok)' : 'var(--text)' }}>Facturada:</span> <strong>{kilosFacturados > 0 ? kilosFacturados.toLocaleString('es-MX', { maximumFractionDigits: 0 }) : '—'} kg</strong>
+                    </div>
+                    {kilosEntregados > kilosFacturados && (
+                      <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', padding: '4px 8px', borderRadius: 6, fontWeight: 600 }}>
+                        ⏳ Pendiente de Facturar: {(kilosEntregados - kilosFacturados).toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg
+                      </div>
+                    )}
                   </div>
+                  {kilosPedidos > 0 && (
+                    <div style={{ marginTop: 12, maxWidth: 400 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: 'var(--muted)', fontWeight: 600 }}>
+                        <span>Avance de Surtido</span>
+                        <span>{Math.round((kilosEntregados / kilosPedidos) * 100)}%</span>
+                      </div>
+                      <ProgressBar current={kilosEntregados} max={kilosPedidos} color={kilosEntregados >= kilosPedidos ? 'var(--ok)' : 'var(--accent)'} />
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{money(totalAmt)}</div>
-                  <div style={{ fontSize: 12, color: statusColor, marginTop: 2 }}>{statusLabel}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monto Facturado</div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>{money(totalAmt)}</div>
+                  <div style={{ fontSize: 12, color: statusColor, marginTop: 4, fontWeight: 600, background: 'var(--surface-alt)', padding: '2px 8px', borderRadius: 12, display: 'inline-block' }}>{statusLabel}</div>
                 </div>
                 <button
                   className="btn"
@@ -298,96 +355,105 @@ export default function OcTracking() {
               </div>
 
               {/* Detalle de facturas */}
-              {isOpen && (
-                <div style={{ borderTop: '1px solid var(--border)' }}>
-                  {group.invoices.length === 0 ? (
-                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>
-                      📝 Aún no hay facturas registradas en esta Orden de Compra. <br/>
-                      <span style={{ fontSize: 12 }}>Abre el expediente para añadir entregas o facturas.</span>
-                    </div>
-                  ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ background: 'var(--surface-alt)' }}>
-                          <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vence</th>
-                          <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estado</th>
-                          <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.invoices
-                          .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
-                          .map(inv => (
-                            <tr
-                              key={inv.folio}
-                              style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
-                              onClick={() => setSelectedOrder(inv.order)}
-                            >
-                              <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 600 }}>
-                                #{inv.folio}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
-                                {inv.kilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
-                                {money(inv.amount)}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
-                                {inv.cr || <span style={{ color: 'var(--muted)' }}>Sin CR</span>}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
-                                {inv.dueDate
-                                  ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })
-                                  : '—'}
-                              </td>
-                              <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                                {inv.status === 'collected' ? (
-                                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>✅ Recibida en Caja</span>
-                                ) : inv.status === 'paid' ? (
-                                  <span style={{ color: 'var(--warn)', fontWeight: 600 }}>🟡 Con el Contador</span>
-                                ) : (
-                                  <span style={{ color: 'var(--bad)', fontWeight: 600 }}>🔴 Por Cobrar</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                                <button
-                                  className="btn"
-                                  style={{ fontSize: 11, padding: '3px 8px' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedOrder(inv.order);
-                                  }}
-                                >
-                                  ✏️ Editar
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--surface-alt)' }}>
-                          <td style={{ padding: '10px 18px', fontWeight: 700 }}>TOTAL</td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                            {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })} kg
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                            {money(totalAmt)}
-                          </td>
-                          <td colSpan={4} />
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
-                </div>
-              )}
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ borderTop: '1px solid var(--border)', overflow: 'hidden' }}
+                  >
+                    {group.invoices.length === 0 ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>
+                        📝 Aún no hay facturas registradas en esta Orden de Compra. <br/>
+                        <span style={{ fontSize: 12 }}>Abre el expediente para añadir entregas o facturas.</span>
+                      </div>
+                    ) : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--surface-alt)' }}>
+                            <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vence</th>
+                            <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estado</th>
+                            <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.invoices
+                            .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
+                            .map(inv => (
+                              <tr
+                                key={inv.folio}
+                                style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                                onClick={() => setSelectedOrder(inv.order)}
+                              >
+                                <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 600 }}>
+                                  #{inv.folio}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
+                                  {inv.kilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
+                                  {money(inv.amount)}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
+                                  {inv.cr || <span style={{ color: 'var(--muted)' }}>Sin CR</span>}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+                                  {inv.dueDate
+                                    ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })
+                                    : '—'}
+                                </td>
+                                <td style={{ padding: '10px 18px', textAlign: 'center' }}>
+                                  {inv.status === 'collected' ? (
+                                    <span style={{ color: 'var(--ok)', fontWeight: 600 }}>✅ Recibida en Caja</span>
+                                  ) : inv.status === 'paid' ? (
+                                    <span style={{ color: 'var(--warn)', fontWeight: 600 }}>🟡 Con el Contador</span>
+                                  ) : (
+                                    <span style={{ color: 'var(--bad)', fontWeight: 600 }}>🔴 Por Cobrar</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '10px 18px', textAlign: 'center' }}>
+                                  <button
+                                    className="btn"
+                                    style={{ fontSize: 11, padding: '3px 8px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedOrder(inv.order);
+                                    }}
+                                  >
+                                    ✏️ Editar
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--surface-alt)' }}>
+                            <td style={{ padding: '10px 18px', fontWeight: 700 }}>TOTAL</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                              {totalKilos.toLocaleString('es-MX', { maximumFractionDigits: 1 })} kg
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                              {money(totalAmt)}
+                            </td>
+                            <td colSpan={4} />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}
       </div>
+      )}
 
       {selectedOrder && (
         <OrderModal

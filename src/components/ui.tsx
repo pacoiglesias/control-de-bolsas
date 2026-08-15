@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 import { useConfig } from '../hooks/useConfig';
@@ -19,18 +19,76 @@ export function KpiCard({
   hero?: boolean;
   onClick?: () => void;
 }) {
+  const getGradient = () => {
+    switch(tone) {
+      case 'ok': return 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(5,150,105,0.2) 100%)';
+      case 'bad': return 'linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(220,38,38,0.2) 100%)';
+      case 'warn': return 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)';
+      case 'cash': return 'linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(2,132,199,0.2) 100%)';
+      default: return 'linear-gradient(135deg, rgba(30,41,59,0.4) 0%, rgba(15,23,42,0.6) 100%)';
+    }
+  };
+
+  const getBorderColor = () => {
+    switch(tone) {
+      case 'ok': return 'rgba(16,185,129,0.3)';
+      case 'bad': return 'rgba(239,68,68,0.3)';
+      case 'warn': return 'rgba(245,158,11,0.3)';
+      case 'cash': return 'rgba(56,189,248,0.3)';
+      default: return 'rgba(255,255,255,0.1)';
+    }
+  };
+
   return (
-    <div
-      className={`kpi-card ${tone ?? ''} ${hero ? 'hero' : ''} ${onClick ? 'clickable' : ''}`}
+    <motion.div
+      className={`kpi-card ${hero ? 'hero' : ''}`}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+      whileHover={onClick ? { y: -4, scale: 1.02, boxShadow: `0 10px 30px -10px ${getBorderColor()}` } : undefined}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      style={{
+        background: getGradient(),
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${getBorderColor()}`,
+        borderRadius: '16px',
+        padding: hero ? '24px' : '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        cursor: onClick ? 'pointer' : 'default',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+      }}
     >
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
-      {sub ? <div className="kpi-sub">{sub}</div> : null}
-    </div>
+      <div style={{
+        fontSize: hero ? '14px' : '12px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        color: 'var(--ink-soft)',
+        marginBottom: hero ? '8px' : '4px'
+      }}>{label}</div>
+      <div style={{
+        fontSize: hero ? '32px' : '24px',
+        fontWeight: 800,
+        color: 'var(--ink)',
+        letterSpacing: '-0.02em',
+        lineHeight: 1.2
+      }}>{value}</div>
+      {sub ? <div style={{
+        fontSize: '13px',
+        color: 'var(--ink-faint)',
+        marginTop: '8px',
+        lineHeight: 1.4
+      }}>{sub}</div> : null}
+    </motion.div>
   );
 }
 
@@ -54,17 +112,157 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section className="card">
+    <motion.section 
+      className="card"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      style={{
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid var(--glass-border)',
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+        borderRadius: '20px',
+        overflow: 'hidden'
+      }}
+    >
       {title || actions ? (
-        <header className="card-head">
-          {title ? <h3>{title}</h3> : null}
-          {hint ? <span className="hint">{hint}</span> : null}
-          <span className="spacer" />
+        <header className="card-head" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.5)', padding: '20px 24px', background: 'rgba(248, 250, 252, 0.4)' }}>
+          {title ? <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em', margin: 0 }}>{title}</h3> : null}
+          {hint ? <span className="hint" style={{ background: 'rgba(226, 232, 240, 0.5)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginLeft: 12 }}>{hint}</span> : null}
+          <span className="spacer" style={{ flex: 1 }} />
           {actions}
         </header>
       ) : null}
-      {children}
-    </section>
+      <div style={{ padding: '0' }}>
+        {children}
+      </div>
+    </motion.section>
+  );
+}
+
+export function CopyButton({ text, label }: { text: string; label?: string; }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="btn-icon"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'auto', padding: '2px 6px', height: 24, fontSize: 11, color: copied ? 'var(--ok)' : 'var(--ink-soft)' }}
+      title={`Copiar ${label ?? text}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      {copied ? '✅' : '📋'}
+      {label && <span style={{ fontWeight: 600 }}>{label}</span>}
+    </button>
+  );
+}
+
+export function Drawer({
+  title,
+  onClose,
+  children,
+  side = 'right',
+  width = 500,
+}: {
+  title?: string;
+  onClose: () => void;
+  children: ReactNode;
+  side?: 'left' | 'right';
+  width?: number | string;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', handleEsc);
+    const overflowPrevio = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = overflowPrevio;
+    };
+  }, [onClose]);
+
+  return (
+    <AnimatePresence>
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: side === 'right' ? 'flex-end' : 'flex-start'
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+          }}
+        />
+        <motion.div
+          ref={boxRef}
+          initial={{ x: side === 'right' ? '100%' : '-100%', opacity: 0.5 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: side === 'right' ? '100%' : '-100%', opacity: 0.5 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          style={{
+            position: 'relative',
+            width: width,
+            maxWidth: '100vw',
+            height: '100%',
+            background: 'var(--bg)',
+            boxShadow: side === 'right' ? '-10px 0 30px rgba(0,0,0,0.1)' : '10px 0 30px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            borderLeft: side === 'right' ? '1px solid var(--line-soft)' : 'none',
+            borderRight: side === 'left' ? '1px solid var(--line-soft)' : 'none',
+            overflow: 'hidden'
+          }}
+        >
+          {title && (
+            <div style={{
+              padding: '24px',
+              borderBottom: '1px solid var(--line-soft)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--paper)',
+            }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>{title}</h2>
+              <button 
+                onClick={onClose} 
+                className="btn-icon" 
+                style={{ width: 32, height: 32, background: 'var(--bg-inset)', borderRadius: '50%' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            {children}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 }
 
@@ -74,12 +272,24 @@ export function Modal({
   children,
   wide,
 }: {
-  title: string;
+  title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
+  // onClose casi siempre es una funcion nueva en cada render del padre. Antes
+  // este efecto dependia de [onClose], asi que se reiniciaba en cada
+  // render mientras el modal seguia abierto: cada reinicio quitaba el
+  // bloqueo de scroll y lo volvia a poner. Si algo tronaba a mitad de una
+  // interaccion (un error real de codigo, no solo un caso raro) ANTES de que
+  // el efecto terminara de reiniciarse, la limpieza final podia no
+  // ejecutarse nunca — el body se quedaba con overflow:hidden para
+  // siempre, y el scroll dejaba de funcionar en TODA la aplicacion, no
+  // solo en la pantalla donde paso. Con onCloseRef, el bloqueo se pone y se
+  // quita UNA sola vez por apertura/cierre real del modal.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     // Quien abrio el modal recupera el foco al cerrarlo, y el fondo deja de
@@ -87,7 +297,15 @@ export function Modal({
     // botones de la pantalla que quedaba tapada.
     const previo = document.activeElement as HTMLElement | null;
     const overflowPrevio = document.body.style.overflow;
+    const paddingPrevio = document.body.style.paddingRight;
+    // Sin esto, ocultar la barra de scroll del fondo (abajo) deja un hueco
+    // del ancho exacto de esa barra -- el contenido de la pagina "salta"
+    // unos pixeles hacia la derecha en el instante en que se abre el
+    // expediente, y vuelve a saltar al cerrarlo. Compensar ese ancho con
+    // padding evita el salto.
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
 
     const focusables = () =>
       Array.from(
@@ -99,7 +317,7 @@ export function Modal({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab') {
@@ -121,9 +339,10 @@ export function Modal({
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
       document.body.style.overflow = overflowPrevio;
+      document.body.style.paddingRight = paddingPrevio;
       previo?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <AnimatePresence>
@@ -136,12 +355,12 @@ export function Modal({
           exit={{ opacity: 0 }}
         />
         <motion.div 
-          className={`modal-box ${wide ? 'wide' : ''}`} 
+          className={`modal-box glass-modal ${wide ? 'wide' : ''}`} 
           ref={boxRef}
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
         >
           <div className="modal-head">
             <h2 id="modal-title">{title}</h2>
@@ -198,8 +417,30 @@ export function ResponsiveMoney({ value }: { value: number }) {
   return (
     <>
       <span className="hide-mobile">{money(value)}</span>
-      <span className="show-mobile" title={money(value)}>{compactMoney(value)}</span>
+      <span className="hide-desktop">{compactMoney(value)}</span>
     </>
+  );
+}
+
+export function ProgressBar({ 
+  current, 
+  max, 
+  color = 'var(--accent)' 
+}: { 
+  current: number, 
+  max: number, 
+  color?: string 
+}) {
+  const percentage = max > 0 ? Math.min(100, Math.max(0, (current / max) * 100)) : 0;
+  return (
+    <div style={{ width: '100%', height: 8, background: 'var(--bg-inset)', borderRadius: 4, overflow: 'hidden', marginTop: 4 }}>
+      <motion.div 
+        initial={{ width: 0 }}
+        animate={{ width: `${percentage}%` }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        style={{ height: '100%', background: color, borderRadius: 4 }}
+      />
+    </div>
   );
 }
 
@@ -244,3 +485,64 @@ export function PrintHeader({ title, subtitle }: { title: string; subtitle?: str
     </div>
   );
 }
+
+export function Dropdown({
+  trigger,
+  children,
+  align = 'right'
+}: {
+  trigger: ReactNode;
+  children: ReactNode;
+  align?: 'left' | 'right';
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="dropdown-container" ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <div onClick={() => setIsOpen(!isOpen)} style={{ cursor: 'pointer' }}>
+        {trigger}
+      </div>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              [align]: 0,
+              marginTop: '8px',
+              minWidth: '200px',
+              background: 'var(--glass-bg, rgba(255, 255, 255, 0.85))',
+              backdropFilter: 'blur(var(--blur-radius, 12px))',
+              WebkitBackdropFilter: 'blur(var(--blur-radius, 12px))',
+              border: '1px solid var(--glass-border, rgba(226, 232, 240, 0.6))',
+              boxShadow: 'var(--glass-shadow, 0 10px 25px -5px rgba(0, 0, 0, 0.1))',
+              borderRadius: '12px',
+              zIndex: 50,
+              padding: '8px 0',
+              overflow: 'hidden'
+            }}
+            onClick={() => setIsOpen(false)} // Close on item click
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+

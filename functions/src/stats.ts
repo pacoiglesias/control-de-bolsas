@@ -51,10 +51,11 @@ function estaVencidaEnVivo(
 export function extractStats(data: any): Record<string, any> {
   let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, porCobrarSinCR = 0, porCobrarConCR = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
   let margen = 0, gananciaRealizada = 0;
+  let paymentDaysSum = 0, paymentDaysCount = 0;
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   const ahora = Date.now();
   
-  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
+  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
@@ -82,9 +83,28 @@ export function extractStats(data: any): Record<string, any> {
   }
   
   const isManual = status === 'manual_review' ? 1 : 0;
-  
-  if (status !== 'manual_review') {
-    kilos = Number(data.totalKilograms) || 0;
+
+  // ANTES: este bloque completo (kilos, vendido, margen, porCobrar, etc.)
+  // se saltaba ENTERO para cualquier expediente en 'manual_review' -- no
+  // solo la factura en revision, TODO el expediente quedaba en cero en el
+  // agregado (Dashboard). Por eso "Deuda Total Providencia" nunca incluia
+  // las "Facturas en Revision": el usuario las lleva en su propia hoja de
+  // calculo como dinero real ya adeudado (total factura, solo falta que
+  // Providencia le asigne numero de contrarecibo), pero el sistema las
+  // trataba como si no existieran. No habia ningun comentario que
+  // justificara el salto como decision deliberada -- todo apunta a que
+  // era un descuido, no una regla de negocio real.
+  {
+    // ANTES: `kilos` solo leia data.totalKilograms -- un campo a nivel
+    // expediente que en varios casos (como el que agrupa 10 contrarecibos
+    // reales de la migracion) nunca se actualizo y se quedo en 0, aunque
+    // las facturas de adentro sí tienen kilos reales capturados. El
+    // margen SI se calculaba bien (usa los kilos de cada factura), asi
+    // que "kilos" quedaba subestimado mientras "margen" era correcto —
+    // haciendo ver un margen por kilo mas alto de lo real. Si el campo
+    // resumen esta vacio, se usa la suma real de las facturas.
+    const kilosDeFacturas = invoices.reduce((acc: number, i: any) => acc + Number(i.kilos || 0), 0);
+    kilos = Number(data.totalKilograms) || kilosDeFacturas || 0;
     
     for (const inv of invoices) {
       const invTotal = Number(inv.financials?.invoiceTotal || inv.financials?.saleTotal || 0);
@@ -100,7 +120,12 @@ export function extractStats(data: any): Record<string, any> {
         const costT = Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * 42)); // fallback a $42
         invMargin = round2(saleT - costT);
       }
-      const invCommission = Number(inv.financials?.commission || 0);
+      // inv.financials.commission es un valor guardado (snapshot); para
+      // facturas importadas por XML ese campo puede no haberse llenado
+      // nunca, dejando la comision en $0 aunque la comision real siga
+      // aplicando. Respaldo con la tasa estandar (6.9%), mismo patron ya
+      // usado arriba para costPerKg (fallback a $42).
+      const invCommission = Number(inv.financials?.commission || (invTotal * 0.069));
       
       margen += invMargin;
       
@@ -122,17 +147,35 @@ export function extractStats(data: any): Record<string, any> {
       neto += invNet;
       
       const s = inv.creditCycle?.status;
-      if (s === 'paid') {
-        cobrado += paidAmt > 0 ? paidAmt : invTotal;
-        netoCobrado += invNet;
-        const commission = Number(inv.financials?.commission || 0);
-        porRecibir += (invTotal - commission);
-      } else if (s === 'pending' || s === 'overdue') {
+      if (s === 'paid' || s === 'collected') {
+        // Para ganancia cobrada, solo usamos 'paid' para no doble-contar o si 'collected' ya está
+        if (s === 'paid') {
+          cobrado += paidAmt > 0 ? paidAmt : invTotal;
+          netoCobrado += invNet;
+          const commission = Number(inv.financials?.commission || (invTotal * 0.069));
+          porRecibir += (invTotal - commission);
+        }
+        
+        // Métrica de DSO predictivo (desde CR hasta Pago)
+        const pAt = toDate(inv.collection?.paidAt);
+        const crAt = toDate(inv.collection?.contrareciboDate);
+        if (pAt && crAt) {
+          const dias = (pAt.getTime() - crAt.getTime()) / (1000 * 60 * 60 * 24);
+          if (dias >= 0) {
+            paymentDaysSum += dias;
+            paymentDaysCount += 1;
+          }
+        }
+      } else if (s === 'pending' || s === 'overdue' || s === 'manual_review') {
         porCobrar += saldo;
         // Dos gestiones distintas: sin CR se persigue para que el cliente
         // emita el contrarecibo; con CR ya se sabe cuando vence y solo
         // queda esperar. El usuario ya las llevaba separadas en su propia
         // hoja de calculo; el sistema las mezclaba en un solo numero.
+        // 'manual_review' cae aqui tambien: son facturas reales enviadas a
+        // revision, todavia sin numero de contrarecibo asignado -- dinero
+        // adeudado de verdad, exactamente como el usuario ya las cuenta en
+        // su hoja de calculo bajo "Facturas en Revision".
         const tieneCr = !!(inv.collection?.contrareciboNumber || data.collection?.contrareciboNumber);
         if (tieneCr) porCobrarConCR += saldo; else porCobrarSinCR += saldo;
         // "vencido" cuenta por FECHA, no solo por el estatus guardado: sin
@@ -157,28 +200,74 @@ export function extractStats(data: any): Record<string, any> {
 
   // Monto pendiente por facturar (kilos entregados - kilos facturados)
   let kilosPendientesFacturar = 0;
-  if (status !== 'manual_review') {
+  let entregados = 0;
+  // Igual que arriba: ya no se excluye 'manual_review' de este calculo --
+  // solo MIGRACION sigue excluido (son datos historicos sin trazabilidad
+  // real de entregas/facturas, ver el comentario original de esta regla).
+  if (data.client !== 'MIGRACION') {
     let kilosFacturados = 0;
     for (const inv of invoices) {
       kilosFacturados += Number(inv.kilos || 0);
     }
-    const entregados = Number(data.totalKilograms || 0);
+    
+    // Kilos Entregados = suma de entregas si existen, sino 0.
+    // NO asumas que entregados = totalKilograms (kilos pedidos).
+    // FIX 2026-08-10 (Iteracion 96): antes esto solo leia d.kilos, ignorando
+    // d.items[] por completo. El calculo "gemelo" del cliente (getOrderSummary
+    // en src/lib/finance.ts) SI prioriza la suma de d.items[].quantity cuando
+    // existe, y solo cae a d.kilos como respaldo -- son dos formulas distintas
+    // para el mismo dato. En una entrega donde items[] y kilos quedaron
+    // desincronizados (ej. se edito el desglose por producto pero el campo
+    // kilos "total" viejo no se actualizo), el Dashboard (este archivo)
+    // contaba una cosa y la pantalla de Facturar (el cliente) contaba otra --
+    // exactamente el mismo tipo de "7 vs 0" reportado y corregido en
+    // Iteracion 95, pero via una ruta distinta. Ahora usan la misma regla.
+    if (data.deliveries && data.deliveries.length > 0) {
+      for (const d of data.deliveries) {
+        if (d.items && d.items.length > 0) {
+          entregados += d.items.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+        } else {
+          entregados += Number(d.kilos || 0);
+        }
+      }
+    }
+
     const faltantes = Math.max(0, entregados - kilosFacturados);
     kilosPendientesFacturar = faltantes;
   }
-  const montoPendienteFacturar = round2(kilosPendientesFacturar * 47 * 1.16);
+  
+  // Utilizar el precio de venta configurado en el expediente (snapshot/custom), no un valor fijo.
+  // 2026-08-10: el respaldo bajó de 47 a 43 (confirmado por el usuario).
+  const customPrice = data.financials?.salePricePerKg || 43;
+  // Nota: Si el IVA es distinto de 16%, debería leerse de data.financials.ivaRate, pero 
+  // para mantener la estructura actual de los KPIs que asume 16% agregamos fallback a 1.16
+  const ivaRate = data.financials?.ivaRate ?? 0.16;
+  const montoPendienteFacturar = round2(kilosPendientesFacturar * customPrice * (1 + ivaRate));
 
   return {
     kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir,
     margen, gananciaRealizada, montoPendienteFacturar,
+    paymentDaysSum, paymentDaysCount,
     meses,
     isPending: status === 'pending' ? 1 : 0,
     isOverdue: status === 'overdue' ? 1 : 0,
     isManual,
-    // "pedido" = expediente sin ninguna factura creada: lo que falta por
-    // facturar. Contador aparte porque no existia ninguno visible en el
-    // panel y el usuario perdio de vista donde se ve este pendiente.
-    isPedido: status === 'pedido' ? 1 : 0,
+    // "pedido" = expediente con kilos entregados por encima de lo ya
+    // facturado: lo que falta por facturar. Antes esto comparaba
+    // status === 'pedido' (cero facturas creadas), que es una definicion
+    // completamente distinta a la que ya usa montoPendienteFacturar arriba
+    // (kilos entregados - kilos facturados) -- asi que un expediente con
+    // status 'facturado'/'pending' pero con MAS entregas que facturas
+    // (ej. entregas parciales sin su factura correspondiente) contaba en
+    // el monto en pesos del Dashboard pero NO en este contador de ordenes,
+    // y viceversa: un expediente 'pedido' sin ninguna entrega registrada
+    // contaba aqui aunque no hubiera nada realmente "pendiente de
+    // facturar" todavia. Resultado real reportado por el usuario: el
+    // Dashboard decia "7 ordenes con entregas pero sin facturar" mientras
+    // el chip "Pendiente de Facturar" de Ordenes (que SI usa kilos
+    // entregados vs facturados, ver Orders.tsx) mostraba 0. Ahora ambos
+    // usan la misma definicion basada en kilos.
+    isPedido: kilosPendientesFacturar > 0 ? 1 : 0,
   };
 }
 
@@ -210,6 +299,8 @@ async function applyStatsDelta(docPath: string, before: any, after: any) {
   addDelta("netoCobrado", before.netoCobrado, after.netoCobrado);
   addDelta("porRecibir", before.porRecibir, after.porRecibir);
   addDelta("montoPendienteFacturar", before.montoPendienteFacturar || 0, after.montoPendienteFacturar || 0);
+  addDelta("paymentDaysSum", before.paymentDaysSum || 0, after.paymentDaysSum || 0);
+  addCounterDelta("paymentDaysCount", before.paymentDaysCount || 0, after.paymentDaysCount || 0);
 
   addCounterDelta("pendingOrders", before.isPending, after.isPending);
   addCounterDelta("pedidoOrders", before.isPedido, after.isPedido);
@@ -316,9 +407,10 @@ export const recalcDashboardStats = onCall(
       kpis: {
         totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0,
         gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0,
-        vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0
+        vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0,
+        paymentDaysSum: 0
       },
-      counters: { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0 },
+      counters: { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0, paymentDaysCount: 0 },
       histograms: {} as Record<string, Record<string, number>>
     });
 
@@ -347,12 +439,14 @@ export const recalcDashboardStats = onCall(
       target.kpis.netoCobrado += s.netoCobrado;
       target.kpis.porRecibir += s.porRecibir;
       target.kpis.montoPendienteFacturar += s.montoPendienteFacturar || 0;
+      target.kpis.paymentDaysSum += s.paymentDaysSum || 0;
 
       target.counters.pendingOrders += s.isPending;
       target.counters.pedidoOrders += s.isPedido;
       target.counters.overdueOrders += s.isOverdue;
       target.counters.manualReview += s.isManual;
       target.counters.totalOrders += 1;
+      target.counters.paymentDaysCount += s.paymentDaysCount || 0;
 
       for (const [mes, v] of Object.entries(s.meses as Record<string, any>)) {
         if (!target.histograms[mes]) {

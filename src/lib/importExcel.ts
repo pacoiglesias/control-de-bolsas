@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
 import type { PurchaseOrder } from './types';
@@ -14,6 +13,7 @@ export async function processExcelImport(file: File): Promise<ExcelImportSummary
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         

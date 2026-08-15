@@ -7,6 +7,7 @@ import { Card, Empty, Spinner } from '../components/ui';
 import CierreMesModal from '../components/CierreMesModal';
 import { fmtDateTime } from '../lib/format';
 import { useToast } from '../context/ToastContext';
+import { confirmDialog } from '../lib/confirmDialog';
 
 interface LogEntry {
   id: string;
@@ -101,7 +102,7 @@ export default function Logs() {
   }
 
   async function clearLogs() {
-    if (!confirm('¿Estás seguro de que deseas borrar TODA la bitácora? Esto no se puede deshacer.')) return;
+    if (!(await confirmDialog({ message: '¿Estás seguro de que deseas borrar TODA la bitácora? Esto no se puede deshacer.', danger: true }))) return;
     setClearing(true);
     try {
       const q = query(collection(db, 'system_logs'), limit(500));

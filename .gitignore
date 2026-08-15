@@ -27,3 +27,12 @@ public/*.json
 !public/manifest.json
 contrarecibos.json
 facturas_pendientes_contrarecibo.json
+
+# Archivos de respaldo temporal del editor
+*.bak
+
+# Respaldo manual y basura
+*.zip
+_respaldo_*
+diff.txt
+*.bak

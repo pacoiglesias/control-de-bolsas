@@ -19,6 +19,9 @@ import {
   round2,
   type FinanceConfigCore,
 } from "./shared/finance.core";
+import { parseDocumentData } from "./ai/extractor";
+
+export { parseDocumentData };
 
 initializeApp();
 
@@ -39,7 +42,9 @@ const MAX_UPLOAD_MB = 5;
 const COL_ORDERS = "purchaseOrders";
 
 const DEFAULTS = {
-  salePricePerKg: 47,
+  // 2026-08-10: bajó de 47 a 43 (confirmado por el usuario). Debe
+  // coincidir con DEFAULT_CONFIG.salePricePerKg en src/lib/types.ts.
+  salePricePerKg: 43,
   costPricePerKg: 42,
   commissionRate: 0.08,
   creditDays: 30,
@@ -62,6 +67,142 @@ async function readConfig(): Promise<FinanceConfigCore> {
     commissionBase: (c.commissionBase ?? DEFAULTS.commissionBase) as "subtotal" | "total",
   };
 }
+
+// Force deploy to fix CORS/IAM policy
+export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, async (request) => {
+
+  const { action, pin } = request.data || {};
+  const db = getFirestore();
+
+  // El PIN se exige para CUALQUIER accion de esta funcion, no solo
+  // "ledger". Antes el camino por defecto (listar/registrar entregas) no
+  // pedia PIN en absoluto en el servidor — el "candado" solo vivia en el
+  // navegador, y cualquiera con la URL de la funcion podia llamarla
+  // directo sin PIN. Ademas, el PIN real ahora se lee de un documento que
+  // Firestore nunca deja leer al cliente (system_settings_private), no del
+  // documento publico donde vivia antes.
+  if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
+  const pinSnap = await db.collection('system_settings_private').doc('maquila').get();
+  const realPin = pinSnap.data()?.pin || '2468';
+  if (pin !== realPin) {
+    throw new HttpsError('permission-denied', 'PIN incorrecto');
+  }
+
+  if (action === 'ledger') {
+    const configSnap = await db.collection('config').doc('financials').get();
+    const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
+    const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
+
+    const purchasesSnap = await db.collection('purchases').get();
+    const provPurchases = purchasesSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((p: any) => p.provider && p.provider.toLowerCase() === 'andres');
+
+    const orderIds = provPurchases.map(p => p.id);
+    const orderById = new Map();
+    if (orderIds.length > 0) {
+      const ordersSnap = await db.collection('purchaseOrders').get();
+      ordersSnap.docs.forEach(d => {
+        orderById.set(d.id, d.data());
+      });
+    }
+
+    const expensesSnap = await db.collection('expenses').get();
+    const provExpenses = expensesSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((e: any) => e.provider && e.provider.toLowerCase() === 'andres');
+
+    const totalReceivedKilos = provPurchases.reduce((acc, p: any) => acc + (p.receivedKilos ?? 0), 0);
+    const totalPurchasesCost = provPurchases.reduce((acc, p: any) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)), 0);
+    
+    const totalPagado = provExpenses.reduce((acc, e: any) => {
+      if (e.type === 'egreso') return acc + (e.amount || 0);
+      if (e.type === 'ingreso') return acc - (e.amount || 0);
+      return acc;
+    }, 0);
+    
+    const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
+
+    const ledger: any[] = [
+      ...provPurchases.map((p: any) => ({
+        id: p.id,
+        date: p.date, 
+        concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
+        cargo: ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
+        abono: 0,
+        balance: 0,
+        source: 'purchase'
+      })).filter((x: any) => x.cargo > 0),
+      ...provExpenses.map((e: any) => ({
+        id: e.id,
+        date: e.date,
+        concept: e.concept || '',
+        cargo: e.type === 'ingreso' ? (e.amount || 0) : 0, 
+        abono: e.type === 'egreso' ? (e.amount || 0) : 0, 
+        balance: 0,
+        source: 'expense'
+      }))
+    ];
+
+    const getMillis = (dateObj: any) => {
+      if (!dateObj) return 0;
+      if (dateObj.toMillis) return dateObj.toMillis();
+      if (dateObj._seconds) return dateObj._seconds * 1000;
+      return 0;
+    };
+
+    ledger.sort((a, b) => getMillis(a.date) - getMillis(b.date));
+
+    let running = -historicalDebtAndres;
+    for (const row of ledger) {
+      running += row.cargo;
+      running -= row.abono;
+      row.balance = running;
+      
+      row.dateMillis = getMillis(row.date);
+      delete row.date;
+    }
+    ledger.reverse();
+
+    return {
+      totalReceivedKilos,
+      totalPurchasesCost,
+      totalPagado,
+      saldoProveedor,
+      ledger
+    };
+  }
+
+  // Original getActiveMaquilaOrders logic
+  const snapshot = await db.collection(COL_ORDERS).get();
+
+  const activeOrders: any[] = [];
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    if (data.isArchived) return;
+    const status = data.creditCycle?.status || "pedido";
+    if (status === "pedido" || status === "pending" || status === "overdue") {
+      const deliveries = data.deliveries || [];
+      const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + (d.kilos || 0), 0);
+      const totalKilos = data.totalKilograms || 0;
+      const pendingKilos = totalKilos - totalDelivered;
+
+      if (pendingKilos > 0) {
+        activeOrders.push({
+          orderId: doc.id,
+          folio: data.folio || "Sin Folio",
+          productDescription: data.productDescription || "Producto",
+          totalKilos,
+          pendingKilos,
+        });
+      }
+    }
+  });
+
+  return activeOrders;
+});
+
+
 
 /** Cache corto de config/financials: el sanitizador se dispara en cascada
  *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
@@ -240,9 +381,10 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       id: docIdFor(filePath),
       fileName: filePath,
       fileHash: fileHash ?? "",
-      status: "manual_review",
+      creditCycle: { status: "manual_review" },
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
+      processedAt: FieldValue.serverTimestamp(),
     };
 
     logger.info(`Creado expediente vacío en revisión manual para PDF: ${filePath}`);
@@ -257,13 +399,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
     throw error;
   }
 }
-
-export const parseUploadedPDF = onObjectFinalized(
-  {
-    // MAX_INTENTOS veces, asi que esto no dispara reintentos infinitos.
-    retry: true,
-  },
-  async (event) => {
+export const parseUploadedPDF = onObjectFinalized(async (event) => {
     const filePath = event.data.name;
     const contentType = event.data.contentType ?? "";
 
@@ -344,8 +480,18 @@ export const checkOverdueInvoices = onSchedule(
       return;
     }
 
-    const yaVencio = (cc?: { status?: string; dueDate?: Timestamp | null }) =>
-      !!cc && cc.status === "pending" && !!cc.dueDate &&
+    // REGLA DE NEGOCIO: una factura SIN contrarecibo no puede estar vencida.
+    // El plazo de credito arranca cuando Providencia emite el CR, no cuando
+    // se envia la factura a revision. Sin esto, las facturas en revision se
+    // marcaban "overdue" al dia siguiente de su emision e inflaban "Vencido"
+    // del panel por su monto completo (ver Ciclo 33 en AUDIT_NOTEBOOK.md).
+    // Este era el bug que quedo señalado como pendiente y no se habia
+    // corregido todavia ni en esta rama ni en GitHub.
+    const yaVencio = (
+      cc?: { status?: string; dueDate?: Timestamp | null },
+      tieneCr?: boolean,
+    ) =>
+      !!cc && cc.status === "pending" && !!cc.dueDate && !!tieneCr &&
       cc.dueDate.toMillis() < ahora.toMillis();
 
     const cambios: { ref: FirebaseFirestore.DocumentReference; datos: Record<string, unknown> }[] = [];
@@ -353,16 +499,19 @@ export const checkOverdueInvoices = onSchedule(
     snapshot.docs.forEach((d: QueryDocumentSnapshot) => {
       const data = d.data();
       const datos: Record<string, unknown> = {};
+      const crDelExpediente = !!data.collection?.contrareciboNumber;
 
       // a) Expedientes viejos: el ciclo vive en la raiz del documento.
-      if (yaVencio(data.creditCycle)) datos["creditCycle.status"] = "overdue";
+      if (yaVencio(data.creditCycle, crDelExpediente)) datos["creditCycle.status"] = "overdue";
 
       // b) Modelo nuevo: cada factura trae su ciclo dentro del arreglo.
       const invoices: Record<string, unknown>[] = Array.isArray(data.invoices) ? data.invoices : [];
       let tocado = false;
       const actualizadas = invoices.map((inv) => {
         const cc = inv.creditCycle as { status?: string; dueDate?: Timestamp | null } | undefined;
-        if (yaVencio(cc)) {
+        const collection = inv.collection as { contrareciboNumber?: string } | undefined;
+        const tieneCr = !!(collection?.contrareciboNumber || crDelExpediente);
+        if (yaVencio(cc, tieneCr)) {
           tocado = true;
           return { ...inv, creditCycle: { ...cc, status: "overdue" } };
         }
@@ -382,6 +531,41 @@ export const checkOverdueInvoices = onSchedule(
       if (Object.keys(datos).length > 0) {
         datos.updatedAt = FieldValue.serverTimestamp();
         cambios.push({ ref: d.ref, datos });
+      }
+    });
+
+    // REPARACION de datos ya corrompidos por el bug anterior: facturas que
+    // quedaron marcadas "overdue" sin tener contrarecibo, de antes de que
+    // esta regla existiera. Necesitan su propia consulta porque, al estar ya
+    // en "overdue", invoiceStatuses ya no las trae la busqueda de arriba
+    // (que solo busca "pending").
+    const snapshotVencidas = await db.collection(COL_ORDERS)
+      .where("invoiceStatuses", "array-contains", "overdue")
+      .get();
+    snapshotVencidas.docs.forEach((d) => {
+      const data = d.data();
+      const crDelExpediente = !!data.collection?.contrareciboNumber;
+      const invoices: Record<string, unknown>[] = Array.isArray(data.invoices) ? data.invoices : [];
+      let reparado = false;
+      const reparadas = invoices.map((inv) => {
+        const cc = inv.creditCycle as { status?: string; dueDate?: Timestamp | null } | undefined;
+        const collection = inv.collection as { contrareciboNumber?: string } | undefined;
+        const tieneCr = !!(collection?.contrareciboNumber || crDelExpediente);
+        if (cc?.status === "overdue" && !tieneCr) {
+          reparado = true;
+          return { ...inv, creditCycle: { ...cc, status: "pending" } };
+        }
+        return inv;
+      });
+      if (reparado) {
+        cambios.push({
+          ref: d.ref,
+          datos: {
+            invoices: reparadas,
+            invoiceStatuses: reparadas.map((inv) => (inv.creditCycle as { status?: string } | undefined)?.status ?? "pending"),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+        });
       }
     });
 
@@ -561,3 +745,4 @@ export const updateCajaChicaBalance = onDocumentWritten(
     }
   }
 );
+// forcedeploy
