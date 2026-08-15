@@ -536,6 +536,9 @@ return () => unsub();
                 <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
                   📋 5 Máx
                 </button>
+                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 10, padding: '3px 7px' }} title="Reconstruir indicadores del dashboard">
+                  {recalcBusy ? '⏳ Recalculando…' : '🔄 Recalcular'}
+                </button>
               </div>
             </div>
           </div>
@@ -551,6 +554,16 @@ return () => unsub();
         onOpenQuickCollection={() => setShowQuickCollection(true)}
       />
 
+      <QuickActionsBar 
+        role={role}
+        onNewOrder={() => nav('/ordenes?nueva=1')}
+        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickCollection={() => setShowQuickCollection(true)}
+        onQuickPay={() => setShowQuickPay(true)}
+        onOpenCorteMensual={() => setShowCorteMensual(true)}
+      />
 
       <BandejaMaquilaWidget />
       
@@ -743,44 +756,6 @@ return () => unsub();
         );
       })()}
 
-      {role !== 'viewer' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {role === 'admin' && (
-            <button className="btn" onClick={() => nav('/compras')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-              <span style={{ fontSize: 24 }}>🏭</span>
-              <span style={{ fontWeight: 600 }}>Comprar al Fabricante</span>
-            </button>
-          )}
-          <button className="btn" onClick={() => nav('/cobranza')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-            <span style={{ fontSize: 24 }}>💰</span>
-            <span style={{ fontWeight: 600 }}>Registrar Cobro</span>
-          </button>
-          {role === 'admin' && (
-            <button
-              className="btn"
-              onClick={() => { window.location.href = '/audit'; }}
-              title="Sube tu Excel corregido y aplica los cambios a la base de datos."
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}
-            >
-              <span style={{ fontSize: 24 }}>⚖️</span>
-              <span style={{ fontWeight: 600 }}>Ir a Auditoría Maestra</span>
-            </button>
-          )}
-          {role === 'admin' && (
-            <button
-              className="btn"
-              onClick={() => void recalcStats()}
-              disabled={recalcBusy}
-              title="Reconstruye los indicadores de este panel leyendo todos los expedientes. Úsalo si las cifras se ven en cero o descuadradas."
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}
-            >
-              <span style={{ fontSize: 24 }}>{recalcBusy ? '⏳' : '🔄'}</span>
-              <span style={{ fontWeight: 600 }}>{recalcBusy ? 'Recalculando…' : 'Recalcular Indicadores'}</span>
-            </button>
-          )}
-        </div>
-      )}
-
       {(statsDoc?.counters?.totalOrders ?? 0) === 0 && role === 'admin' && (
         <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
@@ -811,17 +786,6 @@ return () => unsub();
       ) : (
         <ModernKpiGrid k={k} role={role} saldoCaja={saldoCaja} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} config={config} />
       )}
-
-      <QuickActionsBar 
-        role={role}
-        onNewOrder={() => nav('/ordenes?nueva=1')}
-        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-        onQuickInvoice={() => setShowQuickInvoice(true)}
-        onQuickCollection={() => setShowQuickCollection(true)}
-        onQuickPay={() => setShowQuickPay(true)}
-        onOpenCorteMensual={() => setShowCorteMensual(true)}
-      />
 
       {showContrarecibosDrawer && (
         <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>

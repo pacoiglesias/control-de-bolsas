@@ -11,105 +11,247 @@ interface QuickActionsBarProps {
   role: string | null;
 }
 
-export function QuickActionsBar({ onOpenContrarecibos, onOpenSeguimiento, onNewOrder, onQuickInvoice, onQuickCollection, onQuickPay, onOpenCorteMensual, role }: QuickActionsBarProps) {
+export function QuickActionsBar({
+  onOpenContrarecibos,
+  onOpenSeguimiento,
+  onNewOrder,
+  onQuickInvoice,
+  onQuickCollection,
+  onQuickPay,
+  onOpenCorteMensual,
+  role,
+}: QuickActionsBarProps) {
   return (
-    <div style={{ display: 'flex', gap: 16, marginBottom: 32, flexWrap: 'wrap' }}>
-      <motion.button 
-        whileHover={{ scale: 1.02, y: -2 }}
-        whileTap={{ scale: 0.98 }}
-        className="quick-btn primary"
-        onClick={onNewOrder}
-      >
-        <span className="icon">➕</span> Nuevo Expediente
-      </motion.button>
+    <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ─── FILA 1: OPERACIONES CLAVE DE FLUJO ─────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-soft)', marginRight: 2 }}>
+          ⚡ Operación:
+        </span>
 
-        <motion.button 
-          whileHover={{ scale: 1.02, y: -2 }}
-          whileTap={{ scale: 0.98 }}
-          className="quick-btn outline"
-          onClick={() => document.dispatchEvent(new CustomEvent('open-command-menu'))}
-        >
-          <span className="icon">🔍</span> Buscar (Cmd+K)
-        </motion.button>
-
-      {role !== 'viewer' && (
-        <motion.button 
-          whileHover={{ scale: 1.02, y: -2 }}
-          whileTap={{ scale: 0.98 }}
-          className="quick-btn glass"
-          onClick={onOpenContrarecibos}
-        >
-          <span className="icon">📆</span> Vencimientos (CR)
-        </motion.button>
-      )}
-
-      {onOpenCorteMensual && (
+        {/* 1. Nuevo Expediente (Hero Principal) */}
         <motion.button
-          whileHover={{ scale: 1.02, y: -2 }}
+          whileHover={{ scale: 1.02, y: -1 }}
           whileTap={{ scale: 0.98 }}
-          className="btn"
-          style={{ padding: '16px 20px', fontSize: 15, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.15) 100%)', border: '1px solid #3b82f6', color: '#1d4ed8', fontWeight: 700 }}
-          onClick={onOpenCorteMensual}
+          onClick={onNewOrder}
+          style={{
+            background: 'var(--accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 12,
+            padding: '9px 18px',
+            fontSize: 13.5,
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)',
+          }}
         >
-          <span style={{ fontSize: 18 }}>📑</span> Corte Mensual
+          <span style={{ fontSize: 16 }}>➕</span> Nuevo Expediente
         </motion.button>
-      )}
 
-      {role === 'admin' && (
-        <motion.a 
-          href="/portal-maquilador"
-          target="_blank"
-          whileHover={{ scale: 1.02, y: -2 }}
+        {role !== 'viewer' && (
+          <>
+            {/* 2. Facturar Rápido */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onQuickInvoice}
+              style={{
+                background: 'var(--paper-raised)',
+                color: '#047857',
+                border: '1px solid #10b981',
+                borderRadius: 12,
+                padding: '9px 16px',
+                fontSize: 13.5,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🧾</span> Facturar (Rápido)
+            </motion.button>
+
+            {/* 3. Capturar Contrarecibo */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onQuickCollection}
+              style={{
+                background: 'var(--paper-raised)',
+                color: '#b45309',
+                border: '1px solid #f59e0b',
+                borderRadius: 12,
+                padding: '9px 16px',
+                fontSize: 13.5,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🗂️</span> Capturar Contrarecibo
+            </motion.button>
+
+            {/* 4. Registrar Cobro */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onQuickPay}
+              style={{
+                background: 'var(--paper-raised)',
+                color: '#0d9488',
+                border: '1px solid #14b8a6',
+                borderRadius: 12,
+                padding: '9px 16px',
+                fontSize: 13.5,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>💸</span> Registrar Cobro
+            </motion.button>
+          </>
+        )}
+      </div>
+
+      {/* ─── FILA 2: CONTROL, SEGUIMIENTO Y HERRAMIENTAS ───────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-soft)', marginRight: 2 }}>
+          🛠️ Control:
+        </span>
+
+        {/* 5. Corte Mensual Contable */}
+        {onOpenCorteMensual && (
+          <motion.button
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onOpenCorteMensual}
+            style={{
+              background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.15) 100%)',
+              color: '#1d4ed8',
+              border: '1px solid #3b82f6',
+              borderRadius: 12,
+              padding: '8px 15px',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 15 }}>📑</span> Corte Mensual
+          </motion.button>
+        )}
+
+        {/* 6. Vencimientos Contrarecibos */}
+        {role !== 'viewer' && (
+          <motion.button
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onOpenContrarecibos}
+            style={{
+              background: 'var(--paper-raised)',
+              color: 'var(--ink)',
+              border: '1px solid var(--line)',
+              borderRadius: 12,
+              padding: '8px 15px',
+              fontSize: 13,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 15 }}>📆</span> Vencimientos (CR)
+          </motion.button>
+        )}
+
+        {/* 7. Seguimiento de Pedidos */}
+        <motion.button
+          whileHover={{ scale: 1.02, y: -1 }}
           whileTap={{ scale: 0.98 }}
-          className="quick-btn portal"
+          onClick={onOpenSeguimiento}
+          style={{
+            background: 'var(--paper-raised)',
+            color: 'var(--ink)',
+            border: '1px solid var(--line)',
+            borderRadius: 12,
+            padding: '8px 15px',
+            fontSize: 13,
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+          }}
         >
-          <span className="icon">🏭</span> Portal Proveedor
-        </motion.a>
-      )}
+          <span style={{ fontSize: 15 }}>📦</span> Seguimiento OCs
+        </motion.button>
 
-      <motion.button 
-        whileHover={{ scale: 1.02, y: -2 }}
-        whileTap={{ scale: 0.98 }}
-        className="btn"
-        style={{ padding: '16px 24px', fontSize: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--glass-bg)', backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)' }}
-        onClick={onOpenSeguimiento}
-      >
-        <span style={{ fontSize: 20 }}>📦</span> Seguimiento de Pedidos
-      </motion.button>
+        {/* 8. Portal Maquilador */}
+        {role === 'admin' && (
+          <motion.a
+            href="/portal-maquilador"
+            target="_blank"
+            rel="noreferrer"
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            style={{
+              background: 'var(--paper-sunk)',
+              color: 'var(--ink)',
+              border: '1px solid var(--line-soft)',
+              borderRadius: 12,
+              padding: '8px 15px',
+              fontSize: 13,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              textDecoration: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 15 }}>🏭</span> Portal Andrés
+          </motion.a>
+        )}
 
-      {role !== 'viewer' && (
-        <>
-          <motion.button 
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            className="btn"
-            style={{ padding: '16px 24px', fontSize: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--paper-sunk)', border: '1px solid var(--ok)', color: 'var(--ink)' }}
-            onClick={onQuickInvoice}
-          >
-            <span style={{ fontSize: 20 }}>🧾</span> Facturar (Rápido)
-          </motion.button>
-          
-          <motion.button 
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            className="btn"
-            style={{ padding: '16px 24px', fontSize: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--paper-sunk)', border: '1px solid var(--warn)', color: 'var(--ink)' }}
-            onClick={onQuickCollection}
-          >
-            <span style={{ fontSize: 20 }}>🗂️</span> Capturar Contrarecibo
-          </motion.button>
-          
-          <motion.button 
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            className="btn"
-            style={{ padding: '16px 24px', fontSize: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--accent)', border: 'none', color: '#fff' }}
-            onClick={onQuickPay}
-          >
-            <span style={{ fontSize: 20 }}>💸</span> Registrar Cobro
-          </motion.button>
-        </>
-      )}
+        {/* 9. Buscar Cmd+K */}
+        <motion.button
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => document.dispatchEvent(new CustomEvent('open-command-menu'))}
+          style={{
+            background: 'transparent',
+            color: 'var(--ink-soft)',
+            border: '1px dashed var(--line)',
+            borderRadius: 12,
+            padding: '8px 14px',
+            fontSize: 12.5,
+            fontWeight: 500,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            marginLeft: 'auto',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>🔍</span> Buscar <kbd style={{ fontSize: 10, background: 'var(--paper-sunk)', padding: '1px 5px', borderRadius: 4 }}>Ctrl+K</kbd>
+        </motion.button>
+      </div>
     </div>
   );
 }

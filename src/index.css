@@ -323,23 +323,25 @@ html, body {
 
 /* Dashboard Quick Actions Buttons */
 .quick-btn {
-  padding: 16px 20px;
-  font-size: 15px;
-  border-radius: 16px;
-  display: flex;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  border-radius: 12px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-weight: 600;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
 }
 .quick-btn .icon {
-  font-size: 20px;
+  font-size: 16px;
 }
 .quick-btn.primary {
   background: var(--accent);
   color: #fff;
   border: none;
-  box-shadow: 0 10px 20px -10px var(--accent);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
 }
 .quick-btn.primary:hover {
   background: var(--accent-deep);
@@ -352,6 +354,7 @@ html, body {
 .quick-btn.glass {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--blur-radius));
+  -webkit-backdrop-filter: blur(var(--blur-radius));
   border: 1px solid var(--glass-border);
   color: var(--text);
 }
@@ -359,7 +362,6 @@ html, body {
   background: var(--info-bg);
   color: var(--info-deep);
   border: none;
-  margin-left: auto;
 }
 
 .card{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:16px;box-shadow:var(--shadow-sm);margin-bottom:24px;overflow:hidden;transition:all 0.25s ease;animation:fadeInCard 0.5s ease-out backwards}
