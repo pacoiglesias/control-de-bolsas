@@ -8,6 +8,31 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.4.0',
+    date: '15 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Auto-Conciliador Bancario de Pagos, Remisiones para Andrés, Respaldo a Medianoche, Seguimiento de OC corregido y Diseño Web Responsive',
+    highlights: [
+      'Auto-Conciliador Bancario inteligente en Cobranza: pega depósitos bancarios desde Excel y el sistema detecta coincidencias por Contrarecibo o Monto exacto, aplicando cobros en lote en 1 clic.',
+      'Generador Oficial de Remisiones para Andrés en 1 Clic: genera la hoja oficial de entrega con formato Providencia, partidas, kilos pesados y firmas.',
+      'Flujo Financiero Limpio y Directo: se eliminó la distracción de comisiones del contador; el sistema se enfoca 100% en lo que cobras, lo que pagas a Andrés ($42/kg) y tu ganancia real.',
+      'Respaldo Automático a Medianoche con Cloud Scheduler diario a las 00:00 y botón para descargar copia .JSON física al instante.',
+      'Seguimiento por OC (/oc) totalmente corregido: eliminados filtros restrictivos y agregadas pestañas por etapa (Por Entregar, Por Facturar, En Cobranza, Completadas).',
+      'Diseño Web Responsive Fluido: auto-ajuste ergonómico para celular, tablet, laptop y 4K con touch targets de 42px y tablas con scroll suave.'
+    ]
+  },
+  {
+    version: 'v7.3.0',
+    date: '15 de Agosto de 2026',
+    time: '8:45 PM',
+    summary: 'Requerimiento de Producción para Andrés, Pipeline Visual de 6 Etapas, Semáforo del Día y Sábana de Auditoría Data Grid interactiva',
+    highlights: [
+      'Pestaña "Pedido a Andrés" en cada orden: cálculo de compra a $42/kg, ganancia limpia y WhatsApp automático listo para enviar.',
+      'Pipeline visual de 6 etapas (OrderStepper) y banner de sugerencia de siguiente acción proactiva.',
+      'Sábana de Auditoría Interactiva en Vivo (AuditSync): edición directa de celdas en pantalla, pegado Ctrl+V desde Excel y rollback en 1 clic.'
+    ]
+  },
+  {
     version: 'v7.0.27',
     date: '11 de Agosto de 2026',
     time: '10:05 PM',

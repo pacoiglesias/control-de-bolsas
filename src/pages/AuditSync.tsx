@@ -263,13 +263,29 @@ export default function AuditSync() {
         }
       } else if (field === 'kilos') {
         const numKilos = Math.max(0, Number(value) || 0);
+        const pVenta = order.customSellPrice || DEFAULT_CONFIG.salePricePerKg || 43;
+        const pCosto = order.customCostPrice || DEFAULT_CONFIG.costPricePerKg || 42;
         const invoices = [...(order.invoices || [])];
+
         if (invoices.length > 0 && row.invoiceId) {
           const inv = invoices.find((i) => i.id === row.invoiceId);
-          if (inv) inv.kilos = numKilos;
+          if (inv) {
+            inv.kilos = numKilos;
+            const saleTotal = round2(numKilos * pVenta);
+            const costTotal = round2(numKilos * pCosto);
+            const invoiceTotal = round2(saleTotal * 1.16);
+            if (inv.financials) {
+              inv.financials.saleTotal = saleTotal;
+              inv.financials.invoiceTotal = invoiceTotal;
+              inv.financials.costTotal = costTotal;
+              inv.financials.netCashFlow = saleTotal - costTotal;
+              inv.financials.tradeMargin = saleTotal - costTotal;
+            }
+          }
           await updateDoc(orderRef, {
             ...camposInvoices(invoices),
             totalKilograms: numKilos,
+            updatedAt: serverTimestamp(),
           });
         } else {
           await updateDoc(orderRef, {
@@ -279,14 +295,58 @@ export default function AuditSync() {
         }
       } else if (field === 'precioVenta') {
         const p = Math.max(0, Number(value) || 0);
+        const pCosto = order.customCostPrice || DEFAULT_CONFIG.costPricePerKg || 42;
+        const invoices = (order.invoices || []).map(inv => {
+          const k = inv.kilos || 0;
+          const saleTotal = round2(k * p);
+          const costTotal = round2(k * pCosto);
+          const invoiceTotal = round2(saleTotal * 1.16);
+          return {
+            ...inv,
+            financials: {
+              salePricePerKg: p,
+              costPricePerKg: pCosto,
+              commissionRate: inv.financials?.commissionRate ?? 0,
+              commission: inv.financials?.commission ?? 0,
+              saleTotal,
+              invoiceTotal,
+              costTotal,
+              netCashFlow: saleTotal - costTotal,
+              tradeMargin: saleTotal - costTotal,
+            }
+          };
+        });
         await updateDoc(orderRef, {
           customSellPrice: p,
+          ...camposInvoices(invoices),
           updatedAt: serverTimestamp(),
         });
       } else if (field === 'costoAndres') {
         const c = Math.max(0, Number(value) || 0);
+        const pVenta = order.customSellPrice || DEFAULT_CONFIG.salePricePerKg || 43;
+        const invoices = (order.invoices || []).map(inv => {
+          const k = inv.kilos || 0;
+          const saleTotal = round2(k * pVenta);
+          const costTotal = round2(k * c);
+          const invoiceTotal = round2(saleTotal * 1.16);
+          return {
+            ...inv,
+            financials: {
+              salePricePerKg: pVenta,
+              costPricePerKg: c,
+              commissionRate: inv.financials?.commissionRate ?? 0,
+              commission: inv.financials?.commission ?? 0,
+              saleTotal,
+              invoiceTotal,
+              costTotal,
+              netCashFlow: saleTotal - costTotal,
+              tradeMargin: saleTotal - costTotal,
+            }
+          };
+        });
         await updateDoc(orderRef, {
           customCostPrice: c,
+          ...camposInvoices(invoices),
           updatedAt: serverTimestamp(),
         });
       }
