@@ -335,17 +335,14 @@ export function computeAndresRequirement(order: PurchaseOrder, config: Financial
 
   const costPricePerKg = Number(order.customCostPrice ?? config?.costPricePerKg ?? 42);
   const salePricePerKg = Number(order.customSellPrice ?? config?.salePricePerKg ?? 43);
-  const commissionRate = Number(order.customCommissionRate ?? config?.commissionRate ?? 0.08);
 
   const costTotal = round2(new Decimal(kilos).times(costPricePerKg).toNumber());
   const saleTotal = round2(new Decimal(kilos).times(salePricePerKg).toNumber());
   const ivaRate = config?.ivaRate ?? 0.16;
   const invoiceTotal = round2(new Decimal(saleTotal).times(1 + ivaRate).toNumber());
 
-  const baseForComm = config?.commissionBase === 'total' ? invoiceTotal : saleTotal;
-  const commissionEst = round2(new Decimal(baseForComm).times(commissionRate).toNumber());
-  const netProfitEst = round2(new Decimal(invoiceTotal).minus(costTotal).minus(commissionEst).toNumber());
-  const profitPerKg = kilos > 0 ? round2(new Decimal(netProfitEst).dividedBy(kilos).toNumber()) : 0;
+  const netProfitEst = round2(new Decimal(saleTotal).minus(costTotal).toNumber());
+  const profitPerKg = round2(new Decimal(salePricePerKg).minus(costPricePerKg).toNumber());
 
   const folio = order.folio || order.oc || 'S/F';
   const client = order.client || 'Providencia';
@@ -371,7 +368,7 @@ Favor de entregar directamente en la planta de ${client} y compartirnos la remis
     salePricePerKg,
     saleTotal,
     invoiceTotal,
-    commissionEst,
+    commissionEst: 0,
     netProfitEst,
     profitPerKg,
     items,

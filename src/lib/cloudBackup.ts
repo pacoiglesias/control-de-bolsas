@@ -191,3 +191,33 @@ export async function restoreCloudBackup(
     message: `Respaldo del ${snapshot.createdAt ? snapshot.createdAt.toLocaleString('es-MX') : 'hace un momento'} restaurado exitosamente.`,
   };
 }
+
+/**
+ * Descarga inmediata de respaldo completo en archivo .json local
+ */
+export function downloadBackupJsonFile(
+  orders: PurchaseOrder[],
+  purchases: Purchase[],
+  expenses: Expense[],
+  config: FinancialConfig
+) {
+  const data = {
+    app: 'ControlBolsas-ERP',
+    version: '7.4.0',
+    exportDate: new Date().toISOString(),
+    orders,
+    purchases,
+    expenses,
+    config,
+  };
+  const jsonStr = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Respaldo_Completo_ControlBolsas_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

@@ -18,6 +18,7 @@ import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
 import type { Invoice } from '../../lib/types';
 import { db, PATHS } from '../../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
+import AutoConciliadorModal from './AutoConciliadorModal';
 import { useToast } from '../../context/ToastContext';
 import { logAction } from '../../lib/logger';
 import { sound } from '../../lib/sounds';
@@ -33,6 +34,7 @@ export default function Cobranza() {
   const { settings } = useSystemSettings();
   const toast = useToast();
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [showAutoConciliador, setShowAutoConciliador] = useState(false);
   // Al hacer clic en UNA tarjeta especifica del tablero, el modal se abre
   // mostrando TODAS las facturas del expediente (puede haber varias) sin
   // ninguna senal de cual era la que el usuario realmente queria ver --
@@ -1289,11 +1291,17 @@ export default function Cobranza() {
         <div>
           <h1>Contrarecibos / Cobranza</h1>
           <p>
-            Lo que te deben, ordenado por antigüedad. Una orden deja de contar aquí en cuanto la
-            marcas como cobrada; la comisión de contabilidad ya viene descontada del flujo neto.
+            Control central de lo que te deben en Providencia, contrarecibos emitidos y depósitos conciliados que ingresan a tu cuenta y caja.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary"
+            style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: '#fff', fontWeight: 700, border: 'none', boxShadow: '0 2px 8px rgba(16,185,129,0.3)' }}
+            onClick={() => setShowAutoConciliador(true)}
+          >
+            🤖 Auto-Conciliar Pagos / Depósitos
+          </button>
           <div style={{ display: 'flex', gap: 12 }}>
             <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCarteraVencida}>
               <span className="icon">📤</span> PDF (Cartera Vencida)
@@ -1704,6 +1712,16 @@ export default function Cobranza() {
           onClose={() => { setSelected(null); setFocusInvoiceId(null); }}
           initialTab="facturas"
           focusInvoiceId={focusInvoiceId}
+        />
+      )}
+
+      {showAutoConciliador && (
+        <AutoConciliadorModal
+          orders={orders}
+          onClose={() => setShowAutoConciliador(false)}
+          onSuccess={(count, total) => {
+            toast(`✅ Conciliación completada: ${count} depósitos procesados ($${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })})`, 'ok');
+          }}
         />
       )}
     </>

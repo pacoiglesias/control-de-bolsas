@@ -14,20 +14,28 @@ interface CloudBackupsModalProps {
   backupBusy: boolean;
   handleCreateBackup: () => Promise<void>;
   handleRestoreBackup: (snap: CloudBackup) => Promise<void>;
+  onDownloadJson?: () => void;
 }
 
-export function CloudBackupsModal({ onClose, cloudBackups, backupBusy, handleCreateBackup, handleRestoreBackup }: CloudBackupsModalProps) {
+export function CloudBackupsModal({ onClose, cloudBackups, backupBusy, handleCreateBackup, handleRestoreBackup, onDownloadJson }: CloudBackupsModalProps) {
   return (
-    <Modal title="☁ Respaldos en la Nube (Máximo 5 rodantes)" onClose={onClose}>
+    <Modal title="☁ Respaldos en la Nube y Copias de Seguridad" onClose={onClose}>
       <div style={{ padding: 16 }}>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-          El sistema mantiene automáticamente los <strong>5 respaldos más recientes</strong> en Firestore. Si creas uno nuevo, el más antiguo se elimina de la nube para no saturar.
+          El sistema ejecuta <strong>respaldos automáticos cada medianoche</strong> y mantiene los snapshots más recientes en Firestore. También puedes crear un respaldo manual o descargar una copia física en archivo <code>.json</code>.
         </p>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Respaldos activos: {cloudBackups.length} de 5</span>
-          <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 12 }}>
-            {backupBusy ? 'Guardando…' : '➕ Crear Nuevo Respaldo Ahora'}
-          </button>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Respaldos en la nube: {cloudBackups.length}</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onDownloadJson && (
+              <button className="btn" onClick={onDownloadJson} style={{ fontSize: 12, background: 'var(--paper-sunk)', border: '1px solid var(--line)' }}>
+                📥 Descargar Copia .JSON
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 12 }}>
+              {backupBusy ? 'Guardando…' : '➕ Crear Nuevo Respaldo Ahora'}
+            </button>
+          </div>
         </div>
         {cloudBackups.length === 0 ? (
           <Empty>No hay respaldos guardados aún en la nube.</Empty>

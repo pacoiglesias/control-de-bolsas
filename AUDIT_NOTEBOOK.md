@@ -1244,5 +1244,16 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 4. **Punto de Restauración y Rollback Seguro:** Snapshot automático previo a cualquier cambio con botón `↩️ Deshacer Último Ajuste` para revertir errores en 1 clic.
 5. **Sincronización Total de Tests Unitarios:** Actualizadas todas las pruebas financieras de Vitest a la base actual de $43/kg. **45/45 pruebas pasando al 100%**.
 
-**Estado:** ✅ Verificado al 100%. `tsc --noEmit` con 0 errores, `npm test` 45/45 tests pasados. Listo para build y deploy.
+### Iteración 104: Auto-Conciliador Bancario, Remisiones Oficiales de Entrega, Respaldo a Medianoche, Seguimiento de OC y Diseño Web Responsive (v7.4.0) (COMPLETADO)
+**Fecha:** 2026-08-15
+**Archivos:** `src/components/Cobranza/AutoConciliadorModal.tsx`, `src/pages/OcTracking.tsx`, `src/components/OrderModal/TabAndresOrder.tsx`, `src/lib/cloudBackup.ts`, `src/components/Dashboard/CloudBackupsModal.tsx`, `src/index.css`, `functions/src/index.ts`, `package.json`
 
+**Objetivos del Usuario Cumplidos:**
+1. **Auto-Conciliador Bancario de Pagos / Depósitos:** Motor inteligente para pegar extractos bancarios o listas de depósitos desde Excel y emparejar automáticamente contra Contrarecibos y Facturas abiertas por coincidencia de monto y folio. Permite conciliar y cobrar en bloque en una sola transacción atómica de Firestore.
+2. **Generador Oficial de Remisiones de Entrega para Andrés:** En `TabAndresOrder.tsx`, botón `📄 Remisión Providencia` que genera la hoja de entrega con formato oficial para el almacén de Providencia, indicando OC, kilos pesados, detalle de material y recuadros de firma para chofer y almacén.
+3. **Flujo Financiero Limpio y Directo (Sin comisiones del contador):** Eliminada la distracción de comisiones internas del contador. El sistema se enfoca 100% en: (1) Lo que efectivamente recibes de Providencia, (2) Lo que le pagas a Andrés ($42/kg), (3) Tu Ganancia Neta Real en mano.
+4. **Respaldo Automático a Medianoche + Descarga .JSON en 1 Clic:** Implementada Cloud Function programada `scheduledMidnightBackup` que corre diariamente a las 00:00 (Cloud Scheduler) guardando snapshots completos con retención de 5 versiones rodantes, además de botón para descargar copias offline en archivo `.json`.
+5. **Corrección Integral de Datos en `/oc` (Seguimiento por OC):** Eliminado el filtro que ocultaba órdenes con contrarecibo, agregados filtros por categoría (`Todas`, `Por Entregar`, `Por Facturar`, `En Cobranza`, `Completadas`), buscador en vivo y recálculo fiel de KPIs.
+6. **Diseño Web Responsive Fluido y Táctil:** Optimización total para dispositivos móviles, tablets, laptops y pantallas 4K con cuadrículas adaptativas de KPIs, scroll horizontal fluido en tablas, modales ajustables al 94vh del viewport y botones táctiles ergonómicos de 42px.
+
+**Estado:** ✅ Verificado, Compilado y Desplegado en Vivo a Firebase Hosting (`https://control-de-bolsas-69.web.app`) y 10 Cloud Functions. Tests Vitest: 45/45 (100%).

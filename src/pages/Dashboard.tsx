@@ -16,7 +16,7 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { Skeleton, Drawer } from '../components/ui';
 import { confirmDialog } from '../lib/confirmDialog';
-import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
+import { createCloudBackup, listCloudBackups, restoreCloudBackup, downloadBackupJsonFile, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
@@ -861,6 +861,7 @@ return () => unsub();
             backupBusy={backupBusy}
             handleCreateBackup={handleCreateBackup}
             handleRestoreBackup={handleRestoreBackup as any}
+            onDownloadJson={() => downloadBackupJsonFile(activeOrders, purchases, expenses, config)}
           />
         )}
 

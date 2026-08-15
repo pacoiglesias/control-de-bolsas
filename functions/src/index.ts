@@ -745,4 +745,63 @@ export const updateCajaChicaBalance = onDocumentWritten(
     }
   }
 );
-// forcedeploy
+
+/**
+ * Respaldo Automático a Medianoche.
+ * Corre todos los días a las 00:00 (America/Mexico_City).
+ * Respalda las colecciones críticas (purchaseOrders, purchases, expenses, products, config)
+ * en la colección 'snapshots' conservando historial completo.
+ */
+export const scheduledMidnightBackup = onSchedule(
+  {
+    schedule: "0 0 * * *",
+    timeZone: "America/Mexico_City",
+    memory: "512MiB",
+    timeoutSeconds: 300,
+  },
+  async () => {
+    const db = getFirestore();
+    logger.info("Iniciando Respaldo Automático de Medianoche...");
+
+    const collectionsToBackup = ["purchaseOrders", "purchases", "expenses", "products", "config"];
+    const backupData: Record<string, any[]> = {};
+    let totalDocs = 0;
+
+    for (const colName of collectionsToBackup) {
+      const snap = await db.collection(colName).get();
+      backupData[colName] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      totalDocs += snap.size;
+    }
+
+    const timestamp = Date.now();
+    const snapId = `snap_auto_${timestamp}`;
+    const payload = JSON.stringify(backupData);
+    const pesoKB = Math.round(payload.length / 1024);
+
+    await db.collection("snapshots").doc(snapId).set({
+      id: snapId,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: "sistema (Respaldo Automático Medianoche)",
+      totalOrders: backupData["purchaseOrders"]?.length || 0,
+      totalPurchases: backupData["purchases"]?.length || 0,
+      totalExpenses: backupData["expenses"]?.length || 0,
+      facturasCount: (backupData["purchaseOrders"] || []).reduce((a, o) => a + (o.invoices?.length || 0), 0),
+      payloadKB: pesoKB,
+      type: "auto_midnight",
+    });
+
+    await db.collection("snapshots").doc(snapId).collection("blob").doc("data").set({ payload });
+
+    // Actualizar puntero latest
+    await db.collection("snapshots").doc("latest").set({
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: "sistema (Respaldo Automático Medianoche)",
+      totalOrders: backupData["purchaseOrders"]?.length || 0,
+      lastSnapshotId: snapId,
+      payloadKB: pesoKB,
+    }, { merge: true });
+
+    logger.info(`Respaldo automático de medianoche completado: ${snapId} (${totalDocs} documentos, ${pesoKB} KB).`);
+  }
+);
+

@@ -118,6 +118,98 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
     }
   }
 
+  function handlePrintRemision() {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Remisión de Entrega en Planta - ${req.client}</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #0f172a; font-size: 13px; }
+            .header { border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .title { font-size: 20px; font-weight: 800; color: #065f46; }
+            .badge { display: inline-block; background: #d1fae5; color: #065f46; padding: 6px 12px; border-radius: 6px; font-weight: 800; font-size: 14px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px; border-radius: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+            th, td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+            th { background: #f8fafc; font-weight: 700; color: #334155; }
+            .num { text-align: right; font-family: monospace; font-size: 14px; font-weight: bold; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; text-align: center; }
+            .sig-box { border-top: 2px solid #64748b; padding-top: 10px; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">REMISIÓN DE ENTREGA DE MERCANCÍA</div>
+              <div style="color: #64748b; margin-top: 4px;">Entrega Directa de Andrés a Planta <strong>${req.client}</strong></div>
+            </div>
+            <div class="badge">ORDEN DE COMPRA: ${req.folio}</div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <div><strong>Destino:</strong> Almacén Central Providencia</div>
+              <div><strong>Fecha de Salida:</strong> ${new Date().toLocaleDateString('es-MX', { dateStyle: 'long' })}</div>
+            </div>
+            <div>
+              <div><strong>Total de Kilos a Entregar:</strong> <span style="font-size: 16px; color: #059669; font-weight: 800;">${req.kilos.toLocaleString('es-MX')} kg</span></div>
+              <div><strong>Transporte / Chofer:</strong> Entrega Andrés</div>
+            </div>
+          </div>
+
+          <h3>Detalle de Material a Recibir</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Kilos / Cantidad</th>
+                <th>Unidad</th>
+                <th>Descripción de Material / Calibre</th>
+                <th style="text-align: center;">Conforme</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${req.items.length > 0 ? req.items.map(it => `
+                <tr>
+                  <td class="num" style="text-align: left;">${it.quantity.toLocaleString('es-MX')}</td>
+                  <td>${it.unit || 'kg'}</td>
+                  <td>${it.description || 'Bolsa de polietileno'}</td>
+                  <td style="text-align: center;">[  ]</td>
+                </tr>
+              `).join('') : `
+                <tr>
+                  <td class="num" style="text-align: left;">${req.kilos.toLocaleString('es-MX')}</td>
+                  <td>KGM</td>
+                  <td>Bolsa de polietileno a granel</td>
+                  <td style="text-align: center;">[  ]</td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+
+          <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 12px; border-radius: 6px; font-size: 12px; margin-top: 20px;">
+            <strong>Nota para el Almacén:</strong> Favor de sellar y firmar de recibido esta remisión con los kilos pesados en báscula para trámite de contrarecibo.
+          </div>
+
+          <div class="signatures">
+            <div class="sig-box">Entregó: Andrés (Transportista / Fabricante)</div>
+            <div class="sig-box">Recibió Conforme: Almacén Providencia (Sello y Firma)</div>
+          </div>
+
+          <script>
+            window.onload = () => window.print();
+          </script>
+        </body>
+      </html>
+    `;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Resumen Principal de Requerimiento */}
@@ -158,7 +250,26 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
               }}
               onClick={handleSendWhatsApp}
             >
-              <span>💬</span> Enviar WhatsApp a Andrés
+              <span>💬</span> WhatsApp a Andrés
+            </button>
+
+            <button
+              type="button"
+              className="btn"
+              style={{
+                borderColor: '#059669',
+                color: '#047857',
+                background: 'rgba(5,150,105,0.1)',
+                fontWeight: 700,
+                fontSize: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              onClick={handlePrintRemision}
+              title="Generar remisión para que Andrés entregue en Providencia"
+            >
+              <span>📄</span> Remisión Providencia
             </button>
 
             <button
@@ -168,7 +279,7 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
               onClick={handleCopyText}
               title="Copiar texto del pedido"
             >
-              📋 Copiar Texto
+              📋 Copiar
             </button>
 
             <button
@@ -178,7 +289,7 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
               onClick={handlePrintOrder}
               title="Imprimir Orden de Maquila en PDF"
             >
-              🖨️ Imprimir PDF
+              🖨️ Imprimir OC
             </button>
           </div>
         </div>
