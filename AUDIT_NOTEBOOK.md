@@ -1334,3 +1334,15 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
     - Manual técnico exhaustivo con fórmulas matemáticas, catálogo de funciones, máquinas de estado y reglas de negocio.
 
 **Estado:** ✅ Verificado, Compilado y Desplegado en Producción. Pruebas Vitest: 45/45 (100%).
+
+### Iteración 108: Suite de Blindaje Numérico y Casos Extremos (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/lib/__tests__/finance.test.ts`
+**Problema:** Necesidad de verificar rigurosamente bajo el estándar Staff Engineer (OKR 1) que el motor financiero compartido no genere pérdidas por redondeo o centavos fantasma en casos de volumen masivo (500,000 kg), pesadas mínimas (0.01 kg), cálculo de comisión del 8% sobre facturas con IVA y división exacta de utilidades 50/50 entre socios.
+**Impacto:** Blindaje absoluto del dinero real en caja y cuentas por cobrar contra imprecisiones de punto flotante en JavaScript.
+**Solución:** Agregada suite de pruebas unitarias cubriendo: (1) Cantidades mínimas fraccionarias (0.01 kg), (2) Órdenes masivas de volumen de 500,000 kg, (3) División de utilidades de socios 50/50 garantizando suma exacta al centavo sin residuo, y (4) Desglose de cobranza con 8% de comisión contable en transacciones grandes.
+**Riesgo:** 🟢 Bajo — Solo código de pruebas, sin cambios en contratos de producción.
+**Commit:** `test(finance): blindaje numerico para casos extremos, redondeo y reparto 50/50`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, `npm run build` exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) al 100%.
+

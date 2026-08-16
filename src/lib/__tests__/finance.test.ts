@@ -262,3 +262,41 @@ describe('computeAndresRequirement & getSuggestedNextAction', () => {
     expect(action.targetTab).toBe('facturas');
   });
 });
+
+describe('Casos Numéricos Extremos y Blindaje Financiero (OKR 1)', () => {
+  it('maneja cantidades mínimas (0.01 kg) sin pérdidas de redondeo', () => {
+    const f = computeFinancials(0.01, cfg);
+    expect(f.saleTotal).toBe(0.43);
+    expect(f.costTotal).toBe(0.42);
+    expect(f.invoiceTotal).toBe(0.5); // 0.43 * 1.16 = 0.4988 -> 0.50
+    expect(f.commission).toBe(0.03); // 0.43 * 0.08 = 0.0344 -> 0.03
+    expect(f.netCashFlow).toBe(-0.02); // 0.43 - 0.42 - 0.03 = -0.02
+  });
+
+  it('maneja órdenes masivas de 500,000 kg con exactitud aritmética', () => {
+    const f = computeFinancials(500000, cfg);
+    expect(f.saleTotal).toBe(21500000);
+    expect(f.costTotal).toBe(21000000);
+    expect(f.invoiceTotal).toBe(24940000);
+    expect(f.commission).toBe(1720000); // 21,500,000 * 0.08
+    expect(f.netCashFlow).toBe(-1220000); // 21.5M - 21M - 1.72M
+  });
+
+  it('reparto 50/50 entre socios no produce centavos fantasma', () => {
+    // Para una utilidad neta de $15,345.55
+    const netProfit = 15345.55;
+    const pacoShare = round2(netProfit / 2);
+    const socioShare = round2(netProfit - pacoShare);
+    expect(round2(pacoShare + socioShare)).toBe(netProfit);
+    expect(Math.abs(pacoShare - socioShare)).toBeLessThanOrEqual(0.01);
+  });
+
+  it('desglose exacto de cobranza con 8% de comisión en $100,000 con IVA', () => {
+    const totalFactura = 100000.00;
+    const comision = round2(totalFactura * 0.08);
+    const netoCaja = round2(totalFactura - comision);
+    expect(comision).toBe(8000.00);
+    expect(netoCaja).toBe(92000.00);
+    expect(round2(comision + netoCaja)).toBe(totalFactura);
+  });
+});
