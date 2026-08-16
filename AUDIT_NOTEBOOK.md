@@ -1544,6 +1544,30 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 127: Auto-Facturación de Kilos y Tarjetas Táctiles para Facturas sin Contrarecibo (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/components/Dashboard/FacturasSinCRPanel.tsx`
+**Problema:** En facturación rápida se requerían cálculos manuales para saber cuántos kilos faltaban por facturar, y el panel de facturas sin contrarecibo en móviles dependía de tablas con desplazamiento horizontal.
+**Impacto:** Pérdida de tiempo y riesgo de errores de digitación en dispositivos móviles.
+**Solución:** Agregado botón de 1 toque `⚡ Llenar Todos (X kg)` en `QuickInvoiceModal` con detección de precios personalizados, y rediseñado `FacturasSinCRPanel` con tarjetas táctiles responsivas con botón directo `[📝 Asignar CR]`.
+**Riesgo:** 🟢 Bajo — UX y modales de flujo rápido.
+**Commit:** `feat(invoicing): auto-completado de kilos sin facturar y tarjetas tactiles sin CR`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+### Iteración 128: Blindaje Universal Anti-Duplicidad (CRs, Facturas, OCs) y Seguridad (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/lib/duplicateGuards.ts`, `src/components/FastFlows/QuickCollectionModal.tsx`, `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/components/OrderModal/useOrderActions.ts`, `src/components/MagicPasteModal.tsx`
+**Problema:** Solicitud explícita de Paco para garantizar que bajo ninguna circunstancia se puedan capturar números repetidos de contrarecibos, facturas u órdenes de compra, y consulta sobre auditoría de usuarios y seguridad.
+**Impacto:** Blindaje absoluto de la integridad de la base de datos y trazabilidad total de operaciones por usuario.
+**Solución:** Creado módulo central `duplicateGuards.ts` con normalización alfanumérica y validación en vivo en modales de cobranza, facturación, creación de órdenes y pegado mágico. Documentada la arquitectura de seguridad y bitácora en tiempo real `system_logs` (Live Logs).
+**Riesgo:** 🟢 Bajo — Validaciones preventivas en formularios.
+**Commit:** `feat(security): blindaje universal anti-duplicados y auditoria en vivo`
+**Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 2 (Seguridad & Auditoría).
+
+
+
 
 
 

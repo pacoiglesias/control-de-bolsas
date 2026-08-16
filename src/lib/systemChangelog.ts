@@ -8,6 +8,27 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.9 Enterprise Anti-Duplicate Shield & Security Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:45 PM',
+    summary: 'Blindaje Universal contra Folios Repetidos (Contrarecibos, Facturas, OCs y Remisiones) y Auditoría en Tiempo Real',
+    highlights: [
+      'Blindaje Anti-Duplicidad de Contrarecibos: Motor centralizado que bloquea y alerta en tiempo real si se intenta registrar un contrarecibo que ya fue usado en otra factura u orden.',
+      'Prevención de Facturas y OCs Repetidas: Detección y advertencia inmediata al capturar o pegar números de factura u órdenes de compra preexistentes.',
+      'Seguridad y Bitácora de Acciones por Usuario: Monitor en tiempo real (Live Logs) que audita cada movimiento, usuario responsable (email) y detalles de cada cambio en Firestore.',
+    ],
+  },
+  {
+    version: 'v8.2.8 Enterprise Unbilled Auto-Pilot Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:40 PM',
+    summary: 'Auto-Facturación de Kilos Entregados y Tarjetas Táctiles de Facturas sin Contrarecibo',
+    highlights: [
+      'Auto-Completado de Kilos Pendientes en Facturación Rápida: Detección infalible de todos los kilos entregados pendientes de facturar, con botón de 1 toque para llenar el remanente exacto y cálculo de precios personalizados por cliente.',
+      'Tarjetas Táctiles para Facturas sin Contrarecibo: Rediseño responsivo en cuadrícula de tarjetas con días de antigüedad, monto con IVA y botón directo [📝 Asignar CR] optimizado para celular.',
+    ],
+  },
+  {
     version: 'v8.2.7 Enterprise Operations Velocity Edition',
     date: '16 de Agosto de 2026',
     time: '10:35 PM',

@@ -160,26 +160,44 @@ export function PagarAndresModal({
             ⚡ Presets Rápidos (1 Toque):
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {deudaConAndres > 0 && (
-              <>
-                <button
-                  type="button"
-                  className="chip active"
-                  style={{ fontSize: 11, padding: '4px 10px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}
-                  onClick={() => setPagoAbono({ ...pagoAbono, amount: deudaConAndres.toFixed(2), concept: 'Liquidación Total de Saldo' })}
-                >
-                  💰 Liquidar Deuda: {money(deudaConAndres)}
-                </button>
-                <button
-                  type="button"
-                  className="chip"
-                  style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
-                  onClick={() => setPagoAbono({ ...pagoAbono, amount: (deudaConAndres / 2).toFixed(2), concept: '50% de Saldo Pendiente' })}
-                >
-                  💵 50% Deuda: {money(deudaConAndres / 2)}
-                </button>
-              </>
-            )}
+            {deudaConAndres > 0 && (() => {
+              const paso = deudaConAndres > 100000 ? 50000 : deudaConAndres > 20000 ? 10000 : 5000;
+              const proximoRedondeo = Math.ceil((deudaConAndres + 1) / paso) * paso;
+              const tieneAdelanto = proximoRedondeo > deudaConAndres;
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    className="chip active"
+                    style={{ fontSize: 11, padding: '4px 10px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}
+                    onClick={() => setPagoAbono({ ...pagoAbono, amount: deudaConAndres.toFixed(2), concept: 'Liquidación Total de Saldo' })}
+                  >
+                    💰 Liquidar Deuda: {money(deudaConAndres)}
+                  </button>
+
+                  {tieneAdelanto && (
+                    <button
+                      type="button"
+                      className="chip"
+                      style={{ fontSize: 11, padding: '4px 10px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                      onClick={() => setPagoAbono({ ...pagoAbono, amount: proximoRedondeo.toFixed(2), concept: `Liquidación + Adelanto ($${(proximoRedondeo - deudaConAndres).toLocaleString()} a favor)` })}
+                    >
+                      🚀 Liquidar + Adelanto: {money(proximoRedondeo)} (+{money(proximoRedondeo - deudaConAndres)})
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="chip"
+                    style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+                    onClick={() => setPagoAbono({ ...pagoAbono, amount: (deudaConAndres / 2).toFixed(2), concept: '50% de Saldo Pendiente' })}
+                  >
+                    💵 50% Deuda: {money(deudaConAndres / 2)}
+                  </button>
+                </>
+              );
+            })()}
             {saldoCaja > 0 && (
               <button
                 type="button"
@@ -192,6 +210,13 @@ export function PagarAndresModal({
             )}
           </div>
         </div>
+
+        {/* Indicador de Adelanto a Favor de Andrés */}
+        {montoNum > deudaConAndres && deudaConAndres > 0 && (
+          <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 10, fontSize: 12, color: '#047857', lineHeight: 1.4 }}>
+            ✨ <strong>¡Excelente pago!</strong> Este importe de <strong>{money(montoNum)}</strong> liquida la deuda con Andrés al 100% y le deja un <strong>adelanto a tu favor de {money(montoNum - deudaConAndres)}</strong> (cubriendo ~{Math.round((montoNum - deudaConAndres) / (config?.costPricePerKg || 42)).toLocaleString()} kg de entregas futuras).
+          </div>
+        )}
 
         <Field label="Monto a Pagar a Andrés ($)" full>
           <input 

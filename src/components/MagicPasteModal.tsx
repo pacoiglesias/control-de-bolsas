@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Modal } from './ui';
 import { useToast } from '../context/ToastContext';
+import { useOrders } from '../hooks/useOrders';
 import { playSuccessChime } from '../lib/soundEffects';
+import { findDuplicateOrderFolio } from '../lib/duplicateGuards';
 
 interface MagicPasteModalProps {
   onClose: () => void;
@@ -10,6 +12,7 @@ interface MagicPasteModalProps {
 
 export function MagicPasteModal({ onClose, onApplyParsedData }: MagicPasteModalProps) {
   const toast = useToast();
+  const { orders } = useOrders();
   const [rawText, setRawText] = useState('');
 
   const handlePasteClipboard = async () => {
@@ -148,6 +151,18 @@ export function MagicPasteModal({ onClose, onApplyParsedData }: MagicPasteModalP
                 <strong className="mono" style={{ color: '#2563eb' }}>{parsed.folio || '—'}</strong>
               </div>
             </div>
+
+            {parsed.folio && (() => {
+              const matched = findDuplicateOrderFolio(orders, parsed.folio);
+              if (matched) {
+                return (
+                  <div style={{ marginTop: 8, fontSize: 11.5, color: '#1e40af', fontWeight: 600 }}>
+                    💡 <strong>Orden Existente:</strong> Corresponde a la orden de {matched.client}. Los datos se aplicarán directamente a este expediente.
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
 
