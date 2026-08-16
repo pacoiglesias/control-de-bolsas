@@ -8,6 +8,20 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.9.0 Enterprise Staff Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '04:00 PM',
+    summary: 'Optimización Integral de Rendimiento, Accesibilidad WCAG AA, Blindaje Numérico y Pegado Directo de WhatsApp',
+    highlights: [
+      'Blindaje Numérico de Casos Extremos: Suite completa de 49 pruebas unitarias validando precisión en micro-pesadas (0.01 kg) y macro-órdenes (500,000 kg) sin pérdida de centavos.',
+      'Optimización de Rendimiento Firestore: Eliminación de re-renders redundantes por metadatos de red en OrdersContext, acelerando la navegación general.',
+      'Accesibilidad Universal WCAG AA: Primitivos UI con roles semánticos (region, meter, dialog), etiquetas aria descriptivas y áreas táctiles ergonómicas para dispositivos móviles.',
+      'Reconciliación React con Keys Estables: Optimización del timeline de contrarecibos y navegación con un clic hacia el módulo de Cobranza.',
+      'Pipeline de Capital y Tacómetro Memoizados: Renderizado ultrarrápido y reactivo a los cambios de estado de inventario y caja.',
+      'Botón de Pegado Directo de Portapapeles: Pegado con un toque de mensajes de WhatsApp de choferes o maquiladores con extracción instantánea de kilos y folio.',
+    ],
+  },
+  {
     version: 'v7.8.0 Enterprise Master Edition',
     date: '16 de Agosto de 2026',
     time: '03:15 PM',

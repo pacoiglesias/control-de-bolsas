@@ -12,28 +12,40 @@ export function MagicPasteModal({ onClose, onApplyParsedData }: MagicPasteModalP
   const toast = useToast();
   const [rawText, setRawText] = useState('');
 
+  const handlePasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setRawText(text);
+        toast('📋 Mensaje pegado desde el portapapeles', 'ok');
+      }
+    } catch {
+      toast('Presiona Ctrl + V dentro del cuadro de texto', 'bad');
+    }
+  };
+
   const parsed = useMemo(() => {
     if (!rawText.trim()) return null;
 
-    // Buscar Kilos (ej: "1200 kg", "1,200kg", "1200 kilos")
-    const kgMatch = rawText.match(/(\d+[\d,.]*)\s*(kg|kilos|kilo|kgs)/i);
+    // 1. Buscar Kilos (ej: "1200 kg", "1,200.50kg", "1200 kilos", "peso 1350")
+    const kgMatch = rawText.match(/(?:peso|pesada|kilos?|kgs?|total)?\s*[:=]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(?:kg|kilos|kilo|kgs|kilogramos)?/i);
     let extractedKg = 0;
     if (kgMatch) {
       extractedKg = parseFloat(kgMatch[1].replace(/,/g, '')) || 0;
     }
 
-    // Buscar Bultos (ej: "48 bultos", "48 btos", "48 bto")
-    const bultosMatch = rawText.match(/(\d+)\s*(bultos|bulto|btos|bto|paquetes)/i);
+    // 2. Buscar Bultos / Rollos (ej: "48 bultos", "48 btos", "20 rollos", "50 pzas")
+    const bultosMatch = rawText.match(/(\d+)\s*(?:bultos|bulto|btos|bto|paquetes|rollos|rollo|pzas|piezas)/i);
     let extractedBultos = 0;
     if (bultosMatch) {
       extractedBultos = parseInt(bultosMatch[1], 10) || 0;
     }
 
-    // Buscar Folio OC (ej: "43/9713", "OC-120264", "12026439713")
-    const ocMatch = rawText.match(/(?:oc|orden|pedido)?\s*([0-9]+(?:\/[0-9]+)?)/i);
+    // 3. Buscar Folio OC (ej: "43/9713", "OC-120264", "TH-842", "GT-102")
+    const ocMatch = rawText.match(/(?:oc|orden|pedido|folio)?\s*[:#-]?\s*([a-zA-Z]{0,4}\s*[-/]?\s*\d+(?:\/\d+)?)/i);
     let extractedFolio = '';
     if (ocMatch) {
-      extractedFolio = ocMatch[1];
+      extractedFolio = ocMatch[1].replace(/\s+/g, '').toUpperCase();
     }
 
     return {
@@ -65,9 +77,30 @@ export function MagicPasteModal({ onClose, onApplyParsedData }: MagicPasteModalP
   return (
     <Modal title="🪄 Pegado Mágico de WhatsApp" onClose={onClose}>
       <div style={{ padding: 20 }}>
-        <p style={{ color: 'var(--ink-soft)', marginBottom: 14, fontSize: 13 }}>
-          Pega cualquier mensaje de WhatsApp que te mande Andrés o el chofer. El sistema extraerá los kilos, bultos y folio de OC automáticamente.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-soft)' }}>
+            Mensaje de WhatsApp:
+          </label>
+          <button
+            type="button"
+            onClick={handlePasteClipboard}
+            style={{
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid #3b82f6',
+              borderRadius: 6,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#2563eb',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            📋 Pegar Portapapeles
+          </button>
+        </div>
 
         <textarea
           value={rawText}

@@ -1412,3 +1412,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 115: Parser WhatsApp Ultra-Robusto y Botón de Portapapeles (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/components/MagicPasteModal.tsx`
+**Problema:** En `MagicPasteModal.tsx`, los mensajes de WhatsApp con formatos no convencionales (comas, decimales, bultos vs rollos, prefijos como "peso:" o "pesada:") podían fallar en la detección automática, además de no contar con un botón directo para leer el portapapeles sin teclear.
+**Impacto:** Pérdida de tiempo al capturar entregas informales enviadas por choferes o maquiladores en WhatsApp.
+**Solución:** Reescrito el regex extractor para soportar unidades múltiples (kg, bultos, rollos, paquetes, piezas), prefijos informales y mayúsculas/minúsculas, e integrado el botón de lectura directa mediante `navigator.clipboard.readText()`.
+**Riesgo:** 🟢 Bajo — Componente de entrada rápida.
+**Commit:** `feat(paste): parser ultra-robusto de whatsapp y lectura de portapapeles con un toque`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+
