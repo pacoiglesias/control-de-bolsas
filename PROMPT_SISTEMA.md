@@ -1,7 +1,7 @@
 # 🤖 GEMINI — CONTEXTO MAESTRO DEL SISTEMA (ERP CONTROL BOLSAS)
 
 **Sistema:** ERP Control Bolsas — Grupo Textil Providencia  
-**Versión:** v7.7.0 Enterprise  
+**Versión:** v7.8.0 Enterprise Master Edition  
 **Fecha:** Agosto 2026  
 **URL de Producción:** <https://control-de-bolsas-69.web.app>  
 **Firebase Project:** control-de-bolsas-69  
@@ -12,7 +12,7 @@
 ## 🏗️ Arquitectura del Sistema
 
 ```text
-ERP Control Bolsas (v7.7.0 Enterprise)
+ERP Control Bolsas (v7.8.0 Enterprise Master Edition)
 ├── Frontend: React 18.3 + TypeScript + Vite 5 + Vanilla CSS + PWA
 │   └── src/
 │       ├── components/ (Modales, Tablas, Layout, ErrorBoundaries)

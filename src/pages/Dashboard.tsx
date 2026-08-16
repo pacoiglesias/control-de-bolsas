@@ -34,6 +34,11 @@ import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
 import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
 import { SociosProfitCard } from '../components/Dashboard/SociosProfitCard';
 import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectionSummary';
+import { MoneyFlowPipeline } from '../components/Dashboard/MoneyFlowPipeline';
+import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
+import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
+import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
+import { MagicPasteModal } from '../components/MagicPasteModal';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -79,6 +84,7 @@ export default function Dashboard() {
   const [showQuickCollection, setShowQuickCollection] = useState(false);
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
+  const [showMagicPaste, setShowMagicPaste] = useState(false);
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -562,6 +568,15 @@ return () => unsub();
         onOpenQuickCollection={() => setShowQuickCollection(true)}
       />
 
+      {/* ─── 2.5 PIPELINE VISUAL DEL FLUJO DEL DINERO ─────────────────────── */}
+      <MoneyFlowPipeline
+        orders={activeOrders}
+        purchases={purchases}
+        expenses={expenses}
+        config={config}
+        nav={nav}
+      />
+
       {/* ─── 3. BARRA DE ACCIONES RÁPIDAS Y CONTROL OPERATIVO ───────────── */}
       <QuickActionsBar
         role={role}
@@ -571,6 +586,7 @@ return () => unsub();
         onQuickInvoice={() => setShowQuickInvoice(true)}
         onQuickCollection={() => setShowQuickCollection(true)}
         onQuickPay={() => setShowQuickPay(true)}
+        onOpenMagicPaste={() => setShowMagicPaste(true)}
         onOpenCorteMensual={() => setShowCorteMensual(true)}
         onRecalc={() => void recalcStats()}
         recalcBusy={recalcBusy}
@@ -580,6 +596,10 @@ return () => unsub();
       {role === 'admin' && (
         <div style={{ marginBottom: 24 }}>
           <WeeklyCollectionSummary orders={activeOrders} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
+            <KilosSpeedometer orders={activeOrders} />
+          </div>
+          <ContrarecibosTimeline orders={activeOrders} nav={nav} />
           <SociosProfitCard
             orders={activeOrders}
             expenses={expenses}
@@ -899,7 +919,14 @@ return () => unsub();
         {showLiveLogsModal && (
           <LiveLogsModal onClose={() => setShowLiveLogsModal(false)} liveLogs={liveLogs as any} />
         )}
+
+        {showMagicPaste && (
+          <MagicPasteModal onClose={() => setShowMagicPaste(false)} />
+        )}
       </Suspense>
+
+      {/* Calculadora Flotante de Kilos */}
+      <FloatingKiloCalculator />
     </div>
   );
 }

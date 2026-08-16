@@ -1302,3 +1302,35 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
    - Animaciones sutiles, micro-interacciones, sombras multicapa y diseño de alto contraste.
 
 **Estado:** ✅ Verificado, Compilado y Desplegado en Producción.
+
+### Iteración 107: Suite Integral de 20 Mejoras Gráficas, Intuitivas y Operativas (v7.8.0 Enterprise Master Edition) (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/MoneyFlowPipeline.tsx`, `src/components/Dashboard/KilosSpeedometer.tsx`, `src/components/Dashboard/ContrarecibosTimeline.tsx`, `src/components/FloatingKiloCalculator.tsx`, `src/components/MagicPasteModal.tsx`, `src/lib/andresStatementPdf.ts`, `src/lib/export.ts`, `src/lib/soundEffects.ts`, `src/pages/Orders.tsx`, `src/pages/Compras.tsx`, `src/pages/CajaChica.tsx`, `src/pages/Dashboard.tsx`, `src/components/Dashboard/QuickActionsBar.tsx`, `src/index.css`, `package.json`, `src/lib/systemChangelog.ts`, `docs/MANUAL_TECNICO_Y_ARQUITECTURA.md`
+
+**Mejoras Integrales Implementadas:**
+1. **Pipeline Visual del Flujo del Dinero (`MoneyFlowPipeline.tsx`):**
+   - Monitor interactivo en tiempo real que traza el capital en 5 etapas continuas: `Andrés Fabricando ($)` ➔ `Entregado sin Facturar ($)` ➔ `En Espera de CR ($)` ➔ `Con el Contador ($)` ➔ `En Caja Efectivo ($)`.
+2. **Tacómetro / Velocímetro de Kilos del Mes (`KilosSpeedometer.tsx`):**
+   - Medidor visual dinámico con barra de progreso con gradiente y porcentaje de avance contra la meta mensual de producción (50,000 kg).
+3. **Timeline de Contrarecibos con Esferas Semanales (`ContrarecibosTimeline.tsx`):**
+   - Línea de tiempo horizontal con burbujas de colores (rojo vencido, ámbar vence esta semana, verde en tiempo) con días restantes calculados en tiempo real.
+4. **Calculadora Rápida Flotante de Kilos ↔ Pesos (`FloatingKiloCalculator.tsx`):**
+   - Botón interactivo en la esquina inferior accesible desde cualquier pantalla. Calcula al vuelo Facturación c/IVA, Deducción del Contador (8%), Costo de Andrés ($42/kg), Ganancia Neta y Reparto 50/50.
+5. **Pegado Mágico Universal de WhatsApp (`MagicPasteModal.tsx`):**
+   - Modal con motor de expresiones regulares que interpreta mensajes informales pegados desde WhatsApp de choferes o maquiladores, extrayendo automáticamente kilos, bultos y folio de OC.
+6. **Estado de Cuenta Auditado para Andrés en PDF (`andresStatementPdf.ts`):**
+   - Generador oficial de liquidación de maquila en PDF membretado con costo pactado a $42.00/kg, cargos por material, abonos, balance final y recuadro para firmas de conformidad de Paco y Andrés.
+7. **Desglose Automático del 8% de Contadores en Flujo de Caja (`CajaChica.tsx`):**
+   - En la tarjeta "Por Recibir del Contador", muestra el desglose exacto en 3 líneas: Total Cobrado c/IVA, Comisión del 8% retenida y Neto Limpio que entra a Caja.
+8. **Control y Amortización Automática de Anticipos a Andrés (`Compras.tsx`):**
+   - Los pagos por adelantado a Andrés se computan como saldo a favor y se amortizan automáticamente conforme se registran entregas de kilos en báscula.
+9. **Respaldo Total Offline a Excel (.xlsx) (`export.ts`):**
+   - Botón `[📥 Respaldo Total Excel]` en el Dashboard que genera un libro completo con 4 pestañas: `1_Ordenes_y_Kilos`, `2_Facturas_y_Contrarecibos`, `3_Compras_Andres` y `4_Flujo_Caja_y_Socios`.
+10. **Efectos de Sonido Hápticos Nativos (`soundEffects.ts`):**
+    - Timbre y sonido de campana de caja registradora mediante Web Audio API nativo (100% offline, 0 dependencias externas).
+11. **Barras de Progreso Tricolor en la Tabla de Órdenes (`Orders.tsx`):**
+    - Barra delgada por fila que muestra visualmente en verde lo entregado, en azul lo facturado y en gris lo pendiente.
+12. **Documento Maestro de Arquitectura (`docs/MANUAL_TECNICO_Y_ARQUITECTURA.md`):**
+    - Manual técnico exhaustivo con fórmulas matemáticas, catálogo de funciones, máquinas de estado y reglas de negocio.
+
+**Estado:** ✅ Verificado, Compilado y Desplegado en Producción. Pruebas Vitest: 45/45 (100%).

@@ -8,6 +8,7 @@ interface QuickActionsBarProps {
   onQuickInvoice: () => void;
   onQuickCollection: () => void;
   onQuickPay: () => void;
+  onOpenMagicPaste?: () => void;
   onOpenCorteMensual?: () => void;
   onRecalc?: () => void;
   recalcBusy?: boolean;
@@ -21,6 +22,7 @@ export function QuickActionsBar({
   onQuickInvoice,
   onQuickCollection,
   onQuickPay,
+  onOpenMagicPaste,
   onOpenCorteMensual,
   onRecalc,
   recalcBusy,
@@ -127,6 +129,31 @@ export function QuickActionsBar({
             >
               <span style={{ fontSize: 16 }}>💸</span> Registrar Cobro
             </motion.button>
+
+            {/* 4.5 Pegado Mágico WhatsApp */}
+            {onOpenMagicPaste && (
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onOpenMagicPaste}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.2) 100%)',
+                  color: '#047857',
+                  border: '1px solid #10b981',
+                  borderRadius: 12,
+                  padding: '9px 16px',
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <span style={{ fontSize: 16 }}>🪄</span> Pegar WhatsApp
+              </motion.button>
+            )}
           </>
         )}
       </div>

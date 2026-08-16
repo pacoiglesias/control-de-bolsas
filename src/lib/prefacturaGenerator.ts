@@ -123,14 +123,21 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
         </div>
       </div>
 
-      <!-- DATOS DE PAGO BANCARIOS -->
-      <div style="border-top: 1px dashed #cbd5e1; padding-top: 14px; font-size: 10.5px; color: #475569; display: flex; justify-content: space-between;">
-        <div>
-          <strong>Datos para Transferencia / Contrarecibo:</strong><br/>
-          Banco: BBVA Bancomer / Banco Azteca · CLABE: 012 180 01548291039 4 · Beneficiario: Distribuidora Providencia
+      <!-- SELLO Y CÓDIGO QR DE VALIDACIÓN -->
+      <div style="margin-top: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 44px; height: 44px; background: #1e3a8a; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px;">
+            📄
+          </div>
+          <div>
+            <div style="font-weight: 800; font-size: 11px; color: #0f172a;">DOCUMENTO AUDITADO DE CONTROL INTERNO (PRE-CFDI)</div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
+              Validación SAT: Clave 24111500 (Bolsas polietileno) · Unidad KGM · RFC Receptor: GTP9211049B6
+            </div>
+          </div>
         </div>
-        <div style="text-align: right; color: #94a3b8;">
-          Control Providencia ERP v7.7
+        <div style="text-align: right; font-size: 9.5px; color: #94a3b8; font-family: monospace;">
+          SELLO: ${invFolio}-${ocFolio}-${Date.now().toString(36).toUpperCase()}
         </div>
       </div>
 

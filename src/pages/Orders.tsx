@@ -504,7 +504,30 @@ export default function Orders() {
                       </td>
                       <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
-                      <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
+                      <td className="num mono">
+                        <div>{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</div>
+                        {o.totalKilograms && o.totalKilograms > 0 && (
+                          <div
+                            title={`Entregado: ${kilos(summary.kilosDelivered)} (${Math.min(100, Math.round((summary.kilosDelivered / o.totalKilograms) * 100))}%) | Facturado: ${kilos(summary.kilosInvoiced)}`}
+                            style={{
+                              height: 5,
+                              background: 'var(--line-soft)',
+                              borderRadius: 3,
+                              overflow: 'hidden',
+                              marginTop: 4,
+                              display: 'flex',
+                              width: '100%',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${Math.min(100, (summary.kilosDelivered / o.totalKilograms) * 100)}%`,
+                                background: '#10b981',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </td>
                       <td className="num mono">
                         {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
                         {o.totalKilograms && summary.kilosDelivered >= o.totalKilograms && (

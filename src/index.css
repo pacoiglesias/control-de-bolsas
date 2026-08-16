@@ -998,4 +998,50 @@ button:active {
   background-color: var(--paper-sunk) !important;
 }
 
+/* Neon Breathing Pulse Animations */
+@keyframes neonPulseGreen {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.4), 0 0 10px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 0 22px rgba(16, 185, 129, 0.4);
+  }
+}
+
+@keyframes neonPulseAmber {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.4), 0 0 10px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.8), 0 0 22px rgba(245, 158, 11, 0.4);
+  }
+}
+
+@keyframes neonPulseRed {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.4), 0 0 10px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.8), 0 0 22px rgba(239, 68, 68, 0.4);
+  }
+}
+
+.pulse-neon-green {
+  animation: neonPulseGreen 2s infinite ease-in-out;
+}
+
+.pulse-neon-amber {
+  animation: neonPulseAmber 2s infinite ease-in-out;
+}
+
+.pulse-neon-red {
+  animation: neonPulseRed 2s infinite ease-in-out;
+}
+
+/* Tabular Number Alignment */
+.mono, .num, td.num {
+  font-family: 'Roboto Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-variant-numeric: tabular-nums;
+}
+
 

@@ -8,6 +8,26 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.8.0 Enterprise Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '03:15 PM',
+    summary: 'Suite Completa de 20 Mejoras Gráficas e Intuitivas: Pipeline de Dinero, Tacómetro de Kilos, Timeline de Contrarecibos, Calculadora Flotante, Pegado Mágico WhatsApp, Estado de Cuenta Andrés PDF, Desglose 8% y Respaldo Total a Excel',
+    highlights: [
+      'Pipeline Visual del Flujo del Dinero: monitor interactivo en tiempo real que traza el capital en 5 etapas: Taller Fabricando ($) ➔ Entregado sin Facturar ($) ➔ En Espera de CR ($) ➔ Con el Contador ($) ➔ En Caja Efectivo ($).',
+      'Tacómetro y Velocímetro de Kilos del Mes: medidor visual con barra de progreso que compara los kilos entregados contra la meta mensual de la empresa.',
+      'Timeline de Contrarecibos con Esferas Semanales: línea de tiempo con bolitas codificadas por color (rojo vencido, ámbar vence esta semana, verde en tiempo).',
+      'Calculadora Flotante de Kilos ↔ Pesos: conversor interactivo accesible desde cualquier pantalla con desglose de factura c/IVA, comisión 8%, costo Andrés y ganancia neta 50/50.',
+      'Pegado Mágico Universal de WhatsApp: modal que analiza mensajes de texto de choferes o maquilador y extrae automáticamente kilos, bultos y folio de OC.',
+      'Estado de Cuenta Auditado para Andrés en PDF: generador de liquidación oficial de maquila con costo pactado a $42/kg, abonos, saldo y recuadro para firmas.',
+      'Desglose Automático de Comisión Contador (8%): en Caja Chica se separa claramente el total cobrado con IVA, la comisión retenida y el neto limpio a recibir.',
+      'Control y Amortización de Anticipos: gestión automática de adelantos de efectivo a Andrés compensados conforme entrega kilos en báscula.',
+      'Respaldo Total Offline a Excel (.xlsx): botón en la barra superior que genera un libro multi-pestaña con todo el negocio (órdenes, facturas, compras y flujo de caja).',
+      'Efectos de Sonido Hápticos (Web Audio API): timbres y campana de caja registradora al cobrar contrarecibos y asignar pagos (100% offline).',
+      'Barras de Progreso Tricolor en Tablas: indicador visual por renglón con kilos entregados, facturados y pendientes.',
+      'Tema Dark Titanium y Animaciones Neon Pulse: elevación estética con respiración neón en badges de estatus prioritarios.'
+    ]
+  },
+  {
     version: 'v7.7.0',
     date: '16 de Agosto de 2026',
     time: '02:50 PM',
