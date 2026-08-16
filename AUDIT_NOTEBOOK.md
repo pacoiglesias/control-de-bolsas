@@ -1423,3 +1423,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
 
+### Iteración 116: Drag & Drop Interactivo y Botones de Movimiento en Tableros Kanban (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Orders/KanbanBoard.tsx`, `src/components/Compras/ComprasKanban.tsx`, `src/components/OcTracking/EntregasKanban.tsx`
+**Problema:** En la vista de tablero de Órdenes (`/ordenes`), las tarjetas no eran arrastrables ni contaban con atajos para cambiar de estado directamente desde celulares o tablets. Asimismo, los tableros Kanban de Compras y Seguimiento Logístico utilizaban colores fijos incompatibles con el modo oscuro.
+**Impacto:** Imposibilidad de mover expedientes entre columnas de forma visual e intuitiva y pérdida de usabilidad en dispositivos táctiles.
+**Solución:** Implementado HTML5 Drag & Drop con resaltado visual de destino (`border: 2px dashed`), integrado botón de avance rápido `[➔ Siguiente Fase]` y menú selector `[Mover a...]` en cada tarjeta, sincronización en tiempo real con Firestore y efectos sonoros de confirmación.
+**Riesgo:** 🟢 Bajo — Lógica de actualización transaccional en Firestore.
+**Commit:** `feat(kanban): arrastrar y soltar con botones de cambio rapido en tableros kanban de todo el ERP`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+

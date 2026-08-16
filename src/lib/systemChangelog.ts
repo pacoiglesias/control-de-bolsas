@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.0.0 Enterprise Platinum Edition',
+    date: '16 de Agosto de 2026',
+    time: '04:15 PM',
+    summary: 'Suite Completa de Tableros Kanban Interactivos con Drag & Drop, Botones de Avance Rápido y Sincronización Total',
+    highlights: [
+      'Kanban Interactivo de Órdenes Providencia (/ordenes): Arrastrar y soltar con el ratón entre las 7 columnas del ciclo operativo con resalte visual y confirmación sonora.',
+      'Botones de Avance Rápido y Selector Móvil: Cada tarjeta incluye botón de 1 clic [➔ Siguiente Fase] y menú [Mover a...] para operar con agilidad desde celulares y tablets.',
+      'Tablero Kanban de Compras a Andrés (/compras): Visualización por 4 etapas de abastecimiento (Pedido, En Fabricación, Recibido Falta Pagar, Liquidado) con animaciones Framer Motion.',
+      'Tablero Kanban Logístico (/seguimiento-oc): Control visual de entregas en báscula, material en camino y pendientes de remisión/facturación.',
+      'Compatibilidad Total Claro/Oscuro: Estandarización de todas las columnas y tarjetas Kanban mediante variables CSS dinámicas del sistema.',
+    ],
+  },
+  {
     version: 'v7.9.0 Enterprise Staff Master Edition',
     date: '16 de Agosto de 2026',
     time: '04:00 PM',
