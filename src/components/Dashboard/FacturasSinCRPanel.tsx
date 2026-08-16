@@ -37,15 +37,6 @@ export function FacturasSinCRPanel({ orders }: FacturasSinCRPanelProps) {
     0
   );
 
-  function handleSendWhatsApp(item: { order: PurchaseOrder; invoice: Invoice }) {
-    const folio = item.invoice.folio || 'S/F';
-    const oc = item.order.folio || item.order.oc || 'S/OC';
-    const cliente = item.order.client || 'Providencia';
-    const monto = money(item.invoice.financials?.invoiceTotal ?? 0);
-    const msg = `Buenas tardes, envío factura #${folio} correspondiente a la OC ${oc} (${cliente}) por un importe de ${monto}. ¿Nos apoyan amablemente con su número y fecha de contrarecibo? Muchas gracias.`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-  }
-
   return (
     <>
       <div
@@ -116,22 +107,24 @@ export function FacturasSinCRPanel({ orders }: FacturasSinCRPanelProps) {
                       </span>
                     </td>
                     <td style={{ padding: '8px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <button
-                          className="btn"
-                          style={{ fontSize: 11, padding: '3px 8px', borderColor: '#25D366', color: '#128C7E', background: 'rgba(37,211,102,0.1)' }}
-                          onClick={() => handleSendWhatsApp({ order, invoice })}
-                          title="Enviar mensaje de WhatsApp a Providencia solicitando contrarecibo"
-                        >
-                          💬 WhatsApp
-                        </button>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                         <button
                           className="btn btn-primary"
-                          style={{ fontSize: 11, padding: '3px 8px' }}
+                          style={{ fontSize: 11, padding: '4px 10px', fontWeight: 700 }}
                           onClick={() => setSelectedOrder(order)}
-                          title="Capturar número de contrarecibo"
+                          title="Capturar número y fecha de contrarecibo localmente"
                         >
                           📝 Asignar CR
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ fontSize: 11, padding: '4px 8px', borderColor: 'var(--line)', color: 'var(--ink)' }}
+                          onClick={() => {
+                            window.location.href = `/ordenes?abrir=${order.id}`;
+                          }}
+                          title="Ver expediente de la orden"
+                        >
+                          📂 Ver OC
                         </button>
                       </div>
                     </td>

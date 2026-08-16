@@ -39,6 +39,7 @@ import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
 import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
 import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
 import { MagicPasteModal } from '../components/MagicPasteModal';
+import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -943,6 +944,19 @@ return () => unsub();
 
       {/* Calculadora Flotante de Kilos */}
       <FloatingKiloCalculator />
+
+      {/* Dock Rápido de Acciones Locales en Móvil (1 Toque) */}
+      <MobileQuickDock
+        onNewOrder={() => nav('/ordenes?nueva=1')}
+        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickCollection={() => setShowQuickCollection(true)}
+        onQuickPay={() => setShowQuickPay(true)}
+        onMagicPaste={() => setShowMagicPaste(true)}
+        onOpenCalculator={() => {
+          const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
+          if (btn) btn.click();
+        }}
+      />
     </div>
   );
 }

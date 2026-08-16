@@ -8,6 +8,16 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.4 Enterprise Local Mobile Engine Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:20 PM',
+    summary: 'Dock de Operaciones 100% Locales para Móvil y Eliminación de Salidas Forzadas a WhatsApp',
+    highlights: [
+      'Acciones 100% Locales en Móvil: El dock flotante móvil ahora ejecuta directamente las operaciones del sistema (➕ Nueva OC, 📝 Facturar Entregas, 💸 Cobrar / Contrarecibos, 💳 Pagar Andrés, 📋 Pegar OC, ⚖️ Calc Kilos) dentro de la aplicación sin expulsar al usuario.',
+      'Priorización de Asignación Local en Facturas sin CR: Los botones de acción rápida abren de inmediato el modal local de captura de Contrarecibo [📝 Asignar CR] o el expediente [📂 Ver OC].',
+    ],
+  },
+  {
     version: 'v8.2.3 Enterprise Unified Master Edition',
     date: '16 de Agosto de 2026',
     time: '10:15 PM',

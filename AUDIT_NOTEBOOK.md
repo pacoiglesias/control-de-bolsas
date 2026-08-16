@@ -1500,6 +1500,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 123: Funciones Operativas 100% Locales en Móvil y Erradicación de Enlaces Forzados a WhatsApp (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/MobileQuickDock.tsx`, `src/components/Dashboard/FacturasSinCRPanel.tsx`, `src/pages/Dashboard.tsx`
+**Problema:** En dispositivos móviles, varias acciones intentaban abrir chats externos de WhatsApp en lugar de ejecutar las acciones locales dentro del ERP (como capturar contrarecibos, facturar, abonar a Andrés o abrir la calculadora).
+**Impacto:** Fricción operativa y salida forzada de la aplicación web.
+**Solución:** Rediseñado el dock flotante móvil con 6 accesos 100% locales integrados en la app (`➕ Nueva OC`, `📝 Facturar`, `💸 Cobrar`, `💳 Pagar Andrés`, `📋 Pegar OC`, `⚖️ Calc Kilos`) y configurado `FacturasSinCRPanel` con el botón principal `[📝 Asignar CR]` local.
+**Riesgo:** 🟢 Bajo — Componentes de interfaz móvil desacoplados.
+**Commit:** `feat(mobile): acciones 100% locales en dock rapido y paneles operativos`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+
+
 
 
 
