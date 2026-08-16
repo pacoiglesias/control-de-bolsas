@@ -1357,3 +1357,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 2 (Costes y Eficiencia Firestore) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 110: Accesibilidad WCAG AA y Áreas de Toque Táctiles en Primitivos UI (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/components/ui.tsx`
+**Problema:** Varios elementos interactivos (`Drawer`, `CopyButton`) carecían de atributos semánticos `aria-label` descriptivos, roles de diálogo y dimensiones táctiles optimizadas para dispositivos móviles (mínimo 36-44px), reduciendo la accesibilidad para lectores de pantalla y ergonomía táctil en tablets de almacén.
+**Impacto:** Fallos en estándares de accesibilidad WCAG AA y dificultad de interacción táctil en pantallas móviles o tablets.
+**Solución:** Incorporados atributos `aria-label`, `role="dialog"`, `aria-modal="true"`, `aria-hidden="true"` en elementos puramente visuales y ajustadas las áreas táctiles de cierre y copiado a dimensiones estándar ergonómicas.
+**Riesgo:** 🟢 Bajo — Estructura HTML semántica y CSS en línea, 100% compatible hacia atrás.
+**Commit:** `fix(ui): accesibilidad WCAG AA, roles de dialogo y areas tactiles en primitivos`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Accesibilidad WCAG AA.
+

@@ -149,8 +149,9 @@ export function CopyButton({ text, label }: { text: string; label?: string; }) {
     <button
       type="button"
       className="btn-icon"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'auto', padding: '2px 6px', height: 24, fontSize: 11, color: copied ? 'var(--ok)' : 'var(--ink-soft)' }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'auto', padding: '4px 8px', minHeight: 28, fontSize: 11, color: copied ? 'var(--ok)' : 'var(--ink-soft)', cursor: 'pointer' }}
       title={`Copiar ${label ?? text}`}
+      aria-label={`Copiar ${label ?? text}`}
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(text);
@@ -158,7 +159,7 @@ export function CopyButton({ text, label }: { text: string; label?: string; }) {
         setTimeout(() => setCopied(false), 2000);
       }}
     >
-      {copied ? '✅' : '📋'}
+      <span aria-hidden="true">{copied ? '✅' : '📋'}</span>
       {label && <span style={{ fontWeight: 600 }}>{label}</span>}
     </button>
   );
@@ -193,6 +194,9 @@ export function Drawer({
   return (
     <AnimatePresence>
       <div 
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || 'Panel lateral'}
         style={{
           position: 'fixed',
           top: 0,
@@ -210,6 +214,7 @@ export function Drawer({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
+          aria-hidden="true"
           style={{
             position: 'absolute',
             top: 0, left: 0, right: 0, bottom: 0,
@@ -240,7 +245,7 @@ export function Drawer({
         >
           {title && (
             <div style={{
-              padding: '24px',
+              padding: '20px 24px',
               borderBottom: '1px solid var(--line-soft)',
               display: 'flex',
               justifyContent: 'space-between',
@@ -251,7 +256,8 @@ export function Drawer({
               <button 
                 onClick={onClose} 
                 className="btn-icon" 
-                style={{ width: 32, height: 32, background: 'var(--bg-inset)', borderRadius: '50%' }}
+                aria-label="Cerrar panel lateral"
+                style={{ width: 36, height: 36, minHeight: 36, background: 'var(--bg-inset)', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 ✕
               </button>
