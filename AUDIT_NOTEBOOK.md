@@ -1522,6 +1522,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y Control de Tesorería.
 
+### Iteración 125: Fechas de Contrarecibos en Móvil y Robustez Universal de Fechas (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/lib/format.ts`, `src/components/Dashboard/ContrarecibosTimeline.tsx`, `src/components/Dashboard/WeeklyCollectionSummary.tsx`, `src/pages/Dashboard.tsx`
+**Problema:** En la versión móvil no se visualizaban de forma clara las fechas exactas de vencimiento de los contrarecibos programados con Providencia, y el parseo de fechas en ciertos objetos Timestamp de Firestore podía omitir registros.
+**Impacto:** Falta de visibilidad de las fechas de cobro en dispositivos móviles.
+**Solución:** Actualizado `toDate` para soportar de manera universal Timestamps, objetos con `seconds`, fechas Date y cadenas ISO. Rediseñado `ContrarecibosTimeline` con tarjetas responsivas con fecha de cobro destacada (`📅 Jue, 20/Ago/2026`), estatus de días restantes y botón directo de cobro local `[💸 Cobrar]`.
+**Riesgo:** 🟢 Bajo — Componente de visualización y formateador.
+**Commit:** `feat(timeline): fechas de contrarecibos destacadas en movil y cobro local`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+
 
 
 

@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.6 Enterprise Contrarecibos Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:30 PM',
+    summary: 'Visibilidad Total de Fechas de Contrarecibos en Móvil y Escritorio con Cobro Local',
+    highlights: [
+      'Fechas de Cobro Destacadas en Móvil: El Timeline de Contrarecibos ahora muestra de forma prominente la fecha exacta de cobro con día de la semana (ej. Jue, 20/Ago/2026), monto con IVA y badge de días restantes o vencimiento.',
+      'Parseo Universal de Fechas de Firestore: toDate actualizado para soportar de manera infalible objetos Timestamp, strings ISO y timestamps serializados sin omitir ningún contrarecibo.',
+      'Acción Rápida de Cobro Local: Cada tarjeta de contrarecibo incluye botón directo [💸 Cobrar] que abre el modal local de cobranza al instante.',
+    ],
+  },
+  {
     version: 'v8.2.5 Enterprise Cashflow Guard Edition',
     date: '16 de Agosto de 2026',
     time: '10:25 PM',

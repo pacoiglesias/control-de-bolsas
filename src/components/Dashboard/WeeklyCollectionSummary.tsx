@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { PurchaseOrder } from '../../lib/types';
-import { money, fmtDate, nombreClienteVisible } from '../../lib/format';
+import { money, fmtDayAndDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 
@@ -10,7 +10,8 @@ interface WeeklyCollectionSummaryProps {
 
 export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps) {
   const weeklyCrs = useMemo(() => {
-    const now = Date.now();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const list: any[] = [];
 
@@ -21,19 +22,21 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
         if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.status !== 'collected') {
           const cr = extractCr(inv, o);
           if (cr && inv.creditCycle?.dueDate) {
-            const dueMs = inv.creditCycle.dueDate.toMillis?.() || 0;
-            const diff = dueMs - now;
-            // Si vence en los próximos 7 días o ya está vencido
-            if (diff <= sevenDaysMs) {
-              const saldo = (inv.financials?.invoiceTotal || 0) - (inv.collection?.paidAmount || 0);
-              if (saldo > 0) {
-                list.push({
-                  folio: inv.folio || o.folio || 'S/N',
-                  cr: cr,
-                  client: nombreClienteVisible(o.client) || 'Providencia',
-                  amount: saldo,
-                  dueDate: inv.creditCycle.dueDate,
-                });
+            const due = toDate(inv.creditCycle.dueDate);
+            if (due) {
+              const diff = due.getTime() - today.getTime();
+              // Si vence en los próximos 7 días o ya está vencido
+              if (diff <= sevenDaysMs) {
+                const saldo = (inv.financials?.invoiceTotal || 0) - (inv.collection?.paidAmount || 0);
+                if (saldo > 0) {
+                  list.push({
+                    folio: inv.folio || o.folio || 'S/N',
+                    cr: cr,
+                    client: nombreClienteVisible(o.client) || 'Providencia',
+                    amount: saldo,
+                    dueDate: due,
+                  });
+                }
               }
             }
           }
@@ -41,7 +44,7 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
       }
     }
 
-    return list;
+    return list.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   }, [orders]);
 
   if (weeklyCrs.length === 0) return null;
@@ -50,7 +53,7 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
 
   const handleSendWhatsApp = () => {
     const lines = weeklyCrs.map(
-      (it, idx) => `${idx + 1}. *CR ${it.cr}* (Fact. #${it.folio}) - *${money(it.amount)}* - Vence: ${fmtDate(it.dueDate)}`
+      (it, idx) => `${idx + 1}. *CR ${it.cr}* (Fact. #${it.folio}) - *${money(it.amount)}* - Vence: ${fmtDayAndDate(it.dueDate)}`
     ).join('\n');
 
     const text = `Hola estimado Contador,\n\nTe comparto la relación de contrarecibos programados para cobro esta semana:\n\n${lines}\n\n💰 *Total Programado a Cobrar:* ${money(totalSemana)}\n\nQuedamos al pendiente de la recolección del efectivo. Saludos.`;

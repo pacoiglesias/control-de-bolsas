@@ -676,7 +676,7 @@ return () => unsub();
 
       {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA ─────────────────────────────────── */}
       <SemaforoDelDia
-        orders={activeOrders}
+        orders={seguimientoOrders}
         purchases={purchases}
         config={config}
         nav={nav}
@@ -711,13 +711,13 @@ return () => unsub();
       {/* ─── 5. SUITE FINANCIERA Y OPERATIVA ───────────────────────────────── */}
       {role === 'admin' && (
         <div style={{ marginBottom: 24 }}>
-          <WeeklyCollectionSummary orders={activeOrders} />
+          <WeeklyCollectionSummary orders={seguimientoOrders} />
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
             <KilosSpeedometer orders={activeOrders} />
           </div>
 
-          <ContrarecibosTimeline orders={activeOrders} nav={nav} />
+          <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
 
           <SociosProfitCard
             orders={activeOrders}
@@ -736,7 +736,7 @@ return () => unsub();
       {/* ─── 6. PANELES OPERATIVOS PRINCIPALES ─────────────────────────────── */}
       {renderPorRecibirPanel()}
 
-      <FacturasSinCRPanel orders={activeOrders} />
+      <FacturasSinCRPanel orders={seguimientoOrders} />
 
       <BandejaMaquilaWidget />
 

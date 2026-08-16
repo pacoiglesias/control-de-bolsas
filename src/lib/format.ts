@@ -43,11 +43,19 @@ export function nombreClienteVisible(client: string | null | undefined): string 
   return client || '—';
 }
 
+const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
 /** Firestore devuelve Timestamp; los formularios y calculos usan Date. */
-export function toDate(ts: Timestamp | Date | null | undefined): Date | null {
+export function toDate(ts: Timestamp | Date | null | undefined | any): Date | null {
   if (!ts) return null;
-  if (ts instanceof Date) return ts;
-  if (typeof (ts as Timestamp).toDate === 'function') return (ts as Timestamp).toDate();
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+  if (typeof ts.toDate === 'function') return ts.toDate();
+  if (typeof ts.toMillis === 'function') return new Date(ts.toMillis());
+  if (typeof ts === 'object' && typeof ts.seconds === 'number') return new Date(ts.seconds * 1000);
+  if (typeof ts === 'string' || typeof ts === 'number') {
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) return d;
+  }
   return null;
 }
 
@@ -55,6 +63,13 @@ export function fmtDate(ts: Timestamp | Date | null | undefined): string {
   const d = toDate(ts);
   if (!d) return '—';
   return `${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
+}
+
+export function fmtDayAndDate(ts: Timestamp | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  const diaSem = DIAS_SEMANA[d.getDay()];
+  return `${diaSem}, ${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
 }
 
 export function fmtDateTime(ts: Timestamp | Date | null | undefined): string {
