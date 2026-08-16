@@ -1456,5 +1456,17 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
 
+### Iteración 119: Cockpit Pro de 2 Columnas para Desktop y Atajos de Teclado Globales (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/pages/Dashboard.tsx`, `src/lib/systemChangelog.ts`, `docs/MANUAL_TECNICO_Y_ARQUITECTURA.md`
+**Problema:** En pantallas grandes (laptops y monitores desktop), la vista 'Todo' del Dashboard provocaba un scroll vertical excesivo al desplegar todos los módulos en una sola columna corrida, y no existían atajos rápidos de teclado para usuarios avanzados.
+**Impacto:** Pérdida de visión panorámica simultánea entre las alertas operativas del día y el estado financiero/caja.
+**Solución:** Implementado el modo `Cockpit Pro (2 Columnas)` en desktop que balancea en paralelo: (1) Operación, Radar y Cobranza en la columna izquierda, y (2) KPIs Financieros, Flujo de Efectivo, Reparto de Socios y Kilos en la columna derecha. Añadidos atajos de teclado globales (`[N]` Nueva OC, `[F]` Facturar, `[C]` Cobrar, `[P]` Pegado WhatsApp, `[1-5]` Pestañas, `[R]` Recalcular) con barra de estado interactiva.
+**Riesgo:** 🟢 Bajo — Grid CSS responsivo desacoplado y listeners de teclado con filtro de tags de edición.
+**Commit:** `feat(desktop): cockpit pro de 2 columnas y atajos de teclado globales`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+
+
 
 

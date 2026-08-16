@@ -90,6 +90,47 @@ export default function Dashboard() {
   const [showCorteMensual, setShowCorteMensual] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [activeSectionTab, setActiveSectionTab] = useState<DashboardSectionTab>('hoy');
+  const [desktopLayout, setDesktopLayout] = useState<'cockpit' | 'stack'>('cockpit');
+
+  // Atajos de Teclado Globales en Desktop (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar, 1..5 = Pestañas)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const k = e.key.toLowerCase();
+      if (k === 'n') {
+        e.preventDefault();
+        nav('/ordenes?nueva=1');
+      } else if (k === 'f') {
+        e.preventDefault();
+        setShowQuickInvoice(true);
+      } else if (k === 'c') {
+        e.preventDefault();
+        setShowQuickCollection(true);
+      } else if (k === 'p') {
+        e.preventDefault();
+        setShowMagicPaste(true);
+      } else if (k === 'r') {
+        e.preventDefault();
+        void recalcStats();
+      } else if (e.key === '1') {
+        setActiveSectionTab('hoy');
+      } else if (e.key === '2') {
+        setActiveSectionTab('flujo');
+      } else if (e.key === '3') {
+        setActiveSectionTab('kilos');
+      } else if (e.key === '4') {
+        setActiveSectionTab('cobranza');
+      } else if (e.key === '5') {
+        setActiveSectionTab('todo');
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nav]);
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -426,6 +467,107 @@ return () => unsub();
     }, 0);
   }, [activeOrders]);
 
+  // Panel auxiliar: Por Recibir del Contador
+  const renderPorRecibirPanel = () => {
+    if (k.porRecibir.length === 0) return null;
+    const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
+    const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
+    return (
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.15) 100%)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: 16,
+          padding: 22,
+          marginBottom: 20,
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>
+            💼 Por Recibir del Contador ({k.porRecibir.length})
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>
+            Facturas cobradas por el cliente donde el contador aún tiene pendiente entregar el efectivo.
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            flexWrap: 'wrap',
+            background: 'var(--paper-raised)',
+            borderRadius: 12,
+            padding: '14px 18px',
+            marginBottom: 14,
+            border: '1px solid var(--line-soft)',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
+              Cobrado Cliente
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{money(totalBruto)}</div>
+          </div>
+          <div style={{ fontSize: 18, color: 'var(--ink-soft)' }}>−</div>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
+              Comisión 8%
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#f87171' }}>{money(totalComision)}</div>
+          </div>
+          <div style={{ fontSize: 18, color: 'var(--ink-soft)' }}>=</div>
+          <div style={{ marginLeft: 'auto' }}>
+            <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
+              Neto a Caja
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
+          </div>
+        </div>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--line-soft)' }}>
+              <th style={{ padding: '6px', textAlign: 'left', color: 'var(--ink-soft)', fontWeight: 600 }}>Factura</th>
+              <th style={{ padding: '6px', textAlign: 'left', color: 'var(--ink-soft)', fontWeight: 600 }}>CR</th>
+              <th style={{ padding: '6px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Importe</th>
+              <th style={{ padding: '6px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Neto</th>
+              <th style={{ padding: '6px', textAlign: 'right' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {k.porRecibir.map((r: any, idx: number) => (
+              <tr key={idx} style={{ borderBottom: '1px solid var(--line-soft)' }}>
+                <td style={{ padding: '8px 6px', fontFamily: 'monospace', fontWeight: 700 }}>#{r.folio}</td>
+                <td style={{ padding: '8px 6px', color: 'var(--ink-soft)', fontFamily: 'monospace' }}>{r.cr}</td>
+                <td style={{ padding: '8px 6px', textAlign: 'right' }}>{money(r.invoiceTotal)}</td>
+                <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--ok)', fontWeight: 800 }}>{money(r.net)}</td>
+                <td style={{ padding: '8px 6px', textAlign: 'right' }}>
+                  <button
+                    className="btn"
+                    style={{
+                      background: 'var(--ok-bg)',
+                      color: 'var(--ok)',
+                      border: '1px solid var(--ok)',
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                    onClick={() => handleRecibir(r)}
+                  >
+                    💵 Recibir
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
       {/* ─── 0. RESUMEN EJECUTIVO MÓVIL (VISIBLE EN CELULARES) ──────────── */}
@@ -446,7 +588,7 @@ return () => unsub();
         />
       </div>
 
-      {/* ─── ENCABEZADO Y SELECTORES DE DEPARTAMENTO ───────────────────────── */}
+      {/* ─── ENCABEZADO Y SELECTORES DE DEPARTAMENTO (DESKTOP) ──────────────── */}
       <div className="desktop-only-block" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div>
@@ -563,232 +705,251 @@ return () => unsub();
             </select>
           </div>
         </div>
+
+        {/* Barra de Atajos Rápidos de Teclado y Selector de Modo Cockpit */}
+        <div
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
+            padding: '6px 14px',
+            background: 'var(--paper-sunk)',
+            borderRadius: 12,
+            border: '1px solid var(--line-soft)',
+            fontSize: 11,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', color: 'var(--ink-soft)' }}>
+            <span style={{ fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              ⌨️ Atajos Teclado:
+            </span>
+            <span><kbd style={{ background: 'var(--paper-raised)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--line)', fontWeight: 800 }}>N</kbd> Nueva OC</span>
+            <span><kbd style={{ background: 'var(--paper-raised)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--line)', fontWeight: 800 }}>F</kbd> Facturar</span>
+            <span><kbd style={{ background: 'var(--paper-raised)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--line)', fontWeight: 800 }}>C</kbd> Cobrar</span>
+            <span><kbd style={{ background: 'var(--paper-raised)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--line)', fontWeight: 800 }}>P</kbd> WhatsApp</span>
+            <span><kbd style={{ background: 'var(--paper-raised)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--line)', fontWeight: 800 }}>1-5</kbd> Pestañas</span>
+            <span><kbd style={{ background: 'var(--paper-raised)', padding: '2px 5px', borderRadius: 4, border: '1px solid var(--line)', fontWeight: 800 }}>R</kbd> Recalcular</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => setDesktopLayout(desktopLayout === 'cockpit' ? 'stack' : 'cockpit')}
+              style={{
+                background: desktopLayout === 'cockpit' ? 'var(--brand)' : 'var(--paper-raised)',
+                color: desktopLayout === 'cockpit' ? '#fff' : 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: 8,
+                padding: '4px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {desktopLayout === 'cockpit' ? '🎛️ Cockpit Pro (2 Col)' : '🏢 Vista Clásica'}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* ─── 1. HERO SUITE DE KPIS EJECUTIVOS ─────────────────────────────── */}
-      {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
-        <>
-          {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-            </div>
-          ) : (
-            <ModernKpiGrid
-              k={k}
-              role={role}
-              saldoCaja={saldoCaja}
-              monthFilter={monthFilter}
-              nav={nav}
-              contrarecibosVencidosCount={contrarecibosVencidosCount}
+      {/* ─── 1. MODO COCKPIT PRO (2 COLUMNAS EN DESKTOP) O VISTA SEGMENTADA ─── */}
+      {activeSectionTab === 'todo' && desktopLayout === 'cockpit' ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(520px, 1fr))', gap: 24, alignItems: 'start' }}>
+          {/* COLUMNA IZQUIERDA: Operación, Radar y Cobranza */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <ActionRadar orders={activeOrders} purchases={purchases} config={config} nav={nav} />
+            <SemaforoDelDia
+              orders={activeOrders}
+              purchases={purchases}
               config={config}
+              nav={nav}
+              onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+              onOpenQuickCollection={() => setShowQuickCollection(true)}
+            />
+            <QuickActionsBar
+              role={role}
+              onNewOrder={() => nav('/ordenes?nueva=1')}
+              onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+              onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+              onQuickInvoice={() => setShowQuickInvoice(true)}
+              onQuickCollection={() => setShowQuickCollection(true)}
+              onQuickPay={() => setShowQuickPay(true)}
+              onOpenMagicPaste={() => setShowMagicPaste(true)}
+              onOpenCorteMensual={() => setShowCorteMensual(true)}
+              onRecalc={() => void recalcStats()}
+              recalcBusy={recalcBusy}
+            />
+            <FacturasSinCRPanel orders={activeOrders} />
+            <WeeklyCollectionSummary orders={activeOrders} />
+            <ContrarecibosTimeline orders={activeOrders} nav={nav} />
+            <SmartAlerts orders={activeOrders} />
+          </div>
+
+          {/* COLUMNA DERECHA: Finanzas, Flujo de Efectivo y Kilos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {loading ? (
+              <Skeleton style={{ height: 200, borderRadius: 20 }} />
+            ) : (
+              <ModernKpiGrid
+                k={k}
+                role={role}
+                saldoCaja={saldoCaja}
+                monthFilter={monthFilter}
+                nav={nav}
+                contrarecibosVencidosCount={contrarecibosVencidosCount}
+                config={config}
+              />
+            )}
+            <MoneyFlowPipeline
+              orders={activeOrders}
+              purchases={purchases}
+              expenses={expenses}
+              config={config}
+              nav={nav}
+            />
+            {renderPorRecibirPanel()}
+            {role === 'admin' && (
+              <SociosProfitCard
+                orders={activeOrders}
+                expenses={expenses}
+                costPricePerKg={config.costPricePerKg || 42}
+                salePricePerKg={config.salePricePerKg || 43}
+                onOpenRetiro={() => nav('/caja-chica')}
+              />
+            )}
+            <KilosSpeedometer orders={activeOrders} />
+            <BandejaMaquilaWidget />
+            {role === 'admin' && <CashflowProjection orders={activeOrders} />}
+          </div>
+        </div>
+      ) : (
+        /* ─── VISTA ESTÁNDAR POR PESTAÑAS O STACK ─── */
+        <>
+          {/* 1. HERO SUITE DE KPIS EJECUTIVOS */}
+          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+            <>
+              {loading ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+                  <Skeleton style={{ height: 150, borderRadius: 20 }} />
+                  <Skeleton style={{ height: 150, borderRadius: 20 }} />
+                  <Skeleton style={{ height: 150, borderRadius: 20 }} />
+                  <Skeleton style={{ height: 150, borderRadius: 20 }} />
+                </div>
+              ) : (
+                <ModernKpiGrid
+                  k={k}
+                  role={role}
+                  saldoCaja={saldoCaja}
+                  monthFilter={monthFilter}
+                  nav={nav}
+                  contrarecibosVencidosCount={contrarecibosVencidosCount}
+                  config={config}
+                />
+              )}
+            </>
+          )}
+
+          {/* 1.5 RADAR PROACTIVO DE DECISIONES DE HOY */}
+          {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+            <ActionRadar
+              orders={activeOrders}
+              purchases={purchases}
+              config={config}
+              nav={nav}
             />
           )}
-        </>
-      )}
 
-      {/* ─── 1.5 RADAR PROACTIVO DE DECISIONES DE HOY ──────────────────────── */}
-      {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
-        <ActionRadar
-          orders={activeOrders}
-          purchases={purchases}
-          config={config}
-          nav={nav}
-        />
-      )}
+          {/* 2. SEMÁFORO OPERATIVO DEL DÍA */}
+          {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+            <SemaforoDelDia
+              orders={activeOrders}
+              purchases={purchases}
+              config={config}
+              nav={nav}
+              onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+              onOpenQuickCollection={() => setShowQuickCollection(true)}
+            />
+          )}
 
-      {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA (FLUJO DE TRABAJO REAL) ───────── */}
-      {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
-        <SemaforoDelDia
-          orders={activeOrders}
-          purchases={purchases}
-          config={config}
-          nav={nav}
-          onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-          onOpenQuickCollection={() => setShowQuickCollection(true)}
-        />
-      )}
+          {/* 2.5 PIPELINE VISUAL DEL FLUJO DEL DINERO */}
+          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+            <MoneyFlowPipeline
+              orders={activeOrders}
+              purchases={purchases}
+              expenses={expenses}
+              config={config}
+              nav={nav}
+            />
+          )}
 
-      {/* ─── 2.5 PIPELINE VISUAL DEL FLUJO DEL DINERO ─────────────────────── */}
-      {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
-        <MoneyFlowPipeline
-          orders={activeOrders}
-          purchases={purchases}
-          expenses={expenses}
-          config={config}
-          nav={nav}
-        />
-      )}
+          {/* 3. BARRA DE ACCIONES RÁPIDAS */}
+          {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+            <QuickActionsBar
+              role={role}
+              onNewOrder={() => nav('/ordenes?nueva=1')}
+              onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+              onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+              onQuickInvoice={() => setShowQuickInvoice(true)}
+              onQuickCollection={() => setShowQuickCollection(true)}
+              onQuickPay={() => setShowQuickPay(true)}
+              onOpenMagicPaste={() => setShowMagicPaste(true)}
+              onOpenCorteMensual={() => setShowCorteMensual(true)}
+              onRecalc={() => void recalcStats()}
+              recalcBusy={recalcBusy}
+            />
+          )}
 
-      {/* ─── 3. BARRA DE ACCIONES RÁPIDAS Y CONTROL OPERATIVO ───────────── */}
-      {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
-        <QuickActionsBar
-          role={role}
-          onNewOrder={() => nav('/ordenes?nueva=1')}
-          onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-          onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-          onQuickInvoice={() => setShowQuickInvoice(true)}
-          onQuickCollection={() => setShowQuickCollection(true)}
-          onQuickPay={() => setShowQuickPay(true)}
-          onOpenMagicPaste={() => setShowMagicPaste(true)}
-          onOpenCorteMensual={() => setShowCorteMensual(true)}
-          onRecalc={() => void recalcStats()}
-          recalcBusy={recalcBusy}
-        />
-      )}
+          {/* 4. ALERTAS PROACTIVAS, REPARTO DE SOCIOS Y CASHFLOW */}
+          {role === 'admin' && (
+            <div style={{ marginBottom: 24 }}>
+              {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
+                <WeeklyCollectionSummary orders={activeOrders} />
+              )}
 
-      {/* ─── 4. ALERTAS PROACTIVAS, REPARTO DE SOCIOS Y CASHFLOW PREDICTIVO ─ */}
-      {role === 'admin' && (
-        <div style={{ marginBottom: 24 }}>
+              {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
+                  <KilosSpeedometer orders={activeOrders} />
+                </div>
+              )}
+
+              {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
+                <ContrarecibosTimeline orders={activeOrders} nav={nav} />
+              )}
+
+              {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+                <SociosProfitCard
+                  orders={activeOrders}
+                  expenses={expenses}
+                  costPricePerKg={config.costPricePerKg || 42}
+                  salePricePerKg={config.salePricePerKg || 43}
+                  onOpenRetiro={() => nav('/caja-chica')}
+                />
+              )}
+
+              {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+                <SmartAlerts orders={activeOrders} />
+              )}
+
+              {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+                <CashflowProjection orders={activeOrders} />
+              )}
+            </div>
+          )}
+
+          {/* 5. PANELES OPERATIVOS PRINCIPALES */}
+          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && renderPorRecibirPanel()}
+
           {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
-            <WeeklyCollectionSummary orders={activeOrders} />
+            <FacturasSinCRPanel orders={activeOrders} />
           )}
 
           {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
-              <KilosSpeedometer orders={activeOrders} />
-            </div>
+            <BandejaMaquilaWidget />
           )}
-
-          {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
-            <ContrarecibosTimeline orders={activeOrders} nav={nav} />
-          )}
-
-          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
-            <SociosProfitCard
-              orders={activeOrders}
-              expenses={expenses}
-              costPricePerKg={config.costPricePerKg || 42}
-              salePricePerKg={config.salePricePerKg || 43}
-              onOpenRetiro={() => nav('/caja-chica')}
-            />
-          )}
-
-          {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
-            <SmartAlerts orders={activeOrders} />
-          )}
-
-          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
-            <CashflowProjection orders={activeOrders} />
-          )}
-        </div>
-      )}
-
-      {/* ─── 5. PANELES OPERATIVOS PRINCIPALES ─────────────────────────────── */}
-      {/* Panel: Por Recibir del Contador (Efectivo pendiente de entrar a Caja) */}
-      {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && k.porRecibir.length > 0 &&
-        (() => {
-          const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
-          const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
-          return (
-            <div
-              style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.15) 100%)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: 16,
-                padding: 22,
-                marginBottom: 24,
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>
-                  💼 Por Recibir del Contador ({k.porRecibir.length})
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>
-                  Facturas cobradas por el cliente donde el contador aún tiene pendiente entregar el efectivo.
-                </div>
-              </div>
-
-              {/* Desglose en 3 Pasos */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  flexWrap: 'wrap',
-                  background: 'var(--paper-raised)',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  marginBottom: 16,
-                  border: '1px solid var(--line-soft)',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
-                    Cobrado por el Cliente
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>{money(totalBruto)}</div>
-                </div>
-                <div style={{ fontSize: 20, color: 'var(--ink-soft)' }}>−</div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
-                    Comisión Contador (8%)
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#f87171' }}>{money(totalComision)}</div>
-                </div>
-                <div style={{ fontSize: 20, color: 'var(--ink-soft)' }}>=</div>
-                <div style={{ marginLeft: 'auto' }}>
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
-                    Neto a Entrar a Caja Chica
-                  </div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
-                </div>
-              </div>
-
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--line-soft)' }}>
-                    <th style={{ padding: '8px', textAlign: 'left', color: 'var(--ink-soft)', fontWeight: 600 }}>Factura</th>
-                    <th style={{ padding: '8px', textAlign: 'left', color: 'var(--ink-soft)', fontWeight: 600 }}>Contrarecibo</th>
-                    <th style={{ padding: '8px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Importe Factura</th>
-                    <th style={{ padding: '8px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Comisión</th>
-                    <th style={{ padding: '8px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Neto a Recibir</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {k.porRecibir.map((r: any, idx: number) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid var(--line-soft)' }}>
-                      <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontWeight: 700 }}>#{r.folio}</td>
-                      <td style={{ padding: '10px 8px', color: 'var(--ink-soft)', fontFamily: 'monospace' }}>{r.cr}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>{money(r.invoiceTotal)}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 800 }}>{money(r.net)}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
-                        <button
-                          className="btn"
-                          style={{
-                            background: 'var(--ok-bg)',
-                            color: 'var(--ok)',
-                            border: '1px solid var(--ok)',
-                            padding: '5px 12px',
-                            fontSize: 12,
-                            fontWeight: 700,
-                          }}
-                          onClick={() => handleRecibir(r)}
-                        >
-                          💵 Recibir → CAJA
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
-
-      {/* Facturas sin Contrarecibo */}
-      {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
-        <FacturasSinCRPanel orders={activeOrders} />
-      )}
-
-      {/* Bandeja de Entregas del Maquilador (Andrés) */}
-      {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
-        <BandejaMaquilaWidget />
+        </>
       )}
 
       {/* ─── 6. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ────── */}

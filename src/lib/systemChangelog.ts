@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.0 Enterprise Cockpit Pro Edition',
+    date: '16 de Agosto de 2026',
+    time: '09:50 PM',
+    summary: 'Cockpit Pro Inteligente de 2 Columnas para Pantallas Grandes y Atajos de Teclado Globales',
+    highlights: [
+      'Cockpit Pro Balanceado en Desktop: En pantallas grandes, el Dashboard se divide inteligentemente en 2 columnas maestras (Operación & Cobranza a la izquierda, Finanzas & Kilos a la derecha), reduciendo el scroll vertical en más del 50%.',
+      'Atajos de Teclado Globales (Power-User Shortcuts): Presiona [N] para Nueva OC, [F] para Facturar, [C] para Cobro Rápido, [P] para Pegado Mágico de WhatsApp, [1..5] para alternar pestañas y [R] para Recalcular.',
+      'Selector Dinámico de Vista en Desktop: Alterna instantáneamente con 1 clic entre el modo [🎛️ Cockpit Pro (2 Col)] y la [🏢 Vista Clásica].',
+      'Barra Guía de Atajos de Teclado: Indicadores sutiles tipo terminal financiera en la parte superior para acelerar la operación de oficina.',
+    ],
+  },
+  {
     version: 'v8.1.0 Enterprise Mobile Ultra Edition',
     date: '16 de Agosto de 2026',
     time: '09:15 PM',
