@@ -1278,4 +1278,27 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
    - Actualizado `package.json` a `7.5.0`.
    - Publicada la versión `v7.5.0` en la Bitácora de Parches del sistema (`systemChangelog.ts`).
 
-**Estado:** ✅ Verificado y Desplegado en Producción.
+### Iteración 106: Generador de Prefacturas PDF desde la OC, Control Estricto de Contrarecibos, Tarjeta de Utilidad y Reparto de Socios 50/50 y Cobranza Semanal para el Contador (v7.7.0) (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/lib/prefacturaGenerator.ts`, `src/components/QuickCrModal.tsx`, `src/components/Dashboard/SociosProfitCard.tsx`, `src/components/Dashboard/WeeklyCollectionSummary.tsx`, `src/components/Dashboard/CashflowProjection.tsx`, `src/pages/Orders.tsx`, `src/pages/Dashboard.tsx`, `src/pages/CajaChica.tsx`, `src/pages/MaquiladorPortal.tsx`, `src/index.css`, `package.json`, `src/lib/systemChangelog.ts`
+
+**Mejoras Integrales Implementadas:**
+1. **Generador de Prefacturas Formales en PDF (`src/lib/prefacturaGenerator.ts`):**
+   - Extrae automáticamente los datos de la Orden de Compra de Providencia (Folio OC, kilos, $/kg, Subtotal, IVA 16% y Total).
+   - Incluye claves fiscales oficiales del SAT (Clave Producto `24111500 - Bolsas de polietileno`, Unidad `KGM - Kilogramo`, RFC `GTP9211049B6`), datos bancarios y monto total con letra en pesos mexicanos.
+   - Botón `[📄 Prefactura PDF]` en `TabFacturas.tsx` para generar y descargar en 1 segundo y compartirla por WhatsApp antes del timbrado CFDI 4.0.
+2. **Control Estricto de Contrarecibos y Captura Rápida en 1 Clic (`Orders.tsx` / `QuickCrModal.tsx`):**
+   - Nuevo filtro directo `[⚠️ Sin Contrarecibo]` en la lista de órdenes.
+   - Badge visual con pulso luminoso ámbar `⚠️ SIN CR` y botón flotante `[+ Asignar CR]` para registrar número de contrarecibo y fecha de vencimiento en 2 segundos.
+3. **Tarjeta de Utilidad Neta Real y División de Socios 50/50 (`SociosProfitCard.tsx`):**
+   - Muestra la ganancia neta exacta en el Dashboard tras descontar el costo de Andrés ($42/kg) y la comisión contable del 8%.
+   - Desglose transparente 50% para Paco y 50% para su socio, con control de retiros acumulados y botón directo para Flujo de Efectivo.
+4. **Resumen de Cobranza Semanal para el Contador (`WeeklyCollectionSummary.tsx`):**
+   - Agrupa automáticamente todos los contrarecibos que vencen en los próximos 7 días con botón de 1 clic para enviar la relación formal por WhatsApp a contabilidad o Cuentas por Pagar.
+5. **Portal del Maquilador v2.5 y Flujo de Efectivo (`MaquiladorPortal.tsx` / `CajaChica.tsx`):**
+   - Cola offline con auto-sincronización y calculadora de bultos/rollos a kilos para Andrés.
+   - Flujo de Efectivo 100% alineado a los 4 pilares: Efectivo en Caja, Por Recibir del Contador, Cuenta con Andrés y Reparto a Socios.
+6. **Elevación Visual Pro (`src/index.css`):**
+   - Animaciones sutiles, micro-interacciones, sombras multicapa y diseño de alto contraste.
+
+**Estado:** ✅ Verificado, Compilado y Desplegado en Producción.

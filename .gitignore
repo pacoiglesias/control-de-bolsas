@@ -4,6 +4,8 @@ dist
 functions/node_modules
 functions/lib
 *.tsbuildinfo
+vite.config.ts.timestamp-*
+*.mjs
 
 # Secretos y configuración local
 .env

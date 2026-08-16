@@ -14,7 +14,6 @@ export default function TabProductos() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
   const [preview, setPreview] = useState<ParsedOC | null>(null);
-  if (!ctx) return null;
   const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast } = ctx;
   const { products } = useProducts();
   const { addItem, updateItem, removeItem } = useOrderProducts(form.items, setForm, config);

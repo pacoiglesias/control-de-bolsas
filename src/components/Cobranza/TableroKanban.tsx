@@ -6,6 +6,7 @@ import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { InvoiceDrawer } from './InvoiceDrawer';
 import { useConfig } from '../../hooks/useConfig';
+import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsappReminder';
 
 // FIX 2026-08-10 (Staff Engineer -- task ERP #12): este tablero tenía sus
 // 4 columnas con degradados y colores de texto en hex/rgba fijos (pensados
@@ -163,13 +164,43 @@ export default function TableroKanban() {
         {/* Quick Actions Bar */}
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
           {(inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') && (
-            <button 
-              className="btn" 
-              style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8 }}
-              onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
-            >
-              💸 Cobro Rápido
-            </button>
+            <>
+              <button 
+                className="btn" 
+                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600 }}
+                onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
+              >
+                💸 Cobro Rápido
+              </button>
+              <button
+                className="btn"
+                title="Generar aviso formal de cobro y enviar por WhatsApp"
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  color: '#16a34a',
+                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                onClick={() => {
+                  const notice = generateCollectionNotice({
+                    cliente: nombreClienteVisible(o.client) || 'Grupo Textil Providencia',
+                    folioFactura: inv.folio || o.folio || 'S/N',
+                    contrarecibo: cr || undefined,
+                    monto: amt,
+                    fechaVencimiento: inv.creditCycle?.dueDate,
+                  });
+                  openWhatsAppMessage(notice);
+                }}
+              >
+                <span>📲</span> WhatsApp
+              </button>
+            </>
           )}
           {inv.creditCycle.status === 'paid' && (
             <>

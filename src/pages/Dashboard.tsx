@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
 import Decimal from 'decimal.js-light';
-import { motion } from 'framer-motion';
 import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -24,7 +23,6 @@ import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
-import { SpeedDial } from '../components/Dashboard/SpeedDial';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
@@ -34,6 +32,8 @@ import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
 import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
 import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
+import { SociosProfitCard } from '../components/Dashboard/SociosProfitCard';
+import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectionSummary';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -396,25 +396,41 @@ return () => unsub();
   }
 
   return (
-    <>
-      <div className="page-head">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto' }}>
+      {/* ─── ENCABEZADO EJECUTIVO & HERRAMIENTAS GLOBALES ─────────────────── */}
+      <div className="page-head" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <h1>Dashboard Maestro</h1>
-            <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
+              <span className="live-status-pill" style={{ fontSize: 11, padding: '3px 8px' }}>
+                <span className="live-pulse-dot" style={{ width: 6, height: 6 }} /> En Vivo
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 14 }}>
+              Control Integral de Ventas, Flujo de Efectivo, Cobranza y Maquila Providencia.
+            </p>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+
+          {/* Botones de Exportación e Impresión */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)',
+              }}
+              onClick={() => nav('/ordenes?nueva=1')}
+            >
+              ➕ Nuevo Expediente
+            </button>
             <button
               className="btn"
-              style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6', fontWeight: 600 }}
+              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
               onClick={async () => {
-                // Antes este boton descargaba un archivo estatico
-                // (/plantilla_llena.xlsx) guardado una sola vez en el
-                // servidor: una foto congelada que nunca se actualizaba con
-                // los datos reales. Si alguien la editaba pensando que eran
-                // los datos de hoy y la volvia a subir, pisaba cambios
-                // reales con informacion vieja. Ahora usa la MISMA
-                // exportacion en vivo que el resto del sistema.
                 toast('Generando sábana con los datos actuales...', 'info');
                 try {
                   await exportToExcel();
@@ -424,63 +440,303 @@ return () => unsub();
                 }
               }}
             >
-              ⬇️ Descargar Sábana (datos actuales)
+              📊 Sábana Excel
             </button>
-            <button className="btn" style={{ background: '#7e22ce', color: '#fff', borderColor: '#7e22ce', fontWeight: 600 }} onClick={() => window.location.href = '/audit'}>
-              ⚖️ Auditoría Maestra
+            <button
+              className="btn"
+              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
+              onClick={() => nav('/audit')}
+            >
+              ⚖️ Auditoría
             </button>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareRentabilidad}>
-              <span className="icon">📤</span> Compartir PDF
+            <button
+              className="btn"
+              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
+              onClick={shareRentabilidad}
+            >
+              📤 Compartir PDF
             </button>
-            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printRentabilidad}>
-              📈 Imprimir Reporte
+            <button
+              className="btn"
+              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
+              onClick={printRentabilidad}
+            >
+              🖨️ Imprimir
             </button>
           </div>
         </div>
-        <div className="tabs" style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button className={deptFilter === 'ALL' ? 'active' : ''} onClick={() => setDeptFilter('ALL')}>🏢 Toda la Empresa</button>
-          {(settings?.departments || ['TH', 'GT']).map(d => (
-            <button key={d} className={deptFilter === d ? 'active' : ''} onClick={() => setDeptFilter(d)}>{d}</button>
-          ))}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Mes P&L:</span>
-            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={{ padding: '6px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--paper)', fontSize: 13, fontWeight: 600, color: 'var(--ink)', outline: 'none' }}>
+
+        {/* Barra de Filtros: Departamentos & Mes P&L */}
+        <div
+          style={{
+            marginTop: 18,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            background: 'var(--paper-raised)',
+            padding: '8px 14px',
+            borderRadius: 14,
+            border: '1px solid var(--line-soft)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div className="tabs" style={{ margin: 0, display: 'flex', gap: 6 }}>
+            <button
+              className={deptFilter === 'ALL' ? 'active' : ''}
+              onClick={() => setDeptFilter('ALL')}
+              style={{ borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 700 }}
+            >
+              🏢 Toda la Empresa
+            </button>
+            {(settings?.departments || ['TH', 'GT']).map((d) => (
+              <button
+                key={d}
+                className={deptFilter === d ? 'active' : ''}
+                onClick={() => setDeptFilter(d)}
+                style={{ borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 700 }}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+              📅 Período P&L:
+            </span>
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 10,
+                border: '1px solid var(--line)',
+                background: 'var(--paper)',
+                fontSize: 13,
+                fontWeight: 700,
+                color: 'var(--ink)',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
               <option value="ALL">Histórico Global</option>
-              {[...k.mesesKeys].reverse().map(m => (
-                <option key={m} value={m}>{monthLabel(m)}</option>
+              {[...k.mesesKeys].reverse().map((m) => (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                </option>
               ))}
             </select>
           </div>
         </div>
       </div>
 
-      {role !== 'viewer' && (
-        <SpeedDial 
-          onNewOrder={() => nav('/ordenes?nueva=1&tab=productos')}
-          onManualSale={() => nav('/ordenes?nueva=1')}
-          onFastEntry={() => nav('/captura-rapida')}
-          onNewExpense={() => nav('/cajachica')}
+      {/* ─── 1. HERO SUITE DE KPIS EJECUTIVOS (EN PRIMER PLANO) ──────────── */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+        </div>
+      ) : (
+        <ModernKpiGrid
+          k={k}
+          role={role}
+          saldoCaja={saldoCaja}
+          monthFilter={monthFilter}
+          nav={nav}
+          contrarecibosVencidosCount={contrarecibosVencidosCount}
+          config={config}
         />
       )}
 
+      {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA (FLUJO DE TRABAJO REAL) ───────── */}
+      <SemaforoDelDia
+        orders={activeOrders}
+        purchases={purchases}
+        config={config}
+        nav={nav}
+        onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+        onOpenQuickCollection={() => setShowQuickCollection(true)}
+      />
+
+      {/* ─── 3. BARRA DE ACCIONES RÁPIDAS Y CONTROL OPERATIVO ───────────── */}
+      <QuickActionsBar
+        role={role}
+        onNewOrder={() => nav('/ordenes?nueva=1')}
+        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickCollection={() => setShowQuickCollection(true)}
+        onQuickPay={() => setShowQuickPay(true)}
+        onOpenCorteMensual={() => setShowCorteMensual(true)}
+        onRecalc={() => void recalcStats()}
+        recalcBusy={recalcBusy}
+      />
+
+      {/* ─── 4. ALERTAS PROACTIVAS, REPARTO DE SOCIOS Y CASHFLOW PREDICTIVO ─ */}
       {role === 'admin' && (
-        <>
+        <div style={{ marginBottom: 24 }}>
+          <WeeklyCollectionSummary orders={activeOrders} />
+          <SociosProfitCard
+            orders={activeOrders}
+            expenses={expenses}
+            costPricePerKg={config.costPricePerKg || 42}
+            salePricePerKg={config.salePricePerKg || 43}
+            onOpenRetiro={() => nav('/caja-chica')}
+          />
           <SmartAlerts orders={activeOrders} />
           <CashflowProjection orders={activeOrders} />
-        </>
+        </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24, marginTop: role === 'admin' ? 16 : 24 }}>
-        
+      {/* ─── 5. PANELES OPERATIVOS PRINCIPALES ─────────────────────────────── */}
+      {/* Panel: Por Recibir del Contador (Efectivo pendiente de entrar a Caja) */}
+      {k.porRecibir.length > 0 &&
+        (() => {
+          const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
+          const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
+          return (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.15) 100%)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: 16,
+                padding: 22,
+                marginBottom: 24,
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>
+                  💼 Por Recibir del Contador ({k.porRecibir.length})
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>
+                  Facturas cobradas por el cliente donde el contador aún tiene pendiente entregar el efectivo.
+                </div>
+              </div>
+
+              {/* Desglose en 3 Pasos */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  flexWrap: 'wrap',
+                  background: 'var(--paper-raised)',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  marginBottom: 16,
+                  border: '1px solid var(--line-soft)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Cobrado por el Cliente
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>{money(totalBruto)}</div>
+                </div>
+                <div style={{ fontSize: 20, color: 'var(--ink-soft)' }}>−</div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Comisión Contador (8%)
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#f87171' }}>{money(totalComision)}</div>
+                </div>
+                <div style={{ fontSize: 20, color: 'var(--ink-soft)' }}>=</div>
+                <div style={{ marginLeft: 'auto' }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Neto a Entrar a Caja Chica
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--line-soft)' }}>
+                    <th style={{ padding: '8px', textAlign: 'left', color: 'var(--ink-soft)', fontWeight: 600 }}>Factura</th>
+                    <th style={{ padding: '8px', textAlign: 'left', color: 'var(--ink-soft)', fontWeight: 600 }}>Contrarecibo</th>
+                    <th style={{ padding: '8px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Importe Factura</th>
+                    <th style={{ padding: '8px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Comisión</th>
+                    <th style={{ padding: '8px', textAlign: 'right', color: 'var(--ink-soft)', fontWeight: 600 }}>Neto a Recibir</th>
+                    <th style={{ padding: '8px', textAlign: 'right' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {k.porRecibir.map((r: any, idx: number) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid var(--line-soft)' }}>
+                      <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontWeight: 700 }}>#{r.folio}</td>
+                      <td style={{ padding: '10px 8px', color: 'var(--ink-soft)', fontFamily: 'monospace' }}>{r.cr}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>{money(r.invoiceTotal)}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 800 }}>{money(r.net)}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        <button
+                          className="btn"
+                          style={{
+                            background: 'var(--ok-bg)',
+                            color: 'var(--ok)',
+                            border: '1px solid var(--ok)',
+                            padding: '5px 12px',
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                          onClick={() => handleRecibir(r)}
+                        >
+                          💵 Recibir → CAJA
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
+      {/* Facturas sin Contrarecibo */}
+      <FacturasSinCRPanel orders={activeOrders} />
+
+      {/* Bandeja de Entregas del Maquilador (Andrés) */}
+      <BandejaMaquilaWidget />
+
+      {/* ─── 6. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 24, marginBottom: 32 }}>
         {role === 'admin' && (
-          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--ok-bg)', color: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--paper-raised)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--line-soft)',
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: 'var(--ok-bg)',
+                color: 'var(--ok)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+              }}
+            >
               ⚡
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Último Movimiento (Live)</span>
-                <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>● En vivo</span>
+                <span>Último Movimiento</span>
+                <span className="live-status-pill" style={{ fontSize: 10, padding: '2px 6px' }}>● En vivo</span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
                 🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
@@ -488,23 +744,43 @@ return () => unsub();
               <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {liveLogs[0]?.action || 'Sistema iniciado'}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
-                Por: {liveLogs[0]?.user || '—'}
-              </div>
               <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-                ⚡ Monitor Live de Movimientos
+                ⚡ Ver Monitor de Eventos
               </button>
             </div>
           </div>
         )}
 
-        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+        <div
+          style={{
+            padding: 16,
+            background: 'var(--paper-raised)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--line-soft)',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              background: 'var(--accent-sunk)',
+              color: 'var(--accent-deep)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+            }}
+          >
             🚀
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Versión del Sistema</span>
+              <span>Versión del ERP</span>
               <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>v{__APP_VERSION__}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
@@ -514,14 +790,37 @@ return () => unsub();
               {SYSTEM_CHANGELOG[0]?.summary ?? ''}
             </div>
             <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              📜 Bitácora de Parches
+              📜 Bitácora de Versiones
             </button>
           </div>
         </div>
 
         {role === 'admin' && (
-          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--info-bg)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--paper-raised)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--line-soft)',
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: 'var(--info-bg)',
+                color: 'var(--info)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+              }}
+            >
               🛡️
             </div>
             <div style={{ flex: 1 }}>
@@ -536,7 +835,7 @@ return () => unsub();
                 <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
                   📋 5 Máx
                 </button>
-                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 10, padding: '3px 7px' }} title="Reconstruir indicadores del dashboard">
+                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
                   {recalcBusy ? '⏳ Recalculando…' : '🔄 Recalcular'}
                 </button>
               </div>
@@ -545,248 +844,7 @@ return () => unsub();
         )}
       </div>
 
-      <SemaforoDelDia
-        orders={activeOrders}
-        purchases={purchases}
-        config={config}
-        nav={nav}
-        onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-        onOpenQuickCollection={() => setShowQuickCollection(true)}
-      />
-
-      <QuickActionsBar 
-        role={role}
-        onNewOrder={() => nav('/ordenes?nueva=1')}
-        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-        onQuickInvoice={() => setShowQuickInvoice(true)}
-        onQuickCollection={() => setShowQuickCollection(true)}
-        onQuickPay={() => setShowQuickPay(true)}
-        onOpenCorteMensual={() => setShowCorteMensual(true)}
-      />
-
-      <BandejaMaquilaWidget />
-      
-      {/* 🚀 Widget Proactivo: Asistente de Siguiente Acción */}
-      {(k.pedidoPendiente.length > 0 || k.urgentes15 > 0 || k.review.length > 0) && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, boxShadow: 'var(--shadow-hover)' }}
-        >
-          <div style={{ fontSize: 32, filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5))' }}>✨</div>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ margin: 0, fontSize: 16, color: 'var(--accent)' }}>Sugerencias Proactivas</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: 14, color: 'var(--ink-soft)' }}>
-              {k.pedidoPendiente.length > 0 ? `Tienes ${k.pedidoPendiente.length} órdenes con entregas pero sin facturar. ` : ''}
-              {k.urgentes15 > 0 ? `Existen ${k.urgentes15} contrarecibos urgentes por cobrar. ` : ''}
-              {k.review.length > 0 ? `Hay ${k.review.length} XMLs esperando validación manual.` : ''}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {k.pedidoPendiente.length > 0 && <button className="btn btn-primary" onClick={() => nav('/ordenes?filtro=pedido')}>Facturar Ahora</button>}
-            {k.urgentes15 > 0 && <button className="btn" onClick={() => nav('/cobranza')}>Cobrar</button>}
-            <button className="btn" onClick={() => nav('/config')}>⚙️ Configuración</button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Panel de Semáforo de Alertas Visuales - Control de Gestión */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: k.criticos30 > 0 ? 'rgba(239,68,68,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.criticos30 > 0 ? '#ef4444' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🔴</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink-faint)' }}>Críticos (&gt;30 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink)' }}>{k.criticos30} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: k.urgentes15 > 0 ? 'rgba(249,115,22,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.urgentes15 > 0 ? '#f97316' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟠</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink-faint)' }}>Urgentes (16-30 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink)' }}>{k.urgentes15} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: k.recientes1 > 0 ? 'rgba(234,179,8,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.recientes1 > 0 ? '#eab308' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟡</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.recientes1 > 0 ? '#a16207' : 'var(--ink-faint)' }}>Recientes (1-15 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.recientes1 > 0 ? '#a16207' : 'var(--ink)' }}>{k.recientes1} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟢</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#047857' }}>Por Recoger Contador</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#047857' }}>{k.porRecibir.length} contrarecibo(s)</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>📅</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 7 Días</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion7d)}</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>📈</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 15 Días</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion15d)}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* FIX 2026-08-10 (Iteracion 97): este aviso usaba k.overdue.length, un
-          conteo por EXPEDIENTE que viene del agregado cacheado del servidor
-          (counters.overdueOrders) -- pero la etiqueta dice "contrarecibo(s)",
-          que es por FACTURA, no por expediente. Un expediente con varias
-          facturas (ej. el de la migracion original) contaba como 1 aunque
-          tuviera varios contrarecibos vencidos adentro. contrarecibosVencidosCount
-          ya cuenta por factura y en vivo (mismo criterio de fecha que usa el
-          monto en pesos de al lado), asi que ambas mitades del aviso ahora
-          salen de la misma fuente. */}
-      {(contrarecibosVencidosCount > 0 || k.review.length > 0) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-          {contrarecibosVencidosCount > 0 && (
-            <div className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 20 }}>⚠️</span>
-              <div style={{ flex: 1 }}>
-                <strong>Atención:</strong> Tienes {contrarecibosVencidosCount} contrarecibo{contrarecibosVencidosCount > 1 ? 's' : ''} vencido{contrarecibosVencidosCount > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
-              </div>
-              <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
-            </div>
-          )}
-          {k.review.length > 0 && (
-            <div className="alert warn" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 20 }}>🔍</span>
-              <div style={{ flex: 1 }}>
-                <strong>Revisión manual:</strong> {k.review.length} archivo{k.review.length > 1 ? 's' : ''} con errores en XML o que esperan captura manual.
-              </div>
-              <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar Ahora</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* AGREGADO 2026-08-11 (Iteracion 101): la unica etapa del flujo real
-          del usuario (OC -> entregas -> factura -> contrarecibo -> deposito
-          -> comision -> caja) que no tenia ninguna alerta -- una factura ya
-          emitida que sigue esperando que Providencia entregue el numero de
-          contrarecibo era invisible hasta este panel. */}
-      <FacturasSinCRPanel orders={activeOrders} />
-
-      {k.porRecibir.length > 0 && (() => {
-        const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
-        const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
-        return (
-        <div style={{
-          background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2218 100%)',
-          border: '1px solid var(--ok)',
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 22,
-        }}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
-              💼 Por Recibir del Contador
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-              Estas facturas ya fueron cobradas por el cliente — el contador aún no te da el efectivo
-            </div>
-          </div>
-          {/* Flujo claro en 3 pasos: lo que cobró el cliente -> comisión -> lo que de verdad entra a Caja.
-              Antes solo se veia el neto final, sin explicar de donde salia — cualquiera que no conociera
-              el descuento del contador de memoria tenia que sumar la tabla completa para entender la diferencia. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '14px 18px' }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Cobrado por el cliente</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{money(totalBruto)}</div>
-            </div>
-            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.35)' }}>−</div>
-            <div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Comisión del contador</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#f87171' }}>{money(totalComision)}</div>
-            </div>
-            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.35)' }}>=</div>
-            <div style={{ marginLeft: 'auto' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Esto es lo que entra a tu Caja</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
-            </div>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
-                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Factura</th>
-                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Contrarecibo</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Importe Factura</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Comisión</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Neto a recibir</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {k.porRecibir.map((r: any, idx: number) => (
-                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                  <td style={{ padding: '8px 8px', color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>#{r.folio}</td>
-                  <td style={{ padding: '8px 8px', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{r.cr}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.8)' }}>{money(r.invoiceTotal)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 700 }}>{money(r.net)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right' }}>
-                    <button className="btn" style={{ background: 'rgba(34,197,94,0.2)', color: 'var(--ok)', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 12, fontWeight: 600 }} onClick={() => handleRecibir(r)}>
-                      💵 Recibir → CAJA
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-            Abre la factura → "💵 Recibida del Contador → Caja Chica" para mover el dinero automáticamente.
-          </div>
-        </div>
-        );
-      })()}
-
-      {(statsDoc?.counters?.totalOrders ?? 0) === 0 && role === 'admin' && (
-        <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
-            El sistema no tiene órdenes registradas aún
-          </div>
-          <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-            Puedes cargar varios expedientes de golpe desde un Excel en la Auditoría Maestra,
-            o capturar el primero a mano desde Expedientes.
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-            <button className="btn btn-primary" onClick={() => window.location.href = '/audit'}>
-              ⚖️ Ir a la Auditoría Maestra
-            </button>
-            <button className="btn" onClick={() => nav('/ordenes?nueva=1')}>
-              + Capturar a mano
-            </button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 32 }}>
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-        </div>
-      ) : (
-        <ModernKpiGrid k={k} role={role} saldoCaja={saldoCaja} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} config={config} />
-      )}
-
+      {/* ─── MODALES Y DRAWERS DE CONTROL ─────────────────────────────────── */}
       {showContrarecibosDrawer && (
         <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>
           <ContrarecibosTable orders={activeOrders} />
@@ -800,24 +858,15 @@ return () => unsub();
       )}
 
       {showQuickInvoice && (
-        <QuickInvoiceModal 
-          orders={activeOrders} 
-          onClose={() => setShowQuickInvoice(false)} 
-        />
+        <QuickInvoiceModal orders={activeOrders} onClose={() => setShowQuickInvoice(false)} />
       )}
 
       {showQuickCollection && (
-        <QuickCollectionModal 
-          orders={activeOrders} 
-          onClose={() => setShowQuickCollection(false)} 
-        />
+        <QuickCollectionModal orders={activeOrders} onClose={() => setShowQuickCollection(false)} />
       )}
 
       {showQuickPay && (
-        <QuickPayModal 
-          orders={activeOrders} 
-          onClose={() => setShowQuickPay(false)} 
-        />
+        <QuickPayModal orders={activeOrders} onClose={() => setShowQuickPay(false)} />
       )}
 
       <Suspense fallback={null}>
@@ -833,7 +882,7 @@ return () => unsub();
         )}
 
         {showBackupsModal && (
-          <CloudBackupsModal 
+          <CloudBackupsModal
             onClose={() => setShowBackupsModal(false)}
             cloudBackups={cloudBackups as any}
             backupBusy={backupBusy}
@@ -848,12 +897,9 @@ return () => unsub();
         )}
 
         {showLiveLogsModal && (
-          <LiveLogsModal 
-            onClose={() => setShowLiveLogsModal(false)}
-            liveLogs={liveLogs as any}
-          />
+          <LiveLogsModal onClose={() => setShowLiveLogsModal(false)} liveLogs={liveLogs as any} />
         )}
       </Suspense>
-    </>
+    </div>
   );
 }

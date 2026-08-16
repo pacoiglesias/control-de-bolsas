@@ -8,6 +8,20 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v7.7.0',
+    date: '16 de Agosto de 2026',
+    time: '02:50 PM',
+    summary: 'Generador de Prefacturas PDF desde la OC, Captura Rápida de Contrarecibos, Tarjeta de Utilidad y Reparto de Socios 50/50 y Cobranza Semanal para el Contador',
+    highlights: [
+      'Generador de Prefacturas Formales en PDF: toma datos de la Orden de Compra (OC), aplica claves SAT (24111500, KGM), desglose de subtotal, 16% IVA y total con letra en pesos para compartir en 1 clic con el contador.',
+      'Control Estricto de Contrarecibos (CR): nuevo filtro [⚠️ Sin Contrarecibo], badges con pulso ámbar en la lista de órdenes y botón de captura rápida [+ Asignar CR] en 1 clic sin abrir todo el expediente.',
+      'Tarjeta Ejecutiva de Reparto de Socios (50/50): cálculo automático de utilidad neta descontando costo de Andrés ($42/kg) y 8% del contador, con división exacta para Paco y su socio.',
+      'Resumen de Cobranza Semanal para el Contador: compilador inteligente de todos los contrarecibos que vencen en los próximos 7 días con botón directo para enviar la relación por WhatsApp.',
+      'Flujo de Caja Simplificado: 4 pilares limpios enfocados en Efectivo en Caja, Por Recibir del Contador, Cuenta con Andrés y Reparto a Socios.',
+      'Portal del Maquilador v2.5: cola de entregas offline con auto-sincronización y calculadora de bultos/rollos a kilos.'
+    ]
+  },
+  {
     version: 'v7.5.0',
     date: '15 de Agosto de 2026',
     time: '11:15 PM',

@@ -8,6 +8,8 @@ interface QuickActionsBarProps {
   onQuickCollection: () => void;
   onQuickPay: () => void;
   onOpenCorteMensual?: () => void;
+  onRecalc?: () => void;
+  recalcBusy?: boolean;
   role: string | null;
 }
 
@@ -19,6 +21,8 @@ export function QuickActionsBar({
   onQuickCollection,
   onQuickPay,
   onOpenCorteMensual,
+  onRecalc,
+  recalcBusy,
   role,
 }: QuickActionsBarProps) {
   return (
@@ -229,7 +233,35 @@ export function QuickActionsBar({
           </motion.a>
         )}
 
-        {/* 9. Buscar Cmd+K */}
+        {/* 9. Botón Recalcular / Sincronizar */}
+        {onRecalc && role === 'admin' && (
+          <motion.button
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onRecalc}
+            disabled={recalcBusy}
+            title="Recalcular sumas, IVA y métricas del Dashboard desde el servidor"
+            style={{
+              background: 'rgba(59, 130, 246, 0.1)',
+              color: '#2563eb',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: 12,
+              padding: '8px 15px',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: recalcBusy ? 'default' : 'pointer',
+              opacity: recalcBusy ? 0.7 : 1,
+            }}
+          >
+            <span style={{ fontSize: 15 }}>{recalcBusy ? '⏳' : '🔄'}</span>
+            {recalcBusy ? 'Recalculando…' : 'Recalcular'}
+          </motion.button>
+        )}
+
+        {/* 10. Buscar Cmd+K */}
         <motion.button
           whileHover={{ scale: 1.02, y: -1 }}
           whileTap={{ scale: 0.98 }}

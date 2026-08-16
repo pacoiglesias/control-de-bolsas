@@ -6,6 +6,7 @@ import { addDays } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
 import type { Invoice } from '../../lib/types';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();
@@ -64,7 +65,7 @@ export default function TabFacturas() {
       await saveInvoice(order, newInv, dynamicConfig);
       setExpandedIds(prev => new Set(prev).add(nuevoId));
       toast('Factura creada exitosamente', 'ok');
-    } catch (e: any) {
+    } catch {
       // error handled in saveInvoice
     }
   };
@@ -124,25 +125,39 @@ export default function TabFacturas() {
           <div style={{ fontWeight: 700, fontSize: 13, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>🏛️</span> Datos para emitir Factura SAT (CFDI 4.0) a Providencia
           </div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ fontSize: 11, padding: '3px 8px' }}
-            onClick={() => {
-              const rfc = 'GTP930115PU1';
-              const razon = 'GRUPO TEXTIL PROVIDENCIA';
-              const regimen = '601 - General de Ley Personas Morales';
-              const uso = 'G01 - Adquisición de mercancías';
-              const claveProd = '24111500';
-              const claveUnidad = 'KGM';
-              const precio = (dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2);
-              const txt = `RFC: ${rfc}\nNombre: ${razon}\nRégimen: ${regimen}\nUso CFDI: ${uso}\nClave ProdServ: ${claveProd}\nUnidad: ${claveUnidad}\nPrecio Unitario: $${precio}\nObjeto Impuesto: 02 - Sí objeto de impuesto (IVA 16%)\nMétodo de Pago: PPD\nForma de Pago: 99`;
-              navigator.clipboard.writeText(txt);
-              toast('📋 Datos fiscales copiados para el portal del SAT', 'ok');
-            }}
-          >
-            📋 Copiar Todo para SAT
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: 11, padding: '3px 8px', background: '#2563eb', color: '#fff', border: 'none', fontWeight: 700 }}
+              onClick={async () => {
+                toast('📄 Generando Prefactura en PDF...', 'info');
+                await generatePrefacturaPdf(order, null);
+                toast('✅ Prefactura descargada con éxito', 'ok');
+              }}
+            >
+              📄 Prefactura PDF
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ fontSize: 11, padding: '3px 8px' }}
+              onClick={() => {
+                const rfc = 'GTP930115PU1';
+                const razon = 'GRUPO TEXTIL PROVIDENCIA';
+                const regimen = '601 - General de Ley Personas Morales';
+                const uso = 'G01 - Adquisición de mercancías';
+                const claveProd = '24111500';
+                const claveUnidad = 'KGM';
+                const precio = (dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2);
+                const txt = `RFC: ${rfc}\nNombre: ${razon}\nRégimen: ${regimen}\nUso CFDI: ${uso}\nClave ProdServ: ${claveProd}\nUnidad: ${claveUnidad}\nPrecio Unitario: $${precio}\nObjeto Impuesto: 02 - Sí objeto de impuesto (IVA 16%)\nMétodo de Pago: PPD\nForma de Pago: 99`;
+                navigator.clipboard.writeText(txt);
+                toast('📋 Datos fiscales copiados para el portal del SAT', 'ok');
+              }}
+            >
+              📋 Copiar para SAT
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, fontSize: 11 }}>

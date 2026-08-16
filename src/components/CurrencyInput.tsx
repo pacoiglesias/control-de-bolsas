@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
   value: number;
@@ -9,14 +9,7 @@ interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
 export function CurrencyInput({ value, onChange, currency = true, ...props }: CurrencyInputProps) {
   const [displayValue, setDisplayValue] = useState('');
 
-  useEffect(() => {
-    // Solo actualizar si no estamos enfocados para evitar saltos del cursor
-    if (document.activeElement?.id !== props.id) {
-      formatAndSet(value);
-    }
-  }, [value, props.id]);
-
-  const formatAndSet = (val: number) => {
+  const formatAndSet = useCallback((val: number) => {
     if (isNaN(val)) return setDisplayValue('');
     const formatter = new Intl.NumberFormat('es-MX', {
       style: currency ? 'currency' : 'decimal',
@@ -25,7 +18,14 @@ export function CurrencyInput({ value, onChange, currency = true, ...props }: Cu
       maximumFractionDigits: 2,
     });
     setDisplayValue(formatter.format(val));
-  };
+  }, [currency]);
+
+  useEffect(() => {
+    // Solo actualizar si no estamos enfocados para evitar saltos del cursor
+    if (document.activeElement?.id !== props.id) {
+      formatAndSet(value);
+    }
+  }, [value, props.id, formatAndSet]);
 
   const handleBlur = () => {
     formatAndSet(value);

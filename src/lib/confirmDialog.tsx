@@ -35,7 +35,6 @@ export function confirmDialog(opts: ConfirmOptions | string): Promise<boolean> {
       // Red de seguridad: si por algún motivo <ConfirmDialogHost /> no está
       // montado (p. ej. un test aislado), no rompemos el flujo -- caemos de
       // vuelta al confirm nativo del navegador en vez de colgar la promesa.
-      // eslint-disable-next-line no-alert
       resolve(window.confirm(typeof options.message === 'string' ? options.message : 'Confirmar acción'));
       return;
     }

@@ -137,9 +137,11 @@ export default function Layout() {
         <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
         <span className="spacer" />
         <OnlineUsers />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 12, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
-          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
-          {isOnline ? 'Online' : 'Offline'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
+          <div className="live-status-pill" style={{ background: isOnline ? 'var(--ok-bg)' : 'var(--bad-bg)', color: isOnline ? 'var(--ok)' : 'var(--bad)', borderColor: isOnline ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)' }}>
+            <span className={isOnline ? 'live-pulse-dot' : ''} style={{ width: 7, height: 7, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }} />
+            <span>{isOnline ? 'En Vivo' : 'Sin Conexión'}</span>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <NotificationsCenter />

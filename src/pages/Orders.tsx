@@ -8,32 +8,19 @@ import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from '../components/OrderModal';
 import KanbanBoard from '../components/Orders/KanbanBoard';
+import { QuickCrModal } from '../components/QuickCrModal';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
-const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
+const FILTERS: { key: 'all' | 'sin_cr' | OrderStatus; label: string }[] = [
   { key: 'all', label: 'Todas' },
-  // "pedido" es el expediente sin ninguna factura creada todavia: es
-  // literalmente "lo que falta por facturar". Se llamaba "Pedidos", que no
-  // decia nada de eso.
-  { key: 'pedido', label: '📝 Pendiente de Facturar' },
-  { key: 'facturado', label: 'Facturado' },
-  { key: 'pending', label: 'Con CR' },
-  { key: 'overdue', label: 'Vencidas' },
-  // Se llamaba "Cobradas", pero el estado 'paid' significa que la factura
-  // ya esta en manos del contador para su tramite -- el dinero todavia NO
-  // esta en caja. El badge de cada fila (STATUS_LABEL en types.ts) ya
-  // decia "🟡 Con el Contador"; el chip del filtro decia otra cosa
-  // distinta para el mismo estado, y el usuario entraba esperando ver
-  // dinero cobrado y encontraba filas que contradecian el nombre del
-  // filtro que acababa de tocar.
+  { key: 'pedido', label: '📝 Pendientes de Facturar' },
+  { key: 'sin_cr', label: '⚠️ Sin Contrarecibo' },
+  { key: 'pending', label: '⏳ Con CR (Por Cobrar)' },
+  { key: 'overdue', label: '🚨 Vencidas' },
   { key: 'paid', label: '🟡 Con el Contador' },
-  // 'collected' es el estado que de verdad significa "ya esta el dinero
-  // en caja" -- antes no tenia chip propio, asi que no habia forma de ver
-  // de un vistazo solo lo que ya esta 100% cobrado sin restar a mano.
-  { key: 'collected', label: '✅ Recibidas' },
-  { key: 'manual_review', label: 'Revisión' },
+  { key: 'collected', label: '✅ Recibidas en Caja' },
 ];
 
 export default function Orders() {
@@ -43,6 +30,7 @@ export default function Orders() {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'>('kanban');
   
@@ -55,7 +43,7 @@ export default function Orders() {
     if (q !== null && q !== search) setSearch(q);
   }, [params, search]);
 
-  const filter = (params.get('filtro') as 'all' | OrderStatus) ?? 'all';
+  const filter = (params.get('filtro') as 'all' | 'sin_cr' | OrderStatus) ?? 'all';
 
   useEffect(() => {
     if (params.get('nueva') === '1') {
@@ -132,6 +120,11 @@ export default function Orders() {
       // todavia no se han facturado.
       if (filter === 'pedido') {
         if (s.kilosDelivered <= s.kilosInvoiced) return false;
+      } else if (filter === 'sin_cr') {
+        if (o.client === 'MIGRACION') return false;
+        if (s.invoices.length === 0) return false;
+        const faltaCr = s.invoices.some((i: any) => !i.collection?.contrareciboNumber && i.creditCycle?.status !== 'collected');
+        if (!faltaCr) return false;
       } else if (filter !== 'all' && s.status !== filter) {
         return false;
       }
@@ -168,6 +161,7 @@ export default function Orders() {
   }, [rows, page]);
 
   useEffect(() => {
+    const target = observerTarget.current;
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && rows.length > page * pageSize) {
@@ -177,16 +171,16 @@ export default function Orders() {
       { threshold: 1.0 }
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    if (target) {
+      observer.observe(target);
     }
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
+      if (target) {
+        observer.unobserve(target);
       }
     };
-  }, [observerTarget, page, rows.length]);
+  }, [page, rows.length, pageSize]);
 
   // Resetear página al cambiar filtro o búsqueda
   useEffect(() => {
@@ -196,11 +190,16 @@ export default function Orders() {
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: conResumen.length };
     let pendienteFacturar = 0;
+    let sinCrCount = 0;
     conResumen.forEach(({ o, s }) => {
       if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION') pendienteFacturar++;
+      if (o.client !== 'MIGRACION' && s.invoices.length > 0 && s.invoices.some((i: any) => !i.collection?.contrareciboNumber && i.creditCycle?.status !== 'collected')) {
+        sinCrCount++;
+      }
       c[s.status] = (c[s.status] ?? 0) + 1;
     });
     c.pedido = pendienteFacturar;
+    c.sin_cr = sinCrCount;
     return c;
   }, [conResumen]);
 
@@ -435,6 +434,30 @@ export default function Orders() {
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
+                        {summary.invoices.length > 0 && summary.invoices.some((i: any) => !i.collection?.contrareciboNumber && i.creditCycle?.status !== 'collected') && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <span className="badge-sin-cr-pulse" style={{ fontSize: '0.72em', fontWeight: 800, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>⚠️ SIN CR</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickCrOrder(o);
+                              }}
+                              title="Capturar Contrarecibo rápidamente"
+                              style={{
+                                background: 'rgba(37, 99, 235, 0.12)',
+                                border: '1px solid rgba(37, 99, 235, 0.3)',
+                                color: '#2563eb',
+                                borderRadius: 6,
+                                padding: '1px 6px',
+                                fontSize: '0.75em',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              + Asignar CR
+                            </button>
+                          </div>
+                        )}
                         {summary.invoices.some((i: any) => i.collection?.contrareciboNumber) && (() => {
                           const conCr = summary.invoices.filter((i: any) => i.collection?.contrareciboNumber);
                           const expandido = crExpandido.has(o.id);
@@ -536,6 +559,13 @@ export default function Orders() {
           onClose={() => setSelected(null)}
           readOnly={role === 'viewer'}
           initialTab={initialModalTab}
+        />
+      )}
+
+      {quickCrOrder && (
+        <QuickCrModal
+          order={orders.find((o) => o.id === quickCrOrder.id) ?? quickCrOrder}
+          onClose={() => setQuickCrOrder(null)}
         />
       )}
     </>

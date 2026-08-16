@@ -16,12 +16,17 @@ export function CommandPalette() {
   const ROUTES = [
     { label: 'Ir a Dashboard', path: '/', icon: '📊' },
     { label: 'Ir a Expedientes (Órdenes)', path: '/ordenes', icon: '📂' },
+    { label: 'Ir a Cobranza y Cuentas por Cobrar', path: '/cobranza', icon: '💵' },
     { label: 'Ir a Caja Chica', path: '/caja-chica', icon: '💰' },
     { label: 'Ir a Compras y Proveedores', path: '/compras', icon: '🛒' },
     { label: 'Ir a Por OC (Entregas)', path: '/oc', icon: '📦' },
     { label: 'Ir a Catálogo Inteligente', path: '/catalogo', icon: '🏷️' },
+    { label: 'Ir a Captura Rápida', path: '/captura-rapida', icon: '⚡' },
     { label: 'Ir a Data Mining', path: '/mining', icon: '⛏️' },
-    { label: 'Ir a Centro de Control', path: '/centro-control', icon: '⚙️' }
+    { label: 'Ir a Auditoría y Reconciliación', path: '/audit', icon: '🛡️' },
+    { label: 'Ir a Usuarios y Accesos', path: '/usuarios', icon: '👥' },
+    { label: 'Ir a Centro de Control', path: '/centro-control', icon: '⚙️' },
+    { label: 'Ir a Portal Maquilador', path: '/portal-maquilador', icon: '🏭' },
   ];
 
   useEffect(() => {
@@ -34,8 +39,16 @@ export function CommandPalette() {
         setIsOpen(false);
       }
     };
+    const handleCustomOpen = () => setIsOpen(true);
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('open-command-menu', handleCustomOpen);
+    window.addEventListener('open-command-menu', handleCustomOpen);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('open-command-menu', handleCustomOpen);
+      window.removeEventListener('open-command-menu', handleCustomOpen);
+    };
   }, [isOpen]);
 
   useEffect(() => {

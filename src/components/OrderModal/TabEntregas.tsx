@@ -40,7 +40,6 @@ export default function TabEntregas() {
   const [showPortal, setShowPortal] = React.useState(false);
   const [showFotoModal, setShowFotoModal] = React.useState(false);
 
-  if (!ctx) return null;
   const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, setTab } = ctx;
   const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
 

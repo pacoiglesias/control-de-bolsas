@@ -61,7 +61,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const handleSave = async () => {
     try {
       await saveInvoice(order, localInvoice, dynamicConfig);
-    } catch (error) {
+    } catch {
       // toast already handled in useInvoiceActions
     }
   };
