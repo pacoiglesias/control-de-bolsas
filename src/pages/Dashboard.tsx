@@ -26,7 +26,7 @@ import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidg
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
-import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
+import { PagarAndresModal } from '../components/Compras/PagarAndresModal';
 import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
@@ -903,7 +903,7 @@ return () => unsub();
       )}
 
       {showQuickPay && (
-        <QuickPayModal orders={activeOrders} onClose={() => setShowQuickPay(false)} />
+        <PagarAndresModal onClose={() => setShowQuickPay(false)} />
       )}
 
       <Suspense fallback={null}>

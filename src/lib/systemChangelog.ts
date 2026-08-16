@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.5 Enterprise Cashflow Guard Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:25 PM',
+    summary: 'Blindaje y Verificación en Tiempo Real de Efectivo en Caja para Pagos y Anticipos a Andrés',
+    highlights: [
+      'Validación de Saldo de Caja Chica: El modal de pago a Andrés y los egresos de tesorería ahora verifican en vivo el efectivo disponible, proyectando el saldo remanente y alertando con advertencias explícitas en caso de saldo insuficiente.',
+      'Sugerencia Inteligente de Fondos del Contador: Si la caja no tiene suficiente efectivo pero existen fondos cobrados en tránsito con el contador, el sistema notifica de inmediato el monto disponible para recibir antes de pagar.',
+      'Acceso Unificado a Pago de Fabricante: La acción de pago en el Dashboard y la barra móvil abre de forma directa el modal de abono a Andrés con control de liquidez.',
+    ],
+  },
+  {
     version: 'v8.2.4 Enterprise Local Mobile Engine Edition',
     date: '16 de Agosto de 2026',
     time: '10:20 PM',

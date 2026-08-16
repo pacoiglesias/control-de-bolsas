@@ -18,6 +18,7 @@ import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
 import { motion } from 'framer-motion';
 import { useUndo } from '../context/UndoContext';
+import { confirmDialog } from '../lib/confirmDialog';
 
 export default function CajaChica() {
   const { role } = useAuth();
@@ -596,13 +597,13 @@ export default function CajaChica() {
       </Card>
 
       {selected && (
-        <ExpenseDrawer expense={selected} onClose={() => setSelected(null)} provName={provName} />
+        <ExpenseDrawer expense={selected} onClose={() => setSelected(null)} provName={provName} saldoCajaActual={saldo} />
       )}
     </>
   );
 }
 
-function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
+function ExpenseDrawer({ expense, onClose, provName, saldoCajaActual = 0 }: { expense: Expense; onClose: () => void; provName: string; saldoCajaActual?: number }) {
   const { user } = useAuth();
   const toast = useToast();
   const { executeWithUndo } = useUndo();
@@ -620,7 +621,13 @@ function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClo
 
   async function save() {
     if (!form.concept.trim()) return toast('Falta concepto', 'bad');
-    if (Number(form.amount) <= 0) return toast('Monto inválido', 'bad');
+    const amt = Number(form.amount);
+    if (amt <= 0) return toast('Monto inválido', 'bad');
+
+    if (form.type === 'egreso' && !expense.createdAt && amt > saldoCajaActual) {
+      const msg = `⚠️ ATENCIÓN: El saldo en efectivo en Caja Chica es de ${money(saldoCajaActual)}, pero intentas registrar un egreso de ${money(amt)}.\n\nLa caja quedará en saldo negativo de ${money(saldoCajaActual - amt)}.\n\n¿Deseas continuar?`;
+      if (!(await confirmDialog(msg))) return;
+    }
 
     setBusy(true);
     try {

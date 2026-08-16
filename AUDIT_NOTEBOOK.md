@@ -1511,6 +1511,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
 
+### Iteración 124: Blindaje de Efectivo en Caja para Pagos a Andrés (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Compras/PagarAndresModal.tsx`, `src/pages/Dashboard.tsx`, `src/pages/CajaChica.tsx`
+**Problema:** Al adelantar o pagar dinero a Andrés, el sistema no verificaba si la Caja Chica contaba con efectivo disponible suficiente, permitiendo crear egresos en descubierto sin alertar al usuario.
+**Impacto:** Riesgo de descuadre en flujo de caja físico y pagos sin fondos reales en tesorería.
+**Solución:** Integrada verificación en tiempo real del saldo líquido en `PagarAndresModal` y `ExpenseDrawer`. Se muestra el saldo disponible, el saldo remanente tras el pago, advertencias de saldo insuficiente y sugerencias para recibir fondos en tránsito del contador antes de pagar.
+**Riesgo:** 🟢 Bajo — Lógica de validación financiera.
+**Commit:** `feat(caja): validacion y blindaje de efectivo disponible para pagos a andres y egresos`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y Control de Tesorería.
+
+
 
 
 
