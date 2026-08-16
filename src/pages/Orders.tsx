@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from '../components/OrderModal';
 import KanbanBoard from '../components/Orders/KanbanBoard';
+import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { QuickCrModal } from '../components/QuickCrModal';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary } from '../lib/finance';
@@ -27,12 +28,13 @@ export default function Orders() {
   const { orders, loading, error } = useOrders();
   const { role } = useAuth();
   const { config } = useConfig();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
-  const [viewMode, setViewMode] = useState<'list'|'kanban'>('kanban');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('kanban');
   
   const [page, setPage] = useState(1);
   const pageSize = 30;
@@ -330,11 +332,11 @@ export default function Orders() {
           <span className="spacer" />
           <div style={{ display: 'flex', gap: 4, background: 'var(--bg-body)', padding: 4, borderRadius: 8, marginRight: 12 }}>
             <button 
-              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
-              onClick={() => setViewMode('list')}
+              className={`btn-small ${viewMode === 'radar' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'radar' ? '#d97706' : 'transparent', color: viewMode === 'radar' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 700 }}
+              onClick={() => setViewMode('radar')}
             >
-              ☰ Lista
+              ⚡ Acciones Hoy
             </button>
             <button 
               className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
@@ -342,6 +344,13 @@ export default function Orders() {
               onClick={() => setViewMode('kanban')}
             >
               ◫ Tablero
+            </button>
+            <button 
+              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              onClick={() => setViewMode('list')}
+            >
+              ☰ Lista
             </button>
           </div>
           <input
@@ -353,7 +362,17 @@ export default function Orders() {
           />
         </div>
 
-        {rows.length === 0 ? (
+        {viewMode === 'radar' ? (
+          <div style={{ padding: '20px 16px' }}>
+            <ActionRadar
+              orders={orders}
+              purchases={[]}
+              config={config}
+              nav={(path) => navigate(path)}
+              onOpenOrder={(o) => setSelected(o)}
+            />
+          </div>
+        ) : rows.length === 0 ? (
           <Empty icon="📭">
             {filter === 'all' && !search ? (
               // Lista totalmente vacia (no solo un filtro sin resultados):

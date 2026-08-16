@@ -38,6 +38,7 @@ import { MoneyFlowPipeline } from '../components/Dashboard/MoneyFlowPipeline';
 import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
 import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
 import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
+import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { MagicPasteModal } from '../components/MagicPasteModal';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
@@ -557,6 +558,14 @@ return () => unsub();
           config={config}
         />
       )}
+
+      {/* ─── 1.5 RADAR PROACTIVO DE DECISIONES DE HOY ──────────────────────── */}
+      <ActionRadar
+        orders={activeOrders}
+        purchases={purchases}
+        config={config}
+        nav={nav}
+      />
 
       {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA (FLUJO DE TRABAJO REAL) ───────── */}
       <SemaforoDelDia
