@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.3.0 Enterprise Instant Collection & Undo Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:52 PM',
+    summary: 'Botón de 1 Toque "Ya Cobrado", Deshacer Flotante y Visibilidad Universal de Contrarecibos',
+    highlights: [
+      'Botón [✅ Ya Cobrado] Directo: En cada tarjeta de contrarecibo en móvil o escritorio, registra el cobro en 1 solo toque con sonido de caja registradora.',
+      'Botón Flotante [↩️ Deshacer]: Si tocas "Ya Cobrado" por error, un banner flotante te permite revertir el cobro de inmediato durante 12 segundos.',
+      'Extracción Exhaustiva de Contrarecibos: Motor de detección que garantiza que ninguna factura con contrarecibo quede oculta, calculando fechas límite de cobro de respaldo.',
+    ],
+  },
+  {
     version: 'v8.2.9 Enterprise Anti-Duplicate Shield & Security Edition',
     date: '16 de Agosto de 2026',
     time: '10:45 PM',

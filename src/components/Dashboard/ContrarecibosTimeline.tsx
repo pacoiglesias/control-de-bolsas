@@ -1,67 +1,84 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+import { useToast } from '../../context/ToastContext';
+import { useUndo } from '../../context/UndoContext';
+import { confirmDialog } from '../../lib/confirmDialog';
+import { playCashRegisterSound } from '../../lib/soundEffects';
+import { camposInvoices } from '../../lib/invoiceOps';
+import { extractCr } from '../../lib/finance';
 import { money, toDate, fmtDayAndDate, nombreClienteVisible } from '../../lib/format';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
-import type { PurchaseOrder } from '../../lib/types';
+import type { PurchaseOrder, Invoice } from '../../lib/types';
 
 interface ContrarecibosTimelineProps {
   orders: PurchaseOrder[];
   nav: (path: string) => void;
 }
 
+interface TimelineItem {
+  order: PurchaseOrder;
+  invoice: Invoice;
+  folio: string;
+  cr: string;
+  dueDate: Date;
+  amount: number;
+  status: 'overdue' | 'today' | 'this_week' | 'future';
+  daysDiff: number;
+}
+
 export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProps) {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'semana' | 'mes'>('todos');
+  const toast = useToast();
+  const { executeWithUndo } = useUndo();
 
   const timelineData = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const items: Array<{
-      order: PurchaseOrder;
-      folio: string;
-      cr: string;
-      dueDate: Date;
-      amount: number;
-      status: 'overdue' | 'today' | 'this_week' | 'future';
-      daysDiff: number;
-    }> = [];
+    const items: TimelineItem[] = [];
 
     orders.forEach((o) => {
       if (o.isClosedShort) return;
       (o.invoices || []).forEach((inv) => {
-        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+        const cr = extractCr(inv, o);
         const st = inv.creditCycle?.status;
-        if (cr && (st === 'pending' || st === 'overdue' || st === 'facturado')) {
-          const due = toDate(inv.creditCycle?.dueDate);
-          if (due) {
-            due.setHours(0, 0, 0, 0);
-            const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            const amt = inv.financials?.invoiceTotal ?? (inv.financials?.saleTotal ?? 0);
+        
+        // Incluimos cualquier factura con contrarecibo que no esté cobrada/pagada
+        if (cr && st !== 'paid' && st !== 'collected') {
+          let due = toDate(inv.creditCycle?.dueDate);
+          if (!due) due = toDate(inv.collection?.contrareciboDate);
+          if (!due) due = toDate(inv.creditCycle?.issueDate);
+          if (!due) due = toDate(o.estimatedDeliveryDate || o.processedAt || o.updatedAt);
+          if (!due) due = new Date();
 
-            let status: 'overdue' | 'today' | 'this_week' | 'future' = 'future';
-            if (diffDays < 0) status = 'overdue';
-            else if (diffDays === 0) status = 'today';
-            else if (diffDays <= 7) status = 'this_week';
+          due.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const amt = inv.financials?.invoiceTotal ?? (inv.financials?.saleTotal ?? 0);
 
-            items.push({
-              order: o,
-              folio: inv.folio || o.folio || 'S/N',
-              cr,
-              dueDate: due,
-              amount: amt,
-              status,
-              daysDiff: diffDays,
-            });
-          }
+          let status: 'overdue' | 'today' | 'this_week' | 'future' = 'future';
+          if (diffDays < 0) status = 'overdue';
+          else if (diffDays === 0) status = 'today';
+          else if (diffDays <= 7) status = 'this_week';
+
+          items.push({
+            order: o,
+            invoice: inv,
+            folio: inv.folio || o.folio || 'S/N',
+            cr,
+            dueDate: due,
+            amount: amt,
+            status,
+            daysDiff: diffDays,
+          });
         }
       });
     });
 
     return items.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   }, [orders]);
-
-  if (timelineData.length === 0) return null;
 
   const countVencidos = timelineData.filter((it) => it.status === 'overdue').length;
   const countSemana = timelineData.filter((it) => it.status === 'today' || it.status === 'this_week').length;
@@ -72,9 +89,83 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
     if (filterType === 'semana') return it.status === 'today' || it.status === 'this_week';
     if (filterType === 'mes') return it.daysDiff >= 0 && it.daysDiff <= 30;
     return true;
-  }).slice(0, 12);
+  }).slice(0, 15);
 
   const totalPorCobrarProximo = filteredItems.reduce((acc, it) => acc + it.amount, 0);
+
+  // Acción Rápida de 1 Toque: Marcar como Cobrado con Deshacer (Undo)
+  const handleMarkCollectedDirectly = async (it: TimelineItem) => {
+    const confirmMsg = `¿Confirmas registrar el cobro de ${money(it.amount)} para el Contrarecibo #${it.cr} (Factura #${it.folio})?`;
+    if (!(await confirmDialog(confirmMsg))) return;
+
+    const previousInvoices = it.order.invoices || [];
+    const updatedInvoices = previousInvoices.map((inv) => {
+      if (inv.id === it.invoice.id || (inv.folio && inv.folio === it.folio)) {
+        return {
+          ...inv,
+          creditCycle: {
+            ...inv.creditCycle,
+            status: 'paid' as const,
+          },
+          collection: {
+            ...inv.collection,
+            contrareciboNumber: it.cr,
+            paidAmount: it.amount,
+            paymentDate: Timestamp.now(),
+          },
+        };
+      }
+      return inv;
+    });
+
+    await executeWithUndo(
+      async () => {
+        await updateDoc(doc(db, PATHS.orders, it.order.id), camposInvoices(updatedInvoices));
+        playCashRegisterSound();
+        toast(`✅ Factura #${it.folio} (CR #${it.cr}) marcada como COBRADA.`, 'ok');
+      },
+      async () => {
+        await updateDoc(doc(db, PATHS.orders, it.order.id), camposInvoices(previousInvoices));
+        toast('↩️ Cobro revertido exitosamente.', 'ok');
+      },
+      `Cobro de ${money(it.amount)} registrado en CR #${it.cr}`,
+      12000
+    );
+  };
+
+  if (timelineData.length === 0) {
+    return (
+      <div
+        style={{
+          background: 'var(--paper)',
+          border: '1px solid var(--line)',
+          borderRadius: 14,
+          padding: '16px 20px',
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 24 }}>🟢</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>
+              Agenda de Cobranza al Día
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              No tienes contrarecibos pendientes de cobrar en este momento.
+            </div>
+          </div>
+        </div>
+        <button className="btn" onClick={() => nav('/cobranza')} style={{ fontSize: 12, fontWeight: 700 }}>
+          Ver Historial de Cobranza →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -99,7 +190,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
               </span>
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 2 }}>
-              Fechas exactas de cobro programadas con Providencia.
+              Fechas exactas de cobro programadas con Providencia. Toca <strong>[✅ Ya Cobrado]</strong> para registrarlo con 1 toque.
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -168,7 +259,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
             gap: 12,
           }}
         >
@@ -209,7 +300,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 14 }}>📅</span>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)' }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>
                       {fmtDayAndDate(it.dueDate)}
                     </span>
                   </div>
@@ -236,7 +327,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                 <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent-deep)' }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--accent-deep)' }}>
                         CR #{it.cr}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
@@ -245,7 +336,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 6 }}>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Importe c/IVA:</div>
                       <div style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace', color: 'var(--ink)' }}>
@@ -253,14 +344,24 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                       </div>
                     </div>
 
-                    <button
-                      className="btn btn-primary"
-                      style={{ fontSize: 11, padding: '4px 10px', fontWeight: 700 }}
-                      onClick={() => setSelectedOrder(it.order)}
-                      title="Registrar cobro de este contrarecibo localmente"
-                    >
-                      💸 Cobrar
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="btn btn-primary"
+                        style={{ fontSize: 11, padding: '5px 10px', fontWeight: 800, background: '#10b981', borderColor: '#059669', color: '#fff' }}
+                        onClick={() => void handleMarkCollectedDirectly(it)}
+                        title="Marcar inmediatamente como cobrado (con botón para deshacer)"
+                      >
+                        ✅ Ya Cobrado
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ fontSize: 11, padding: '5px 8px', fontWeight: 600 }}
+                        onClick={() => setSelectedOrder(it.order)}
+                        title="Abrir formulario de cobranza"
+                      >
+                        📝 Detalle
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>

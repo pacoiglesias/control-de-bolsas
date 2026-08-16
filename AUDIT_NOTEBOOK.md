@@ -1566,6 +1566,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 2 (Seguridad & Auditoría).
 
+### Iteración 129: Botón de 1 Toque "Ya Cobrado", Deshacer Flotante y Robustez Total de Fechas (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/ContrarecibosTimeline.tsx`, `src/context/UndoContext.tsx`
+**Problema:** Paco requería marcar cobros en 1 solo toque desde el móvil sin pasar por formularios largos, con posibilidad inmediata de revertir el cobro si se presionó por error, y garantizar que ningún contrarecibo pendiente quede oculto.
+**Impacto:** Registro ultra-rápido de cobranza y seguridad contra errores táctiles en teléfonos móviles.
+**Solución:** Agregado botón directo `[✅ Ya Cobrado]` con sonido de caja y confirmación rápida, integrado con `executeWithUndo` que despliega un banner flotante `[↩️ Deshacer]` durante 12 segundos. Reforzado el escaneo de contrarecibos con cálculo automático de fechas de respaldo.
+**Riesgo:** 🟢 Bajo — Flujo de cobranza optimizado.
+**Commit:** `feat(collection): boton directo ya cobrado con soporte de deshacer y robustez de fechas`
+**Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+
 
 
 

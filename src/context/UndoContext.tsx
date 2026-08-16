@@ -83,39 +83,44 @@ export function UndoProvider({ children }: { children: React.ReactNode }) {
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             style={{
               position: 'fixed',
-              bottom: 32,
+              bottom: 86,
               left: '50%',
-              marginLeft: '-150px', // Center trick if transform is weird with framer motion
-              transform: 'translateX(0)', // framer motion handles this better without -50%
-              background: 'var(--ink)',
-              color: 'var(--paper)',
-              padding: '12px 20px',
-              borderRadius: 30,
+              transform: 'translateX(-50%)',
+              width: 'max-content',
+              maxWidth: '92vw',
+              background: '#0f172a',
+              color: '#ffffff',
+              padding: '12px 18px',
+              borderRadius: 24,
               display: 'flex',
               alignItems: 'center',
-              gap: 16,
-              boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)',
-              zIndex: 9999,
+              justifyContent: 'space-between',
+              gap: 14,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              zIndex: 99999,
             }}
           >
-            <span style={{ fontSize: 14, fontWeight: 500 }}>{activeUndo.message}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#f8fafc' }}>
+              {activeUndo.message}
+            </span>
             <button
+              type="button"
               onClick={handleUndo}
               style={{
-                background: 'rgba(255,255,255,0.2)',
+                background: '#f59e0b',
                 border: 'none',
-                color: 'inherit',
-                padding: '6px 14px',
-                borderRadius: 20,
+                color: '#000000',
+                padding: '8px 16px',
+                borderRadius: 16,
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 900,
                 cursor: 'pointer',
-                transition: 'background 0.2s',
+                boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
+                whiteSpace: 'nowrap',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
             >
-              Deshacer
+              ↩️ Deshacer
             </button>
           </motion.div>
         )}
