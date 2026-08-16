@@ -1390,3 +1390,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Accesibilidad WCAG AA.
 
+### Iteración 113: Redondeo Decimal y Accesibilidad ARIA Meter en KilosSpeedometer (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/components/Dashboard/KilosSpeedometer.tsx`
+**Problema:** En `KilosSpeedometer.tsx`, la acumulación de pesadas del mes podía generar imprecisiones de punto flotante en la suma de decimales de báscula, además de que la barra de progreso carecía de atributos semánticos `role="meter"` con rangos mínimos/máximos para lectores de pantalla.
+**Impacto:** Riesgo de mostrar decimales con jitter de punto flotante en el velocímetro y deficiencia en accesibilidad asistida.
+**Solución:** Aplicado `round2` en la suma total acumulada de kilos del mes, blindado el parseo de fechas Firestore (`Timestamp.toDate()` vs `Date`) y agregados atributos `role="meter"`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax` y `aria-label` descriptivo.
+**Riesgo:** 🟢 Bajo — Componente de presentación en Dashboard.
+**Commit:** `fix(speedometer): blindaje numerico de pesadas y accesibilidad role meter`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+

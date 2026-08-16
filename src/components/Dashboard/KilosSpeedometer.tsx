@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { kilos } from '../../lib/format';
+import { round2 } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
 
 interface KilosSpeedometerProps {
@@ -17,9 +18,12 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
     let totalMonth = 0;
     orders.forEach((o) => {
       (o.deliveries || []).forEach((d: any) => {
-        const date = d.date?.toDate?.() || (d.date ? new Date(d.date) : null);
-        if (date && date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
-          totalMonth += (d.kilos || 0);
+        const rawDate = (d.date as any)?.toDate?.() || (d.date ? new Date(d.date) : null);
+        if (rawDate) {
+          const date = new Date(rawDate);
+          if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+            totalMonth += (d.kilos || 0);
+          }
         }
       });
     });
@@ -33,13 +37,15 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
       });
     }
 
-    return totalMonth;
+    return round2(totalMonth);
   }, [orders]);
 
   const percentage = Math.min(100, Math.round((currentMonthKilos / targetKilos) * 100));
 
   return (
     <div
+      role="region"
+      aria-label="Tacómetro y medidor de kilos entregados en el mes"
       style={{
         background: 'var(--paper)',
         border: '1px solid var(--line)',
@@ -67,6 +73,11 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
           </div>
 
           <div
+            role="meter"
+            aria-valuenow={currentMonthKilos}
+            aria-valuemin={0}
+            aria-valuemax={targetKilos}
+            aria-label={`Progreso de entregas: ${kilos(currentMonthKilos)} de ${kilos(targetKilos)} (${percentage}%)`}
             style={{
               height: 12,
               background: 'var(--paper-sunk)',
