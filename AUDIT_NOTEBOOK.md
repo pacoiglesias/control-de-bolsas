@@ -1489,6 +1489,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y Reducción de Fricción Operativa.
 
+### Iteración 122: Restauración Integral del Dashboard Maestro Completo (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/pages/Dashboard.tsx`, `src/lib/systemChangelog.ts`, `package.json`
+**Problema:** El esquema de pestañas fragmentadas ocultaba por defecto la gran mayoría de los módulos de alta dirección (KPIs Modernos, Pipeline de Flujo, Reparto de Socios, Velocímetro de Kilos, Timeline de Contrarecibos, Paneles de Cobranza), ocasionando confusión y sensación de datos faltantes o incorrectos.
+**Impacto:** Pérdida de visibilidad global e inmediata del estado financiero de la empresa.
+**Solución:** Restaurado el Dashboard Maestro completo y unificado donde los 13 paneles se despliegan simultáneamente de forma transparente y estructurada; cálculos financieros estrictamente sincronizados con `activeOrders` y filtros de período/departamento.
+**Riesgo:** 🟢 Bajo — Estructura probada canónica.
+**Commit:** `fix(dashboard): restaurar vista completa de todos los paneles y calculos financieros auditados`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+
 
 
 

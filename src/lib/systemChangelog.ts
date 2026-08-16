@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.3 Enterprise Unified Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:15 PM',
+    summary: 'Restauración Integral del Dashboard Maestro Completo con Todos los Datos y Paneles Visibles',
+    highlights: [
+      'Visibilidad Total y Permanente: Se eliminó el ocultamiento por pestañas del Dashboard, restaurando la visión completa de los 13 paneles simultáneamente (KPIs Ejecutivos, Semáforo del Día, Pipeline de Flujo, Reparto de Socios 50/50, Velocímetro de Kilos, Timeline de Contrarecibos, Dinero por Recibir del Contador y Facturas sin CR).',
+      'Consistencia de Datos Financieros: Todas las métricas de rentabilidad, cobro y flujo de efectivo se calculan rigurosamente con los expedientes auditados y filtros de departamento/período.',
+      'Atajos de Teclado Globales Preservados: Acceso instantáneo con [N] para Nueva OC, [F] para Facturar, [C] para Cobrar, [P] para Pegado WhatsApp y [R] para Recalcular.',
+    ],
+  },
+  {
     version: 'v8.2.2 Enterprise ActionRadar Precision Edition',
     date: '16 de Agosto de 2026',
     time: '10:05 PM',
