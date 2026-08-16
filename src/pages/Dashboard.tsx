@@ -40,6 +40,9 @@ import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTime
 import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
 import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { MagicPasteModal } from '../components/MagicPasteModal';
+import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
+import { MobileExecutiveCard } from '../components/Dashboard/MobileExecutiveCard';
+import { MobileTabSelector, type DashboardSectionTab } from '../components/Dashboard/MobileTabSelector';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -86,6 +89,7 @@ export default function Dashboard() {
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
+  const [activeSectionTab, setActiveSectionTab] = useState<DashboardSectionTab>('hoy');
 
   async function recalcStats() {
     setRecalcBusy(true);
@@ -402,25 +406,56 @@ return () => unsub();
     }
   }
 
+  const urgentCount = useMemo(() => {
+    let count = 0;
+    activeOrders.forEach((o) => {
+      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      const kilosEntregados = (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
+      const kilosFacturados = (o.invoices || []).reduce((a: number, i: any) => a + (i.kilos || 0), 0);
+      if (kilosEntregados > kilosFacturados + 0.01) count++;
+      (o.invoices || []).forEach((inv) => {
+        if (inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') count++;
+      });
+    });
+    return count;
+  }, [activeOrders]);
+
+  const kilosMesTotal = useMemo(() => {
+    return activeOrders.reduce((acc, o) => {
+      return acc + (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
+    }, 0);
+  }, [activeOrders]);
+
   return (
-    <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto' }}>
-      {/* ─── ENCABEZADO EJECUTIVO & HERRAMIENTAS GLOBALES ─────────────────── */}
-      <div className="page-head" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+    <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
+      {/* ─── 0. RESUMEN EJECUTIVO MÓVIL (VISIBLE EN CELULARES) ──────────── */}
+      <div className="mobile-only">
+        <MobileExecutiveCard
+          saldoCaja={saldoCaja}
+          porCobrarTotal={k.porCobrarTotal || 0}
+          contrarecibosVencidos={contrarecibosVencidosCount}
+          kilosMesTotal={kilosMesTotal}
+          kilosMeta={(config as any)?.expectedMonthlyKilos || 40000}
+          activeUrgentCount={urgentCount}
+          onSelectTab={(t) => setActiveSectionTab(t as DashboardSectionTab)}
+        />
+        <MobileTabSelector
+          activeTab={activeSectionTab}
+          urgentCount={urgentCount}
+          onSelect={setActiveSectionTab}
+        />
+      </div>
+
+      {/* ─── ENCABEZADO Y SELECTORES DE DEPARTAMENTO ───────────────────────── */}
+      <div className="desktop-only-block" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
-              <span className="live-status-pill" style={{ fontSize: 11, padding: '3px 8px' }}>
-                <span className="live-pulse-dot" style={{ width: 6, height: 6 }} /> En Vivo
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 14 }}>
+            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
+            <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
               Control Integral de Ventas, Flujo de Efectivo, Cobranza y Maquila Providencia.
             </p>
           </div>
-
-          {/* Botones de Exportación e Impresión */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               className="btn btn-primary"
               style={{
@@ -438,10 +473,10 @@ return () => unsub();
               className="btn"
               style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
               onClick={async () => {
-                toast('Generando sábana con los datos actuales...', 'info');
+                toast('Generando sábana Excel con los datos actuales...', 'info');
                 try {
                   await exportToExcel();
-                  toast('Sábana descargada', 'ok');
+                  toast('Sábana Excel descargada', 'ok');
                 } catch (e) {
                   toast(`Error al exportar: ${(e as Error).message}`, 'bad');
                 }
@@ -452,16 +487,9 @@ return () => unsub();
             <button
               className="btn"
               style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
-              onClick={() => nav('/audit')}
+              onClick={() => void shareRentabilidad()}
             >
-              ⚖️ Auditoría
-            </button>
-            <button
-              className="btn"
-              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
-              onClick={shareRentabilidad}
-            >
-              📤 Compartir PDF
+              📄 PDF Resumen
             </button>
             <button
               className="btn"
@@ -473,10 +501,8 @@ return () => unsub();
           </div>
         </div>
 
-        {/* Barra de Filtros: Departamentos & Mes P&L */}
         <div
           style={{
-            marginTop: 18,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -539,91 +565,120 @@ return () => unsub();
         </div>
       </div>
 
-      {/* ─── 1. HERO SUITE DE KPIS EJECUTIVOS (EN PRIMER PLANO) ──────────── */}
-      {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-        </div>
-      ) : (
-        <ModernKpiGrid
-          k={k}
-          role={role}
-          saldoCaja={saldoCaja}
-          monthFilter={monthFilter}
-          nav={nav}
-          contrarecibosVencidosCount={contrarecibosVencidosCount}
-          config={config}
-        />
+      {/* ─── 1. HERO SUITE DE KPIS EJECUTIVOS ─────────────────────────────── */}
+      {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+        <>
+          {loading ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+            </div>
+          ) : (
+            <ModernKpiGrid
+              k={k}
+              role={role}
+              saldoCaja={saldoCaja}
+              monthFilter={monthFilter}
+              nav={nav}
+              contrarecibosVencidosCount={contrarecibosVencidosCount}
+              config={config}
+            />
+          )}
+        </>
       )}
 
       {/* ─── 1.5 RADAR PROACTIVO DE DECISIONES DE HOY ──────────────────────── */}
-      <ActionRadar
-        orders={activeOrders}
-        purchases={purchases}
-        config={config}
-        nav={nav}
-      />
+      {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+        <ActionRadar
+          orders={activeOrders}
+          purchases={purchases}
+          config={config}
+          nav={nav}
+        />
+      )}
 
       {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA (FLUJO DE TRABAJO REAL) ───────── */}
-      <SemaforoDelDia
-        orders={activeOrders}
-        purchases={purchases}
-        config={config}
-        nav={nav}
-        onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-        onOpenQuickCollection={() => setShowQuickCollection(true)}
-      />
+      {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+        <SemaforoDelDia
+          orders={activeOrders}
+          purchases={purchases}
+          config={config}
+          nav={nav}
+          onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+          onOpenQuickCollection={() => setShowQuickCollection(true)}
+        />
+      )}
 
       {/* ─── 2.5 PIPELINE VISUAL DEL FLUJO DEL DINERO ─────────────────────── */}
-      <MoneyFlowPipeline
-        orders={activeOrders}
-        purchases={purchases}
-        expenses={expenses}
-        config={config}
-        nav={nav}
-      />
+      {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+        <MoneyFlowPipeline
+          orders={activeOrders}
+          purchases={purchases}
+          expenses={expenses}
+          config={config}
+          nav={nav}
+        />
+      )}
 
       {/* ─── 3. BARRA DE ACCIONES RÁPIDAS Y CONTROL OPERATIVO ───────────── */}
-      <QuickActionsBar
-        role={role}
-        onNewOrder={() => nav('/ordenes?nueva=1')}
-        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-        onQuickInvoice={() => setShowQuickInvoice(true)}
-        onQuickCollection={() => setShowQuickCollection(true)}
-        onQuickPay={() => setShowQuickPay(true)}
-        onOpenMagicPaste={() => setShowMagicPaste(true)}
-        onOpenCorteMensual={() => setShowCorteMensual(true)}
-        onRecalc={() => void recalcStats()}
-        recalcBusy={recalcBusy}
-      />
+      {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+        <QuickActionsBar
+          role={role}
+          onNewOrder={() => nav('/ordenes?nueva=1')}
+          onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+          onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+          onQuickInvoice={() => setShowQuickInvoice(true)}
+          onQuickCollection={() => setShowQuickCollection(true)}
+          onQuickPay={() => setShowQuickPay(true)}
+          onOpenMagicPaste={() => setShowMagicPaste(true)}
+          onOpenCorteMensual={() => setShowCorteMensual(true)}
+          onRecalc={() => void recalcStats()}
+          recalcBusy={recalcBusy}
+        />
+      )}
 
       {/* ─── 4. ALERTAS PROACTIVAS, REPARTO DE SOCIOS Y CASHFLOW PREDICTIVO ─ */}
       {role === 'admin' && (
         <div style={{ marginBottom: 24 }}>
-          <WeeklyCollectionSummary orders={activeOrders} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
-            <KilosSpeedometer orders={activeOrders} />
-          </div>
-          <ContrarecibosTimeline orders={activeOrders} nav={nav} />
-          <SociosProfitCard
-            orders={activeOrders}
-            expenses={expenses}
-            costPricePerKg={config.costPricePerKg || 42}
-            salePricePerKg={config.salePricePerKg || 43}
-            onOpenRetiro={() => nav('/caja-chica')}
-          />
-          <SmartAlerts orders={activeOrders} />
-          <CashflowProjection orders={activeOrders} />
+          {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
+            <WeeklyCollectionSummary orders={activeOrders} />
+          )}
+
+          {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
+              <KilosSpeedometer orders={activeOrders} />
+            </div>
+          )}
+
+          {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
+            <ContrarecibosTimeline orders={activeOrders} nav={nav} />
+          )}
+
+          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+            <SociosProfitCard
+              orders={activeOrders}
+              expenses={expenses}
+              costPricePerKg={config.costPricePerKg || 42}
+              salePricePerKg={config.salePricePerKg || 43}
+              onOpenRetiro={() => nav('/caja-chica')}
+            />
+          )}
+
+          {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
+            <SmartAlerts orders={activeOrders} />
+          )}
+
+          {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
+            <CashflowProjection orders={activeOrders} />
+          )}
         </div>
       )}
 
       {/* ─── 5. PANELES OPERATIVOS PRINCIPALES ─────────────────────────────── */}
       {/* Panel: Por Recibir del Contador (Efectivo pendiente de entrar a Caja) */}
-      {k.porRecibir.length > 0 &&
+      {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && k.porRecibir.length > 0 &&
         (() => {
           const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
           const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
@@ -727,10 +782,14 @@ return () => unsub();
         })()}
 
       {/* Facturas sin Contrarecibo */}
-      <FacturasSinCRPanel orders={activeOrders} />
+      {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
+        <FacturasSinCRPanel orders={activeOrders} />
+      )}
 
       {/* Bandeja de Entregas del Maquilador (Andrés) */}
-      <BandejaMaquilaWidget />
+      {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
+        <BandejaMaquilaWidget />
+      )}
 
       {/* ─── 6. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 24, marginBottom: 32 }}>
@@ -936,6 +995,19 @@ return () => unsub();
 
       {/* Calculadora Flotante de Kilos */}
       <FloatingKiloCalculator />
+
+      {/* Dock Rápido Fijo en Móvil (1 Toque) */}
+      <MobileQuickDock
+        urgentCount={urgentCount}
+        onOpenRadar={() => setActiveSectionTab('hoy')}
+        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickCollection={() => setShowQuickCollection(true)}
+        onMagicPaste={() => setShowMagicPaste(true)}
+        onOpenCalculator={() => {
+          const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
+          if (btn) btn.click();
+        }}
+      />
     </div>
   );
 }

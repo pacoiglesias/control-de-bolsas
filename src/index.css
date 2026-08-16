@@ -1044,4 +1044,27 @@ button:active {
   font-variant-numeric: tabular-nums;
 }
 
+/* Mobile First Executive Utilities (v8.1.0) */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  .desktop-only-block {
+    display: none !important;
+  }
+  .page, .app-main, .container {
+    padding-bottom: 90px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-quick-dock {
+    display: none !important;
+  }
+}
+
 

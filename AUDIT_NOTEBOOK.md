@@ -1445,4 +1445,16 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica), OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
 
+### Iteración 118: Dashboard Mobile-First con Dock Flotante, Resumen Ejecutivo y Pestañas Segmentadas (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/MobileQuickDock.tsx`, `src/components/Dashboard/MobileExecutiveCard.tsx`, `src/components/Dashboard/MobileTabSelector.tsx`, `src/pages/Dashboard.tsx`, `src/index.css`
+**Problema:** En pantallas de smartphones y tablets, el dashboard presentaba un scroll vertical masivo con más de 12 paneles continuos, dificultando el acceso rápido con el pulgar a las acciones de facturación, cobro y consulta rápida de caja.
+**Impacto:** Pérdida de agilidad operativa y sobrecarga cognitiva para el usuario al operar en movilidad.
+**Solución:** Creado el dock flotante fijo `MobileQuickDock` con acceso en 1 toque al Radar, Facturación, Cobro, Pegado de WhatsApp y Calculadora; implementada la tarjeta compacta `MobileExecutiveCard` con los 3 números vitales del negocio (Caja, Por Cobrar, Kilos) y el selector segmentado `MobileTabSelector` (`⚡ Hoy`, `💰 Dinero`, `🚚 Kilos`, `🧾 Cobranza`, `🏢 Todo`).
+**Riesgo:** 🟢 Bajo — Componentes puramente ergonómicos y reactivos.
+**Commit:** `feat(mobile): dashboard mobile-first con dock flotante de 1 toque, resumen ejecutivo y navegacion segmentada`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+
+
 

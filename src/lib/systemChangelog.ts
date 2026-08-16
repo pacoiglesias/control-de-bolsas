@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.1.0 Enterprise Mobile Ultra Edition',
+    date: '16 de Agosto de 2026',
+    time: '09:15 PM',
+    summary: 'Dashboard Mobile-First Ultra-Práctico con Dock Flotante de 1 Toque, Resumen Ejecutivo y Pestañas Segmentadas',
+    highlights: [
+      'Dock Rápido Flotante en Móvil (MobileQuickDock): Acceso permanente a Radar de Acciones, Facturación con 1 clic, Cobro Rápido, Pegado de WhatsApp y Calculadora $43/$42 con un solo toque del pulgar.',
+      'Tarjeta de Resumen Ejecutivo Móvil (MobileExecutiveCard): Muestra instantáneamente los 3 números vitales (Caja Líquida, Dinero por Cobrar en la Calle y Kilos Entregados con barra de meta mensual).',
+      'Pestañas de Navegación Segmentada (MobileTabSelector): Navegación ultrarrápida entre [⚡ Hoy], [💰 Dinero], [🚚 Kilos], [🧾 Cobranza] y [🏢 Todo] sin saturación de scroll infinito.',
+      'Ergonomía Táctil y Touch-Targets de Alta Gama: Botones grandes y ergonómicos (mínimo 48px), micro-animaciones Framer Motion y soporte para safe-area-insets en dispositivos móviles.',
+    ],
+  },
+  {
     version: 'v8.0.0 Enterprise Platinum Edition',
     date: '16 de Agosto de 2026',
     time: '04:15 PM',
