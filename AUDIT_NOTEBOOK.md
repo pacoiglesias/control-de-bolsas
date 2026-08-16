@@ -1368,3 +1368,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Accesibilidad WCAG AA.
 
+### Iteración 111: Reconciliación React con Keys Estables y Navegación Directa en ContrarecibosTimeline (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/components/Dashboard/ContrarecibosTimeline.tsx`
+**Problema:** La lista horizontal de contrarecibos utilizaba el índice del arreglo (`key={idx}`) como identificador de React, lo que provocaba destrucciones y recreaciones completas del DOM durante cambios de estatus de cobro, además de carecer de `role="region"`, `aria-label` descriptivo y navegación táctil interactiva directa hacia la pantalla de Cobranza.
+**Impacto:** Re-renders innecesarios en el árbol de renderizado del Dashboard y falta de interactividad en los widgets de contrarecibos.
+**Solución:** Reemplazada la key por un identificador compuesto único y estable (`${it.folio}-${it.cr}`), memoizado el callback de navegación mediante `useCallback`, agregados roles semánticos y soporte para click/enter en cada tarjeta individual.
+**Riesgo:** 🟢 Bajo — Componente de presentación, sin mutación de estado externo.
+**Commit:** `perf(timeline): optimizar reconciliacion de react con keys estables y navegacion accesible`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX).
+

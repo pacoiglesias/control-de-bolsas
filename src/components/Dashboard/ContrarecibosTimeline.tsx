@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { money } from '../../lib/format';
 import type { PurchaseOrder } from '../../lib/types';
@@ -9,6 +9,8 @@ interface ContrarecibosTimelineProps {
 }
 
 export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProps) {
+  const handleNavigate = useCallback(() => nav('/cobranza'), [nav]);
+
   const timelineData = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -58,6 +60,8 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
 
   return (
     <div
+      role="region"
+      aria-label="Línea de tiempo de contrarecibos por cobrar"
       style={{
         background: 'var(--paper)',
         border: '1px solid var(--line)',
@@ -72,7 +76,8 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
           <span>📅</span> Timeline de Contrarecibos (Próximos Cobros)
         </div>
         <button
-          onClick={() => nav('/cobranza')}
+          onClick={handleNavigate}
+          aria-label="Ver todos los contrarecibos en cobranza"
           style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
         >
           Ver todos →
@@ -80,14 +85,20 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
       </div>
 
       <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
-        {timelineData.map((it, idx) => {
+        {timelineData.map((it) => {
           const color = it.status === 'overdue' ? '#ef4444' : it.status === 'this_week' ? '#f59e0b' : '#10b981';
           const bg = it.status === 'overdue' ? 'rgba(239,68,68,0.1)' : it.status === 'this_week' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)';
 
           return (
             <motion.div
-              key={idx}
+              key={`${it.folio}-${it.cr}`}
               whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleNavigate}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && handleNavigate()}
+              aria-label={`Contrarecibo ${it.cr}, ${money(it.amount)}, vence en ${it.daysDiff} días`}
               style={{
                 minWidth: 140,
                 background: bg,
@@ -95,6 +106,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                 borderRadius: 10,
                 padding: '8px 10px',
                 flexShrink: 0,
+                cursor: 'pointer',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
