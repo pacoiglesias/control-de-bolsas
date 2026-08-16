@@ -37,14 +37,15 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
     const costKg = config?.costPricePerKg || 42;
     const ivaRate = config?.ivaRate || 0.16;
 
-    // 1. Detectar Entregas en Providencia sin Facturar
     orders.forEach((o) => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      if (o.isClosedShort) return;
+      const clientName = nombreClienteVisible(o.client) || 'Providencia';
       const deliveries = o.deliveries || [];
       const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (d.kilos || 0), 0);
       const invoices = o.invoices || [];
       const kilosFacturados = invoices.reduce((a: number, i: any) => a + (i.kilos || 0), 0);
 
+      // 1. Entregas en Providencia sin Facturar
       if (kilosEntregados > kilosFacturados + 0.01) {
         const faltanKg = kilosEntregados - kilosFacturados;
         const montoEstimado = faltanKg * saleKg * (1 + ivaRate);
@@ -53,7 +54,7 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
           type: 'sin_facturar',
           priority: 'alta',
           title: `Entregados ${fmtKilos(faltanKg)} kg sin facturar`,
-          subtitle: `OC ${o.oc || o.folio || 'S/N'} (${nombreClienteVisible(o.client)}) — Valor: ${money(montoEstimado)}`,
+          subtitle: `OC ${o.oc || o.folio || 'S/N'} (${clientName}) — Valor estimado: ${money(montoEstimado)}`,
           kilos: faltanKg,
           amount: montoEstimado,
           buttonLabel: '⚡ Facturar Ahora',
@@ -66,40 +67,71 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
         });
       }
 
-      // 2. Detectar Contrarecibos Vencidos o por cobrar
+      // 2. Facturas de la Orden
       invoices.forEach((inv) => {
-        const cr = (inv.collection?.contrareciboNumber || '').trim();
+        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
         const st = inv.creditCycle?.status;
-        const rawDue = (inv.creditCycle?.dueDate as any)?.toDate?.() || (inv.creditCycle?.dueDate ? new Date(inv.creditCycle.dueDate as any) : null);
         const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
 
-        if (st === 'overdue' || (rawDue && st === 'pending' && new Date(rawDue).getTime() < today.getTime())) {
-          const due = rawDue ? new Date(rawDue) : today;
-          const diffDays = Math.max(1, Math.round((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
+        // Parseo seguro de fecha de vencimiento
+        const rawDue = inv.creditCycle?.dueDate as any;
+        let dueTime: number | null = null;
+        if (rawDue) {
+          if (typeof rawDue.toMillis === 'function') dueTime = rawDue.toMillis();
+          else if (typeof rawDue.toDate === 'function') dueTime = rawDue.toDate().getTime();
+          else if (rawDue instanceof Date) dueTime = rawDue.getTime();
+          else {
+            const d = new Date(rawDue);
+            if (!isNaN(d.getTime())) dueTime = d.getTime();
+          }
+        }
+
+        // A) Factura emitida SIN número de contrarecibo
+        if (!cr && (inv.folio || st === 'pending' || st === 'facturado' || st === 'overdue')) {
+          list.push({
+            id: `no_cr_${o.id}_${inv.id}`,
+            type: 'cr_vencido',
+            priority: 'alta',
+            title: `Factura #${inv.folio || o.folio || 'S/F'} sin Contrarecibo (${money(amt)})`,
+            subtitle: `OC ${o.oc || o.folio || 'S/N'} — Solicitar número de CR a ${clientName}`,
+            amount: amt,
+            buttonLabel: '📋 Pedir CR por WhatsApp',
+            buttonColor: '#d97706',
+            buttonIcon: '📲',
+            onAction: () => {
+              const msg = `Buenas tardes, envío la factura #${inv.folio || o.folio || 'S/F'} de la OC ${o.oc || o.folio || 'S/N'} (${clientName}) por un total de ${money(amt)}. ¿Nos apoyan amablemente con su contrarecibo? Muchas gracias.`;
+              openWhatsAppMessage(msg);
+            },
+          });
+        }
+
+        // B) Contrarecibos Vencidos o Próximos a Vencer
+        if (cr && (st === 'overdue' || (dueTime && dueTime < today.getTime() && st !== 'paid' && st !== 'collected'))) {
+          const diffDays = Math.max(1, Math.round((today.getTime() - (dueTime || today.getTime())) / (1000 * 60 * 60 * 24)));
           list.push({
             id: `overdue_${o.id}_${inv.id}`,
             type: 'cr_vencido',
             priority: 'alta',
-            title: `CR ${cr || 'S/N'} vencido hace ${diffDays} días (${money(amt)})`,
-            subtitle: `Factura ${inv.folio || o.folio || 'S/F'} — ${nombreClienteVisible(o.client)}`,
+            title: `CR ${cr} vencido hace ${diffDays} día(s) (${money(amt)})`,
+            subtitle: `Factura #${inv.folio || o.folio || 'S/F'} — ${clientName}`,
             amount: amt,
-            buttonLabel: '📲 Cobrar por WhatsApp',
+            buttonLabel: '💬 Cobrar por WhatsApp',
             buttonColor: '#ef4444',
-            buttonIcon: '💬',
+            buttonIcon: '📲',
             onAction: () => {
               const notice = generateCollectionNotice({
-                cliente: nombreClienteVisible(o.client) || 'Grupo Textil Providencia',
+                cliente: clientName,
                 folioFactura: inv.folio || o.folio || 'S/N',
-                contrarecibo: cr || undefined,
+                contrarecibo: cr,
                 monto: amt,
-                fechaVencimiento: rawDue,
+                fechaVencimiento: dueTime ? new Date(dueTime) : null,
               });
               openWhatsAppMessage(notice);
             },
           });
         }
 
-        // 3. Detectar Dinero Cobrado con el Contador Listo para Recibir en Caja
+        // C) Dinero Cobrado con el Contador Listo para Recibir en Caja Chica
         if (st === 'paid') {
           const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(amt, config as any);
           const neto = amt - comision;
@@ -107,34 +139,34 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             id: `paid_${o.id}_${inv.id}`,
             type: 'contador_listo',
             priority: 'media',
-            title: `Dinero cobrado listo en contabilidad (${money(neto)})`,
-            subtitle: `Factura ${inv.folio || o.folio || 'S/F'} (Total: ${money(amt)}, Comisión 8%: ${money(comision)})`,
+            title: `Dinero cobrado listo con el contador (${money(neto)})`,
+            subtitle: `Factura #${inv.folio || o.folio || 'S/F'} (Total: ${money(amt)} − Comisión: ${money(comision)})`,
             amount: neto,
-            buttonLabel: '💰 Recibir en Caja',
+            buttonLabel: '💵 Recibir en Caja',
             buttonColor: '#10b981',
-            buttonIcon: '💵',
-            onAction: () => nav('/caja-chica'),
+            buttonIcon: '💰',
+            onAction: () => nav('/dashboard'),
           });
         }
       });
     });
 
-    // 4. Detectar Pedidos de Andrés con Atraso de Fabricación
+    // 3. Detectar Pedidos de Andrés con Kilos Pendientes de Fabricación
     purchases.forEach((p) => {
       const faltan = (p.expectedKilos || 0) - (p.receivedKilos || 0);
-      if (faltan > 50) {
-        const orderLinked = orders.find(o => o.id === p.id);
+      if (faltan > 20) {
+        const orderLinked = orders.find((o) => o.id === p.id);
         const ocName = orderLinked?.oc || orderLinked?.folio || p.id;
         list.push({
           id: `andres_${p.id}`,
           type: 'andres_atraso',
           priority: 'baja',
-          title: `Andrés tiene pendiente fabricar ${fmtKilos(faltan)} kg`,
+          title: `Andrés: ${fmtKilos(faltan)} kg pendientes de fabricar`,
           subtitle: `Para pedido ${ocName} (${money(faltan * costKg)} en material)`,
           kilos: faltan,
-          buttonLabel: '📞 Preguntar a Andrés',
+          buttonLabel: '📞 WhatsApp a Andrés',
           buttonColor: '#8b5cf6',
-          buttonIcon: '📲',
+          buttonIcon: '💬',
           onAction: () => {
             const msg = `Hola Andrés, ¿cómo vas con los ${fmtKilos(faltan)} kg pendientes para el pedido ${ocName}? ¿Cuándo sale la próxima entrega?`;
             openWhatsAppMessage(msg);

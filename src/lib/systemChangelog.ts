@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.2 Enterprise ActionRadar Precision Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:05 PM',
+    summary: 'Escaneo Exhaustivo de Acciones Operativas y Detección Total de Expedientes en Radar',
+    highlights: [
+      'Alimentación con Universo Total de Órdenes: ActionRadar ahora recibe el conjunto íntegro de expedientes (incluyendo órdenes nuevas en proceso, entregas sin factura y facturas sin CR) sin exclusiones de filtro de estatus previo.',
+      'Detección de Facturas sin Contrarecibo: Incorporada alerta proactiva para todas las facturas emitidas que aún no tienen número de contrarecibo con botón directo [📋 Pedir CR por WhatsApp].',
+      'Parseo Tolerante de Fechas de Vencimiento: Detección exacta de contrarecibos vencidos o por vencer compatible con Timestamps de Firestore, fechas en string y objetos Date.',
+      'Sincronización de Indicador Urgente: El conteo de alertas urgentes en la barra móvil y de escritorio ahora refleja con precisión matemática el 100% de los pendientes reales.',
+    ],
+  },
+  {
     version: 'v8.2.1 Enterprise Hotfix Edition',
     date: '16 de Agosto de 2026',
     time: '10:00 PM',

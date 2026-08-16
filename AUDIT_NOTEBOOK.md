@@ -1478,6 +1478,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Estabilidad de Producción.
 
+### Iteración 121: Escaneo Completo de Órdenes y Detección de Facturas sin CR en ActionRadar (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/ActionRadar.tsx`, `src/pages/Dashboard.tsx`, `src/lib/systemChangelog.ts`
+**Problema:** El Radar de Decisiones (`ActionRadar`) mostraba "¡Operación 100% al día!" a pesar de existir órdenes en proceso y facturas emitidas, debido a que se le enviaba el arreglo `activeOrders` (que excluía expedientes sin estatus de factura emitido) y se omitían facturas pendientes de contrarecibo.
+**Impacto:** Falsa sensación de que no existían acciones operativas pendientes en el día a día.
+**Solución:** Modificado el pase de propiedades para alimentar a `ActionRadar` y `FacturasSinCRPanel` con el universo íntegro `seguimientoOrders`; incorporada la detección proactiva de facturas sin número de contrarecibo (`[📋 Pedir CR por WhatsApp]`) y parseo tolerante multi-formato de fechas de vencimiento.
+**Riesgo:** 🟢 Bajo — Lógica de filtrado y visualización proactiva.
+**Commit:** `fix(radar): alimentar ActionRadar con universo completo de ordenes y agregar deteccion de facturas sin CR`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y Reducción de Fricción Operativa.
+
+
 
 
 

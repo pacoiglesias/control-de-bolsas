@@ -313,23 +313,35 @@ return () => unsub();
 
   const urgentCount = useMemo(() => {
     let count = 0;
-    activeOrders.forEach((o) => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    seguimientoOrders.forEach((o) => {
+      if (o.isClosedShort) return;
       const kilosEntregados = (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
       const kilosFacturados = (o.invoices || []).reduce((a: number, i: any) => a + (i.kilos || 0), 0);
       if (kilosEntregados > kilosFacturados + 0.01) count++;
       (o.invoices || []).forEach((inv) => {
-        if (inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') count++;
+        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+        const st = inv.creditCycle?.status;
+        if (!cr && (inv.folio || st === 'pending' || st === 'facturado')) count++;
+        else if (st === 'overdue' || st === 'paid') count++;
       });
     });
+
+    purchases.forEach((p) => {
+      const faltan = (p.expectedKilos || 0) - (p.receivedKilos || 0);
+      if (faltan > 20) count++;
+    });
+
     return count;
-  }, [activeOrders]);
+  }, [seguimientoOrders, purchases]);
 
   const kilosMesTotal = useMemo(() => {
-    return activeOrders.reduce((acc, o) => {
+    return seguimientoOrders.reduce((acc, o) => {
       return acc + (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
     }, 0);
-  }, [activeOrders]);
+  }, [seguimientoOrders]);
 
   if (loading || loadingExp) {
     return (
@@ -760,9 +772,9 @@ return () => unsub();
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(520px, 1fr))', gap: 24, alignItems: 'start' }}>
           {/* COLUMNA IZQUIERDA: Operación, Radar y Cobranza */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <ActionRadar orders={activeOrders} purchases={purchases} config={config} nav={nav} />
+            <ActionRadar orders={seguimientoOrders} purchases={purchases} config={config} nav={nav} />
             <SemaforoDelDia
-              orders={activeOrders}
+              orders={seguimientoOrders}
               purchases={purchases}
               config={config}
               nav={nav}
@@ -782,10 +794,10 @@ return () => unsub();
               onRecalc={() => void recalcStats()}
               recalcBusy={recalcBusy}
             />
-            <FacturasSinCRPanel orders={activeOrders} />
-            <WeeklyCollectionSummary orders={activeOrders} />
-            <ContrarecibosTimeline orders={activeOrders} nav={nav} />
-            <SmartAlerts orders={activeOrders} />
+            <FacturasSinCRPanel orders={seguimientoOrders} />
+            <WeeklyCollectionSummary orders={seguimientoOrders} />
+            <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
+            <SmartAlerts orders={seguimientoOrders} />
           </div>
 
           {/* COLUMNA DERECHA: Finanzas, Flujo de Efectivo y Kilos */}
@@ -804,7 +816,7 @@ return () => unsub();
               />
             )}
             <MoneyFlowPipeline
-              orders={activeOrders}
+              orders={seguimientoOrders}
               purchases={purchases}
               expenses={expenses}
               config={config}
@@ -813,16 +825,16 @@ return () => unsub();
             {renderPorRecibirPanel()}
             {role === 'admin' && (
               <SociosProfitCard
-                orders={activeOrders}
+                orders={seguimientoOrders}
                 expenses={expenses}
                 costPricePerKg={config.costPricePerKg || 42}
                 salePricePerKg={config.salePricePerKg || 43}
                 onOpenRetiro={() => nav('/caja-chica')}
               />
             )}
-            <KilosSpeedometer orders={activeOrders} />
+            <KilosSpeedometer orders={seguimientoOrders} />
             <BandejaMaquilaWidget />
-            {role === 'admin' && <CashflowProjection orders={activeOrders} />}
+            {role === 'admin' && <CashflowProjection orders={seguimientoOrders} />}
           </div>
         </div>
       ) : (
@@ -855,7 +867,7 @@ return () => unsub();
           {/* 1.5 RADAR PROACTIVO DE DECISIONES DE HOY */}
           {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
             <ActionRadar
-              orders={activeOrders}
+              orders={seguimientoOrders}
               purchases={purchases}
               config={config}
               nav={nav}
@@ -865,7 +877,7 @@ return () => unsub();
           {/* 2. SEMÁFORO OPERATIVO DEL DÍA */}
           {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
             <SemaforoDelDia
-              orders={activeOrders}
+              orders={seguimientoOrders}
               purchases={purchases}
               config={config}
               nav={nav}
@@ -877,7 +889,7 @@ return () => unsub();
           {/* 2.5 PIPELINE VISUAL DEL FLUJO DEL DINERO */}
           {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
             <MoneyFlowPipeline
-              orders={activeOrders}
+              orders={seguimientoOrders}
               purchases={purchases}
               expenses={expenses}
               config={config}
@@ -906,22 +918,22 @@ return () => unsub();
           {role === 'admin' && (
             <div style={{ marginBottom: 24 }}>
               {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
-                <WeeklyCollectionSummary orders={activeOrders} />
+                <WeeklyCollectionSummary orders={seguimientoOrders} />
               )}
 
               {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
-                  <KilosSpeedometer orders={activeOrders} />
+                  <KilosSpeedometer orders={seguimientoOrders} />
                 </div>
               )}
 
               {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
-                <ContrarecibosTimeline orders={activeOrders} nav={nav} />
+                <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
               )}
 
               {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
                 <SociosProfitCard
-                  orders={activeOrders}
+                  orders={seguimientoOrders}
                   expenses={expenses}
                   costPricePerKg={config.costPricePerKg || 42}
                   salePricePerKg={config.salePricePerKg || 43}
@@ -930,11 +942,11 @@ return () => unsub();
               )}
 
               {(activeSectionTab === 'hoy' || activeSectionTab === 'todo') && (
-                <SmartAlerts orders={activeOrders} />
+                <SmartAlerts orders={seguimientoOrders} />
               )}
 
               {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && (
-                <CashflowProjection orders={activeOrders} />
+                <CashflowProjection orders={seguimientoOrders} />
               )}
             </div>
           )}
@@ -943,7 +955,7 @@ return () => unsub();
           {(activeSectionTab === 'flujo' || activeSectionTab === 'todo') && renderPorRecibirPanel()}
 
           {(activeSectionTab === 'cobranza' || activeSectionTab === 'todo') && (
-            <FacturasSinCRPanel orders={activeOrders} />
+            <FacturasSinCRPanel orders={seguimientoOrders} />
           )}
 
           {(activeSectionTab === 'kilos' || activeSectionTab === 'todo') && (
