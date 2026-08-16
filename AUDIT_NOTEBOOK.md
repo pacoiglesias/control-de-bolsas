@@ -1346,3 +1346,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, `npm run build` exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) al 100%.
 
+### Iteración 109: Optimización de Suscripción Firestore y Re-renders en OrdersContext (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/context/OrdersContext.tsx`
+**Problema:** En `OrdersContext.tsx`, la suscripción a `purchaseOrders` utilizaba `{ includeMetadataChanges: true }`, lo que disparaba la reconstrucción completa del arreglo y el re-renderizado masivo de las 9 pantallas dependientes cada vez que cambiaba un indicador de metadata en caché o latencia de red, sin que existieran cambios reales en los documentos de la colección.
+**Impacto:** Consumo de CPU innecesario, pérdida de fluidez al navegar con listas de expedientes grandes y re-renders redundantes.
+**Solución:** Desactivado el flag de metadata para listeners de datos y agregado un guard `snap.docChanges().length === 0` tras la carga inicial, garantizando que el estado de React solo se actualice cuando realmente se agregue, modifique o elimine una orden en Firestore.
+**Riesgo:** 🟢 Bajo — No altera el modelo de datos ni la API pública del contexto (`useOrders()`).
+**Commit:** `perf(orders): optimizar listener de Firestore evitando re-renders por metadata`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 2 (Costes y Eficiencia Firestore) y OKR 3 (Rendimiento Web & UX).
+

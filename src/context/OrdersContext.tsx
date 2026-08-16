@@ -42,10 +42,18 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     // sin orderBy. Se ordena del lado del cliente para que ningun
     // documento pueda desaparecer por faltarle un campo.
     const q = query(collection(db, PATHS.orders), limit(1000));
+    let initialLoad = true;
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
+        // Optimización Staff Engineer: si no hay cambios en los documentos tras la carga inicial,
+        // evitamos reconstruir el arreglo y re-renderizar todas las pantallas dependientes.
+        if (!initialLoad && snap.docChanges().length === 0) {
+          return;
+        }
+        initialLoad = false;
+
         const docs = snap.docs
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
