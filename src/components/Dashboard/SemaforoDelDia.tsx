@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { money } from '../../lib/format';
-import { getOrderSummary, round2 } from '../../lib/finance';
+import { getOrderSummary, round2, extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
 
 interface SemaforoDelDiaProps {
@@ -53,20 +53,27 @@ export function SemaforoDelDia({
         porFacturarMonto += sub * (1 + ivaRate);
       }
 
-      // 3. Facturas sin contrarecibo
-      (o.invoices || []).forEach((inv) => {
-        const cr = (inv.collection?.contrareciboNumber || '').trim();
-        const st = inv.creditCycle.status;
-        if (!cr && (st === 'facturado' || st === 'pending' || (inv.folio && inv.folio.length > 0))) {
-          sinContrareciboCount++;
-        }
-        if (st === 'paid') {
-          const tot = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-          const comm = inv.financials?.commission ?? (tot * (config?.commissionRate || 0.08));
-          porRecibirContadorMonto += (tot - comm);
-          porRecibirContadorCount++;
-        }
-      });
+      // 3. Facturas sin contrarecibo (excluyendo órdenes cerradas, migradas o ya cobradas)
+      if (!o.isClosedShort && o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected') {
+        (o.invoices || []).forEach((inv) => {
+          const cr = extractCr(inv, o);
+          const st = inv.creditCycle?.status;
+          const totalInv = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+          const paidAmt = inv.collection?.paidAmount || 0;
+
+          if (!cr && st !== 'paid' && st !== 'collected' && paidAmt < totalInv && (totalInv > 0 || (inv.kilos || 0) > 0)) {
+            if (st === 'facturado' || st === 'manual_review' || (inv.folio && inv.folio.trim().length > 0)) {
+              sinContrareciboCount++;
+            }
+          }
+          if (st === 'paid') {
+            const tot = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+            const comm = inv.financials?.commission ?? (tot * (config?.commissionRate || 0.08));
+            porRecibirContadorMonto += (tot - comm);
+            porRecibirContadorCount++;
+          }
+        });
+      }
     });
 
     // 4. Andrés en producción (kilos pedidos en compras vs entregados)

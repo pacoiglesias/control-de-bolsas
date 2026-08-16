@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
+import { KilosProgressBar } from '../Orders/KilosProgressBar';
 
 /**
  * Tablero Kanban para Compras — mismo patron visual que el de Cobranza
@@ -79,13 +80,15 @@ export function ComprasKanban({
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>{pct}%</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 8 }}>{o?.client || '—'}</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-soft)', marginBottom: 4 }}>
-          <span>Entregado: {recibidos.toFixed(0)} kg</span>
-          <span>Meta: {esperados.toFixed(0)} kg</span>
+        
+        <div style={{ marginBottom: 8 }}>
+          <KilosProgressBar
+            compact
+            deliveredKg={recibidos}
+            totalKg={esperados}
+          />
         </div>
-        <div style={{ width: '100%', height: 6, background: 'var(--paper-sunk)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: pct >= 100 ? 'var(--ok)' : 'var(--accent)' }} />
-        </div>
+
         {restaPagar > 0.01 ? (
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--bad)', fontFamily: 'monospace' }}>
             Faltan {restaPagar.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}

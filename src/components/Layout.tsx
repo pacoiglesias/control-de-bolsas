@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
+import { usePurchases } from '../hooks/usePurchases';
+import { useExpenses } from '../hooks/useExpenses';
+import { useConfig } from '../hooks/useConfig';
+import { useToast } from '../context/ToastContext';
 import { useProducts } from '../hooks/useProducts';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
+import { downloadBackupJsonFile } from '../lib/cloudBackup';
 import { CommandMenu } from './CommandMenu/CommandMenu';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
@@ -51,6 +56,10 @@ function initTheme(): 'light' | 'dark' {
 export default function Layout() {
   const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
+  const { purchases } = usePurchases();
+  const { expenses } = useExpenses();
+  const { config } = useConfig();
+  const toast = useToast();
   const { products } = useProducts();
   const { settings } = useSystemSettings();
   const [navOpen, setNavOpen] = useState(false);
@@ -59,6 +68,16 @@ export default function Layout() {
   const location = useLocation();
   const nav = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  const handleDownloadLocalBackup = () => {
+    try {
+      downloadBackupJsonFile(orders, purchases, expenses, config);
+      sound.playSuccess();
+      toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
+    } catch (err: any) {
+      toast(`Error al exportar respaldo: ${err.message}`, 'bad');
+    }
+  };
 
   // Red de seguridad: si algun modal llegara a fallar a mitad de una
   // interaccion sin completar su limpieza (ver el bloqueo de scroll en
@@ -195,6 +214,26 @@ export default function Layout() {
             })}
           </nav>
           <div className="sidebar-foot">
+            <button
+              type="button"
+              onClick={handleDownloadLocalBackup}
+              title="Descargar copia de seguridad completa a tu dispositivo"
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 700,
+                borderRadius: 8,
+                padding: '8px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+            >
+              💾 Respaldo Local (1 Clic)
+            </button>
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               ◐ {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             </button>
@@ -210,6 +249,26 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
+            <div style={{ marginBottom: 8 }}>
+              <button
+                type="button"
+                onClick={handleDownloadLocalBackup}
+                className="btn btn-small"
+                style={{
+                  fontSize: 11,
+                  padding: '4px 12px',
+                  background: 'var(--paper-sunk)',
+                  borderColor: 'var(--line)',
+                  color: 'var(--ink)',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                💾 Descargar Respaldo Local (.JSON)
+              </button>
+            </div>
             Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { money, fmtDayAndDate, toDate, nombreClienteVisible } from '../../lib/format';
+import { extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
 
@@ -10,19 +11,29 @@ interface FacturasSinCRPanelProps {
 export function FacturasSinCRPanel({ orders }: FacturasSinCRPanelProps) {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
 
-  // Filtrar facturas emitidas que NO tienen número de contrarecibo capturado
+  // Filtrar facturas emitidas que NO tienen número de contrarecibo capturado y siguen pendientes de cobro
   const facturasSinCR: { order: PurchaseOrder; invoice: Invoice; dias: number; issueDateObj: Date | null }[] = [];
   const hoy = Date.now();
 
   orders.forEach((o) => {
-    if (o.isClosedShort) return;
+    if (o.isClosedShort || o.client === 'MIGRACION') return;
+    if (o.creditCycle?.status === 'collected') return;
+
     (o.invoices || []).forEach((inv) => {
-      const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+      const cr = extractCr(inv, o);
       const st = inv.creditCycle?.status;
-      // Consideramos facturas que ya tienen folio y están en ciclo de cobro o facturadas pero sin CR
-      if (!cr && (st === 'facturado' || st === 'pending' || st === 'overdue' || (inv.folio && inv.folio.length > 0))) {
+      const totalInv = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+      const paidAmt = inv.collection?.paidAmount || 0;
+      
+      // Si ya tiene CR, o si ya está cobrada/pagada, NO está en espera de CR
+      if (cr) return;
+      if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return;
+      if ((inv.kilos || 0) <= 0 && totalInv <= 0) return;
+
+      // Factura emitida genuinamente que aún no recibe CR
+      if (st === 'facturado' || st === 'manual_review' || (inv.folio && inv.folio.trim().length > 0)) {
         let dias = 0;
-        const dt = toDate(inv.creditCycle?.issueDate);
+        const dt = toDate(inv.creditCycle?.issueDate || o.estimatedDeliveryDate || o.processedAt);
         if (dt) {
           dias = Math.max(0, Math.round((hoy - dt.getTime()) / 86400000));
         }

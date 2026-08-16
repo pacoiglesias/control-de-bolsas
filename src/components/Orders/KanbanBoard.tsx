@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { kilos, money } from '../../lib/format';
+import { money } from '../../lib/format';
 import type { OrderStatus, PurchaseOrder } from '../../lib/types';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
+import { KilosProgressBar } from './KilosProgressBar';
 import { sound } from '../../lib/sounds';
 import { useToast } from '../../context/ToastContext';
 import { db, PATHS } from '../../lib/firebase';
@@ -205,12 +206,15 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
                         <strong>{item.o.client || 'Sin Cliente'}</strong>
                       </div>
 
+                      {/* Barra Visual de Avance de Kilos */}
+                      <KilosProgressBar
+                        deliveredKg={item.s.kilosDelivered}
+                        totalKg={item.o.totalKilograms || (item.o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || item.s.kilosDelivered}
+                      />
+
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 2 }}>
-                        <div>
-                          {kilos(item.s.kilosDelivered)} kg de {kilos(item.o.totalKilograms || 0)} kg
-                        </div>
-                        <div style={{ color: item.s.invoiceTotal - item.s.paidAmount > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                          Deuda: {money(item.s.invoiceTotal - item.s.paidAmount)}
+                        <div style={{ color: item.s.invoiceTotal - item.s.paidAmount > 0 ? 'var(--bad)' : 'var(--ok)', fontWeight: 700 }}>
+                          Saldo Deuda: {money(item.s.invoiceTotal - item.s.paidAmount)}
                         </div>
                       </div>
 

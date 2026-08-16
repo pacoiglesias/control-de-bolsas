@@ -560,6 +560,26 @@ return () => unsub();
             </button>
             <button
               className="btn"
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+              }}
+              onClick={() => {
+                try {
+                  downloadBackupJsonFile(globalOrders, purchases, expenses, config as any);
+                  toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
+                } catch (e: any) {
+                  toast(`Error al exportar: ${e.message}`, 'bad');
+                }
+              }}
+            >
+              💾 Respaldo Local
+            </button>
+            <button
+              className="btn"
               style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
               onClick={async () => {
                 toast('Generando sábana Excel con los datos actuales...', 'info');

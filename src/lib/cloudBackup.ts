@@ -193,7 +193,7 @@ export async function restoreCloudBackup(
 }
 
 /**
- * Descarga inmediata de respaldo completo en archivo .json local
+ * Descarga inmediata de respaldo completo en archivo .json local para guardar en Celular / USB
  */
 export function downloadBackupJsonFile(
   orders: PurchaseOrder[],
@@ -201,10 +201,20 @@ export function downloadBackupJsonFile(
   expenses: Expense[],
   config: FinancialConfig
 ) {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateTag = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+
   const data = {
-    app: 'ControlBolsas-ERP',
-    version: '7.4.0',
-    exportDate: new Date().toISOString(),
+    app: 'ControlBolsas-ERP Providencia Master',
+    version: '8.3.0',
+    exportDate: now.toISOString(),
+    formattedDate: now.toLocaleString('es-MX'),
+    counts: {
+      totalOrders: orders.length,
+      totalPurchases: purchases.length,
+      totalExpenses: expenses.length,
+    },
     orders,
     purchases,
     expenses,
@@ -215,7 +225,7 @@ export function downloadBackupJsonFile(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Respaldo_Completo_ControlBolsas_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `Respaldo_Control_Bolsas_${dateTag}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

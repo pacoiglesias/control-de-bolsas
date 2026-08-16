@@ -8,6 +8,26 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.3.2 Enterprise Strict CR vs Invoice Separation Edition',
+    date: '16 de Agosto de 2026',
+    time: '11:05 PM',
+    summary: 'Auditoría y Separación Estricta de Contrarecibos vs Facturas',
+    highlights: [
+      'Corrección Estricta del Semáforo y Panel sin CR: Las facturas que ya fueron cobradas o pagadas, o que tienen un contrarecibo asignado a nivel de orden/folio (ej: TH- o GT-), quedan debidamente identificadas y nunca se cuentan erróneamente como "en espera de CR".',
+      'Extracción Universal de Contrarecibos: Centralización con extractCr en Semáforo del Día, Pipeline de Flujo de Efectivo, Panel de Facturas sin CR y filtros de Órdenes.',
+    ],
+  },
+  {
+    version: 'v8.3.1 Enterprise Order Progress & Instant Backup Edition',
+    date: '16 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Barras de Progreso de Kilos Entregados por Andrés y Respaldo Local de Base de Datos en 1 Clic',
+    highlights: [
+      'Barras Visuales de Progreso de Kilos: Indicadores dinámicos de porcentaje de entrega y kilos faltantes en Tablero Kanban, Listado de Órdenes y Compras.',
+      'Respaldo de Emergencia en 1 Clic: Botón directo en la barra superior y pie de página para descargar al instante un archivo .JSON con todos los pedidos, compras, contrarecibos y caja chica para llevar en tu celular o USB.',
+    ],
+  },
+  {
     version: 'v8.3.0 Enterprise Instant Collection & Undo Edition',
     date: '16 de Agosto de 2026',
     time: '10:52 PM',

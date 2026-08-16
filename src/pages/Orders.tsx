@@ -10,8 +10,9 @@ import OrderModal from '../components/OrderModal';
 import KanbanBoard from '../components/Orders/KanbanBoard';
 import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { QuickCrModal } from '../components/QuickCrModal';
+import { KilosProgressBar } from '../components/Orders/KilosProgressBar';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
-import { getOrderSummary } from '../lib/finance';
+import { getOrderSummary, extractCr } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
 const FILTERS: { key: 'all' | 'sin_cr' | OrderStatus; label: string }[] = [
@@ -123,9 +124,18 @@ export default function Orders() {
       if (filter === 'pedido') {
         if (s.kilosDelivered <= s.kilosInvoiced) return false;
       } else if (filter === 'sin_cr') {
-        if (o.client === 'MIGRACION') return false;
+        if (o.client === 'MIGRACION' || o.isClosedShort) return false;
+        if (o.creditCycle?.status === 'collected') return false;
         if (s.invoices.length === 0) return false;
-        const faltaCr = s.invoices.some((i: any) => !i.collection?.contrareciboNumber && i.creditCycle?.status !== 'collected');
+        const faltaCr = s.invoices.some((i: any) => {
+          const cr = extractCr(i, o);
+          const st = i.creditCycle?.status;
+          const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
+          const paidAmt = i.collection?.paidAmount || 0;
+          if (cr) return false;
+          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+        });
         if (!faltaCr) return false;
       } else if (filter !== 'all' && s.status !== filter) {
         return false;
@@ -194,9 +204,18 @@ export default function Orders() {
     let pendienteFacturar = 0;
     let sinCrCount = 0;
     conResumen.forEach(({ o, s }) => {
-      if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION') pendienteFacturar++;
-      if (o.client !== 'MIGRACION' && s.invoices.length > 0 && s.invoices.some((i: any) => !i.collection?.contrareciboNumber && i.creditCycle?.status !== 'collected')) {
-        sinCrCount++;
+      if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION' && !o.isClosedShort) pendienteFacturar++;
+      if (o.client !== 'MIGRACION' && !o.isClosedShort && o.creditCycle?.status !== 'collected' && s.invoices.length > 0) {
+        const hasSinCr = s.invoices.some((i: any) => {
+          const cr = extractCr(i, o);
+          const st = i.creditCycle?.status;
+          const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
+          const paidAmt = i.collection?.paidAmount || 0;
+          if (cr) return false;
+          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+        });
+        if (hasSinCr) sinCrCount++;
       }
       c[s.status] = (c[s.status] ?? 0) + 1;
     });
@@ -523,29 +542,12 @@ export default function Orders() {
                       </td>
                       <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
-                      <td className="num mono">
-                        <div>{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</div>
-                        {o.totalKilograms && o.totalKilograms > 0 && (
-                          <div
-                            title={`Entregado: ${kilos(summary.kilosDelivered)} (${Math.min(100, Math.round((summary.kilosDelivered / o.totalKilograms) * 100))}%) | Facturado: ${kilos(summary.kilosInvoiced)}`}
-                            style={{
-                              height: 5,
-                              background: 'var(--line-soft)',
-                              borderRadius: 3,
-                              overflow: 'hidden',
-                              marginTop: 4,
-                              display: 'flex',
-                              width: '100%',
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: `${Math.min(100, (summary.kilosDelivered / o.totalKilograms) * 100)}%`,
-                                background: '#10b981',
-                              }}
-                            />
-                          </div>
-                        )}
+                      <td className="num mono" style={{ minWidth: 140 }}>
+                        <KilosProgressBar
+                          compact
+                          deliveredKg={summary.kilosDelivered}
+                          totalKg={o.totalKilograms || (o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || summary.kilosDelivered}
+                        />
                       </td>
                       <td className="num mono">
                         {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}

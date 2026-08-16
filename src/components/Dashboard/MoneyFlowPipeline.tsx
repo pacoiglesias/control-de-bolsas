@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { money } from '../../lib/format';
-import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
+import { computeCommissionFromInvoiceTotal, extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../../lib/types';
 
 interface MoneyFlowPipelineProps {
@@ -31,7 +31,9 @@ export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: 
     let montoConContador = 0;
 
     orders.forEach((o) => {
-      if (o.isClosedShort) return;
+      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      if (o.creditCycle?.status === 'collected') return;
+
       const deliveries = o.deliveries || [];
       const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (d.kilos || 0), 0);
       const invoices = o.invoices || [];
@@ -43,11 +45,15 @@ export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: 
 
       invoices.forEach((inv) => {
         const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
-        const cr = (inv.collection?.contrareciboNumber || '').trim();
+        const paidAmt = inv.collection?.paidAmount || 0;
+        const cr = extractCr(inv, o);
         const st = inv.creditCycle?.status;
 
-        if (!cr && (st === 'pending' || st === 'overdue' || (inv.folio && inv.folio.length > 0))) {
-          montoSinContrarecibo += totalFactura;
+        // Facturas emitidas sin CR que aún no han sido cobradas
+        if (!cr && st !== 'paid' && st !== 'collected' && paidAmt < totalFactura && totalFactura > 0) {
+          if (st === 'facturado' || st === 'manual_review' || (inv.folio && inv.folio.trim().length > 0)) {
+            montoSinContrarecibo += (totalFactura - paidAmt);
+          }
         }
 
         if (st === 'paid') {

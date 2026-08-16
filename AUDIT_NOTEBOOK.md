@@ -1577,6 +1577,30 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 130: Barras de Progreso de Kilos en Órdenes y Respaldo Local en 1 Clic (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Orders/KilosProgressBar.tsx`, `src/components/Orders/KanbanBoard.tsx`, `src/pages/Orders.tsx`, `src/components/Compras/ComprasKanban.tsx`, `src/lib/cloudBackup.ts`, `src/components/Layout.tsx`, `src/pages/Dashboard.tsx`
+**Problema:** Paco solicitó explícitamente barras de progreso visuales para saber de inmediato cuánto material ha surtido Andrés y cuánto falta para completar la orden, además de un respaldo de emergencia en 1 clic para guardar en celular o USB.
+**Impacto:** Visibilidad instantánea del porcentaje de entrega por orden y portabilidad total de la base de datos sin depender de servidores.
+**Solución:** Creado componente `KilosProgressBar` con estados del 0 al 100% y sello "100% Surtido por Andrés", integrado en Tableros Kanban, tablas y tarjetas. Añadido botón directo `[💾 Respaldo Local (1 Clic)]` en Dashboard, barra lateral y pie de página que descarga un archivo JSON enriquecido con fecha y hora.
+**Riesgo:** 🟢 Bajo — Componentes visuales y exportador de datos.
+**Commit:** `feat(progress): barras de progreso de kilos en ordenes y respaldo local en 1 clic`
+**Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+### Iteración 131: Auditoría y Separación Estricta de Contrarecibos vs Facturas (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/FacturasSinCRPanel.tsx`, `src/components/Dashboard/SemaforoDelDia.tsx`, `src/components/Dashboard/MoneyFlowPipeline.tsx`, `src/pages/Orders.tsx`
+**Problema:** El sistema mostraba 16 facturas en espera de contrarecibo porque los contadores de clientes incluían facturas históricas ya pagadas/cobradas o no reconocían contrarecibos guardados a nivel de expediente o folio (`TH-`/`GT-`).
+**Impacto:** Distorsión de métricas de cobranza activa y confusión entre folios de factura y folios de contrarecibo.
+**Solución:** Integrado `extractCr` en todos los paneles de semáforo, flujo de dinero y filtros de órdenes, excluyendo estrictamente facturas liquidadas, cobradas o canceladas.
+**Riesgo:** 🟢 Bajo — Filtros y agregados de visualización.
+**Commit:** `fix(cr): separacion estricta de contrarecibos vs facturas y exclusion de cobradas`
+**Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+
+
 
 
 
