@@ -1401,3 +1401,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 114: Atajo Escape, Accesibilidad y Redondeo en FloatingKiloCalculator (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/components/FloatingKiloCalculator.tsx`
+**Problema:** En `FloatingKiloCalculator.tsx`, las operaciones de subtotal, IVA, comisión y reparto 50/50 se realizaban con operadores nativos de JavaScript sin pasar por la función canónica `round2()`, con riesgo de derivas de centavos flotantes en números con decimales periódicos. Asimismo, el widget flotante no respondía a la tecla `Escape` y carecía de atributos de diálogo accesible.
+**Impacto:** Riesgo de imprecisión en el reparto rápido de utilidades y falta de ergonomía de teclado al cerrar la calculadora.
+**Solución:** Blindadas todas las operaciones con `round2()`, agregado listener global de `Escape` para cerrar el modal flotante, agregados atributos `role="dialog"`, `aria-label`, `aria-expanded` y validación de mínimos no negativos (`min="0"`) en los campos numéricos.
+**Riesgo:** 🟢 Bajo — Widget flotante desacoplado.
+**Commit:** `fix(calc): atajo escape, redondeo exacto y roles aria en calculadora flotante`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
