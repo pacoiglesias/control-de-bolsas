@@ -644,6 +644,10 @@ export default function MaquiladorPortal() {
     });
   }, [activeOrders, searchOc, deptFilter]);
 
+  const totalAndresPendingKilos = useMemo(() => {
+    return activeOrders.reduce((acc: number, o: any) => acc + (o.pendingKilos || 0), 0);
+  }, [activeOrders]);
+
   if (!auth) return <PinScreen onSuccess={handleSuccess} />;
 
   /* ─── Variables de Diseño ───────────────────────────────────────────────── */
@@ -789,6 +793,55 @@ export default function MaquiladorPortal() {
             </button>
           ))}
         </div>
+
+        {/* Banner de Estado de Producción y Entregas de Andrés */}
+        {totalAndresPendingKilos <= 0.01 ? (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.25) 100%)',
+              border: '1px solid #10b981',
+              borderRadius: 14,
+              padding: '14px 18px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 24 }}>🟢</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#34d399' }}>
+                ¡TALLER AL DÍA! CERO PEDIDOS PENDIENTES
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                Has entregado el 100% de las bolsas solicitadas. No tienes pedidos pendientes de fabricación ni entrega.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.2) 100%)',
+              border: '1px solid #f59e0b',
+              borderRadius: 14,
+              padding: '14px 18px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 24 }}>🟡</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#fbbf24' }}>
+                PRODUCCIÓN EN CURSO: {totalAndresPendingKilos.toLocaleString('es-MX')} kg PENDIENTES
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                Tienes {activeOrders.filter((o: any) => o.pendingKilos > 0).length} órdenes con kilos pendientes por fabricar y entregar a Providencia.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Banner de Aviso de Última Entrega con Botón WhatsApp */}
         <AnimatePresence>

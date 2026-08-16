@@ -100,15 +100,64 @@ export function SemaforoDelDia({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🚦</span> Semáforo Operativo del Día
+          <span style={{ fontSize: 18 }}>🚦</span> Semáforo de Producción & Entregas
           <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-soft)' }}>
-            (Flujo de trabajo en tiempo real)
+            (Andrés ↔ Providencia en tiempo real)
           </span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
           Haz clic en cualquier bloque para actuar al instante
         </div>
       </div>
+
+      {/* Banner Global de Estado de Taller / Entregas */}
+      {metrics.andresPendienteKilos === 0 && metrics.porPedirKilos === 0 ? (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.18) 100%)',
+            border: '1px solid #10b981',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>🟢</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#047857' }}>
+              ¡TALLER AL DÍA! CERO PEDIDOS PENDIENTES
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+              Andrés no tiene kilos pendientes por fabricar. Todos los pedidos solicitados ya fueron entregados al almacén de Providencia.
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.15) 100%)',
+            border: '1px solid #f59e0b',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>🟡</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#b45309' }}>
+              PRODUCCIÓN EN CURSO: {(metrics.andresPendienteKilos + metrics.porPedirKilos).toLocaleString('es-MX')} kg PENDIENTES
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+              {metrics.andresPendienteKilos > 0 ? `Andrés tiene ${metrics.andresPendienteKilos.toLocaleString('es-MX')} kg en taller por entregar.` : 'Kilos en proceso de pedido a Andrés.'}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
         {/* 1. Por pedir a Andrés */}

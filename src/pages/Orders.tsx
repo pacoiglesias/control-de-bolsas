@@ -505,9 +505,22 @@ export default function Orders() {
                       <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
                       <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
-                      <td className="num mono">{summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}</td>
-                      <td className="num mono" style={{ color: (o.totalKilograms ?? 0) - summary.kilosDelivered > 0 ? 'var(--bad)' : 'inherit' }}>
-                        {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? kilos((o.totalKilograms ?? 0) - summary.kilosDelivered) : '—'}
+                      <td className="num mono">
+                        {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
+                        {o.totalKilograms && summary.kilosDelivered >= o.totalKilograms && (
+                          <span style={{ display: 'block', fontSize: '0.75em', color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
+                        )}
+                      </td>
+                      <td className="num mono">
+                        {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? (
+                          <span style={{ color: '#d97706', fontWeight: 700 }}>
+                            ⏳ {kilos((o.totalKilograms ?? 0) - summary.kilosDelivered)}
+                          </span>
+                        ) : o.totalKilograms ? (
+                          <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85em' }}>
+                            🟢 0 kg (Al día)
+                          </span>
+                        ) : '—'}
                       </td>
                       <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
                       <td className="num mono">{money(summary.invoiceTotal)}</td>
