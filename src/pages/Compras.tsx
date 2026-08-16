@@ -12,6 +12,7 @@ import { RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderM
 import { ComprasKanban } from '../components/Compras/ComprasKanban';
 import { exportToCsv, getPrintHeaderHtml, fmtDate } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
+import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
 import type { Purchase, PurchaseOrder } from '../lib/types';
 
 export default function Compras() {
@@ -172,8 +173,28 @@ export default function Compras() {
           title="Libro Mayor Cronológico" 
           actions={
             <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-icon"
+                onClick={async () => {
+                  toast('📄 Generando Estado de Cuenta Auditado...', 'info');
+                  await generateAndresAuditStatementPdf({
+                    totalReceivedKilos,
+                    totalPurchasesCost,
+                    totalPagado,
+                    saldoProveedor,
+                    deudaHistorica,
+                    currentCostPerKg,
+                    ledger: ledgerWithBalance as any,
+                  });
+                  toast('✅ Estado de cuenta PDF generado', 'ok');
+                }}
+                title="Generar Estado de Cuenta Oficial en PDF"
+                style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700 }}
+              >
+                📄 PDF Auditado
+              </button>
               <button className="btn btn-icon" onClick={exportComprasCsv} title="Descargar CSV">📊 CSV</button>
-              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte">🖨️ PDF</button>
+              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte">🖨️ Imprimir</button>
             </div>
           }
         >

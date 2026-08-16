@@ -70,6 +70,103 @@ export async function exportToExcel() {
   XLSX.writeFile(wb, `Sabana_Auditoria_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+export async function exportTotalBusinessBackupExcel() {
+  const XLSX = await import('xlsx');
+  const [ordersSnap, purchasesSnap, expensesSnap] = await Promise.all([
+    getDocs(collection(db, PATHS.orders)),
+    getDocs(collection(db, PATHS.purchases)),
+    getDocs(collection(db, PATHS.expenses)),
+  ]);
+
+  const ordersData: any[] = [];
+  const invoicesData: any[] = [];
+
+  ordersSnap.docs.forEach(d => {
+    const o = d.data();
+    const totalKilos = o.totalKilograms || 0;
+    const deliveries = o.deliveries || [];
+    const kilosEntregados = deliveries.reduce((a: number, del: any) => a + (del.kilos || 0), 0);
+    const kilosPendientes = Math.max(0, totalKilos - kilosEntregados);
+
+    ordersData.push({
+      FolioOC: o.folio || o.oc || 'S/N',
+      Cliente: o.client || 'Grupo Textil Providencia',
+      FechaEstimadaEntrega: o.estimatedDeliveryDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      KilosPedidos: totalKilos,
+      KilosEntregados: kilosEntregados,
+      KilosPendientes: kilosPendientes,
+      EstatusEntrega: kilosPendientes === 0 && totalKilos > 0 ? '100% Surtido' : 'En Proceso',
+      ID_EXPEDIENTE: d.id,
+    });
+
+    (o.invoices || []).forEach((inv: any) => {
+      const invTotal = inv.financials?.invoiceTotal ?? (inv.financials?.saleTotal ?? 0);
+      const comision = inv.financials?.commission ?? (invTotal * 0.08);
+      const neto = invTotal - comision;
+      const pagado = inv.collection?.paidAmount ?? 0;
+
+      invoicesData.push({
+        FacturaFolio: inv.folio || 'S/N',
+        FolioOC: o.folio || o.oc || 'S/N',
+        Contrarecibo: inv.collection?.contrareciboNumber || '',
+        FechaEmision: inv.creditCycle?.issueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+        FechaVencimientoCR: inv.creditCycle?.dueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+        KilosAmparados: inv.kilos || 0,
+        TotalFacturadoIVA: invTotal,
+        ComisionContador8Pct: comision,
+        NetoLimpioCaja: neto,
+        MontoCobrado: pagado,
+        SaldoPendiente: Math.max(0, invTotal - pagado),
+        EstatusCobranza: inv.creditCycle?.status || 'pending',
+      });
+    });
+  });
+
+  const purchasesData = purchasesSnap.docs.map(d => {
+    const data = d.data();
+    return {
+      FolioCompra: data.folio || 'S/N',
+      Proveedor: data.provider || 'Andrés',
+      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      KilosPedidos: data.expectedKilos || 0,
+      KilosEntregados: data.receivedKilos || 0,
+      CostoPorKilo: data.pricePerKg || 42,
+      TotalMaterial: data.totalAmount || 0,
+      Pagado: data.paidAmount || 0,
+      SaldoRestante: Math.max(0, (data.totalAmount || 0) - (data.paidAmount || 0)),
+      Estatus: data.status || '',
+    };
+  });
+
+  const expensesData = expensesSnap.docs.map(d => {
+    const data = d.data();
+    return {
+      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      Tipo: data.type || '',
+      Concepto: data.concept || '',
+      BeneficiarioProveedor: data.provider || '',
+      Monto: data.amount || 0,
+      Notas: data.notes || '',
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  const wsOrders = XLSX.utils.json_to_sheet(ordersData);
+  XLSX.utils.book_append_sheet(wb, wsOrders, '1_Ordenes_y_Kilos');
+
+  const wsInvoices = XLSX.utils.json_to_sheet(invoicesData);
+  XLSX.utils.book_append_sheet(wb, wsInvoices, '2_Facturas_y_Contrarecibos');
+
+  const wsPurchases = XLSX.utils.json_to_sheet(purchasesData);
+  XLSX.utils.book_append_sheet(wb, wsPurchases, '3_Compras_Andres');
+
+  const wsExpenses = XLSX.utils.json_to_sheet(expensesData);
+  XLSX.utils.book_append_sheet(wb, wsExpenses, '4_Flujo_Caja_y_Socios');
+
+  XLSX.writeFile(wb, `Respaldo_Total_ERP_Providencia_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
 export async function exportToHtml() {
   const ordersSnap = await getDocs(collection(db, PATHS.orders));
   const purchasesSnap = await getDocs(collection(db, PATHS.purchases));

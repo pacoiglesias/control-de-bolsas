@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { exportTotalBusinessBackupExcel } from '../../lib/export';
 
 interface QuickActionsBarProps {
   onOpenContrarecibos: () => void;
@@ -258,6 +259,31 @@ export function QuickActionsBar({
           >
             <span style={{ fontSize: 15 }}>{recalcBusy ? '⏳' : '🔄'}</span>
             {recalcBusy ? 'Recalculando…' : 'Recalcular'}
+          </motion.button>
+        )}
+
+        {/* 10. Respaldo Total a Excel */}
+        {role === 'admin' && (
+          <motion.button
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => exportTotalBusinessBackupExcel()}
+            title="Descargar libro Excel offline con órdenes, facturas, compras y flujo de caja"
+            style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.2) 100%)',
+              color: '#059669',
+              border: '1px solid #10b981',
+              borderRadius: 12,
+              padding: '8px 15px',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 15 }}>📥</span> Respaldo Total Excel
           </motion.button>
         )}
 

@@ -89,18 +89,22 @@ export default function CajaChica() {
   // Positivo = Saldo a Favor / Anticipo (Pagamos mas de lo que recibimos)
   const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
-  // Calc dinero en tránsito (estatus 'paid')
-  const dineroEnTransito = orders.reduce((acc, o) => {
-    if (!o.invoices) return acc;
-    return acc + o.invoices.reduce((sum, inv) => {
+  // Calc desglose de dinero en tránsito (estatus 'paid')
+  let totalBrutoCobrado = 0;
+  let totalComisionContador = 0;
+  let dineroEnTransito = 0;
+
+  orders.forEach((o) => {
+    (o.invoices || []).forEach((inv) => {
       if (inv.creditCycle.status === 'paid') {
         const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16)));
         const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
-        return sum + (totalFactura - comision);
+        totalBrutoCobrado += totalFactura;
+        totalComisionContador += comision;
+        dineroEnTransito += (totalFactura - comision);
       }
-      return sum;
-    }, 0);
-  }, 0);
+    });
+  });
 
   function getCajaChicaHtml() {
     const totalIngresos = expenses.filter(e => e.type === 'ingreso').reduce((a, e) => a + e.amount, 0);
@@ -245,7 +249,20 @@ export default function CajaChica() {
               <div className="num" style={{ fontSize: 38, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)', letterSpacing: '-1px' }}>
                 {money(dineroEnTransito)}
               </div>
-              <p className="hint" style={{ marginTop: 6, marginBottom: 12, fontSize: 13 }}>Cobrado a Providencia (neto tras 8% comisión).</p>
+              <div style={{ marginTop: 6, marginBottom: 10, fontSize: 11.5, background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--line-soft)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ink-soft)' }}>
+                  <span>Cobrado Providencia (c/IVA):</span>
+                  <span className="mono">{money(totalBrutoCobrado)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b91c1c', fontWeight: 600 }}>
+                  <span>Comisión Contador (8%):</span>
+                  <span className="mono">-{money(totalComisionContador)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#047857', fontWeight: 800, borderTop: '1px solid var(--line-soft)', paddingTop: 3, marginTop: 3 }}>
+                  <span>Neto Limpio a Caja:</span>
+                  <span className="mono">{money(dineroEnTransito)}</span>
+                </div>
+              </div>
             </div>
             <motion.button 
               whileHover={dineroEnTransito > 0 ? { scale: 1.02 } : {}}
