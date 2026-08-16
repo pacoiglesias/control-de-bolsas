@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from '../ui';
 import { useToast } from '../../context/ToastContext';
+import { useOrders } from '../../hooks/useOrders';
 
 interface FotoRemisionModalProps {
   onClose: () => void;
@@ -14,10 +15,25 @@ export function FotoRemisionModal({
   kilosFaltantes,
 }: FotoRemisionModalProps) {
   const toast = useToast();
+  const { orders } = useOrders();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [kilos, setKilos] = useState<number>(kilosFaltantes > 0 ? kilosFaltantes : 0);
   const [folioRemision, setFolioRemision] = useState<string>('');
   const [notas, setNotas] = useState<string>('Entrega confirmada con remisión sellada en planta Providencia');
+
+  const remisionDuplicada = useMemo(() => {
+    const q = folioRemision.trim().toUpperCase();
+    if (!q || q.length < 3) return null;
+    for (const o of orders) {
+      for (const d of o.deliveries || []) {
+        const dNotes = (d.notes || '').toUpperCase();
+        if (dNotes.includes(q)) {
+          return { oc: o.folio || o.oc || 'S/OC', client: o.client || 'Providencia' };
+        }
+      }
+    }
+    return null;
+  }, [folioRemision, orders]);
 
   const handleImageUpload = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -140,6 +156,11 @@ export function FotoRemisionModal({
               onChange={(e) => setFolioRemision(e.target.value.toUpperCase())}
               placeholder="Ej. REM-4892"
             />
+            {remisionDuplicada && (
+              <div style={{ marginTop: 4, fontSize: 11, color: '#dc2626', fontWeight: 700 }}>
+                ⚠️ Esta remisión ya fue registrada en la OC #{remisionDuplicada.oc} ({remisionDuplicada.client}). Verifica para evitar duplicar kilos.
+              </div>
+            )}
           </div>
         </div>
 

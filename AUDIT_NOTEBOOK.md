@@ -1533,6 +1533,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 126: Filtros Rápidos de Cobranza, Presets de Abono a Andrés y Detección de Remisiones Duplicadas (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/ContrarecibosTimeline.tsx`, `src/components/Compras/PagarAndresModal.tsx`, `src/components/OrderModal/FotoRemisionModal.tsx`
+**Problema:** Necesidad de filtrar contrarecibos rápidamente por rango temporal (vencidos, esta semana, 30 días), agilizar la captura de abonos a Andrés con montos calculados automáticamente y evitar la duplicidad accidental de folios de remisión al recibir entregas de plástico.
+**Impacto:** Reducción drástica de clics y tiempos de operación tanto en móvil como en escritorio.
+**Solución:** Agregados chips de filtrado en `ContrarecibosTimeline`, presets de 1 clic en `PagarAndresModal` (`Liquidar Deuda`, `50% Deuda`, `Total Caja Chica`) y verificación automática contra folios de remisión previos en `FotoRemisionModal`.
+**Riesgo:** 🟢 Bajo — Componentes auxiliares de flujo rápido.
+**Commit:** `feat(velocity): filtros rapidos de contrarecibos, presets de abono y detector de remisiones duplicadas`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+
 
 
 

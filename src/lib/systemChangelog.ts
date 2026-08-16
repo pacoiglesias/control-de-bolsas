@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.7 Enterprise Operations Velocity Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:35 PM',
+    summary: 'Chips de Filtrado en Cobranza, Presets de Abono a Andrés en 1 Clic y Detección de Remisiones Duplicadas',
+    highlights: [
+      'Chips de Filtrado Rápido de Contrarecibos: Filtra en 1 toque por [Todos], [🚨 Vencidos], [⚡ Esta Semana] o [📆 Próximos 30 Días] con conteo y suma monetaria en tiempo real.',
+      'Presets de Abono a Andrés en 1 Clic: Botones directos para liquidar la deuda total con Andrés, abonar el 50% o aportar el total de efectivo disponible en Caja Chica con un solo toque.',
+      'Detector de Remisiones Duplicadas: Validación automática que alerta si un folio de remisión ya fue registrado en otra orden, protegiendo contra duplicidad de kilos recibidos.',
+    ],
+  },
+  {
     version: 'v8.2.6 Enterprise Contrarecibos Master Edition',
     date: '16 de Agosto de 2026',
     time: '10:30 PM',

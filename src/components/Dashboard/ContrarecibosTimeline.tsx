@@ -11,6 +11,7 @@ interface ContrarecibosTimelineProps {
 
 export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProps) {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'semana' | 'mes'>('todos');
 
   const timelineData = useMemo(() => {
     const today = new Date();
@@ -57,12 +58,23 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
       });
     });
 
-    return items.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 10);
+    return items.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   }, [orders]);
 
   if (timelineData.length === 0) return null;
 
-  const totalPorCobrarProximo = timelineData.reduce((acc, it) => acc + it.amount, 0);
+  const countVencidos = timelineData.filter((it) => it.status === 'overdue').length;
+  const countSemana = timelineData.filter((it) => it.status === 'today' || it.status === 'this_week').length;
+  const countMes = timelineData.filter((it) => it.daysDiff >= 0 && it.daysDiff <= 30).length;
+
+  const filteredItems = timelineData.filter((it) => {
+    if (filterType === 'vencidos') return it.status === 'overdue';
+    if (filterType === 'semana') return it.status === 'today' || it.status === 'this_week';
+    if (filterType === 'mes') return it.daysDiff >= 0 && it.daysDiff <= 30;
+    return true;
+  }).slice(0, 12);
+
+  const totalPorCobrarProximo = filteredItems.reduce((acc, it) => acc + it.amount, 0);
 
   return (
     <>
@@ -78,12 +90,12 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
           boxShadow: 'var(--shadow-soft)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>📅</span> Próximos Vencimientos de Contrarecibos (Cobranza)
               <span className="badge" style={{ background: 'var(--accent)', color: '#fff', fontSize: 11 }}>
-                {timelineData.length} pendiente{timelineData.length > 1 ? 's' : ''}
+                {filteredItems.length} de {timelineData.length}
               </span>
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 2 }}>
@@ -92,7 +104,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: 'var(--ink-soft)', textTransform: 'uppercase', fontWeight: 700 }}>Total en Agenda:</div>
+              <div style={{ fontSize: 10, color: 'var(--ink-soft)', textTransform: 'uppercase', fontWeight: 700 }}>Total a Cobrar:</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>{money(totalPorCobrarProximo)}</div>
             </div>
             <button
@@ -106,6 +118,52 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
           </div>
         </div>
 
+        {/* Barra de Filtros Rápidos por Chip */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <button
+            type="button"
+            className={`chip ${filterType === 'todos' ? 'active' : ''}`}
+            onClick={() => setFilterType('todos')}
+            style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            📋 Todos ({timelineData.length})
+          </button>
+          {countVencidos > 0 && (
+            <button
+              type="button"
+              className={`chip ${filterType === 'vencidos' ? 'active' : ''}`}
+              onClick={() => setFilterType('vencidos')}
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                background: filterType === 'vencidos' ? '#ef4444' : 'rgba(239, 68, 68, 0.1)',
+                color: filterType === 'vencidos' ? '#fff' : '#b91c1c',
+                border: '1px solid #ef4444',
+                fontWeight: 700,
+              }}
+            >
+              🚨 Vencidos ({countVencidos})
+            </button>
+          )}
+          <button
+            type="button"
+            className={`chip ${filterType === 'semana' ? 'active' : ''}`}
+            onClick={() => setFilterType('semana')}
+            style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            ⚡ Esta Semana ({countSemana})
+          </button>
+          <button
+            type="button"
+            className={`chip ${filterType === 'mes' ? 'active' : ''}`}
+            onClick={() => setFilterType('mes')}
+            style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            📆 Próximos 30 Días ({countMes})
+          </button>
+        </div>
+
         {/* Grid / Lista Responsiva de Contrarecibos con Fechas Destacadas */}
         <div
           style={{
@@ -114,7 +172,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
             gap: 12,
           }}
         >
-          {timelineData.map((it, idx) => {
+          {filteredItems.map((it, idx) => {
             const isOverdue = it.status === 'overdue';
             const isToday = it.status === 'today';
             const isThisWeek = it.status === 'this_week';

@@ -5,10 +5,11 @@ import { Modal, Field } from '../ui';
 import { useToast } from '../../context/ToastContext';
 import { useExpenses } from '../../hooks/useExpenses';
 import { useOrders } from '../../hooks/useOrders';
+import { usePurchases } from '../../hooks/usePurchases';
 import { useConfig } from '../../hooks/useConfig';
 import { toInputDate, fromInputDate, money } from '../../lib/format';
 import { confirmDialog } from '../../lib/confirmDialog';
-import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
+import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../../lib/finance';
 import Decimal from 'decimal.js';
 
 export function PagarAndresModal({ 
@@ -20,6 +21,7 @@ export function PagarAndresModal({
 }) {
   const { expenses } = useExpenses();
   const { orders } = useOrders();
+  const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
   const toast = useToast();
 
@@ -28,6 +30,24 @@ export function PagarAndresModal({
       return new Decimal(acc).plus(e.type === 'ingreso' ? e.amount : -e.amount).toNumber();
     }, 0);
   }, [expenses]);
+
+  const deudaConAndres = useMemo(() => {
+    const provPurchases = allPurchases.filter(p => normalizarTexto(p.provider) === 'andres');
+    const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
+    const currentCostPerKg = config?.costPricePerKg || 42;
+    const totalPurchasesCost = totalReceivedKilos * currentCostPerKg;
+
+    const provExpenses = expenses.filter(e => normalizarTexto(e.provider) === 'andres');
+    const totalPagado = provExpenses.reduce((acc, e) => {
+      if (e.type === 'egreso') return acc + e.amount;
+      if (e.type === 'ingreso') return acc - e.amount;
+      return acc;
+    }, 0);
+
+    const deudaHistorica = config?.historicalDebtAndres || 0;
+    const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
+    return saldoProveedor < 0 ? Math.abs(saldoProveedor) : 0;
+  }, [allPurchases, expenses, config]);
 
   const dineroConContador = useMemo(() => {
     let neto = 0;
@@ -132,6 +152,45 @@ export function PagarAndresModal({
               )}
             </div>
           )}
+        </div>
+
+        {/* Botones de Presets Rápidos de 1 Clic */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            ⚡ Presets Rápidos (1 Toque):
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {deudaConAndres > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="chip active"
+                  style={{ fontSize: 11, padding: '4px 10px', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}
+                  onClick={() => setPagoAbono({ ...pagoAbono, amount: deudaConAndres.toFixed(2), concept: 'Liquidación Total de Saldo' })}
+                >
+                  💰 Liquidar Deuda: {money(deudaConAndres)}
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+                  onClick={() => setPagoAbono({ ...pagoAbono, amount: (deudaConAndres / 2).toFixed(2), concept: '50% de Saldo Pendiente' })}
+                >
+                  💵 50% Deuda: {money(deudaConAndres / 2)}
+                </button>
+              </>
+            )}
+            {saldoCaja > 0 && (
+              <button
+                type="button"
+                className="chip"
+                style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer', background: 'rgba(16,185,129,0.1)', color: '#047857', borderColor: '#10b981' }}
+                onClick={() => setPagoAbono({ ...pagoAbono, amount: saldoCaja.toFixed(2), concept: 'Abono con Total de Caja Chica' })}
+              >
+                💵 Todo el Efectivo en Caja: {money(saldoCaja)}
+              </button>
+            )}
+          </div>
         </div>
 
         <Field label="Monto a Pagar a Andrés ($)" full>
