@@ -73,7 +73,7 @@ export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: 
     };
   }, [orders, purchases, expenses, config]);
 
-  const stages = [
+  const stages = useMemo(() => [
     {
       step: '1',
       title: 'Andrés Fabricando',
@@ -124,10 +124,12 @@ export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: 
       border: '#10b981',
       link: '/caja-chica',
     },
-  ];
+  ], [data]);
 
   return (
     <div
+      role="region"
+      aria-label="Pipeline del flujo del dinero en el negocio"
       style={{
         background: 'var(--paper)',
         border: '1px solid var(--line)',
@@ -153,6 +155,10 @@ export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: 
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => nav(st.link)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && nav(st.link)}
+            aria-label={`Paso ${st.step}: ${st.title}, ${money(st.monto)}`}
             style={{
               background: st.bg,
               border: `1px solid ${st.border}`,

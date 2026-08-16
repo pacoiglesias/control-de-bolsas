@@ -1379,3 +1379,14 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX).
 
+### Iteración 112: Memoización de Etapas y Accesibilidad Teclado en MoneyFlowPipeline (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivo:** `src/components/Dashboard/MoneyFlowPipeline.tsx`
+**Problema:** En `MoneyFlowPipeline.tsx`, el arreglo de 5 etapas se reconstruía en cada render del Dashboard independientemente de si las cifras de capital cambiaban, además de carecer de accesibilidad por teclado (`Enter` / `Space`) y roles semánticos (`role="region"` y `aria-label`).
+**Impacto:** Instanciaciones redundantes de objetos en memoria en el ciclo de render de React y falta de accesibilidad para navegación por teclado.
+**Solución:** Envuelto el arreglo `stages` en `useMemo` dependiente exclusivamente del resumen `data`, añadidos atributos ARIA descriptivos por cada paso y soporte completo de teclado para activar las rutas correspondientes (`/compras`, `/ordenes`, `/cobranza`, `/caja-chica`).
+**Riesgo:** 🟢 Bajo — Componente visual de presentación.
+**Commit:** `perf(pipeline): memoizar etapas de capital y anadir navegacion accesible por teclado`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Accesibilidad WCAG AA.
+
