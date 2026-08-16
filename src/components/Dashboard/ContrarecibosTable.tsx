@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, Empty } from '../ui';
 import { money, fmtDate, toDate } from '../../lib/format';
+import { extractCr } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
 import { useConfig } from '../../hooks/useConfig';
 import { InvoiceDrawer } from '../Cobranza/InvoiceDrawer';
@@ -41,12 +42,19 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
     }[] = [];
 
     for (const o of orders) {
+      if (o.isClosedShort || o.client === 'MIGRACION') continue;
       for (const inv of o.invoices ?? []) {
-        const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
+        const cr = extractCr(inv, o);
         if (!cr) continue; // Sin CR todavía, no es "contrarecibo" — es "factura en revisión".
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
 
-        const venc = toDate(inv.creditCycle?.dueDate);
+        let venc = toDate(inv.creditCycle?.dueDate);
+        if (!venc) {
+          const issueDateObj = toDate(inv.creditCycle?.issueDate || inv.collection?.contrareciboDate || o.processedAt);
+          if (issueDateObj) {
+            venc = new Date(issueDateObj.getTime() + 8 * 86400000);
+          }
+        }
         const dias = venc ? Math.round((venc.getTime() - ahora) / (24 * 3600 * 1000)) : null;
         out.push({
           order: o,

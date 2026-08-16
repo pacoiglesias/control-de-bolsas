@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.3.3 Enterprise Deep Integrity & Tracking Edition',
+    date: '16 de Agosto de 2026',
+    time: '11:10 PM',
+    summary: 'Auditoría Universal de Tablas de Seguimiento, Exportadores Excel y Detección de Contrarecibos',
+    highlights: [
+      'Seguimiento Integral de Pedidos: Nueva vista con desglose claro de Facturas emitidas, Contrarecibos (CR) y barras visuales de avance de kilos por orden.',
+      'Sincronización de Tablas y Exportadores: ContrarecibosTable, OcTracking, SeguimientoPedidosTable y exportToExcel unificados bajo el extractor universal extractCr.',
+      'Badge "Sin CR" Preciso: La alerta pulsante solo se activa para facturas vivas emitidas que no tienen contrarecibo asignado, eliminando falsos positivos en órdenes liquidadas o históricas.',
+    ],
+  },
+  {
     version: 'v8.3.2 Enterprise Strict CR vs Invoice Separation Edition',
     date: '16 de Agosto de 2026',
     time: '11:05 PM',

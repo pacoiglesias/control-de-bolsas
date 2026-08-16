@@ -472,7 +472,15 @@ export default function Orders() {
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
-                        {summary.invoices.length > 0 && summary.invoices.some((i: any) => !i.collection?.contrareciboNumber && i.creditCycle?.status !== 'collected') && (
+                        {!o.isClosedShort && o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected' && summary.invoices.length > 0 && summary.invoices.some((i: any) => {
+                          const cr = extractCr(i, o);
+                          const st = i.creditCycle?.status;
+                          const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
+                          const paidAmt = i.collection?.paidAmount || 0;
+                          if (cr) return false;
+                          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+                          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+                        }) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                             <span className="badge-sin-cr-pulse" style={{ fontSize: '0.72em', fontWeight: 800, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>⚠️ SIN CR</span>
                             <button
@@ -496,8 +504,8 @@ export default function Orders() {
                             </button>
                           </div>
                         )}
-                        {summary.invoices.some((i: any) => i.collection?.contrareciboNumber) && (() => {
-                          const conCr = summary.invoices.filter((i: any) => i.collection?.contrareciboNumber);
+                        {summary.invoices.some((i: any) => extractCr(i, o)) && (() => {
+                          const conCr = summary.invoices.filter((i: any) => extractCr(i, o));
                           const expandido = crExpandido.has(o.id);
                           const ESTADO_LABEL: Record<string, { texto: string; color: string }> = {
                             overdue: { texto: 'Vencido', color: 'var(--bad)' },
@@ -505,6 +513,7 @@ export default function Orders() {
                             paid: { texto: 'Con contador', color: 'var(--warn)' },
                             collected: { texto: 'Cobrado', color: 'var(--ok)' },
                           };
+                          const mainCr = extractCr(conCr[0], o);
                           if (!expandido) {
                             return (
                               <button
@@ -513,7 +522,7 @@ export default function Orders() {
                               >
                                 <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>CR</span>
                                 <span style={{ fontSize: '0.85em', color: 'var(--accent)', textDecoration: 'underline' }}>
-                                  {conCr.length === 1 ? conCr[0].collection?.contrareciboNumber : `${conCr.length} contrarecibos — ver cada uno`}
+                                  {conCr.length === 1 ? mainCr : `${conCr.length} contrarecibos — ver cada uno`}
                                 </span>
                               </button>
                             );
@@ -522,9 +531,10 @@ export default function Orders() {
                             <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 220 }}>
                               {conCr.map((inv: any) => {
                                 const estado = ESTADO_LABEL[inv.creditCycle?.status] || ESTADO_LABEL.pending;
+                                const thisCr = extractCr(inv, o);
                                 return (
                                   <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8em', padding: '3px 6px', background: 'var(--paper-sunk)', borderRadius: 4 }}>
-                                    <span style={{ fontWeight: 700, color: '#047857' }}>{inv.collection.contrareciboNumber}</span>
+                                    <span style={{ fontWeight: 700, color: '#047857' }}>{thisCr}</span>
                                     <span className="mono">{money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0)}</span>
                                     <span style={{ color: estado.color, fontWeight: 600 }}>{estado.texto}</span>
                                   </div>

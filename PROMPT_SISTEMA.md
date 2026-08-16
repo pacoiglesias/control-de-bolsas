@@ -1,7 +1,7 @@
 # 🤖 GEMINI — CONTEXTO MAESTRO DEL SISTEMA (ERP CONTROL BOLSAS)
 
 **Sistema:** ERP Control Bolsas — Grupo Textil Providencia  
-**Versión:** v8.3.2 Enterprise Strict CR vs Invoice Separation Edition  
+**Versión:** v8.3.3 Enterprise Deep Integrity & Tracking Edition  
 **Fecha:** Agosto 2026  
 **URL de Producción:** <https://bolsas.cobertores.com> / <https://control-de-bolsas-69.web.app>  
 **Firebase Projects:** control-de-bolsas-89c88 / control-de-bolsas-69  
@@ -12,7 +12,7 @@
 ## 🏗️ Arquitectura del Sistema
 
 ```text
-ERP Control Bolsas (v8.3.2 Enterprise Strict CR vs Invoice Separation Edition)
+ERP Control Bolsas (v8.3.3 Enterprise Deep Integrity & Tracking Edition)
 ├── Frontend: React 18.3 + TypeScript + Vite 5 + Vanilla CSS + PWA
 │   └── src/
 │       ├── components/ (Modales, Tablas, Layout, ErrorBoundaries)

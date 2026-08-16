@@ -7,8 +7,8 @@ import OrderModal from '../components/OrderModal';
 import { EntregasKanban } from '../components/OcTracking/EntregasKanban';
 import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible } from '../lib/format';
-import { getOrderSummary, round2 } from '../lib/finance';
+import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible, toDate } from '../lib/format';
+import { getOrderSummary, round2, extractCr } from '../lib/finance';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -64,8 +64,8 @@ export default function OcTracking() {
           folio: inv.folio ?? '—',
           kilos: Number(inv.kilos) || 0,
           amount: inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0,
-          cr: (inv.collection?.contrareciboNumber || order.collection?.contrareciboNumber || '').trim(),
-          dueDate: inv.creditCycle?.dueDate?.toDate?.() ?? null,
+          cr: extractCr(inv, order),
+          dueDate: toDate(inv.creditCycle?.dueDate),
           status: st,
           paid: st === 'paid' || st === 'collected',
           order,

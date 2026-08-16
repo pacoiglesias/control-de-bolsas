@@ -1,5 +1,7 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
+import { extractCr } from './finance';
+import { toDate } from './format';
 
 export async function exportToExcel() {
   const XLSX = await import('xlsx');
@@ -13,17 +15,18 @@ export async function exportToExcel() {
     const inv = d.data();
     const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
     const paid = inv.collection?.paidAmount ?? 0;
+    const dueObj = toDate(inv.creditCycle?.dueDate);
     ordersData.push({
       Cliente: inv.client || '',
       Departamento: inv.department || '',
       FacturaFolio: inv.folio || '',
-      Contrarecibo: inv.collection?.contrareciboNumber || '',
+      Contrarecibo: extractCr(inv),
       Estatus: inv.creditCycle?.status || 'pedido',
       Kilos: inv.kilos || 0,
       MontoVenta: invTotal,
       MontoCobrado: paid,
       MontoPendiente: Math.max(invTotal - paid, 0),
-      FechaVencimiento: inv.creditCycle?.dueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+      FechaVencimiento: dueObj ? dueObj.toLocaleDateString('es-MX') : '',
       ID_SISTEMA: d.id,
       EXPEDIENTE_ID: inv.orderId || ''
     });
@@ -105,12 +108,16 @@ export async function exportTotalBusinessBackupExcel() {
       const neto = invTotal - comision;
       const pagado = inv.collection?.paidAmount ?? 0;
 
+      const cr = extractCr(inv, o);
+      const issueObj = toDate(inv.creditCycle?.issueDate);
+      const dueObj = toDate(inv.creditCycle?.dueDate);
+
       invoicesData.push({
         FacturaFolio: inv.folio || 'S/N',
         FolioOC: o.folio || o.oc || 'S/N',
-        Contrarecibo: inv.collection?.contrareciboNumber || '',
-        FechaEmision: inv.creditCycle?.issueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
-        FechaVencimientoCR: inv.creditCycle?.dueDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
+        Contrarecibo: cr,
+        FechaEmision: issueObj ? issueObj.toLocaleDateString('es-MX') : '',
+        FechaVencimientoCR: dueObj ? dueObj.toLocaleDateString('es-MX') : '',
         KilosAmparados: inv.kilos || 0,
         TotalFacturadoIVA: invTotal,
         ComisionContador8Pct: comision,

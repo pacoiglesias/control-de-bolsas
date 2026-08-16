@@ -1599,6 +1599,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 132: Auditoría Universal de Tablas de Seguimiento y Exportadores Excel (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/components/Dashboard/ContrarecibosTable.tsx`, `src/pages/OcTracking.tsx`, `src/lib/export.ts`, `src/pages/Orders.tsx`
+**Problema:** Seguimiento de pedidos no separaba visualmente facturas de contrarecibos, y los exportadores Excel no utilizaban el extractor universal de contrarecibos para expedientes agrupados.
+**Impacto:** Claridad total para el usuario al inspeccionar pedidos, facturas y contrarecibos en vivo y en reportes.
+**Solución:** Añadidas columnas explícitas de Factura(s) y Contrarecibo (CR) con tags independientes en `SeguimientoPedidosTable`, incorporado `KilosProgressBar` en cada fila, y actualizado `exportToExcel` y `exportToOrdersExcel` con `extractCr`.
+**Riesgo:** 🟢 Bajo — Mejoras visuales y exportación.
+**Commit:** `feat(tracking): columnas de facturas y contrarecibos independientes con exportacion sincronizada`
+**Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+
 
 
 
