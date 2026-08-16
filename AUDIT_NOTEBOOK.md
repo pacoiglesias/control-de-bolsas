@@ -1434,3 +1434,15 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
 
+### Iteración 117: Radar de Decisiones Proactivas y Selector de 3 Modos de Trabajo (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/components/Dashboard/ActionRadar.tsx`, `src/pages/Dashboard.tsx`, `src/pages/Orders.tsx`, `docs/MANUAL_TECNICO_Y_ARQUITECTURA.md`
+**Problema:** En el día a día operativo, navegar entre 7 columnas Kanban requiere buscar manualmente qué orden necesita atención, provocando fricción para cobros urgentes o facturas pendientes de emitir.
+**Impacto:** Riesgo de omitir contrarecibos vencidos o retrasar la facturación de kilos entregados en almacén.
+**Solución:** Creado el componente `ActionRadar` que escanea en tiempo real la base de datos de órdenes, entregas y contrarecibos para mostrar únicamente las acciones inmediatas con botones de 1 clic (`[⚡ Facturar Ahora]`, `[💬 Cobrar por WhatsApp]`, `[💰 Recibir en Caja]`). Añadido en `/ordenes` el selector de 3 modos: `⚡ Acciones Hoy`, `◫ Tablero` y `☰ Lista`.
+**Riesgo:** 🟢 Bajo — Componente visual proactivo y filtros desacoplados.
+**Commit:** `feat(radar): incorporar ActionRadar y selector de 3 vistas (Acciones, Tablero, Lista) en Dashboard y Ordenes`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica), OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+
+

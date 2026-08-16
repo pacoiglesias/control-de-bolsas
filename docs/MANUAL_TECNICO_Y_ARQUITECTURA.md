@@ -1,5 +1,5 @@
 # 📘 MANUAL TÉCNICO, ARQUITECTURA Y FLUJOS DEL SISTEMA
-## ERP Control Providencia · v7.8.0 Enterprise Master Edition
+## ERP Control Providencia · v8.0.0 Enterprise Platinum Edition
 
 Este documento describe la arquitectura técnica integral, los flujos operativos reales del negocio, las fórmulas matemáticas de cálculo, el catálogo de funciones de software y las estructuras de datos de la plataforma.
 
@@ -70,29 +70,31 @@ $$\text{Saldo Proveedor} = \text{Total Pagado} - \text{Deuda de Material} + \tex
 
 ## 🛠️ 3. Catálogo de Módulos y Bibliotecas del Sistema
 
-### 1. `src/lib/prefacturaGenerator.ts` (Generador de Prefacturas PDF)
+### 1. `src/components/Dashboard/ActionRadar.tsx` (Radar Proactivo de Decisiones de Hoy)
+- **Propósito:** Escaneo en tiempo real de toda la base de datos de órdenes, entregas y contrarecibos. Detecta:
+  1. Kilos entregados por Andrés pendientes de facturar con botón `[⚡ Facturar Ahora]`.
+  2. Contrarecibos vencidos con cálculo de días de atraso y botón `[💬 Cobrar por WhatsApp]`.
+  3. Dinero cobrado por el contador listo para recibir en caja descontando la comisión del 8% con botón `[💰 Recibir en Caja]`.
+  4. Retrasos de fabricación de Andrés con botón `[📞 Preguntar a Andrés]`.
+
+### 2. `src/components/Orders/KanbanBoard.tsx` (Kanban Interactivo de 7 Columnas)
+- **Propósito:** Tablero Kanban con HTML5 Drag & Drop (`draggable`), resaltado visual de destino (`border: 2px dashed`), botones de avance rápido `[➔ Siguiente Fase]`, selector desplegable `[Mover a...]` para móviles y confirmación auditiva (`sound.playChaChing()` / `sound.playSwoosh()`).
+
+### 3. `src/lib/prefacturaGenerator.ts` (Generador de Prefacturas PDF)
 - **Función:** `generatePrefacturaPdf(order, invoice)`
 - **Descripción:** Toma los datos de la OC de Providencia y genera una prefactura lista para timbrado en formato PDF A4 con clave SAT `24111500`, unidad `KGM`, desglose de IVA y cantidad con letra en pesos mexicanos.
 
-### 2. `src/lib/andresStatementPdf.ts` (Estado de Cuenta Auditado de Andrés)
+### 4. `src/lib/andresStatementPdf.ts` (Estado de Cuenta Auditado de Andrés)
 - **Función:** `generateAndresAuditStatementPdf(data)`
 - **Descripción:** Genera un PDF formal con la liquidación histórica de maquila, costo de $42/kg, abonos, anticipos amortizados, balance final y recuadros de firmas de conformidad.
 
-### 3. `src/lib/export.ts` (Exportador Maestro de Auditoría y Respaldo)
+### 5. `src/lib/export.ts` (Exportador Maestro de Auditoría y Respaldo)
 - **Función:** `exportTotalBusinessBackupExcel()`
 - **Descripción:** Genera un archivo `.xlsx` con 4 pestañas: `1_Ordenes_y_Kilos`, `2_Facturas_y_Contrarecibos`, `3_Compras_Andres` y `4_Flujo_Caja_y_Socios`.
-- **Función:** `exportToHtml()`
-- **Descripción:** Genera una copia autocontenida offline en un solo archivo `.html` para consulta sin internet.
 
-### 4. `src/lib/soundEffects.ts` (Efectos de Sonido Hápticos)
-- **Función:** `playCashRegisterSound()`
-- **Descripción:** Genera el tono de caja registradora al cobrar contrarecibos mediante Web Audio API nativo (100% offline).
-- **Función:** `playSuccessChime()`
-- **Descripción:** Tono melódico para confirmación de entregas guardadas.
-
-### 5. `src/lib/finance.ts` (Motor Financiero y Agregaciones)
-- **Función:** `getOrderSummary(order)`: Devuelve kilos entregados, facturados, deuda, total facturado y días de atraso.
-- **Función:** `computeCommissionFromInvoiceTotal(total, config)`: Calcula la comisión del 8% de los contadores.
+### 6. `src/lib/whatsappReminder.ts` (Generador de Mensajes Formales WhatsApp)
+- **Función:** `generateCollectionNotice(data)` y `openWhatsAppMessage(text)`
+- **Descripción:** Redacta y abre avisos de cobranza con folio, contrarecibo, importe e hipervínculo directo a WhatsApp Web / App.
 
 ---
 
@@ -100,10 +102,11 @@ $$\text{Saldo Proveedor} = \text{Total Pagado} - \text{Deuda de Material} + \tex
 
 | Ruta / Componente | Propósito Operativo |
 |---|---|
-| **`/` (`Dashboard.tsx`)** | Centro de comando con el Semáforo Operativo, Pipeline del Flujo del Dinero, Tacómetro de Kilos, Timeline de Contrarecibos, Tarjeta de Socios 50/50 y Cobranza Semanal. |
-| **`/ordenes` (`Orders.tsx`)** | Tabla general de Órdenes de Compra con barra tricolor de avance, filtro `[⚠️ Sin CR]`, atajos de teclado y botón `[+ Asignar CR]`. |
+| **`/` (`Dashboard.tsx`)** | Centro de comando con el **Radar de Decisiones Inmediatas**, Semáforo Operativo, Pipeline del Flujo del Dinero, Tacómetro de Kilos, Timeline de Contrarecibos, Tarjeta de Socios 50/50 y Cobranza Semanal. |
+| **`/ordenes` (`Orders.tsx`)** | Selector de 3 Modos: **`⚡ Acciones Hoy`** (Inbox Zero), **`◫ Tablero`** (Kanban Drag & Drop) y **`☰ Lista`** (Tabla Excel). |
 | **`/cobranza` (`Cobranza.tsx`)** | Tablero Kanban y lista de facturas clasificadas por estatus de Contrarecibo, vencimientos y dinero con el contador. |
-| **`/compras` (`Compras.tsx`)** | Control de maquila de Andrés con el Libro Mayor, botón `[📄 PDF Auditado]` y amortización de anticipos. |
+| **`/compras` (`Compras.tsx`)** | Tablero Kanban de 4 fases de compra y Control de maquila de Andrés con el Libro Mayor, botón `[📄 PDF Auditado]` y amortización de anticipos. |
+| **`/seguimiento-oc` (`OcTracking.tsx`)** | Tablero Kanban de logística de entregas (Pedido ➔ En Camino ➔ Entregado sin Facturar ➔ Facturado por Cobrar ➔ Cobrado). |
 | **`/caja-chica` (`CajaChica.tsx`)** | Flujo de efectivo en 4 pilares: Efectivo en Caja, Por Recibir del Contador (desglose 8%), Cuenta con Andrés y Reparto a Socios. |
 | **`/portal-maquilador` (`MaquiladorPortal.tsx`)** | Portal para celular de Andrés con semáforo de producción (`¡Taller al Día!` vs `Kilos Pendientes`), registro de pesadas y calculadora de bultos. |
 | **`FloatingKiloCalculator.tsx`** | Calculadora rápida flotante (Kilos $\times$ $43, $42, IVA, 8% contador y ganancia 50/50). |
@@ -143,3 +146,4 @@ $$\text{Saldo Proveedor} = \text{Total Pagado} - \text{Deuda de Material} + \tex
   * Respaldos en la nube Firestore con historial de snapshots.
   * Respaldo Total a Excel (`.xlsx`) en 1 clic con 4 pestañas de auditoría.
   * Respaldo Offline HTML de emergencia.
+
