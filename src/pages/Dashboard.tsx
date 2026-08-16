@@ -311,6 +311,26 @@ return () => unsub();
 
   const saldoCaja = expenses.reduce((acc, e) => new Decimal(acc).plus(e.type === 'ingreso' ? e.amount : -e.amount).toNumber(), 0);
 
+  const urgentCount = useMemo(() => {
+    let count = 0;
+    activeOrders.forEach((o) => {
+      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      const kilosEntregados = (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
+      const kilosFacturados = (o.invoices || []).reduce((a: number, i: any) => a + (i.kilos || 0), 0);
+      if (kilosEntregados > kilosFacturados + 0.01) count++;
+      (o.invoices || []).forEach((inv) => {
+        if (inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') count++;
+      });
+    });
+    return count;
+  }, [activeOrders]);
+
+  const kilosMesTotal = useMemo(() => {
+    return activeOrders.reduce((acc, o) => {
+      return acc + (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
+    }, 0);
+  }, [activeOrders]);
+
   if (loading || loadingExp) {
     return (
       <div style={{ padding: '0 0 40px' }}>
@@ -446,26 +466,6 @@ return () => unsub();
       toast('Error: ' + e.message, 'bad');
     }
   }
-
-  const urgentCount = useMemo(() => {
-    let count = 0;
-    activeOrders.forEach((o) => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
-      const kilosEntregados = (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
-      const kilosFacturados = (o.invoices || []).reduce((a: number, i: any) => a + (i.kilos || 0), 0);
-      if (kilosEntregados > kilosFacturados + 0.01) count++;
-      (o.invoices || []).forEach((inv) => {
-        if (inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') count++;
-      });
-    });
-    return count;
-  }, [activeOrders]);
-
-  const kilosMesTotal = useMemo(() => {
-    return activeOrders.reduce((acc, o) => {
-      return acc + (o.deliveries || []).reduce((a: number, d: any) => a + (d.kilos || 0), 0);
-    }, 0);
-  }, [activeOrders]);
 
   // Panel auxiliar: Por Recibir del Contador
   const renderPorRecibirPanel = () => {

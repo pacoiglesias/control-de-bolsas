@@ -1467,6 +1467,18 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
 
+### Iteración 120: Hotfix React Error #310 (Cumplimiento de Reglas de Hooks) (COMPLETADO)
+**Fecha:** 2026-08-16
+**Archivos:** `src/pages/Dashboard.tsx`, `src/lib/systemChangelog.ts`, `package.json`
+**Problema:** En `Dashboard.tsx`, dos llamadas a `useMemo` (`urgentCount` y `kilosMesTotal`) estaban ubicadas después de una cláusula condicional de carga anticipada (`if (loading || loadingExp) return ...`), lo que violaba la regla estricta de orden de Hooks de React ("Rendered more hooks than during the previous render" - Error #310).
+**Impacto:** Fallo de renderizado en producción una vez completada la carga asíncrona de datos.
+**Solución:** Reubicadas todas las declaraciones de `useMemo` incondicionalmente en la parte superior del componente, antes de cualquier bloque de retorno o carga.
+**Riesgo:** 🟢 Bajo — Corrección de arquitectura de ciclo de vida de React.
+**Commit:** `fix(dashboard): reubicar hooks useMemo antes de early return para resolver React error #310`
+**Estado:** ✅ Verificado — 49/49 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Estabilidad de Producción.
+
+
 
 
 

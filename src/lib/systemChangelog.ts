@@ -8,6 +8,16 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.2.1 Enterprise Hotfix Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:00 PM',
+    summary: 'Corrección de Cumplimiento Estricto de Reglas de Hooks en Dashboard',
+    highlights: [
+      'Resolución de Error #310 de React: Reubicación de los hooks useMemo antes de cualquier early-return de carga en Dashboard.tsx.',
+      'Estabilidad Total en Inicialización: Garantizado orden idéntico de hooks en todos los ciclos de renderizado sin importar el estado de carga o filtros.',
+    ],
+  },
+  {
     version: 'v8.2.0 Enterprise Cockpit Pro Edition',
     date: '16 de Agosto de 2026',
     time: '09:50 PM',
