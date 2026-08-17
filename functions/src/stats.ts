@@ -1,5 +1,5 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { round2 } from "./shared/finance.core";
@@ -459,6 +459,141 @@ export const recalcDashboardStats = onCall(
         target.histograms[mes].gananciaRealizada += v.gananciaRealizada || 0;
       }
     };
+
+    const OFFICIAL_CR_MAP: Record<string, { issueDate: string; dueDate: string; total: number; department: string }> = {
+      'TH-912': { issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, department: 'TH' },
+      'TH-879': { issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, department: 'TH' },
+      'TH-836': { issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, department: 'TH' },
+      'GT-742': { issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, department: 'GT' },
+      'TH-804': { issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, department: 'TH' },
+      'GT-713': { issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, department: 'GT' },
+      'TH-768': { issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, department: 'TH' },
+      'GT-651': { issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, department: 'GT' },
+      'GT-624': { issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00, department: 'GT' },
+      'GT-597': { issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, department: 'GT' },
+    };
+
+    // 1. Purga automática de expedientes obsoletos / de prueba
+    const allOrdersSnap = await db.collection(COL_ORDERS).get();
+    for (const d of allOrdersSnap.docs) {
+      const data = d.data();
+      const folio = (data.folio || '').trim().toUpperCase();
+      const oc = (data.oc || '').trim().toUpperCase();
+      const cr = (data.collection?.contrareciboNumber || '').trim().toUpperCase();
+      const invoiceCrs = (data.invoices || []).map((i: any) => (i.collection?.contrareciboNumber || i.folio || '').trim().toUpperCase());
+
+      const isMatchingCr = OFFICIAL_CR_MAP[folio] || OFFICIAL_CR_MAP[oc] || OFFICIAL_CR_MAP[cr] || invoiceCrs.some((c: string) => OFFICIAL_CR_MAP[c]);
+      const is6167 = folio === '6167' || oc === '120267114014' || (data.invoices || []).some((i: any) => i.folio === '6167');
+
+      if (!isMatchingCr && !is6167 && !data.isDeleted) {
+        await d.ref.update({ isDeleted: true, updatedAt: FieldValue.serverTimestamp() });
+      }
+    }
+
+    // 2. Garantizar los 10 Contrarecibos Oficiales
+    for (const [crNumber, crData] of Object.entries(OFFICIAL_CR_MAP)) {
+      const crDocId = `cr-${crNumber.toLowerCase().replace(/[^a-z0-9_-]/g, '')}`;
+      const crDocRef = db.collection(COL_ORDERS).doc(crDocId);
+      const existingDoc = await crDocRef.get();
+
+      const issueTs = Timestamp.fromDate(new Date(`${crData.issueDate}T12:00:00`));
+      const dueTs = Timestamp.fromDate(new Date(`${crData.dueDate}T12:00:00`));
+      const subtotal = Math.round((crData.total / 1.16) * 100) / 100;
+      const comision = Math.round((subtotal * 0.08) * 100) / 100;
+      const kilosCalc = Math.round((subtotal / 43) * 100) / 100;
+
+      if (!existingDoc.exists || existingDoc.data()?.isDeleted) {
+        await crDocRef.set({
+          id: crDocId,
+          folio: crNumber,
+          oc: crNumber,
+          client: crData.department === 'TH' ? 'GRUPO TEXTIL PROVIDENCIA SA DE CV (TH)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV (GT)',
+          department: crData.department,
+          totalKilograms: kilosCalc,
+          status: 'pending',
+          isDeleted: false,
+          invoices: [
+            {
+              id: `inv-${crNumber.toLowerCase()}`,
+              orderId: crDocId,
+              folio: crNumber,
+              kilos: kilosCalc,
+              creditCycle: {
+                status: 'pending',
+                dueDate: dueTs,
+                issueDate: issueTs,
+              },
+              collection: {
+                contrareciboNumber: crNumber,
+                paidAmount: 0,
+              },
+              financials: {
+                salePricePerKg: 43,
+                costPricePerKg: 42,
+                commissionRate: 0.08,
+                invoiceTotal: crData.total,
+                subtotal: subtotal,
+                commission: comision,
+              },
+            }
+          ],
+          invoiceStatuses: ['pending'],
+          collection: {
+            contrareciboNumber: crNumber,
+            receivedAmount: 0,
+            dueDate: dueTs,
+            status: 'pending',
+          },
+          createdAt: issueTs,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    }
+
+    // 3. Garantizar Factura 6167
+    const oc6167Id = 'oc-120267114014';
+    const doc6167Ref = db.collection(COL_ORDERS).doc(oc6167Id);
+    const existing6167 = await doc6167Ref.get();
+    const issue6167Ts = Timestamp.fromDate(new Date('2026-08-10T10:48:40'));
+    const subtotal6167 = Math.round((81780.00 / 1.16) * 100) / 100;
+    const comision6167 = Math.round((subtotal6167 * 0.08) * 100) / 100;
+    const kilos6167 = Math.round((subtotal6167 / 43) * 100) / 100;
+
+    if (!existing6167.exists || existing6167.data()?.isDeleted) {
+      await doc6167Ref.set({
+        id: oc6167Id,
+        folio: '6167',
+        oc: '120267114014',
+        client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        department: 'GT',
+        totalKilograms: kilos6167,
+        status: 'facturado',
+        isDeleted: false,
+        invoices: [
+          {
+            id: 'inv-6167',
+            orderId: oc6167Id,
+            folio: '6167',
+            kilos: kilos6167,
+            creditCycle: {
+              status: 'facturado',
+              issueDate: issue6167Ts,
+            },
+            financials: {
+              salePricePerKg: 43,
+              costPricePerKg: 42,
+              commissionRate: 0.08,
+              invoiceTotal: 81780.00,
+              subtotal: subtotal6167,
+              commission: comision6167,
+            },
+          }
+        ],
+        invoiceStatuses: ['facturado'],
+        createdAt: issue6167Ts,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
 
     const LOTE = 300;
     let ultimo: FirebaseFirestore.QueryDocumentSnapshot | null = null;
