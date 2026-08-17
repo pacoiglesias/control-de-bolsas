@@ -41,7 +41,7 @@ import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
 import { MagicPasteModal } from '../components/MagicPasteModal';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
-import { getOrderSummary, orderMatchesDepartment } from '../lib/finance';
+import { getOrderSummary, filterOrderByDepartment } from '../lib/finance';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 
@@ -267,13 +267,15 @@ return () => unsub();
       setBackupBusy(false);
     }
   }
-    // Filter global orders exactly as the original query did, PLUS by department
+    // Filter global orders exactly as the original query did, PLUS by department and per-invoice
     const activeOrders = useMemo(() => {
-      return globalOrders.filter((o: PurchaseOrder) => {
-        const passDept = orderMatchesDepartment(o, deptFilter);
-        const passStatus = o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s));
-        return passDept && passStatus;
-      });
+      return globalOrders
+        .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
+        .filter((o): o is PurchaseOrder => {
+          if (!o) return false;
+          const passStatus = Boolean(o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s)));
+          return passStatus;
+        });
     }, [globalOrders, deptFilter]);
 
     // Seguimiento de Pedidos necesita ver el expediente DESDE que se pega la
@@ -284,7 +286,9 @@ return () => unsub();
     // invisible en esta tabla hasta la primera factura, contradiciendo el
     // proposito de la pantalla ("OC, Entregas, Pagos y Cobros").
     const seguimientoOrders = useMemo(() => {
-      return globalOrders.filter((o: PurchaseOrder) => orderMatchesDepartment(o, deptFilter));
+      return globalOrders
+        .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
+        .filter((o): o is PurchaseOrder => o !== null);
     }, [globalOrders, deptFilter]);
 
   const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);

@@ -49,7 +49,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         </div>
         <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
-          📦 Kilos amparados: {fmtKilos(k.kilos || 0)} kg
+          📦 Kilos amparados: {fmtKilos(k.kilosTotal || k.totalKilos || k.kilos || 0)} kg
         </div>
       </motion.div>
 
@@ -76,8 +76,8 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Dinero en la Calle
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: k.porCobrar > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-          <ResponsiveMoney value={k.dineroRealARecibir || k.porCobrar || 0} />
+        <div style={{ fontSize: 32, fontWeight: 900, color: (k.porCobrar || k.dineroRealARecibir) > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+          <ResponsiveMoney value={k.porCobrar || k.dineroRealARecibir || 0} />
         </div>
         <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.2, zIndex: 0 }}>
           <Sparkline data={[200, 180, 190, 150, 160, 130, 120]} width={240} height={40} color="var(--warn)" />
@@ -87,7 +87,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         </div>
       </motion.div>
 
-      {/* 3. Caja Chica */}
+      {/* 3. Efectivo en Caja */}
       {!isViewer && (
         <motion.div 
           whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(16,185,129,0.25)' }}
@@ -109,7 +109,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         >
           <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.08, filter: 'grayscale(1)' }}>💵</div>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#047857', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
-            Caja Chica
+            Efectivo en Caja
           </div>
           <div style={{ fontSize: 32, fontWeight: 900, color: '#065f46', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
             <ResponsiveMoney value={saldoCaja} />

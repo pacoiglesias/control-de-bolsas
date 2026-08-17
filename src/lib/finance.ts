@@ -51,6 +51,98 @@ export function normalizarTexto(s: string | null | undefined): string {
 }
 
 /**
+ * Determina si una factura individual pertenece a un departamento (TH o GT).
+ */
+export function invoiceMatchesDepartment(inv: any, order: PurchaseOrder | any, targetDept: string): boolean {
+  if (!targetDept || targetDept === 'ALL') return true;
+  if (!inv) return false;
+  const target = targetDept.trim().toUpperCase();
+
+  // 1. Campo explícito en la factura
+  if (inv.department && typeof inv.department === 'string') {
+    const d = inv.department.trim().toUpperCase();
+    if (d === target) return true;
+    if (d && d !== target) return false;
+  }
+
+  // 2. Contrarecibo asignado a la factura
+  const invCr = (inv.collection?.contrareciboNumber || '').trim().toUpperCase();
+  if (invCr.startsWith(target + '-') || invCr.startsWith(target) || invCr.includes(target)) return true;
+  if (invCr.startsWith('TH-') || invCr.startsWith('GT-')) {
+    return false;
+  }
+
+  // 3. Folio de la factura
+  const invFolio = (inv.folio || '').trim().toUpperCase();
+  if (invFolio.startsWith(target + '-') || invFolio.startsWith(target)) return true;
+
+  // 4. Contrarecibo a nivel de orden
+  const orderCr = (order?.collection?.contrareciboNumber || '').trim().toUpperCase();
+  if (orderCr.startsWith(target + '-') || orderCr.startsWith(target) || orderCr.includes(target)) return true;
+  if (orderCr.startsWith('TH-') || orderCr.startsWith('GT-')) {
+    return false;
+  }
+
+  // 5. Departamento explícito en la orden
+  if (order?.department && typeof order.department === 'string') {
+    const d = order.department.trim().toUpperCase();
+    if (d === target) return true;
+    if (d && d !== target) return false;
+  }
+
+  // 6. Nombre del cliente en la orden
+  const clientStr = (order?.client || '').trim().toUpperCase();
+  if (clientStr.includes(`- ${target}`) || clientStr.includes(` ${target}`) || clientStr.endsWith(target)) return true;
+  if (clientStr.includes('- TH') || clientStr.includes('- GT')) return false;
+
+  // 7. Folio o OC de la orden
+  const ocStr = (order?.oc || order?.folio || '').trim().toUpperCase();
+  if (ocStr.startsWith(target + '-') || ocStr.startsWith(target)) return true;
+
+  return false;
+}
+
+/**
+ * Filtra una orden de compra para un departamento específico:
+ * - Si targetDept es 'ALL', retorna la orden intacta.
+ * - Si targetDept es 'TH' o 'GT', filtra su arreglo de `invoices` para incluir ÚNICAMENTE
+ *   las facturas que pertenecen a ese departamento.
+ * - Si no tiene facturas pero la orden es de ese depto (ej. pedido nuevo), la conserva.
+ * - Si no tiene facturas y no coincide con el depto, retorna null.
+ */
+export function filterOrderByDepartment(o: PurchaseOrder | any, targetDept: string): PurchaseOrder | null {
+  if (!targetDept || targetDept === 'ALL') return o;
+  if (!o) return null;
+
+  const target = targetDept.trim().toUpperCase();
+
+  // Si tiene facturas, filtramos únicamente las facturas de este departamento
+  if (Array.isArray(o.invoices) && o.invoices.length > 0) {
+    const matchingInvoices = o.invoices.filter((inv: any) => invoiceMatchesDepartment(inv, o, target));
+    if (matchingInvoices.length > 0) {
+      const filteredKilos = matchingInvoices.reduce((acc: number, inv: any) => acc + (inv.kilos || 0), 0);
+      return {
+        ...o,
+        department: target,
+        totalKilograms: filteredKilos > 0 ? filteredKilos : o.totalKilograms,
+        invoices: matchingInvoices,
+        invoiceStatuses: matchingInvoices.map((inv: any) => inv.creditCycle?.status || 'pending'),
+      };
+    }
+  }
+
+  // Si no tiene facturas, verificamos si la orden misma pertenece al departamento
+  if ((!o.invoices || o.invoices.length === 0) && orderMatchesDepartment(o, target)) {
+    return {
+      ...o,
+      department: target,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Determina de forma inteligente si una orden pertenece a un departamento específico (ej. TH o GT).
  * Analiza el campo explícito `department`, prefijos en contrarecibos (ej. TH-912, GT-742),
  * sufijos en nombre de cliente (ej. "Providencia - TH"), y folios de OC.
@@ -63,29 +155,28 @@ export function orderMatchesDepartment(o: PurchaseOrder | any, targetDept: strin
   // 1. Campo explícito en la orden
   if (o.department && typeof o.department === 'string') {
     const d = o.department.trim().toUpperCase();
-    if (d === target || d.includes(target)) return true;
+    if (d === target) return true;
+    if (d && d !== target) return false;
   }
 
-  // 2. Contrarecibos a nivel de orden o de factura
+  // 2. Facturas de la orden
+  if (Array.isArray(o.invoices) && o.invoices.length > 0) {
+    return o.invoices.some((inv: any) => invoiceMatchesDepartment(inv, o, target));
+  }
+
+  // 3. Contrarecibos a nivel de orden
   const orderCr = (o.collection?.contrareciboNumber || '').trim().toUpperCase();
-  if (orderCr.startsWith(target) || orderCr.includes(target)) return true;
+  if (orderCr.startsWith(target + '-') || orderCr.startsWith(target) || orderCr.includes(target)) return true;
+  if (orderCr.startsWith('TH-') || orderCr.startsWith('GT-')) return false;
 
-  if (Array.isArray(o.invoices)) {
-    for (const inv of o.invoices) {
-      const invCr = (inv.collection?.contrareciboNumber || '').trim().toUpperCase();
-      if (invCr.startsWith(target) || invCr.includes(target)) return true;
-      const invFolio = (inv.folio || '').trim().toUpperCase();
-      if (invFolio.startsWith(target)) return true;
-    }
-  }
-
-  // 3. Nombre del cliente (ej. "Providencia - TH" o "Providencia GT")
+  // 4. Nombre del cliente (ej. "Providencia - TH" o "Providencia GT")
   const clientStr = (o.client || '').trim().toUpperCase();
   if (clientStr.includes(`- ${target}`) || clientStr.includes(` ${target}`) || clientStr.endsWith(target)) return true;
+  if (clientStr.includes('- TH') || clientStr.includes('- GT')) return false;
 
-  // 4. Folio o número de OC
+  // 5. Folio o número de OC
   const ocStr = (o.oc || o.folio || '').trim().toUpperCase();
-  if (ocStr.startsWith(target) || ocStr.includes(`-${target}-`)) return true;
+  if (ocStr.startsWith(target + '-') || ocStr.startsWith(target) || ocStr.includes(`-${target}-`)) return true;
 
   return false;
 }

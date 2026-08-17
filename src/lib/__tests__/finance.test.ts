@@ -341,6 +341,50 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(grandTotal).toBe(1019956.34);
   });
 
+  it('filterOrderByDepartment separa estrictamente las facturas de TH y GT dentro de una orden compuesta', async () => {
+    const { filterOrderByDepartment, invoiceMatchesDepartment } = await import('../finance');
+
+    const multiDeptOrder = {
+      id: 'ord-multi',
+      folio: 'OC-120267',
+      totalKilograms: 20000,
+      invoices: [
+        { id: 'inv-th-1', kilos: 1600, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 79826.00 } },
+        { id: 'inv-th-2', kilos: 2732.55, collection: { contrareciboNumber: 'TH-879' }, financials: { invoiceTotal: 136300.00 } },
+        { id: 'inv-gt-1', kilos: 1093.02, collection: { contrareciboNumber: 'GT-742' }, financials: { invoiceTotal: 54520.00 } },
+        { id: 'inv-gt-2', kilos: 1383.35, collection: { contrareciboNumber: 'GT-713' }, financials: { invoiceTotal: 69001.60 } },
+      ],
+    } as any;
+
+    // Test invoiceMatchesDepartment
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[0], multiDeptOrder, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[0], multiDeptOrder, 'GT')).toBe(false);
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[2], multiDeptOrder, 'TH')).toBe(false);
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[2], multiDeptOrder, 'GT')).toBe(true);
+
+    // Test filterOrderByDepartment para TH
+    const thFiltered = filterOrderByDepartment(multiDeptOrder, 'TH');
+    expect(thFiltered).not.toBeNull();
+    expect(thFiltered?.invoices).toHaveLength(2);
+    expect(thFiltered?.invoices?.[0]?.collection?.contrareciboNumber).toBe('TH-912');
+    expect(thFiltered?.invoices?.[1]?.collection?.contrareciboNumber).toBe('TH-879');
+    const totalTh = (thFiltered?.invoices || []).reduce((sum: number, inv: any) => sum + inv.financials.invoiceTotal, 0);
+    expect(totalTh).toBe(216126.00);
+
+    // Test filterOrderByDepartment para GT
+    const gtFiltered = filterOrderByDepartment(multiDeptOrder, 'GT');
+    expect(gtFiltered).not.toBeNull();
+    expect(gtFiltered?.invoices).toHaveLength(2);
+    expect(gtFiltered?.invoices?.[0]?.collection?.contrareciboNumber).toBe('GT-742');
+    expect(gtFiltered?.invoices?.[1]?.collection?.contrareciboNumber).toBe('GT-713');
+    const totalGt = (gtFiltered?.invoices || []).reduce((sum: number, inv: any) => sum + inv.financials.invoiceTotal, 0);
+    expect(totalGt).toBe(123521.60);
+
+    // Test filterOrderByDepartment para ALL
+    const allFiltered = filterOrderByDepartment(multiDeptOrder, 'ALL');
+    expect(allFiltered?.invoices).toHaveLength(4);
+  });
+
   it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a -102670.27', () => {
     expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
   });
