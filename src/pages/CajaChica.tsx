@@ -656,20 +656,27 @@ function ExpenseDrawer({ expense, onClose, provName, saldoCajaActual = 0 }: { ex
   }
 
   async function remove() {
+    const isIngreso = expense.type === 'ingreso';
+    const tipoStr = isIngreso ? 'ingreso / cobro' : 'gasto / retiro';
+    const msg = `⚠️ ¿Estás seguro de que deseas eliminar este ${tipoStr} de Caja Chica?\n\nConcepto: "${expense.concept}"\nMonto: $${Number(expense.amount || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\nEsta acción quedará registrada en la bitácora de auditoría.`;
+
+    if (!(await confirmDialog({ message: msg, danger: true }))) return;
+
     executeWithUndo(
       async () => {
         await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
-        await logAction(user?.email, 'Gasto Eliminado', {
+        await logAction(user?.email, 'Movimiento de Caja Eliminado', {
           id: expense.id,
           concept: expense.concept,
-          amount: expense.amount
+          amount: expense.amount,
+          type: expense.type,
         });
         onClose();
       },
       async () => {
         const ref = doc(db, PATHS.expenses, expense.id);
         await setDoc(ref, expense);
-        await logAction(user?.email, 'Borrado de Gasto Deshecho', { id: expense.id });
+        await logAction(user?.email, 'Borrado de Movimiento Deshecho', { id: expense.id });
       },
       `Movimiento de caja eliminado: ${expense.concept}`
     );

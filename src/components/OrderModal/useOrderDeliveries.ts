@@ -53,7 +53,21 @@ export function useOrderDeliveries(
   }, [setForm]);
 
   const removeDelivery = useCallback(async (index: number) => {
-    if (await confirmDialog({ message: '¿Eliminar esta entrega?', danger: true })) {
+    let targetDeliv: any = null;
+    setForm((f: any) => {
+      targetDeliv = f.deliveries?.[index];
+      return f;
+    });
+
+    const isInvoiced = targetDeliv?.invoiced;
+    const kg = targetDeliv?.kilos || targetDeliv?.items?.reduce((a: number, it: any) => a + (Number(it.quantity) || 0), 0) || 0;
+
+    let msg = `¿Eliminar la entrega #${index + 1} (${kg} kg)?`;
+    if (isInvoiced) {
+      msg = `⚠️ ¡ADVERTENCIA!\n\nLa entrega #${index + 1} (${kg} kg) ya fue marcada como FACTURADA.\n\nSi la eliminas, podría haber discrepancia entre los kilos entregados en báscula y los kilos facturados.\n\n¿Estás seguro de que deseas eliminarla?`;
+    }
+
+    if (await confirmDialog({ message: msg, danger: true })) {
       setForm((f: any) => {
         const next = [...f.deliveries];
         next.splice(index, 1);
