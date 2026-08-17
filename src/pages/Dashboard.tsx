@@ -50,6 +50,7 @@ const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal')
 const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
 const CorteMensualModal = lazy(() => import('../components/Dashboard/CorteMensualModal').then(m => ({ default: m.CorteMensualModal })));
 const CorteSemanalModal = lazy(() => import('../components/Dashboard/CorteSemanalModal').then(m => ({ default: m.CorteSemanalModal })));
+const BalanzaComprobacionModal = lazy(() => import('../components/Dashboard/BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
 
 
 
@@ -91,6 +92,7 @@ export default function Dashboard() {
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
   const [showCorteSemanal, setShowCorteSemanal] = useState(false);
+  const [showBalanza, setShowBalanza] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
@@ -614,6 +616,20 @@ return () => unsub();
               📑 Corte Mensual
             </button>
             <button
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                border: '1px solid var(--line)',
+                color: '#f8fafc',
+                fontWeight: 800,
+                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)',
+              }}
+              onClick={() => setShowBalanza(true)}
+              title="Balanza de Comprobación y Cotejo Realidad vs Sistema"
+            >
+              ⚖️ Balanza de Comprobación
+            </button>
+            <button
               className="btn btn-primary"
               style={{
                 background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
@@ -1041,6 +1057,18 @@ return () => unsub();
             purchases={purchases}
             config={config}
             settings={settings}
+          />
+        )}
+
+        {showBalanza && (
+          <BalanzaComprobacionModal
+            onClose={() => setShowBalanza(false)}
+            orders={activeOrders}
+            expenses={expenses}
+            purchases={purchases}
+            config={config}
+            settings={settings}
+            saldoCajaSistema={saldoCaja}
           />
         )}
 
