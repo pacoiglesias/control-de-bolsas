@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { money, kilos as fmtKilos, nombreClienteVisible } from '../../lib/format';
 import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
-import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsappReminder';
 import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
 
 interface ActionRadarProps {
@@ -93,14 +92,14 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             type: 'cr_vencido',
             priority: 'alta',
             title: `Factura #${inv.folio || o.folio || 'S/F'} sin Contrarecibo (${money(amt)})`,
-            subtitle: `OC ${o.oc || o.folio || 'S/N'} — Solicitar número de CR a ${clientName}`,
+            subtitle: `OC ${o.oc || o.folio || 'S/N'} — Asignar número de CR de ${clientName}`,
             amount: amt,
-            buttonLabel: '📋 Pedir CR por WhatsApp',
+            buttonLabel: '📝 Asignar CR',
             buttonColor: '#d97706',
-            buttonIcon: '📲',
+            buttonIcon: '📝',
             onAction: () => {
-              const msg = `Buenas tardes, envío la factura #${inv.folio || o.folio || 'S/F'} de la OC ${o.oc || o.folio || 'S/N'} (${clientName}) por un total de ${money(amt)}. ¿Nos apoyan amablemente con su contrarecibo? Muchas gracias.`;
-              openWhatsAppMessage(msg);
+              if (onOpenOrder) onOpenOrder(o);
+              else nav(`/ordenes?abrir=${o.id}`);
             },
           });
         }
@@ -115,18 +114,11 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             title: `CR ${cr} vencido hace ${diffDays} día(s) (${money(amt)})`,
             subtitle: `Factura #${inv.folio || o.folio || 'S/F'} — ${clientName}`,
             amount: amt,
-            buttonLabel: '💬 Cobrar por WhatsApp',
+            buttonLabel: '💸 Cobro Rápido',
             buttonColor: '#ef4444',
-            buttonIcon: '📲',
+            buttonIcon: '💸',
             onAction: () => {
-              const notice = generateCollectionNotice({
-                cliente: clientName,
-                folioFactura: inv.folio || o.folio || 'S/N',
-                contrarecibo: cr,
-                monto: amt,
-                fechaVencimiento: dueTime ? new Date(dueTime) : null,
-              });
-              openWhatsAppMessage(notice);
+              nav('/cobranza');
             },
           });
         }
@@ -164,12 +156,11 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
           title: `Andrés: ${fmtKilos(faltan)} kg pendientes de fabricar`,
           subtitle: `Para pedido ${ocName} (${money(faltan * costKg)} en material)`,
           kilos: faltan,
-          buttonLabel: '📞 WhatsApp a Andrés',
+          buttonLabel: '🚚 Ver Maquila',
           buttonColor: '#8b5cf6',
-          buttonIcon: '💬',
+          buttonIcon: '🚚',
           onAction: () => {
-            const msg = `Hola Andrés, ¿cómo vas con los ${fmtKilos(faltan)} kg pendientes para el pedido ${ocName}? ¿Cuándo sale la próxima entrega?`;
-            openWhatsAppMessage(msg);
+            nav('/compras');
           },
         });
       }

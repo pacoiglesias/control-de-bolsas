@@ -6,7 +6,8 @@ import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { InvoiceDrawer } from './InvoiceDrawer';
 import { useConfig } from '../../hooks/useConfig';
-import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { useToast } from '../../context/ToastContext';
+import { generateCollectionNotice } from '../../lib/whatsappReminder';
 
 // FIX 2026-08-10 (Staff Engineer -- task ERP #12): este tablero tenía sus
 // 4 columnas con degradados y colores de texto en hex/rgba fijos (pensados
@@ -23,6 +24,7 @@ const TONE: Record<string, { color: string; bg: string }> = {
 
 export default function TableroKanban() {
   const { data, money, moveInvoice } = useContext(CobranzaContext)!;
+  const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<{o: any, inv: any} | null>(null);
   const { config: dynamicConfig } = useConfig();
@@ -174,15 +176,15 @@ export default function TableroKanban() {
               </button>
               <button
                 className="btn"
-                title="Generar aviso formal de cobro y enviar por WhatsApp"
+                title="Copiar aviso formal de cobro al portapapeles"
                 style={{
                   padding: '6px 10px',
                   fontSize: 11,
-                  background: 'rgba(34, 197, 94, 0.15)',
-                  color: '#16a34a',
-                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                  background: 'var(--paper-sunk)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
                   borderRadius: 8,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
@@ -195,10 +197,11 @@ export default function TableroKanban() {
                     monto: amt,
                     fechaVencimiento: inv.creditCycle?.dueDate,
                   });
-                  openWhatsAppMessage(notice);
+                  navigator.clipboard.writeText(notice);
+                  toast('📋 Aviso de cobro copiado al portapapeles.', 'ok');
                 }}
               >
-                <span>📲</span> WhatsApp
+                <span>📋</span> Copiar Aviso
               </button>
             </>
           )}

@@ -4,7 +4,7 @@ import { fmtDate, nombreClienteVisible } from '../../lib/format';
 import { promptDialog } from '../../lib/promptDialog';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, toast, filterType, setFilterType, setSelected } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, toast, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 
@@ -133,16 +133,6 @@ export default function ProximasTable() {
                           }}
                         >
                           ✉️ Recordatorio
-                        </button>
-                        <button
-                          className="btn-small"
-                          style={{ padding: '2px 6px', fontSize: '10px', background: '#25D366', border: '1px solid #25D366', color: '#fff' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            sendWhatsApp(o, inv, d);
-                          }}
-                        >
-                          💬 WhatsApp
                         </button>
                         <button
                           className="btn-small"

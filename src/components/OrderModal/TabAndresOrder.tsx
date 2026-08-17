@@ -23,10 +23,6 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
     return computeAndresRequirement(virtualOrder, config);
   }, [order, config, customCostPrice, customSellPrice]);
 
-  function handleSendWhatsApp() {
-    window.open(`https://wa.me/?text=${encodeURIComponent(req.whatsappMessage)}`, '_blank');
-  }
-
   function handleCopyText() {
     navigator.clipboard.writeText(req.whatsappMessage);
     toast('📋 Pedido copiado al portapapeles', 'ok');
@@ -235,24 +231,6 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn"
-              style={{
-                borderColor: '#25D366',
-                color: '#128C7E',
-                background: 'rgba(37,211,102,0.1)',
-                fontWeight: 700,
-                fontSize: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-              onClick={handleSendWhatsApp}
-            >
-              <span>💬</span> WhatsApp a Andrés
-            </button>
-
             <button
               type="button"
               className="btn"

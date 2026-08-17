@@ -2,13 +2,14 @@ import { useMemo } from 'react';
 import { PurchaseOrder } from '../../lib/types';
 import { money, fmtDayAndDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
-import { openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { useToast } from '../../context/ToastContext';
 
 interface WeeklyCollectionSummaryProps {
   orders: PurchaseOrder[];
 }
 
 export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps) {
+  const toast = useToast();
   const weeklyCrs = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -51,13 +52,14 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
 
   const totalSemana = weeklyCrs.reduce((a, it) => a + it.amount, 0);
 
-  const handleSendWhatsApp = () => {
+  const handleCopyWeeklyReport = () => {
     const lines = weeklyCrs.map(
-      (it, idx) => `${idx + 1}. *CR ${it.cr}* (Fact. #${it.folio}) - *${money(it.amount)}* - Vence: ${fmtDayAndDate(it.dueDate)}`
+      (it, idx) => `${idx + 1}. CR ${it.cr} (Fact. #${it.folio}) - ${money(it.amount)} - Vence: ${fmtDayAndDate(it.dueDate)}`
     ).join('\n');
 
-    const text = `Hola estimado Contador,\n\nTe comparto la relación de contrarecibos programados para cobro esta semana:\n\n${lines}\n\n💰 *Total Programado a Cobrar:* ${money(totalSemana)}\n\nQuedamos al pendiente de la recolección del efectivo. Saludos.`;
-    openWhatsAppMessage(text);
+    const text = `Relación de Contrarecibos Programados para Cobro (Semanal):\n\n${lines}\n\nTotal Programado: ${money(totalSemana)}\nFecha de emisión: ${new Date().toLocaleDateString('es-MX')}`;
+    navigator.clipboard.writeText(text);
+    toast('📋 Relación semanal copiada al portapapeles.', 'ok');
   };
 
   return (
@@ -85,23 +87,23 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
       </div>
 
       <button
-        onClick={handleSendWhatsApp}
+        onClick={handleCopyWeeklyReport}
         style={{
-          background: '#10b981',
-          color: '#fff',
-          border: 'none',
+          background: 'var(--paper-raised)',
+          color: 'var(--ink)',
+          border: '1px solid var(--line)',
           borderRadius: 10,
           padding: '8px 16px',
           fontSize: 12,
-          fontWeight: 800,
+          fontWeight: 700,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <span>📲</span> Enviar Lista al Contador (WhatsApp)
+        <span>📋</span> Copiar Relación Semanal
       </button>
     </div>
   );

@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { money, kilos as fmtKilos } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { ResponsiveMoney } from '../ui';
-import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 import { useExpensesContext } from '../../context/ExpensesContext';
 import { useToast } from '../../context/ToastContext';
 import { generateNetProfitReportPdf, buildNetProfitData } from '../../lib/netProfitReportPdf';
@@ -94,29 +93,30 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveF
     }
   };
 
-  const handleShareWhatsAppSocio = () => {
-    const text = `📊 *REPORTE EJECUTIVO DE UTILIDAD & CORTE FINANCIERO*
-🏢 *Bolsas Elemental / Providencia*
-📅 *Fecha:* ${new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+  const handleCopyExecutiveSummary = () => {
+    const text = `📊 REPORTE EJECUTIVO DE UTILIDAD & CORTE FINANCIERO
+🏢 Bolsas Elemental / Providencia
+📅 Fecha: ${new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
-📦 *Kilos Facturados:* ${fmtKilos(financials.totalKilosFacturados)} kg
-💼 *Facturación Subtotal:* ${money(financials.subtotalFacturado)}
+📦 Kilos Facturados: ${fmtKilos(financials.totalKilosFacturados)} kg
+💼 Facturación Subtotal: ${money(financials.subtotalFacturado)}
 
-📉 *Deducciones Operativas:*
+📉 Deducciones Operativas:
 • Maquila Andrés ($42/kg): ${money(financials.costoAndres)}
 • Comisión Contador (8%): ${money(financials.comisionContable)}
 
-💎 *UTILIDAD LÍQUIDA REAL:* ${money(financials.utilidadReal)}
+💎 UTILIDAD LÍQUIDA REAL: ${money(financials.utilidadReal)}
 ────────────────────────
-🤝 *REPARTO DE UTILIDADES (50/50):*
-• *Paco (50%):* ${money(financials.repartoPaco)}
-• *Socio (50%):* ${money(financials.repartoSocio)}
+🤝 REPARTO DE UTILIDADES (50/50):
+• Paco (50%): ${money(financials.repartoPaco)}
+• Socio (50%): ${money(financials.repartoSocio)}
 
-💵 *Saldo Real en Caja Chica:* ${money(saldoCaja)}
+💵 Saldo Real en Caja Chica: ${money(saldoCaja)}
 ────────────────────────
-_Generado automáticamente desde el ERP._`;
+Generado automáticamente desde el ERP.`;
 
-    openWhatsAppMessage(text);
+    navigator.clipboard.writeText(text);
+    toast('📋 Resumen ejecutivo copiado al portapapeles.', 'ok');
   };
 
   return (
@@ -350,24 +350,24 @@ _Generado automáticamente desde el ERP._`;
                 <button
                   type="button"
                   className="btn"
-                  onClick={handleShareWhatsAppSocio}
+                  onClick={handleCopyExecutiveSummary}
                   style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    fontWeight: 800,
+                    background: 'var(--paper-raised)',
+                    color: 'var(--ink)',
+                    border: '1px solid var(--line)',
+                    fontWeight: 700,
                     fontSize: 13,
                     padding: '10px 16px',
                     borderRadius: 12,
-                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    boxShadow: 'var(--shadow-sm)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     cursor: 'pointer',
                   }}
                 >
-                  <span>💬</span>
-                  <span>WhatsApp Resumen</span>
+                  <span>📋</span>
+                  <span>Copiar Resumen</span>
                 </button>
               </div>
             </div>
