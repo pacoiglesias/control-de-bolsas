@@ -6,6 +6,8 @@ export interface SystemSettings {
   companyName: string;
   companyLogoUrl: string;
   providerName: string;
+  clientName?: string;
+  clientShortName?: string;
   departments: string[];
   cajaChicaBalance: number;
 }
@@ -14,6 +16,8 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   companyName: 'BOLSAS ELEMENTAL',
   companyLogoUrl: '',
   providerName: 'Andrés',
+  clientName: 'Grupo Textil Providencia SA de CV',
+  clientShortName: 'Providencia',
   departments: ['TH', 'GT'],
   cajaChicaBalance: 0,
 };

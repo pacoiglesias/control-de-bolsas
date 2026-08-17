@@ -96,6 +96,22 @@ export default function Dashboard() {
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
+  const [viewMode, setViewMode] = useState<'executive' | 'collection' | 'production' | 'all'>('executive');
+  const [showReportsMenu, setShowReportsMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Cerrar menús al hacer clic fuera o presionar Escape
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.dropdown-container')) {
+        setShowReportsMenu(false);
+        setShowExportMenu(false);
+      }
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp, R = Recalcular)
   useEffect(() => {
@@ -565,135 +581,311 @@ return () => unsub();
 
   return (
     <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
-      {/* ─── ENCABEZADO Y SELECTORES DE DEPARTAMENTO ──────────────────────── */}
+      {/* ─── 0. LIVE FINANCIAL TICKER (FRANJA DE PULSO EN VIVO) ────────────── */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.88) 100%)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 16,
+          padding: '10px 18px',
+          marginBottom: 20,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 14,
+          boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.25)',
+          color: '#f8fafc',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>💵</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Caja Chica</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: saldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(saldoCaja)}</div>
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>🏷️</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Por Cobrar (Providencia)</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8' }}>{money(k.porCobrar)}</div>
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>⚖️</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con Andrés</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#fbbf24' }}>
+                {money(config?.historicalDebtAndres || -123175.56)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>📦</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Kilos en Proceso</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#c084fc' }}>{k.kilosTotal.toLocaleString('es-MX')} kg</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 999,
+              padding: '3px 10px',
+              fontSize: 11,
+              fontWeight: 800,
+              color: '#34d399',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+            En Línea
+          </span>
+        </div>
+      </div>
+
+      {/* ─── 1. ENCABEZADO PRINCIPAL CONSOLIDADO (LIMPIO Y ERGONÓMICO) ──────── */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 14 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
+              <span className="badge" style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 8px' }}>
+                v{__APP_VERSION__} Enterprise
+              </span>
+            </div>
             <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
               Control Integral de Ventas, Flujo de Efectivo, Cobranza y Maquila Providencia.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              className="btn btn-primary"
-              style={{
-                background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 800,
-                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-              }}
-              onClick={() => setShowSincronizador(true)}
-              title="Sincronizar 10 Contrarecibos Oficiales y Factura 6167"
-            >
-              ⚡ Sincronizar 10 Contrarecibos
-            </button>
-            <button
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.2) 100%)',
-                border: '1px solid #10b981',
-                color: '#047857',
-                fontWeight: 800,
-              }}
-              onClick={() => setShowCorteSemanal(true)}
-              title="Ver Historial y Balance Semana a Semana"
-            >
-              📅 Corte Semanal
-            </button>
-            <button
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(37,99,235,0.2) 100%)',
-                border: '1px solid #3b82f6',
-                color: '#1d4ed8',
-                fontWeight: 800,
-              }}
-              onClick={() => setShowCorteMensual(true)}
-              title="Ver Corte y Balance Mensual"
-            >
-              📑 Corte Mensual
-            </button>
-            <button
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                border: '1px solid var(--line)',
-                color: '#f8fafc',
-                fontWeight: 800,
-                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.25)',
-              }}
-              onClick={() => setShowBalanza(true)}
-              title="Balanza de Comprobación y Cotejo Realidad vs Sistema"
-            >
-              ⚖️ Balanza de Comprobación
-            </button>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* BOTÓN HERO: NUEVO EXPEDIENTE */}
             <button
               className="btn btn-primary"
               style={{
                 background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
                 border: 'none',
                 color: '#fff',
-                fontWeight: 700,
-                boxShadow: '0 4px 12px rgba(217, 119, 6, 0.25)',
+                fontWeight: 800,
+                fontSize: 13.5,
+                padding: '9px 18px',
+                borderRadius: 12,
+                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
               }}
               onClick={() => nav('/ordenes?nueva=1')}
             >
-              ➕ Nuevo Expediente
+              <span style={{ fontSize: 16 }}>➕</span>
+              <span>Nuevo Expediente</span>
             </button>
-            <button
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#fff',
-                border: 'none',
-                fontWeight: 700,
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
-              }}
-              onClick={() => {
-                try {
-                  downloadBackupJsonFile(globalOrders, purchases, expenses, config as any);
-                  toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
-                } catch (e: any) {
-                  toast(`Error al exportar: ${e.message}`, 'bad');
-                }
-              }}
-            >
-              💾 Respaldo Local
-            </button>
-            <button
-              className="btn"
-              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
-              onClick={async () => {
-                toast('Generando sábana Excel con los datos actuales...', 'info');
-                try {
-                  await exportToExcel();
-                  toast('Sábana Excel descargada', 'ok');
-                } catch (e) {
-                  toast(`Error al exportar: ${(e as Error).message}`, 'bad');
-                }
-              }}
-            >
-              📊 Sábana Excel
-            </button>
-            <button
-              className="btn"
-              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
-              onClick={() => void shareRentabilidad()}
-            >
-              📄 PDF Resumen
-            </button>
-            <button
-              className="btn"
-              style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 600 }}
-              onClick={printRentabilidad}
-            >
-              🖨️ Imprimir
-            </button>
+
+            {/* DROPDOWN 1: REPORTES & BALANZA */}
+            <div className="dropdown-container" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowReportsMenu((prev) => !prev);
+                  setShowExportMenu(false);
+                }}
+                style={{
+                  background: 'var(--paper-raised)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  padding: '9px 14px',
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <span>📑</span>
+                <span>Reportes & Balanza</span>
+                <span style={{ fontSize: 10, opacity: 0.6 }}>{showReportsMenu ? '▲' : '▼'}</span>
+              </button>
+
+              {showReportsMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--paper-raised)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 14,
+                    padding: 6,
+                    minWidth: 240,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowCorteMensual(true); }}
+                  >
+                    📑 Corte Mensual Contable
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowCorteSemanal(true); }}
+                  >
+                    📅 Corte Semanal (Histórico)
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowBalanza(true); }}
+                  >
+                    ⚖️ Balanza de Comprobación
+                  </button>
+                  <div style={{ height: 1, background: 'var(--line-soft)', margin: '2px 0' }} />
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowSincronizador(true); }}
+                  >
+                    ⚡ Sincronizar 10 Contrarecibos
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* DROPDOWN 2: EXPORTAR & RESPALDO */}
+            <div className="dropdown-container" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowExportMenu((prev) => !prev);
+                  setShowReportsMenu(false);
+                }}
+                style={{
+                  background: 'var(--paper-raised)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  padding: '9px 14px',
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <span>📥</span>
+                <span>Exportar</span>
+                <span style={{ fontSize: 10, opacity: 0.6 }}>{showExportMenu ? '▲' : '▼'}</span>
+              </button>
+
+              {showExportMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--paper-raised)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 14,
+                    padding: 6,
+                    minWidth: 230,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={async () => {
+                      setShowExportMenu(false);
+                      toast('Generando sábana Excel con los datos actuales...', 'info');
+                      try {
+                        await exportToExcel();
+                        toast('Sábana Excel descargada con éxito', 'ok');
+                      } catch (e) {
+                        toast(`Error al exportar: ${(e as Error).message}`, 'bad');
+                      }
+                    }}
+                  >
+                    📊 Sábana Excel en Vivo
+                  </button>
+
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      try {
+                        downloadBackupJsonFile(globalOrders, purchases, expenses, config as any);
+                        toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
+                      } catch (e: any) {
+                        toast(`Error al exportar: ${e.message}`, 'bad');
+                      }
+                    }}
+                  >
+                    💾 Respaldo Local (1 Clic)
+                  </button>
+
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowExportMenu(false); void shareRentabilidad(); }}
+                  >
+                    📄 PDF Resumen de Rentabilidad
+                  </button>
+
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowExportMenu(false); printRentabilidad(); }}
+                  >
+                    🖨️ Imprimir Reporte
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* BARRA DE FILTRADO (DEPARTAMENTOS Y MES P&L) */}
         <div
           style={{
             display: 'flex',
@@ -758,115 +950,261 @@ return () => unsub();
         </div>
       </div>
 
-      {/* ─── 0. ASISTENTE PROACTIVO DEL DÍA (ACCIONES PRIORITARIAS) ────── */}
-      <ProactiveBriefingCard
-        orders={seguimientoOrders}
-        config={config as any}
-        onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-        onOpenQuickCollection={() => setShowQuickCollection(true)}
-        onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-      />
+      {/* ─── 2. SELECTOR DE VISTAS MODULARES (ERRADICAR SCROLL INFINITO) ───── */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 20,
+          background: 'var(--paper-sunk)',
+          padding: 6,
+          borderRadius: 14,
+          border: '1px solid var(--line-soft)',
+          overflowX: 'auto',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setViewMode('executive')}
+          style={{
+            flex: 1,
+            minWidth: 140,
+            padding: '9px 14px',
+            borderRadius: 10,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'executive' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'executive' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>🌟</span>
+          <span>Visión Ejecutiva</span>
+        </button>
 
-      {/* ─── 1. HERO SUITE DE KPIS EJECUTIVOS ─────────────────────────────── */}
-      {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-        </div>
-      ) : (
-        <ModernKpiGrid
-          k={k}
-          role={role}
-          saldoCaja={saldoCaja}
-          monthFilter={monthFilter}
-          nav={nav}
-          contrarecibosVencidosCount={contrarecibosVencidosCount}
-          config={config}
-        />
-      )}
+        <button
+          type="button"
+          onClick={() => setViewMode('collection')}
+          style={{
+            flex: 1,
+            minWidth: 140,
+            padding: '9px 14px',
+            borderRadius: 10,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'collection' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'collection' ? '#0284c7' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'collection' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>📆</span>
+          <span>Centro de Cobranza</span>
+        </button>
 
-      {/* ─── 1.5 PANEL EJECUTIVO DE CORTE FINANCIERO & REPARTO 50/50 (COLAPSABLE DE LUJO) ─── */}
-      {role === 'admin' && (
-        <ExecutiveFinancialCard
-          orders={seguimientoOrders}
-          config={config}
-          saldoCaja={saldoCaja}
-        />
-      )}
+        <button
+          type="button"
+          onClick={() => setViewMode('production')}
+          style={{
+            flex: 1,
+            minWidth: 140,
+            padding: '9px 14px',
+            borderRadius: 10,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'production' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'production' ? '#7c3aed' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'production' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>🏭</span>
+          <span>Maquila & Kilos</span>
+        </button>
 
-      {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA ─────────────────────────────────── */}
-      <SemaforoDelDia
-        orders={seguimientoOrders}
-        purchases={purchases}
-        config={config}
-        nav={nav}
-        onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-        onOpenQuickCollection={() => setShowQuickCollection(true)}
-      />
-
-      {/* ─── 3. PIPELINE VISUAL DEL FLUJO DE LA OC (INTERACTIVO) ──────── */}
-      <MoneyFlowPipeline
-        orders={seguimientoOrders}
-        expenses={expenses}
-        config={config}
-        nav={nav}
-        selectedStage={selectedPipelineStage}
-        onSelectStage={setSelectedPipelineStage}
-      />
-
-      {/* ─── 3.5 TABLA INTERACTIVA DE SEGUIMIENTO CONECTADA AL PIPELINE ───── */}
-      <div style={{ marginBottom: 24 }}>
-        <SeguimientoPedidosTable
-          orders={seguimientoOrders}
-          filterStage={selectedPipelineStage}
-          onFilterStageChange={setSelectedPipelineStage}
-          onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-        />
+        <button
+          type="button"
+          onClick={() => setViewMode('all')}
+          style={{
+            flex: 1,
+            minWidth: 120,
+            padding: '9px 14px',
+            borderRadius: 10,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'all' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'all' ? 'var(--ink)' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'all' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>👁️</span>
+          <span>Ver Todo</span>
+        </button>
       </div>
 
-      {/* ─── 4. BARRA DE ACCIONES RÁPIDAS ─────────────────────────────────── */}
-      <QuickActionsBar
-        role={role}
-        onNewOrder={() => nav('/ordenes?nueva=1')}
-        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-        onQuickInvoice={() => setShowQuickInvoice(true)}
-        onQuickCollection={() => setShowQuickCollection(true)}
-        onQuickPay={() => setShowQuickPay(true)}
-        onOpenMagicPaste={() => setShowMagicPaste(true)}
-        onOpenCorteMensual={() => setShowCorteMensual(true)}
-        onRecalc={() => void recalcStats()}
-        recalcBusy={recalcBusy}
-      />
+      {/* ─── 3. CONTENIDO MODULAR POR VISTA ───────────────────────────────── */}
 
-      {/* ─── 5. SUITE FINANCIERA Y OPERATIVA ───────────────────────────────── */}
-      {role === 'admin' && (
-        <div style={{ marginBottom: 24 }}>
-          <WeeklyCollectionSummary orders={seguimientoOrders} />
+      {/* VISTA 1: VISIÓN EJECUTIVA (O VISTA COMPLETA) */}
+      {(viewMode === 'executive' || viewMode === 'all') && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Asistente Proactivo del Día */}
+          <ProactiveBriefingCard
+            orders={seguimientoOrders}
+            config={config as any}
+            onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+            onOpenQuickCollection={() => setShowQuickCollection(true)}
+            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+          />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
-            <KilosSpeedometer orders={activeOrders} />
+          {/* Hero Suite de KPIs */}
+          {loading ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+              <Skeleton style={{ height: 150, borderRadius: 20 }} />
+            </div>
+          ) : (
+            <ModernKpiGrid
+              k={k}
+              role={role}
+              saldoCaja={saldoCaja}
+              monthFilter={monthFilter}
+              nav={nav}
+              contrarecibosVencidosCount={contrarecibosVencidosCount}
+              config={config}
+            />
+          )}
+
+          {/* Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
+          {role === 'admin' && (
+            <ExecutiveFinancialCard
+              orders={seguimientoOrders}
+              config={config}
+              saldoCaja={saldoCaja}
+            />
+          )}
+
+          {/* Grid de 2 Columnas Inteligente en Escritorio */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20 }}>
+            {/* Columna Izquierda: Flujo y Pedidos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 2 }}>
+              <MoneyFlowPipeline
+                orders={seguimientoOrders}
+                expenses={expenses}
+                config={config}
+                nav={nav}
+                selectedStage={selectedPipelineStage}
+                onSelectStage={setSelectedPipelineStage}
+              />
+
+              <SeguimientoPedidosTable
+                orders={seguimientoOrders}
+                filterStage={selectedPipelineStage}
+                onFilterStageChange={setSelectedPipelineStage}
+                onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+              />
+            </div>
+
+            {/* Columna Derecha: Semáforo y Acciones Rápidas */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minWidth: 320 }}>
+              <SemaforoDelDia
+                orders={seguimientoOrders}
+                purchases={purchases}
+                config={config}
+                nav={nav}
+                onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+                onOpenQuickCollection={() => setShowQuickCollection(true)}
+              />
+
+              <QuickActionsBar
+                role={role}
+                onNewOrder={() => nav('/ordenes?nueva=1')}
+                onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+                onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+                onQuickInvoice={() => setShowQuickInvoice(true)}
+                onQuickCollection={() => setShowQuickCollection(true)}
+                onQuickPay={() => setShowQuickPay(true)}
+                onOpenMagicPaste={() => setShowMagicPaste(true)}
+                onOpenCorteMensual={() => setShowCorteMensual(true)}
+                onRecalc={() => void recalcStats()}
+                recalcBusy={recalcBusy}
+              />
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* VISTA 2: CENTRO DE COBRANZA (O VISTA COMPLETA) */}
+      {(viewMode === 'collection' || viewMode === 'all') && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
+          {viewMode !== 'all' && (
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>📆</span>
+              <span>Centro de Cobranza & Contrarecibos</span>
+            </div>
+          )}
+
+          <WeeklyCollectionSummary orders={seguimientoOrders} />
 
           <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
 
-          <SmartAlerts orders={activeOrders} />
+          {renderPorRecibirPanel()}
 
-          <CashflowProjection orders={activeOrders} />
+          <FacturasSinCRPanel orders={seguimientoOrders} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+            <SmartAlerts orders={activeOrders} />
+            <CashflowProjection orders={activeOrders} />
+          </div>
         </div>
       )}
 
-      {/* ─── 6. PANELES OPERATIVOS PRINCIPALES ─────────────────────────────── */}
-      {renderPorRecibirPanel()}
+      {/* VISTA 3: MAQUILA & KILOS (O VISTA COMPLETA) */}
+      {(viewMode === 'production' || viewMode === 'all') && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
+          {viewMode !== 'all' && (
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🏭</span>
+              <span>Maquila, Producción y Kilos de Andrés</span>
+            </div>
+          )}
 
-      <FacturasSinCRPanel orders={seguimientoOrders} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+            <KilosSpeedometer orders={activeOrders} />
+            <BandejaMaquilaWidget />
+          </div>
+        </div>
+      )}
 
-      <BandejaMaquilaWidget />
-
-      {/* ─── 7. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 24, marginBottom: 32 }}>
+      {/* ─── 4. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ──────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 32, marginBottom: 32 }}>
         {role === 'admin' && (
           <div
             style={{

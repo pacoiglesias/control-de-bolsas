@@ -27,27 +27,6 @@ type NavItem = {
   roles: string[];
 };
 
-const NAV: NavItem[] = [
-  { type: 'link', to: '/', icon: '📊', label: 'Dashboard', end: true, roles: ['admin', 'manager', 'viewer'] },
-  
-  { type: 'group', label: '-- COMERCIAL --', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/ordenes', icon: '📋', label: 'Gestión de Órdenes', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística y Entregas', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Productos', roles: ['admin', 'manager'] },
-
-  { type: 'group', label: '-- FINANZAS --', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/cobranza', icon: '💰', label: 'Cuentas por Cobrar (CxC)', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Asistida', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/compras', icon: '🏭', label: 'Cuentas por Pagar (CxP)', roles: ['admin'] },
-  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'Tesorería y Caja', roles: ['admin'] },
-
-  { type: 'group', label: '-- SISTEMA --', roles: ['admin'] },
-  { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
-  { type: 'link', to: '/mining', icon: '📊', label: 'Reportes y Data Mining', roles: ['admin'] },
-  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Ajustes del Sistema', roles: ['admin'] },
-  { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
-];
-
 function initTheme(): 'light' | 'dark' {
   const saved = localStorage.getItem('cb-theme');
   if (saved === 'dark' || saved === 'light') return saved;
@@ -70,6 +49,31 @@ export default function Layout() {
   const location = useLocation();
   const nav = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  const clientLabel = settings.clientShortName || 'Providencia';
+  const providerLabel = settings.providerName || 'Andrés';
+
+  const navItems = useMemo<NavItem[]>(() => [
+    { type: 'link', to: '/', icon: '📊', label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
+    
+    { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', icon: '🚚', label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
+
+    { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/cobranza', icon: '💵', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: '🏭', label: `Maquila ${providerLabel}`, roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '🏦', label: 'Caja Chica & Efectivo', roles: ['admin'] },
+
+    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
+    { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
+    { type: 'link', to: '/mining', icon: '📈', label: 'Métricas & Data Mining', roles: ['admin'] },
+    { type: 'link', to: '/portal-maquilador', icon: '🏭', label: 'Portal Maquilador', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
+  ], [clientLabel, providerLabel]);
 
   const handleDownloadLocalBackup = () => {
     try {
@@ -98,9 +102,9 @@ export default function Layout() {
 
   useEffect(() => {
     setNavOpen(false);
-    const item = NAV.find((n) => n.to && (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
+    const item = navItems.find((n) => n.to && (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
     document.title = item ? `${item.label} · Bolsas Elemental` : 'Bolsas Elemental ERP';
-  }, [location.pathname]);
+  }, [location.pathname, navItems]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -233,10 +237,10 @@ export default function Layout() {
             </div>
           </div>
           <nav className="nav">
-            {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
+            {navItems.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
               if (it.type === 'group') {
                 return (
-                  <div key={it.label} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginTop: '20px', marginBottom: '4px', paddingLeft: '16px', letterSpacing: '0.5px' }}>
+                  <div key={it.label} style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink-soft)', opacity: 0.75, marginTop: '18px', marginBottom: '4px', paddingLeft: '12px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                     {it.label}
                   </div>
                 );

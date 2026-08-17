@@ -1655,6 +1655,59 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 0 errores de tipos, build completo.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 2 (Automatización Operativa).
 
+### Iteración 136: Generador de Estado de Cuenta Oficial Providencia y Reporte de Utilidad Neta en PDF (COMPLETADO)
+**Fecha:** 2026-08-18
+**Archivos:** `src/lib/providenciaStatementPdf.ts`, `src/lib/netProfitReportPdf.ts`, `src/components/Cobranza/EstadoCuenta.tsx`, `src/components/Dashboard/ExecutiveFinancialCard.tsx`, `src/lib/__tests__/pdfGenerators.test.ts`
+**Problema:**
+1. No existía un documento PDF oficial formal de Estado de Cuenta para presentar a cobranza o auditoría de Grupo Textil Providencia SA de CV con el desglose de facturas vigentes vs. vencidas, contrarecibos y libro mayor de depósitos bancarios.
+2. El reporte ejecutivo de Utilidad Neta y Estado de Resultados (P&L) con el reparto 50/50 entre socios solo se podía enviar en texto plano por WhatsApp, sin un documento formal descargable con membrete y firmas de conformidad.
+**Impacto:** Formalidad ejecutiva absoluta ante clientes y socios, conciliación documental inmediata y portabilidad en PDF de alta resolución.
+**Solución:**
+1. Creado `src/lib/providenciaStatementPdf.ts` con función `generateProvidenciaStatementPdf` que emite un Estado de Cuenta con membrete corporativo, datos fiscales del receptor (GTP9211049B6), KPIs de cartera (Facturado, Cobrado, Vigente, Vencido), tabla de facturas con contrarecibos y libro mayor de movimientos con saldo acumulado.
+2. Creado `src/lib/netProfitReportPdf.ts` con función `generateNetProfitReportPdf` que desglosa los 4 pilares matemáticos: Facturación Neta, Costo Maquila Andrés ($42/kg), Comisión Contador (8%), Gastos de Caja Chica, Utilidad Líquida Real y Reparto 50/50 (Paco / Socio) con recuadro de firmas.
+3. Integrados botones `[📄 Descargar Estado de Cuenta (PDF)]` en `/cobranza` (*Estado de Cuenta*) y `[📄 Descargar Reporte P&L (PDF)]` en el Dashboard (*Corte Financiero & Reparto 50/50*).
+4. Agregadas pruebas unitarias automatizadas en `pdfGenerators.test.ts`.
+**Riesgo:** 🟢 Bajo — Componentes desacoplados de generación documental.
+**Commit:** `feat(pdf): generador de estado de cuenta providencia y reporte ejecutivo de utilidad neta en pdf`
+**Estado:** ✅ Verificado — 59/59 pruebas pasando (100%), `tsc --noEmit` 0 errores, build de producción exitoso.
+**OKRs afectados:** OKR 1 (Precisión Numérica), OKR 2 (Seguridad & Auditoría) y OKR 3 (Rendimiento Web & UX).
+
+### Iteración 137: Rediseño Visual Maestro del Dashboard — Live Ticker, Menús Agrupados y Vistas Modulares (COMPLETADO)
+**Fecha:** 2026-08-18
+**Archivos:** `src/pages/Dashboard.tsx`
+**Problema:**
+1. El encabezado del Dashboard tenía 9 botones apilados sin jerarquía visual que saturaban la interfaz en pantallas medianas y móviles.
+2. El Dashboard apilaba más de 14 bloques en una sola columna vertical infinita, obligando a realizar scroll continuo para consultar cobranza o maquila.
+**Impacto:** Claridad ejecutiva inmediata, eliminación total del scroll infinito y experiencia de usuario premium con micro-animaciones y glassmorphism.
+**Solución:**
+1. Creado el **Live Financial Ticker** superior con datos en tiempo real de Caja Chica, Por Cobrar Providencia, Deuda Andrés, Kilos en Proceso y estado de conexión en vivo.
+2. Consolidado el encabezado con botón Hero destacado `[➕ Nuevo Expediente]`, menú desplegable `[📑 Reportes & Balanza ▾]` y menú `[📥 Exportar ▾]`.
+3. Implementado el **Selector de Vistas Modulares**: `🌟 Visión Ejecutiva`, `📆 Centro de Cobranza`, `🏭 Maquila & Kilos`, y `👁️ Ver Todo`.
+4. Estructurado el layout en **Grid Inteligente de 2 Columnas** en escritorio (Flujo y Seguimiento a la izquierda; Semáforo del Día y Acciones a la derecha).
+**Riesgo:** 🟢 Bajo — Transformación puramente de presentación y ergonomía visual sin alterar fórmulas matemáticas ni estado de datos.
+**Commit:** `feat(ui): rediseño visual maestro del dashboard con live ticker, dropdowns y vistas modulares`
+**Estado:** ✅ Verificado — 59/59 pruebas pasando (100%), `tsc --noEmit` 0 errores, build de producción exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Reducción de Fricción Operativa.
+
+### Iteración 138: Navegación Lateral Dinámica y Configuración Universal de Cliente y Proveedor (COMPLETADO)
+**Fecha:** 2026-08-18
+**Archivos:** `src/hooks/useSystemSettings.ts`, `src/pages/Settings.tsx`, `src/components/Layout.tsx`
+**Problema:**
+1. Los menús laterales tenían etiquetas estáticas codificadas y categorías toscas con guiones (`-- COMERCIAL --`, `-- FINANZAS --`), además de nombres contables fríos como `Cuentas por Pagar (CxP)` o `Cuentas por Cobrar (CxC)`.
+2. Si la empresa en el futuro cambiaba de proveedor de maquila (en lugar de Andrés) o sumaba un nuevo cliente principal (en lugar de Providencia), se requería modificar código fuente.
+**Impacto:** Flexibilidad total del ERP para adaptarse a cualquier cliente o maquilador futuro desde la pantalla de configuración en 2 segundos, y navegación elegante con jerarquía ejecutiva.
+**Solución:**
+1. Agregados campos `clientName` y `clientShortName` en `useSystemSettings.ts` con persistencia en `system_settings/global`.
+2. Añadidos inputs en `/centro-control` (*Ajustes*) para configurar la Razón Social del Cliente Principal, el Nombre Corto del Cliente y el Proveedor Principal.
+3. Modernizada la barra lateral de `Layout.tsx` con secciones limpias (`OPERACIÓN & VENTAS`, `FINANZAS & CAJA`, `CONTROL & AUDITORÍA`), nombres dinámicos (`Cobranza ${clientLabel}`, `Maquila ${providerLabel}`), badges en tiempo real y acceso directo al `Portal Maquilador`.
+**Riesgo:** 🟢 Bajo — Parametrización y ergonomía de navegación.
+**Commit:** `feat(nav): navegacion lateral dinamica con cliente y proveedor configurables`
+**Estado:** ✅ Verificado — 59/59 pruebas pasando (100%), `tsc --noEmit` 0 errores, build de producción exitoso.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y Adaptabilidad Empresarial.
+
+
+
+
 
 
 

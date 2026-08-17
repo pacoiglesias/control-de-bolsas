@@ -8,6 +8,20 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.5.0 Enterprise Financial PDF Suite & Executive Glassmorphism Edition',
+    date: '18 de Agosto de 2026',
+    time: '12:20 AM',
+    summary: 'Generador de Estados de Cuenta Oficial Providencia y Reporte P&L en PDF, Live Ticker de Pulso y Rediseño Modular del Dashboard',
+    highlights: [
+      'Generador de Estado de Cuenta Oficial Providencia (PDF): Emisión formal de estado de cuenta para auditoría con membrete GTP9211049B6, tarjetas de balance (Facturado, Cobrado, Vigente, Vencido), desglose de facturas y libro mayor de cargos/abonos bancarios.',
+      'Reporte Ejecutivo de Utilidad Neta & P&L (PDF): Documento confidencial para socios con desglose de los 4 pilares financieros (Venta, Costo Andrés $42, Comisión 8%, Caja Chica), utilidad líquida real, reparto 50/50 y firmas de conformidad.',
+      'Live Financial Ticker Superior: Franja glassmorphism en vivo que muestra en tiempo real Saldo en Caja Chica, Por Cobrar Providencia, Deuda Andrés, Kilos en Proceso y estado del sistema.',
+      'Encabezado Limpio con Menús Inteligentes: Erradicación del desorden de 9 botones con menú agrupado de Reportes & Balanza y menú de Exportación & Respaldos.',
+      'Selector de Vistas Modulares del Dashboard: 4 modos de visualización (Visión Ejecutiva, Centro de Cobranza, Maquila & Kilos, Ver Todo) para eliminar el scroll infinito.',
+      'Grid Inteligente de Doble Columna: Flujo y pedidos a la izquierda, semáforo operativo y acciones rápidas a la derecha.',
+    ],
+  },
+  {
     version: 'v8.4.0 Enterprise Interactive Cockpit & Immutable Price Edition',
     date: '17 de Agosto de 2026',
     time: '07:45 PM',

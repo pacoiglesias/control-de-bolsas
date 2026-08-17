@@ -27,6 +27,7 @@ export default function CajaChica() {
   const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
   const { settings } = useSystemSettings();
+  const toast = useToast();
   const [selected, setSelected] = useState<Expense | null>(null);
 
 
@@ -185,8 +186,6 @@ export default function CajaChica() {
     toast('Generando PDF, por favor espera...', 'ok');
     await shareHtmlAsPdf(html, `CajaChica_${new Date().toISOString().split('T')[0]}.pdf`);
   }
-
-  const toast = useToast();
 
   function exportCajaChicaCsv() {
     const headers = ['Fecha', 'Concepto', 'Proveedor', 'Tipo', 'Monto'];

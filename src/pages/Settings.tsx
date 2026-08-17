@@ -88,6 +88,8 @@ export default function Settings() {
         companyName: sysForm.companyName || '', 
         companyLogoUrl: sysForm.companyLogoUrl || '',
         providerName: sysForm.providerName || 'Andrés',
+        clientName: sysForm.clientName || 'Grupo Textil Providencia SA de CV',
+        clientShortName: sysForm.clientShortName || 'Providencia',
         departments: sysForm.departments || ['TH', 'GT']
       });
       await logAction(user?.email, 'Configuración Financiera Modificada', {
@@ -240,10 +242,22 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card title="Departamentos y Proveedor">
+      <Card title="Cliente Principal, Proveedor y Departamentos">
         <div style={{ padding: 16 }}>
           <div className="form-grid">
-            <Field label="Nombre del Proveedor / Fabricante">
+            <Field label="Razón Social del Cliente Principal">
+              <input className="input boxed" type="text" value={sysForm.clientName ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, clientName: e.target.value })} 
+                placeholder="Ej. Grupo Textil Providencia SA de CV" />
+            </Field>
+
+            <Field label="Nombre Corto del Cliente (Para menús y reportes)">
+              <input className="input boxed" type="text" value={sysForm.clientShortName ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, clientShortName: e.target.value })} 
+                placeholder="Ej. Providencia" />
+            </Field>
+
+            <Field label="Nombre del Proveedor / Fabricante Principal">
               <input className="input boxed" type="text" value={sysForm.providerName ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, providerName: e.target.value })} 
                 placeholder="Ej. Andrés" />

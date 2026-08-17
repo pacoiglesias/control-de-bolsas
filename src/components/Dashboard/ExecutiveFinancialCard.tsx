@@ -4,6 +4,9 @@ import { money, kilos as fmtKilos } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { ResponsiveMoney } from '../ui';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { useExpensesContext } from '../../context/ExpensesContext';
+import { useToast } from '../../context/ToastContext';
+import { generateNetProfitReportPdf, buildNetProfitData } from '../../lib/netProfitReportPdf';
 import type { PurchaseOrder } from '../../lib/types';
 
 interface ExecutiveFinancialCardProps {
@@ -14,6 +17,9 @@ interface ExecutiveFinancialCardProps {
 
 export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveFinancialCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const { expenses } = useExpensesContext();
+  const toast = useToast();
 
   // Fórmulas matemáticas oficiales del negocio
   const financials = useMemo(() => {
@@ -74,6 +80,19 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveF
       facturasCobradas: round2(facturasCobradas),
     };
   }, [orders, config]);
+
+  const handleDownloadPdfReport = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const reportData = buildNetProfitData(orders, expenses, config, saldoCaja, 'Histórico Global');
+      await generateNetProfitReportPdf(reportData);
+      toast('Reporte de Utilidad Neta & P&L descargado en PDF.', 'ok');
+    } catch (err) {
+      toast(`Error al generar el PDF: ${(err as Error).message}`, 'bad');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   const handleShareWhatsAppSocio = () => {
     const text = `📊 *REPORTE EJECUTIVO DE UTILIDAD & CORTE FINANCIERO*
@@ -267,7 +286,7 @@ _Generado automáticamente desde el ERP._`;
               </div>
             </div>
 
-            {/* Reparto 50/50 y Botón WhatsApp */}
+            {/* Reparto 50/50 y Botones de Acción */}
             <div
               style={{
                 background: 'rgba(255, 255, 255, 0.03)',
@@ -303,7 +322,31 @@ _Generado automáticamente desde el ERP._`;
                 </div>
               </div>
 
-              <div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleDownloadPdfReport}
+                  disabled={isGeneratingPdf}
+                  style={{
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    padding: '10px 16px',
+                    borderRadius: 12,
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: isGeneratingPdf ? 'wait' : 'pointer',
+                  }}
+                >
+                  <span>{isGeneratingPdf ? '⏳' : '📄'}</span>
+                  <span>{isGeneratingPdf ? 'Generando...' : 'Descargar Reporte P&L (PDF)'}</span>
+                </button>
+
                 <button
                   type="button"
                   className="btn"
@@ -314,7 +357,7 @@ _Generado automáticamente desde el ERP._`;
                     border: 'none',
                     fontWeight: 800,
                     fontSize: 13,
-                    padding: '10px 18px',
+                    padding: '10px 16px',
                     borderRadius: 12,
                     boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
                     display: 'flex',
@@ -324,7 +367,7 @@ _Generado automáticamente desde el ERP._`;
                   }}
                 >
                   <span>💬</span>
-                  <span>WhatsApp Resumen al Socio</span>
+                  <span>WhatsApp Resumen</span>
                 </button>
               </div>
             </div>
@@ -334,3 +377,4 @@ _Generado automáticamente desde el ERP._`;
     </div>
   );
 }
+
