@@ -414,5 +414,34 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     const gtOrder = filterOrderByDepartment(orderConMultiplesCRs, 'GT');
     expect(gtOrder).toBeNull();
   });
+
+  it('los responsables de área son Nava para Textil Hogar TH y Evelia para Grupo Textil GT', async () => {
+    const { getDepartmentManager, getDepartmentBadgeLabel } = await import('../format');
+    const { generateCollectionNotice } = await import('../whatsappReminder');
+
+    expect(getDepartmentManager('TH')).toBe('Nava');
+    expect(getDepartmentManager('Providencia Textil Hogar')).toBe('Nava');
+    expect(getDepartmentManager('GT')).toBe('Evelia');
+    expect(getDepartmentManager('Providencia Grupo Textil')).toBe('Evelia');
+
+    expect(getDepartmentBadgeLabel('TH')).toBe('TH (Nava)');
+    expect(getDepartmentBadgeLabel('GT')).toBe('GT (Evelia)');
+
+    const noticeTh = generateCollectionNotice({
+      folioFactura: '6167',
+      contrarecibo: 'TH-912',
+      cliente: 'Providencia TH',
+      monto: 79826,
+    });
+    expect(noticeTh).toContain('Lic. Nava (Textil Hogar)');
+
+    const noticeGt = generateCollectionNotice({
+      folioFactura: '5980',
+      contrarecibo: 'GT-742',
+      cliente: 'Providencia GT',
+      monto: 54520,
+    });
+    expect(noticeGt).toContain('Lic. Evelia (Grupo Textil)');
+  });
 });
 

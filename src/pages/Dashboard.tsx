@@ -998,8 +998,9 @@ return () => unsub();
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
+              title="Textil Hogar — Responsable: Lic. Nava"
             >
-              <span>🔵 TH</span>
+              <span>🔵 TH · Nava</span>
               <span style={{
                 background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
                 color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
@@ -1029,8 +1030,9 @@ return () => unsub();
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
+              title="Grupo Textil — Responsable: Lic. Evelia"
             >
-              <span>🟢 GT</span>
+              <span>🟢 GT · Evelia</span>
               <span style={{
                 background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
                 color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',

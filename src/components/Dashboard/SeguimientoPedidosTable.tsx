@@ -296,11 +296,22 @@ export function SeguimientoPedidosTable({
                   >
                     <td className="mono sticky-col" style={{ fontWeight: 800 }}>
                       {f.folio}
-                      {f.department && (
-                        <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--paper-sunk)', padding: '1px 5px', borderRadius: 4 }}>
-                          {f.department}
+                      {f.department ? (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: f.department === 'TH' ? '#e0f2fe' : f.department === 'GT' ? '#dcfce7' : 'var(--paper-sunk)',
+                            color: f.department === 'TH' ? '#0369a1' : f.department === 'GT' ? '#15803d' : 'var(--ink-soft)',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                          }}
+                          title={f.department === 'TH' ? 'Textil Hogar — Responsable: Nava' : f.department === 'GT' ? 'Grupo Textil — Responsable: Evelia' : f.department}
+                        >
+                          {f.department === 'TH' ? 'TH · Nava' : f.department === 'GT' ? 'GT · Evelia' : f.department}
                         </span>
-                      )}
+                      ) : null}
                     </td>
                     <td>
                       {getStageBadge(f.stage, f.isClosedShort)}

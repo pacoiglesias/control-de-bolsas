@@ -4,6 +4,7 @@ export interface CollectionNoticeParams {
   folioFactura: string;
   contrarecibo?: string;
   cliente?: string;
+  responsable?: string;
   monto: number;
   fechaVencimiento?: any;
   clabe?: string;
@@ -14,6 +15,7 @@ export function generateCollectionNotice({
   folioFactura,
   contrarecibo,
   cliente = 'Providencia',
+  responsable,
   monto,
   fechaVencimiento,
   clabe = '127680013898246811',
@@ -21,8 +23,18 @@ export function generateCollectionNotice({
 }: CollectionNoticeParams): string {
   const crText = contrarecibo && contrarecibo.trim() !== '' ? ` con Contrarecibo *#${contrarecibo}*` : '';
   const dateText = fechaVencimiento ? fmtDate(fechaVencimiento) : 'Vigente';
+  
+  // Responsables oficiales: Textil Hogar TH -> Nava, Grupo Textil GT -> Evelia
+  const manager = responsable || (
+    cliente.toUpperCase().includes('TH') || (contrarecibo || '').toUpperCase().startsWith('TH')
+      ? 'Lic. Nava (Textil Hogar)'
+      : cliente.toUpperCase().includes('GT') || (contrarecibo || '').toUpperCase().startsWith('GT')
+        ? 'Lic. Evelia (Grupo Textil)'
+        : ''
+  );
+  const atnText = manager ? `\n👤 *Atención:* ${manager}` : '';
 
-  return `Estimado Depto. de Cuentas por Pagar (${cliente}):
+  return `Estimado Depto. de Cuentas por Pagar (${cliente}):${atnText}
 
 Le enviamos un cordial saludo. Nos permitimos dar seguimiento al pago de la siguiente factura:
 

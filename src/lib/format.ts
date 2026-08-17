@@ -43,6 +43,40 @@ export function nombreClienteVisible(client: string | null | undefined): string 
   return client || '—';
 }
 
+/**
+ * Responsables de Área Providencia:
+ * - Textil Hogar (TH): Nava
+ * - Grupo Textil (GT): Evelia
+ */
+export const DEPARTMENT_MANAGERS: Record<string, { name: string; fullDept: string; title: string }> = {
+  TH: {
+    name: 'Nava',
+    fullDept: 'Textil Hogar',
+    title: 'Nava · Textil Hogar',
+  },
+  GT: {
+    name: 'Evelia',
+    fullDept: 'Grupo Textil',
+    title: 'Evelia · Grupo Textil',
+  },
+};
+
+export function getDepartmentManager(deptOrClient?: string | null): string {
+  if (!deptOrClient) return '';
+  const upper = deptOrClient.toUpperCase();
+  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return 'Nava';
+  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return 'Evelia';
+  return '';
+}
+
+export function getDepartmentBadgeLabel(deptOrClient?: string | null): string {
+  if (!deptOrClient) return '';
+  const upper = deptOrClient.toUpperCase();
+  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return 'TH (Nava)';
+  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return 'GT (Evelia)';
+  return deptOrClient;
+}
+
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 /** Firestore devuelve Timestamp; los formularios y calculos usan Date. */
