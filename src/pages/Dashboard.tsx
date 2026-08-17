@@ -49,6 +49,7 @@ const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackup
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
 const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
 const CorteMensualModal = lazy(() => import('../components/Dashboard/CorteMensualModal').then(m => ({ default: m.CorteMensualModal })));
+const CorteSemanalModal = lazy(() => import('../components/Dashboard/CorteSemanalModal').then(m => ({ default: m.CorteSemanalModal })));
 
 
 
@@ -89,6 +90,7 @@ export default function Dashboard() {
   const [showQuickCollection, setShowQuickCollection] = useState(false);
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
+  const [showCorteSemanal, setShowCorteSemanal] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
@@ -586,6 +588,32 @@ return () => unsub();
               ⚡ Sincronizar 10 Contrarecibos
             </button>
             <button
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.2) 100%)',
+                border: '1px solid #10b981',
+                color: '#047857',
+                fontWeight: 800,
+              }}
+              onClick={() => setShowCorteSemanal(true)}
+              title="Ver Historial y Balance Semana a Semana"
+            >
+              📅 Corte Semanal
+            </button>
+            <button
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(37,99,235,0.2) 100%)',
+                border: '1px solid #3b82f6',
+                color: '#1d4ed8',
+                fontWeight: 800,
+              }}
+              onClick={() => setShowCorteMensual(true)}
+              title="Ver Corte y Balance Mensual"
+            >
+              📑 Corte Mensual
+            </button>
+            <button
               className="btn btn-primary"
               style={{
                 background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
@@ -997,6 +1025,17 @@ return () => unsub();
         {showCorteMensual && (
           <CorteMensualModal
             onClose={() => setShowCorteMensual(false)}
+            orders={activeOrders}
+            expenses={expenses}
+            purchases={purchases}
+            config={config}
+            settings={settings}
+          />
+        )}
+
+        {showCorteSemanal && (
+          <CorteSemanalModal
+            onClose={() => setShowCorteSemanal(false)}
             orders={activeOrders}
             expenses={expenses}
             purchases={purchases}

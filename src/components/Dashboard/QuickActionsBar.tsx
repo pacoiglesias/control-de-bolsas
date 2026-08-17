@@ -10,6 +10,7 @@ interface QuickActionsBarProps {
   onQuickPay: () => void;
   onOpenMagicPaste?: () => void;
   onOpenCorteMensual?: () => void;
+  onOpenCorteSemanal?: () => void;
   onRecalc?: () => void;
   recalcBusy?: boolean;
   role: string | null;
@@ -24,6 +25,7 @@ export function QuickActionsBar({
   onQuickPay,
   onOpenMagicPaste,
   onOpenCorteMensual,
+  onOpenCorteSemanal,
   onRecalc,
   recalcBusy,
   role,
@@ -185,6 +187,30 @@ export function QuickActionsBar({
             }}
           >
             <span style={{ fontSize: 15 }}>📑</span> Corte Mensual
+          </motion.button>
+        )}
+
+        {/* Corte Semanal (Semana a Semana) */}
+        {onOpenCorteSemanal && role === 'admin' && (
+          <motion.button
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onOpenCorteSemanal}
+            style={{
+              background: 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(5,150,105,0.15) 100%)',
+              color: '#047857',
+              border: '1px solid #10b981',
+              borderRadius: 12,
+              padding: '8px 15px',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 15 }}>📅</span> Corte Semanal
           </motion.button>
         )}
 
