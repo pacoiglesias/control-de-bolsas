@@ -10,6 +10,9 @@ import { useConfig } from '../../hooks/useConfig';
 import { toInputDate, fromInputDate, money } from '../../lib/format';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../../lib/finance';
+import { useAuth } from '../../context/AuthContext';
+import { logAction } from '../../lib/logger';
+import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 import Decimal from 'decimal.js';
 
 export function PagarAndresModal({ 
@@ -23,6 +26,7 @@ export function PagarAndresModal({
   const { orders } = useOrders();
   const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
+  const { user } = useAuth();
   const toast = useToast();
 
   const saldoCaja = useMemo(() => {
@@ -74,6 +78,12 @@ export function PagarAndresModal({
   const saldoRestante = new Decimal(saldoCaja).minus(montoNum).toNumber();
   const saldoInsuficiente = montoNum > saldoCaja;
 
+  const handleSendWhatsAppReceipt = () => {
+    if (montoNum <= 0) return toast('Ingresa un monto para generar el comprobante.', 'bad');
+    const msg = `Hola estimado Andrés,\n\nTe comparto el comprobante del pago registrado el día de hoy:\n\n💰 *Importe:* ${money(montoNum)}\n📋 *Concepto:* ${pagoAbono.concept.trim() || 'Abono a Cuenta'}\n📅 *Fecha:* ${pagoAbono.date}\n\nQuedamos al pendiente. Saludos, Bolsas Elemental.`;
+    openWhatsAppMessage(msg);
+  };
+
   async function registrarAbono(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -84,9 +94,9 @@ export function PagarAndresModal({
     
     if (val > saldoCaja) {
       const msg = `⚠️ ATENCIÓN: El saldo en efectivo en Caja Chica es de ${money(saldoCaja)}, pero deseas pagar ${money(val)} a Andrés.\n\nLa caja quedará en saldo negativo de ${money(saldoRestante)}.\n\n¿Estás completamente seguro de autorizar este pago?`;
-      if (!(await confirmDialog(msg))) return;
+      if (!(await confirmDialog({ message: msg, danger: true }))) return;
     } else {
-      if (!(await confirmDialog(`¿Confirmas registrar un pago/abono de ${money(val)} a Andrés saliendo de Caja Chica?`))) return;
+      if (!(await confirmDialog({ message: `¿Confirmas registrar un pago/abono de ${money(val)} a Andrés saliendo de Caja Chica?` }))) return;
     }
     
     setBusy(true);
@@ -98,6 +108,14 @@ export function PagarAndresModal({
         provider: 'Andrés',
         type: 'egreso'
       });
+
+      await logAction(user?.email, 'Pago a Andrés Registrado', {
+        amount: val,
+        concept: pagoAbono.concept.trim(),
+        date: pagoAbono.date,
+        saldoRestanteCaja: saldoRestante,
+      });
+
       toast(`✅ Pago por ${money(val)} a Andrés registrado con éxito.`, 'ok');
       onClose();
     } catch (err: any) {
@@ -294,8 +312,19 @@ export function PagarAndresModal({
           />
         </Field>
 
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+          {montoNum > 0 && (
+            <button
+              type="button"
+              className="btn"
+              onClick={handleSendWhatsAppReceipt}
+              style={{ background: 'rgba(16,185,129,0.1)', color: '#047857', borderColor: '#10b981', fontWeight: 700 }}
+              title="Redactar comprobante de abono para enviar a Andrés por WhatsApp"
+            >
+              💬 WhatsApp a Andrés
+            </button>
+          )}
           <button 
             type="submit" 
             className="btn btn-primary" 
