@@ -34,7 +34,7 @@ import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
 import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
 import { ExecutiveFinancialCard } from '../components/Dashboard/ExecutiveFinancialCard';
 import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectionSummary';
-import { MoneyFlowPipeline } from '../components/Dashboard/MoneyFlowPipeline';
+import { MoneyFlowPipeline, type PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
 import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
 import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
 import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
@@ -88,6 +88,7 @@ export default function Dashboard() {
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
+  const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
 
   // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp, R = Recalcular)
   useEffect(() => {
@@ -744,13 +745,25 @@ return () => unsub();
         onOpenQuickCollection={() => setShowQuickCollection(true)}
       />
 
-      {/* ─── 3. PIPELINE VISUAL DEL FLUJO DE LA OC ──────────────────────── */}
+      {/* ─── 3. PIPELINE VISUAL DEL FLUJO DE LA OC (INTERACTIVO) ──────── */}
       <MoneyFlowPipeline
         orders={seguimientoOrders}
         expenses={expenses}
         config={config}
         nav={nav}
+        selectedStage={selectedPipelineStage}
+        onSelectStage={setSelectedPipelineStage}
       />
+
+      {/* ─── 3.5 TABLA INTERACTIVA DE SEGUIMIENTO CONECTADA AL PIPELINE ───── */}
+      <div style={{ marginBottom: 24 }}>
+        <SeguimientoPedidosTable
+          orders={seguimientoOrders}
+          filterStage={selectedPipelineStage}
+          onFilterStageChange={setSelectedPipelineStage}
+          onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+        />
+      </div>
 
       {/* ─── 4. BARRA DE ACCIONES RÁPIDAS ─────────────────────────────────── */}
       <QuickActionsBar
@@ -941,7 +954,13 @@ return () => unsub();
 
       {showSeguimientoDrawer && (
         <Drawer title="Seguimiento de Pedidos" onClose={() => setShowSeguimientoDrawer(false)} width={1000}>
-          <SeguimientoPedidosTable orders={seguimientoOrders} />
+          <SeguimientoPedidosTable 
+            orders={seguimientoOrders} 
+            onOpenOrder={(order) => {
+              setShowSeguimientoDrawer(false);
+              nav(`/ordenes?abrir=${order.id}`);
+            }}
+          />
         </Drawer>
       )}
 
