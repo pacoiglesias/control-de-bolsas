@@ -10,7 +10,7 @@ import { AndresLedgerTable } from '../components/Compras/AndresLedgerTable';
 import { PurchaseDrawer } from '../components/Compras/PurchaseDrawer';
 import { RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderModals';
 import { ComprasKanban } from '../components/Compras/ComprasKanban';
-import { exportToCsv, getPrintHeaderHtml, fmtDate } from '../lib/format';
+import { exportToCsv, getPrintHeaderHtml, fmtDate, nombreClienteVisible } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
 import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
 import type { Purchase, PurchaseOrder } from '../lib/types';
@@ -176,7 +176,24 @@ export default function Compras() {
               <button
                 className="btn btn-icon"
                 onClick={async () => {
-                  toast('📄 Generando Estado de Cuenta Auditado...', 'info');
+                  toast('📄 Generando Estado de Cuenta y Entregas Auditado...', 'info');
+                  const deliveriesList = provPurchases.map(p => {
+                    const ord = orderById.get(p.id);
+                    const orderedKg = p.expectedKilos || Number(ord?.totalKilograms) || 0;
+                    const receivedKg = p.receivedKilos || 0;
+                    const costKg = p.pricePerKg || currentCostPerKg || 42;
+                    return {
+                      folio: ord?.folio || ord?.oc || p.id,
+                      client: ord?.client ? nombreClienteVisible(ord.client) : 'Providencia',
+                      orderedKg,
+                      receivedKg,
+                      costPerKg: costKg,
+                      totalCost: receivedKg * costKg,
+                      status: p.status || 'pedido',
+                      deliveryDate: p.date,
+                    };
+                  });
+
                   await generateAndresAuditStatementPdf({
                     totalReceivedKilos,
                     totalPurchasesCost,
@@ -185,10 +202,11 @@ export default function Compras() {
                     deudaHistorica,
                     currentCostPerKg,
                     ledger: ledgerWithBalance as any,
+                    deliveriesList,
                   });
-                  toast('✅ Estado de cuenta PDF generado', 'ok');
+                  toast('✅ Estado de cuenta y entregas PDF generado', 'ok');
                 }}
-                title="Generar Estado de Cuenta Oficial en PDF"
+                title="Generar Estado de Cuenta Oficial con Detalle de Entregas en PDF"
                 style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700 }}
               >
                 📄 PDF Auditado
