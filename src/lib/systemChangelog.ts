@@ -8,6 +8,20 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.4.0 Enterprise Interactive Cockpit & Immutable Price Edition',
+    date: '17 de Agosto de 2026',
+    time: '07:45 PM',
+    summary: 'Cockpit Operativo de Control Interactivo, Modo Privacidad Total, Congelación de Precios Históricos y Auditoría Estricta de Borrados',
+    highlights: [
+      'Pipeline de 5 Estaciones Interactivo: Filtrado bidireccional en 1 clic que actualiza la tabla de pedidos al instante según la etapa (Fabricando ➔ Almacén ➔ Sin CR ➔ Con CR ➔ Caja Chica).',
+      'Tabla de Seguimiento con Apertura Directa: Clic en cualquier fila para abrir el expediente completo con sus entregas y facturas asociadas y badges de etapa operativa.',
+      'Modo Privacidad Instantáneo (👁️): Difuminado de todas las cifras monetarias con un solo toque para operar en público y almacén sin exponer datos financieros.',
+      'Panel Ejecutivo Black Titanium: Corte financiero colapsable con costo de maquila Andrés ($42/kg), comisión del contador (8%), reparto 50/50 y generador de resumen para WhatsApp en 1 toque.',
+      'Congelación de Precios Históricos: Cada OC y Factura mantiene inmutable su precio de venta y costo de compra, blindando el historial contra futuras fluctuaciones de precios.',
+      'Auditoría y Advertencias Críticas: Confirmaciones inteligentes y registro estricto en bitácora (Live Logs) antes de eliminar facturas, entregas o movimientos de caja.',
+    ],
+  },
+  {
     version: 'v8.3.5 Enterprise Multi-Invoice CR & Short Order Closing Edition',
     date: '17 de Agosto de 2026',
     time: '06:52 PM',
