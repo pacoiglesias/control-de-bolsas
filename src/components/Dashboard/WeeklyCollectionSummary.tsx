@@ -3,12 +3,15 @@ import { PurchaseOrder } from '../../lib/types';
 import { money, fmtDayAndDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
+import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
+import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 
 interface WeeklyCollectionSummaryProps {
   orders: PurchaseOrder[];
+  onOpenQuickCollection?: () => void;
 }
 
-export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps) {
+export function WeeklyCollectionSummary({ orders, onOpenQuickCollection }: WeeklyCollectionSummaryProps) {
   const toast = useToast();
   const weeklyCrs = useMemo(() => {
     const today = new Date();
@@ -52,15 +55,47 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
 
   const totalSemana = weeklyCrs.reduce((a, it) => a + it.amount, 0);
 
-  const handleCopyWeeklyReport = () => {
+  const getWeeklyReportText = () => {
     const lines = weeklyCrs.map(
-      (it, idx) => `${idx + 1}. CR ${it.cr} (Fact. #${it.folio}) - ${money(it.amount)} - Vence: ${fmtDayAndDate(it.dueDate)}`
+      (it, idx) => `${idx + 1}. CR *${it.cr}* (Fact. #${it.folio}) - ${money(it.amount)} - Vence: ${fmtDayAndDate(it.dueDate)}`
     ).join('\n');
 
-    const text = `Relación de Contrarecibos Programados para Cobro (Semanal):\n\n${lines}\n\nTotal Programado: ${money(totalSemana)}\nFecha de emisión: ${new Date().toLocaleDateString('es-MX')}`;
+    return `Relación de Contrarecibos Programados para Cobro (Semanal):\n\n${lines}\n\n*Total Programado:* ${money(totalSemana)}\nFecha: ${new Date().toLocaleDateString('es-MX')}`;
+  };
+
+  const handleCopyWeeklyReport = () => {
+    const text = getWeeklyReportText();
     navigator.clipboard.writeText(text);
     toast('📋 Relación semanal copiada al portapapeles.', 'ok');
   };
+
+  const kebabItems: KebabMenuItem[] = [
+    {
+      icon: '📋',
+      label: 'Copiar Relación Semanal',
+      sublabel: 'Texto estructurado',
+      tone: 'primary',
+      onClick: handleCopyWeeklyReport,
+    },
+    {
+      icon: '💬',
+      label: 'Enviar por WhatsApp',
+      sublabel: 'Enviar lista al contador',
+      tone: 'success',
+      onClick: () => {
+        const text = getWeeklyReportText();
+        openWhatsAppMessage(text);
+      },
+    },
+    ...(onOpenQuickCollection ? [{
+      dividerBefore: true,
+      icon: '💵',
+      label: 'Registrar Cobro de Contrarecibos',
+      sublabel: 'Ingresar efectivo recibido',
+      tone: 'warn' as const,
+      onClick: onOpenQuickCollection,
+    }] : []),
+  ];
 
   return (
     <div
@@ -86,25 +121,33 @@ export function WeeklyCollectionSummary({ orders }: WeeklyCollectionSummaryProps
         </div>
       </div>
 
-      <button
-        onClick={handleCopyWeeklyReport}
-        style={{
-          background: 'var(--paper-raised)',
-          color: 'var(--ink)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
-          padding: '8px 16px',
-          fontSize: 12,
-          fontWeight: 700,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <span>📋</span> Copiar Relación Semanal
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={handleCopyWeeklyReport}
+          style={{
+            background: 'var(--paper-raised)',
+            color: 'var(--ink)',
+            border: '1px solid var(--line)',
+            borderRadius: 10,
+            padding: '8px 14px',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <span>📋</span> Copiar Relación
+        </button>
+
+        <KebabMenu
+          items={kebabItems}
+          align="right"
+          title="Opciones de cobranza semanal"
+        />
+      </div>
     </div>
   );
 }

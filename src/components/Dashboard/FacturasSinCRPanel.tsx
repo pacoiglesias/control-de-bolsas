@@ -3,12 +3,18 @@ import { money, fmtDayAndDate, toDate, nombreClienteVisible } from '../../lib/fo
 import { extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
+import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
+import { useToast } from '../../context/ToastContext';
+import { generateCollectionNotice, openWhatsAppMessage, copyToClipboard } from '../../lib/whatsappReminder';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
 interface FacturasSinCRPanelProps {
   orders: PurchaseOrder[];
+  onOpenOrder?: (order: PurchaseOrder) => void;
 }
 
-export function FacturasSinCRPanel({ orders }: FacturasSinCRPanelProps) {
+export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelProps) {
+  const toast = useToast();
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
 
   // Filtrar facturas emitidas que NO tienen número de contrarecibo capturado y siguen pendientes de cobro
@@ -48,6 +54,61 @@ export function FacturasSinCRPanel({ orders }: FacturasSinCRPanelProps) {
     (acc, f) => acc + (f.invoice.financials?.invoiceTotal ?? f.invoice.financials?.saleTotal ?? 0),
     0
   );
+
+  const buildKebabItems = (order: PurchaseOrder, invoice: Invoice, total: number): KebabMenuItem[] => {
+    return [
+      {
+        icon: '🗂️',
+        label: 'Asignar Contrarecibo',
+        sublabel: 'Capturar folio de Providencia',
+        tone: 'primary',
+        onClick: () => setSelectedOrder(order),
+      },
+      ...(onOpenOrder ? [{
+        icon: '👁️',
+        label: 'Abrir Expediente',
+        sublabel: 'Ver detalle de orden',
+        onClick: () => onOpenOrder(order),
+      }] : []),
+      {
+        icon: '📄',
+        label: 'Descargar Prefactura PDF',
+        sublabel: 'Generar comprobante para cobro',
+        onClick: async () => {
+          try {
+            await generatePrefacturaPdf(order, invoice);
+            toast('📄 Prefactura PDF generada exitosamente.', 'ok');
+          } catch (e: any) {
+            toast(`Error generando PDF: ${e.message}`, 'bad');
+          }
+        },
+      },
+      {
+        dividerBefore: true,
+        icon: '💬',
+        label: 'WhatsApp de Seguimiento',
+        sublabel: 'Preguntar por contrarecibo',
+        onClick: () => {
+          const msg = generateCollectionNotice({
+            folioFactura: invoice.folio || order.folio || 'S/F',
+            cliente: nombreClienteVisible(order.client),
+            monto: total,
+            fechaVencimiento: invoice.creditCycle?.dueDate,
+          });
+          openWhatsAppMessage(msg);
+        },
+      },
+      {
+        icon: '📋',
+        label: 'Copiar Folio',
+        sublabel: `#${invoice.folio || 'S/F'}`,
+        onClick: async () => {
+          await copyToClipboard(`Factura #${invoice.folio || 'S/F'} - Importe: ${money(total)} - ${nombreClienteVisible(order.client)}`);
+          toast('📋 Datos de factura copiados.', 'ok');
+        },
+      },
+    ];
+  };
 
   return (
     <>
@@ -126,14 +187,21 @@ export function FacturasSinCRPanel({ orders }: FacturasSinCRPanelProps) {
                       {money(total)}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ fontSize: 11, padding: '6px 12px', fontWeight: 800 }}
-                    onClick={() => setSelectedOrder(order)}
-                  >
-                    📝 Asignar CR
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ fontSize: 11, padding: '5px 10px', fontWeight: 800 }}
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      📝 CR
+                    </button>
+                    <KebabMenu
+                      items={buildKebabItems(order, invoice, total)}
+                      align="right"
+                      title="Opciones de factura"
+                    />
+                  </div>
                 </div>
               </div>
             );

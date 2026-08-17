@@ -1316,6 +1316,8 @@ return () => unsub();
             filterStage={selectedPipelineStage}
             onFilterStageChange={setSelectedPipelineStage}
             onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+            onQuickInvoice={() => setShowQuickInvoice(true)}
+            onQuickCollection={() => setShowQuickCollection(true)}
           />
 
           {/* D. Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
@@ -1342,6 +1344,8 @@ return () => unsub();
             filterStage={selectedPipelineStage}
             onFilterStageChange={setSelectedPipelineStage}
             onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+            onQuickInvoice={() => setShowQuickInvoice(true)}
+            onQuickCollection={() => setShowQuickCollection(true)}
           />
         </div>
       )}
@@ -1356,13 +1360,19 @@ return () => unsub();
             </div>
           )}
 
-          <WeeklyCollectionSummary orders={seguimientoOrders} />
+          <WeeklyCollectionSummary
+            orders={seguimientoOrders}
+            onOpenQuickCollection={() => setShowQuickCollection(true)}
+          />
 
           <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
 
           {renderPorRecibirPanel()}
 
-          <FacturasSinCRPanel orders={seguimientoOrders} />
+          <FacturasSinCRPanel
+            orders={seguimientoOrders}
+            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+          />
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
             <SemaforoDelDia

@@ -3,6 +3,9 @@ import { Card, Empty } from '../ui';
 import { money, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { getOrderSummary, extractCr } from '../../lib/finance';
 import { KilosProgressBar } from '../Orders/KilosProgressBar';
+import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
+import { useToast } from '../../context/ToastContext';
+import { generateCollectionNotice, openWhatsAppMessage, copyToClipboard } from '../../lib/whatsappReminder';
 import type { PurchaseOrder } from '../../lib/types';
 import type { PipelineStageKey } from './MoneyFlowPipeline';
 
@@ -11,6 +14,8 @@ interface SeguimientoPedidosTableProps {
   filterStage?: PipelineStageKey | null;
   onFilterStageChange?: (stage: PipelineStageKey | null) => void;
   onOpenOrder?: (order: PurchaseOrder) => void;
+  onQuickInvoice?: (order: PurchaseOrder) => void;
+  onQuickCollection?: (order: PurchaseOrder) => void;
 }
 
 export function SeguimientoPedidosTable({
@@ -18,7 +23,10 @@ export function SeguimientoPedidosTable({
   filterStage,
   onFilterStageChange,
   onOpenOrder,
+  onQuickInvoice,
+  onQuickCollection,
 }: SeguimientoPedidosTableProps) {
+  const toast = useToast();
   const [activeChip, setActiveChip] = useState<string>('ALL');
 
   // Determinar la estación de cada orden en el ciclo
@@ -128,6 +136,79 @@ export function SeguimientoPedidosTable({
     }
   };
 
+  const buildKebabItems = (row: typeof allRows[0]): KebabMenuItem[] => {
+    const { order, folio, facturas, contrarecibos, cliente, total } = row;
+    const firstInvoice = order.invoices?.[0];
+    const firstCr = contrarecibos[0] || '';
+    const firstFac = facturas[0] || folio;
+
+    return [
+      {
+        icon: '👁️',
+        label: 'Abrir Expediente',
+        sublabel: 'Detalle completo del pedido',
+        tone: 'primary',
+        onClick: () => onOpenOrder?.(order),
+      },
+      {
+        icon: '🧾',
+        label: facturas.length > 0 ? `Ver Factura #${firstFac}` : 'Facturar Entrega',
+        sublabel: facturas.length > 0 ? `${facturas.length} factura(s)` : 'Báscula lista',
+        tone: 'warn',
+        onClick: () => {
+          if (onQuickInvoice) onQuickInvoice(order);
+          else onOpenOrder?.(order);
+        },
+      },
+      {
+        icon: '🗂️',
+        label: firstCr ? `CR #${firstCr}` : 'Asignar Contrarecibo',
+        sublabel: firstCr ? 'Programado con Providencia' : 'Esperando papelito',
+        tone: 'accent',
+        onClick: () => {
+          if (onQuickCollection) onQuickCollection(order);
+          else onOpenOrder?.(order);
+        },
+      },
+      {
+        icon: '💵',
+        label: 'Registrar Cobro / Efectivo',
+        sublabel: `Monto: ${money(total)}`,
+        tone: 'success',
+        onClick: () => {
+          if (onQuickCollection) onQuickCollection(order);
+          else onOpenOrder?.(order);
+        },
+      },
+      {
+        dividerBefore: true,
+        icon: '💬',
+        label: 'WhatsApp de Cobranza',
+        sublabel: 'Enviar relación a Cuentas por Pagar',
+        onClick: () => {
+          const msg = generateCollectionNotice({
+            folioFactura: firstFac,
+            contrarecibo: firstCr,
+            cliente,
+            monto: total,
+            fechaVencimiento: firstInvoice?.creditCycle?.dueDate,
+          });
+          openWhatsAppMessage(msg);
+        },
+      },
+      {
+        icon: '📋',
+        label: 'Copiar Resumen',
+        sublabel: 'Portapapeles rápido',
+        onClick: async () => {
+          const summary = `Pedido ${folio} (${cliente}) - Total: ${money(total)} - CR: ${firstCr || 'S/CR'} - Fac: ${firstFac}`;
+          await copyToClipboard(summary);
+          toast('📋 Resumen de pedido copiado al portapapeles.', 'ok');
+        },
+      },
+    ];
+  };
+
   return (
     <Card title="🚚 Seguimiento Interactivo de Pedidos — OC, Entregas y Cobranza">
       {/* Barra de Filtros Rápidos por Estación */}
@@ -201,7 +282,7 @@ export function SeguimientoPedidosTable({
                 <th className="num" style={{ minWidth: 140 }}>Kilos y Avance</th>
                 <th className="num">Total Facturado</th>
                 <th className="num">Cobrado</th>
-                <th>Acción</th>
+                <th style={{ width: 80, textAlign: 'center' }}>Acción</th>
               </tr>
             </thead>
             <tbody>
@@ -269,15 +350,23 @@ export function SeguimientoPedidosTable({
                     <td className="num mono" style={{ fontWeight: 800, color: f.cobrado > 0 ? '#047857' : 'inherit' }}>
                       {money(f.cobrado)}
                     </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="btn"
-                        style={{ fontSize: 11, padding: '3px 8px', fontWeight: 700 }}
-                        onClick={() => onOpenOrder?.(f.order)}
-                      >
-                        👁️ Abrir
-                      </button>
+                    <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ fontSize: 11, padding: '4px 8px', fontWeight: 700 }}
+                          onClick={() => onOpenOrder?.(f.order)}
+                          title="Abrir expediente"
+                        >
+                          👁️
+                        </button>
+                        <KebabMenu
+                          items={buildKebabItems(f)}
+                          align="right"
+                          title="Menú de Acciones Rápidas"
+                        />
+                      </div>
                     </td>
                   </tr>
                 );
