@@ -9,6 +9,7 @@ import { playCashRegisterSound } from '../../lib/soundEffects';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { extractCr } from '../../lib/finance';
 import { money, toDate, fmtDayAndDate, nombreClienteVisible } from '../../lib/format';
+import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsappReminder';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 
@@ -336,7 +337,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 6 }}>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Importe c/IVA:</div>
                       <div style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace', color: 'var(--ink)' }}>
@@ -344,14 +345,32 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ fontSize: 11, padding: '5px 8px', fontWeight: 700, color: '#047857', background: 'rgba(16,185,129,0.1)', borderColor: '#10b981' }}
+                        onClick={() => {
+                          const msg = generateCollectionNotice({
+                            folioFactura: it.folio,
+                            contrarecibo: it.cr,
+                            cliente: it.order.client || 'Providencia',
+                            monto: it.amount,
+                            fechaVencimiento: it.dueDate,
+                          });
+                          openWhatsAppMessage(msg);
+                        }}
+                        title="Enviar aviso formal de cobranza a Tesorería por WhatsApp"
+                      >
+                        💬 WhatsApp
+                      </button>
                       <button
                         className="btn btn-primary"
                         style={{ fontSize: 11, padding: '5px 10px', fontWeight: 800, background: '#10b981', borderColor: '#059669', color: '#fff' }}
                         onClick={() => void handleMarkCollectedDirectly(it)}
                         title="Marcar inmediatamente como cobrado (con botón para deshacer)"
                       >
-                        ✅ Ya Cobrado
+                        ✅ Cobrado
                       </button>
                       <button
                         className="btn"
