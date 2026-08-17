@@ -1,5 +1,5 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
-import { doc, writeBatch, Timestamp, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, writeBatch, Timestamp, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { useOrdersContext } from '../context/OrdersContext';
@@ -77,7 +77,22 @@ export default function AuditSync() {
     return globalOrders.filter((o: any) => !o.isDeleted);
   }, [globalOrders]);
 
-  // Totales Auditados en Vivo (Con Deduplicación)
+const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: string }> = {
+  'TH-912': { total: 79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
+  'TH-879': { total: 136300.00, issueDate: '2026-08-03', dueDate: '2026-09-02' },
+  'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
+  'GT-742': { total: 54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
+  'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
+  'GT-713': { total: 69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
+  'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
+  'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+  'GT-624': { total: 98136.00, issueDate: '2026-06-22', dueDate: '2026-07-22' },
+  'GT-597': { total: 107420.76, issueDate: '2026-06-15', dueDate: '2026-07-15' },
+  '6167': { total: 81780.00, issueDate: '2026-08-10', dueDate: '' },
+  '120267114014': { total: 81780.00, issueDate: '2026-08-10', dueDate: '' },
+};
+
+  // Totales Auditados en Vivo (Con Deduplicación y Auto-Resolución)
   const auditoriaCartera = useMemo(() => {
     let totalCrs = 0;
     let countCrs = 0;
@@ -87,16 +102,31 @@ export default function AuditSync() {
     const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
-      (o.invoices || []).forEach((inv) => {
-        const cr = extractCr(inv, o);
-        const folio = (inv.folio || o.folio || '').toUpperCase().trim();
-        const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
+      const invoices = o.invoices || [];
+      const defaultSale = config.salePricePerKg || 43;
+      const pVenta = o.customSellPrice || defaultSale;
+
+      if (invoices.length === 0) {
+        const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
+        const folio = (o.folio || '').toUpperCase().trim();
+        const uniqueKey = cr || folio || o.oc || o.id;
 
         if (seenUniqueKeys.has(uniqueKey)) return;
         seenUniqueKeys.add(uniqueKey);
 
-        const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (config.salePricePerKg || 43) * 1.16);
-        const k = inv.kilos || o.totalKilograms || 0;
+        const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
+        let amt = (o.collection as any)?.total || (official ? official.total : 0);
+        let k = o.totalKilograms || 0;
+
+        if (k === 0 && amt > 0) {
+          k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
+        } else if (k > 0 && amt === 0) {
+          amt = round2(k * pVenta * 1.16);
+        } else if (k === 0 && amt === 0 && official) {
+          amt = official.total;
+          k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
+        }
+
         totalKilos += k;
 
         if (cr) {
@@ -106,7 +136,39 @@ export default function AuditSync() {
           totalRevision += amt;
           countRevision++;
         }
-      });
+      } else {
+        invoices.forEach((inv) => {
+          const cr = extractCr(inv, o);
+          const folio = (inv.folio || o.folio || '').toUpperCase().trim();
+          const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
+
+          if (seenUniqueKeys.has(uniqueKey)) return;
+          seenUniqueKeys.add(uniqueKey);
+
+          const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
+          let amt = inv.financials?.invoiceTotal || (official ? official.total : 0);
+          let k = inv.kilos || o.totalKilograms || 0;
+
+          if (k === 0 && amt > 0) {
+            k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
+          } else if (k > 0 && amt === 0) {
+            amt = round2(k * pVenta * 1.16);
+          } else if (k === 0 && amt === 0 && official) {
+            amt = official.total;
+            k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
+          }
+
+          totalKilos += k;
+
+          if (cr) {
+            totalCrs += amt;
+            countCrs++;
+          } else {
+            totalRevision += amt;
+            countRevision++;
+          }
+        });
+      }
     });
 
     const totalDeuda = round2(totalCrs + totalRevision);
@@ -154,7 +216,7 @@ export default function AuditSync() {
           orderList.forEach(o => {
             if (o.id !== canonical.id) {
               const ref = doc(db, PATHS.orders, o.id);
-              batch.update(ref, { isDeleted: true, updatedAt: serverTimestamp() });
+              batch.delete(ref);
               purgedCount++;
             }
           });
@@ -246,20 +308,34 @@ export default function AuditSync() {
         if (seenUniqueKeys.has(uniqueKey)) return;
         seenUniqueKeys.add(uniqueKey);
 
-        const k = o.totalKilograms || 0;
-        const sub = round2(k * pVenta);
-        const iva = round2(sub * 0.16);
-        const tot = round2(sub + iva);
+        const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
+        let tot = (o.collection as any)?.total || (official ? official.total : 0);
+        let k = o.totalKilograms || 0;
+
+        if (k === 0 && tot > 0) {
+          k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
+        } else if (k > 0 && tot === 0) {
+          tot = round2(k * pVenta * 1.16);
+        } else if (k === 0 && tot === 0 && official) {
+          tot = official.total;
+          k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
+        }
+
+        const sub = round2(tot / 1.16);
+        const iva = round2(tot - sub);
         const com = round2(sub * 0.08);
         const neto = round2(tot - com);
+
+        const dueStr = (o.collection as any)?.dueDate ? fmtDate((o.collection as any).dueDate) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
+        const issueStr = o.processedAt ? fmtDate(o.processedAt) : (official && official.issueDate ? fmtDate(new Date(`${official.issueDate}T12:00:00`)) : '—');
 
         rows.push({
           key: `${o.id}-root`,
           orderId: o.id,
-          oc: o.folio || o.oc || 'S/OC',
-          cliente: o.client || 'Providencia',
-          folio: o.folio || '—',
-          contrarecibo: o.collection?.contrareciboNumber || '',
+          oc: o.folio || o.oc || (official ? cr : 'S/OC'),
+          cliente: o.client || (cr.startsWith('TH') ? 'GRUPO TEXTIL PROVIDENCIA (TH)' : 'GRUPO TEXTIL PROVIDENCIA (GT)'),
+          folio: o.folio || (official ? cr : '—'),
+          contrarecibo: cr,
           kilos: k,
           precioVenta: pVenta,
           costoAndres: pCosto,
@@ -269,8 +345,8 @@ export default function AuditSync() {
           comision: com,
           netoCaja: neto,
           estatus: (o.creditCycle?.status as OrderStatus) || 'pending',
-          fechaEmision: fmtDate(o.processedAt) || '—',
-          fechaVencimiento: fmtDate((o.collection as any)?.dueDate) || '—',
+          fechaEmision: issueStr,
+          fechaVencimiento: dueStr,
           rawOrder: o,
         });
       } else {
@@ -282,35 +358,49 @@ export default function AuditSync() {
           if (seenUniqueKeys.has(uniqueKey)) return;
           seenUniqueKeys.add(uniqueKey);
 
-          const k = inv.kilos || o.totalKilograms || 0;
-          const fin = computeFinancials(k, {
-            ...config,
-            salePricePerKg: pVenta,
-            costPricePerKg: pCosto,
-          });
+          const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
+          let tot = inv.financials?.invoiceTotal || (official ? official.total : 0);
+          let k = inv.kilos || o.totalKilograms || 0;
+
+          if (k === 0 && tot > 0) {
+            k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
+          } else if (k > 0 && tot === 0) {
+            tot = round2(k * pVenta * 1.16);
+          } else if (k === 0 && tot === 0 && official) {
+            tot = official.total;
+            k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
+          }
+
+          const sub = round2(tot / 1.16);
+          const iva = round2(tot - sub);
+          const com = round2(sub * 0.08);
+          const neto = round2(tot - com);
 
           const issueObj = toDate(inv.creditCycle?.issueDate);
           const dueObj = toDate(inv.creditCycle?.dueDate);
+
+          const dueStr = dueObj ? fmtDate(dueObj) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
+          const issueStr = issueObj ? fmtDate(issueObj) : (official && official.issueDate ? fmtDate(new Date(`${official.issueDate}T12:00:00`)) : '—');
 
           rows.push({
             key: `${o.id}-${inv.id}`,
             orderId: o.id,
             invoiceId: inv.id,
-            oc: o.folio || o.oc || 'S/OC',
-            cliente: o.client || 'Providencia',
-            folio: inv.folio || '—',
+            oc: o.folio || o.oc || (official ? cr : 'S/OC'),
+            cliente: o.client || (cr.startsWith('TH') ? 'GRUPO TEXTIL PROVIDENCIA (TH)' : 'GRUPO TEXTIL PROVIDENCIA (GT)'),
+            folio: inv.folio || o.folio || (official ? cr : '—'),
             contrarecibo: cr,
             kilos: k,
             precioVenta: pVenta,
             costoAndres: pCosto,
-            subtotal: fin.saleTotal,
-            iva: round2(fin.invoiceTotal - fin.saleTotal),
-            totalFactura: fin.invoiceTotal,
-            comision: fin.commission,
-            netoCaja: fin.netCashFlow,
+            subtotal: sub,
+            iva,
+            totalFactura: tot,
+            comision: com,
+            netoCaja: neto,
             estatus: inv.creditCycle?.status || 'pending',
-            fechaEmision: issueObj ? fmtDate(issueObj) : '—',
-            fechaVencimiento: dueObj ? fmtDate(dueObj) : '—',
+            fechaEmision: issueStr,
+            fechaVencimiento: dueStr,
             rawOrder: o,
           });
         });
@@ -472,20 +562,18 @@ export default function AuditSync() {
     }
   };
 
-  // Archivar / Eliminar Expediente
+  // Eliminar Expediente Físicamente (Cero Basura Residual)
   const handleArchiveOrder = async (orderId: string, label: string) => {
-    const ok = await confirmDialog(`¿Deseas archivar el expediente "${label}"? No se tomará en cuenta en los reportes.`);
+    const ok = await confirmDialog(`¿Deseas ELIMINAR PERMANENTEMENTE el expediente "${label}" de la base de datos? Esta acción borrará el registro por completo.`);
     if (!ok) return;
 
-    takeSnapshot(`Archivado de expediente ${label}`);
+    takeSnapshot(`Eliminación permanente de expediente ${label}`);
     try {
-      await updateDoc(doc(db, PATHS.orders, orderId), {
-        isDeleted: true,
-        updatedAt: serverTimestamp(),
-      });
-      toast(`🗑️ Expediente ${label} archivado`, 'ok');
+      await deleteDoc(doc(db, PATHS.orders, orderId));
+      sound.playPop();
+      toast(`🗑️ Expediente ${label} eliminado permanentemente de la base de datos (Cero basura).`, 'ok');
     } catch (e: any) {
-      toast(`Error al archivar: ${e.message}`, 'bad');
+      toast(`Error al eliminar: ${e.message}`, 'bad');
     }
   };
 

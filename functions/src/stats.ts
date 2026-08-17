@@ -473,7 +473,7 @@ export const recalcDashboardStats = onCall(
       'GT-597': { issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, department: 'GT' },
     };
 
-    // 1. Purga automática de expedientes obsoletos / de prueba
+    // 1. Purga física y permanente de expedientes obsoletos, duplicados y basura
     const allOrdersSnap = await db.collection(COL_ORDERS).get();
     for (const d of allOrdersSnap.docs) {
       const data = d.data();
@@ -485,8 +485,9 @@ export const recalcDashboardStats = onCall(
       const isMatchingCr = OFFICIAL_CR_MAP[folio] || OFFICIAL_CR_MAP[oc] || OFFICIAL_CR_MAP[cr] || invoiceCrs.some((c: string) => OFFICIAL_CR_MAP[c]);
       const is6167 = folio === '6167' || oc === '120267114014' || (data.invoices || []).some((i: any) => i.folio === '6167');
 
-      if (!isMatchingCr && !is6167 && !data.isDeleted) {
-        await d.ref.update({ isDeleted: true, updatedAt: FieldValue.serverTimestamp() });
+      // Si es un documento marcado como eliminado o no pertenece a los oficiales, borrarlo físicamente
+      if ((!isMatchingCr && !is6167) || data.isDeleted) {
+        await d.ref.delete();
       }
     }
 
