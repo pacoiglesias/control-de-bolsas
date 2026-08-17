@@ -55,7 +55,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    * honorario que cobra el contador por gestionar la cobranza.
    */
   commissionBase: 'subtotal',
-  historicalDebtAndres: -123175.56,
+  historicalDebtAndres: -102670.27,
   // Tomados de una OC real del negocio; editables en Configuracion.
   satClaveProdServ: '24111500',
   satClaveUnidad: 'KGM',

@@ -255,6 +255,14 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
       await setDoc(doc(db, PATHS.orders, oc6167Id), order6167Doc, { merge: true });
       addLog(`📝 Factura #${OFFICIAL_IN_REVIEW.folio} (OC ${OFFICIAL_IN_REVIEW.oc}): Registrada como "En Revisión (Pendiente de Contrarecibo)" por ${money(OFFICIAL_IN_REVIEW.total)}.`);
 
+      // 2.1 Actualizar saldo histórico con Andrés a la cifra oficial del corte
+      try {
+        await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true });
+        addLog(`⚖️ Saldo histórico con Andrés calibrado a la cifra oficial de corte: -$102,670.27.`);
+      } catch (err) {
+        console.warn('Error al actualizar financials config', err);
+      }
+
       // 3. Invocar recálculo en la nube
       try {
         addLog('🔄 Reconstruyendo estadísticas del Dashboard en la nube...');
