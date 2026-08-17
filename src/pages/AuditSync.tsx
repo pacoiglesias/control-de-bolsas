@@ -77,17 +77,24 @@ export default function AuditSync() {
     return globalOrders.filter((o: any) => !o.isDeleted);
   }, [globalOrders]);
 
-  // Totales Auditados en Vivo
+  // Totales Auditados en Vivo (Con Deduplicación)
   const auditoriaCartera = useMemo(() => {
     let totalCrs = 0;
     let countCrs = 0;
     let totalRevision = 0;
     let countRevision = 0;
     let totalKilos = 0;
+    const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
       (o.invoices || []).forEach((inv) => {
         const cr = extractCr(inv, o);
+        const folio = (inv.folio || o.folio || '').toUpperCase().trim();
+        const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
+
+        if (seenUniqueKeys.has(uniqueKey)) return;
+        seenUniqueKeys.add(uniqueKey);
+
         const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (config.salePricePerKg || 43) * 1.16);
         const k = inv.kilos || o.totalKilograms || 0;
         totalKilos += k;
@@ -117,6 +124,56 @@ export default function AuditSync() {
       totalKilos: round2(totalKilos),
     };
   }, [activeOrders, config]);
+
+  // Purgar duplicados de Firestore permanentemente
+  const handleAutoPurgeDuplicates = async () => {
+    const ok = await confirmDialog('¿Deseas escanear Firestore y purgar automáticamente documentos duplicados para dejar únicamente los 11 oficiales?');
+    if (!ok) return;
+
+    takeSnapshot('Purga masiva de documentos duplicados en Firestore');
+    setIsProcessing(true);
+
+    try {
+      const groups = new Map<string, PurchaseOrder[]>();
+      activeOrders.forEach((o) => {
+        const invCr = o.invoices?.[0] ? extractCr(o.invoices[0], o) : '';
+        const cr = (invCr || o.collection?.contrareciboNumber || o.folio || o.oc || o.id).toUpperCase().trim();
+        if (!groups.has(cr)) {
+          groups.set(cr, []);
+        }
+        groups.get(cr)!.push(o);
+      });
+
+      let purgedCount = 0;
+      const batch = writeBatch(db);
+
+      groups.forEach((orderList) => {
+        if (orderList.length > 1) {
+          // Mantener el que tiene ID canónico cr- o el primero
+          const canonical = orderList.find(o => o.id.startsWith('cr-') || o.id.startsWith('oc-')) || orderList[0];
+          orderList.forEach(o => {
+            if (o.id !== canonical.id) {
+              const ref = doc(db, PATHS.orders, o.id);
+              batch.update(ref, { isDeleted: true, updatedAt: serverTimestamp() });
+              purgedCount++;
+            }
+          });
+        }
+      });
+
+      if (purgedCount > 0) {
+        await batch.commit();
+        sound.playChaChing();
+        confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        toast(`🧹 Se purgaron ${purgedCount} documentos duplicados. Base de datos 100% limpia.`, 'ok');
+      } else {
+        toast('No se encontraron documentos duplicados en Firestore.', 'info');
+      }
+    } catch (e: any) {
+      toast(`Error al purgar duplicados: ${e.message}`, 'bad');
+    }
+    setIsProcessing(false);
+  };
 
   // Guardar snapshot de seguridad antes de cualquier cambio masivo
   const takeSnapshot = (description: string) => {
@@ -148,7 +205,7 @@ export default function AuditSync() {
     setIsProcessing(false);
   };
 
-  // ─── 1. SÁBANA EN VIVO (DATA GRID) ──────────────────────────────────────────
+  // ─── 1. SÁBANA EN VIVO (DATA GRID) CON DEDUPLICACIÓN CANÓNICA ───────────────
   const gridRows = useMemo(() => {
     const rows: {
       key: string;
@@ -174,6 +231,7 @@ export default function AuditSync() {
 
     const defaultSale = config.salePricePerKg || 43;
     const defaultCost = config.costPricePerKg || 42;
+    const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
       const pVenta = o.customSellPrice || defaultSale;
@@ -181,6 +239,13 @@ export default function AuditSync() {
       const invoices = o.invoices || [];
 
       if (invoices.length === 0) {
+        const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
+        const folio = (o.folio || '').toUpperCase().trim();
+        const uniqueKey = cr || folio || o.oc || o.id;
+
+        if (seenUniqueKeys.has(uniqueKey)) return;
+        seenUniqueKeys.add(uniqueKey);
+
         const k = o.totalKilograms || 0;
         const sub = round2(k * pVenta);
         const iva = round2(sub * 0.16);
@@ -210,6 +275,13 @@ export default function AuditSync() {
         });
       } else {
         invoices.forEach((inv) => {
+          const cr = extractCr(inv, o);
+          const folio = (inv.folio || o.folio || '').toUpperCase().trim();
+          const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
+
+          if (seenUniqueKeys.has(uniqueKey)) return;
+          seenUniqueKeys.add(uniqueKey);
+
           const k = inv.kilos || o.totalKilograms || 0;
           const fin = computeFinancials(k, {
             ...config,
@@ -217,7 +289,6 @@ export default function AuditSync() {
             costPricePerKg: pCosto,
           });
 
-          const cr = extractCr(inv, o);
           const issueObj = toDate(inv.creditCycle?.issueDate);
           const dueObj = toDate(inv.creditCycle?.dueDate);
 
@@ -641,6 +712,22 @@ export default function AuditSync() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn"
+            style={{
+              background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(185,28,28,0.2) 100%)',
+              border: '1px solid #ef4444',
+              color: '#b91c1c',
+              fontWeight: 800,
+            }}
+            onClick={() => void handleAutoPurgeDuplicates()}
+            disabled={isProcessing}
+            title="Escanear y eliminar documentos duplicados en Firestore"
+          >
+            🧹 Purgar Duplicados
+          </button>
+
           <button
             type="button"
             className="btn btn-primary"
