@@ -160,7 +160,7 @@ export function SemaforoDelDia({
               PRODUCCIÓN EN CURSO: {(metrics.andresPendienteKilos + metrics.porPedirKilos).toLocaleString('es-MX')} kg PENDIENTES
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
-              {metrics.andresPendienteKilos > 0 ? `Andrés tiene ${metrics.andresPendienteKilos.toLocaleString('es-MX')} kg en taller por entregar.` : 'Kilos en proceso de pedido a Andrés.'}
+              {metrics.andresPendienteKilos > 0 ? `Andrés tiene ${metrics.andresPendienteKilos.toLocaleString('es-MX')} kg en producción por entregar.` : 'Kilos en proceso de producción con Andrés.'}
             </div>
           </div>
         </div>

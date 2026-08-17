@@ -114,7 +114,7 @@ export function SeguimientoPedidosTable({
     }
     switch (stage) {
       case '1_taller':
-        return <span className="chip" style={{ background: 'rgba(139,92,246,0.1)', color: '#7c3aed', borderColor: '#8b5cf6', fontWeight: 700, fontSize: 11 }}>🏭 En Taller</span>;
+        return <span className="chip" style={{ background: 'rgba(139,92,246,0.1)', color: '#7c3aed', borderColor: '#8b5cf6', fontWeight: 700, fontSize: 11 }}>🏭 En Producción</span>;
       case '2_almacen':
         return <span className="chip" style={{ background: 'rgba(245,158,11,0.1)', color: '#d97706', borderColor: '#f59e0b', fontWeight: 700, fontSize: 11 }}>🚚 Por Facturar</span>;
       case '3_sin_cr':
@@ -149,7 +149,7 @@ export function SeguimientoPedidosTable({
           onClick={() => handleChipClick('1_taller')}
           style={{ fontSize: 12, cursor: 'pointer' }}
         >
-          🏭 En Taller
+          🏭 En Producción
         </button>
         <button
           type="button"
@@ -249,11 +249,21 @@ export function SeguimientoPedidosTable({
                     <td>{f.cliente}</td>
                     <td style={{ fontSize: 12 }}>{fmtDate(f.fecha)}</td>
                     <td className="num">
-                      <KilosProgressBar
-                        deliveredKg={f.kilosEntregados}
-                        totalKg={f.kilosPedidos}
-                        compact
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <KilosProgressBar
+                          deliveredKg={f.kilosEntregados}
+                          totalKg={f.kilosPedidos}
+                          compact
+                        />
+                        <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
+                          {f.kilosEntregados === 0 
+                            ? `🏭 ${f.kilosPedidos.toLocaleString('es-MX')} kg en producción` 
+                            : f.kilosEntregados < f.kilosPedidos 
+                              ? `🚚 ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (${(f.kilosPedidos - f.kilosEntregados).toLocaleString('es-MX')} kg en prod.)` 
+                              : `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados`
+                          }
+                        </span>
+                      </div>
                     </td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{money(f.total)}</td>
                     <td className="num mono" style={{ fontWeight: 800, color: f.cobrado > 0 ? '#047857' : 'inherit' }}>

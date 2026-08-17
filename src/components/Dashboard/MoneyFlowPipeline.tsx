@@ -127,8 +127,8 @@ export function MoneyFlowPipeline({
     {
       key: '1_taller' as PipelineStageKey,
       step: '1',
-      title: '1. Pedido a Andrés',
-      sub: `${fmtKilos(data.kilosFabricando)} kg en fabricación`,
+      title: '1. En Producción (Andrés)',
+      sub: `${fmtKilos(data.kilosFabricando)} kg en maquila con Andrés`,
       countLabel: `${data.countFabricando} orden${data.countFabricando !== 1 ? 'es' : ''}`,
       monto: data.montoFabricandoAndres,
       icon: '🏭',
