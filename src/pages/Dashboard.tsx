@@ -744,10 +744,9 @@ return () => unsub();
         onOpenQuickCollection={() => setShowQuickCollection(true)}
       />
 
-      {/* ─── 3. PIPELINE VISUAL DEL FLUJO DEL DINERO ──────────────────────── */}
+      {/* ─── 3. PIPELINE VISUAL DEL FLUJO DE LA OC ──────────────────────── */}
       <MoneyFlowPipeline
-        orders={activeOrders}
-        purchases={purchases}
+        orders={seguimientoOrders}
         expenses={expenses}
         config={config}
         nav={nav}

@@ -1,133 +1,146 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { money } from '../../lib/format';
-import { computeCommissionFromInvoiceTotal, extractCr } from '../../lib/finance';
-import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../../lib/types';
+import { kilos as fmtKilos } from '../../lib/format';
+import { extractCr, round2 } from '../../lib/finance';
+import { ResponsiveMoney } from '../ui';
+import type { PurchaseOrder, Expense, FinancialConfig } from '../../lib/types';
 
 interface MoneyFlowPipelineProps {
   orders: PurchaseOrder[];
-  purchases: Purchase[];
   expenses: Expense[];
   config: FinancialConfig;
   nav: (path: string) => void;
 }
 
-export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: MoneyFlowPipelineProps) {
+export function MoneyFlowPipeline({ orders, expenses, config, nav }: MoneyFlowPipelineProps) {
   const data = useMemo(() => {
-    // 1. Andrés Fabricando (Kilos pendientes * $42)
     const costKg = config?.costPricePerKg || 42;
     const saleKg = config?.salePricePerKg || 43;
     const ivaRate = config?.ivaRate || 0.16;
 
-    const kilosEnTaller = purchases.reduce((acc, p) => {
-      const faltan = (p.expectedKilos || 0) - (p.receivedKilos || 0);
-      return acc + Math.max(0, faltan);
-    }, 0);
-    const montoEnTaller = kilosEnTaller * costKg;
-
-    // 2. Entregado en Providencia sin Facturar
+    let kilosFabricando = 0;
     let kilosEntregadosSinFacturar = 0;
     let montoSinContrarecibo = 0;
-    let montoConContador = 0;
+    let montoEnCreditoCR = 0;
 
     orders.forEach((o) => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      // Si la orden ya está totalmente concluida y cobrada, no ensucia el pipeline
+      if (o.client === 'MIGRACION') return;
       if (o.creditCycle?.status === 'collected') return;
 
+      const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 0;
       const deliveries = o.deliveries || [];
-      const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (d.kilos || 0), 0);
+      const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (Number(d.kilos) || 0), 0);
       const invoices = o.invoices || [];
-      const kilosFacturados = invoices.reduce((a: number, i: any) => a + (i.kilos || 0), 0);
+      const kilosFacturados = invoices.reduce((a: number, i: any) => a + (Number(i.kilos) || 0), 0);
 
+      // 1. Kilos que Andrés está fabricando (si la orden no fue cerrada por menos kilos)
+      if (!o.isClosedShort && totalKilos > kilosEntregados) {
+        kilosFabricando += (totalKilos - kilosEntregados);
+      }
+
+      // 2. Kilos entregados en báscula listos para facturar
       if (kilosEntregados > kilosFacturados) {
         kilosEntregadosSinFacturar += (kilosEntregados - kilosFacturados);
       }
 
+      // 3 y 4. Facturas emitidas (Sin CR vs Con CR)
       invoices.forEach((inv) => {
-        const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
-        const paidAmt = inv.collection?.paidAmount || 0;
+        const totalFactura = inv.financials?.invoiceTotal ?? round2((Number(inv.kilos) || 0) * saleKg * (1 + ivaRate));
+        const paidAmt = Number(inv.collection?.paidAmount) || 0;
+        const saldoFactura = Math.max(0, totalFactura - paidAmt);
         const cr = extractCr(inv, o);
         const st = inv.creditCycle?.status;
 
-        // Facturas emitidas sin CR que aún no han sido cobradas
-        if (!cr && st !== 'paid' && st !== 'collected' && paidAmt < totalFactura && totalFactura > 0) {
-          if (st === 'facturado' || st === 'manual_review' || (inv.folio && inv.folio.trim().length > 0)) {
-            montoSinContrarecibo += (totalFactura - paidAmt);
-          }
-        }
+        if (saldoFactura <= 0 || st === 'collected') return;
 
-        if (st === 'paid') {
-          const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
-          montoConContador += (totalFactura - comision);
+        if (!cr) {
+          // Factura emitida entregada a Providencia en espera de CR
+          if (st === 'facturado' || st === 'manual_review' || st === 'pending' || (inv.folio && inv.folio.trim().length > 0)) {
+            montoSinContrarecibo += saldoFactura;
+          }
+        } else {
+          // Factura con Contrarecibo oficial en plazo de crédito (30-60 días)
+          if (st === 'pending' || st === 'overdue' || st === 'facturado') {
+            montoEnCreditoCR += saldoFactura;
+          }
         }
       });
     });
 
-    const montoEntregadoSinFactura = kilosEntregadosSinFacturar * saleKg * (1 + ivaRate);
+    const montoFabricandoAndres = round2(kilosFabricando * costKg);
+    const montoAlmacenPorFacturar = round2(kilosEntregadosSinFacturar * saleKg * (1 + ivaRate));
 
-    // 5. Saldo en Caja Efectivo
-    const saldoCaja = expenses.reduce((acc, e) => {
+    // 5. Saldo en Caja Chica Líquido
+    const saldoCaja = round2(expenses.reduce((acc, e) => {
       return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
-    }, 0);
+    }, 0));
 
     return {
-      montoEnTaller,
-      montoEntregadoSinFactura,
-      montoSinContrarecibo,
-      montoConContador,
+      kilosFabricando,
+      montoFabricandoAndres,
+      kilosEntregadosSinFacturar,
+      montoAlmacenPorFacturar,
+      montoSinContrarecibo: round2(montoSinContrarecibo),
+      montoEnCreditoCR: round2(montoEnCreditoCR),
       saldoCaja,
     };
-  }, [orders, purchases, expenses, config]);
+  }, [orders, expenses, config]);
 
   const stages = useMemo(() => [
     {
       step: '1',
-      title: 'Andrés Fabricando',
-      monto: data.montoEnTaller,
+      title: '1. Pedido a Andrés',
+      sub: `${fmtKilos(data.kilosFabricando)} kg en fabricación`,
+      monto: data.montoFabricandoAndres,
       icon: '🏭',
       color: '#8b5cf6',
-      bg: 'rgba(139,92,246,0.1)',
-      border: '#8b5cf6',
+      bg: 'linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(124,58,237,0.14) 100%)',
+      border: 'rgba(139,92,246,0.3)',
       link: '/compras',
     },
     {
       step: '2',
-      title: 'Entregado s/Factura',
-      monto: data.montoEntregadoSinFactura,
-      icon: '📦',
+      title: '2. Almacén Providencia',
+      sub: `${fmtKilos(data.kilosEntregadosSinFacturar)} kg por facturar`,
+      monto: data.montoAlmacenPorFacturar,
+      icon: '🚚',
       color: '#f59e0b',
-      bg: 'rgba(245,158,11,0.1)',
-      border: '#f59e0b',
+      bg: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(217,119,6,0.14) 100%)',
+      border: 'rgba(245,158,11,0.3)',
       link: '/ordenes',
     },
     {
       step: '3',
-      title: 'En Espera de CR',
+      title: '3. Facturado (Sin CR)',
+      sub: 'En revisión de pago',
       monto: data.montoSinContrarecibo,
-      icon: '⏳',
+      icon: '🧾',
       color: '#ef4444',
-      bg: 'rgba(239,68,68,0.1)',
-      border: '#ef4444',
+      bg: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(220,38,38,0.14) 100%)',
+      border: 'rgba(239,68,68,0.3)',
       link: '/cobranza',
     },
     {
       step: '4',
-      title: 'Con el Contador',
-      monto: data.montoConContador,
-      icon: '💼',
+      title: '4. Con Contrarecibo',
+      sub: 'Crédito Providencia',
+      monto: data.montoEnCreditoCR,
+      icon: '🗂️',
       color: '#0ea5e9',
-      bg: 'rgba(14,165,233,0.1)',
-      border: '#0ea5e9',
-      link: '/caja-chica',
+      bg: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(2,132,199,0.14) 100%)',
+      border: 'rgba(14,165,233,0.3)',
+      link: '/cobranza',
     },
     {
       step: '5',
-      title: 'En Caja Efectivo',
+      title: '5. En Caja Chica',
+      sub: 'Efectivo disponible',
       monto: data.saldoCaja,
-      icon: '💰',
+      icon: '💵',
       color: '#10b981',
-      bg: 'rgba(16,185,129,0.15)',
-      border: '#10b981',
+      bg: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(5,150,105,0.2) 100%)',
+      border: 'rgba(16,185,129,0.4)',
       link: '/caja-chica',
     },
   ], [data]);
@@ -135,56 +148,80 @@ export function MoneyFlowPipeline({ orders, purchases, expenses, config, nav }: 
   return (
     <div
       role="region"
-      aria-label="Pipeline del flujo del dinero en el negocio"
+      aria-label="Pipeline Operativo de la Orden de Compra"
       style={{
-        background: 'var(--paper)',
+        background: 'var(--paper-raised, #ffffff)',
         border: '1px solid var(--line)',
-        borderRadius: 14,
-        padding: '16px 20px',
+        borderRadius: 18,
+        padding: '18px 22px',
         marginBottom: 24,
-        boxShadow: 'var(--shadow-soft)',
+        boxShadow: 'var(--shadow-sm, 0 4px 16px rgba(0,0,0,0.04))',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🌊</span> Pipeline del Flujo del Dinero
-          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-soft)' }}>
-            (Ciclo de capital desde taller hasta caja)
-          </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 20 }}>🌊</span>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 15, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
+              Pipeline Operativo de las Órdenes de Compra (OC)
+            </div>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--ink-soft)' }}>
+              El ciclo físico y financiero de cada pedido: desde la fabricación de Andrés hasta el dinero en Caja Chica.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, alignItems: 'stretch' }}>
         {stages.map((st) => (
           <motion.div
             key={st.step}
-            whileHover={{ scale: 1.02, y: -2 }}
+            whileHover={{ scale: 1.02, y: -3 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => nav(st.link)}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && nav(st.link)}
-            aria-label={`Paso ${st.step}: ${st.title}, ${money(st.monto)}`}
             style={{
               background: st.bg,
               border: `1px solid ${st.border}`,
-              borderRadius: 12,
-              padding: '12px 14px',
+              borderRadius: 14,
+              padding: '14px 16px',
               cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
               position: 'relative',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: 18 }}>{st.icon}</span>
-              <span style={{ fontSize: 10, fontWeight: 800, color: st.color, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>
-                PASO {st.step}
-              </span>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 22 }}>{st.icon}</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 900,
+                    color: st.color,
+                    background: 'rgba(255,255,255,0.2)',
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  PASO {st.step}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase' }}>
+                {st.title}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
+                {st.sub}
+              </div>
             </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
-              {st.title}
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 900, color: st.color, marginTop: 2, fontFamily: 'monospace' }}>
-              {money(st.monto)}
+
+            <div style={{ fontSize: 17, fontWeight: 900, color: st.color, marginTop: 12, fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
+              <ResponsiveMoney value={st.monto} />
             </div>
           </motion.div>
         ))}
