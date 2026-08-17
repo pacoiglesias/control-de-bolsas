@@ -50,6 +50,46 @@ export function normalizarTexto(s: string | null | undefined): string {
   return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
+/**
+ * Determina de forma inteligente si una orden pertenece a un departamento específico (ej. TH o GT).
+ * Analiza el campo explícito `department`, prefijos en contrarecibos (ej. TH-912, GT-742),
+ * sufijos en nombre de cliente (ej. "Providencia - TH"), y folios de OC.
+ */
+export function orderMatchesDepartment(o: PurchaseOrder | any, targetDept: string): boolean {
+  if (!targetDept || targetDept === 'ALL') return true;
+  if (!o) return false;
+  const target = targetDept.trim().toUpperCase();
+
+  // 1. Campo explícito en la orden
+  if (o.department && typeof o.department === 'string') {
+    const d = o.department.trim().toUpperCase();
+    if (d === target || d.includes(target)) return true;
+  }
+
+  // 2. Contrarecibos a nivel de orden o de factura
+  const orderCr = (o.collection?.contrareciboNumber || '').trim().toUpperCase();
+  if (orderCr.startsWith(target) || orderCr.includes(target)) return true;
+
+  if (Array.isArray(o.invoices)) {
+    for (const inv of o.invoices) {
+      const invCr = (inv.collection?.contrareciboNumber || '').trim().toUpperCase();
+      if (invCr.startsWith(target) || invCr.includes(target)) return true;
+      const invFolio = (inv.folio || '').trim().toUpperCase();
+      if (invFolio.startsWith(target)) return true;
+    }
+  }
+
+  // 3. Nombre del cliente (ej. "Providencia - TH" o "Providencia GT")
+  const clientStr = (o.client || '').trim().toUpperCase();
+  if (clientStr.includes(`- ${target}`) || clientStr.includes(` ${target}`) || clientStr.endsWith(target)) return true;
+
+  // 4. Folio o número de OC
+  const ocStr = (o.oc || o.folio || '').trim().toUpperCase();
+  if (ocStr.startsWith(target) || ocStr.includes(`-${target}-`)) return true;
+
+  return false;
+}
+
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date.getTime());
   d.setDate(d.getDate() + days);

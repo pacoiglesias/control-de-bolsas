@@ -41,7 +41,7 @@ import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
 import { MagicPasteModal } from '../components/MagicPasteModal';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
-import { getOrderSummary } from '../lib/finance';
+import { getOrderSummary, orderMatchesDepartment } from '../lib/finance';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 
@@ -261,7 +261,7 @@ return () => unsub();
     // Filter global orders exactly as the original query did, PLUS by department
     const activeOrders = useMemo(() => {
       return globalOrders.filter((o: PurchaseOrder) => {
-        const passDept = deptFilter === 'ALL' || o.department === deptFilter;
+        const passDept = orderMatchesDepartment(o, deptFilter);
         const passStatus = o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s));
         return passDept && passStatus;
       });
@@ -275,10 +275,10 @@ return () => unsub();
     // invisible en esta tabla hasta la primera factura, contradiciendo el
     // proposito de la pantalla ("OC, Entregas, Pagos y Cobros").
     const seguimientoOrders = useMemo(() => {
-      return globalOrders.filter((o: PurchaseOrder) => deptFilter === 'ALL' || o.department === deptFilter);
+      return globalOrders.filter((o: PurchaseOrder) => orderMatchesDepartment(o, deptFilter));
     }, [globalOrders, deptFilter]);
 
-  const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses);
+  const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
 
   // El contador de "Vencido" del agregado del servidor cuenta EXPEDIENTES,
   // no contrarecibos — correcto casi siempre (un expediente = una factura),
@@ -625,8 +625,8 @@ return () => unsub();
             <span style={{ fontSize: 14 }}>⚖️</span>
             <div>
               <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con Andrés</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#fbbf24' }}>
-                {money(config?.historicalDebtAndres || -123175.56)}
+              <div style={{ fontSize: 14, fontWeight: 900, color: k.deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
+                {money(k.deudaAndres)}
               </div>
             </div>
           </div>
