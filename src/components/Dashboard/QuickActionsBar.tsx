@@ -283,7 +283,7 @@ export function QuickActionsBar({
               cursor: 'pointer',
             }}
           >
-            <span style={{ fontSize: 15 }}>🏭</span> Portal Andrés
+            <span style={{ fontSize: 15 }}>🏭</span> Portal Maquilador
           </motion.a>
         )}
 
