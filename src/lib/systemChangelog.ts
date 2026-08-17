@@ -8,6 +8,20 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.6.0 Providencia Financial Core & Official Reconciliation Suite',
+    date: '18 de Agosto de 2026',
+    time: '01:05 AM',
+    summary: 'Calibración oficial de corte financiero, filtrado inteligente departamental TH/GT, sincronización de 10 contrarecibos oficiales y blindaje contable estricto',
+    highlights: [
+      'Filtrado Inteligente TH / GT en Dashboard Maestro: Resolución contextual por departamento, prefijo de contrarecibo (TH-xxx, GT-xxx) y sufijo de cliente con recálculo dinámico en vivo ($584,400.42 en TH y $435,555.92 en GT).',
+      'Calibración Oficial de Saldo Andrés (-$102,670.27): Sincronización del saldo vivo de corte con auto-calibración al inicio y eliminación de cálculos históricos sintéticos.',
+      'Sincronizador Oficial de 10 Contrarecibos Providencia: Integración en 1 clic de los 10 CRs oficiales ($1,019,956.34) y la Factura #6167 en revisión ($81,780.00).',
+      'Erradicación de Botones Informales de WhatsApp: Sustitución por acciones corporativas de portapapeles con formato formal y rutas nativas del ERP.',
+      'Estandarización Corporativa "Portal Maquilador": Nomenclatura unificada en menú, accesos rápidos y paleta de comandos para admitir cualquier proveedor/taller.',
+      'Blindaje Matemático Automatizado (62 Pruebas Unitarias): Pruebas automáticas que validan al centavo los desgloses de comisiones (8%), IVA (16%), costos ($42/$43) y filtros departamentales.',
+    ],
+  },
+  {
     version: 'v8.5.0 Enterprise Financial PDF Suite & Executive Glassmorphism Edition',
     date: '18 de Agosto de 2026',
     time: '12:20 AM',

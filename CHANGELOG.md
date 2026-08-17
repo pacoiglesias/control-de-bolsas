@@ -1,6 +1,16 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v7.0.2] - 7 Agosto 2026 (URGENTE: Portal del Maquilador -- error al cargar ordenes)
+## [v8.6.0] - 18 Agosto 2026 (Providencia Financial Core & Official Reconciliation Suite)
+
+### Agregado y Calibrado
+- **Calibración Oficial de Saldo Andrés (-$102,670.27):** Sincronización del saldo vivo de corte con auto-calibración al inicio y eliminación de cálculos históricos sintéticos.
+- **Filtrado Inteligente TH / GT en Dashboard Maestro:** Resolución contextual por departamento, prefijo de contrarecibo (`TH-xxx`, `GT-xxx`) y cliente, con recálculo en vivo ($584,400.42 en TH y $435,555.92 en GT).
+- **Sincronizador Oficial de 10 Contrarecibos:** Conciliación en 1 clic de los 10 CRs oficiales ($1,019,956.34) y la Factura #6167 en revisión ($81,780.00).
+- **Estandarización Corporativa "Portal Maquilador":** Nomenclatura unificada en toda la aplicación para admitir cualquier taller o proveedor.
+- **Erradicación de Botones Informales:** Sustitución por acciones corporativas de portapapeles y navegación nativa.
+- **Blindaje Matemático Automatizado:** 62 pruebas unitarias automatizadas (`npm test`) validando cálculos financieros al centavo.
+
+## [v8.5.0] - 18 Agosto 2026 (Enterprise Financial PDF Suite & Executive Glassmorphism Edition)
 
 ### Corregido -- critico
 - La funcion del servidor que carga las ordenes del Portal del Maquilador consultaba por un campo (isArchived) que probablemente aun no tiene indice de Firestore creado, causando que la consulta fallara directamente ("Error al cargar ordenes") en vez de solo mostrar datos incompletos. Corregido para no depender de ese indice.
