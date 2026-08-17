@@ -21,6 +21,8 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveF
     let totalKilosEntregados = 0;
     let totalKilosFacturados = 0;
     let facturasCobradas = 0;
+    let costoAndresTotal = 0;
+    let comisionContableTotal = 0;
 
     orders.forEach(o => {
       if (o.isClosedShort || o.client === 'MIGRACION') return;
@@ -33,17 +35,29 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveF
         const kg = Number(inv.kilos) || 0;
         totalKilosFacturados += kg;
         
-        const invSubtotal = (inv.financials as any)?.subtotal ?? inv.financials?.saleTotal ?? (kg * (config?.salePricePerKg || 43));
+        // Precio de venta histórico congelado de la factura o de la orden
+        const effectiveSalePrice = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config?.salePricePerKg || 43);
+        const invSubtotal = (inv.financials as any)?.subtotal ?? inv.financials?.saleTotal ?? round2(kg * effectiveSalePrice);
         subtotalFacturado += invSubtotal;
 
+        // Costo de compra histórico congelado a Andrés de la factura o de la orden
+        const effectiveCostPrice = inv.financials?.costPricePerKg ?? (Number(o.customCostPrice) || config?.costPricePerKg || 42);
+        const invCost = inv.financials?.costTotal ?? round2(kg * effectiveCostPrice);
+        costoAndresTotal += invCost;
+
+        // Comisión contable histórica congelada
+        const effectiveCommRate = inv.financials?.commissionRate ?? (Number(o.customCommissionRate) ? Number(o.customCommissionRate) / 100 : (config?.commissionRate || 0.08));
+        const invComm = inv.financials?.commission ?? round2(invSubtotal * effectiveCommRate);
+        comisionContableTotal += invComm;
+
         if (inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected') {
-          facturasCobradas += (inv.financials?.invoiceTotal ?? (invSubtotal * 1.16));
+          facturasCobradas += (inv.financials?.invoiceTotal ?? round2(invSubtotal * 1.16));
         }
       });
     });
 
-    const costoAndres = round2(totalKilosFacturados * (config?.costPricePerKg || 42));
-    const comisionContable = round2(subtotalFacturado * (config?.commissionRate || 0.08));
+    const costoAndres = round2(costoAndresTotal);
+    const comisionContable = round2(comisionContableTotal);
     const utilidadReal = round2(subtotalFacturado - costoAndres - comisionContable);
     const repartoPaco = round2(utilidadReal / 2);
     const repartoSocio = round2(utilidadReal / 2);

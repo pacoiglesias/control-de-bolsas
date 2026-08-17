@@ -29,9 +29,11 @@ export function MoneyFlowPipeline({
     const ivaRate = config?.ivaRate || 0.16;
 
     let kilosFabricando = 0;
+    let montoFabricandoTotal = 0;
     let countFabricando = 0;
 
     let kilosEntregadosSinFacturar = 0;
+    let montoAlmacenTotal = 0;
     let countAlmacen = 0;
 
     let montoSinContrarecibo = 0;
@@ -44,6 +46,9 @@ export function MoneyFlowPipeline({
       if (o.client === 'MIGRACION') return;
       if (o.creditCycle?.status === 'collected') return;
 
+      const orderCostKg = Number(o.customCostPrice) || o.invoices?.[0]?.financials?.costPricePerKg || costKg;
+      const orderSaleKg = Number(o.customSellPrice) || o.invoices?.[0]?.financials?.salePricePerKg || saleKg;
+
       const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 0;
       const deliveries = o.deliveries || [];
       const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (Number(d.kilos) || 0), 0);
@@ -52,19 +57,24 @@ export function MoneyFlowPipeline({
 
       // 1. Kilos que Andrés está fabricando
       if (!o.isClosedShort && totalKilos > kilosEntregados) {
-        kilosFabricando += (totalKilos - kilosEntregados);
+        const kgFab = (totalKilos - kilosEntregados);
+        kilosFabricando += kgFab;
+        montoFabricandoTotal += (kgFab * orderCostKg);
         countFabricando++;
       }
 
       // 2. Kilos entregados en báscula listos para facturar
       if (kilosEntregados > kilosFacturados) {
-        kilosEntregadosSinFacturar += (kilosEntregados - kilosFacturados);
+        const kgAlm = (kilosEntregados - kilosFacturados);
+        kilosEntregadosSinFacturar += kgAlm;
+        montoAlmacenTotal += (kgAlm * orderSaleKg * (1 + ivaRate));
         countAlmacen++;
       }
 
       // 3 y 4. Facturas emitidas (Sin CR vs Con CR)
       invoices.forEach((inv) => {
-        const totalFactura = inv.financials?.invoiceTotal ?? round2((Number(inv.kilos) || 0) * saleKg * (1 + ivaRate));
+        const invSalePrice = inv.financials?.salePricePerKg ?? orderSaleKg;
+        const totalFactura = inv.financials?.invoiceTotal ?? round2((Number(inv.kilos) || 0) * invSalePrice * (1 + ivaRate));
         const paidAmt = Number(inv.collection?.paidAmount) || 0;
         const saldoFactura = Math.max(0, totalFactura - paidAmt);
         const cr = extractCr(inv, o);
@@ -86,8 +96,8 @@ export function MoneyFlowPipeline({
       });
     });
 
-    const montoFabricandoAndres = round2(kilosFabricando * costKg);
-    const montoAlmacenPorFacturar = round2(kilosEntregadosSinFacturar * saleKg * (1 + ivaRate));
+    const montoFabricandoAndres = round2(montoFabricandoTotal);
+    const montoAlmacenPorFacturar = round2(montoAlmacenTotal);
 
     // 5. Saldo en Caja Chica Líquido
     const saldoCaja = round2(expenses.reduce((acc, e) => {
