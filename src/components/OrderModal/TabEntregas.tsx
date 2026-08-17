@@ -222,12 +222,61 @@ export default function TabEntregas() {
                             }}
                             disabled={readOnly || d.invoiced}
                           />
+
+                          {/* Selector Tipo de Documento: Remisión vs Factura */}
+                          <div style={{ display: 'inline-flex', borderRadius: 6, border: '1px solid var(--line)', overflow: 'hidden' }}>
+                            <button
+                              type="button"
+                              onClick={() => !d.invoiced && !readOnly && updateDelivery(i, 'docType', 'remision')}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: 'none',
+                                background: (!d.docType || d.docType === 'remision') ? '#3b82f6' : 'var(--paper-sunk)',
+                                color: (!d.docType || d.docType === 'remision') ? '#fff' : 'var(--ink-soft)',
+                                cursor: d.invoiced || readOnly ? 'default' : 'pointer',
+                              }}
+                              title="Entrega amparada con Remisión de Báscula / Prefactura"
+                            >
+                              📋 Remisión
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => !d.invoiced && !readOnly && updateDelivery(i, 'docType', 'factura')}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: 'none',
+                                background: d.docType === 'factura' ? '#059669' : 'var(--paper-sunk)',
+                                color: d.docType === 'factura' ? '#fff' : 'var(--ink-soft)',
+                                cursor: d.invoiced || readOnly ? 'default' : 'pointer',
+                              }}
+                              title="Entrega amparada con Factura Fiscal Directa"
+                            >
+                              📄 Factura
+                            </button>
+                          </div>
+
+                          {/* Folio de la Remisión / Factura */}
+                          <input
+                            type="text"
+                            className="input boxed mono"
+                            placeholder={d.docType === 'factura' ? 'Folio Factura' : 'Folio Remisión / Báscula'}
+                            defaultValue={d.docFolio || ''}
+                            onBlur={e => updateDelivery(i, 'docFolio', e.target.value)}
+                            disabled={readOnly || d.invoiced}
+                            style={{ width: 140, fontSize: 12 }}
+                            title="Folio o número de documento de entrega de Andrés"
+                          />
+
                           {d.invoiced ? (
                             <span className="badge" style={{ background: 'var(--ok)' }}>✅ Facturada</span>
                           ) : (
                             <span className="badge" style={{ background: 'var(--warn)' }}>📝 Pendiente de facturar</span>
                           )}
-                          <strong className="mono">{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
+                          <strong className="mono" style={{ fontSize: 13 }}>{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           {!readOnly && !d.invoiced && kilosDeEsta > 0 && (

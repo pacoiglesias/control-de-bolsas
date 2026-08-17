@@ -138,6 +138,11 @@ export interface Delivery {
   /** A qué factura quedó ligada, una vez facturada. */
   invoiceId?: string;
   notes?: string;
+  docType?: 'remision' | 'factura';
+  docFolio?: string;
+  driver?: string;
+  packagesCount?: number;
+  photoUrl?: string;
 }
 
 export interface Invoice {

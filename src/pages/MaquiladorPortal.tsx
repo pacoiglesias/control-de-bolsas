@@ -229,6 +229,8 @@ export default function MaquiladorPortal() {
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [orderId, setOrderId] = useState('');
   const [kilos, setKilos] = useState('');
+  const [docType, setDocType] = useState<'remision' | 'factura'>('remision');
+  const [docFolio, setDocFolio] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'entrega' | 'estado' | 'historial'>('entrega');
@@ -373,6 +375,8 @@ export default function MaquiladorPortal() {
         folio: selectedOrder.folio,
         productDescription: selectedOrder.productDescription,
         kilos: numKilos,
+        docType,
+        docFolio: docFolio.trim() || null,
         notes: deliveryNotes.trim() || null,
         status: requiresApproval ? 'pending_approval' : 'pending',
         date: new Date().toISOString(),
@@ -390,6 +394,8 @@ export default function MaquiladorPortal() {
         folio: selectedOrder.folio,
         product: selectedOrder.productDescription,
         kilos: numKilos,
+        docType,
+        docFolio: docFolio.trim(),
         notes: deliveryNotes.trim(),
       });
 
@@ -402,6 +408,7 @@ export default function MaquiladorPortal() {
 
       toast(`💾 Guardado localmente (Sin Internet). Se sincronizará en automático al detectar red.`, 'ok');
       setKilos('');
+      setDocFolio('');
       setDeliveryNotes('');
       setOrderId('');
       setSaving(false);
@@ -415,6 +422,8 @@ export default function MaquiladorPortal() {
         folio: selectedOrder.folio,
         productDescription: selectedOrder.productDescription,
         kilos: numKilos,
+        docType,
+        docFolio: docFolio.trim() || null,
         notes: deliveryNotes.trim() || null,
         status: requiresApproval ? 'pending_approval' : 'pending',
         createdAt: serverTimestamp(),
@@ -433,6 +442,8 @@ export default function MaquiladorPortal() {
         folio: selectedOrder.folio,
         productDescription: selectedOrder.productDescription,
         kilos: numKilos,
+        docType,
+        docFolio: docFolio.trim(),
         notes: deliveryNotes.trim(),
         date: new Date().toISOString(),
         status: requiresApproval ? 'pending_approval' : 'pending',
@@ -446,6 +457,8 @@ export default function MaquiladorPortal() {
         folio: selectedOrder.folio,
         product: selectedOrder.productDescription,
         kilos: numKilos,
+        docType,
+        docFolio: docFolio.trim(),
         notes: deliveryNotes.trim(),
       });
 
@@ -1330,10 +1343,68 @@ export default function MaquiladorPortal() {
                   )}
                 </div>
 
+                {/* Tipo de Documento: Remisión vs Factura */}
+                <div>
+                  <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: 6, fontWeight: 600 }}>
+                    Documento con el que entregas:
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setDocType('remision')}
+                      style={{
+                        padding: '10px',
+                        borderRadius: 10,
+                        border: docType === 'remision' ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.12)',
+                        background: docType === 'remision' ? 'rgba(167, 139, 250, 0.25)' : 'rgba(255,255,255,0.06)',
+                        color: '#fff',
+                        fontWeight: 800,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📋 Remisión / Báscula
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDocType('factura')}
+                      style={{
+                        padding: '10px',
+                        borderRadius: 10,
+                        border: docType === 'factura' ? '2px solid #34d399' : '1px solid rgba(255,255,255,0.12)',
+                        background: docType === 'factura' ? 'rgba(52, 211, 153, 0.25)' : 'rgba(255,255,255,0.06)',
+                        color: '#fff',
+                        fontWeight: 800,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📄 Factura
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={docFolio}
+                    onChange={(e) => setDocFolio(e.target.value)}
+                    placeholder={docType === 'factura' ? 'Folio o Número de Factura (ej. 1420)' : 'Folio de Remisión o Ticket (ej. REM-890)'}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '12px 14px',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 13,
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
                 {/* Input de Nota / Chofer Opcional */}
                 <div>
                   <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>
-                    Nota u observaciones (Opcional):
+                    Nota u observaciones / Chofer (Opcional):
                   </label>
                   <input
                     type="text"
