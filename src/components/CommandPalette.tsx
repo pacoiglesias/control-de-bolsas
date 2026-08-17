@@ -4,6 +4,8 @@ import { usePurchases } from '../hooks/usePurchases';
 import { useNavigate } from 'react-router-dom';
 import { money } from '../lib/format';
 
+import { extractCr } from '../lib/finance';
+
 export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -68,11 +70,26 @@ export function CommandPalette() {
   let results: any[] = [];
 
   if (q) {
-    const matchedOrders = orders.filter(
-      (o) =>
-        o.folio?.toLowerCase().includes(q) ||
-        o.client?.toLowerCase().includes(q)
-    ).map(o => ({ type: 'order', id: o.id, label: `OC ${o.folio}`, desc: o.client, val: o.totalKilograms ? `${o.totalKilograms} kg` : '' }));
+    const matchedOrders = orders.filter((o) => {
+      const matchFolio = o.folio?.toLowerCase().includes(q);
+      const matchOc = (o as any).oc?.toLowerCase().includes(q);
+      const matchClient = o.client?.toLowerCase().includes(q);
+      const matchDept = o.department?.toLowerCase().includes(q);
+      const matchInv = (o.invoices || []).some(inv => (inv.folio || '').toLowerCase().includes(q));
+      const matchCr = (o.invoices || []).some(inv => (extractCr(inv, o) || '').toLowerCase().includes(q)) || (extractCr(undefined, o) || '').toLowerCase().includes(q);
+      const matchItems = (o.items || []).some(it => (it.description || '').toLowerCase().includes(q) || (it.code || '').toLowerCase().includes(q));
+      return matchFolio || matchOc || matchClient || matchDept || matchInv || matchCr || matchItems;
+    }).map(o => {
+      const cr = (o.invoices || []).map(inv => extractCr(inv, o)).find(Boolean) || extractCr(undefined, o);
+      const facs = (o.invoices || []).map(i => `#${i.folio}`).filter(f => f !== '#').join(', ');
+      return {
+        type: 'order',
+        id: o.id,
+        label: `OC ${o.folio || (o as any).oc || 'S/N'}${cr ? ` · CR: ${cr}` : ''}`,
+        desc: `${o.client || 'Providencia'}${facs ? ` · Facturas: ${facs}` : ''}`,
+        val: o.totalKilograms ? `${o.totalKilograms.toLocaleString('es-MX')} kg` : ''
+      };
+    });
 
     const matchedPurchases = purchases.filter(
       (p) =>

@@ -91,14 +91,20 @@ export async function exportTotalBusinessBackupExcel() {
     const kilosEntregados = deliveries.reduce((a: number, del: any) => a + (del.kilos || 0), 0);
     const kilosPendientes = Math.max(0, totalKilos - kilosEntregados);
 
+    const partidasStr = (o.items || [])
+      .map((it: any) => `${it.description || it.code || 'Bolsa'} (${it.quantity || 0} kg @ $${it.unitPrice || 43})`)
+      .join(' | ');
+
     ordersData.push({
       FolioOC: o.folio || o.oc || 'S/N',
       Cliente: o.client || 'Grupo Textil Providencia',
+      Departamento: o.department || '',
+      PartidasProductos: partidasStr,
       FechaEstimadaEntrega: o.estimatedDeliveryDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
       KilosPedidos: totalKilos,
       KilosEntregados: kilosEntregados,
       KilosPendientes: kilosPendientes,
-      EstatusEntrega: kilosPendientes === 0 && totalKilos > 0 ? '100% Surtido' : 'En Proceso',
+      EstatusEntrega: o.isClosedShort ? 'Concluido (Cierre Corto)' : (kilosPendientes === 0 && totalKilos > 0 ? '100% Surtido' : 'En Proceso'),
       ID_EXPEDIENTE: d.id,
     });
 
@@ -112,10 +118,16 @@ export async function exportTotalBusinessBackupExcel() {
       const issueObj = toDate(inv.creditCycle?.issueDate);
       const dueObj = toDate(inv.creditCycle?.dueDate);
 
+      const itemsFacturaStr = (inv.items || [])
+        .map((it: any) => `${it.description || it.code || 'Partida'} (${it.quantity || 0} kg @ $${it.unitPrice || 43})`)
+        .join(' | ');
+
       invoicesData.push({
         FacturaFolio: inv.folio || 'S/N',
         FolioOC: o.folio || o.oc || 'S/N',
+        Cliente: o.client || 'Grupo Textil Providencia',
         Contrarecibo: cr,
+        ConceptosFacturados: itemsFacturaStr || `${inv.kilos || 0} kg`,
         FechaEmision: issueObj ? issueObj.toLocaleDateString('es-MX') : '',
         FechaVencimientoCR: dueObj ? dueObj.toLocaleDateString('es-MX') : '',
         KilosAmparados: inv.kilos || 0,
