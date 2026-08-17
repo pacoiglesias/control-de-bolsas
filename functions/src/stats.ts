@@ -55,7 +55,7 @@ export function extractStats(data: any): Record<string, any> {
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   const ahora = Date.now();
   
-  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
+  if (!data || data.isDeleted) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
@@ -472,6 +472,7 @@ export const recalcDashboardStats = onCall(
 
       for (const doc of snap.docs) {
         const data = doc.data();
+        if (data.isDeleted) continue;
         const s = extractStats(data);
         
         applyData(globalStats, s);

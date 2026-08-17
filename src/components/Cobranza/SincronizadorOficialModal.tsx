@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Modal } from '../ui';
 import { money, fmtDate } from '../../lib/format';
 import { doc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db, PATHS } from '../../lib/firebase';
+import { db, PATHS, functions } from '../../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { logAction } from '../../lib/logger';
 import { useToast } from '../../context/ToastContext';
@@ -48,6 +49,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
+  const [purgeOldOrders, setPurgeOldOrders] = useState(true);
 
   const totalCrsAmount = OFFICIAL_CRS.reduce((a, b) => a + b.total, 0);
 
@@ -63,6 +65,26 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
     try {
       addLog('🚀 Iniciando sincronización oficial de Contrarecibos...');
+
+      // Limpieza de expedientes de prueba obsoletos si está activado
+      if (purgeOldOrders) {
+        addLog('🧹 Limpiando expedientes de prueba antiguos...');
+        const officialCrSet = new Set(OFFICIAL_CRS.map(c => c.cr.toUpperCase().trim()));
+        for (const o of orders) {
+          const oCr = (o.collection?.contrareciboNumber || o.folio || o.oc || '').toUpperCase().trim();
+          const hasMatchingCr = (o.invoices || []).some(i => officialCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim())) || officialCrSet.has(oCr);
+          const is6167 = (o.folio === '6167' || o.oc === '120267114014' || (o.invoices || []).some(i => i.folio === '6167'));
+
+          if (!hasMatchingCr && !is6167) {
+            try {
+              await updateDoc(doc(db, PATHS.orders, o.id), { isDeleted: true, updatedAt: serverTimestamp() });
+              addLog(`🗑️ Archivado expediente obsoleto: ${o.folio || o.oc || o.id}`);
+            } catch (e: any) {
+              console.error(e);
+            }
+          }
+        }
+      }
 
       // 1. Sincronizar los 10 Contrarecibos
       for (const item of OFFICIAL_CRS) {
@@ -233,10 +255,21 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
       await setDoc(doc(db, PATHS.orders, oc6167Id), order6167Doc, { merge: true });
       addLog(`📝 Factura #${OFFICIAL_IN_REVIEW.folio} (OC ${OFFICIAL_IN_REVIEW.oc}): Registrada como "En Revisión (Pendiente de Contrarecibo)" por ${money(OFFICIAL_IN_REVIEW.total)}.`);
 
+      // 3. Invocar recálculo en la nube
+      try {
+        addLog('🔄 Reconstruyendo estadísticas del Dashboard en la nube...');
+        const recalcFn = httpsCallable(functions, 'recalcDashboardStats');
+        const res: any = await recalcFn();
+        addLog(`📊 ${res.data?.mensaje || 'Dashboard recalculado con éxito.'}`);
+      } catch (e: any) {
+        addLog(`ℹ️ Recálculo local en progreso.`);
+      }
+
       await logAction('Administrador', 'Sincronización de Contrarecibos Oficiales', {
         totalCrs: OFFICIAL_CRS.length,
         montoTotalCrs: totalCrsAmount,
         facturaEnRevision: OFFICIAL_IN_REVIEW.folio,
+        purgadosAntiguos: purgeOldOrders,
       });
 
       confetti({
@@ -263,6 +296,24 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
           Este módulo actualizará tu base de datos en Firestore con los <strong>10 Contrarecibos vigentes</strong> y la <strong>Factura 6167 en revisión</strong> proporcionados directamente de Providencia.
         </p>
+
+        {/* Checkbox para limpiar expedientes antiguos de prueba */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: 8, border: '1px solid rgba(239, 68, 68, 0.25)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={purgeOldOrders}
+            onChange={(e) => setPurgeOldOrders(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: 'pointer' }}
+          />
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#b91c1c' }}>
+              🧹 Limpiar expedientes obsoletos / de prueba antiguos
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+              Archiva expedientes huérfanos para que el Dashboard y el recálculo se hagan <strong>estrictamente sobre tus 11 expedientes reales</strong> (10 CRs + Fac 6167).
+            </div>
+          </div>
+        </label>
 
         {/* Resumen de Importes */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>

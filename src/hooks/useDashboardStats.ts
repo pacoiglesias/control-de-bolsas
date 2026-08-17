@@ -37,6 +37,46 @@ export function useDashboardStats(
       liveMargenTotal = calculateLiveMargenTotal(activeOrders, config.costPricePerKg);
     }
 
+    // Cálculo en vivo directo de Por Cobrar y Vencidos desde las órdenes reales
+    let livePorCobrar = 0;
+    let livePorCobrarConCR = 0;
+    let livePorCobrarSinCR = 0;
+    let liveVencido = 0;
+    const now = Date.now();
+
+    activeOrders.forEach(o => {
+      if (o.isClosedShort) return;
+      (o.invoices || []).forEach(inv => {
+        const st = inv.creditCycle?.status;
+        if (st === 'pending' || st === 'overdue' || st === 'facturado') {
+          const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+          livePorCobrar += amt;
+          const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+          if (cr) {
+            livePorCobrarConCR += amt;
+          } else {
+            livePorCobrarSinCR += amt;
+          }
+          const rawDue = inv.creditCycle?.dueDate as any;
+          let dueTime: number | null = null;
+          if (rawDue) {
+            if (typeof rawDue.toMillis === 'function') dueTime = rawDue.toMillis();
+            else if (typeof rawDue.toDate === 'function') dueTime = rawDue.toDate().getTime();
+            else if (rawDue instanceof Date) dueTime = rawDue.getTime();
+            else { const d = new Date(rawDue); if (!isNaN(d.getTime())) dueTime = d.getTime(); }
+          }
+          if (dueTime && dueTime < now) {
+            liveVencido += amt;
+          }
+        }
+      });
+    });
+
+    const effectivePorCobrar = livePorCobrar > 0 ? livePorCobrar : (kpis.porCobrar || 0);
+    const effectivePorCobrarConCR = livePorCobrar > 0 ? livePorCobrarConCR : (kpis.porCobrarConCR || 0);
+    const effectivePorCobrarSinCR = livePorCobrar > 0 ? livePorCobrarSinCR : (kpis.porCobrarSinCR || 0);
+    const effectiveVencido = livePorCobrar > 0 ? liveVencido : (kpis.vencido || 0);
+
     // Ganancia por Cobros NO tiene respaldo en vivo: la consulta de
     // activeOrders excluye a proposito el estatus 'collected' (mas abajo),
     // asi que un recalculo en el navegador nunca veria las facturas que mas
@@ -44,7 +84,7 @@ export function useDashboardStats(
     // servidor, que si recorre todos los expedientes.
     let liveGananciaRealizada = kpis.gananciaRealizadaTotal || 0;
 
-    const deudaTotalProvidencia = (kpis.porCobrar || 0) + (kpis.montoPendienteFacturar || 0);
+    const deudaTotalProvidencia = (effectivePorCobrar || 0) + (kpis.montoPendienteFacturar || 0);
     const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config);
     const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
 
@@ -152,6 +192,10 @@ export function useDashboardStats(
 
     return {
       ...kpis,
+      porCobrar: round2(effectivePorCobrar),
+      porCobrarConCR: round2(effectivePorCobrarConCR),
+      porCobrarSinCR: round2(effectivePorCobrarSinCR),
+      vencido: round2(effectiveVencido),
       ventasTotal: round2(liveVentas),
       kilosTotal: liveKilosTotal,
       facturasEmitidas: liveFacturasEmitidas,

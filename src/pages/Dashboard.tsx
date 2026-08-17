@@ -43,6 +43,8 @@ import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
 import { getOrderSummary } from '../lib/finance';
 
+import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
+
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
 const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
@@ -88,6 +90,7 @@ export default function Dashboard() {
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
+  const [showSincronizador, setShowSincronizador] = useState(false);
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
 
   // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp, R = Recalcular)
@@ -571,6 +574,20 @@ return () => unsub();
             <button
               className="btn btn-primary"
               style={{
+                background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 800,
+                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+              }}
+              onClick={() => setShowSincronizador(true)}
+              title="Sincronizar 10 Contrarecibos Oficiales y Factura 6167"
+            >
+              ⚡ Sincronizar 10 Contrarecibos
+            </button>
+            <button
+              className="btn btn-primary"
+              style={{
                 background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
                 border: 'none',
                 color: '#fff',
@@ -1009,6 +1026,13 @@ return () => unsub();
 
         {showMagicPaste && (
           <MagicPasteModal onClose={() => setShowMagicPaste(false)} />
+        )}
+
+        {showSincronizador && (
+          <SincronizadorOficialModal
+            orders={globalOrders}
+            onClose={() => setShowSincronizador(false)}
+          />
         )}
       </Suspense>
 
