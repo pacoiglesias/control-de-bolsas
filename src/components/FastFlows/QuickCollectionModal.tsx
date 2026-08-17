@@ -7,42 +7,119 @@ import { useOrders } from '../../hooks/useOrders';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { playCashRegisterSound } from '../../lib/soundEffects';
 import { Modal } from '../ui';
-import type { PurchaseOrder } from '../../lib/types';
-import { money, nombreClienteVisible } from '../../lib/format';
+import type { PurchaseOrder, Invoice } from '../../lib/types';
+import { money, nombreClienteVisible, toInputDate, fromInputDate, kilos as fmtKilos } from '../../lib/format';
+import { extractCr, round2 } from '../../lib/finance';
 import { findDuplicateContrarecibo } from '../../lib/duplicateGuards';
+
+interface PendingInvoiceItem {
+  orderId: string;
+  orderFolio: string;
+  client: string;
+  department?: string;
+  invoice: Invoice;
+  total: number;
+  kilos: number;
+}
 
 export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
   const toast = useToast();
   const { orders: allOrders } = useOrders();
-  
-  // Facturas pendientes (sin CR asignado)
-  const pendingInvoices = useMemo(() => {
-    const list: { order: PurchaseOrder, inv: any }[] = [];
+
+  // Facturas pendientes (sin CR asignado y vivas)
+  const pendingInvoices = useMemo<PendingInvoiceItem[]>(() => {
+    const list: PendingInvoiceItem[] = [];
     orders.forEach(o => {
+      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      if (o.creditCycle?.status === 'collected') return;
+
       (o.invoices || []).forEach(inv => {
-        const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
-        if ((inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'facturado') && !cr) {
-          list.push({ order: o, inv });
+        const cr = extractCr(inv, o);
+        const st = inv.creditCycle?.status;
+        const totalInv = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        const paidAmt = inv.collection?.paidAmount || 0;
+
+        if (cr) return;
+        if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return;
+        if ((inv.kilos || 0) <= 0 && totalInv <= 0) return;
+
+        if (st === 'facturado' || st === 'manual_review' || st === 'pending' || st === 'overdue' || (inv.folio && inv.folio.trim().length > 0)) {
+          list.push({
+            orderId: o.id,
+            orderFolio: o.folio || o.oc || 'S/N',
+            client: nombreClienteVisible(o.client) || 'Providencia',
+            department: o.department,
+            invoice: inv,
+            total: totalInv,
+            kilos: inv.kilos || 0,
+          });
         }
       });
     });
     return list;
   }, [orders]);
 
-  const [selectedInvId, setSelectedInvId] = useState<string>('');
+  // Selección múltiple de facturas para un mismo contrarecibo
+  const [selectedInvIds, setSelectedInvIds] = useState<Set<string>>(() => {
+    return new Set(pendingInvoices.length === 1 ? [pendingInvoices[0].invoice.id] : []);
+  });
+
   const [cr, setCr] = useState('');
+  
+  // Fecha programada de cobro (default: Hoy + 30 días de crédito estándar)
+  const [dueDateStr, setDueDateStr] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return toInputDate(d) || '';
+  });
+
   const [saving, setSaving] = useState(false);
 
-  const selectedData = pendingInvoices.find(x => x.inv.id === selectedInvId);
+  const toggleSelectInvoice = (invId: string) => {
+    setSelectedInvIds(prev => {
+      const next = new Set(prev);
+      if (next.has(invId)) next.delete(invId);
+      else next.add(invId);
+      return next;
+    });
+  };
+
+  const selectAllInvoices = (select: boolean) => {
+    if (select) {
+      setSelectedInvIds(new Set(pendingInvoices.map(p => p.invoice.id)));
+    } else {
+      setSelectedInvIds(new Set());
+    }
+  };
+
+  const setDueDatePreset = (daysFromNow: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromNow);
+    setDueDateStr(toInputDate(d) || '');
+  };
+
+  // Cálculos consolidados de las facturas seleccionadas
+  const selectedItems = useMemo(() => {
+    return pendingInvoices.filter(p => selectedInvIds.has(p.invoice.id));
+  }, [pendingInvoices, selectedInvIds]);
+
+  const totalConsolidadoMonto = useMemo(() => {
+    return round2(selectedItems.reduce((acc, it) => acc + it.total, 0));
+  }, [selectedItems]);
+
+  const totalConsolidadoKilos = useMemo(() => {
+    return round2(selectedItems.reduce((acc, it) => acc + it.kilos, 0));
+  }, [selectedItems]);
 
   // Verificación en tiempo real de contrarecibo duplicado
   const duplicateCr = useMemo(() => {
     if (!cr.trim()) return null;
-    return findDuplicateContrarecibo(allOrders.length > 0 ? allOrders : orders, cr.trim(), selectedInvId);
-  }, [cr, allOrders, orders, selectedInvId]);
+    const firstSelectedId = Array.from(selectedInvIds)[0] || '';
+    return findDuplicateContrarecibo(allOrders.length > 0 ? allOrders : orders, cr.trim(), firstSelectedId);
+  }, [cr, allOrders, orders, selectedInvIds]);
 
-  const handleAssignCr = async () => {
-    if (!selectedData) return;
+  const handleAssignCrToMultiple = async () => {
+    if (selectedItems.length === 0) return toast('Selecciona al menos una factura para asignar el contrarecibo', 'bad');
     if (!cr.trim()) return toast('Falta el número de contrarecibo', 'bad');
 
     if (duplicateCr) {
@@ -51,74 +128,250 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
 
     setSaving(true);
     try {
-      const { order, inv } = selectedData;
-      const updatedInv = {
-        ...inv,
-        collection: {
-          ...inv.collection,
-          contrareciboNumber: cr.trim(),
-          contrareciboDate: Timestamp.now(),
-        }
-      };
+      const parsedDueDate = fromInputDate(dueDateStr) || new Date(Date.now() + 15 * 86400000);
+      const dueTimestamp = Timestamp.fromDate(parsedDueDate);
 
-      const updatedInvoices = order.invoices?.map(i => i.id === inv.id ? updatedInv : i) || [];
-      await updateDoc(doc(db, PATHS.orders, order.id), camposInvoices(updatedInvoices));
+      // Agrupar facturas por orden de compra
+      const ordersMap = new Map<string, { order: PurchaseOrder; invoiceIds: Set<string> }>();
+      
+      selectedItems.forEach(it => {
+        const fullOrder = (allOrders.length > 0 ? allOrders : orders).find(o => o.id === it.orderId);
+        if (!fullOrder) return;
+        
+        if (!ordersMap.has(it.orderId)) {
+          ordersMap.set(it.orderId, { order: fullOrder, invoiceIds: new Set() });
+        }
+        ordersMap.get(it.orderId)!.invoiceIds.add(it.invoice.id);
+      });
+
+      // Actualizar cada orden con el mismo CR y fecha de cobro
+      for (const [orderId, { order, invoiceIds }] of ordersMap.entries()) {
+        const updatedInvoices = (order.invoices || []).map(inv => {
+          if (invoiceIds.has(inv.id)) {
+            return {
+              ...inv,
+              collection: {
+                ...inv.collection,
+                contrareciboNumber: cr.trim().toUpperCase(),
+                contrareciboDate: Timestamp.now(),
+              },
+              creditCycle: {
+                ...inv.creditCycle,
+                status: 'pending' as const,
+                dueDate: dueTimestamp,
+              },
+            };
+          }
+          return inv;
+        });
+
+        await updateDoc(doc(db, PATHS.orders, orderId), camposInvoices(updatedInvoices));
+      }
 
       playCashRegisterSound();
-      toast('🗂️ Contrarecibo asignado. Pasó a "Por Cobrar".', 'ok');
+      toast(`✅ Contrarecibo ${cr.trim().toUpperCase()} asignado exitosamente a ${selectedItems.length} factura(s).`, 'ok');
       onClose();
     } catch (e: any) {
-      toast(`Error al asignar CR: ${e.message}`, 'bad');
+      toast(`Error al guardar contrarecibo: ${e.message}`, 'bad');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal title="🗂️ Capturar Contrarecibo Rápido" onClose={onClose} wide>
-      <div style={{ padding: 20 }}>
-        <p style={{ color: 'var(--ink-soft)', marginBottom: 20, fontSize: 14 }}>
-          Asigna rápidamente un número de Contrarecibo a una factura emitida para iniciar sus días de crédito.
-        </p>
+    <Modal title="🗂️ Asignar Contrarecibo (Individual o Múltiples Facturas)" onClose={onClose} wide>
+      <div style={{ padding: '4px 0' }}>
+        
+        {/* Encabezado descriptivo */}
+        <div style={{ background: 'linear-gradient(135deg, rgba(217,119,6,0.06) 0%, rgba(245,158,11,0.12) 100%)', border: '1px solid rgba(245,158,11,0.25)', padding: '12px 16px', borderRadius: 12, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 22 }}>📋</span>
+          <div style={{ fontSize: 13, color: 'var(--ink)' }}>
+            <strong>Contrarecibo Multi-Factura:</strong> Selecciona una o varias facturas que vengan amparadas en el mismo contrarecibo de Providencia, ingresa el folio y define la fecha programada de cobro.
+          </div>
+        </div>
 
-        <label style={{ display: 'block', marginBottom: 16 }}>
-          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>1. Seleccionar Factura Sin CR</span>
-          <select 
-            value={selectedInvId} 
-            onChange={e => setSelectedInvId(e.target.value)}
-            className="input"
-            style={{ width: '100%', marginTop: 6 }}
-          >
-            <option value="">-- Selecciona --</option>
-            {pendingInvoices.map(x => {
-              const amt = x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0;
-              return (
-                <option key={x.inv.id} value={x.inv.id}>
-                  {x.inv.folio || x.order.folio || 'S/N'} - {nombreClienteVisible(x.order.client)} ({money(amt)})
-                </option>
-              );
-            })}
-          </select>
-        </label>
-
-        {selectedData && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', padding: 16, borderRadius: 12, border: '1px solid var(--line)', marginBottom: 20 }}>
-            <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>2. Número de Contrarecibo</label>
-            <input 
-              type="text" 
-              value={cr} 
-              onChange={e => setCr(e.target.value.toUpperCase())}
-              className="input" 
-              placeholder="Ej. CR-7890"
-              style={{ width: '100%', marginTop: 6, fontSize: 18, fontWeight: 700 }}
-              autoFocus
-            />
-
-            {duplicateCr && (
-              <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: 8, fontSize: 12, color: '#991b1b', fontWeight: 700 }}>
-                🚨 <strong>Contrarecibo Duplicado:</strong> El folio "{cr.trim()}" ya existe en la Factura #{duplicateCr.invoiceFolio} de la OC #{duplicateCr.orderFolio} ({duplicateCr.client}).
+        {/* 1. SELECCIÓN DE FACTURAS */}
+        <div style={{ background: 'var(--paper-raised)', padding: 16, borderRadius: 14, border: '1px solid var(--line)', marginBottom: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <strong style={{ fontSize: 14, color: 'var(--ink)' }}>
+                1. Facturas en Revisión ({selectedItems.length} seleccionada{selectedItems.length !== 1 ? 's' : ''})
+              </strong>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+                Marca las facturas amparadas en este mismo papelito/contrarecibo.
               </div>
-            )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 11, padding: '3px 8px' }}
+                onClick={() => selectAllInvoices(true)}
+              >
+                ⚡ Seleccionar Todas
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 11, padding: '3px 8px' }}
+                onClick={() => selectAllInvoices(false)}
+              >
+                Deseleccionar
+              </button>
+            </div>
+          </div>
+
+          {pendingInvoices.length > 0 ? (
+            <div className="table-scroll" style={{ maxHeight: 240, overflowY: 'auto' }}>
+              <table className="data-table" style={{ fontSize: 12, width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>✓</th>
+                    <th>Factura</th>
+                    <th>Orden de Compra</th>
+                    <th>Cliente</th>
+                    <th className="num">Kilos</th>
+                    <th className="num">Importe Total con IVA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingInvoices.map((p) => {
+                    const isSelected = selectedInvIds.has(p.invoice.id);
+                    return (
+                      <tr 
+                        key={p.invoice.id}
+                        onClick={() => toggleSelectInvoice(p.invoice.id)}
+                        style={{ 
+                          cursor: 'pointer',
+                          background: isSelected ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                          borderLeft: isSelected ? '3px solid #d97706' : '3px solid transparent',
+                        }}
+                      >
+                        <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={() => toggleSelectInvoice(p.invoice.id)}
+                            style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#d97706' }}
+                          />
+                        </td>
+                        <td className="mono" style={{ fontWeight: 800, color: isSelected ? '#b45309' : 'inherit' }}>
+                          #{p.invoice.folio || p.orderFolio || 'S/F'}
+                        </td>
+                        <td className="mono" style={{ fontSize: 11.5 }}>
+                          {p.orderFolio}
+                          {p.department && (
+                            <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--paper-sunk)', padding: '1px 5px', borderRadius: 4 }}>
+                              {p.department}
+                            </span>
+                          )}
+                        </td>
+                        <td>{p.client}</td>
+                        <td className="num mono">{fmtKilos(p.kilos)}</td>
+                        <td className="num mono" style={{ fontWeight: 800, color: '#047857' }}>
+                          {money(p.total)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-soft)', background: 'var(--paper-sunk)', borderRadius: 10 }}>
+              ℹ️ No hay facturas emitidas pendientes de contrarecibo en este momento.
+            </div>
+          )}
+        </div>
+
+        {/* 2. DATOS DEL CONTRARECIBO Y FECHA DE COBRO */}
+        {selectedItems.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            
+            <div style={{ background: 'var(--paper-raised)', padding: 18, borderRadius: 14, border: '1px solid var(--line)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+              
+              {/* Folio Contrarecibo */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>
+                  2. Folio / Número de Contrarecibo (CR)
+                </label>
+                <input 
+                  type="text" 
+                  value={cr} 
+                  onChange={e => setCr(e.target.value.toUpperCase())}
+                  className="input boxed mono" 
+                  placeholder="Ej. GT-482 o TH-109"
+                  style={{ width: '100%', fontSize: 16, fontWeight: 900, padding: '10px 14px', letterSpacing: '0.05em' }}
+                  autoFocus
+                />
+                {duplicateCr && (
+                  <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(239,68,68,0.12)', border: '1px solid #ef4444', borderRadius: 6, fontSize: 11.5, color: '#991b1b', fontWeight: 700 }}>
+                    🚨 El contrarecibo "{cr.trim()}" ya fue registrado en la Factura #{duplicateCr.invoiceFolio} ({duplicateCr.orderFolio}).
+                  </div>
+                )}
+              </div>
+
+              {/* Fecha Programada de Cobro con Presets Rápidos */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>
+                  3. Fecha Programada / Límite de Cobro
+                </label>
+                <input 
+                  type="date"
+                  value={dueDateStr}
+                  onChange={e => setDueDateStr(e.target.value)}
+                  className="input boxed mono"
+                  style={{ width: '100%', fontSize: 14, fontWeight: 700, padding: '9px 12px' }}
+                />
+
+                {/* Presets Realistas Providencia */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  <button 
+                    type="button" 
+                    className="chip active" 
+                    style={{ fontSize: 11, padding: '3px 8px', cursor: 'pointer', background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }}
+                    onClick={() => setDueDatePreset(30)}
+                  >
+                    📅 30 días (Oficial)
+                  </button>
+                  <button 
+                    type="button" 
+                    className="chip" 
+                    style={{ fontSize: 11, padding: '3px 8px', cursor: 'pointer', background: 'rgba(37,99,235,0.08)', color: '#1d4ed8', borderColor: '#3b82f6' }}
+                    onClick={() => setDueDatePreset(45)}
+                  >
+                    ⏳ 45 días (Real Providencia)
+                  </button>
+                  <button 
+                    type="button" 
+                    className="chip" 
+                    style={{ fontSize: 11, padding: '3px 8px', cursor: 'pointer' }}
+                    onClick={() => setDueDatePreset(60)}
+                  >
+                    ⏱️ 60 días (Extendido)
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Tarjeta de Resumen Consolidado */}
+            <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(5,150,105,0.12) 100%)', border: '1px solid rgba(16,185,129,0.3)', padding: '14px 18px', borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 600 }}>
+                  Total amparado en el Contrarecibo ({selectedItems.length} factura{selectedItems.length !== 1 ? 's' : ''}):
+                </div>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: '#047857', marginTop: 2 }}>
+                  {money(totalConsolidadoMonto)} con IVA <span style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600 }}>({fmtKilos(totalConsolidadoKilos)} kg)</span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                Estado: <strong style={{ color: '#d97706' }}>Pasa a "Por Cobrar"</strong>
+              </div>
+            </div>
+
           </motion.div>
         )}
 
@@ -126,11 +379,18 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
           <button className="btn" onClick={onClose} disabled={saving}>Cancelar</button>
           <button 
             className="btn btn-primary" 
-            onClick={handleAssignCr} 
-            disabled={!selectedData || !cr.trim() || saving || !!duplicateCr}
-            style={{ fontWeight: 800 }}
+            onClick={handleAssignCrToMultiple} 
+            disabled={selectedItems.length === 0 || !cr.trim() || saving || !!duplicateCr}
+            style={{ 
+              fontWeight: 900, 
+              padding: '10px 22px', 
+              fontSize: 14,
+              background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+              borderColor: '#b45309',
+              boxShadow: '0 4px 14px rgba(217,119,6,0.35)',
+            }}
           >
-            {saving ? 'Guardando...' : 'Guardar Contrarecibo'}
+            {saving ? 'Guardando...' : `🗂️ Asignar CR #${cr || '…'} a ${selectedItems.length} Factura(s)`}
           </button>
         </div>
       </div>

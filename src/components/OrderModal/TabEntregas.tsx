@@ -132,20 +132,67 @@ export default function TabEntregas() {
               const facturadas = form.deliveries.filter((d: any) => d.invoiced).length;
               const pctKilos = kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0;
               const todoListo = facturadas === totalEntregas && kilosFaltantes <= 0.01;
+              const esCierreCorto = form.isClosedShort;
+
+              const handleConcluirPedido = async () => {
+                const confirmar = await confirmDialog({
+                  message: `¿Confirmas concluir este pedido con los ${kilosEntregados.toLocaleString('es-MX')} kg entregados?\n\nSe considerará que Andrés ya completó las entregas de este lote y podrás facturarlo al 100% sin advertencias de kilos faltantes.`,
+                });
+                if (!confirmar) return;
+                setForm((f: any) => ({ ...f, isClosedShort: true }));
+                toast('🔒 Pedido concluido con los kilos entregados. Haz clic en "Guardar cambios".', 'ok');
+              };
+
+              const handleReabrirPedido = async () => {
+                setForm((f: any) => ({ ...f, isClosedShort: false }));
+                toast('🔓 Pedido reabierto para nuevas entregas.', 'ok');
+              };
+
               return (
                 <div style={{
-                  marginBottom: 16, padding: 12, borderRadius: 8,
-                  background: todoListo ? 'var(--ok-bg, #d1fae5)' : 'var(--paper-sunk)',
-                  border: todoListo ? '1px solid var(--ok)' : '1px solid var(--line)',
+                  marginBottom: 16, padding: 14, borderRadius: 12,
+                  background: esCierreCorto ? 'rgba(59,130,246,0.08)' : todoListo ? 'var(--ok-bg, #d1fae5)' : 'var(--paper-sunk)',
+                  border: esCierreCorto ? '1px solid #3b82f6' : todoListo ? '1px solid var(--ok)' : '1px solid var(--line)',
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                    <span style={{ fontWeight: 600 }}>
-                      {todoListo ? '✅ Todo entregado y facturado — esta OC está lista para cerrarse sola' : `📦 ${facturadas} de ${totalEntregas} entregas facturadas`}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                    <span style={{ fontWeight: 700 }}>
+                      {esCierreCorto ? (
+                        <span style={{ color: '#1d4ed8' }}>🔒 Pedido Concluido con {kilosEntregados.toLocaleString('es-MX')} kg entregados (Cierre Aceptado)</span>
+                      ) : todoListo ? (
+                        '✅ Todo entregado y facturado — esta OC está completa'
+                      ) : (
+                        `📦 ${facturadas} de ${totalEntregas} entregas facturadas (${pctKilos}% de la OC)`
+                      )}
                     </span>
-                    <span>{pctKilos}% de los kilos</span>
+                    
+                    {!readOnly && (
+                      <div>
+                        {esCierreCorto ? (
+                          <button 
+                            type="button" 
+                            className="btn" 
+                            style={{ fontSize: 11.5, padding: '3px 8px' }}
+                            onClick={handleReabrirPedido}
+                          >
+                            🔓 Reabrir Entregas
+                          </button>
+                        ) : kilosFaltantes > 0.01 && kilosEntregados > 0 ? (
+                          <button 
+                            type="button" 
+                            className="btn btn-primary" 
+                            style={{ fontSize: 11.5, padding: '4px 10px', background: '#0f172a', borderColor: '#0f172a' }}
+                            onClick={handleConcluirPedido}
+                            title="Cerrar pedido si Andrés ya no entregará más kilos"
+                          >
+                            🔒 Concluir Pedido ({kilosEntregados.toLocaleString('es-MX')} kg)
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ width: '100%', height: 6, background: 'var(--paper-sunk)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${pctKilos}%`, height: '100%', background: todoListo ? 'var(--ok)' : 'var(--accent)' }} />
+
+                  <div style={{ width: '100%', height: 6, background: 'rgba(0,0,0,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: esCierreCorto ? '100%' : `${pctKilos}%`, height: '100%', background: esCierreCorto ? '#3b82f6' : todoListo ? 'var(--ok)' : 'var(--accent)' }} />
                   </div>
                 </div>
               );

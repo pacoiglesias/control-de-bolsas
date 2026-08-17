@@ -7,6 +7,8 @@ interface MobileQuickDockProps {
   onQuickPay: () => void;
   onMagicPaste: () => void;
   onOpenCalculator: () => void;
+  pendingInvoicesCount?: number;
+  pendingCollectionsCount?: number;
 }
 
 export function MobileQuickDock({
@@ -16,7 +18,17 @@ export function MobileQuickDock({
   onQuickPay,
   onMagicPaste,
   onOpenCalculator,
+  pendingInvoicesCount = 0,
+  pendingCollectionsCount = 0,
 }: MobileQuickDockProps) {
+  const triggerHaptic = () => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(15);
+      } catch {}
+    }
+  };
+
   return (
     <div
       className="mobile-quick-dock"
@@ -45,7 +57,10 @@ export function MobileQuickDock({
       {/* 1. Nueva Orden */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={onNewOrder}
+        onClick={() => {
+          triggerHaptic();
+          onNewOrder();
+        }}
         type="button"
         style={{
           background: 'transparent',
@@ -59,6 +74,7 @@ export function MobileQuickDock({
           color: 'var(--ink)',
           cursor: 'pointer',
           minWidth: 48,
+          position: 'relative',
         }}
         title="Crear Nueva Orden de Compra"
       >
@@ -66,10 +82,13 @@ export function MobileQuickDock({
         <span style={{ fontSize: 10, fontWeight: 700 }}>Nueva OC</span>
       </motion.button>
 
-      {/* 2. Facturar Rápido */}
+      {/* 2. Facturar Rápido con Badge */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={onQuickInvoice}
+        onClick={() => {
+          triggerHaptic();
+          onQuickInvoice();
+        }}
         type="button"
         style={{
           background: 'transparent',
@@ -83,17 +102,44 @@ export function MobileQuickDock({
           color: 'var(--ink)',
           cursor: 'pointer',
           minWidth: 48,
+          position: 'relative',
         }}
         title="Facturar Entregas de Providencia"
       >
+        {pendingInvoicesCount > 0 && (
+          <span 
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 6,
+              background: '#ef4444',
+              color: '#ffffff',
+              borderRadius: 999,
+              fontSize: 9.5,
+              fontWeight: 900,
+              minWidth: 16,
+              height: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.5)',
+            }}
+          >
+            {pendingInvoicesCount}
+          </span>
+        )}
         <span style={{ fontSize: 18 }}>📝</span>
         <span style={{ fontSize: 10, fontWeight: 700 }}>Facturar</span>
       </motion.button>
 
-      {/* 3. Cobro Rápido (Destacado Central) */}
+      {/* 3. Cobro Rápido (Destacado Central) con Badge */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={onQuickCollection}
+        onClick={() => {
+          triggerHaptic();
+          onQuickCollection();
+        }}
         type="button"
         style={{
           background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -108,9 +154,34 @@ export function MobileQuickDock({
           cursor: 'pointer',
           boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
           minWidth: 54,
+          position: 'relative',
         }}
         title="Registrar Cobranza y Contrarecibos"
       >
+        {pendingCollectionsCount > 0 && (
+          <span 
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -2,
+              background: '#f59e0b',
+              color: '#ffffff',
+              borderRadius: 999,
+              fontSize: 9.5,
+              fontWeight: 900,
+              minWidth: 16,
+              height: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.6)',
+              border: '2px solid var(--paper-raised)',
+            }}
+          >
+            {pendingCollectionsCount}
+          </span>
+        )}
         <span style={{ fontSize: 18 }}>💸</span>
         <span style={{ fontSize: 10, fontWeight: 900 }}>Cobrar</span>
       </motion.button>
@@ -118,7 +189,10 @@ export function MobileQuickDock({
       {/* 4. Pagar Andrés */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={onQuickPay}
+        onClick={() => {
+          triggerHaptic();
+          onQuickPay();
+        }}
         type="button"
         style={{
           background: 'transparent',
@@ -132,6 +206,7 @@ export function MobileQuickDock({
           color: 'var(--ink)',
           cursor: 'pointer',
           minWidth: 48,
+          position: 'relative',
         }}
         title="Registrar Pago o Abono a Andrés"
       >
@@ -142,7 +217,10 @@ export function MobileQuickDock({
       {/* 5. Pegar OC Copiada */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={onMagicPaste}
+        onClick={() => {
+          triggerHaptic();
+          onMagicPaste();
+        }}
         type="button"
         style={{
           background: 'transparent',
@@ -156,6 +234,7 @@ export function MobileQuickDock({
           color: 'var(--ink)',
           cursor: 'pointer',
           minWidth: 48,
+          position: 'relative',
         }}
         title="Pegar Texto de Orden Automáticamente"
       >
@@ -166,7 +245,10 @@ export function MobileQuickDock({
       {/* 6. Calculadora de Kilos */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={onOpenCalculator}
+        onClick={() => {
+          triggerHaptic();
+          onOpenCalculator();
+        }}
         type="button"
         style={{
           background: 'transparent',
@@ -180,6 +262,7 @@ export function MobileQuickDock({
           color: 'var(--ink)',
           cursor: 'pointer',
           minWidth: 48,
+          position: 'relative',
         }}
         title="Abrir Calculadora de Kilos y Bultos"
       >
@@ -189,4 +272,3 @@ export function MobileQuickDock({
     </div>
   );
 }
-

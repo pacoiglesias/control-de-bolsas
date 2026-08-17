@@ -8,6 +8,30 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.3.5 Enterprise Multi-Invoice CR & Short Order Closing Edition',
+    date: '17 de Agosto de 2026',
+    time: '06:52 PM',
+    summary: 'Asignación Multi-Factura de Contrarecibos con Presets de Vencimiento y Cierre Rápido de Pedidos por Menos Kilos',
+    highlights: [
+      'Asignador Multi-Factura de Contrarecibos: Selector con casillas de verificación para marcar múltiples facturas amparadas en el mismo contrarecibo y asignarles folio y fecha de cobro simultáneamente.',
+      'Presets Rápidos de Cobro: Botones de 1 toque "+8 días (Próximo Viernes)", "+15 días" y "+30 días" para programar el vencimiento del crédito sin teclear fechas.',
+      'Cierre Rápido de Pedido (Conclusión por Menos Kilos): Botón "🔒 Concluir Pedido" en Entregas y Expediente cuando Andrés entrega menos kilos de la OC, eliminando alertas de kilos faltantes y permitiendo facturar el 100% de lo entregado.',
+    ],
+  },
+  {
+    version: 'v8.3.4 Enterprise Multi-Concept Invoicing & Mobile PWA Supercharged Edition',
+    date: '17 de Agosto de 2026',
+    time: '06:40 PM',
+    summary: 'Facturación Multi-Concepto Interactiva, Prefacturas PDF por Partida, Experiencia Móvil Bottom Sheet y Asistente Proactivo',
+    highlights: [
+      'Facturación Rápida Multi-Concepto: Selector interactivo con casillas de verificación para marcar conceptos específicos a facturar, kilos y precios individuales, botón "⚡ Máx" y botón "+ Agregar Concepto" al vuelo.',
+      'Prefactura PDF Inteligente: Generador dinámico que imprime únicamente los conceptos fiscales y cantidades asignadas a la factura seleccionada con desglose SAT oficial.',
+      'Experiencia Móvil PWA Nativa: Modales estilo Bottom Sheet que se abren desde abajo y se cierran arrastrando hacia abajo con el pulgar, muelle de navegación con respuesta háptica y badges en tiempo real.',
+      'Asistente Proactivo de Acciones del Día: Widget inteligente que detecta en vivo las tareas prioritarias (entregas por facturar, cobranzas vencidas, cobros del contador) con botón de ejecución en 1 clic.',
+      'Badges Proactivos en Expediente: Puntos de alerta ámbar en la pestaña "Entregas" para no olvidar facturar remisiones pendientes y contadores dinámicos de partidas.',
+    ],
+  },
+  {
     version: 'v8.3.3 Enterprise Deep Integrity & Tracking Edition',
     date: '16 de Agosto de 2026',
     time: '11:10 PM',

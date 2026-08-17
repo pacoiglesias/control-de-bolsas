@@ -10,6 +10,7 @@ import type { Invoice, OrderStatus, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import { promptDialog } from '../../lib/promptDialog';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
 interface InvoiceWidgetProps {
   invoice: Invoice;
@@ -110,61 +111,76 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
             <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
                {hasChanges && <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>⚠️ Tienes cambios sin guardar</span>}
             </div>
-            {!readOnly && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {hasChanges && (
-                  <button className="btn btn-primary" onClick={handleSave} style={{ padding: '4px 12px', fontSize: 13 }}>
-                    💾 Guardar Cambios
-                  </button>
-                )}
-                {localInvoice.creditCycle.status === 'paid' && (
-                  <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 13 }}
-                    onClick={async () => {
-                      const invTotal = fin.invoiceTotal;
-                      const commission = fin.commission || 0;
-                      const netEsperado = invTotal - commission;
-                      const respuesta = await promptDialog({
-                        message: `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
-                        defaultValue: netEsperado.toFixed(2),
-                      });
-                      if (respuesta === null) return;
-                      const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
-                      if (isNaN(netReal) || netReal <= 0) {
-                        toast('Monto inválido, no se registró nada.', 'bad');
-                        return;
-                      }
-                      const diferencia = round2(netReal - netEsperado);
-                      sound.playCash();
-                      try {
-                        await addDoc(collection(db, PATHS.expenses), {
-                          date: Timestamp.now(),
-                          concept: `Cobro factura #${localInvoice.folio ?? '?'} (CR: ${localInvoice.collection?.contrareciboNumber ?? '—'})`,
-                          amount: netReal,
-                          type: 'ingreso',
-                          notes: `Documento: $${invTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} — Comisión: $${commission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
-                          montoEsperado: round2(netEsperado),
-                          montoReal: round2(netReal),
-                          diferencia,
-                          createdAt: serverTimestamp(),
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 13, padding: '4px 12px', background: '#2563eb', color: '#fff', border: 'none', fontWeight: 600 }}
+                onClick={async () => {
+                  toast('📄 Generando Prefactura PDF de esta factura...', 'info');
+                  await generatePrefacturaPdf(order, localInvoice);
+                  toast('✅ Prefactura descargada', 'ok');
+                }}
+              >
+                📄 Prefactura PDF
+              </button>
+
+              {!readOnly && (
+                <>
+                  {hasChanges && (
+                    <button className="btn btn-primary" onClick={handleSave} style={{ padding: '4px 12px', fontSize: 13 }}>
+                      💾 Guardar Cambios
+                    </button>
+                  )}
+                  {localInvoice.creditCycle.status === 'paid' && (
+                    <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 13 }}
+                      onClick={async () => {
+                        const invTotal = fin.invoiceTotal;
+                        const commission = fin.commission || 0;
+                        const netEsperado = invTotal - commission;
+                        const respuesta = await promptDialog({
+                          message: `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
+                          defaultValue: netEsperado.toFixed(2),
                         });
-                        await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, {});
-                        if (Math.abs(diferencia) > 0.01) {
-                          toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
-                        } else {
-                          toast(`💵 Recibido del contador. $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA.`, 'ok');
+                        if (respuesta === null) return;
+                        const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
+                        if (isNaN(netReal) || netReal <= 0) {
+                          toast('Monto inválido, no se registró nada.', 'bad');
+                          return;
                         }
-                      } catch {
-                        toast('No se pudo registrar en CAJA.', 'bad');
-                      }
-                    }}>
-                    💵 Recibida del Contador → CAJA
+                        const diferencia = round2(netReal - netEsperado);
+                        sound.playCash();
+                        try {
+                          await addDoc(collection(db, PATHS.expenses), {
+                            date: Timestamp.now(),
+                            concept: `Cobro factura #${localInvoice.folio ?? '?'} (CR: ${localInvoice.collection?.contrareciboNumber ?? '—'})`,
+                            amount: netReal,
+                            type: 'ingreso',
+                            notes: `Documento: $${invTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} — Comisión: $${commission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+                            montoEsperado: round2(netEsperado),
+                            montoReal: round2(netReal),
+                            diferencia,
+                            createdAt: serverTimestamp(),
+                          });
+                          await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, {});
+                          if (Math.abs(diferencia) > 0.01) {
+                            toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
+                          } else {
+                            toast(`💵 Recibido del contador. $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA.`, 'ok');
+                          }
+                        } catch {
+                          toast('No se pudo registrar en CAJA.', 'bad');
+                        }
+                      }}>
+                      💵 Recibida del Contador → CAJA
+                    </button>
+                  )}
+                  <button className="btn btn-danger" onClick={() => deleteInvoice(order, localInvoice.id)} style={{ padding: '4px 12px', fontSize: 13 }}>
+                     Eliminar
                   </button>
-                )}
-                <button className="btn btn-danger" onClick={() => deleteInvoice(order, localInvoice.id)} style={{ padding: '4px 12px', fontSize: 13 }}>
-                   Eliminar
-                </button>
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="form-grid">
@@ -241,6 +257,38 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
               </div>
             </Field>
           </div>
+
+          {localInvoice.items && localInvoice.items.length > 0 && (
+            <div style={{ marginTop: 16, background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📦</span> Partidas / Conceptos de esta Factura ({localInvoice.items.length})
+              </div>
+              <div className="table-scroll">
+                <table className="data-table" style={{ fontSize: 11.5, width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 100 }}>Clave SAT</th>
+                      <th>Descripción del Concepto</th>
+                      <th className="num" style={{ width: 100 }}>Kilos</th>
+                      <th className="num" style={{ width: 90 }}>P. Unitario</th>
+                      <th className="num" style={{ width: 110 }}>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {localInvoice.items.map((it, idx) => (
+                      <tr key={it.id || idx}>
+                        <td className="mono" style={{ color: 'var(--ink-soft)' }}>{it.code || '24111500'}</td>
+                        <td style={{ fontWeight: 600 }}>{it.description}</td>
+                        <td className="num mono" style={{ fontWeight: 700 }}>{it.quantity.toLocaleString('es-MX')} {it.unit || 'kg'}</td>
+                        <td className="num mono">{money(it.unitPrice)}</td>
+                        <td className="num mono" style={{ fontWeight: 800, color: '#047857' }}>{money(it.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           
           <div className="calc-box" style={{ marginTop: 16 }}>
             <div className="calc-line">

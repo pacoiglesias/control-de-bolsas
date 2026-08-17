@@ -17,25 +17,44 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
   const invFolio = invoice?.folio || `PRE-${order.folio || 'OC'}`;
   const fechaEmision = invoice?.creditCycle?.issueDate ? fmtDate(invoice.creditCycle.issueDate) : fmtDate(new Date());
 
-  // Kilos e importes
-  const totalKilos = invoice?.kilos || order.totalKilograms || 0;
-  const subtotal = invoice?.financials?.saleTotal ?? ((order.totalKilograms || 0) * 43);
+  // Kilos e importes según items de la factura o de la orden
+  let items: any[] = [];
+  if (invoice?.items && invoice.items.length > 0) {
+    items = invoice.items;
+  } else if (order.items && order.items.length > 0) {
+    if (invoice && invoice.kilos > 0 && Math.abs(invoice.kilos - (order.totalKilograms || 0)) > 0.01 && order.items.length === 1) {
+      const it = order.items[0];
+      const p = it.unitPrice || 43.0;
+      items = [{
+        ...it,
+        quantity: invoice.kilos,
+        unitPrice: p,
+        amount: invoice.kilos * p,
+      }];
+    } else {
+      items = order.items;
+    }
+  } else {
+    const fallbackKilos = invoice?.kilos || order.totalKilograms || 0;
+    const p = 43.0;
+    items = [
+      {
+        id: '1',
+        code: '24111500',
+        description: 'BOLSA POLIETILENO TRANSPARENTE EN ROLLO / BULTOS',
+        quantity: fallbackKilos,
+        unit: 'Kilos',
+        unitPrice: p,
+        amount: fallbackKilos * p,
+      }
+    ];
+  }
+
+  const totalKilos = items.reduce((sum, it) => sum + Number(it.quantity || 0), 0) || invoice?.kilos || order.totalKilograms || 0;
+  const subtotal = invoice?.financials?.saleTotal ?? items.reduce((sum, it) => sum + Number(it.amount || ((it.quantity || 0) * (it.unitPrice || 43))), 0);
   const total = invoice?.financials?.invoiceTotal ?? (subtotal * 1.16);
   const iva = total - subtotal;
   const unitPrice = totalKilos > 0 ? subtotal / totalKilos : 43.0;
-
-  // Descripción de artículos
-  const items = order.items && order.items.length > 0 ? order.items : [
-    {
-      id: '1',
-      code: 'EGBO000095-SC',
-      description: 'BOLSA POLIETILENO TRANSPARENTE EN ROLLO / BULTOS',
-      quantity: totalKilos,
-      unit: 'Kilos',
-      unitPrice: unitPrice,
-      amount: subtotal,
-    }
-  ];
 
   const html = `
     <div style="font-family: 'Helvetica Neue', Arial, sans-serif; padding: 24px 32px; color: #1e293b; background: #fff; max-width: 800px; margin: 0 auto; font-size: 12px; line-height: 1.4;">

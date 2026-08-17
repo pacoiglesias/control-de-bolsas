@@ -106,11 +106,13 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
   const invoiceCount: number = form.invoices?.length ?? 0;
 
 
-  const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number }[] = [
+  const hasUninvoicedDeliveries = form.deliveries.some((d: any) => !d.invoiced);
+
+  const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number; alert?: boolean }[] = [
     { key: 'resumen',   label: '📋 Expediente' },
     { key: 'productos', label: '📦 Orden de Compra', count: form.items.length },
     { key: 'andres',    label: '🏭 Pedido a Andrés' },
-    { key: 'entregas',  label: '🚛 Entregas Providencia', count: form.deliveries.length },
+    { key: 'entregas',  label: '🚛 Entregas', count: form.deliveries.length, alert: hasUninvoicedDeliveries },
   ];
 
   return (
@@ -253,6 +255,20 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
                 }}>
                   {t.count}
                 </span>
+              )}
+              {t.alert && (
+                <span 
+                  style={{
+                    display: 'inline-block',
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: '#f59e0b',
+                    marginLeft: 5,
+                    boxShadow: '0 0 6px #f59e0b',
+                  }} 
+                  title="Hay entregas pendientes de facturar"
+                />
               )}
             </button>
           ))}

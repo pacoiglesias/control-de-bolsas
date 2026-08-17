@@ -151,6 +151,7 @@ export interface Invoice {
   financials?: OrderFinancials;
   creditCycle: CreditCycle;
   collection?: CollectionInfo;
+  items?: PurchaseOrderItem[];
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
 }

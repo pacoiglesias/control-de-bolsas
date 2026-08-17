@@ -227,10 +227,53 @@ export function PagarAndresModal({
             onChange={(e) => setPagoAbono({ ...pagoAbono, amount: e.target.value })}
             autoFocus 
             required 
-            placeholder="Ej. 25000"
-            style={{ fontSize: 16, fontWeight: 700 }}
+            placeholder="Ej. 100000"
+            style={{ fontSize: 18, fontWeight: 800, padding: '10px 14px' }}
           />
         </Field>
+
+        {/* ─── CÁLCULO AUTOMÁTICO DE KILOS AMPARADOS A PRECIO DE COSTO ─── */}
+        {montoNum > 0 && (() => {
+          const currentCost = config?.costPricePerKg || 42;
+          const currentSale = config?.salePricePerKg || 43;
+          const ivaRate = config?.ivaRate || 0.16;
+          const kilosAmparados = montoNum / currentCost;
+          const bultosEst = Math.round(kilosAmparados / 25);
+          const valorVentaSinIva = kilosAmparados * currentSale;
+          const valorVentaConIva = valorVentaSinIva * (1 + ivaRate);
+
+          return (
+            <div 
+              style={{
+                background: 'linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(16,185,129,0.08) 100%)',
+                border: '1px solid rgba(37,99,235,0.25)',
+                borderRadius: 12,
+                padding: '12px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                  ⚖️ Kilos que Andrés ampara (@ ${currentCost.toFixed(2)}/kg):
+                </span>
+                <span className="mono" style={{ fontSize: 19, fontWeight: 900, color: '#2563eb' }}>
+                  {kilosAmparados.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, borderTop: '1px dashed var(--line-soft)', paddingTop: 8, fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                <div>
+                  📦 Bultos est. (25kg): <strong style={{ color: 'var(--ink)' }}>~{bultosEst.toLocaleString()} bultos</strong>
+                </div>
+                <div>
+                  🏢 Venta Providencia (@ ${currentSale.toFixed(2)}): <strong style={{ color: '#047857' }}>{money(valorVentaConIva)} con IVA</strong>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         
         <Field label="Concepto / Motivo" full>
           <input 

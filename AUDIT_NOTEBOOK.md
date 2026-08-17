@@ -1610,6 +1610,51 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado — 53/53 pruebas pasando (100%), `tsc --noEmit` limpio, build exitoso.
 **OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
 
+### Iteración 133: Facturación Rápida Multi-Concepto y Generador de Prefactura PDF por Partida (COMPLETADO)
+**Fecha:** 2026-08-17
+**Archivos:** `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/lib/types.ts`, `src/lib/prefacturaGenerator.ts`, `src/components/OrderModal/useOrderDeliveries.ts`, `src/components/OrderModal/InvoiceWidget.tsx`, `src/components/Cobranza/InvoiceDrawer.tsx`
+**Problema:** Al emitir facturas, el sistema solo permitía facturar una descripción global o todos los conceptos de la orden juntos, sin permitir seleccionar qué partidas específicas de la OC se estaban amparando en esa entrega o factura, ni reflejar ese desglose en la prefactura PDF.
+**Impacto:** Flexibilidad total para facturar órdenes con múltiples productos / conceptos por separado y generar prefacturas con validez fiscal SAT exacta.
+**Solución:**
+1. Modificado `Invoice` en `types.ts` para almacenar `items?: PurchaseOrderItem[]`.
+2. Reescrito `QuickInvoiceModal` con selector interactivo de partidas mediante casillas (checkboxes), inputs individuales de kilos y precio unitario por partida, botón `⚡ Máx`, botón `➕ Agregar Concepto` para partidas personalizadas al vuelo, y cálculo en vivo de Subtotal, IVA (16%), Total y Margen Bruto.
+3. Actualizado `generatePrefacturaPdf` para renderizar únicamente las partidas y claves SAT asignadas a la factura seleccionada.
+4. Vinculado `useOrderDeliveries.ts` para que al facturar una entrega desde la pestaña *Entregas*, se copien y asocien automáticamente las partidas de la remisión.
+**Riesgo:** 🟢 Bajo — Lógica de facturación enriquecida sin alterar cálculos globales preexistentes.
+**Commit:** `feat(invoicing): facturacion multi-concepto interactiva y prefacturas pdf desglosadas por partida`
+**Estado:** ✅ Verificado — `tsc --noEmit` limpio, build completo sin errores.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 3 (Rendimiento Web & UX).
+
+### Iteración 134: Transformación PWA Móvil, Modales Bottom Sheet, Badges Dinámicos y Asistente Proactivo (COMPLETADO)
+**Fecha:** 2026-08-17
+**Archivos:** `src/components/ui.tsx`, `src/index.css`, `src/components/Dashboard/MobileQuickDock.tsx`, `src/components/Dashboard/ProactiveBriefingCard.tsx`, `src/pages/Dashboard.tsx`, `src/components/OrderModal/index.tsx`
+**Problema:** La experiencia móvil requería mayor ergonomía táctil (modales centrados difíciles de cerrar con una mano), visibilidad proactiva de tareas pendientes (entregas por facturar, cobranzas vencidas) y respuesta táctil.
+**Impacto:** Experiencia de uso móvil nativa (PWA de alto rendimiento) con modales estilo Bottom Sheet, respuesta háptica y asistente de acciones prioritarias del día.
+**Solución:**
+1. Modales adaptables a Bottom Sheet en móviles (`<= 768px`) con barra de arrastre (*drag handle*) y gesto de arrastrar hacia abajo para cerrar (`drag="y"`).
+2. `MobileQuickDock` optimizado con vibración háptica (`navigator.vibrate`) y badges numéricos dinámicos para entregas por facturar (🔴) y cobros pendientes (🟡).
+3. Creado `ProactiveBriefingCard` en Dashboard para detectar la tarea #1 del día con botón de ejecución en 1 clic.
+4. Añadidos puntos de alerta proactivos en la pestaña *Entregas* del expediente cuando existen remisiones sin facturar.
+**Riesgo:** 🟢 Bajo — Mejoras de interfaz de usuario y ergonomía móvil.
+**Commit:** `feat(mobile): bottom sheets nativas con gestos, badges dinamicos y asistente proactivo del dia`
+**Estado:** ✅ Verificado — `tsc --noEmit` limpio, build completo sin errores.
+**OKRs afectados:** OKR 3 (Rendimiento Web & UX) y OKR 2 (Automatización Operativa).
+
+### Iteración 135: Asignación Multi-Factura de Contrarecibos y Conclusión de Pedidos por Menos Kilos (COMPLETADO)
+**Fecha:** 2026-08-17
+**Archivos:** `src/components/FastFlows/QuickCollectionModal.tsx`, `src/components/OrderModal/TabEntregas.tsx`, `src/components/OrderModal/TabResumen.tsx`
+**Problema:**
+1. Un mismo contrarecibo físico ampara con frecuencia 2 o más facturas emitidas, pero el modal de asignación rápida solo permitía asociar 1 factura a la vez y no tenía presets de fecha de cobro.
+2. Andrés con frecuencia entrega menos kilos de los pedidos originalmente en la OC; el sistema mantenía la orden en alerta de "faltan kilos" y no permitía cerrarla de forma limpia y directa.
+**Impacto:** Registro masivo de contrarecibos en 1 solo paso y conclusión limpia de pedidos con entregas parciales finalizadas.
+**Solución:**
+1. Reescrito `QuickCollectionModal` con casillas de verificación para marcar múltiples facturas, selector de fecha con presets rápidos (`+8 días`, `+15 días`, `+30 días`) y actualización consolidada en Firestore.
+2. Añadido botón `🔒 Concluir Pedido (Cierre con X kg entregados)` en `TabEntregas.tsx` y `TabResumen.tsx` con opción de reapertura si se requiere.
+**Riesgo:** 🟢 Bajo — Lógica de asignación y banderas de estado.
+**Commit:** `feat(cr): asignacion multi-factura de contrarecibos con presets y cierre facil por menos kilos`
+**Estado:** ✅ Verificado — 0 errores de tipos, build completo.
+**OKRs afectados:** OKR 1 (Precisión Numérica) y OKR 2 (Automatización Operativa).
+
 
 
 

@@ -515,8 +515,11 @@ textarea.input{min-height:80px;resize:vertical;line-height:1.5}
 .modal-scrim{position:absolute;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(2px)}
 .modal-box{position:relative;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;background:var(--paper-raised);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden}
 .modal-box.wide{max-width:1100px}
+.modal-drag-pill-container{display:flex;justify-content:center;align-items:center;padding-top:10px;padding-bottom:2px;cursor:grab;touch-action:none}
+.modal-drag-handle{width:44px;height:5px;background:var(--line-soft,rgba(150,150,150,0.4));border-radius:999px;transition:background .2s}
+.modal-drag-pill-container:active .modal-drag-handle{background:var(--accent,#2563eb)}
 .modal-head{flex-shrink:0}
-.modal-body{padding:24px;overflow-y:auto;flex:1;min-height:0}
+.modal-body{padding:24px;overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
 .modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;flex-wrap:wrap}
 
 @keyframes slideUpModal{from{transform:translateY(20px) scale(0.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
@@ -673,26 +676,37 @@ textarea.input{min-height:80px;resize:vertical;line-height:1.5}
     max-width: 100%;
   }
 
-  /* Modales en Móvil: Estilo Bottom Sheet o Fullscreen adaptativo */
-  .modal-overlay {
-    padding: 8px;
-    align-items: flex-end;
+  /* Modales en Móvil: Estilo Bottom Sheet Nativo */
+  .modal-root, .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+    justify-content: center;
   }
   .modal, .modal-box {
     max-width: 100% !important;
-    max-height: 94dvh;
-    border-radius: 20px 20px 8px 8px;
+    width: 100% !important;
+    max-height: 93dvh !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.4) !important;
+    margin-bottom: 0 !important;
   }
   .modal-body {
-    padding: 16px 14px;
+    padding: 16px 16px max(24px, env(safe-area-inset-bottom, 24px)) !important;
   }
   .modal-actions {
     flex-direction: column-reverse;
-    gap: 8px;
+    gap: 10px;
+    margin-top: 18px;
   }
   .modal-actions .btn {
     width: 100%;
     justify-content: center;
+    min-height: 46px;
+    font-size: 14px;
+    font-weight: 700;
   }
 
   /* Botones de acción rápida */

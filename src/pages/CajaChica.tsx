@@ -687,8 +687,50 @@ function ExpenseDrawer({ expense, onClose, provName, saldoCajaActual = 0 }: { ex
             <option value="ingreso">Ingreso (Reposición)</option>
           </select>
         </Field>
-        <Field label="Concepto (e.g. Gasolina, Papelería)">
-          <input className="input boxed" value={form.concept} onChange={(e) => set('concept', e.target.value)} />
+        <Field label="Concepto">
+          <input className="input boxed" value={form.concept} onChange={(e) => set('concept', e.target.value)} placeholder="Ej. Gasolina, Flete..." />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+            {(form.type === 'egreso'
+              ? [
+                  { label: '⛽ Gasolina', concept: 'Gasolina', prov: 'Gasolinera' },
+                  { label: '🚛 Flete', concept: 'Flete y Acarreo de Material', prov: '' },
+                  { label: `🏭 Pago ${provName}`, concept: 'Pago de Producción / Kilos', prov: provName },
+                  { label: '💼 Retiro Socios', concept: 'Retiro de Utilidades Socios', prov: 'Socios' },
+                  { label: '📦 Empaque / Fleje', concept: 'Material de Empaque y Fleje', prov: '' },
+                  { label: '🛠️ Mantenimiento', concept: 'Mantenimiento y Reparaciones', prov: '' },
+                  { label: '🍔 Viáticos / Comida', concept: 'Comida y Viáticos Operativos', prov: '' },
+                ]
+              : [
+                  { label: '📥 Cobro Factura', concept: 'Depósito / Cobro Factura Contador', prov: 'Contador' },
+                  { label: '💰 Aportación Socios', concept: 'Aportación de Capital Socios', prov: 'Socios' },
+                  { label: '🔄 Reembolso / Ajuste', concept: 'Reembolso / Ajuste de Caja', prov: '' },
+                ]
+            ).map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="chip"
+                style={{
+                  fontSize: 11,
+                  padding: '3px 8px',
+                  background: form.concept === preset.concept ? 'var(--accent)' : 'var(--paper-sunk)',
+                  color: form.concept === preset.concept ? '#fff' : 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                }}
+                onClick={() => {
+                  setForm((f) => ({
+                    ...f,
+                    concept: preset.concept,
+                    provider: preset.prov || f.provider,
+                  }));
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
         </Field>
         <Field label="Proveedor / Fabricante / Beneficiario">
           <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder={`Ej. ${provName}`} />

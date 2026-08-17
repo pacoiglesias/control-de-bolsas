@@ -6,6 +6,7 @@ import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder } from '../../lib/types';
 import { money, nombreClienteVisible } from '../../lib/format';
+import { extractCr } from '../../lib/finance';
 import { confirmDialog } from '../../lib/confirmDialog';
 
 export function QuickPayModal({ orders, onClose }: { orders: any[]; onClose: () => void }) {
@@ -14,9 +15,11 @@ export function QuickPayModal({ orders, onClose }: { orders: any[]; onClose: () 
   const pendingInvoices = useMemo(() => {
     const list: { order: PurchaseOrder, inv: any, cr: string }[] = [];
     orders.forEach(o => {
+      if (o.isClosedShort || o.client === 'MIGRACION') return;
       (o.invoices || []).forEach((inv: any) => {
-        const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
-        if ((inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') && cr) {
+        const cr = extractCr(inv, o);
+        const st = inv.creditCycle?.status;
+        if ((st === 'pending' || st === 'overdue') && cr) {
           list.push({ order: o, inv, cr });
         }
       });

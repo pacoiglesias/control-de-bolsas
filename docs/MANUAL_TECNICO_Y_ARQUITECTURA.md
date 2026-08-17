@@ -1,5 +1,5 @@
 # 📘 MANUAL TÉCNICO, ARQUITECTURA Y FLUJOS DEL SISTEMA
-## ERP Control Providencia · v8.0.0 Enterprise Platinum Edition
+## ERP Control Providencia · v8.3.4 Enterprise Multi-Concept & Mobile PWA Supercharged Edition
 
 Este documento describe la arquitectura técnica integral, los flujos operativos reales del negocio, las fórmulas matemáticas de cálculo, el catálogo de funciones de software y las estructuras de datos de la plataforma.
 

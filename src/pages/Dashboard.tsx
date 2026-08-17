@@ -40,6 +40,8 @@ import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTime
 import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
 import { MagicPasteModal } from '../components/MagicPasteModal';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
+import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
+import { getOrderSummary } from '../lib/finance';
 
 const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
 const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
@@ -295,6 +297,26 @@ return () => unsub();
   }, [activeOrders]);
 
   const saldoCaja = expenses.reduce((acc, e) => new Decimal(acc).plus(e.type === 'ingreso' ? e.amount : -e.amount).toNumber(), 0);
+
+  const pendingInvoicesCount = useMemo(() => {
+    return seguimientoOrders.filter(o => {
+      if (o.isClosedShort) return false;
+      const s = getOrderSummary(o);
+      return s.kilosDelivered > s.kilosInvoiced + 0.01;
+    }).length;
+  }, [seguimientoOrders]);
+
+  const pendingCollectionsCount = useMemo(() => {
+    let count = 0;
+    seguimientoOrders.forEach(o => {
+      (o.invoices || []).forEach(inv => {
+        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [seguimientoOrders]);
 
   if (loading || loadingExp) {
     return (
@@ -674,6 +696,15 @@ return () => unsub();
         </div>
       </div>
 
+      {/* ─── 0. ASISTENTE PROACTIVO DEL DÍA (ACCIONES PRIORITARIAS) ────── */}
+      <ProactiveBriefingCard
+        orders={seguimientoOrders}
+        config={config as any}
+        onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+        onOpenQuickCollection={() => setShowQuickCollection(true)}
+        onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+      />
+
       {/* ─── 1. HERO SUITE DE KPIS EJECUTIVOS ─────────────────────────────── */}
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
@@ -904,7 +935,7 @@ return () => unsub();
       {/* ─── MODALES Y DRAWERS DE CONTROL ─────────────────────────────────── */}
       {showContrarecibosDrawer && (
         <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>
-          <ContrarecibosTable orders={activeOrders} />
+          <ContrarecibosTable orders={seguimientoOrders} />
         </Drawer>
       )}
 
@@ -915,11 +946,11 @@ return () => unsub();
       )}
 
       {showQuickInvoice && (
-        <QuickInvoiceModal orders={activeOrders} onClose={() => setShowQuickInvoice(false)} />
+        <QuickInvoiceModal orders={seguimientoOrders} onClose={() => setShowQuickInvoice(false)} />
       )}
 
       {showQuickCollection && (
-        <QuickCollectionModal orders={activeOrders} onClose={() => setShowQuickCollection(false)} />
+        <QuickCollectionModal orders={seguimientoOrders} onClose={() => setShowQuickCollection(false)} />
       )}
 
       {showQuickPay && (
@@ -976,6 +1007,8 @@ return () => unsub();
           const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
           if (btn) btn.click();
         }}
+        pendingInvoicesCount={pendingInvoicesCount}
+        pendingCollectionsCount={pendingCollectionsCount}
       />
     </div>
   );

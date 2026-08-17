@@ -350,6 +350,8 @@ export function Modal({
     };
   }, []);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   return (
     <AnimatePresence>
       <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -363,11 +365,24 @@ export function Modal({
         <motion.div 
           className={`modal-box glass-modal ${wide ? 'wide' : ''}`} 
           ref={boxRef}
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={isMobile ? { opacity: 0, y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+          exit={isMobile ? { opacity: 0, y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
+          drag={isMobile ? "y" : false}
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 0.6 }}
+          onDragEnd={(_e, info) => {
+            if (info.offset.y > 90 || info.velocity.y > 400) {
+              onCloseRef.current();
+            }
+          }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         >
+          {isMobile && (
+            <div className="modal-drag-pill-container" aria-hidden="true">
+              <div className="modal-drag-handle" />
+            </div>
+          )}
           <div className="modal-head">
             <h2 id="modal-title">{title}</h2>
             <button className="icon-btn" onClick={onClose} aria-label="Cerrar modal">
