@@ -388,5 +388,31 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
   it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a -102670.27', () => {
     expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
   });
+
+  it('las facturas pueden tener múltiples contrarecibos pero nunca mezclan TH y GT', async () => {
+    const { filterOrderByDepartment, invoiceMatchesDepartment } = await import('../finance');
+
+    const orderConMultiplesCRs = {
+      id: 'ord-split-crs',
+      folio: 'OC-998811',
+      client: 'Providencia TH',
+      department: 'TH',
+      invoices: [
+        { id: 'inv-th-part1', kilos: 800, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 40000.00 } },
+        { id: 'inv-th-part2', kilos: 800, collection: { contrareciboNumber: 'TH-879' }, financials: { invoiceTotal: 39826.00 } },
+      ],
+    } as any;
+
+    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[0], orderConMultiplesCRs, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[1], orderConMultiplesCRs, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[0], orderConMultiplesCRs, 'GT')).toBe(false);
+    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[1], orderConMultiplesCRs, 'GT')).toBe(false);
+
+    const thOrder = filterOrderByDepartment(orderConMultiplesCRs, 'TH');
+    expect(thOrder?.invoices).toHaveLength(2);
+
+    const gtOrder = filterOrderByDepartment(orderConMultiplesCRs, 'GT');
+    expect(gtOrder).toBeNull();
+  });
 });
 

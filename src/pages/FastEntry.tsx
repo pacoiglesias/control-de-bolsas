@@ -213,14 +213,29 @@ export function FastEntry() {
       if (!val) continue;
       const valLower = val.toLowerCase();
       const isFactura = key.includes('___factura');
+      const [orderId] = key.split('___');
+      const targetOrder = activeOrders.find(o => o.id === orderId);
+      const isTH = targetOrder?.department === 'TH' || (targetOrder?.client || '').toUpperCase().includes('TH');
+      const isGT = targetOrder?.department === 'GT' || (targetOrder?.client || '').toUpperCase().includes('GT');
       
       if (isFactura && allExistingFolios.includes(valLower)) {
         toast(`El folio de factura ${val} ya existe en otra orden.`, 'bad');
         return;
       }
-      if (!isFactura && allExistingCRs.includes(valLower)) {
-        toast(`El contrarecibo ${val} ya existe en otra orden.`, 'bad');
-        return;
+      if (!isFactura) {
+        const valUpper = val.toUpperCase();
+        if (isTH && valUpper.startsWith('GT-')) {
+          toast(`⚠️ Separación Estricta: La factura de ${targetOrder?.client || 'TH'} no puede llevar un contrarecibo GT (${valUpper}).`, 'bad');
+          return;
+        }
+        if (isGT && valUpper.startsWith('TH-')) {
+          toast(`⚠️ Separación Estricta: La factura de ${targetOrder?.client || 'GT'} no puede llevar un contrarecibo TH (${valUpper}).`, 'bad');
+          return;
+        }
+        if (allExistingCRs.includes(valLower)) {
+          toast(`El contrarecibo ${val} ya existe en otra orden.`, 'bad');
+          return;
+        }
       }
     }
 

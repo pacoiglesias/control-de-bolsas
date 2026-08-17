@@ -6,6 +6,7 @@ import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { Timestamp } from 'firebase/firestore';
 import { extractCr } from '../../lib/finance';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { useToast } from '../../context/ToastContext';
 
 interface InvoiceDrawerProps {
   invoice: Invoice;
@@ -15,6 +16,7 @@ interface InvoiceDrawerProps {
 }
 
 export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: InvoiceDrawerProps) {
+  const toast = useToast();
   const { saveInvoice } = useInvoiceActions();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -34,6 +36,19 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
   };
 
   const handleSave = async () => {
+    const rawCr = (localInvoice.collection?.contrareciboNumber || '').trim().toUpperCase();
+    const isTH = order.department === 'TH' || (order.client || '').toUpperCase().includes('TH');
+    const isGT = order.department === 'GT' || (order.client || '').toUpperCase().includes('GT');
+
+    if (isTH && rawCr.startsWith('GT-')) {
+      toast('⚠️ Separación Estricta: Las facturas de TH no pueden llevar un contrarecibo GT.', 'bad');
+      return;
+    }
+    if (isGT && rawCr.startsWith('TH-')) {
+      toast('⚠️ Separación Estricta: Las facturas de GT no pueden llevar un contrarecibo TH.', 'bad');
+      return;
+    }
+
     await saveInvoice(order, localInvoice, dynamicConfig);
     onClose();
   };

@@ -22,6 +22,17 @@ interface PendingInvoiceItem {
   kilos: number;
 }
 
+function getInvoiceDept(p: PendingInvoiceItem): 'TH' | 'GT' | null {
+  if (p.department === 'TH' || p.department === 'GT') return p.department;
+  const clientUpper = (p.client || '').toUpperCase();
+  if (clientUpper.includes('TH') || clientUpper.includes('- TH')) return 'TH';
+  if (clientUpper.includes('GT') || clientUpper.includes('- GT')) return 'GT';
+  const folioUpper = (p.invoice.folio || '').toUpperCase();
+  if (folioUpper.startsWith('TH')) return 'TH';
+  if (folioUpper.startsWith('GT')) return 'GT';
+  return null;
+}
+
 export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
   const toast = useToast();
   const { orders: allOrders } = useOrders();
@@ -75,18 +86,41 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
 
   const [saving, setSaving] = useState(false);
 
-  const toggleSelectInvoice = (invId: string) => {
+  // Cálculos consolidados de las facturas seleccionadas
+  const selectedItems = useMemo(() => {
+    return pendingInvoices.filter(p => selectedInvIds.has(p.invoice.id));
+  }, [pendingInvoices, selectedInvIds]);
+
+  // Departamento activo del lote seleccionado (TH o GT)
+  const activeSelectedDept = useMemo(() => {
+    if (selectedItems.length === 0) return null;
+    return getInvoiceDept(selectedItems[0]);
+  }, [selectedItems]);
+
+  const toggleSelectInvoice = (item: PendingInvoiceItem) => {
+    const itemDept = getInvoiceDept(item);
+    if (!selectedInvIds.has(item.invoice.id)) {
+      if (activeSelectedDept && itemDept && activeSelectedDept !== itemDept) {
+        toast(`⚠️ Separación Departamental Estricta: Las facturas de ${activeSelectedDept} nunca se mezclan con ${itemDept}.`, 'bad');
+        return;
+      }
+    }
     setSelectedInvIds(prev => {
       const next = new Set(prev);
-      if (next.has(invId)) next.delete(invId);
-      else next.add(invId);
+      if (next.has(item.invoice.id)) next.delete(item.invoice.id);
+      else next.add(item.invoice.id);
       return next;
     });
   };
 
   const selectAllInvoices = (select: boolean) => {
     if (select) {
-      setSelectedInvIds(new Set(pendingInvoices.map(p => p.invoice.id)));
+      const targetDept = activeSelectedDept || (pendingInvoices.length > 0 ? getInvoiceDept(pendingInvoices[0]) : null);
+      const valid = pendingInvoices.filter(p => !targetDept || getInvoiceDept(p) === targetDept);
+      setSelectedInvIds(new Set(valid.map(p => p.invoice.id)));
+      if (targetDept) {
+        toast(`⚡ Seleccionadas ${valid.length} factura(s) del departamento ${targetDept}.`, 'info');
+      }
     } else {
       setSelectedInvIds(new Set());
     }
@@ -97,11 +131,6 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
     d.setDate(d.getDate() + daysFromNow);
     setDueDateStr(toInputDate(d) || '');
   };
-
-  // Cálculos consolidados de las facturas seleccionadas
-  const selectedItems = useMemo(() => {
-    return pendingInvoices.filter(p => selectedInvIds.has(p.invoice.id));
-  }, [pendingInvoices, selectedInvIds]);
 
   const totalConsolidadoMonto = useMemo(() => {
     return round2(selectedItems.reduce((acc, it) => acc + it.total, 0));
@@ -124,6 +153,14 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
 
     if (duplicateCr) {
       return toast(`⚠️ El contrarecibo ${cr.trim()} ya fue usado en la Factura #${duplicateCr.invoiceFolio} (${duplicateCr.orderFolio}). No se permiten duplicados.`, 'bad');
+    }
+
+    const cleanCr = cr.trim().toUpperCase();
+    if (activeSelectedDept === 'TH' && cleanCr.startsWith('GT-')) {
+      return toast('⚠️ Separación Estricta: Las facturas de TH no pueden llevar un contrarecibo con prefijo GT.', 'bad');
+    }
+    if (activeSelectedDept === 'GT' && cleanCr.startsWith('TH-')) {
+      return toast('⚠️ Separación Estricta: Las facturas de GT no pueden llevar un contrarecibo con prefijo TH.', 'bad');
     }
 
     setSaving(true);
@@ -152,7 +189,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
               ...inv,
               collection: {
                 ...inv.collection,
-                contrareciboNumber: cr.trim().toUpperCase(),
+                contrareciboNumber: cleanCr,
                 contrareciboDate: Timestamp.now(),
               },
               creditCycle: {
@@ -169,7 +206,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
       }
 
       playCashRegisterSound();
-      toast(`✅ Contrarecibo ${cr.trim().toUpperCase()} asignado exitosamente a ${selectedItems.length} factura(s).`, 'ok');
+      toast(`✅ Contrarecibo ${cleanCr} asignado exitosamente a ${selectedItems.length} factura(s).`, 'ok');
       onClose();
     } catch (e: any) {
       toast(`Error al guardar contrarecibo: ${e.message}`, 'bad');
@@ -186,7 +223,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
         <div style={{ background: 'linear-gradient(135deg, rgba(217,119,6,0.06) 0%, rgba(245,158,11,0.12) 100%)', border: '1px solid rgba(245,158,11,0.25)', padding: '12px 16px', borderRadius: 12, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>📋</span>
           <div style={{ fontSize: 13, color: 'var(--ink)' }}>
-            <strong>Contrarecibo Multi-Factura:</strong> Selecciona una o varias facturas que vengan amparadas en el mismo contrarecibo de Providencia, ingresa el folio y define la fecha programada de cobro.
+            <strong>Contrarecibo Multi-Factura (Separación Estricta TH / GT):</strong> Selecciona una o varias facturas de un mismo departamento que vengan amparadas en el mismo contrarecibo de Providencia.
           </div>
         </div>
 
@@ -196,6 +233,19 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
             <div>
               <strong style={{ fontSize: 14, color: 'var(--ink)' }}>
                 1. Facturas en Revisión ({selectedItems.length} seleccionada{selectedItems.length !== 1 ? 's' : ''})
+                {activeSelectedDept && (
+                  <span style={{
+                    marginLeft: 8,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: activeSelectedDept === 'TH' ? '#0284c7' : '#16a34a',
+                    color: '#fff',
+                  }}>
+                    Lote {activeSelectedDept}
+                  </span>
+                )}
               </strong>
               <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
                 Marca las facturas amparadas en este mismo papelito/contrarecibo.
@@ -228,6 +278,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: 'center' }}>✓</th>
+                    <th>Depto</th>
                     <th>Factura</th>
                     <th>Orden de Compra</th>
                     <th>Cliente</th>
@@ -238,12 +289,16 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
                 <tbody>
                   {pendingInvoices.map((p) => {
                     const isSelected = selectedInvIds.has(p.invoice.id);
+                    const itemDept = getInvoiceDept(p);
+                    const isDeptMismatch = activeSelectedDept !== null && itemDept !== null && activeSelectedDept !== itemDept;
+
                     return (
                       <tr 
                         key={p.invoice.id}
-                        onClick={() => toggleSelectInvoice(p.invoice.id)}
+                        onClick={() => !isDeptMismatch && toggleSelectInvoice(p)}
                         style={{ 
-                          cursor: 'pointer',
+                          cursor: isDeptMismatch ? 'not-allowed' : 'pointer',
+                          opacity: isDeptMismatch ? 0.45 : 1,
                           background: isSelected ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
                           borderLeft: isSelected ? '3px solid #d97706' : '3px solid transparent',
                         }}
@@ -252,20 +307,29 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
                           <input 
                             type="checkbox" 
                             checked={isSelected}
-                            onChange={() => toggleSelectInvoice(p.invoice.id)}
-                            style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#d97706' }}
+                            disabled={isDeptMismatch}
+                            onChange={() => toggleSelectInvoice(p)}
+                            style={{ width: 17, height: 17, cursor: isDeptMismatch ? 'not-allowed' : 'pointer', accentColor: '#d97706' }}
                           />
+                        </td>
+                        <td>
+                          {itemDept === 'TH' ? (
+                            <span style={{ fontSize: 10.5, fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 }}>
+                              TH
+                            </span>
+                          ) : itemDept === 'GT' ? (
+                            <span style={{ fontSize: 10.5, fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '2px 6px', borderRadius: 4 }}>
+                              GT
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>—</span>
+                          )}
                         </td>
                         <td className="mono" style={{ fontWeight: 800, color: isSelected ? '#b45309' : 'inherit' }}>
                           #{p.invoice.folio || p.orderFolio || 'S/F'}
                         </td>
                         <td className="mono" style={{ fontSize: 11.5 }}>
                           {p.orderFolio}
-                          {p.department && (
-                            <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--paper-sunk)', padding: '1px 5px', borderRadius: 4 }}>
-                              {p.department}
-                            </span>
-                          )}
                         </td>
                         <td>{p.client}</td>
                         <td className="num mono">{fmtKilos(p.kilos)}</td>
