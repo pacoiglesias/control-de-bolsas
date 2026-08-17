@@ -9,6 +9,7 @@ import { PurchasesProvider } from './context/PurchasesContext';
 import { ProductsProvider } from './context/ProductsContext';
 import { ExpensesProvider } from './context/ExpensesContext';
 import { InvoicesProvider } from './context/InvoicesContext';
+import { PrivacyProvider } from './context/PrivacyContext';
 import { CommandPalette } from './components/CommandPalette';
 import { ConfirmDialogHost } from './lib/confirmDialog';
 import { PromptDialogHost } from './lib/promptDialog';
@@ -63,24 +64,26 @@ function RouteFallback() {
 
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <InvoicesProvider>
-      <OrdersProvider>
-        <PurchasesProvider>
-          <ProductsProvider>
-            <ExpensesProvider>
-              <ToastProvider>
-                <UndoProvider>
-                  <CommandPalette />
-                  <ConfirmDialogHost />
-                  <PromptDialogHost />
-                  {children}
-                </UndoProvider>
-              </ToastProvider>
-            </ExpensesProvider>
-          </ProductsProvider>
-        </PurchasesProvider>
-      </OrdersProvider>
-    </InvoicesProvider>
+    <PrivacyProvider>
+      <InvoicesProvider>
+        <OrdersProvider>
+          <PurchasesProvider>
+            <ProductsProvider>
+              <ExpensesProvider>
+                <ToastProvider>
+                  <UndoProvider>
+                    <CommandPalette />
+                    <ConfirmDialogHost />
+                    <PromptDialogHost />
+                    {children}
+                  </UndoProvider>
+                </ToastProvider>
+              </ExpensesProvider>
+            </ProductsProvider>
+          </PurchasesProvider>
+        </OrdersProvider>
+      </InvoicesProvider>
+    </PrivacyProvider>
   );
 }
 

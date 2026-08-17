@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { ResponsiveMoney } from '../ui';
-import { money } from '../../lib/format';
+import { kilos as fmtKilos } from '../../lib/format';
 import { Sparkline } from './Sparkline';
 
 interface ModernKpiGridProps {
@@ -47,12 +47,10 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
           <Sparkline data={[120, 150, 130, 180, 140, 200, 170]} width={240} height={40} color="var(--accent)" />
         </div>
-        {!isViewer && (
-          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)' }} />
-            Utilidad Bruta: {money(k.margenTotal || 0)}
-          </div>
-        )}
+        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
+          📦 Kilos amparados: {fmtKilos(k.kilos || 0)} kg
+        </div>
       </motion.div>
 
       {/* 2. Dinero en la calle (Por Cobrar) */}

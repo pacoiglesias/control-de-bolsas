@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 import { useConfig } from '../hooks/useConfig';
+import { usePrivacy } from '../context/PrivacyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function KpiCard({
@@ -434,7 +435,28 @@ export function Skeleton({ className = '', style }: { className?: string; style?
   return <div className={`skeleton ${className}`} style={style} />;
 }
 
-export function ResponsiveMoney({ value }: { value: number }) {
+export function ResponsiveMoney({ value, forceShow }: { value: number; forceShow?: boolean }) {
+  const { isPrivate } = usePrivacy();
+  
+  if (isPrivate && !forceShow) {
+    return (
+      <span 
+        className="privacy-mask" 
+        title="Modo discreto activo"
+        style={{ 
+          filter: 'blur(6px)', 
+          userSelect: 'none', 
+          opacity: 0.85, 
+          transition: 'filter 0.25s ease',
+          display: 'inline-block' 
+        }}
+      >
+        <span className="hide-mobile">{money(value)}</span>
+        <span className="hide-desktop">{compactMoney(value)}</span>
+      </span>
+    );
+  }
+
   return (
     <>
       <span className="hide-mobile">{money(value)}</span>

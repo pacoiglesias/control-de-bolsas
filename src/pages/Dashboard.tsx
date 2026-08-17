@@ -32,7 +32,7 @@ import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
 import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
 import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
-import { SociosProfitCard } from '../components/Dashboard/SociosProfitCard';
+import { ExecutiveFinancialCard } from '../components/Dashboard/ExecutiveFinancialCard';
 import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectionSummary';
 import { MoneyFlowPipeline } from '../components/Dashboard/MoneyFlowPipeline';
 import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
@@ -725,6 +725,15 @@ return () => unsub();
         />
       )}
 
+      {/* ─── 1.5 PANEL EJECUTIVO DE CORTE FINANCIERO & REPARTO 50/50 (COLAPSABLE DE LUJO) ─── */}
+      {role === 'admin' && (
+        <ExecutiveFinancialCard
+          orders={seguimientoOrders}
+          config={config}
+          saldoCaja={saldoCaja}
+        />
+      )}
+
       {/* ─── 2. SEMÁFORO OPERATIVO DEL DÍA ─────────────────────────────────── */}
       <SemaforoDelDia
         orders={seguimientoOrders}
@@ -769,14 +778,6 @@ return () => unsub();
           </div>
 
           <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
-
-          <SociosProfitCard
-            orders={activeOrders}
-            expenses={expenses}
-            costPricePerKg={config.costPricePerKg || 42}
-            salePricePerKg={config.salePricePerKg || 43}
-            onOpenRetiro={() => nav('/caja-chica')}
-          />
 
           <SmartAlerts orders={activeOrders} />
 

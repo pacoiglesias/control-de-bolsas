@@ -8,6 +8,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useToast } from '../context/ToastContext';
 import { useProducts } from '../hooks/useProducts';
 import { useSystemSettings } from '../hooks/useSystemSettings';
+import { usePrivacy } from '../context/PrivacyContext';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 import { downloadBackupJsonFile } from '../lib/cloudBackup';
@@ -62,6 +63,7 @@ export default function Layout() {
   const toast = useToast();
   const { products } = useProducts();
   const { settings } = useSystemSettings();
+  const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
@@ -163,6 +165,25 @@ export default function Layout() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Botón de Modo Privado / Discreto */}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={togglePrivacy}
+            aria-label={isPrivate ? "Modo Discreto Activo (Clic para mostrar cifras)" : "Modo Visible (Clic para ocultar cifras)"}
+            title={isPrivate ? "Modo Discreto Activo: Las cifras sensibles están ocultas en público. Clic para mostrar." : "Modo Visible: Clic para ocultar cifras sensibles en público."}
+            style={{
+              background: isPrivate ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+              color: isPrivate ? '#f59e0b' : 'inherit',
+              border: isPrivate ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent',
+              borderRadius: 8,
+              fontSize: 16,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {isPrivate ? '🙈' : '👁️'}
+          </button>
+          
           <NotificationsCenter />
           <button
             className="icon-btn"

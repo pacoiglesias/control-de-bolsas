@@ -95,7 +95,7 @@ export function MobileExecutiveCard({
           <div style={{ fontSize: 18, fontWeight: 900, color: saldoCaja >= 0 ? 'var(--ok)' : 'var(--bad)', margin: '2px 0' }}>
             <ResponsiveMoney value={saldoCaja} />
           </div>
-          <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>Disponible para reparto</div>
+          <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>Efectivo disponible en mano</div>
         </motion.div>
 
         {/* 2. Por Cobrar en la Calle */}
