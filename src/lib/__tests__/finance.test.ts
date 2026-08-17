@@ -300,3 +300,49 @@ describe('Casos Numéricos Extremos y Blindaje Financiero (OKR 1)', () => {
     expect(round2(comision + netoCaja)).toBe(totalFactura);
   });
 });
+
+describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', () => {
+  it('orderMatchesDepartment filtra correctamente por departamento, contrarecibo y cliente', async () => {
+    const { orderMatchesDepartment } = await import('../finance');
+    
+    // Caso 1: Departamento explícito
+    expect(orderMatchesDepartment({ department: 'TH' } as any, 'TH')).toBe(true);
+    expect(orderMatchesDepartment({ department: 'TH' } as any, 'GT')).toBe(false);
+    expect(orderMatchesDepartment({ department: 'GT' } as any, 'GT')).toBe(true);
+    expect(orderMatchesDepartment({ department: 'GT' } as any, 'ALL')).toBe(true);
+
+    // Caso 2: Contrarecibo asignado TH-912 o GT-742
+    expect(orderMatchesDepartment({ collection: { contrareciboNumber: 'TH-912' } } as any, 'TH')).toBe(true);
+    expect(orderMatchesDepartment({ collection: { contrareciboNumber: 'GT-742' } } as any, 'GT')).toBe(true);
+    expect(orderMatchesDepartment({ collection: { contrareciboNumber: 'GT-742' } } as any, 'TH')).toBe(false);
+
+    // Caso 3: Factura individual con contrarecibo TH-879
+    const orderWithInvCr = {
+      invoices: [{ collection: { contrareciboNumber: 'TH-879' } }]
+    } as any;
+    expect(orderMatchesDepartment(orderWithInvCr, 'TH')).toBe(true);
+    expect(orderMatchesDepartment(orderWithInvCr, 'GT')).toBe(false);
+
+    // Caso 4: Cliente con sufijo Providencia - TH
+    expect(orderMatchesDepartment({ client: 'Grupo Textil Providencia - TH' } as any, 'TH')).toBe(true);
+    expect(orderMatchesDepartment({ client: 'Grupo Textil Providencia - GT' } as any, 'GT')).toBe(true);
+  });
+
+  it('Los 10 contrarecibos oficiales suman exactamente $1,019,956.34 ($584,400.42 TH + $435,555.92 GT)', () => {
+    const thCrs = [79826.00, 136300.00, 106720.17, 136300.00, 125254.25];
+    const gtCrs = [54520.00, 69001.60, 106477.56, 98136.00, 107420.76];
+
+    const sumTh = round2(thCrs.reduce((a, b) => a + b, 0));
+    const sumGt = round2(gtCrs.reduce((a, b) => a + b, 0));
+    const grandTotal = round2(sumTh + sumGt);
+
+    expect(sumTh).toBe(584400.42);
+    expect(sumGt).toBe(435555.92);
+    expect(grandTotal).toBe(1019956.34);
+  });
+
+  it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a -102670.27', () => {
+    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
+  });
+});
+

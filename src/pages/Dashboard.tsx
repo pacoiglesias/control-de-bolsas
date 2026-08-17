@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
 import Decimal from 'decimal.js-light';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
@@ -212,6 +212,15 @@ return () => unsub();
     };
     fetchHealth();
   }, [role]);
+
+  // Auto-calibración automática del saldo histórico con Andrés al valor oficial de corte (-102,670.27)
+  useEffect(() => {
+    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === undefined || config.historicalDebtAndres === 0)) {
+      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true }).catch((err: any) => {
+        console.warn('Auto-calibración config/financials:', err);
+      });
+    }
+  }, [role, config]);
 
   async function handleCreateBackup() {
     setBackupBusy(true);
