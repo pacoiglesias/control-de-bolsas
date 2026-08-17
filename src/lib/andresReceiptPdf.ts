@@ -1,4 +1,4 @@
-import { money, fmtDate } from './format';
+import { money, fmtDateFull, fmtDateTimeFull } from './format';
 
 // Convertidor de números a palabras en español para pesos mexicanos
 export function numeroALetras(monto: number): string {
@@ -63,7 +63,8 @@ export interface AndresReceiptData {
 
 export function generateAndresReceiptHtml(data: AndresReceiptData): string {
   const folioRecibo = data.folio || `REC-${Date.now().toString(36).toUpperCase()}`;
-  const fechaTxt = fmtDate(data.date || new Date());
+  const fechaAplicacion = fmtDateFull(data.date || new Date());
+  const fechaEmisionExacta = fmtDateTimeFull(new Date());
   const montoLetras = numeroALetras(data.amount);
   const pagador = data.payerName || 'Administración / Socios Providencia';
 
@@ -80,10 +81,11 @@ export function generateAndresReceiptHtml(data: AndresReceiptData): string {
           </div>
         </div>
 
-        <div style="text-align: right; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 8px 16px; min-width: 200px;">
+        <div style="text-align: right; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 8px 16px; min-width: 220px;">
           <div style="font-size: 10px; font-weight: 800; color: #166534; text-transform: uppercase;">FOLIO DE COMPROBANTE</div>
           <div style="font-size: 17px; font-weight: 900; color: #0f172a; margin-top: 2px; font-family: monospace;">${folioRecibo}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px;"><strong>Fecha:</strong> ${fechaTxt}</div>
+          <div style="font-size: 11px; color: #475569; margin-top: 2px;"><strong>Fecha Pago:</strong> ${fechaAplicacion}</div>
+          <div style="font-size: 9.5px; color: #64748b; margin-top: 1px;">Emisión: ${fechaEmisionExacta}</div>
         </div>
       </div>
 
@@ -161,7 +163,7 @@ export function generateAndresReceiptHtml(data: AndresReceiptData): string {
       <!-- PIE DE CONTROL -->
       <div style="margin-top: 36px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 9.5px; color: #94a3b8;">
         <div>Documento Interno de Control Administrativo y Auditoría Fiscal</div>
-        <div>Generado electrónicamente por ERP Control de Bolsas · ${fechaTxt}</div>
+        <div>Generado electrónicamente por ERP Control de Bolsas · ${fechaEmisionExacta}</div>
       </div>
 
     </div>

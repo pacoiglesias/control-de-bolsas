@@ -12,7 +12,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
-import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
+import { fmtDate, fmtDayAndDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
 import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
@@ -573,7 +573,7 @@ export default function CajaChica() {
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--ink)', marginBottom: 2 }}>{e.concept}</div>
                     <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                      <span className="mono">{fmtDate(e.date)}</span>
+                      <span className="mono" style={{ fontWeight: 600 }}>{fmtDayAndDate(e.date)}</span>
                       {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
                         <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
                           ● Abono a Proveedor

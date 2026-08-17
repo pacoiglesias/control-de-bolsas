@@ -1,5 +1,5 @@
 import { Empty } from '../ui';
-import { fmtDate, money } from '../../lib/format';
+import { fmtDayAndDate, money } from '../../lib/format';
 import { printAndresReceipt } from '../../lib/andresReceiptPdf';
 import type { LedgerEntry } from '../../hooks/useAndresStats';
 
@@ -40,7 +40,7 @@ export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledge
         <tbody>
           {ledgerWithBalance.map((e, i) => (
             <tr key={`${e.id}-${i}`}>
-              <td className="mono">{fmtDate(e.date)}</td>
+              <td className="mono" style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtDayAndDate(e.date)}</td>
               <td>
                 {e.source === 'historical' ? (
                   <span className="badge b-warn">Histórico</span>

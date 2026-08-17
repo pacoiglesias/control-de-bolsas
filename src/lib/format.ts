@@ -72,10 +72,26 @@ export function fmtDayAndDate(ts: Timestamp | Date | null | undefined): string {
   return `${diaSem}, ${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
 }
 
+export function fmtDateFull(ts: Timestamp | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  const DIAS_COMPLETOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const MESES_COMPLETOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  return `${DIAS_COMPLETOS[d.getDay()]} ${d.getDate()} de ${MESES_COMPLETOS[d.getMonth()]}, ${d.getFullYear()}`;
+}
+
 export function fmtDateTime(ts: Timestamp | Date | null | undefined): string {
   const d = toDate(ts);
   if (!d) return '—';
   return d.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+export function fmtDateTimeFull(ts: Timestamp | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  const fecha = fmtDateFull(d);
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${fecha} · ${hora}`;
 }
 
 /** yyyy-mm-dd para <input type="date"> en hora local, no UTC. */
