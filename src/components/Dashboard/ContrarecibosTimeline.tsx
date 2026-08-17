@@ -8,9 +8,9 @@ import { confirmDialog } from '../../lib/confirmDialog';
 import { playCashRegisterSound } from '../../lib/soundEffects';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { extractCr } from '../../lib/finance';
-import { money, toDate, fmtDayAndDate, nombreClienteVisible } from '../../lib/format';
-import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { money, toDate, fmtDayAndDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
+import { Modal } from '../ui';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 
 interface ContrarecibosTimelineProps {
@@ -32,6 +32,7 @@ interface TimelineItem {
 export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProps) {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'semana' | 'mes'>('todos');
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const toast = useToast();
   const { executeWithUndo } = useUndo();
 
@@ -93,6 +94,24 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
   }).slice(0, 15);
 
   const totalPorCobrarProximo = filteredItems.reduce((acc, it) => acc + it.amount, 0);
+
+  // Redactor Inteligente de Correo Consolidado a Cuentas por Pagar (Providencia)
+  const emailDraft = useMemo(() => {
+    const listToInclude = timelineData.filter(it => it.status === 'overdue' || it.status === 'today' || it.status === 'this_week');
+    const targetList = listToInclude.length > 0 ? listToInclude : timelineData;
+    const total = targetList.reduce((sum, it) => sum + it.amount, 0);
+
+    const subject = `Estado de Cuenta y Solicitud de Programación de Pago - Contrarecibos Grupo Textil Providencia`;
+
+    const itemsText = targetList.map((it, idx) => {
+      const statusStr = it.daysDiff < 0 ? `Vencido hace ${Math.abs(it.daysDiff)} días` : it.daysDiff === 0 ? 'Vence Hoy' : `Vence el ${fmtDate(it.dueDate)}`;
+      return `${idx + 1}. CR: ${it.cr} | Factura: #${it.folio} | Vencimiento: ${fmtDate(it.dueDate)} (${statusStr}) | Importe: ${money(it.amount)}`;
+    }).join('\n');
+
+    const body = `Estimado Departamento de Cuentas por Pagar / Tesorería,\nGrupo Textil Providencia SA de CV,\n\nEsperando se encuentren muy bien.\n\nPor medio del presente correo, me permito compartirles la relación de Contrarecibos emitidos que se encuentran pendientes de pago a la fecha, solicitando cordialmente su valioso apoyo para su programación y confirmación de fecha estimada de dispersión:\n\n${itemsText}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 TOTAL PENDIENTE DE PAGO: ${money(total)}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAgradezco de antemano su atención y colaboración para el seguimiento de esta cuenta.\n\nQuedo a sus órdenes para cualquier aclaración o envío de documentación adicional.\n\nAtentamente,\nPaco Iglesias\nBolsas y Empaques Providencia`;
+
+    return { subject, body, count: targetList.length, total };
+  }, [timelineData]);
 
   // Acción Rápida de 1 Toque: Marcar como Cobrado con Deshacer (Undo)
   const handleMarkCollectedDirectly = async (it: TimelineItem) => {
@@ -194,11 +213,28 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
               Fechas exactas de cobro programadas con Providencia. Toca <strong>[✅ Ya Cobrado]</strong> para registrarlo con 1 toque.
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: 'var(--ink-soft)', textTransform: 'uppercase', fontWeight: 700 }}>Total a Cobrar:</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>{money(totalPorCobrarProximo)}</div>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowEmailModal(true)}
+              className="btn"
+              style={{
+                fontSize: 11.5,
+                padding: '6px 12px',
+                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(30, 64, 175, 0.25)',
+              }}
+              title="Generar correo formal con todos los contrarecibos vencidos para Cuentas por Pagar"
+            >
+              📧 Redactar Correo Cuentas por Pagar
+            </button>
             <button
               onClick={() => nav('/cobranza')}
               aria-label="Ver todos los contrarecibos en cobranza"
@@ -347,24 +383,6 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
 
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button
-                        type="button"
-                        className="btn"
-                        style={{ fontSize: 11, padding: '5px 8px', fontWeight: 700, color: '#047857', background: 'rgba(16,185,129,0.1)', borderColor: '#10b981' }}
-                        onClick={() => {
-                          const msg = generateCollectionNotice({
-                            folioFactura: it.folio,
-                            contrarecibo: it.cr,
-                            cliente: it.order.client || 'Providencia',
-                            monto: it.amount,
-                            fechaVencimiento: it.dueDate,
-                          });
-                          openWhatsAppMessage(msg);
-                        }}
-                        title="Enviar aviso formal de cobranza a Tesorería por WhatsApp"
-                      >
-                        💬 WhatsApp
-                      </button>
-                      <button
                         className="btn btn-primary"
                         style={{ fontSize: 11, padding: '5px 10px', fontWeight: 800, background: '#10b981', borderColor: '#059669', color: '#fff' }}
                         onClick={() => void handleMarkCollectedDirectly(it)}
@@ -394,6 +412,78 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
           orders={[selectedOrder]}
           onClose={() => setSelectedOrder(null)}
         />
+      )}
+
+      {showEmailModal && (
+        <Modal title="📧 Correo Consolidado a Cuentas por Pagar (Providencia)" onClose={() => setShowEmailModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
+              Este borrador formal consolida todos los <strong>{emailDraft.count} contrarecibos</strong> pendientes/vencidos ({money(emailDraft.total)}) en un solo mensaje profesional listo para enviar por correo a la Tesorería de Grupo Textil Providencia.
+            </p>
+
+            <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
+                Asunto del Correo:
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>
+                {emailDraft.subject}
+              </div>
+            </div>
+
+            <textarea
+              readOnly
+              value={emailDraft.body}
+              style={{
+                width: '100%',
+                height: 220,
+                fontSize: 12,
+                fontFamily: 'monospace',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid var(--line)',
+                background: 'var(--paper-raised)',
+                color: 'var(--ink)',
+                resize: 'vertical',
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    navigator.clipboard.writeText(emailDraft.body);
+                    toast('📋 Texto del correo copiado al portapapeles.', 'ok');
+                  }}
+                  style={{ fontWeight: 700 }}
+                >
+                  📋 Copiar Texto Completo
+                </button>
+                <a
+                  href={`mailto:cuentasporpagar@providencia.com.mx?subject=${encodeURIComponent(emailDraft.subject)}&body=${encodeURIComponent(emailDraft.body)}`}
+                  className="btn btn-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  ✉️ Abrir en Mi Correo (Outlook/Gmail)
+                </a>
+              </div>
+
+              <button type="button" className="btn" onClick={() => setShowEmailModal(false)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </>
   );
