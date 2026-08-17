@@ -11,6 +11,7 @@ import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import { promptDialog } from '../../lib/promptDialog';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 
 interface InvoiceWidgetProps {
   invoice: Invoice;
@@ -123,6 +124,21 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                 }}
               >
                 📄 Prefactura PDF
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const fol = localInvoice.folio || order.folio || 'S/N';
+                  const kgs = localInvoice.kilos || 0;
+                  const tot = fin.invoiceTotal;
+                  const text = `Hola Andrés, te comparto los datos de la Factura autorizada para la entrega en Providencia:\n\n📄 *Factura:* #${fol}\n📦 *Kilos amparados:* ${kgs.toLocaleString('es-MX')} kg\n🏢 *Cliente:* Grupo Textil Providencia\n💰 *Total c/IVA:* ${money(tot)}\n\nPor favor que el chofer lleve este documento / folio al descargar en báscula. Saludos.`;
+                  openWhatsAppMessage(text);
+                }}
+                style={{ padding: '4px 10px', fontSize: 12, background: 'rgba(16,185,129,0.1)', color: '#047857', borderColor: '#10b981', fontWeight: 700 }}
+                title="Mandar folio de factura a Andrés por WhatsApp para que su chofer la lleve a Providencia"
+              >
+                📲 Enviar a Andrés (WhatsApp)
               </button>
 
               {!readOnly && (
