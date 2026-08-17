@@ -65,7 +65,7 @@ export default function Layout() {
     { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
     { type: 'link', to: '/cobranza', icon: '💵', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
     { type: 'link', to: '/compras', icon: '🏭', label: `Maquila ${providerLabel}`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '🏦', label: 'Caja Chica & Efectivo', roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
 
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
     { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },

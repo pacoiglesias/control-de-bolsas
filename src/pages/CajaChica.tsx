@@ -283,13 +283,13 @@ export default function CajaChica() {
               onClick={() => setSelected({
                 id: doc(collection(db, PATHS.expenses)).id,
                 date: Timestamp.fromDate(new Date()),
-                concept: 'Recolección de Cobranza del Contador',
+                concept: 'Efectivo Recibido de Contadores (Cobranza Providencia)',
                 amount: dineroEnTransito,
                 type: 'ingreso',
                 createdAt: null,
               } as Expense)}
             >
-              📥 {dineroEnTransito > 0 ? 'Recibir a Caja' : 'Nada por recibir'}
+              💵 {dineroEnTransito > 0 ? 'Recibir Efectivo en Mano' : 'Sin efectivo por recibir'}
             </motion.button>
           </div>
         </Card>
