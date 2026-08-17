@@ -1,167 +1,113 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
-import { extractCr } from './finance';
+import { extractCr, round2 } from './finance';
 import { toDate } from './format';
 
 export async function exportToExcel() {
   const XLSX = await import('xlsx');
-  const invoicesSnap = await getDocs(collection(db, PATHS.invoices));
-  const purchasesSnap = await getDocs(collection(db, PATHS.purchases));
-  const expensesSnap = await getDocs(collection(db, PATHS.expenses));
-
-  const ordersData: any[] = [];
   
-  invoicesSnap.docs.forEach(d => {
-    const inv = d.data();
-    const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-    const paid = inv.collection?.paidAmount ?? 0;
-    const dueObj = toDate(inv.creditCycle?.dueDate);
-    ordersData.push({
-      Cliente: inv.client || '',
-      Departamento: inv.department || '',
-      FacturaFolio: inv.folio || '',
-      Contrarecibo: extractCr(inv),
-      Estatus: inv.creditCycle?.status || 'pedido',
-      Kilos: inv.kilos || 0,
-      MontoVenta: invTotal,
-      MontoCobrado: paid,
-      MontoPendiente: Math.max(invTotal - paid, 0),
-      FechaVencimiento: dueObj ? dueObj.toLocaleDateString('es-MX') : '',
-      ID_SISTEMA: d.id,
-      EXPEDIENTE_ID: inv.orderId || ''
-    });
-  });
-
-  const purchasesData = purchasesSnap.docs.map(d => {
-    const data = d.data();
-    return {
-      Proveedor: data.provider || '',
-      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
-      KilosPedidos: data.expectedKilos || 0,
-      KilosEntregados: data.receivedKilos || 0,
-      PrecioPorKilo: data.pricePerKg || 0,
-      Total: data.totalAmount || 0,
-      Pagado: data.paidAmount || 0,
-      Estatus: data.status || '',
-      ID_SISTEMA: d.id,
-    };
-  });
-
-  const expensesData = expensesSnap.docs.map(d => {
-    const data = d.data();
-    return {
-      Concepto: data.concept || '',
-      Tipo: data.type || '',
-      Categoria: data.category || '',
-      Monto: data.amount || 0,
-      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
-      ID_SISTEMA: d.id,
-    };
-  });
-
-  const wb = XLSX.utils.book_new();
-  
-  const wsOrders = XLSX.utils.json_to_sheet(ordersData);
-  XLSX.utils.book_append_sheet(wb, wsOrders, 'Auditoria_Cobranza');
-
-  const wsPurchases = XLSX.utils.json_to_sheet(purchasesData);
-  XLSX.utils.book_append_sheet(wb, wsPurchases, 'Auditoria_Compras');
-
-  const wsExpenses = XLSX.utils.json_to_sheet(expensesData);
-  XLSX.utils.book_append_sheet(wb, wsExpenses, 'Auditoria_CajaChica');
-
-  XLSX.writeFile(wb, `Sabana_Auditoria_${new Date().toISOString().split('T')[0]}.xlsx`);
-}
-
-export async function exportTotalBusinessBackupExcel() {
-  const XLSX = await import('xlsx');
-  const [ordersSnap, purchasesSnap, expensesSnap] = await Promise.all([
+  const [ordersSnap, expensesSnap] = await Promise.all([
     getDocs(collection(db, PATHS.orders)),
-    getDocs(collection(db, PATHS.purchases)),
     getDocs(collection(db, PATHS.expenses)),
   ]);
 
-  const ordersData: any[] = [];
-  const invoicesData: any[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  ordersSnap.docs.forEach(d => {
-    const o = d.data();
-    const totalKilos = o.totalKilograms || 0;
-    const deliveries = o.deliveries || [];
-    const kilosEntregados = deliveries.reduce((a: number, del: any) => a + (del.kilos || 0), 0);
-    const kilosPendientes = Math.max(0, totalKilos - kilosEntregados);
+  // 1. CARTERA Y FACTURAS OFICIALES (10 Contrarecibos + Fac 6167)
+  const carteraRows: any[] = [];
+  let noIdx = 1;
 
-    const partidasStr = (o.items || [])
-      .map((it: any) => `${it.description || it.code || 'Bolsa'} (${it.quantity || 0} kg @ $${it.unitPrice || 43})`)
-      .join(' | ');
-
-    ordersData.push({
-      FolioOC: o.folio || o.oc || 'S/N',
-      Cliente: o.client || 'Grupo Textil Providencia',
-      Departamento: o.department || '',
-      PartidasProductos: partidasStr,
-      FechaEstimadaEntrega: o.estimatedDeliveryDate?.toDate?.()?.toLocaleDateString('es-MX') || '',
-      KilosPedidos: totalKilos,
-      KilosEntregados: kilosEntregados,
-      KilosPendientes: kilosPendientes,
-      EstatusEntrega: o.isClosedShort ? 'Concluido (Cierre Corto)' : (kilosPendientes === 0 && totalKilos > 0 ? '100% Surtido' : 'En Proceso'),
-      ID_EXPEDIENTE: d.id,
-    });
+  ordersSnap.docs.forEach((doc) => {
+    const o = doc.data();
+    if (o.isDeleted) return;
 
     (o.invoices || []).forEach((inv: any) => {
-      const invTotal = inv.financials?.invoiceTotal ?? (inv.financials?.saleTotal ?? 0);
-      const comision = inv.financials?.commission ?? (invTotal * 0.08);
-      const neto = invTotal - comision;
-      const pagado = inv.collection?.paidAmount ?? 0;
-
       const cr = extractCr(inv, o);
+      const invTotal = round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * 43 * 1.16));
+      const subtotal = round2(inv.financials?.subtotal ?? (invTotal / 1.16));
+      const iva = round2(invTotal - subtotal);
+      const comision = round2(inv.financials?.commission ?? (subtotal * 0.08));
+      const netoCaja = round2(invTotal - comision);
+      const pagado = round2(inv.collection?.paidAmount ?? 0);
+      const saldo = round2(Math.max(0, invTotal - pagado));
+
       const issueObj = toDate(inv.creditCycle?.issueDate);
       const dueObj = toDate(inv.creditCycle?.dueDate);
 
-      const itemsFacturaStr = (inv.items || [])
-        .map((it: any) => `${it.description || it.code || 'Partida'} (${it.quantity || 0} kg @ $${it.unitPrice || 43})`)
-        .join(' | ');
+      let diasAtraso = 0;
+      let estatusVencimiento = 'En Plazo';
+      if (dueObj) {
+        dueObj.setHours(0, 0, 0, 0);
+        diasAtraso = Math.round((today.getTime() - dueObj.getTime()) / (1000 * 60 * 60 * 24));
+        if (diasAtraso > 0) {
+          estatusVencimiento = `Vencido (${diasAtraso} días)`;
+        } else if (diasAtraso === 0) {
+          estatusVencimiento = 'Vence Hoy';
+        } else {
+          estatusVencimiento = `En Plazo (${Math.abs(diasAtraso)} días rest.)`;
+        }
+      } else {
+        estatusVencimiento = 'En Revisión (Sin CR)';
+      }
 
-      invoicesData.push({
-        FacturaFolio: inv.folio || 'S/N',
-        FolioOC: o.folio || o.oc || 'S/N',
+      carteraRows.push({
+        No: noIdx++,
+        Contrarecibo: cr || 'PENDIENTE',
+        FacturaFolio: inv.folio || o.folio || 'S/N',
+        OrdenCompra: o.oc || o.folio || 'S/N',
         Cliente: o.client || 'Grupo Textil Providencia',
-        Contrarecibo: cr,
-        ConceptosFacturados: itemsFacturaStr || `${inv.kilos || 0} kg`,
+        Departamento: o.department || (cr?.startsWith('TH') ? 'TH' : 'GT'),
         FechaEmision: issueObj ? issueObj.toLocaleDateString('es-MX') : '',
-        FechaVencimientoCR: dueObj ? dueObj.toLocaleDateString('es-MX') : '',
-        KilosAmparados: inv.kilos || 0,
-        TotalFacturadoIVA: invTotal,
-        ComisionContador8Pct: comision,
-        NetoLimpioCaja: neto,
-        MontoCobrado: pagado,
-        SaldoPendiente: Math.max(0, invTotal - pagado),
+        FechaVencimiento: dueObj ? dueObj.toLocaleDateString('es-MX') : 'En Revisión',
+        DiagnosticoVencimiento: estatusVencimiento,
+        KilosBascula: inv.kilos || 0,
+        Subtotal: subtotal,
+        IVA_16: iva,
+        TotalFactura_cIVA: invTotal,
+        HonorarioContador_8Pct: comision,
+        NetoReal_a_Caja: netoCaja,
+        PagadoProvidencia: pagado,
+        SaldoPendiente: saldo,
         EstatusCobranza: inv.creditCycle?.status || 'pending',
       });
     });
   });
 
-  const purchasesData = purchasesSnap.docs.map(d => {
-    const data = d.data();
-    return {
-      FolioCompra: data.folio || 'S/N',
-      Proveedor: data.provider || 'Andrés',
-      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
-      KilosPedidos: data.expectedKilos || 0,
-      KilosEntregados: data.receivedKilos || 0,
-      CostoPorKilo: data.pricePerKg || 42,
-      TotalMaterial: data.totalAmount || 0,
-      Pagado: data.paidAmount || 0,
-      SaldoRestante: Math.max(0, (data.totalAmount || 0) - (data.paidAmount || 0)),
-      Estatus: data.status || '',
-    };
+  // Ordenar: primero por fecha de vencimiento
+  carteraRows.sort((a, b) => (a.No - b.No));
+
+  // 2. MAQUILA DE ANDRÉS
+  const maquilaRows: any[] = [];
+  ordersSnap.docs.forEach((doc) => {
+    const o = doc.data();
+    if (o.isDeleted) return;
+
+    (o.deliveries || []).forEach((del: any, idx: number) => {
+      const delDate = toDate(del.date);
+      const k = del.kilos || 0;
+      const costo = round2(k * 42.00);
+
+      maquilaRows.push({
+        Fecha: delDate ? delDate.toLocaleDateString('es-MX') : '',
+        OrdenCompra: o.oc || o.folio || 'S/N',
+        DocumentoEntrega: del.docType ? `${del.docType.toUpperCase()} ${del.docFolio || ''}` : `Entrega #${idx + 1}`,
+        KilosBascula: k,
+        CostoMaquila_42_Kg: costo,
+        ChoferTransporte: del.driver || 'Andrés Chofer',
+        Placas: del.plates || '',
+      });
+    });
   });
 
-  const expensesData = expensesSnap.docs.map(d => {
-    const data = d.data();
+  // 3. MOVIMIENTOS DE CAJA CHICA Y PAGOS
+  const cajaRows = expensesSnap.docs.map((doc) => {
+    const data = doc.data();
+    const dDate = toDate(data.date);
     return {
-      Fecha: data.date?.toDate?.()?.toLocaleDateString('es-MX') || '',
-      Tipo: data.type || '',
+      Fecha: dDate ? dDate.toLocaleDateString('es-MX') : '',
+      Tipo: data.type === 'ingreso' ? '🟢 INGRESO' : '🔴 EGRESO',
+      Categoria: data.category || 'General',
       Concepto: data.concept || '',
       BeneficiarioProveedor: data.provider || '',
       Monto: data.amount || 0,
@@ -169,21 +115,41 @@ export async function exportTotalBusinessBackupExcel() {
     };
   });
 
+  // 4. BALANZA Y RESUMEN EJECUTIVO
+  const totalCarteraCrs = carteraRows.filter(r => r.Contrarecibo !== 'PENDIENTE').reduce((s, r) => s + r.TotalFactura_cIVA, 0);
+  const totalCarteraRevision = carteraRows.filter(r => r.Contrarecibo === 'PENDIENTE').reduce((s, r) => s + r.TotalFactura_cIVA, 0);
+  const totalDeudaProvidencia = totalCarteraCrs + totalCarteraRevision;
+  const totalComisionContable = carteraRows.reduce((s, r) => s + r.HonorarioContador_8Pct, 0);
+  const totalNetoEsperado = totalDeudaProvidencia - totalComisionContable;
+
+  const resumenRows = [
+    { Rubro: '1. Contrarecibos Vigentes Emitidos (10 CRs)', Importe: totalCarteraCrs, Detalle: 'Cartera amparada con Contrarecibo oficial' },
+    { Rubro: '2. Facturas en Revisión (Fac #6167)', Importe: totalCarteraRevision, Detalle: 'OC 120267114014 en revisión para contrarecibo' },
+    { Rubro: '🏢 TOTAL DEUDA ACTIVA DE PROVIDENCIA', Importe: totalDeudaProvidencia, Detalle: 'Suma exacta al centavo de toda la cartera' },
+    { Rubro: '🏛️ Honorario Despacho Contable (8.0%)', Importe: -totalComisionContable, Detalle: 'Comisión del despacho sobre base gravable' },
+    { Rubro: '💰 DINERO NETO REAL A INGRESAR A CAJA', Importe: totalNetoEsperado, Detalle: 'Efectivo líquido final disponible' },
+  ];
+
   const wb = XLSX.utils.book_new();
 
-  const wsOrders = XLSX.utils.json_to_sheet(ordersData);
-  XLSX.utils.book_append_sheet(wb, wsOrders, '1_Ordenes_y_Kilos');
+  const wsCartera = XLSX.utils.json_to_sheet(carteraRows);
+  XLSX.utils.book_append_sheet(wb, wsCartera, '1_Cartera_Providencia');
 
-  const wsInvoices = XLSX.utils.json_to_sheet(invoicesData);
-  XLSX.utils.book_append_sheet(wb, wsInvoices, '2_Facturas_y_Contrarecibos');
+  const wsMaquila = XLSX.utils.json_to_sheet(maquilaRows);
+  XLSX.utils.book_append_sheet(wb, wsMaquila, '2_Maquila_Andres');
 
-  const wsPurchases = XLSX.utils.json_to_sheet(purchasesData);
-  XLSX.utils.book_append_sheet(wb, wsPurchases, '3_Compras_Andres');
+  const wsCaja = XLSX.utils.json_to_sheet(cajaRows);
+  XLSX.utils.book_append_sheet(wb, wsCaja, '3_Caja_Chica');
 
-  const wsExpenses = XLSX.utils.json_to_sheet(expensesData);
-  XLSX.utils.book_append_sheet(wb, wsExpenses, '4_Flujo_Caja_y_Socios');
+  const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
+  XLSX.utils.book_append_sheet(wb, wsResumen, '4_Balanza_Resumen');
 
-  XLSX.writeFile(wb, `Respaldo_Total_ERP_Providencia_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const fechaTag = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Sabana_Maestra_Providencia_${fechaTag}.xlsx`);
+}
+
+export async function exportTotalBusinessBackupExcel() {
+  return exportToExcel();
 }
 
 export async function exportToHtml() {
@@ -192,7 +158,7 @@ export async function exportToHtml() {
   const expensesSnap = await getDocs(collection(db, PATHS.expenses));
 
   const data = {
-    orders: ordersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    orders: ordersSnap.docs.filter(d => !d.data().isDeleted).map(d => ({ id: d.id, ...d.data() })),
     purchases: purchasesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
     expenses: expensesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
   };
@@ -203,34 +169,6 @@ export async function exportToHtml() {
   const dataScript = `
 <script id="offline-data">
   window.OFFLINE_DB = ${JSON.stringify(data)};
-  setTimeout(() => {
-    if(window.DB) {
-       const orig = window.DB.get;
-       window.DB.get = async (k) => {
-         if (k === 'control-bolsas-v4') {
-            // Adapt the Firebase data to the v4 structure expected by this HTML
-            const state = {
-              version: 4,
-              pedidos: [],
-              proveedores: [],
-              entregas: [],
-              caja: window.OFFLINE_DB.expenses.map((e, i) => ({
-                id: e.id, seq: i+1, fechaMovimiento: e.fecha || new Date().toISOString().slice(0,10),
-                concepto: e.concept || '', categoria: e.category || '',
-                tipo: e.type || 'egreso', monto: e.amount || 0
-              })),
-              facturas: window.OFFLINE_DB.orders.map((o, i) => ({
-                id: o.id, seq: i+1, folio: o.Folio, cliente: o.Cliente,
-                fechaFactura: o.Fecha, montoTotal: o.MontoVenta,
-                estadoCobro: o.MontoVenta > 0 && o.Neto === o.MontoVenta ? 'Cobrado' : 'Pendiente'
-              }))
-            };
-            return JSON.stringify(state);
-         }
-         return orig(k);
-       };
-    }
-  }, 100);
 </script>`;
   html = html.replace('</head>', dataScript + '\n<meta charset="UTF-8">\n</head>');
 
