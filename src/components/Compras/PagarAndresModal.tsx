@@ -13,6 +13,7 @@ import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../../lib/fi
 import { useAuth } from '../../context/AuthContext';
 import { logAction } from '../../lib/logger';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { generateAndresReceiptPdf, printAndresReceipt } from '../../lib/andresReceiptPdf';
 import Decimal from 'decimal.js';
 
 export function PagarAndresModal({ 
@@ -78,6 +79,36 @@ export function PagarAndresModal({
   const saldoRestante = new Decimal(saldoCaja).minus(montoNum).toNumber();
   const saldoInsuficiente = montoNum > saldoCaja;
 
+  const handlePrintReceipt = (overrideAmount?: number) => {
+    const amt = overrideAmount ?? montoNum;
+    if (amt <= 0) return toast('Ingresa un monto para imprimir el recibo.', 'bad');
+    printAndresReceipt({
+      amount: amt,
+      concept: pagoAbono.concept.trim() || 'Abono por Maquila y Fabricación de Bolsa',
+      date: pagoAbono.date,
+      saldoAnterior: deudaConAndres,
+      saldoRestante: Math.max(0, deudaConAndres - amt),
+      payerName: user?.email || 'Administración / Socios Providencia',
+    });
+  };
+
+  const handleDownloadReceiptPdf = async () => {
+    if (montoNum <= 0) return toast('Ingresa un monto para descargar el recibo.', 'bad');
+    try {
+      await generateAndresReceiptPdf({
+        amount: montoNum,
+        concept: pagoAbono.concept.trim() || 'Abono por Maquila y Fabricación de Bolsa',
+        date: pagoAbono.date,
+        saldoAnterior: deudaConAndres,
+        saldoRestante: Math.max(0, deudaConAndres - montoNum),
+        payerName: user?.email || 'Administración / Socios Providencia',
+      });
+      toast('📄 Recibo PDF descargado exitosamente.', 'ok');
+    } catch {
+      toast('No se pudo generar el PDF del recibo.', 'bad');
+    }
+  };
+
   const handleSendWhatsAppReceipt = () => {
     if (montoNum <= 0) return toast('Ingresa un monto para generar el comprobante.', 'bad');
     const msg = `Hola estimado Andrés,\n\nTe comparto el comprobante del pago registrado el día de hoy:\n\n💰 *Importe:* ${money(montoNum)}\n📋 *Concepto:* ${pagoAbono.concept.trim() || 'Abono a Cuenta'}\n📅 *Fecha:* ${pagoAbono.date}\n\nQuedamos al pendiente. Saludos, Bolsas Elemental.`;
@@ -117,6 +148,11 @@ export function PagarAndresModal({
       });
 
       toast(`✅ Pago por ${money(val)} a Andrés registrado con éxito.`, 'ok');
+
+      if (await confirmDialog({ message: `✅ Pago por ${money(val)} registrado con éxito.\n\n¿Deseas imprimir el Recibo Oficial para que Andrés te lo firme en este momento?` })) {
+        handlePrintReceipt(val);
+      }
+
       onClose();
     } catch (err: any) {
       toast(err.message, 'bad');
@@ -315,15 +351,35 @@ export function PagarAndresModal({
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
           {montoNum > 0 && (
-            <button
-              type="button"
-              className="btn"
-              onClick={handleSendWhatsAppReceipt}
-              style={{ background: 'rgba(16,185,129,0.1)', color: '#047857', borderColor: '#10b981', fontWeight: 700 }}
-              title="Redactar comprobante de abono para enviar a Andrés por WhatsApp"
-            >
-              💬 WhatsApp a Andrés
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => handlePrintReceipt()}
+                style={{ background: 'rgba(37,99,235,0.1)', color: '#1d4ed8', borderColor: '#3b82f6', fontWeight: 700 }}
+                title="Imprimir formato de recibo en papel para firma de recibido de Andrés"
+              >
+                🖨️ Imprimir Recibo
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleDownloadReceiptPdf}
+                style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', borderColor: '#8b5cf6', fontWeight: 700 }}
+                title="Descargar recibo en formato PDF"
+              >
+                📄 Recibo PDF
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleSendWhatsAppReceipt}
+                style={{ background: 'rgba(16,185,129,0.1)', color: '#047857', borderColor: '#10b981', fontWeight: 700 }}
+                title="Redactar comprobante de abono para enviar a Andrés por WhatsApp"
+              >
+                💬 WhatsApp
+              </button>
+            </>
           )}
           <button 
             type="submit" 
