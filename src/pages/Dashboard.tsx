@@ -96,7 +96,7 @@ export default function Dashboard() {
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
-  const [viewMode, setViewMode] = useState<'executive' | 'collection' | 'production' | 'all'>('executive');
+  const [viewMode, setViewMode] = useState<'executive' | 'orders' | 'collection' | 'production' | 'pnl' | 'all'>('executive');
   const [showReportsMenu, setShowReportsMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -290,6 +290,42 @@ return () => unsub();
         .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
         .filter((o): o is PurchaseOrder => o !== null);
     }, [globalOrders, deptFilter]);
+
+  // Métricas financieras departamentales en vivo para los botones de filtrado
+  const deptPorCobrar = useMemo(() => {
+    let all = 0;
+    let th = 0;
+    let gt = 0;
+    let allCount = 0;
+    let thCount = 0;
+    let gtCount = 0;
+
+    globalOrders.forEach(o => {
+      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      (o.invoices || []).forEach(inv => {
+        const st = inv.creditCycle?.status;
+        const paidAmt = inv.collection?.paidAmount || 0;
+        const total = inv.financials?.invoiceTotal ?? (Number(inv.kilos || 0) * (config?.salePricePerKg || 43) * (1 + (config?.ivaRate || 0.16)));
+        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim().toUpperCase();
+
+        if (st === 'paid' || st === 'collected' || (paidAmt >= total && total > 0)) return;
+        if (total <= 0) return;
+
+        all += total;
+        if (cr) allCount++;
+
+        if (cr.startsWith('TH-') || o.department === 'TH' || (o.client || '').toUpperCase().includes('TH')) {
+          th += total;
+          if (cr) thCount++;
+        } else if (cr.startsWith('GT-') || o.department === 'GT' || (o.client || '').toUpperCase().includes('GT')) {
+          gt += total;
+          if (cr) gtCount++;
+        }
+      });
+    });
+
+    return { all, th, gt, allCount, thCount, gtCount };
+  }, [globalOrders, config]);
 
   const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
 
@@ -898,7 +934,7 @@ return () => unsub();
           </div>
         </div>
 
-        {/* BARRA DE FILTRADO (DEPARTAMENTOS Y MES P&L) */}
+        {/* BARRA DE FILTRADO UNIFICADA CON MONTOS EN VIVO */}
         <div
           style={{
             display: 'flex',
@@ -907,30 +943,105 @@ return () => unsub();
             flexWrap: 'wrap',
             gap: 12,
             background: 'var(--paper-raised)',
-            padding: '8px 14px',
-            borderRadius: 14,
+            padding: '10px 16px',
+            borderRadius: 16,
             border: '1px solid var(--line-soft)',
             boxShadow: 'var(--shadow-sm)',
           }}
         >
-          <div className="tabs" style={{ margin: 0, display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              className={deptFilter === 'ALL' ? 'active' : ''}
+              type="button"
               onClick={() => setDeptFilter('ALL')}
-              style={{ borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 700 }}
+              style={{
+                borderRadius: 10,
+                padding: '7px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: deptFilter === 'ALL' ? '1px solid var(--accent)' : '1px solid var(--line)',
+                background: deptFilter === 'ALL' ? 'var(--accent-tint)' : 'var(--paper)',
+                color: deptFilter === 'ALL' ? 'var(--accent-deep)' : 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
             >
-              🏢 Toda la Empresa
+              <span>🏢 Toda la Empresa</span>
+              <span style={{
+                background: deptFilter === 'ALL' ? 'var(--accent)' : 'var(--paper-sunk)',
+                color: deptFilter === 'ALL' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.all)}
+              </span>
             </button>
-            {(settings?.departments || ['TH', 'GT']).map((d) => (
-              <button
-                key={d}
-                className={deptFilter === d ? 'active' : ''}
-                onClick={() => setDeptFilter(d)}
-                style={{ borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 700 }}
-              >
-                {d}
-              </button>
-            ))}
+
+            <button
+              type="button"
+              onClick={() => setDeptFilter('TH')}
+              style={{
+                borderRadius: 10,
+                padding: '7px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: deptFilter === 'TH' ? '1px solid #0284c7' : '1px solid var(--line)',
+                background: deptFilter === 'TH' ? '#e0f2fe' : 'var(--paper)',
+                color: deptFilter === 'TH' ? '#0369a1' : 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>🔵 TH</span>
+              <span style={{
+                background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
+                color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.th)}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeptFilter('GT')}
+              style={{
+                borderRadius: 10,
+                padding: '7px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: deptFilter === 'GT' ? '1px solid #16a34a' : '1px solid var(--line)',
+                background: deptFilter === 'GT' ? '#dcfce7' : 'var(--paper)',
+                color: deptFilter === 'GT' ? '#15803d' : 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>🟢 GT</span>
+              <span style={{
+                background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
+                color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.gt)}
+              </span>
+            </button>
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -941,7 +1052,7 @@ return () => unsub();
               value={monthFilter}
               onChange={(e) => setMonthFilter(e.target.value)}
               style={{
-                padding: '6px 14px',
+                padding: '7px 14px',
                 borderRadius: 10,
                 border: '1px solid var(--line)',
                 background: 'var(--paper)',
@@ -963,15 +1074,35 @@ return () => unsub();
         </div>
       </div>
 
-      {/* ─── 2. SELECTOR DE VISTAS MODULARES (ERRADICAR SCROLL INFINITO) ───── */}
+      {/* ─── 2. HERO SUITE DE 4 PILARES FINANCIEROS (SIEMPRE VISIBLE) ──────── */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+        </div>
+      ) : (
+        <ModernKpiGrid
+          k={k}
+          role={role}
+          saldoCaja={saldoCaja}
+          monthFilter={monthFilter}
+          nav={nav}
+          contrarecibosVencidosCount={contrarecibosVencidosCount}
+          config={config}
+        />
+      )}
+
+      {/* ─── 3. SELECTOR DE ESPACIO DE TRABAJO (PESTAÑAS MODULARES DE ALTA DENSIDAD) ───── */}
       <div
         style={{
           display: 'flex',
           gap: 8,
-          marginBottom: 20,
+          marginBottom: 24,
           background: 'var(--paper-sunk)',
           padding: 6,
-          borderRadius: 14,
+          borderRadius: 16,
           border: '1px solid var(--line-soft)',
           overflowX: 'auto',
         }}
@@ -981,16 +1112,16 @@ return () => unsub();
           onClick={() => setViewMode('executive')}
           style={{
             flex: 1,
-            minWidth: 140,
-            padding: '9px 14px',
-            borderRadius: 10,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
             border: 'none',
             fontSize: 13,
             fontWeight: 800,
             cursor: 'pointer',
             background: viewMode === 'executive' ? 'var(--paper-raised)' : 'transparent',
             color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'executive' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: viewMode === 'executive' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
@@ -999,7 +1130,33 @@ return () => unsub();
           }}
         >
           <span>🌟</span>
-          <span>Visión Ejecutiva</span>
+          <span>Resumen Ejecutivo</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode('orders')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'orders' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'orders' ? 'var(--accent)' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'orders' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>📁</span>
+          <span>Expedientes & OCs ({seguimientoOrders.length})</span>
         </button>
 
         <button
@@ -1007,16 +1164,16 @@ return () => unsub();
           onClick={() => setViewMode('collection')}
           style={{
             flex: 1,
-            minWidth: 140,
-            padding: '9px 14px',
-            borderRadius: 10,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
             border: 'none',
             fontSize: 13,
             fontWeight: 800,
             cursor: 'pointer',
             background: viewMode === 'collection' ? 'var(--paper-raised)' : 'transparent',
             color: viewMode === 'collection' ? '#0284c7' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'collection' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: viewMode === 'collection' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
@@ -1033,16 +1190,16 @@ return () => unsub();
           onClick={() => setViewMode('production')}
           style={{
             flex: 1,
-            minWidth: 140,
-            padding: '9px 14px',
-            borderRadius: 10,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
             border: 'none',
             fontSize: 13,
             fontWeight: 800,
             cursor: 'pointer',
             background: viewMode === 'production' ? 'var(--paper-raised)' : 'transparent',
             color: viewMode === 'production' ? '#7c3aed' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'production' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: viewMode === 'production' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
@@ -1051,7 +1208,33 @@ return () => unsub();
           }}
         >
           <span>🏭</span>
-          <span>Maquila & Kilos</span>
+          <span>Maquila & Andrés</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode('pnl')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'pnl' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'pnl' ? '#059669' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'pnl' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>⚖️</span>
+          <span>Corte & P&L (50/50)</span>
         </button>
 
         <button
@@ -1059,16 +1242,16 @@ return () => unsub();
           onClick={() => setViewMode('all')}
           style={{
             flex: 1,
-            minWidth: 120,
-            padding: '9px 14px',
-            borderRadius: 10,
+            minWidth: 110,
+            padding: '10px 14px',
+            borderRadius: 12,
             border: 'none',
             fontSize: 13,
             fontWeight: 800,
             cursor: 'pointer',
             background: viewMode === 'all' ? 'var(--paper-raised)' : 'transparent',
             color: viewMode === 'all' ? 'var(--ink)' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'all' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: viewMode === 'all' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
@@ -1081,81 +1264,26 @@ return () => unsub();
         </button>
       </div>
 
-      {/* ─── 3. CONTENIDO MODULAR POR VISTA ───────────────────────────────── */}
+      {/* ─── 4. CONTENIDO MODULAR SEGÚN EL ESPACIO DE TRABAJO SELECCIONADO ──── */}
 
-      {/* VISTA 1: VISIÓN EJECUTIVA (O VISTA COMPLETA) */}
+      {/* VISTA 1: RESUMEN EJECUTIVO */}
       {(viewMode === 'executive' || viewMode === 'all') && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Asistente Proactivo del Día */}
-          <ProactiveBriefingCard
-            orders={seguimientoOrders}
-            config={config as any}
-            onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-            onOpenQuickCollection={() => setShowQuickCollection(true)}
-            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-          />
-
-          {/* Hero Suite de KPIs */}
-          {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-              <Skeleton style={{ height: 150, borderRadius: 20 }} />
-            </div>
-          ) : (
-            <ModernKpiGrid
-              k={k}
-              role={role}
-              saldoCaja={saldoCaja}
-              monthFilter={monthFilter}
-              nav={nav}
-              contrarecibosVencidosCount={contrarecibosVencidosCount}
-              config={config}
-            />
-          )}
-
-          {/* Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
-          {role === 'admin' && (
-            <ExecutiveFinancialCard
-              orders={seguimientoOrders}
-              config={config}
-              saldoCaja={saldoCaja}
-            />
-          )}
-
-          {/* Grid de 2 Columnas Inteligente en Escritorio */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20 }}>
-            {/* Columna Izquierda: Flujo y Pedidos */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 2 }}>
-              <MoneyFlowPipeline
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* A. Radar Proactivo + Dock de Comandos Rápidos */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
+            {/* Lado Izquierdo: Asistente Proactivo */}
+            <div style={{ flex: 1.5 }}>
+              <ProactiveBriefingCard
                 orders={seguimientoOrders}
-                expenses={expenses}
-                config={config}
-                nav={nav}
-                selectedStage={selectedPipelineStage}
-                onSelectStage={setSelectedPipelineStage}
-              />
-
-              <SeguimientoPedidosTable
-                orders={seguimientoOrders}
-                filterStage={selectedPipelineStage}
-                onFilterStageChange={setSelectedPipelineStage}
+                config={config as any}
+                onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+                onOpenQuickCollection={() => setShowQuickCollection(true)}
                 onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
               />
             </div>
 
-            {/* Columna Derecha: Semáforo y Acciones Rápidas */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minWidth: 320 }}>
-              <SemaforoDelDia
-                orders={seguimientoOrders}
-                purchases={purchases}
-                config={config}
-                nav={nav}
-                onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-                onOpenQuickCollection={() => setShowQuickCollection(true)}
-              />
-
+            {/* Lado Derecho: Acciones Rápidas Ejecutivas */}
+            <div style={{ flex: 1 }}>
               <QuickActionsBar
                 role={role}
                 onNewOrder={() => nav('/ordenes?nueva=1')}
@@ -1171,16 +1299,60 @@ return () => unsub();
               />
             </div>
           </div>
+
+          {/* B. Pipeline Financiero de 5 Estaciones */}
+          <MoneyFlowPipeline
+            orders={seguimientoOrders}
+            expenses={expenses}
+            config={config}
+            nav={nav}
+            selectedStage={selectedPipelineStage}
+            onSelectStage={setSelectedPipelineStage}
+          />
+
+          {/* C. Tabla de Órdenes Vinculada al Pipeline */}
+          <SeguimientoPedidosTable
+            orders={seguimientoOrders}
+            filterStage={selectedPipelineStage}
+            onFilterStageChange={setSelectedPipelineStage}
+            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+          />
+
+          {/* D. Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
+          {role === 'admin' && (
+            <ExecutiveFinancialCard
+              orders={seguimientoOrders}
+              config={config}
+              saldoCaja={saldoCaja}
+            />
+          )}
         </div>
       )}
 
-      {/* VISTA 2: CENTRO DE COBRANZA (O VISTA COMPLETA) */}
+      {/* VISTA 2: EXPEDIENTES & OCS */}
+      {viewMode === 'orders' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>📁</span>
+            <span>Expedientes, Órdenes de Compra y Entregas en Báscula</span>
+          </div>
+
+          <SeguimientoPedidosTable
+            orders={seguimientoOrders}
+            filterStage={selectedPipelineStage}
+            onFilterStageChange={setSelectedPipelineStage}
+            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+          />
+        </div>
+      )}
+
+      {/* VISTA 3: CENTRO DE COBRANZA */}
       {(viewMode === 'collection' || viewMode === 'all') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
           {viewMode !== 'all' && (
             <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>📆</span>
-              <span>Centro de Cobranza & Contrarecibos</span>
+              <span>Centro de Cobranza & Contrarecibos Providencia</span>
             </div>
           )}
 
@@ -1193,13 +1365,21 @@ return () => unsub();
           <FacturasSinCRPanel orders={seguimientoOrders} />
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+            <SemaforoDelDia
+              orders={seguimientoOrders}
+              purchases={purchases}
+              config={config}
+              nav={nav}
+              onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+              onOpenQuickCollection={() => setShowQuickCollection(true)}
+            />
             <SmartAlerts orders={activeOrders} />
             <CashflowProjection orders={activeOrders} />
           </div>
         </div>
       )}
 
-      {/* VISTA 3: MAQUILA & KILOS (O VISTA COMPLETA) */}
+      {/* VISTA 4: MAQUILA & KILOS ANDRÉS */}
       {(viewMode === 'production' || viewMode === 'all') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
           {viewMode !== 'all' && (
@@ -1213,6 +1393,22 @@ return () => unsub();
             <KilosSpeedometer orders={activeOrders} />
             <BandejaMaquilaWidget />
           </div>
+        </div>
+      )}
+
+      {/* VISTA 5: CORTE FINANCIERO & P&L (50/50) */}
+      {viewMode === 'pnl' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>⚖️</span>
+            <span>Corte Financiero Ejecutivo & Reparto de Utilidades 50/50</span>
+          </div>
+
+          <ExecutiveFinancialCard
+            orders={seguimientoOrders}
+            config={config}
+            saldoCaja={saldoCaja}
+          />
         </div>
       )}
 
