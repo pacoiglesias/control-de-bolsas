@@ -1949,6 +1949,18 @@ Commit: `fix(compras-modals): safe division guard, round2 and user audit log in 
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Numérica Determinista), OKR 3 (Seguridad & Trazabilidad de Auditoría).
 
+---
+
+[2026-08-18]
+Archivo: `src/pages/CajaChica.tsx`
+Problema: En el cálculo del desglose de dinero en tránsito y comisiones contables por cobrar, la inspección de facturas no utilizaba encadenamiento opcional para `inv.creditCycle.status`, arriesgando excepciones no capturadas ante registros sin ciclo de crédito. Asimismo, los acumuladores flotantes de importes no aplicaban `round2()`, generando posibles discrepancias de redondeo por representación binaria IEEE-754.
+Impacto: Excepciones de renderizado en la vista de Tesorería/Caja Chica y posibles micro-diferencias de centavos en la sumatoria de dinero en tránsito.
+Solución: Integración de encadenamiento opcional defensivo (`o?.invoices`, `inv?.creditCycle?.status === 'paid'`) y suma determinista de flujos y comisiones con `round2()`.
+Riesgo: 🟢 Bajo — Lógica de tesorería preservada y blindada.
+Commit: `fix(caja-chica): null-safe creditCycle access and round2 deterministic transit cashflow sums`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 

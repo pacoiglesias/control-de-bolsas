@@ -13,7 +13,7 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, fmtDayAndDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
-import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
+import { computeCommissionFromInvoiceTotal, normalizarTexto, round2 } from '../lib/finance';
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
 import { motion } from 'framer-motion';
@@ -96,14 +96,14 @@ export default function CajaChica() {
   let totalComisionContador = 0;
   let dineroEnTransito = 0;
 
-  orders.forEach((o) => {
-    (o.invoices || []).forEach((inv) => {
-      if (inv.creditCycle.status === 'paid') {
+  (orders || []).forEach((o) => {
+    (o?.invoices || []).forEach((inv) => {
+      if (inv?.creditCycle?.status === 'paid') {
         const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16)));
         const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
-        totalBrutoCobrado += totalFactura;
-        totalComisionContador += comision;
-        dineroEnTransito += (totalFactura - comision);
+        totalBrutoCobrado = round2(totalBrutoCobrado + totalFactura);
+        totalComisionContador = round2(totalComisionContador + comision);
+        dineroEnTransito = round2(dineroEnTransito + (totalFactura - comision));
       }
     });
   });
