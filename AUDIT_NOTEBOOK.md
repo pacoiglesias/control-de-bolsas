@@ -1865,6 +1865,19 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado y Desplegado en Vivo.
 **OKRs afectados:** OKR 1 (Estabilidad del Sistema), OKR 2 (Experiencia de Usuario) y OKR 3 (Rendimiento Web).
 
+---
+
+[2026-08-18]
+Archivo: `src/lib/format.ts`
+Problema: Llamadas repetidas a `Number.toLocaleString('es-MX', ...)` en cada invocación de formateo (`money`, `kilos`, `percent`, `compactMoney`) instanciaban objetos `Intl.NumberFormat` efímeros, provocando sobrecarga en el recolector de basura (GC) y micro-stutters al renderizar tablas con cientos de expedientes y facturas.
+Impacto: Caída de framerate durante scrolling rápido, mayor consumo de CPU y memoria en clientes móviles.
+Solución: Creación e inicialización estática única de instancias `FORMATTER_MONEY`, `FORMATTER_KILOS`, `FORMATTER_PERCENT`, `FORMATTER_COMPACT_M` y `FORMATTER_COMPACT_K`. Reutilización directa con verificación determinista de `Number.isFinite()`.
+Riesgo: 🟢 Bajo — Salida idéntica al 100%, validada por suite de pruebas.
+Commit: `perf(format): memoize Intl.NumberFormat instances to accelerate table rendering`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` con 0 errores.
+OKRs afectados: OKR 2 (Rendimiento Web & Eficiencia), OKR 4 (UX & Fluidez de Renderizado).
+
+
 
 
 

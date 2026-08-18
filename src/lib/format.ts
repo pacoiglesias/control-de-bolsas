@@ -2,32 +2,59 @@ import type { Timestamp } from 'firebase/firestore';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-export const money = (n: number | undefined | null): string =>
-  (Number(n) || 0).toLocaleString('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const FORMATTER_MONEY = new Intl.NumberFormat('es-MX', {
+  style: 'currency',
+  currency: 'MXN',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
-export const kilos = (n: number | undefined | null): string =>
-  `${(Number(n) || 0).toLocaleString('es-MX')} kg`;
+const FORMATTER_KILOS = new Intl.NumberFormat('es-MX', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+const FORMATTER_COMPACT_M = new Intl.NumberFormat('es-MX', {
+  maximumFractionDigits: 2,
+});
+
+const FORMATTER_COMPACT_K = new Intl.NumberFormat('es-MX', {
+  maximumFractionDigits: 1,
+});
+
+const FORMATTER_PERCENT = new Intl.NumberFormat('es-MX', {
+  maximumFractionDigits: 3,
+});
+
+export const money = (n: number | undefined | null): string => {
+  const num = Number(n);
+  return FORMATTER_MONEY.format(Number.isFinite(num) ? num : 0);
+};
+
+export const kilos = (n: number | undefined | null): string => {
+  const num = Number(n);
+  return `${FORMATTER_KILOS.format(Number.isFinite(num) ? num : 0)} kg`;
+};
 
 export const compactMoney = (n: number | undefined | null): string => {
-  const num = Number(n) || 0;
-  if (Math.abs(num) >= 1_000_000) return `$${(num / 1_000_000).toLocaleString('es-MX', { maximumFractionDigits: 2 })}M`;
-  if (Math.abs(num) >= 1_000) return `$${(num / 1_000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}k`;
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '$0.00';
+  if (Math.abs(num) >= 1_000_000) return `$${FORMATTER_COMPACT_M.format(num / 1_000_000)}M`;
+  if (Math.abs(num) >= 1_000) return `$${FORMATTER_COMPACT_K.format(num / 1_000)}k`;
   return money(num);
 };
 
 export const compactKilos = (n: number | undefined | null): string => {
-  const num = Number(n) || 0;
-  if (Math.abs(num) >= 1_000) return `${(num / 1_000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}t`;
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '0 kg';
+  if (Math.abs(num) >= 1_000) return `${FORMATTER_COMPACT_K.format(num / 1_000)}t`;
   return kilos(num);
 };
 
-export const percent = (n: number | undefined | null): string =>
-  `${((Number(n) || 0) * 100).toLocaleString('es-MX', { maximumFractionDigits: 3 })}%`;
+export const percent = (n: number | undefined | null): string => {
+  const num = Number(n);
+  return `${FORMATTER_PERCENT.format((Number.isFinite(num) ? num : 0) * 100)}%`;
+};
 
 /**
  * "MIGRACION" es un marcador interno para expedientes historicos donde
