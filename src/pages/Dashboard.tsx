@@ -301,7 +301,7 @@ return () => unsub();
     let gtCount = 0;
 
     globalOrders.forEach(o => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      if (o.isClosedShort) return;
       (o.invoices || []).forEach(inv => {
         const st = inv.creditCycle?.status;
         const paidAmt = inv.collection?.paidAmount || 0;

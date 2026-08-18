@@ -246,7 +246,7 @@ export function buildProvidenciaStatementDataFromOrders(orders: PurchaseOrder[],
   let totalKilos = 0;
 
   orders.forEach((o) => {
-    if (o.isClosedShort || o.client === 'MIGRACION') return;
+    if (o.isClosedShort) return;
 
     (o.invoices || []).forEach((inv) => {
       const kg = Number(inv.kilos) || 0;

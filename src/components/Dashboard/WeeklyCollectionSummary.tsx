@@ -20,7 +20,6 @@ export function WeeklyCollectionSummary({ orders, onOpenQuickCollection }: Weekl
     const list: any[] = [];
 
     for (const o of orders) {
-      if (o.client === 'MIGRACION') continue;
       if (!o.invoices) continue;
       for (const inv of o.invoices) {
         if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.status !== 'collected') {

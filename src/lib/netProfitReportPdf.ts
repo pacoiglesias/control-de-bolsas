@@ -228,7 +228,7 @@ export function buildNetProfitData(
   const breakdownList: NetProfitInvoiceBreakdown[] = [];
 
   orders.forEach((o) => {
-    if (o.isClosedShort || o.client === 'MIGRACION') return;
+    if (o.isClosedShort) return;
 
     (o.deliveries || []).forEach((d) => {
       totalKilosEntregados += Number(d.kilos) || 0;

@@ -47,7 +47,7 @@ export function ContrarecibosTable({ orders, onOpenOrder }: ContrarecibosTablePr
     }[] = [];
 
     for (const o of orders) {
-      if (o.isClosedShort || o.client === 'MIGRACION') continue;
+      if (o.isClosedShort) continue;
       for (const inv of o.invoices ?? []) {
         const cr = extractCr(inv, o);
         if (!cr) continue; // Sin CR todavía, no es "contrarecibo" — es "factura en revisión".

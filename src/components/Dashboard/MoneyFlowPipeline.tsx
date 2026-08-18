@@ -43,7 +43,6 @@ export function MoneyFlowPipeline({
     let countConCr = 0;
 
     orders.forEach((o) => {
-      if (o.client === 'MIGRACION') return;
       if (o.creditCycle?.status === 'collected') return;
 
       const orderCostKg = Number(o.customCostPrice) || o.invoices?.[0]?.financials?.costPricePerKg || costKg;

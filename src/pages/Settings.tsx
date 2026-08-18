@@ -265,34 +265,34 @@ export default function Settings() {
         </div>
       )}
 
-      <Card title="Identidad Corporativa">
-        <div style={{ padding: 16 }}>
+      <Card title="🏢 1. Identidad de tu Empresa (Emisor)">
+        <div style={{ padding: 18 }}>
           <div className="form-grid">
-            <Field label="Nombre Comercial de la Empresa">
+            <Field label="Nombre Comercial de tu Empresa">
               <input className="input boxed" type="text" value={sysForm.companyName ?? ''}
                 onChange={(e) => {
                   setSysForm({ ...sysForm, companyName: e.target.value });
                   setForm({ ...form, companyName: e.target.value });
                 }} 
-                placeholder="Ej. Elemental Denim Bolsas" />
+                placeholder="Ej. BOLSAS ELEMENTAL / EMPAQUES DEL NORTE" />
             </Field>
             
             <Field label="Logotipo Oficial">
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <div style={{ width: 80, height: 80, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ width: 80, height: 80, borderRadius: 12, background: 'var(--paper-sunk)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {sysForm.companyLogoUrl ? (
                     <img src={sysForm.companyLogoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
-                    <span style={{ color: '#94a3b8', fontSize: 24 }}>🏢</span>
+                    <span style={{ color: 'var(--ink-soft)', fontSize: 28 }}>🏢</span>
                   )}
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="btn btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer', marginBottom: 8 }}>
-                    🖼️ Cambiar Logotipo
+                    🖼️ Subir Logotipo
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} disabled={busy} />
                   </label>
                   <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                    Este logotipo se usará en todos los reportes, PDF y pantallas principales del sistema.
+                    Aparece automáticamente en el encabezado, PDFs institucionales y reportes de cobranza.
                   </div>
                 </div>
               </div>
@@ -301,83 +301,102 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card title="Cliente Principal, Proveedor y Departamentos">
-        <div style={{ padding: 16 }}>
-          <div className="form-grid">
-            <Field label="Razón Social del Cliente Principal">
+      <Card title="🏬 2. Cliente Corporativo Principal (ej. Providencia)">
+        <div style={{ padding: 18 }}>
+          <p className="hint" style={{ marginTop: 0, marginBottom: 16 }}>
+            Configura la razón social y los nombres con los que identificas a tu cliente en reportes, estados de cuenta y facturación.
+          </p>
+          <div className="form-grid" style={{ marginBottom: 20 }}>
+            <Field label="Razón Social Oficial (SAT)">
               <input className="input boxed" type="text" value={sysForm.clientName ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, clientName: e.target.value })} 
                 placeholder="Ej. Grupo Textil Providencia SA de CV" />
             </Field>
 
-            <Field label="Nombre Corto del Cliente (Para menús y reportes)">
+            <Field label="Nombre Comercial Corto">
               <input className="input boxed" type="text" value={sysForm.clientShortName ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, clientShortName: e.target.value })} 
                 placeholder="Ej. Providencia" />
             </Field>
+          </div>
 
-            <Field label="Nombre del Proveedor / Fabricante Principal">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {/* Planta / Área TH */}
+            <div style={{ background: 'rgba(2, 132, 199, 0.05)', border: '1px solid rgba(2, 132, 199, 0.25)', borderRadius: 14, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#0284c7', fontWeight: 800 }}>
+                <span>🔵</span>
+                <span>Planta / Área 1 (TH)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Field label="Código o Prefijo de Cartera">
+                  <input className="input boxed mono" type="text" value={sysForm.deptCodeTH ?? 'TH'}
+                    onChange={(e) => setSysForm({ ...sysForm, deptCodeTH: e.target.value.toUpperCase().trim() })} 
+                    placeholder="Ej. TH" />
+                </Field>
+                <Field label="Nombre Completo del Área / Planta">
+                  <input className="input boxed" type="text" value={sysForm.deptNameTH ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, deptNameTH: e.target.value })} 
+                    placeholder="Ej. Textil Hogar / Planta Cobertores" />
+                </Field>
+                <Field label="Persona Responsable / Contacto">
+                  <input className="input boxed" type="text" value={sysForm.managerTH ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, managerTH: e.target.value })} 
+                    placeholder="Ej. Lic. Nava" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Planta / Área GT */}
+            <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.25)', borderRadius: 14, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#059669', fontWeight: 800 }}>
+                <span>🟢</span>
+                <span>Planta / Área 2 (GT)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Field label="Código o Prefijo de Cartera">
+                  <input className="input boxed mono" type="text" value={sysForm.deptCodeGT ?? 'GT'}
+                    onChange={(e) => setSysForm({ ...sysForm, deptCodeGT: e.target.value.toUpperCase().trim() })} 
+                    placeholder="Ej. GT" />
+                </Field>
+                <Field label="Nombre Completo del Área / Planta">
+                  <input className="input boxed" type="text" value={sysForm.deptNameGT ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, deptNameGT: e.target.value })} 
+                    placeholder="Ej. Grupo Textil / Planta Confección" />
+                </Field>
+                <Field label="Persona Responsable / Contacto">
+                  <input className="input boxed" type="text" value={sysForm.managerGT ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, managerGT: e.target.value })} 
+                    placeholder="Ej. Lic. Evelia" />
+                </Field>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="🏭 3. Fabricante / Proveedor Maquilador (ej. Andrés)">
+        <div style={{ padding: 18 }}>
+          <div className="form-grid">
+            <Field label="Nombre del Proveedor / Fabricante">
               <input className="input boxed" type="text" value={sysForm.providerName ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, providerName: e.target.value })} 
                 placeholder="Ej. Andrés" />
             </Field>
 
-            <Field label="Título / Rol del Proveedor">
+            <Field label="Título / Giro de la Operación">
               <input className="input boxed" type="text" value={sysForm.providerTitle ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, providerTitle: e.target.value })} 
                 placeholder="Ej. Taller Maquilador de Polietileno" />
             </Field>
-            
-            <Field label="Departamentos / Prefijos (Separados por coma)">
-              <input className="input boxed" type="text" value={(sysForm.departments || []).join(', ')}
-                onChange={(e) => setSysForm({ ...sysForm, departments: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} 
-                placeholder="Ej. TH, GT" />
-            </Field>
 
-            <Field label="Código Corto Área 1">
-              <input className="input boxed" type="text" value={sysForm.deptCodeTH ?? 'TH'}
-                onChange={(e) => setSysForm({ ...sysForm, deptCodeTH: e.target.value.toUpperCase().trim() })} 
-                placeholder="Ej. TH" />
-            </Field>
-
-            <Field label="Código Corto Área 2">
-              <input className="input boxed" type="text" value={sysForm.deptCodeGT ?? 'GT'}
-                onChange={(e) => setSysForm({ ...sysForm, deptCodeGT: e.target.value.toUpperCase().trim() })} 
-                placeholder="Ej. GT" />
-            </Field>
-
-            <Field label="Responsable Textil Hogar (TH)">
-              <input className="input boxed" type="text" value={sysForm.managerTH ?? ''}
-                onChange={(e) => setSysForm({ ...sysForm, managerTH: e.target.value })} 
-                placeholder="Ej. Lic. Nava" />
-            </Field>
-
-            <Field label="Responsable Grupo Textil (GT)">
-              <input className="input boxed" type="text" value={sysForm.managerGT ?? ''}
-                onChange={(e) => setSysForm({ ...sysForm, managerGT: e.target.value })} 
-                placeholder="Ej. Lic. Evelia" />
-            </Field>
-
-            <Field label="Nombre Personalizado Área TH">
-              <input className="input boxed" type="text" value={sysForm.deptNameTH ?? ''}
-                onChange={(e) => setSysForm({ ...sysForm, deptNameTH: e.target.value })} 
-                placeholder="Ej. Textil Hogar" />
-            </Field>
-
-            <Field label="Nombre Personalizado Área GT">
-              <input className="input boxed" type="text" value={sysForm.deptNameGT ?? ''}
-                onChange={(e) => setSysForm({ ...sysForm, deptNameGT: e.target.value })} 
-                placeholder="Ej. Grupo Textil" />
-            </Field>
-
-            <Field label="PIN del Portal Maquilador">
+            <Field label="PIN de Seguridad para Portal Maquilador">
               <div style={{ display: 'flex', gap: 8 }}>
                 <input className="input boxed mono" type="text" value={maquilaPin}
                   onChange={(e) => setMaquilaPin(e.target.value)}
                   disabled={!maquilaPinLoaded}
                   placeholder="Ej. 2468" />
                 <button
-                  className="btn"
+                  className="btn btn-primary"
                   disabled={!maquilaPinLoaded || busy}
                   onClick={async () => {
                     setBusy(true);
@@ -395,9 +414,7 @@ export default function Settings() {
                 </button>
               </div>
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Contraseña de 4 dígitos para que el maquilador registre entregas. Se guarda aparte
-                de lo demás — vive en un documento que solo un administrador puede leer, para que
-                nadie más pueda verlo.
+                Contraseña de 4 dígitos para que el maquilador acceda a <code>/maquilador</code> y registre remisiones de báscula.
               </div>
             </Field>
           </div>
@@ -612,6 +629,37 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+
+      {/* Barra Flotante de Guardado Rápido */}
+      {(dirty || sysDirty) && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--paper-raised)',
+            padding: '12px 24px',
+            borderRadius: 999,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+            border: '2px solid var(--accent)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            zIndex: 1000,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+            ⚠️ Tienes cambios sin guardar
+          </span>
+          <button className="btn" onClick={() => { setForm(config); setSysForm(settings); }} disabled={busy}>
+            Descartar
+          </button>
+          <button className="btn btn-primary" onClick={() => void onSave().then(tocarConfig)} disabled={busy}>
+            {busy ? 'Guardando…' : '💾 Guardar Cambios'}
+          </button>
+        </div>
+      )}
     </>
   );
 }

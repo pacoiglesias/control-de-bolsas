@@ -35,7 +35,7 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja = 0 }: Execut
     let comisionContableTotal = 0;
 
     orders.forEach(o => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      if (o.isClosedShort) return;
 
       (o.deliveries || []).forEach(d => {
         totalKilosEntregados += Number(d.kilos) || 0;

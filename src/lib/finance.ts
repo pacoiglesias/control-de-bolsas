@@ -63,65 +63,75 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   if (inv?.department && typeof inv.department === 'string') {
     const d = inv.department.trim().toUpperCase();
     if (d === 'TH' || d === 'GT') return d;
+    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
+    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
   }
 
-  // 2. Contrarecibo en factura
-  const invCr = (inv?.collection?.contrareciboNumber || '').trim().toUpperCase();
-  if (invCr.startsWith('TH-') || invCr === 'TH') return 'TH';
-  if (invCr.startsWith('GT-') || invCr === 'GT') return 'GT';
+  // 2. Contrarecibo en factura O en orden via extractCr
+  const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim().toUpperCase();
+  if (invCr.startsWith('TH-') || invCr === 'TH' || invCr.startsWith('TH')) return 'TH';
+  if (invCr.startsWith('GT-') || invCr === 'GT' || invCr.startsWith('GT')) return 'GT';
+
+  const extracted = extractCr(inv, order).trim().toUpperCase();
+  if (extracted.startsWith('TH-') || extracted === 'TH' || extracted.startsWith('TH')) return 'TH';
+  if (extracted.startsWith('GT-') || extracted === 'GT' || extracted.startsWith('GT')) return 'GT';
 
   // 3. Folio de factura
   const invFolio = (inv?.folio || '').trim().toUpperCase();
-  if (invFolio.startsWith('TH-') || invFolio === 'TH') return 'TH';
-  if (invFolio.startsWith('GT-') || invFolio === 'GT') return 'GT';
+  if (invFolio.startsWith('TH-') || invFolio === 'TH' || invFolio.startsWith('TH')) return 'TH';
+  if (invFolio.startsWith('GT-') || invFolio === 'GT' || invFolio.startsWith('GT')) return 'GT';
 
   // 4. Campo explícito en la orden
   if (order?.department && typeof order.department === 'string') {
     const d = order.department.trim().toUpperCase();
     if (d === 'TH' || d === 'GT') return d;
-    if (d.includes('TH') || d.includes('TEXTIL HOGAR')) return 'TH';
-    if (d.includes('GT') || d.includes('GRUPO TEXTIL')) return 'GT';
+    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
+    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
   }
 
   // 5. Contrarecibo a nivel de orden
-  const orderCr = (order?.collection?.contrareciboNumber || '').trim().toUpperCase();
-  if (orderCr.startsWith('TH-') || orderCr === 'TH') return 'TH';
-  if (orderCr.startsWith('GT-') || orderCr === 'GT') return 'GT';
+  const orderCr = (order?.collection?.contrareciboNumber || order?.contrarecibo || '').trim().toUpperCase();
+  if (orderCr.startsWith('TH-') || orderCr === 'TH' || orderCr.startsWith('TH')) return 'TH';
+  if (orderCr.startsWith('GT-') || orderCr === 'GT' || orderCr.startsWith('GT')) return 'GT';
 
   // 6. Folio u OC de la orden
   const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
-  if (orderFolio.startsWith('TH-') || orderFolio === 'TH') return 'TH';
-  if (orderFolio.startsWith('GT-') || orderFolio === 'GT') return 'GT';
+  if (orderFolio.startsWith('TH-') || orderFolio === 'TH' || orderFolio.startsWith('TH')) return 'TH';
+  if (orderFolio.startsWith('GT-') || orderFolio === 'GT' || orderFolio.startsWith('GT')) return 'GT';
 
-  // 7. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Grupo Textil")
+  // 7. Identificador del documento
+  const orderId = (order?.id || '').trim().toLowerCase();
+  if (orderId.includes('cr-th') || orderId.includes('inv-th') || orderId.includes('th-') || orderId.endsWith('-th')) return 'TH';
+  if (orderId.includes('cr-gt') || orderId.includes('inv-gt') || orderId.includes('gt-') || orderId.endsWith('-gt')) return 'GT';
+
+  const invId = (inv?.id || '').trim().toLowerCase();
+  if (invId.includes('cr-th') || invId.includes('inv-th') || invId.includes('th-') || invId.endsWith('-th')) return 'TH';
+  if (invId.includes('cr-gt') || invId.includes('inv-gt') || invId.includes('gt-') || invId.endsWith('-gt')) return 'GT';
+
+  // 8. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Providencia - GT")
   const clientStr = (order?.client || '').trim().toUpperCase();
   if (
+    clientStr === 'TH' ||
     clientStr.endsWith(' TH') ||
     clientStr.endsWith('-TH') ||
     clientStr.includes(' TH ') ||
     clientStr.includes('-TH-') ||
+    clientStr.includes(' - TH') ||
     clientStr.includes('TEXTIL HOGAR')
   ) {
     return 'TH';
   }
   if (
+    clientStr === 'GT' ||
     clientStr.endsWith(' GT') ||
     clientStr.endsWith('-GT') ||
     clientStr.includes(' GT ') ||
     clientStr.includes('-GT-') ||
+    clientStr.includes(' - GT') ||
     clientStr.includes('GRUPO TEXTIL')
   ) {
     return 'GT';
   }
-
-  // 8. Identificador del documento
-  const orderId = (order?.id || '').trim().toLowerCase();
-  if (orderId.startsWith('cr-th-') || orderId.startsWith('th-')) return 'TH';
-  if (orderId.startsWith('cr-gt-') || orderId.startsWith('gt-')) return 'GT';
-
-  const invId = (inv?.id || '').trim().toLowerCase();
-  if (invId.startsWith('inv-th-') || invId.startsWith('th-')) return 'TH';
-  if (invId.startsWith('inv-gt-') || invId.startsWith('gt-')) return 'GT';
 
   return null;
 }

@@ -27,7 +27,7 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
   const hoy = Date.now();
 
   orders.forEach((o) => {
-    if (o.isClosedShort || o.client === 'MIGRACION') return;
+    if (o.isClosedShort) return;
     if (o.creditCycle?.status === 'collected') return;
 
     (o.invoices || []).forEach((inv) => {
