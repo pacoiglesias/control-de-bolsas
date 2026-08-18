@@ -1925,6 +1925,18 @@ Commit: `fix(ui): stable focus handling, decimal sanitization and intl memoizati
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Numérica en Inputs), OKR 4 (UX de Captura y Edición).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/DeliveryDueBanner.tsx`
+Problema: En el aviso de entregas próximas a vencer (`DeliveryDueBanner`), el cálculo de días restantes y conteo de órdenes vencidas llamaba directamente a `o.estimatedDeliveryDate.toDate().getTime()`, exponiendo la pantalla principal de `Layout.tsx` a `TypeError: ...toDate is not a function` ante fechas serializadas en string o Date estándar.
+Impacto: Caída potencial del layout principal de la aplicación ante expedientes con fechas de entrega heterogéneas.
+Solución: Uso del parser universal `toDate()` para evaluar `o.estimatedDeliveryDate`, asegurando un cálculo tolerante de plazos y evitando excepciones no capturadas en tiempo de ejecución.
+Riesgo: 🟢 Bajo — Componente de aviso aislado.
+Commit: `fix(delivery-banner): resilient date parsing with universal toDate`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Estabilidad Global), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 

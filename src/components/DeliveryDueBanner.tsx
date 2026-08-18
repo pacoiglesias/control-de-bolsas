@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOrderSummary } from '../lib/finance';
+import { toDate } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
 
 /**
@@ -19,13 +20,15 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
 
   const pendientes = useMemo(() => {
     const ahora = Date.now();
-    return orders.filter((o) => {
-      if (!o.estimatedDeliveryDate) return false;
+    return (orders || []).filter((o) => {
+      if (!o || !o.estimatedDeliveryDate) return false;
       const s = getOrderSummary(o);
       if (s.status === 'collected') return false;
       const faltante = (o.totalKilograms || 0) - s.kilosDelivered;
       if (faltante <= 0.01) return false;
-      const dias = (o.estimatedDeliveryDate.toDate().getTime() - ahora) / (1000 * 60 * 60 * 24);
+      const ts = toDate(o.estimatedDeliveryDate)?.getTime();
+      if (!ts) return false;
+      const dias = (ts - ahora) / (1000 * 60 * 60 * 24);
       return dias <= 3;
     });
   }, [orders]);
@@ -37,7 +40,10 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
     setDismissedDay(todayKey);
   };
 
-  const yaVencidas = pendientes.filter((o) => (o.estimatedDeliveryDate!.toDate().getTime() - Date.now()) < 0).length;
+  const yaVencidas = pendientes.filter((o) => {
+    const ts = toDate(o.estimatedDeliveryDate)?.getTime() || 0;
+    return ts > 0 && (ts - Date.now()) < 0;
+  }).length;
   const folios = pendientes.slice(0, 5).map((o) => o.folio || (o as any).oc || '(sin folio)').join(', ')
     + (pendientes.length > 5 ? `, +${pendientes.length - 5} más` : '');
 
