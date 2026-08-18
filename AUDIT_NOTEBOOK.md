@@ -2100,3 +2100,13 @@ Riesgo: 🟢 Bajo — Refactorización estructural sin impacto en APIs ni datos.
 Commit: `refactor(reports): extract HTML report templates into dedicated modules; enhance backup.ps1 resilience`
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc -b` limpio, `vite build` y `functions build` exitosos al 100%, respaldo local generado.
 OKRs afectados: OKR 3 (Resiliencia y Arquitectura), OKR 4 (Mantenibilidad del Código).
+
+[2026-08-18]
+Archivo: `src/hooks/useNetworkStatus.ts`, `src/components/Dashboard/DashboardModalsHost.tsx`, `firestore.rules`, `scripts/legacy/`
+Problema: El sistema carecía de un hook reactivo unificado de detección de red offline/online para sincronización en campo, las reglas de Firestore dependían de correos estáticos hardcodeados, el Dashboard montaba directamente más de 10 modales/drawers pesados en su árbol principal, y la raíz del proyecto acumulaba scripts `.bat` viejos de versiones obsoletas.
+Impacto: Comportamiento offline inconsistente en talleres sin cobertura, rigidez en la administración de roles de seguridad y dispersión en la estructura del repositorio.
+Solución: (1) Creación de `useNetworkStatus.ts` e integración con la cola de entregas offline del Portal Maquilador y barra de estado en Layout. (2) Modernización de `firestore.rules` con soporte prioritario para Custom Claims (`role == 'admin'`), validación en `/admins/{uid}` y fallback seguro. (3) Creación de `DashboardModalsHost.tsx` para modularizar todos los modales satélite del Dashboard. (4) Reorganización de instaladores antiguos a `scripts/legacy/` y actualización de `.gitignore`.
+Riesgo: 🟢 Bajo — Mejoras arquitectónicas con compatibilidad total hacia atrás.
+Commit: `feat(v8.8.2): offline-first sync hook, modernized firestore rules, dashboard modals host, and legacy scripts cleanup`
+Estado: ✅ Verificado — 72/72 pruebas unitarias aprobadas, `tsc --noEmit` 0 errores, `eslint` 0 errores, build de producción y Cloud Functions al 100%.
+OKRs afectados: OKR 1 (Precisión Determinista), OKR 2 (Seguridad & Reglas), OKR 3 (Arquitectura & Rendimiento), OKR 4 (Mantenibilidad & DevOps).

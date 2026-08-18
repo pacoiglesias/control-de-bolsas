@@ -1,5 +1,22 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.8.2] - 18 Agosto 2026 (Master Architectural Upgrade: Offline-First, Modern Security, Component Modularization & DevOps Cleanup)
+
+### Agregado, Optimizado y Asegurado
+- **📴 Arquitectura Offline-First & Resiliencia de Conexión (`useNetworkStatus.ts`, `Layout.tsx`, `MaquiladorPortal.tsx`):**
+  - Implementación de hook reactivo `useNetworkStatus()` para detección en tiempo real de pérdida/recuperación de internet.
+  - Sincronización automática de cola de entregas offline en el Portal Maquilador al reconectar con Firebase.
+  - Alerta sonora y visual de conectividad en la barra superior del sistema.
+- **🔒 Modernización de Reglas de Seguridad en Firestore (`firestore.rules`):**
+  - Desacoplamiento de correos electrónicos fijos en `isAdmin()` en favor de Custom Claims (`role: 'admin'`, `admin: true`) y verificación estricta de documentos en `/admins/{uid}`.
+  - Fallback determinista para administradores y blindaje de roles en toda la base de datos.
+- **⚡ Descomposición Modular de Componentes (`DashboardModalsHost.tsx`, `Dashboard.tsx`):**
+  - Aislamiento completo de modales y drawers satélite en `DashboardModalsHost.tsx`, aligerando el árbol de renderizado del Dashboard.
+- **🧹 Limpieza y Organización de Scripts & DevOps:**
+  - Migración ordenada de scripts batch históricos a `scripts/legacy/`.
+  - Actualización de `.gitignore` con exclusión de archivos `.zip` y carpetas de trabajo temporales.
+- **🚀 100% Verificado:** `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
 ## [v8.8.1] - 18 Agosto 2026 (Fix: Kanban Bypasseaba invoiceStatuses al Mover Tarjetas)
 
 ### Corregido

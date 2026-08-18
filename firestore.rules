@@ -3,17 +3,33 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Función principal para verificar si el usuario es administrador.
-    function isAdmin() {
+    // Prioriza Custom Claims (role: 'admin' o admin: true), lectura en /admins/{uid}
+    // y fallback de arranque seguro para correos institucionales verificados.
+    function hasAdminClaim() {
       return request.auth != null
         && request.auth.token.email_verified == true
+        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
+    }
+
+    function hasAdminDoc() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isBootstrapOwner() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email != null
         && (
-          request.auth.token.admin == true ||
-          (request.auth.token.email != null && (
-            request.auth.token.email == "paco.iglesias@gmail.com" ||
-            request.auth.token.email == "pacoismael@gmail.com" ||
-            request.auth.token.email.matches(".*@cobertores\\.com")
-          ))
+          request.auth.token.email == "paco.iglesias@gmail.com" ||
+          request.auth.token.email == "pacoismael@gmail.com" ||
+          request.auth.token.email.matches(".*@cobertores\\.com")
         );
+    }
+
+    function isAdmin() {
+      return hasAdminClaim() || hasAdminDoc() || isBootstrapOwner();
     }
 
     // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager.
@@ -21,15 +37,17 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email_verified == true
         && (
-          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-          || isAdmin()
+          isAdmin()
+          || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         );
     }
 
     function getRole() {
-      return isAdmin() 
-        ? 'admin' 
-        : get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+      return isAdmin()
+        ? 'admin'
+        : (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+            : 'viewer');
     }
 
     function isSuperAdmin() {

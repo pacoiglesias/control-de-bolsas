@@ -15,6 +15,7 @@ import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -43,7 +44,7 @@ export default function Layout() {
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const { isOnline } = useNetworkStatus();
 
   const clientLabel = settings.clientShortName || 'Providencia';
   const providerLabel = settings.providerName || 'Andrés';
@@ -102,28 +103,12 @@ export default function Layout() {
   }, [location.pathname, navItems]);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
+    if (isOnline) {
       sound.playSuccess();
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
+    } else {
       sound.playError();
-    };
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // El atajo Ctrl+K y el evento 'open-command-menu' los maneja únicamente
-    // <CommandPalette/> (montado una sola vez en AppProviders). Antes Layout
-    // tenía su propio listener de Ctrl+K y su propio <CommandMenu/>, así que
-    // una sola pulsación abría dos buscadores superpuestos a la vez. El
-    // botón "Buscar..." de arriba sigue funcionando igual: solo dispara el
-    // evento, que CommandPalette escucha globalmente.
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+    }
+  }, [isOnline]);
 
   // Los badges leen el mismo estatus derivado que la tabla de Ordenes. Antes
   // usaban el campo viejo de la raiz y podian quedarse en cero teniendo

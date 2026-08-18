@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -13,21 +13,17 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { Skeleton, Drawer } from '../components/ui';
+import { Skeleton } from '../components/ui';
 import { confirmDialog } from '../lib/confirmDialog';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, downloadBackupJsonFile, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
 import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
-import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
 import { useDashboardStats } from '../hooks/useDashboardStatsV2';
 import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
-import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
-import { PagarAndresModal } from '../components/Compras/PagarAndresModal';
-import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
 import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
@@ -37,22 +33,13 @@ import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectio
 import { MoneyFlowPipeline, type PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
 import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
 import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
-import { MagicPasteModal } from '../components/MagicPasteModal';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
 import { getOrderSummary, filterOrderByDepartment, inferDepartment } from '../lib/finance';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-
-import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 import { PorRecibirPanel } from '../components/Dashboard/PorRecibirPanel';
 import { getRentabilidadHtml } from './DashboardReports';
-
-const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
-const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
-const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
-const CorteMensualModal = lazy(() => import('../components/Dashboard/CorteMensualModal').then(m => ({ default: m.CorteMensualModal })));
-const CorteSemanalModal = lazy(() => import('../components/Dashboard/CorteSemanalModal').then(m => ({ default: m.CorteSemanalModal })));
-const BalanzaComprobacionModal = lazy(() => import('../components/Dashboard/BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
+import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 
 
 
@@ -1390,108 +1377,49 @@ return () => unsub();
         )}
       </div>
 
-      {/* ─── MODALES Y DRAWERS DE CONTROL ─────────────────────────────────── */}
-      {showContrarecibosDrawer && (
-        <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>
-          <ContrarecibosTable
-            orders={seguimientoOrders}
-            onOpenOrder={(order) => {
-              setShowContrarecibosDrawer(false);
-              nav(`/ordenes?abrir=${order.id}`);
-            }}
-          />
-        </Drawer>
-      )}
-
-      {showSeguimientoDrawer && (
-        <Drawer title="Seguimiento de Pedidos" onClose={() => setShowSeguimientoDrawer(false)} width={1000}>
-          <SeguimientoPedidosTable 
-            orders={seguimientoOrders} 
-            onOpenOrder={(order) => {
-              setShowSeguimientoDrawer(false);
-              nav(`/ordenes?abrir=${order.id}`);
-            }}
-          />
-        </Drawer>
-      )}
-
-      {showQuickInvoice && (
-        <QuickInvoiceModal orders={seguimientoOrders} onClose={() => setShowQuickInvoice(false)} />
-      )}
-
-      {showQuickCollection && (
-        <QuickCollectionModal orders={seguimientoOrders} onClose={() => setShowQuickCollection(false)} />
-      )}
-
-      {showQuickPay && (
-        <PagarAndresModal onClose={() => setShowQuickPay(false)} />
-      )}
-
-      <Suspense fallback={null}>
-        {showCorteMensual && (
-          <CorteMensualModal
-            onClose={() => setShowCorteMensual(false)}
-            orders={activeOrders}
-            expenses={expenses}
-            purchases={purchases}
-            config={config}
-            settings={settings}
-          />
-        )}
-
-        {showCorteSemanal && (
-          <CorteSemanalModal
-            onClose={() => setShowCorteSemanal(false)}
-            orders={activeOrders}
-            expenses={expenses}
-            purchases={purchases}
-            config={config}
-            settings={settings}
-          />
-        )}
-
-        {showBalanza && (
-          <BalanzaComprobacionModal
-            onClose={() => setShowBalanza(false)}
-            orders={activeOrders}
-            expenses={expenses}
-            purchases={purchases}
-            config={config}
-            settings={settings}
-            saldoCajaSistema={saldoCaja}
-          />
-        )}
-
-        {showBackupsModal && (
-          <CloudBackupsModal
-            onClose={() => setShowBackupsModal(false)}
-            cloudBackups={cloudBackups as any}
-            backupBusy={backupBusy}
-            handleCreateBackup={handleCreateBackup}
-            handleRestoreBackup={handleRestoreBackup as any}
-            onDownloadJson={() => downloadBackupJsonFile(activeOrders, purchases, expenses, config)}
-          />
-        )}
-
-        {showChangelogModal && (
-          <ChangelogModalComponent onClose={() => setShowChangelogModal(false)} />
-        )}
-
-        {showLiveLogsModal && (
-          <LiveLogsModal onClose={() => setShowLiveLogsModal(false)} liveLogs={liveLogs as any} />
-        )}
-
-        {showMagicPaste && (
-          <MagicPasteModal onClose={() => setShowMagicPaste(false)} />
-        )}
-
-        {showSincronizador && (
-          <SincronizadorOficialModal
-            orders={globalOrders}
-            onClose={() => setShowSincronizador(false)}
-          />
-        )}
-      </Suspense>
+      {/* ─── MODALES Y DRAWERS DE CONTROL (MODULARIZADOS) ─────────────────── */}
+      <DashboardModalsHost
+        showContrarecibosDrawer={showContrarecibosDrawer}
+        setShowContrarecibosDrawer={setShowContrarecibosDrawer}
+        showSeguimientoDrawer={showSeguimientoDrawer}
+        setShowSeguimientoDrawer={setShowSeguimientoDrawer}
+        showQuickInvoice={showQuickInvoice}
+        setShowQuickInvoice={setShowQuickInvoice}
+        showQuickCollection={showQuickCollection}
+        setShowQuickCollection={setShowQuickCollection}
+        showQuickPay={showQuickPay}
+        setShowQuickPay={setShowQuickPay}
+        showCorteMensual={showCorteMensual}
+        setShowCorteMensual={setShowCorteMensual}
+        showCorteSemanal={showCorteSemanal}
+        setShowCorteSemanal={setShowCorteSemanal}
+        showBalanza={showBalanza}
+        setShowBalanza={setShowBalanza}
+        showBackupsModal={showBackupsModal}
+        setShowBackupsModal={setShowBackupsModal}
+        showChangelogModal={showChangelogModal}
+        setShowChangelogModal={setShowChangelogModal}
+        showLiveLogsModal={showLiveLogsModal}
+        setShowLiveLogsModal={setShowLiveLogsModal}
+        showMagicPaste={showMagicPaste}
+        setShowMagicPaste={setShowMagicPaste}
+        showSincronizador={showSincronizador}
+        setShowSincronizador={setShowSincronizador}
+        seguimientoOrders={seguimientoOrders}
+        activeOrders={activeOrders}
+        globalOrders={globalOrders}
+        expenses={expenses}
+        purchases={purchases}
+        config={config as any}
+        settings={settings}
+        saldoCaja={saldoCaja}
+        cloudBackups={cloudBackups}
+        backupBusy={backupBusy}
+        handleCreateBackup={handleCreateBackup}
+        handleRestoreBackup={handleRestoreBackup as any}
+        liveLogs={liveLogs}
+        nav={nav}
+      />
 
       {/* La calculadora flotante ahora se monta una sola vez de forma
           global en App.tsx (junto a CommandPalette/FloatingQuickHub), para

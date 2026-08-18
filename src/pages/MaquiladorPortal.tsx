@@ -16,6 +16,7 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { PinScreen } from './MaquiladorPortalPinScreen';
 import { glass, kpiCard, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY, STORAGE_OFFLINE_QUEUE_KEY } from './MaquiladorPortal.shared';
 import { getStatementHtml, getDeliveryTicketHtml } from './MaquiladorPortalReports';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 /* ─── Portal Principal Maquilador ─────────────────────────────────────────── */
 export default function MaquiladorPortal() {
@@ -47,7 +48,7 @@ export default function MaquiladorPortal() {
   const [bundleWeight, setBundleWeight] = useState('25');
 
   // Estado de Red / Modo Taller
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const { isOnline } = useNetworkStatus();
 
   // Sincronizador de entregas encoladas offline
   const syncOfflineQueue = async () => {
@@ -79,25 +80,10 @@ export default function MaquiladorPortal() {
   };
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      syncOfflineQueue();
-    };
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Intentar sincronizar al inicio si ya hay conexión
-    if (navigator.onLine) {
-      syncOfflineQueue();
+    if (isOnline) {
+      void syncOfflineQueue();
     }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+  }, [isOnline]);
 
   // Cargar historial guardado
   const [historial, setHistorial] = useState<any[]>(() => {

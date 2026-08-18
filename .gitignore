@@ -12,30 +12,23 @@ vite.config.ts.timestamp-*
 .env.local
 .firebase
 
-# Respaldos que crea INSTALAR_ACTUALIZACION.bat
+# Respaldos y paquetes temporales
 _respaldo_*/
-
-# Paquetes de actualización: no tienen por qué vivir en el repositorio
+Respaldos/Temp/
 *.zip
 
-# Sistema
+# Sistema y logs
 *.log
 .DS_Store
 Thumbs.db
 src/hooks/useDashboardStats.ts
 
-# Datos de negocio: nunca en el repositorio, y menos en public/
-# (todo lo que vive en public/ se publica en Hosting sin pedir contrasena)
+# Datos de negocio sensibles
 public/*.json
 !public/manifest.json
 contrarecibos.json
 facturas_pendientes_contrarecibo.json
 
-# Archivos de respaldo temporal del editor
+# Archivos temporales de edición
 *.bak
-
-# Respaldo manual y basura
-*.zip
-_respaldo_*
 diff.txt
-*.bak
