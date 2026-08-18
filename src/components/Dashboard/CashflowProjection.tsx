@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { PurchaseOrder } from '../../lib/types';
-import { money, fmtDate, nombreClienteVisible } from '../../lib/format';
-import { extractCr } from '../../lib/finance';
+import { money, fmtDate, nombreClienteVisible, toDate } from '../../lib/format';
+import { extractCr, round2 } from '../../lib/finance';
 import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsappReminder';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,23 +19,17 @@ export function CashflowProjection({ orders }: { orders: PurchaseOrder[] }) {
     const items15d: any[] = [];
     const items30d: any[] = [];
 
-    for (const o of orders) {
+    for (const o of (orders || [])) {
       if (!o || !o.invoices) continue;
       for (const inv of o.invoices) {
         if (!inv) continue;
         if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.dueDate) {
-          const rawDue = inv.creditCycle.dueDate as any;
-          let dueMs = 0;
-          if (rawDue) {
-            if (typeof rawDue.toMillis === 'function') dueMs = rawDue.toMillis();
-            else if (typeof rawDue.toDate === 'function') dueMs = rawDue.toDate().getTime();
-            else if (rawDue instanceof Date) dueMs = rawDue.getTime();
-            else { const d = new Date(rawDue); if (!isNaN(d.getTime())) dueMs = d.getTime(); }
-          }
+          const due = toDate(inv.creditCycle.dueDate);
+          const dueMs = due ? due.getTime() : 0;
           const diff = dueMs - now;
 
           if (diff > 0 && diff <= thirtyDaysMs) {
-            const saldo = (inv.financials?.invoiceTotal || 0) - (inv.collection?.paidAmount || 0);
+            const saldo = round2((inv.financials?.invoiceTotal || 0) - (inv.collection?.paidAmount || 0));
             if (saldo <= 0) continue;
 
             const item = {
@@ -67,11 +61,11 @@ export function CashflowProjection({ orders }: { orders: PurchaseOrder[] }) {
     items15d.sort(sorter);
     items30d.sort(sorter);
 
-    const sum = (arr: any[]) => arr.reduce((acc, it) => acc + it.amount, 0);
+    const sum = (arr: any[]) => round2(arr.reduce((acc, it) => acc + it.amount, 0));
     const total7d = sum(items7d);
     const total15d = sum(items15d);
     const total30d = sum(items30d);
-    const grandTotal = total7d + total15d + total30d;
+    const grandTotal = round2(total7d + total15d + total30d);
 
     return { items7d, items15d, items30d, total7d, total15d, total30d, grandTotal };
   }, [orders]);

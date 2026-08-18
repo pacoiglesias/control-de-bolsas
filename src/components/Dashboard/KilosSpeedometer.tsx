@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { kilos } from '../../lib/format';
+import { kilos, toDate } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
 
@@ -16,23 +16,24 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
     const currentYear = now.getFullYear();
 
     let totalMonth = 0;
-    orders.forEach((o) => {
+    (orders || []).forEach((o) => {
+      if (!o) return;
       (o.deliveries || []).forEach((d: any) => {
-        const rawDate = (d.date as any)?.toDate?.() || (d.date ? new Date(d.date) : null);
-        if (rawDate) {
-          const date = new Date(rawDate);
-          if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
-            totalMonth += (d.kilos || 0);
-          }
+        if (!d) return;
+        const date = toDate(d.date);
+        if (date && date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+          totalMonth += (Number(d.kilos) || 0);
         }
       });
     });
 
     // Si no hay entregas con fecha de este mes, suma las entregas de órdenes activas
     if (totalMonth === 0) {
-      orders.forEach((o) => {
+      (orders || []).forEach((o) => {
+        if (!o) return;
         (o.deliveries || []).forEach((d: any) => {
-          totalMonth += (d.kilos || 0);
+          if (!d) return;
+          totalMonth += (Number(d.kilos) || 0);
         });
       });
     }
@@ -40,7 +41,8 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
     return round2(totalMonth);
   }, [orders]);
 
-  const percentage = Math.min(100, Math.round((currentMonthKilos / targetKilos) * 100));
+  const safeTarget = targetKilos > 0 ? targetKilos : 50000;
+  const percentage = Math.min(100, Math.round((currentMonthKilos / safeTarget) * 100));
 
   return (
     <div

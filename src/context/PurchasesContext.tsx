@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
+import { toDate } from '../lib/format';
 import type { Purchase } from '../lib/types';
 
 interface PurchasesState {
@@ -31,7 +32,7 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
         const rows = snap.docs
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...d.data() }) as Purchase);
-        rows.sort((a: any, b: any) => (b.date?.toMillis?.() ?? 0) - (a.date?.toMillis?.() ?? 0));
+        rows.sort((a: any, b: any) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
         setPurchases(rows);
         setLoading(false);
         setError(null);

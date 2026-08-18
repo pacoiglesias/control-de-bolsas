@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
-import Decimal from 'decimal.js-light';
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { money, shareHtmlAsPdf, monthLabel, fmtDate, getPrintHeaderHtml } from '../lib/format';
+import { money, shareHtmlAsPdf, monthLabel, fmtDate, getPrintHeaderHtml, toDate } from '../lib/format';
+import { round2 } from '../lib/finance';
 import { exportToExcel } from '../lib/export';
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
@@ -23,7 +23,7 @@ import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
 import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
-import { useDashboardStats } from '../hooks/useDashboardStats';
+import { useDashboardStats } from '../hooks/useDashboardStatsV2';
 import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
 import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
 import { PagarAndresModal } from '../components/Compras/PagarAndresModal';
@@ -344,34 +344,18 @@ return () => unsub();
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
         const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
         if (!cr) continue;
-        // FIX 2026-08-10 (Iteracion 97): antes esto leia dueDate?.toMillis?.(),
-        // que SOLO funciona si dueDate quedo guardado como Timestamp nativo de
-        // Firestore. Cualquier factura cuyo dueDate se haya guardado como
-        // string/Date normal (ej. datos migrados o escritos desde un flujo
-        // distinto) hacia que venc quedara `undefined`, y la condicion
-        // `if (venc && venc < ahora)` la saltaba en silencio -- SIN contarla
-        // como vencida aunque lo fuera. Resultado real visto en produccion:
-        // la tarjeta "Urgencias (Vencido)" mostraba un monto de dinero mayor
-        // a cero pero "0 facturas fuera de fecha" al mismo tiempo -- las dos
-        // mitades del mismo letrero, calculadas con dos formulas distintas
-        // que no estaban de acuerdo. Ahora usa el mismo parseo tolerante
-        // (Timestamp, Date, o string/numero) que ya usa el servidor
-        // (toDate() en functions/src/stats.ts) para esta misma comprobacion.
-        const rawDue = inv.creditCycle?.dueDate as any;
-        let venc: number | null = null;
-        if (rawDue) {
-          if (typeof rawDue.toMillis === 'function') venc = rawDue.toMillis();
-          else if (typeof rawDue.toDate === 'function') venc = rawDue.toDate().getTime();
-          else if (rawDue instanceof Date) venc = rawDue.getTime();
-          else { const d = new Date(rawDue); if (!isNaN(d.getTime())) venc = d.getTime(); }
-        }
+        const due = toDate(inv.creditCycle?.dueDate);
+        const venc: number | null = due ? due.getTime() : null;
         if (venc !== null && venc < ahora) n++;
       }
     }
     return n;
   }, [activeOrders]);
 
-  const saldoCaja = expenses.reduce((acc, e) => new Decimal(acc).plus(e.type === 'ingreso' ? e.amount : -e.amount).toNumber(), 0);
+  const saldoCaja = round2((expenses || []).reduce((acc, e) => {
+    if (!e) return acc;
+    return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
+  }, 0));
 
   const pendingInvoicesCount = useMemo(() => {
     return seguimientoOrders.filter(o => {

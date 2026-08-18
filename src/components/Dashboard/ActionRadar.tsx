@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { money, kilos as fmtKilos, nombreClienteVisible } from '../../lib/format';
+import { money, kilos as fmtKilos, nombreClienteVisible, toDate } from '../../lib/format';
 import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
 import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
 
@@ -18,23 +18,23 @@ export type UrgentAction = {
   priority: 'alta' | 'media' | 'baja';
   title: string;
   subtitle: string;
+  badge: string;
+  badgeColor: string;
   amount?: number;
   kilos?: number;
-  buttonLabel: string;
-  buttonColor: string;
-  buttonIcon: string;
-  onAction: () => void;
+  actionLabel: string;
+  onClick: () => void;
 };
 
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
+  const saleKg = config?.salePricePerKg || 43;
+  const costKg = config?.costPricePerKg || 42;
+  const ivaRate = config?.ivaRate || 0.16;
+
   const actions = useMemo<UrgentAction[]>(() => {
     const list: UrgentAction[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const saleKg = config?.salePricePerKg || 43;
-    const costKg = config?.costPricePerKg || 42;
-    const ivaRate = config?.ivaRate || 0.16;
 
     orders.forEach((o) => {
       if (o.isClosedShort) return;
@@ -54,12 +54,12 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
           priority: 'alta',
           title: `Entregados ${fmtKilos(faltanKg)} kg sin facturar`,
           subtitle: `OC ${o.oc || o.folio || 'S/N'} (${clientName}) — Valor estimado: ${money(montoEstimado)}`,
+          badge: 'Facturar',
+          badgeColor: '#f59e0b',
           kilos: faltanKg,
           amount: montoEstimado,
-          buttonLabel: '⚡ Facturar Ahora',
-          buttonColor: '#f59e0b',
-          buttonIcon: '📝',
-          onAction: () => {
+          actionLabel: 'Facturar Ahora',
+          onClick: () => {
             if (onOpenOrder) onOpenOrder(o);
             else nav(`/ordenes?abrir=${o.id}`);
           },
@@ -72,18 +72,9 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
         const st = inv.creditCycle?.status;
         const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
 
-        // Parseo seguro de fecha de vencimiento
-        const rawDue = inv.creditCycle?.dueDate as any;
-        let dueTime: number | null = null;
-        if (rawDue) {
-          if (typeof rawDue.toMillis === 'function') dueTime = rawDue.toMillis();
-          else if (typeof rawDue.toDate === 'function') dueTime = rawDue.toDate().getTime();
-          else if (rawDue instanceof Date) dueTime = rawDue.getTime();
-          else {
-            const d = new Date(rawDue);
-            if (!isNaN(d.getTime())) dueTime = d.getTime();
-          }
-        }
+        // Parseo seguro de fecha de vencimiento con toDate
+        const due = toDate(inv.creditCycle?.dueDate);
+        const dueTime: number | null = due ? due.getTime() : null;
 
         // A) Factura emitida SIN número de contrarecibo
         if (!cr && (inv.folio || st === 'pending' || st === 'facturado' || st === 'overdue')) {
@@ -93,11 +84,11 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             priority: 'alta',
             title: `Factura #${inv.folio || o.folio || 'S/F'} sin Contrarecibo (${money(amt)})`,
             subtitle: `OC ${o.oc || o.folio || 'S/N'} — Asignar número de CR de ${clientName}`,
+            badge: 'Sin CR',
+            badgeColor: '#d97706',
             amount: amt,
-            buttonLabel: '📝 Asignar CR',
-            buttonColor: '#d97706',
-            buttonIcon: '📝',
-            onAction: () => {
+            actionLabel: '📝 Asignar CR',
+            onClick: () => {
               if (onOpenOrder) onOpenOrder(o);
               else nav(`/ordenes?abrir=${o.id}`);
             },
@@ -113,11 +104,11 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             priority: 'alta',
             title: `CR ${cr} vencido hace ${diffDays} día(s) (${money(amt)})`,
             subtitle: `Factura #${inv.folio || o.folio || 'S/F'} — ${clientName}`,
+            badge: 'Vencido',
+            badgeColor: '#ef4444',
             amount: amt,
-            buttonLabel: '💸 Cobro Rápido',
-            buttonColor: '#ef4444',
-            buttonIcon: '💸',
-            onAction: () => {
+            actionLabel: '💸 Cobro Rápido',
+            onClick: () => {
               nav('/cobranza');
             },
           });
@@ -133,11 +124,11 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             priority: 'media',
             title: `Dinero cobrado listo con el contador (${money(neto)})`,
             subtitle: `Factura #${inv.folio || o.folio || 'S/F'} (Total: ${money(amt)} − Comisión: ${money(comision)})`,
+            badge: 'Con Contador',
+            badgeColor: '#10b981',
             amount: neto,
-            buttonLabel: '💵 Recibir en Caja',
-            buttonColor: '#10b981',
-            buttonIcon: '💰',
-            onAction: () => nav('/dashboard'),
+            actionLabel: '💵 Recibir en Caja',
+            onClick: () => nav('/dashboard'),
           });
         }
       });
@@ -155,11 +146,11 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
           priority: 'baja',
           title: `Andrés: ${fmtKilos(faltan)} kg pendientes de fabricar`,
           subtitle: `Para pedido ${ocName} (${money(faltan * costKg)} en material)`,
+          badge: 'Fabricación',
+          badgeColor: '#8b5cf6',
           kilos: faltan,
-          buttonLabel: '🚚 Ver Maquila',
-          buttonColor: '#8b5cf6',
-          buttonIcon: '🚚',
-          onAction: () => {
+          actionLabel: '🚚 Ver Maquila',
+          onClick: () => {
             nav('/compras');
           },
         });
@@ -242,7 +233,7 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
               style={{
                 background: 'var(--paper-sunk)',
                 border: '1px solid var(--line)',
-                borderLeft: `4px solid ${act.buttonColor}`,
+                borderLeft: `4px solid ${act.badgeColor}`,
                 borderRadius: 12,
                 padding: '12px 16px',
                 display: 'flex',
@@ -254,7 +245,7 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             >
               <div style={{ flex: 1, minWidth: 240 }}>
                 <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>{act.buttonIcon}</span> {act.title}
+                  <span>{act.badge}</span> {act.title}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
                   {act.subtitle}
@@ -263,9 +254,9 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
 
               <button
                 type="button"
-                onClick={act.onAction}
+                onClick={act.onClick}
                 style={{
-                  background: act.buttonColor,
+                  background: act.badgeColor,
                   color: '#fff',
                   border: 'none',
                   borderRadius: 8,
@@ -279,7 +270,7 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
                   boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                 }}
               >
-                <span>{act.buttonIcon}</span> {act.buttonLabel}
+                {act.actionLabel}
               </button>
             </motion.div>
           ))}

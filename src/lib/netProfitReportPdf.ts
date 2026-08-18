@@ -227,14 +227,15 @@ export function buildNetProfitData(
   let comisionContableTotal = 0;
   const breakdownList: NetProfitInvoiceBreakdown[] = [];
 
-  orders.forEach((o) => {
-    if (o.isClosedShort) return;
+  (orders || []).forEach((o) => {
+    if (!o || o.isClosedShort) return;
 
     (o.deliveries || []).forEach((d) => {
       totalKilosEntregados += Number(d.kilos) || 0;
     });
 
     (o.invoices || []).forEach((inv) => {
+      if (!inv) return;
       const kg = Number(inv.kilos) || 0;
       totalKilosFacturados += kg;
 
@@ -270,8 +271,8 @@ export function buildNetProfitData(
     });
   });
 
-  const gastosOperativos = expenses
-    .filter((e) => e.type === 'egreso' && !e.concept?.toLowerCase().includes('andres'))
+  const gastosOperativos = (expenses || [])
+    .filter((e) => e && e.type === 'egreso' && !e.concept?.toLowerCase().includes('andres'))
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   const costoAndres = round2(costoAndresTotal);

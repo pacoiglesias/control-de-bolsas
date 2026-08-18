@@ -1,4 +1,4 @@
-import { money, fmtDate, fmtDateFull, fmtDateTimeFull, fmtDayAndDate, toDate } from './format';
+import { money, kilos, fmtDate, fmtDateFull, fmtDateTimeFull, fmtDayAndDate, toDate } from './format';
 import { extractCr, daysLate, round2 } from './finance';
 import type { PurchaseOrder } from './types';
 
@@ -245,10 +245,11 @@ export function buildProvidenciaStatementDataFromOrders(orders: PurchaseOrder[],
   let overdueBalance = 0;
   let totalKilos = 0;
 
-  orders.forEach((o) => {
-    if (o.isClosedShort) return;
+  (orders || []).forEach((o) => {
+    if (!o || o.isClosedShort) return;
 
     (o.invoices || []).forEach((inv) => {
+      if (!inv) return;
       const kg = Number(inv.kilos) || 0;
       totalKilos += kg;
 
@@ -262,11 +263,11 @@ export function buildProvidenciaStatementDataFromOrders(orders: PurchaseOrder[],
       const dDue = toDate(inv.creditCycle?.dueDate);
       const late = daysLate(dDue);
       const cr = extractCr(inv, o);
+      const st = inv.creditCycle?.status || 'pending';
 
-      let statusLabel = 'Vigente';
-      const st = inv.creditCycle?.status || 'pedido';
+      let statusLabel = 'En Tránsito';
       if (st === 'paid' || st === 'collected' || balance === 0) {
-        statusLabel = 'Cobrada';
+        statusLabel = 'Cobrada / Liquidada';
       } else if (st === 'overdue' || (late !== null && late > 0)) {
         statusLabel = 'Vencida';
       } else if (!cr) {
@@ -308,7 +309,7 @@ export function buildProvidenciaStatementDataFromOrders(orders: PurchaseOrder[],
         ledgerEntries.push({
           id: `cargo-${inv.id}`,
           date: dIssue || toDate(o.processedAt) || new Date(),
-          concept: `Factura ${inv.folio || o.folio || 'S/N'} (${kg.toLocaleString('es-MX')} kg)`,
+          concept: `Factura ${inv.folio || o.folio || 'S/N'} (${kilos(kg)})`,
           cargo: total,
           abono: 0,
         });
@@ -333,8 +334,7 @@ export function buildProvidenciaStatementDataFromOrders(orders: PurchaseOrder[],
 
   let runningBalance = 0;
   const ledger: ProvidenciaLedgerEntry[] = ledgerEntries.map((e) => {
-    runningBalance += e.cargo;
-    runningBalance -= e.abono;
+    runningBalance = round2(runningBalance + e.cargo - e.abono);
     return {
       ...e,
       balance: round2(runningBalance),

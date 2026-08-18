@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { getOrderSummary } from '../lib/finance';
-import { money, kilos, percent, fmtDate } from '../lib/format';
+import { money, kilos, percent, fmtDate, toDate } from '../lib/format';
 import { Skeleton, StatusBadge } from '../components/ui';
 import { useConfig } from '../hooks/useConfig';
 
@@ -50,8 +50,8 @@ export default function DataMining() {
       // .toMillis() sobre undefined tronaba toda la pantalla de Sabana
       // Maestra con "Cannot read properties of undefined". Los que no
       // tienen fecha se ordenan al final en vez de tronar la pagina.
-      const ta = a.fechaPedido?.toMillis?.() ?? 0;
-      const tb = b.fechaPedido?.toMillis?.() ?? 0;
+      const ta = toDate(a.fechaPedido)?.getTime() ?? 0;
+      const tb = toDate(b.fechaPedido)?.getTime() ?? 0;
       return tb - ta;
     });
   }, [orders, config, filterText]);

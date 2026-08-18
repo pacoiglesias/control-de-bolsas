@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
+import { toDate } from '../lib/format';
 import type { Invoice } from '../lib/types';
 
 interface InvoicesState {
@@ -30,8 +31,8 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
           .filter((inv) => inv.creditCycle?.status !== 'collected');
           
         docs.sort((a, b) => {
-          const ta = a.createdAt?.toMillis?.() ?? 0;
-          const tb = b.createdAt?.toMillis?.() ?? 0;
+          const ta = toDate(a.createdAt)?.getTime() ?? 0;
+          const tb = toDate(b.createdAt)?.getTime() ?? 0;
           return tb - ta;
         });
         setInvoices(docs);

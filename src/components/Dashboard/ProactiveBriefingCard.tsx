@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { money, kilos as fmtKilos, nombreClienteVisible } from '../../lib/format';
+import { money, kilos as fmtKilos, nombreClienteVisible, toDate } from '../../lib/format';
 import { getOrderSummary, round2 } from '../../lib/finance';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 
@@ -42,8 +42,8 @@ export function ProactiveBriefingCard({
     today.setHours(0, 0, 0, 0);
 
     // 1. Entregas recibidas listas para facturar
-    const unbilledOrders = orders.filter(o => {
-      if (o.isClosedShort) return false;
+    const unbilledOrders = (orders || []).filter(o => {
+      if (!o || o.isClosedShort) return false;
       const s = getOrderSummary(o);
       return s.kilosDelivered > s.kilosInvoiced + 0.01;
     });
@@ -71,11 +71,13 @@ export function ProactiveBriefingCard({
     // 2. Facturas en manos del contador listas para ingresar a Caja
     let withAccountantCount = 0;
     let withAccountantTotal = 0;
-    orders.forEach(o => {
+    (orders || []).forEach(o => {
+      if (!o) return;
       (o.invoices || []).forEach(inv => {
+        if (!inv) return;
         if (inv.creditCycle?.status === 'paid') {
           withAccountantCount++;
-          withAccountantTotal += (inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate)));
+          withAccountantTotal = round2(withAccountantTotal + (inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate))));
         }
       });
     });
@@ -96,18 +98,15 @@ export function ProactiveBriefingCard({
 
     // 3. Facturas con Contrarecibo vencido o por vencer hoy
     const urgentInvoices: { order: PurchaseOrder; folio: string; cr: string; amount: number; isOverdue: boolean }[] = [];
-    orders.forEach(o => {
+    (orders || []).forEach(o => {
+      if (!o) return;
       (o.invoices || []).forEach(inv => {
+        if (!inv) return;
         const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
         const st = inv.creditCycle?.status;
         if ((st === 'pending' || st === 'overdue' || st === 'facturado') && cr) {
-          const rawDue = inv.creditCycle?.dueDate as any;
-          let dueTime: number | null = null;
-          if (rawDue) {
-            if (typeof rawDue.toMillis === 'function') dueTime = rawDue.toMillis();
-            else if (typeof rawDue.toDate === 'function') dueTime = rawDue.toDate().getTime();
-            else if (rawDue instanceof Date) dueTime = rawDue.getTime();
-          }
+          const due = toDate(inv.creditCycle?.dueDate);
+          const dueTime = due ? due.getTime() : null;
 
           const isOverdue = st === 'overdue' || (dueTime !== null && dueTime <= today.getTime());
           if (isOverdue) {
@@ -115,7 +114,7 @@ export function ProactiveBriefingCard({
               order: o,
               folio: inv.folio || o.folio || 'S/F',
               cr,
-              amount: inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate)),
+              amount: round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate))),
               isOverdue,
             });
           }

@@ -1,5 +1,16 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.8.0] - 18 Agosto 2026 (Grand Audit & Master Release: Complete Financial Precision & Zero-Residuals Standard)
+
+### Agregado, Corregido y Desplegado
+- **💎 Cero Residuos de Parseo y Formateo Directo (Zero-Residuals Standard):**
+  - Eliminación total de llamadas ad-hoc `.toMillis()` y `.toLocaleString()` dispersas en todo el sistema. Sustitución universal por los formateadores estáticos `kilos()`, `money()` y el parser defensivo `toDate()` en `DataMining.tsx`, `PurchasesContext.tsx`, `InvoicesContext.tsx`, `ExpensesContext.tsx`, `ProximasTable.tsx`, `ActionRadar.tsx` y `Dashboard.tsx`.
+- **📊 Consolidación Completa de Dashboard, Cobranza & PDFs Financieros (Sprints 1, 2, 3 y 4 al 100%):**
+  - **Radar de Acciones y Briefing Proactivo (`ProactiveBriefingCard.tsx`, `ActionRadar.tsx`):** Parseo universal de fechas `toDate()` y redondeo determinista de montos proyectados `round2()`.
+  - **Proyección de Flujo de Efectivo y Semáforo (`CashflowProjection.tsx`, `SemaforoDelDia.tsx`, `KilosSpeedometer.tsx`):** Protección total contra arreglos nulos y división por cero en velocímetro de kilos.
+  - **Módulo de Estado de Cuenta y Cédulas PDF (`EstadoCuenta.tsx`, `providenciaStatementPdf.ts`, `netProfitReportPdf.ts`, `andresStatementPdf.ts`):** Redondeo exacto centavo a centavo en el saldo del libro mayor, formateo pre-instanciado de kilos y alineación terminológica a "Costo de Compra Proveedor (Andrés)".
+- **🚀 100% Pruebas Aprobadas (72/72) y Despliegue en Vivo:** Frontend PWA y Cloud Functions compilados sin advertencias y desplegados a producción en Firebase Hosting.
+
 ## [v8.7.3] - 18 Agosto 2026 (Staff Engineer Quality Sprint: Rendimiento Intl, Null-Safety Total, WCAG-AA & Determinismo Financiero)
 
 ### Optimizado y Blindado

@@ -1,4 +1,4 @@
-import { money, fmtDateFull, fmtDateTimeFull, fmtDayAndDate } from './format';
+import { money, kilos, fmtDateFull, fmtDateTimeFull, fmtDayAndDate } from './format';
 
 interface LedgerItem {
   id: string;
@@ -59,64 +59,64 @@ export async function generateAndresAuditStatementPdf(data: {
         </div>
       </div>
 
-      <!-- TARJETAS DE RESUMEN EJECUTIVO -->
+      <!-- RESUMEN EJECUTIVO (CARDS) -->
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">KILOS ENTREGADOS</div>
-          <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-top: 2px;">${data.totalReceivedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</div>
+          <div style="font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase;">📦 Kilos Recibidos</div>
+          <div style="font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px;">${kilos(data.totalReceivedKilos)}</div>
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">TOTAL ADQUIRIDO ($)</div>
-          <div style="font-size: 16px; font-weight: 900; color: #5b21b6; margin-top: 2px;">${money(data.totalPurchasesCost)}</div>
+          <div style="font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase;">💼 Costo Total ($42/kg)</div>
+          <div style="font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px;">${money(data.totalPurchasesCost)}</div>
         </div>
 
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">TOTAL PAGADO ($)</div>
-          <div style="font-size: 16px; font-weight: 900; color: #16a34a; margin-top: 2px;">${money(data.totalPagado)}</div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 9px; font-weight: 800; color: #166534; text-transform: uppercase;">💵 Pagos Realizados</div>
+          <div style="font-size: 14px; font-weight: 900; color: #15803d; margin-top: 2px;">${money(data.totalPagado)}</div>
         </div>
 
         <div style="background: ${esAnticipo ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${esAnticipo ? '#86efac' : '#fca5a5'}; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 9.5px; font-weight: 800; color: ${esAnticipo ? '#166534' : '#991b1b'}; text-transform: uppercase;">
-            ${esAnticipo ? 'ANTICIPO A FAVOR' : 'SALDO POR PAGAR'}
+          <div style="font-size: 9px; font-weight: 800; color: ${esAnticipo ? '#166534' : '#991b1b'}; text-transform: uppercase;">
+            ${esAnticipo ? '🟢 Anticipo a Favor' : '🔴 Saldo Pendiente'}
           </div>
-          <div style="font-size: 16px; font-weight: 900; color: ${esAnticipo ? '#15803d' : '#b91c1c'}; margin-top: 2px;">
-            ${esAnticipo ? '+' : '-'}${money(saldoAbs)}
+          <div style="font-size: 15px; font-weight: 900; color: ${esAnticipo ? '#15803d' : '#dc2626'}; margin-top: 2px;">
+            ${money(saldoAbs)}
           </div>
         </div>
       </div>
 
+      <!-- TABLA 1: ENTREGAS POR ORDEN DE COMPRA (SI EXISTEN) -->
       ${deliveries.length > 0 ? `
-        <!-- TABLA 1: FLUJO DE ENTREGAS Y PEDIDOS SURTIDOS -->
         <div style="margin-bottom: 22px;">
           <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 6px;">
-            📦 1. Detalle de Pedidos y Entregas Surtidas en Báscula:
+            📋 1. Desglose de Entregas por Pedido / OC:
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 8px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
             <thead>
-              <tr style="background: #334155; color: #fff; text-transform: uppercase; font-size: 9px;">
-                <th style="padding: 6px 8px; text-align: left; border-radius: 4px 0 0 0;">OC / Folio</th>
+              <tr style="background: #f1f5f9; text-transform: uppercase; font-size: 9px; color: #475569; border-bottom: 2px solid #cbd5e1;">
+                <th style="padding: 6px 8px; text-align: left;">Pedido / OC</th>
                 <th style="padding: 6px 8px; text-align: left;">Cliente</th>
                 <th style="padding: 6px 8px; text-align: right;">Pedido (Kg)</th>
-                <th style="padding: 6px 8px; text-align: right;">Entregado en Báscula (Kg)</th>
-                <th style="padding: 6px 8px; text-align: center;">% Surtido</th>
-                <th style="padding: 6px 8px; text-align: right;">Costo Compra</th>
-                <th style="padding: 6px 8px; text-align: center; border-radius: 0 4px 0 0;">Estatus</th>
+                <th style="padding: 6px 8px; text-align: right;">Entregado (Kg)</th>
+                <th style="padding: 6px 8px; text-align: right;">Costo/Kg</th>
+                <th style="padding: 6px 8px; text-align: right;">Importe Total</th>
+                <th style="padding: 6px 8px; text-align: center;">Estatus</th>
               </tr>
             </thead>
             <tbody>
-              ${deliveries.map((d, idx) => {
-                const pct = d.orderedKg > 0 ? Math.min(100, Math.round((d.receivedKg / d.orderedKg) * 100)) : 100;
+              ${deliveries.map((del, idx) => {
+                const pct = del.orderedKg > 0 ? Math.round((del.receivedKg / del.orderedKg) * 100) : 100;
                 return `
                   <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-                    <td style="padding: 5px 8px; font-weight: 800; font-family: monospace; color: #0f172a;">${d.folio}</td>
-                    <td style="padding: 5px 8px; color: #475569;">${d.client || 'Providencia'}</td>
-                    <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${d.orderedKg.toLocaleString('es-MX')} kg</td>
-                    <td style="padding: 5px 8px; text-align: right; font-weight: 700; font-family: monospace; color: #047857;">${d.receivedKg.toLocaleString('es-MX')} kg</td>
-                    <td style="padding: 5px 8px; text-align: center; font-weight: 700; color: ${pct >= 100 ? '#16a34a' : '#d97706'};">${pct}%</td>
-                    <td style="padding: 5px 8px; text-align: right; font-weight: 800; font-family: monospace;">${money(d.totalCost)}</td>
+                    <td style="padding: 5px 8px; font-weight: 700; color: #0f172a;">${del.folio}</td>
+                    <td style="padding: 5px 8px; color: #475569;">${del.client || 'Providencia'}</td>
+                    <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${kilos(del.orderedKg)}</td>
+                    <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 700; color: #047857;">${kilos(del.receivedKg)}</td>
+                    <td style="padding: 5px 8px; text-align: right; font-family: monospace;">$${del.costPerKg.toFixed(2)}</td>
+                    <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 700;">${money(del.totalCost)}</td>
                     <td style="padding: 5px 8px; text-align: center;">
-                      <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; background: ${pct >= 100 ? '#dcfce7' : '#fef3c7'}; color: ${pct >= 100 ? '#166534' : '#b45309'};">
+                      <span style="font-size: 8.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: ${pct >= 100 ? '#dcfce7' : '#fef3c7'}; color: ${pct >= 100 ? '#15803d' : '#b45309'};">
                         ${pct >= 100 ? 'Completado' : 'En Surtido'}
                       </span>
                     </td>
@@ -150,7 +150,7 @@ export async function generateAndresAuditStatementPdf(data: {
                 <td style="padding: 5px 8px; color: #64748b;">${fmtDayAndDate(entry.date)}</td>
                 <td style="padding: 5px 8px; font-weight: 600; color: #1e293b;">${entry.concept}</td>
                 <td style="padding: 5px 8px; text-align: right; font-family: monospace; color: #047857;">
-                  ${entry.kilos ? `${entry.kilos.toLocaleString('es-MX')} kg` : '—'}
+                  ${entry.kilos ? `${kilos(entry.kilos)}` : '—'}
                 </td>
                 <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 700; color: ${entry.cargo > 0 ? '#dc2626' : '#94a3b8'};">
                   ${entry.cargo > 0 ? money(entry.cargo) : '—'}

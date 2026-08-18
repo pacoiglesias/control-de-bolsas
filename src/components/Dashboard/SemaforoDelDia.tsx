@@ -32,8 +32,8 @@ export function SemaforoDelDia({
     const salePrice = config?.salePricePerKg || 43;
     const ivaRate = config?.ivaRate || 0.16;
 
-    orders.forEach((o) => {
-      if (o.isClosedShort) return;
+    (orders || []).forEach((o) => {
+      if (!o || o.isClosedShort) return;
       const summary = getOrderSummary(o);
       const totalKilos = Number(o.totalKilograms) || 0;
       const kilosEntregados = summary.kilosDelivered;
@@ -50,7 +50,7 @@ export function SemaforoDelDia({
         const delta = kilosEntregados - kilosFacturados;
         porFacturarKilos += delta;
         const sub = delta * (o.customSellPrice || salePrice);
-        porFacturarMonto += sub * (1 + ivaRate);
+        porFacturarMonto = round2(porFacturarMonto + (sub * (1 + ivaRate)));
       }
 
       // 3. Facturas sin contrarecibo (excluyendo órdenes cerradas o ya cobradas)
@@ -70,7 +70,7 @@ export function SemaforoDelDia({
           if (st === 'paid') {
             const tot = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
             const comm = inv.financials?.commission ?? (tot * (config?.commissionRate || 0.08));
-            porRecibirContadorMonto += (tot - comm);
+            porRecibirContadorMonto = round2(porRecibirContadorMonto + (tot - comm));
             porRecibirContadorCount++;
           }
         });
@@ -78,7 +78,8 @@ export function SemaforoDelDia({
     });
 
     // 4. Andrés en producción (kilos pedidos en compras vs entregados)
-    const andresPendienteKilos = purchases.reduce((acc, p) => {
+    const andresPendienteKilos = (purchases || []).reduce((acc, p) => {
+      if (!p) return acc;
       const faltan = (p.expectedKilos || 0) - (p.receivedKilos || 0);
       return acc + Math.max(0, faltan);
     }, 0);

@@ -4,6 +4,7 @@ import { useOrdersContext } from '../../context/OrdersContext';
 import { useToast } from '../../context/ToastContext';
 import { Card, Empty } from '../ui';
 import { money, fmtDate, toDate } from '../../lib/format';
+import { round2 } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { generateProvidenciaStatementPdf, buildProvidenciaStatementDataFromOrders } from '../../lib/providenciaStatementPdf';
@@ -24,7 +25,7 @@ export default function EstadoCuenta() {
   const [search, setSearch] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  const allOrders: PurchaseOrder[] = data?.rawOrders?.length ? data.rawOrders : contextOrders;
+  const allOrders: PurchaseOrder[] = data?.rawOrders?.length ? data.rawOrders : (contextOrders || []);
 
   const statementData = useMemo(() => {
     return buildProvidenciaStatementDataFromOrders(allOrders, settings);
@@ -33,9 +34,11 @@ export default function EstadoCuenta() {
   const ledger = useMemo(() => {
     const entries: Omit<LedgerEntry, 'balance'>[] = [];
 
-    allOrders.forEach((o) => {
+    (allOrders || []).forEach((o) => {
+      if (!o) return;
       const invs = o.invoices || [];
       invs.forEach((inv) => {
+        if (!inv) return;
         const invTotal = inv.financials?.invoiceTotal || inv.financials?.saleTotal || 0;
         
         if (invTotal > 0) {
@@ -43,7 +46,7 @@ export default function EstadoCuenta() {
             id: `cargo-${inv.id}`,
             date: o.processedAt || o.updatedAt || null,
             concept: `Factura ${inv.folio || o.folio || 'S/N'}`,
-            cargo: invTotal,
+            cargo: round2(invTotal),
             abono: 0,
           });
         }
@@ -55,7 +58,7 @@ export default function EstadoCuenta() {
             date: inv.collection?.collectedAt || inv.collection?.paidAt || o.processedAt || null,
             concept: `Pago/Cobro de Factura ${inv.folio || o.folio || 'S/N'} (CR: ${inv.collection?.contrareciboNumber || 'S/N'})`,
             cargo: 0,
-            abono: paid,
+            abono: round2(paid),
           });
         }
       });
@@ -68,8 +71,7 @@ export default function EstadoCuenta() {
     const finalEntries: LedgerEntry[] = [];
 
     entries.forEach(e => {
-      runningBalance += e.cargo; // Facturar sube su deuda
-      runningBalance -= e.abono; // Pagar baja su deuda
+      runningBalance = round2(runningBalance + e.cargo - e.abono);
       finalEntries.push({ ...e, balance: runningBalance });
     });
 

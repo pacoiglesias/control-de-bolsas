@@ -22,6 +22,7 @@ _respaldo_*/
 *.log
 .DS_Store
 Thumbs.db
+src/hooks/useDashboardStats.ts
 
 # Datos de negocio: nunca en el repositorio, y menos en public/
 # (todo lo que vive en public/ se publica en Hosting sin pedir contrasena)
