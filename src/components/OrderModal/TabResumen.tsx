@@ -107,7 +107,7 @@ export default function TabResumen() {
                       style={{ marginTop: 6, fontSize: 11, padding: '4px 8px', width: '100%' }}
                       onClick={() => nav(`/compras?abrir=${order.id}`)}
                     >
-                      🏭 Ver compra en Andrés →
+                      🏭 Ver compra en {provName} →
                     </button>
                   )}
                 </Field>
@@ -243,7 +243,7 @@ export default function TabResumen() {
                     className="btn btn-primary" 
                     style={{ background: '#0f172a', borderColor: '#0f172a', fontSize: 12, fontWeight: 700 }} 
                     onClick={async () => {
-                      if (await confirmDialog(`¿Confirmas concluir y cerrar este pedido con los ${liveSummary.kilosDelivered.toLocaleString('es-MX')} kg entregados?\n\nYa no se esperarán más entregas de Andrés para esta OC y podrás facturarla al 100%.`)) {
+                      if (await confirmDialog(`¿Confirmas concluir y cerrar este pedido con los ${liveSummary.kilosDelivered.toLocaleString('es-MX')} kg entregados?\n\nYa no se esperarán más entregas de ${provName} para esta OC y podrás facturarla al 100%.`)) {
                         set('isClosedShort', true);
                         toast('🔒 Pedido concluido con los kilos entregados. Haz clic en "Guardar cambios".', 'ok');
                       }

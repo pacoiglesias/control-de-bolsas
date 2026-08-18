@@ -5,20 +5,25 @@ import { round2 } from '../../lib/finance';
 import { ResponsiveMoney } from '../ui';
 import { useExpensesContext } from '../../context/ExpensesContext';
 import { useToast } from '../../context/ToastContext';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { generateNetProfitReportPdf, buildNetProfitData } from '../../lib/netProfitReportPdf';
-import type { PurchaseOrder } from '../../lib/types';
+import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 
 interface ExecutiveFinancialCardProps {
   orders: PurchaseOrder[];
-  config: any;
-  saldoCaja: number;
+  config?: FinancialConfig;
+  saldoCaja?: number;
 }
 
-export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveFinancialCardProps) {
+export function ExecutiveFinancialCard({ orders, config, saldoCaja = 0 }: ExecutiveFinancialCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const { expenses } = useExpensesContext();
+  const { settings } = useSystemSettings();
   const toast = useToast();
+  
+  const provName = settings?.providerName || 'Andrés';
+  const clientName = settings?.clientShortName || 'Providencia';
 
   // Fórmulas matemáticas oficiales del negocio
   const financials = useMemo(() => {
@@ -95,14 +100,14 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja }: ExecutiveF
 
   const handleCopyExecutiveSummary = () => {
     const text = `📊 REPORTE EJECUTIVO DE UTILIDAD & CORTE FINANCIERO
-🏢 Bolsas Elemental / Providencia
+🏢 ${settings.companyName || 'Bolsas Elemental'} / ${clientName}
 📅 Fecha: ${new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
 📦 Kilos Facturados: ${fmtKilos(financials.totalKilosFacturados)} kg
 💼 Facturación Subtotal: ${money(financials.subtotalFacturado)}
 
 📉 Deducciones Operativas:
-• Maquila Andrés ($42/kg): ${money(financials.costoAndres)}
+• Maquila ${provName} ($42/kg): ${money(financials.costoAndres)}
 • Comisión Contador (8%): ${money(financials.comisionContable)}
 
 💎 UTILIDAD LÍQUIDA REAL: ${money(financials.utilidadReal)}
@@ -249,7 +254,7 @@ Generado automáticamente desde el ERP.`;
               {/* 2. Costo Maquila Andrés */}
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: 14, borderRadius: 14, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                  2. Costo Andrés ($42/kg)
+                  2. Costo {provName} ($42/kg)
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: '#f87171', margin: '4px 0' }}>
                   - <ResponsiveMoney value={financials.costoAndres} />

@@ -77,9 +77,11 @@ ERP Control Bolsas (v8.6.0 Providencia Financial Core & Official Reconciliation 
 
 1. **Inmutabilidad de Snapshots Financieros:** El costo ($42/kg) y venta ($43/kg) de una orden guardada no se alteran al cambiar la configuración global futura.
 2. **Regla de Contrarecibo:** Una factura *nunca* se considera vencida (`overdue`) si no cuenta con número de contrarecibo emitido por Providencia.
-3. **Fórmula de Flujo Neto y Reparto:** `Utilidad Líquida = (Subtotal Facturado) - (Kilos * $42 Costo Andrés) - (Subtotal * 0.08 Comisión Contador) - Gastos Operativos`. Reparto 50% Paco / 50% Socio.
-4. **Precisión Numérica:** Todas las operaciones financieras se redondean y operan con `decimal.js-light` evitando errores IEEE 754.
-5. **Autenticación Estricta:** Todo usuario autenticado debe tener `email_verified == true` en Firebase Auth para realizar lecturas o escrituras.
+3. **Cardinalidad CR:Facturas (1:N):** Un Contrarecibo ampara **una o varias facturas**; una factura pertenece a **un solo Contrarecibo**. Nunca al revés. Ejemplo: TH-912 puede contener Facturas #6160 y #6161 simultáneamente.
+4. **Separación Estricta TH / GT:** Un Contrarecibo nunca mezcla facturas de TH (Textil Hogar) y GT (Grupo Textil). Son departamentos completamente independientes con numeración propia (TH-xxx / GT-xxx).
+5. **Fórmula de Flujo Neto y Reparto:** `Utilidad Líquida = (Subtotal Facturado) - (Kilos * $42 Costo Andrés) - (Subtotal * 0.08 Comisión Contador) - Gastos Operativos`. Reparto 50% Paco / 50% Socio.
+6. **Precisión Numérica:** Todas las operaciones financieras se redondean y operan con `decimal.js-light` evitando errores IEEE 754.
+7. **Autenticación Estricta:** Todo usuario autenticado debe tener `email_verified == true` en Firebase Auth para realizar lecturas o escrituras.
 
 ---
 

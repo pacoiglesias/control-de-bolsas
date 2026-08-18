@@ -7,6 +7,7 @@ import { money } from '../lib/format';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { openWhatsAppMessage } from '../lib/whatsappReminder';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 /* ─── Estilos Glassmorphism Premium ────────────────────────────────────────── */
 const glass = {
@@ -39,6 +40,8 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
   const toast = useToast();
 
   const del = () => setDigits((prev) => prev.slice(0, -1));
@@ -128,7 +131,7 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
             Portal Maquilador
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: 6, fontSize: 14 }}>
-            Andrés · Control de Entregas y Saldo
+            {provName} · Control de Entregas y Saldo
           </p>
         </div>
 
@@ -224,6 +227,9 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
 /* ─── Portal Principal Maquilador ─────────────────────────────────────────── */
 export default function MaquiladorPortal() {
   const toast = useToast();
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+  const clientName = settings?.clientShortName || 'Providencia';
   const [pin, setPin] = useState('');
   const [auth, setAuth] = useState(false);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
@@ -491,7 +497,7 @@ export default function MaquiladorPortal() {
           <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #7c3aed; padding-bottom: 16px; margin-bottom: 24px;">
             <div>
               <h1 style="margin: 0; font-size: 24px; color: #6d28d9; font-weight: 800;">ESTADO DE CUENTA · MAQUILA</h1>
-              <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">Taller Maquilador: Andrés · Providencia</p>
+              <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">Taller Maquilador: ${provName} · ${clientName}</p>
             </div>
             <div style="text-align: right;">
               <p style="margin: 0; font-size: 12px; color: #64748b;">Fecha de Emisión:</p>
@@ -572,7 +578,7 @@ export default function MaquiladorPortal() {
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px;">
             <div>
               <h2 style="margin: 0; color: #6d28d9; font-size: 18px; font-weight: 800;">COMPROBANTE DE ENTREGA · MAQUILA</h2>
-              <p style="margin: 2px 0 0; font-size: 12px; color: #64748b;">Taller Maquilador: Andrés · Providencia</p>
+              <p style="margin: 2px 0 0; font-size: 12px; color: #64748b;">Taller Maquilador: ${provName} · ${clientName}</p>
             </div>
             <div style="text-align: right;">
               <span style="background: #f1f5f9; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: 800; color: #0f172a;">OC ${h.folio}</span>
@@ -591,7 +597,7 @@ export default function MaquiladorPortal() {
               </div>
               <div style="grid-column: 1 / -1;">
                 <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700;">Producto:</span>
-                <div style="font-weight: 600; color: #334155; margin-top: 2px;">${h.productDescription || 'Polietileno Providencia'}</div>
+                <div style="font-weight: 600; color: #334155; margin-top: 2px;">${h.productDescription || `Polietileno ${clientName}`}</div>
               </div>
               ${h.notes ? `
               <div style="grid-column: 1 / -1; background: #fff; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
@@ -603,10 +609,10 @@ export default function MaquiladorPortal() {
 
           <div style="margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: center; font-size: 11px; color: #475569;">
             <div>
-              <div style="border-top: 1px solid #94a3b8; padding-top: 4px; font-weight: 700;">Entregó (Andrés / Taller)</div>
+              <div style="border-top: 1px solid #94a3b8; padding-top: 4px; font-weight: 700;">Entregó (${provName} / Taller)</div>
             </div>
             <div>
-              <div style="border-top: 1px solid #94a3b8; padding-top: 4px; font-weight: 700;">Recibió (Almacén Providencia)</div>
+              <div style="border-top: 1px solid #94a3b8; padding-top: 4px; font-weight: 700;">Recibió (Almacén ${clientName})</div>
             </div>
           </div>
         </div>
@@ -730,7 +736,7 @@ export default function MaquiladorPortal() {
                   ● {isOnline ? 'En Línea' : 'Sin Conexión'}
                 </span>
               </div>
-              <div style={{ fontSize: 18, fontWeight: 900, marginTop: 1 }}>Andrés · Taller Providencia</div>
+              <div style={{ fontSize: 18, fontWeight: 900, marginTop: 1 }}>{provName} · Taller {clientName}</div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -886,7 +892,7 @@ export default function MaquiladorPortal() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => {
-                    const text = `Hola Paco, te confirmo que acabo de registrar una entrega de *${lastDeliveredNotice.kilos} kg* para la *OC ${lastDeliveredNotice.folio}* (${lastDeliveredNotice.product}) en el sistema.${lastDeliveredNotice.notes ? `\nNota: ${lastDeliveredNotice.notes}` : ''}\nQuedo al pendiente. Saludos, Andrés.`;
+                    const text = `Hola Paco, te confirmo que acabo de registrar una entrega de *${lastDeliveredNotice.kilos} kg* para la *OC ${lastDeliveredNotice.folio}* (${lastDeliveredNotice.product}) en el sistema.${lastDeliveredNotice.notes ? `\nNota: ${lastDeliveredNotice.notes}` : ''}\nQuedo al pendiente. Saludos, ${provName}.`;
                     openWhatsAppMessage(text);
                   }}
                   style={{
@@ -1564,7 +1570,7 @@ export default function MaquiladorPortal() {
                       const saldoText = statement.saldoProveedor < 0
                         ? `Saldo a mi favor de *+${money(Math.abs(statement.saldoProveedor))}*`
                         : `Anticipo pendiente de *-${money(Math.abs(statement.saldoProveedor))}*`;
-                      const text = `Hola Paco, te comparto mi resumen de cuenta:\n• Total Fabricado: *${money(statement.totalPurchasesCost)}*\n• Total Pagado: *${money(statement.totalPagado)}*\n• Balance Actual: ${saldoText}\n\nQuedo atento. Saludos, Andrés.`;
+                      const text = `Hola Paco, te comparto mi resumen de cuenta:\n• Total Fabricado: *${money(statement.totalPurchasesCost)}*\n• Total Pagado: *${money(statement.totalPagado)}*\n• Balance Actual: ${saldoText}\n\nQuedo atento. Saludos, ${provName}.`;
                       openWhatsAppMessage(text);
                     }}
                     style={{

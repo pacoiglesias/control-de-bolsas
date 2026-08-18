@@ -1081,4 +1081,47 @@ button:active {
   }
 }
 
+/* ─── Clases de Resplandor Ambiental & Suite de Lujo (v8.7.0) ─────────────── */
+.glow-sky {
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-sky:hover {
+  box-shadow: 0 0 35px rgba(59, 130, 246, 0.4) !important;
+}
+
+.glow-emerald {
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-emerald:hover {
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.45) !important;
+}
+
+.glow-amber {
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-amber:hover {
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.45) !important;
+}
+
+.glow-purple {
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-purple:hover {
+  box-shadow: 0 0 35px rgba(168, 85, 247, 0.45) !important;
+}
+
+.quick-hub-pill {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.quick-hub-pill:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+}
+.quick-hub-pill:active {
+  transform: translateY(0) scale(0.98) !important;
+}
+
 

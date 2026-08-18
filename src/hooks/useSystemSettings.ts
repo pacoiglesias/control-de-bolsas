@@ -6,20 +6,34 @@ export interface SystemSettings {
   companyName: string;
   companyLogoUrl: string;
   providerName: string;
+  providerTitle?: string;
   clientName?: string;
   clientShortName?: string;
   departments: string[];
   cajaChicaBalance: number;
+  deptCodeTH?: string;
+  deptCodeGT?: string;
+  managerTH?: string;
+  managerGT?: string;
+  deptNameTH?: string;
+  deptNameGT?: string;
 }
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   companyName: 'BOLSAS ELEMENTAL',
   companyLogoUrl: '',
   providerName: 'Andrés',
+  providerTitle: 'Taller de Maquila',
   clientName: 'Grupo Textil Providencia SA de CV',
   clientShortName: 'Providencia',
   departments: ['TH', 'GT'],
   cajaChicaBalance: 0,
+  deptCodeTH: 'TH',
+  deptCodeGT: 'GT',
+  managerTH: 'Lic. Nava',
+  managerGT: 'Lic. Evelia',
+  deptNameTH: 'Textil Hogar',
+  deptNameGT: 'Grupo Textil',
 };
 
 export function useSystemSettings() {

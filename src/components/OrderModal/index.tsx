@@ -18,6 +18,7 @@ import { OrderStepper } from './OrderStepper';
 import { NextActionBanner } from './NextActionBanner';
 import { money } from '../../lib/format';
 import { useProducts } from '../../hooks/useProducts';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 
 // ─── Identidad visual de cada documento ───────────────────────────────────────
 const BADGE = {
@@ -108,10 +109,13 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
 
   const hasUninvoicedDeliveries = form.deliveries.some((d: any) => !d.invoiced);
 
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+
   const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number; alert?: boolean }[] = [
     { key: 'resumen',   label: '📋 Expediente' },
     { key: 'productos', label: '📦 Orden de Compra', count: form.items.length },
-    { key: 'andres',    label: '🏭 Pedido a Andrés' },
+    { key: 'andres',    label: `🏭 Pedido a ${provName}` },
     { key: 'entregas',  label: '🚛 Entregas', count: form.deliveries.length, alert: hasUninvoicedDeliveries },
   ];
 

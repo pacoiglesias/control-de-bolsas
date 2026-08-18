@@ -4,26 +4,31 @@ import { money, fmtDate, toDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
 import { useConfig } from '../../hooks/useConfig';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { InvoiceDrawer } from '../Cobranza/InvoiceDrawer';
+import { QuickPeekDrawer } from './QuickPeekDrawer';
+import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
 import { doc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { logAction } from '../../lib/logger';
+import { playCashSound, triggerHaptic, playSoftClick } from '../../lib/hapticEngine';
+import { generateCollectionNotice, generateInstitutionalEmailDraft, openInstitutionalEmail, copyToClipboard } from '../../lib/whatsappReminder';
 
-/**
- * Tabla pedida explícitamente por el usuario: "el cuadro de los
- * contrarecibos para saber lo que se vence y se vencerá de forma clara".
- * Se arma directo de las órdenes activas — no depende del agregado del
- * servidor (que se queda desactualizado hasta recalcular), así que
- * siempre refleja el estado real de cada factura con contrarecibo.
- */
-export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
+interface ContrarecibosTableProps {
+  orders: PurchaseOrder[];
+  onOpenOrder?: (order: PurchaseOrder) => void;
+}
+
+export function ContrarecibosTable({ orders, onOpenOrder }: ContrarecibosTableProps) {
   const { user } = useAuth();
   const toast = useToast();
   const { config: dynamicConfig } = useConfig();
+  const { settings } = useSystemSettings();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<{o: PurchaseOrder, inv: any} | null>(null);
+  const [peekOrder, setPeekOrder] = useState<PurchaseOrder | null>(null);
 
   const filas = useMemo(() => {
     const ahora = Date.now();
@@ -99,6 +104,7 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
         );
         tx.update(ref, { invoices });
       });
+      playCashSound();
       logAction(user?.email, 'Factura Marcada Pagada (Tabla Contrarecibos)', { orderId, invoiceId });
       toast('✅ Marcada como pagada por el cliente. Pendiente de recibir del contador.', 'ok');
     } catch (e) {
@@ -108,11 +114,94 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
     }
   }
 
+  const getKebabItems = (f: typeof filas[0]): KebabMenuItem[] => [
+    {
+      icon: '🔍',
+      label: 'Vista Rápida (Quick Peek)',
+      sublabel: 'Desglose de kilos y estado',
+      onClick: () => {
+        playSoftClick();
+        setPeekOrder(f.order);
+      },
+    },
+    {
+      icon: '👁️',
+      label: 'Abrir Expediente',
+      sublabel: `OC #${f.folio}`,
+      onClick: () => {
+        playSoftClick();
+        if (onOpenOrder) onOpenOrder(f.order);
+        else setDrawerTarget({ o: f.order, inv: f.invoice });
+      },
+    },
+    {
+      icon: '📝',
+      label: 'Editar Cobranza (Drawer)',
+      sublabel: 'Ajustar fechas y montos',
+      onClick: () => {
+        playSoftClick();
+        setDrawerTarget({ o: f.order, inv: f.invoice });
+      },
+    },
+    {
+      icon: '💰',
+      label: 'Marcar Pagado (1 Toque)',
+      sublabel: 'Mover a Con el Contador',
+      tone: 'warn',
+      onClick: () => void marcarPagado(f.orderId, f.invoiceId, f.monto),
+    },
+    {
+      icon: '✉️',
+      label: 'Correo Institucional',
+      sublabel: 'Abrir borrador oficial',
+      dividerBefore: true,
+      tone: 'primary',
+      onClick: () => {
+        playSoftClick();
+        const draft = generateInstitutionalEmailDraft({
+          folioFactura: f.folio,
+          contrarecibo: f.contrarecibo,
+          cliente: f.cliente,
+          monto: f.monto,
+          fechaVencimiento: f.vencimiento,
+          managerTH: settings?.managerTH,
+          managerGT: settings?.managerGT,
+          deptNameTH: settings?.deptNameTH,
+          deptNameGT: settings?.deptNameGT,
+        });
+        openInstitutionalEmail(draft);
+      },
+    },
+    {
+      icon: '💬',
+      label: 'WhatsApp a Cobranza',
+      sublabel: 'Copiar aviso formal',
+      tone: 'success',
+      onClick: async () => {
+        playSoftClick();
+        const msg = generateCollectionNotice({
+          folioFactura: f.folio,
+          contrarecibo: f.contrarecibo,
+          cliente: f.cliente,
+          monto: f.monto,
+          fechaVencimiento: f.vencimiento,
+          managerTH: settings?.managerTH,
+          managerGT: settings?.managerGT,
+          deptNameTH: settings?.deptNameTH,
+          deptNameGT: settings?.deptNameGT,
+        });
+        await copyToClipboard(msg);
+        triggerHaptic('success');
+        toast('📋 Mensaje para WhatsApp copiado al portapapeles.', 'ok');
+      },
+    },
+  ];
+
   const vigentes = filas.filter((f) => (f.diasParaVencer ?? 0) >= 0);
   const vencidos = filas.filter((f) => (f.diasParaVencer ?? 0) < 0);
 
   return (
-    <Card title="📋 Contrarecibos — Qué vence y cuándo">
+    <Card title={`📋 Contrarecibos — Qué vence y cuándo (${filas.length})`}>
       {filas.length === 0 ? (
         <Empty>No hay contrarecibos activos por cobrar.</Empty>
       ) : (
@@ -136,27 +225,35 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
                       <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Vencimiento: {f.vencimiento ? fmtDate(f.vencimiento) : '—'}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--ink-faint)', fontWeight: 700 }}>Monto a Cobrar</div>
                       <div className="mono" style={{ fontSize: 20, fontWeight: 800 }}>{money(f.monto)}</div>
                     </div>
                     <button
                       className="btn"
-                      style={{ background: 'var(--paper-raised)', color: 'var(--ink)', borderColor: 'var(--line-soft)', padding: '10px 16px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
-                      onClick={() => setDrawerTarget({ o: f.order, inv: f.invoice })}
+                      style={{ background: 'var(--paper-raised)', color: 'var(--ink)', borderColor: 'var(--line-soft)', padding: '10px 14px', fontSize: 13, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
+                      onClick={() => {
+                        playSoftClick();
+                        setDrawerTarget({ o: f.order, inv: f.invoice });
+                      }}
                     >
                       Editar
                     </button>
                     <button
                       className="btn"
-                      style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '10px 16px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
+                      style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)', padding: '10px 14px', fontSize: 13, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
                       disabled={busyId === f.invoiceId}
                       onClick={() => void marcarPagado(f.orderId, f.invoiceId, f.monto)}
                     >
                       {busyId === f.invoiceId ? <span className="spinner" style={{ marginRight: 6 }}></span> : '💰 '}
                       Marcar Pagado
                     </button>
+                    <KebabMenu
+                      items={getKebabItems(f)}
+                      triggerSize="md"
+                      title="Acciones para este Contrarecibo"
+                    />
                   </div>
                 </div>
               );
@@ -175,6 +272,21 @@ export function ContrarecibosTable({ orders }: { orders: PurchaseOrder[] }) {
           order={drawerTarget.o}
           dynamicConfig={dynamicConfig}
           onClose={() => setDrawerTarget(null)}
+        />
+      )}
+
+      {peekOrder && (
+        <QuickPeekDrawer
+          order={peekOrder}
+          onClose={() => setPeekOrder(null)}
+          onOpenFullOrder={(id) => {
+            const found = orders.find((x) => x.id === id);
+            if (found && onOpenOrder) onOpenOrder(found);
+          }}
+          onPayCr={(invoiceId) => {
+            const target = filas.find((x) => x.invoiceId === invoiceId);
+            if (target) marcarPagado(target.orderId, target.invoiceId, target.monto);
+          }}
         />
       )}
     </Card>

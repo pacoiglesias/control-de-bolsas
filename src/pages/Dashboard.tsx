@@ -41,7 +41,7 @@ import { FloatingKiloCalculator } from '../components/FloatingKiloCalculator';
 import { MagicPasteModal } from '../components/MagicPasteModal';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
-import { getOrderSummary, filterOrderByDepartment } from '../lib/finance';
+import { getOrderSummary, filterOrderByDepartment, inferDepartment } from '../lib/finance';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 
@@ -314,10 +314,11 @@ return () => unsub();
         all += total;
         if (cr) allCount++;
 
-        if (cr.startsWith('TH-') || o.department === 'TH' || (o.client || '').toUpperCase().includes('TH')) {
+        const dept = inferDepartment(o, inv);
+        if (dept === 'TH') {
           th += total;
           if (cr) thCount++;
-        } else if (cr.startsWith('GT-') || o.department === 'GT' || (o.client || '').toUpperCase().includes('GT')) {
+        } else if (dept === 'GT') {
           gt += total;
           if (cr) gtCount++;
         }
@@ -673,7 +674,7 @@ return () => unsub();
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 14 }}>⚖️</span>
             <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con Andrés</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con {settings.providerName || 'Andrés'}</div>
               <div style={{ fontSize: 14, fontWeight: 900, color: k.deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
                 {money(k.deudaAndres)}
               </div>
@@ -998,9 +999,9 @@ return () => unsub();
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
-              title="Textil Hogar — Responsable: Lic. Nava"
+              title={`${settings.deptNameTH || 'Textil Hogar'} — Responsable: ${settings.managerTH || 'Lic. Nava'}`}
             >
-              <span>🔵 TH · Nava</span>
+              <span>🔵 TH · {settings.managerTH || 'Nava'}</span>
               <span style={{
                 background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
                 color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
@@ -1030,9 +1031,9 @@ return () => unsub();
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
-              title="Grupo Textil — Responsable: Lic. Evelia"
+              title={`${settings.deptNameGT || 'Grupo Textil'} — Responsable: ${settings.managerGT || 'Lic. Evelia'}`}
             >
-              <span>🟢 GT · Evelia</span>
+              <span>🟢 GT · {settings.managerGT || 'Evelia'}</span>
               <span style={{
                 background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
                 color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',
@@ -1210,7 +1211,7 @@ return () => unsub();
           }}
         >
           <span>🏭</span>
-          <span>Maquila & Andrés</span>
+          <span>Maquila & {settings.providerName || 'Andrés'}</span>
         </button>
 
         <button
@@ -1397,7 +1398,7 @@ return () => unsub();
           {viewMode !== 'all' && (
             <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>🏭</span>
-              <span>Maquila, Producción y Kilos de Andrés</span>
+              <span>Maquila, Producción y Kilos de {settings.providerName || 'Andrés'}</span>
             </div>
           )}
 
@@ -1568,7 +1569,13 @@ return () => unsub();
       {/* ─── MODALES Y DRAWERS DE CONTROL ─────────────────────────────────── */}
       {showContrarecibosDrawer && (
         <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>
-          <ContrarecibosTable orders={seguimientoOrders} />
+          <ContrarecibosTable
+            orders={seguimientoOrders}
+            onOpenOrder={(order) => {
+              setShowContrarecibosDrawer(false);
+              nav(`/ordenes?abrir=${order.id}`);
+            }}
+          />
         </Drawer>
       )}
 

@@ -9,6 +9,10 @@ export interface CollectionNoticeParams {
   fechaVencimiento?: any;
   clabe?: string;
   banco?: string;
+  managerTH?: string;
+  managerGT?: string;
+  deptNameTH?: string;
+  deptNameGT?: string;
 }
 
 export function generateCollectionNotice({
@@ -20,16 +24,22 @@ export function generateCollectionNotice({
   fechaVencimiento,
   clabe = '127680013898246811',
   banco = 'Banco Azteca / BBVA',
+  managerTH = 'Lic. Nava',
+  managerGT = 'Lic. Evelia',
+  deptNameTH = 'Textil Hogar',
+  deptNameGT = 'Grupo Textil',
 }: CollectionNoticeParams): string {
   const crText = contrarecibo && contrarecibo.trim() !== '' ? ` con Contrarecibo *#${contrarecibo}*` : '';
   const dateText = fechaVencimiento ? fmtDate(fechaVencimiento) : 'Vigente';
   
-  // Responsables oficiales: Textil Hogar TH -> Nava, Grupo Textil GT -> Evelia
+  // Responsables oficiales configurables: TH (Nava), GT (Evelia)
+  const isTH = cliente.toUpperCase().includes('TH') || (contrarecibo || '').toUpperCase().startsWith('TH');
+  const isGT = cliente.toUpperCase().includes('GT') || (contrarecibo || '').toUpperCase().startsWith('GT');
   const manager = responsable || (
-    cliente.toUpperCase().includes('TH') || (contrarecibo || '').toUpperCase().startsWith('TH')
-      ? 'Lic. Nava (Textil Hogar)'
-      : cliente.toUpperCase().includes('GT') || (contrarecibo || '').toUpperCase().startsWith('GT')
-        ? 'Lic. Evelia (Grupo Textil)'
+    isTH
+      ? `${managerTH} (${deptNameTH})`
+      : isGT
+        ? `${managerGT} (${deptNameGT})`
         : ''
   );
   const atnText = manager ? `\n👤 *Atención:* ${manager}` : '';
@@ -48,6 +58,73 @@ Le enviamos un cordial saludo. Nos permitimos dar seguimiento al pago de la sigu
 • *Beneficiario:* Bolsas Elemental / Providencia
 
 Agradecemos de antemano confirmar la programación de la transferencia. Quedamos atentos para cualquier aclaración.`;
+}
+
+export interface InstitutionalEmailDraft {
+  to: string;
+  subject: string;
+  body: string;
+}
+
+export function generateInstitutionalEmailDraft({
+  folioFactura,
+  contrarecibo,
+  cliente = 'Providencia',
+  responsable,
+  monto,
+  fechaVencimiento,
+  clabe = '127680013898246811',
+  banco = 'Banco Azteca / BBVA',
+  managerTH = 'Lic. Nava',
+  managerGT = 'Lic. Evelia',
+  deptNameTH = 'Textil Hogar',
+  deptNameGT = 'Grupo Textil',
+}: CollectionNoticeParams): InstitutionalEmailDraft {
+  const crText = contrarecibo && contrarecibo.trim() !== '' ? ` / CR #${contrarecibo}` : '';
+  const dateText = fechaVencimiento ? fmtDate(fechaVencimiento) : 'Vigente';
+  
+  // Responsables oficiales configurables
+  const isTH = cliente.toUpperCase().includes('TH') || (contrarecibo || '').toUpperCase().startsWith('TH');
+  const isGT = cliente.toUpperCase().includes('GT') || (contrarecibo || '').toUpperCase().startsWith('GT');
+  const manager = responsable || (
+    isTH
+      ? `${managerTH} (${deptNameTH})`
+      : isGT
+        ? `${managerGT} (${deptNameGT})`
+        : ''
+  );
+  const atnText = manager ? `\nAtención: ${manager}` : '';
+
+  const subject = `Seguimiento de Pago — Factura #${folioFactura}${crText} — Bolsas Elemental`;
+  const body = `Estimado Depto. de Cuentas por Pagar (${cliente}):${atnText}
+
+Por medio del presente correo, nos permitimos dar formal seguimiento al pago de la siguiente factura programada:
+
+• Factura: #${folioFactura}${contrarecibo ? ` (Contrarecibo: #${contrarecibo})` : ''}
+• Importe Total: ${money(monto)}
+• Fecha Programada: ${dateText}
+
+Datos Bancarios para Transferencia:
+• Banco: ${banco}
+• CLABE Interbancaria: ${clabe}
+• Beneficiario: Bolsas Elemental / Providencia
+
+Agradecemos de antemano confirmar la programación de la transferencia. Quedamos atentos para cualquier aclaración.
+
+Atentamente,
+Administración & Cobranza
+Bolsas y Empaques Elemental`;
+
+  return {
+    to: 'cuentasporpagar@providencia.com.mx',
+    subject,
+    body,
+  };
+}
+
+export function openInstitutionalEmail(draft: InstitutionalEmailDraft): void {
+  const url = `mailto:${encodeURIComponent(draft.to)}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+  window.location.href = url;
 }
 
 export function openWhatsAppMessage(text: string, phone = ''): void {

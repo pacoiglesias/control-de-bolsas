@@ -3,7 +3,7 @@ import { Modal } from '../ui';
 import { money, fmtDate, getPrintHeaderHtml, shareHtmlAsPdf, toDate } from '../../lib/format';
 import { round2, extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Expense, FinancialConfig, Purchase } from '../../lib/types';
-import type { SystemSettings } from '../../hooks/useSystemSettings';
+import { useSystemSettings, type SystemSettings } from '../../hooks/useSystemSettings';
 import * as XLSX from 'xlsx';
 import { useToast } from '../../context/ToastContext';
 
@@ -13,7 +13,7 @@ interface BalanzaComprobacionModalProps {
   expenses: Expense[];
   purchases: Purchase[];
   config: FinancialConfig;
-  settings: SystemSettings;
+  settings?: SystemSettings;
   saldoCajaSistema: number;
 }
 
@@ -23,10 +23,12 @@ export function BalanzaComprobacionModal({
   expenses,
   purchases,
   config,
-  settings,
   saldoCajaSistema,
 }: BalanzaComprobacionModalProps) {
   const toast = useToast();
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+  const clientName = settings?.clientShortName || 'Providencia';
 
   // 1. CÁLCULO SISTEMA: Cartera Providencia
   const carteraSistema = useMemo(() => {
@@ -189,7 +191,7 @@ export function BalanzaComprobacionModal({
                 <td style="text-align: center;"><span class="${diffCaja === 0 ? 'badge-ok' : 'badge-warn'}">${diffCaja === 0 ? 'CUADRADO' : 'DESCUADRE'}</span></td>
               </tr>
               <tr>
-                <td><b>4. Saldo Vivo con Andrés (Maquila)</b></td>
+                <td><b>4. Saldo Vivo con ${provName} (Maquila)</b></td>
                 <td class="num">$${andresSistema.saldoVivoAndres.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                 <td class="num">$${realDeudaAndres.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
                 <td class="num" style="color: #475569;">—</td>
@@ -199,7 +201,7 @@ export function BalanzaComprobacionModal({
           </table>
 
           <div class="summary-box">
-            <b>Dictamen de Auditoría:</b> La presente balanza de comprobación certifica que las operaciones comerciales amparadas con Grupo Textil Providencia y Maquila de Andrés se encuentran registradas bajo principios contables deterministas y conciliadas al 100%.
+            <b>Dictamen de Auditoría:</b> La presente balanza de comprobación certifica que las operaciones comerciales amparadas con ${settings.clientName || 'Grupo Textil Providencia SA de CV'} y Maquila de ${provName} se encuentran registradas bajo principios contables deterministas y conciliadas al 100%.
           </div>
 
           <div class="signatures">
@@ -229,11 +231,11 @@ export function BalanzaComprobacionModal({
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
     const data = [
-      { Rubro: '1. Contrarecibos Vigentes Providencia', Sistema: carteraSistema.totalCrs, Realidad: realCrs, Diferencia: diffCrs, Estatus: diffCrs === 0 ? 'CUADRADO' : 'DESCUADRE' },
+      { Rubro: `1. Contrarecibos Vigentes ${clientName}`, Sistema: carteraSistema.totalCrs, Realidad: realCrs, Diferencia: diffCrs, Estatus: diffCrs === 0 ? 'CUADRADO' : 'DESCUADRE' },
       { Rubro: '2. Facturas en Revisión', Sistema: carteraSistema.totalSinCr, Realidad: realFacturasRevision, Diferencia: diffRevision, Estatus: diffRevision === 0 ? 'CUADRADO' : 'DESCUADRE' },
-      { Rubro: 'TOTAL CARTERA PROVIDENCIA', Sistema: carteraSistema.totalCartera, Realidad: realCrs + realFacturasRevision, Diferencia: diffCrs + diffRevision, Estatus: (diffCrs + diffRevision) === 0 ? 'CUADRADO' : 'DESCUADRE' },
+      { Rubro: `TOTAL CARTERA ${clientName.toUpperCase()}`, Sistema: carteraSistema.totalCartera, Realidad: realCrs + realFacturasRevision, Diferencia: diffCrs + diffRevision, Estatus: (diffCrs + diffRevision) === 0 ? 'CUADRADO' : 'DESCUADRE' },
       { Rubro: '3. Disponibilidad Líquida (Caja/Banco)', Sistema: saldoCajaSistema, Realidad: realEfectivoBanco, Diferencia: diffCaja, Estatus: diffCaja === 0 ? 'CUADRADO' : 'DESCUADRE' },
-      { Rubro: '4. Saldo Andrés Maquila', Sistema: andresSistema.saldoVivoAndres, Realidad: realDeudaAndres, Diferencia: 0, Estatus: 'AUDITADO' },
+      { Rubro: `4. Saldo ${provName} Maquila`, Sistema: andresSistema.saldoVivoAndres, Realidad: realDeudaAndres, Diferencia: 0, Estatus: 'AUDITADO' },
     ];
     const ws = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, 'Balanza_Comprobacion');
@@ -245,7 +247,7 @@ export function BalanzaComprobacionModal({
     <Modal title="⚖️ Balanza de Comprobación y Cotejo Realidad vs Sistema" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
-          Esta herramienta te permite <strong>cotejar los números del sistema contra la realidad física</strong> (contrarecibos en mano, saldo en banco y cuentas con Andrés) para emitir una balanza de comprobación cuadrada al centavo.
+          Esta herramienta te permite <strong>cotejar los números del sistema contra la realidad física</strong> (contrarecibos en mano, saldo en banco y cuentas con {provName}) para emitir una balanza de comprobación cuadrada al centavo.
         </p>
 
         {/* Matriz de Cotejo Interactivo */}

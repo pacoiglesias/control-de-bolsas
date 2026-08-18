@@ -389,29 +389,30 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
   });
 
-  it('las facturas pueden tener múltiples contrarecibos pero nunca mezclan TH y GT', async () => {
+  it('un contrarecibo puede contener varias facturas (1 CR -> N Facturas), pero nunca mezcla facturas de TH y GT', async () => {
     const { filterOrderByDepartment, invoiceMatchesDepartment } = await import('../finance');
 
-    const orderConMultiplesCRs = {
-      id: 'ord-split-crs',
+    // Un contrarecibo (TH-912) amparando 2 facturas distintas de TH en una misma OC
+    const orderConVariasFacturasEnUnCR = {
+      id: 'ord-multi-facturas-cr',
       folio: 'OC-998811',
       client: 'Providencia TH',
       department: 'TH',
       invoices: [
-        { id: 'inv-th-part1', kilos: 800, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 40000.00 } },
-        { id: 'inv-th-part2', kilos: 800, collection: { contrareciboNumber: 'TH-879' }, financials: { invoiceTotal: 39826.00 } },
+        { id: 'inv-1', folio: '6160', kilos: 800, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 40000.00 } },
+        { id: 'inv-2', folio: '6161', kilos: 800, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 39826.00 } },
       ],
     } as any;
 
-    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[0], orderConMultiplesCRs, 'TH')).toBe(true);
-    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[1], orderConMultiplesCRs, 'TH')).toBe(true);
-    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[0], orderConMultiplesCRs, 'GT')).toBe(false);
-    expect(invoiceMatchesDepartment(orderConMultiplesCRs.invoices[1], orderConMultiplesCRs, 'GT')).toBe(false);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[0], orderConVariasFacturasEnUnCR, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[1], orderConVariasFacturasEnUnCR, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[0], orderConVariasFacturasEnUnCR, 'GT')).toBe(false);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[1], orderConVariasFacturasEnUnCR, 'GT')).toBe(false);
 
-    const thOrder = filterOrderByDepartment(orderConMultiplesCRs, 'TH');
+    const thOrder = filterOrderByDepartment(orderConVariasFacturasEnUnCR, 'TH');
     expect(thOrder?.invoices).toHaveLength(2);
 
-    const gtOrder = filterOrderByDepartment(orderConMultiplesCRs, 'GT');
+    const gtOrder = filterOrderByDepartment(orderConVariasFacturasEnUnCR, 'GT');
     expect(gtOrder).toBeNull();
   });
 
@@ -442,6 +443,60 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
       monto: 54520,
     });
     expect(noticeGt).toContain('Lic. Evelia (Grupo Textil)');
+  });
+
+  it('inferDepartment detecta TH y GT por prefijos, folios, contrarecibos y cliente de forma hermética', async () => {
+    const { inferDepartment, filterOrderByDepartment } = await import('../finance');
+
+    // Por folio / contrarecibo
+    expect(inferDepartment({ folio: 'TH-912' })).toBe('TH');
+    expect(inferDepartment({ folio: 'GT-742' })).toBe('GT');
+    expect(inferDepartment({ collection: { contrareciboNumber: 'TH-879' } })).toBe('TH');
+    expect(inferDepartment({ collection: { contrareciboNumber: 'GT-651' } })).toBe('GT');
+
+    // Por cliente
+    expect(inferDepartment({ client: 'Providencia Textil Hogar' })).toBe('TH');
+    expect(inferDepartment({ client: 'Providencia Grupo Textil' })).toBe('GT');
+    expect(inferDepartment({ client: 'Grupo Textil Providencia - TH' })).toBe('TH');
+    expect(inferDepartment({ client: 'Grupo Textil Providencia - GT' })).toBe('GT');
+
+    // Aislamiento en filterOrderByDepartment
+    const thOnlyOrder = { id: 'th-1', folio: 'TH-768', totalKilograms: 1000, client: 'Providencia' };
+    const gtOnlyOrder = { id: 'gt-1', folio: 'GT-597', totalKilograms: 2000, client: 'Providencia' };
+
+    expect(filterOrderByDepartment(thOnlyOrder, 'TH')).not.toBeNull();
+    expect(filterOrderByDepartment(thOnlyOrder, 'GT')).toBeNull();
+    expect(filterOrderByDepartment(gtOnlyOrder, 'GT')).not.toBeNull();
+    expect(filterOrderByDepartment(gtOnlyOrder, 'TH')).toBeNull();
+  });
+
+  it('permite personalizar nombres de responsables de área dinámicamente', async () => {
+    const { getDepartmentManager, getDepartmentBadgeLabel } = await import('../format');
+    const { generateCollectionNotice } = await import('../whatsappReminder');
+
+    const customSettings = {
+      managerTH: 'Ing. Carlos Nava',
+      managerGT: 'Lic. Evelia Morales',
+      deptNameTH: 'Textil Hogar Planta 1',
+      deptNameGT: 'Grupo Textil Corporativo',
+    };
+
+    expect(getDepartmentManager('TH', customSettings)).toBe('Ing. Carlos Nava');
+    expect(getDepartmentManager('GT', customSettings)).toBe('Lic. Evelia Morales');
+    expect(getDepartmentBadgeLabel('TH', customSettings)).toBe('TH (Ing. Carlos Nava)');
+    expect(getDepartmentBadgeLabel('GT', customSettings)).toBe('GT (Lic. Evelia Morales)');
+
+    const customNotice = generateCollectionNotice({
+      folioFactura: '6167',
+      contrarecibo: 'TH-912',
+      cliente: 'Providencia TH',
+      monto: 79826,
+      managerTH: customSettings.managerTH,
+      managerGT: customSettings.managerGT,
+      deptNameTH: customSettings.deptNameTH,
+      deptNameGT: customSettings.deptNameGT,
+    });
+    expect(customNotice).toContain('Ing. Carlos Nava (Textil Hogar Planta 1)');
   });
 });
 

@@ -221,7 +221,7 @@ export default function CajaChica() {
     <>
       <div className="page-head">
         <h1>FLUJO DE EFECTIVO & REPARTO</h1>
-        <p>Control directo del dinero recibido de contadores, pagos a Andrés y retiro de utilidades.</p>
+        <p>Control directo del dinero recibido de contadores, pagos a {provName} y retiro de utilidades.</p>
       </div>
 
       <motion.div 

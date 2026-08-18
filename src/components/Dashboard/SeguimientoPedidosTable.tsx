@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Card, Empty } from '../ui';
 import { money, fmtDate, nombreClienteVisible } from '../../lib/format';
-import { getOrderSummary, extractCr } from '../../lib/finance';
+import { getOrderSummary, extractCr, inferDepartment } from '../../lib/finance';
 import { KilosProgressBar } from '../Orders/KilosProgressBar';
 import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
 import { useToast } from '../../context/ToastContext';
-import { generateCollectionNotice, openWhatsAppMessage, copyToClipboard } from '../../lib/whatsappReminder';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { generateInstitutionalEmailDraft, openInstitutionalEmail, copyToClipboard } from '../../lib/whatsappReminder';
 import type { PurchaseOrder } from '../../lib/types';
 import type { PipelineStageKey } from './MoneyFlowPipeline';
 
@@ -27,6 +28,11 @@ export function SeguimientoPedidosTable({
   onQuickCollection,
 }: SeguimientoPedidosTableProps) {
   const toast = useToast();
+  const { settings } = useSystemSettings();
+  const managerTH = settings?.managerTH || 'Nava';
+  const managerGT = settings?.managerGT || 'Evelia';
+  const deptNameTH = settings?.deptNameTH || 'Textil Hogar';
+  const deptNameGT = settings?.deptNameGT || 'Grupo Textil';
   const [activeChip, setActiveChip] = useState<string>('ALL');
 
   // Determinar la estación de cada orden en el ciclo
@@ -84,7 +90,7 @@ export function SeguimientoPedidosTable({
           facturas: facturasList,
           contrarecibos: crsList,
           cliente: nombreClienteVisible(o.client),
-          department: o.department,
+          department: o.department || (inferDepartment(o) ?? undefined),
           fecha: o.processedAt,
           kilosPedidos: o.totalKilograms || (o.items || []).reduce((a, it) => a + (it.quantity || 0), 0) || s.kilosDelivered,
           kilosEntregados: s.kilosDelivered,
@@ -182,35 +188,42 @@ export function SeguimientoPedidosTable({
       },
       {
         dividerBefore: true,
-        icon: '💬',
-        label: 'WhatsApp de Cobranza',
-        sublabel: 'Enviar relación a Cuentas por Pagar',
+        icon: '✉️',
+        label: 'Correo Institucional',
+        sublabel: 'A Cuentas por Pagar Providencia',
+        tone: 'accent',
         onClick: () => {
-          const msg = generateCollectionNotice({
+          const draft = generateInstitutionalEmailDraft({
             folioFactura: firstFac,
             contrarecibo: firstCr,
             cliente,
             monto: total,
             fechaVencimiento: firstInvoice?.creditCycle?.dueDate,
           });
-          openWhatsAppMessage(msg);
+          openInstitutionalEmail(draft);
         },
       },
       {
         icon: '📋',
-        label: 'Copiar Resumen',
-        sublabel: 'Portapapeles rápido',
+        label: 'Copiar Texto para Correo',
+        sublabel: 'Plantilla formal de cobranza',
         onClick: async () => {
-          const summary = `Pedido ${folio} (${cliente}) - Total: ${money(total)} - CR: ${firstCr || 'S/CR'} - Fac: ${firstFac}`;
-          await copyToClipboard(summary);
-          toast('📋 Resumen de pedido copiado al portapapeles.', 'ok');
+          const draft = generateInstitutionalEmailDraft({
+            folioFactura: firstFac,
+            contrarecibo: firstCr,
+            cliente,
+            monto: total,
+            fechaVencimiento: firstInvoice?.creditCycle?.dueDate,
+          });
+          await copyToClipboard(draft.body);
+          toast('📋 Plantilla de correo institucional copiada al portapapeles.', 'ok');
         },
       },
     ];
   };
 
   return (
-    <Card title="🚚 Seguimiento Interactivo de Pedidos — OC, Entregas y Cobranza">
+    <Card title={`🚚 Seguimiento Interactivo de Pedidos — OC, Entregas y Cobranza (${filteredRows.length}${filteredRows.length !== allRows.length ? ` de ${allRows.length}` : ''})`}>
       {/* Barra de Filtros Rápidos por Estación */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', marginRight: 4 }}>
@@ -307,9 +320,9 @@ export function SeguimientoPedidosTable({
                             padding: '2px 6px',
                             borderRadius: 4,
                           }}
-                          title={f.department === 'TH' ? 'Textil Hogar — Responsable: Nava' : f.department === 'GT' ? 'Grupo Textil — Responsable: Evelia' : f.department}
+                          title={f.department === 'TH' ? `${deptNameTH} — Responsable: ${managerTH}` : f.department === 'GT' ? `${deptNameGT} — Responsable: ${managerGT}` : f.department}
                         >
-                          {f.department === 'TH' ? 'TH · Nava' : f.department === 'GT' ? 'GT · Evelia' : f.department}
+                          {f.department === 'TH' ? `TH · ${managerTH}` : f.department === 'GT' ? `GT · ${managerGT}` : f.department}
                         </span>
                       ) : null}
                     </td>

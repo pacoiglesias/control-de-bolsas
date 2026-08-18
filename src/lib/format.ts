@@ -45,8 +45,8 @@ export function nombreClienteVisible(client: string | null | undefined): string 
 
 /**
  * Responsables de Área Providencia:
- * - Textil Hogar (TH): Nava
- * - Grupo Textil (GT): Evelia
+ * - Textil Hogar (TH): Nava (configurable)
+ * - Grupo Textil (GT): Evelia (configurable)
  */
 export const DEPARTMENT_MANAGERS: Record<string, { name: string; fullDept: string; title: string }> = {
   TH: {
@@ -61,19 +61,29 @@ export const DEPARTMENT_MANAGERS: Record<string, { name: string; fullDept: strin
   },
 };
 
-export function getDepartmentManager(deptOrClient?: string | null): string {
+export function getDepartmentManager(
+  deptOrClient?: string | null,
+  settings?: { managerTH?: string; managerGT?: string } | null
+): string {
   if (!deptOrClient) return '';
   const upper = deptOrClient.toUpperCase();
-  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return 'Nava';
-  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return 'Evelia';
+  const managerTH = settings?.managerTH || 'Nava';
+  const managerGT = settings?.managerGT || 'Evelia';
+  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return managerTH;
+  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return managerGT;
   return '';
 }
 
-export function getDepartmentBadgeLabel(deptOrClient?: string | null): string {
+export function getDepartmentBadgeLabel(
+  deptOrClient?: string | null,
+  settings?: { managerTH?: string; managerGT?: string } | null
+): string {
   if (!deptOrClient) return '';
   const upper = deptOrClient.toUpperCase();
-  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return 'TH (Nava)';
-  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return 'GT (Evelia)';
+  const managerTH = settings?.managerTH || 'Nava';
+  const managerGT = settings?.managerGT || 'Evelia';
+  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return `TH (${managerTH})`;
+  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return `GT (${managerGT})`;
   return deptOrClient;
 }
 

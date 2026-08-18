@@ -18,6 +18,7 @@ import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
 import { confirmDialog } from '../lib/confirmDialog';
+import { triggerHaptic } from '../lib/hapticEngine';
 
 export default function Settings() {
   const { config, loading: loadingCfg, exists } = useConfig();
@@ -40,8 +41,13 @@ export default function Settings() {
     getMaquilaPin().then((p) => { setMaquilaPin(p); setMaquilaPinLoaded(true); });
   }, []);
 
-  useEffect(() => setForm(config), [config]);
-  useEffect(() => setSysForm(settings), [settings]);
+  useEffect(() => {
+    if (config) setForm(config);
+  }, [config]);
+
+  useEffect(() => {
+    if (settings) setSysForm(settings);
+  }, [settings]);
 
   async function seedInitialCash() {
     if (busy) return;
@@ -67,10 +73,55 @@ export default function Settings() {
     }
   }
 
-
   const preview = computeFinancials(1000, form);
-  const dirty = JSON.stringify(form) !== JSON.stringify(config);
-  const sysDirty = JSON.stringify(sysForm) !== JSON.stringify(settings);
+  const dirty = Boolean(config && form && JSON.stringify(form) !== JSON.stringify(config));
+  const sysDirty = Boolean(settings && sysForm && JSON.stringify(sysForm) !== JSON.stringify(settings));
+
+  async function handlePurgeTestOrders() {
+    const ok = await confirmDialog(
+      '¿Deseas archivar los 10 expedientes de prueba en la Papelera?\n\n' +
+      'Esta acción conservará únicamente los 10 Contrarecibos Oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00), ' +
+      'dejando la cartera cuadrada exactamente al corte oficial ($1,101,736.34).'
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const OFFICIAL_CRS = ['TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'TH-768', 'GT-651', 'GT-624', 'GT-597'];
+      let purgedCount = 0;
+      const batch = writeBatch(db);
+
+      orders.forEach((o) => {
+        if ((o as any).isDeleted) return;
+        const crNumber = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
+        const hasOfficialCr = OFFICIAL_CRS.some(cr => crNumber.includes(cr)) ||
+          (o.invoices || []).some(inv => OFFICIAL_CRS.some(cr => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(cr)));
+        const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(inv => inv.folio === '6167'));
+
+        if (!hasOfficialCr && !isFactura6167) {
+          batch.update(doc(db, PATHS.orders, o.id), {
+            isDeleted: true,
+            deletedAt: serverTimestamp(),
+            deletedBy: user?.email || 'admin@sistema',
+            deleteReason: 'Purga automática de expedientes de prueba',
+          });
+          purgedCount++;
+        }
+      });
+
+      if (purgedCount > 0) {
+        await batch.commit();
+        triggerHaptic('success');
+        toast(`🧹 Se archivaron ${purgedCount} expedientes de prueba en la Papelera. Cartera oficial al 100%.`, 'ok');
+      } else {
+        toast('No se encontraron expedientes de prueba pendientes por archivar.', 'ok');
+      }
+    } catch (e) {
+      toast(`Error al purgar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSave() {
     if (form.salePricePerKg <= 0 || form.costPricePerKg < 0) {
@@ -88,14 +139,22 @@ export default function Settings() {
         companyName: sysForm.companyName || '', 
         companyLogoUrl: sysForm.companyLogoUrl || '',
         providerName: sysForm.providerName || 'Andrés',
+        providerTitle: sysForm.providerTitle || 'Taller de Maquila',
         clientName: sysForm.clientName || 'Grupo Textil Providencia SA de CV',
         clientShortName: sysForm.clientShortName || 'Providencia',
-        departments: sysForm.departments || ['TH', 'GT']
+        departments: sysForm.departments || ['TH', 'GT'],
+        deptCodeTH: sysForm.deptCodeTH || 'TH',
+        deptCodeGT: sysForm.deptCodeGT || 'GT',
+        managerTH: sysForm.managerTH || 'Lic. Nava',
+        managerGT: sysForm.managerGT || 'Lic. Evelia',
+        deptNameTH: sysForm.deptNameTH || 'Textil Hogar',
+        deptNameGT: sysForm.deptNameGT || 'Grupo Textil',
       });
       await logAction(user?.email, 'Configuración Financiera Modificada', {
         oldConfig: config,
         newConfig: form
       });
+      triggerHaptic('success');
       toast('Configuración guardada. Las próximas órdenes usarán estos valores.', 'ok');
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
@@ -262,11 +321,53 @@ export default function Settings() {
                 onChange={(e) => setSysForm({ ...sysForm, providerName: e.target.value })} 
                 placeholder="Ej. Andrés" />
             </Field>
+
+            <Field label="Título / Rol del Proveedor">
+              <input className="input boxed" type="text" value={sysForm.providerTitle ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, providerTitle: e.target.value })} 
+                placeholder="Ej. Taller Maquilador de Polietileno" />
+            </Field>
             
             <Field label="Departamentos / Prefijos (Separados por coma)">
               <input className="input boxed" type="text" value={(sysForm.departments || []).join(', ')}
                 onChange={(e) => setSysForm({ ...sysForm, departments: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} 
                 placeholder="Ej. TH, GT" />
+            </Field>
+
+            <Field label="Código Corto Área 1">
+              <input className="input boxed" type="text" value={sysForm.deptCodeTH ?? 'TH'}
+                onChange={(e) => setSysForm({ ...sysForm, deptCodeTH: e.target.value.toUpperCase().trim() })} 
+                placeholder="Ej. TH" />
+            </Field>
+
+            <Field label="Código Corto Área 2">
+              <input className="input boxed" type="text" value={sysForm.deptCodeGT ?? 'GT'}
+                onChange={(e) => setSysForm({ ...sysForm, deptCodeGT: e.target.value.toUpperCase().trim() })} 
+                placeholder="Ej. GT" />
+            </Field>
+
+            <Field label="Responsable Textil Hogar (TH)">
+              <input className="input boxed" type="text" value={sysForm.managerTH ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, managerTH: e.target.value })} 
+                placeholder="Ej. Lic. Nava" />
+            </Field>
+
+            <Field label="Responsable Grupo Textil (GT)">
+              <input className="input boxed" type="text" value={sysForm.managerGT ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, managerGT: e.target.value })} 
+                placeholder="Ej. Lic. Evelia" />
+            </Field>
+
+            <Field label="Nombre Personalizado Área TH">
+              <input className="input boxed" type="text" value={sysForm.deptNameTH ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, deptNameTH: e.target.value })} 
+                placeholder="Ej. Textil Hogar" />
+            </Field>
+
+            <Field label="Nombre Personalizado Área GT">
+              <input className="input boxed" type="text" value={sysForm.deptNameGT ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, deptNameGT: e.target.value })} 
+                placeholder="Ej. Grupo Textil" />
             </Field>
 
             <Field label="PIN del Portal Maquilador">
@@ -480,6 +581,23 @@ export default function Settings() {
           </p>
           <button className="btn" onClick={() => void recalcular()} disabled={busy}>
             ↻ Recalcular órdenes abiertas con los precios actuales
+          </button>
+        </div>
+      </Card>
+
+      <Card title="🧹 Auditoría de Datos: Purga de Expedientes de Prueba">
+        <div style={{ padding: 16 }}>
+          <p className="hint" style={{ marginTop: 0, color: 'var(--ink)' }}>
+            Permite archivar de forma limpia en la <strong>Papelera</strong> los 10 expedientes de prueba creados en sesiones anteriores de desarrollo.
+            Conserva al 100% los <strong>10 Contrarecibos Oficiales</strong> ($1,019,956.34) y la <strong>Factura 6167</strong> ($81,780.00) = <strong>$1,101,736.34</strong>.
+          </p>
+          <button
+            className="btn"
+            style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', fontWeight: 700 }}
+            onClick={() => void handlePurgeTestOrders()}
+            disabled={busy}
+          >
+            🧹 Archivar 10 Expedientes de Prueba en Papelera
           </button>
         </div>
       </Card>

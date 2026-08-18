@@ -8,6 +8,21 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.6.1 Providencia Executive Cockpit & Departmental Intelligence Suite',
+    date: '18 de Agosto de 2026',
+    time: '01:30 AM',
+    summary: 'Menús Kebab (⋮) en tablas del Dashboard, aislamiento hermético TH/GT, responsables oficiales Nava (TH) y Evelia (GT), y gestión de Efectivo en Mano real',
+    highlights: [
+      'Menús Kebab (⋮) de 1 Clic en el Dashboard: Integración de menús desplegables glassmorphic en Seguimiento de Pedidos, Facturas sin CR y Cobranza Semanal para abrir expedientes, facturar, asignar CR, cobrar, descargar prefacturas PDF y enviar WhatsApps formales.',
+      'Mapeo Oficial de Responsables de Área: Asignación corporativa de Nava para Textil Hogar (TH) y Evelia para Grupo Textil (GT), visible en la barra de mando (🔵 TH · Nava / 🟢 GT · Evelia), en las tarjetas de órdenes y en los avisos de WhatsApp dirigidos.',
+      'Aislamiento Departamental Estricto TH vs GT: Soporte para que un contrarecibo contenga múltiples facturas (1 CR ➔ N Facturas), con bloqueo automático de mezcla entre departamentos en modales rápidos y validación de prefijos (TH-xxx y GT-xxx).',
+      'Gestión de Efectivo en Mano (Caja): Rebranding y soporte para capturar la cantidad neta exacta de efectivo entregada por los contadores tras descontar la comisión del 8% ($75,270.00 en saldo real).',
+      'Calibración Oficial de Saldo Andrés (-$102,670.27): Sincronización del saldo vivo de corte con auto-calibración al inicio y conciliación al centavo con el estado de cuenta real.',
+      'Sincronizador Oficial de 10 Contrarecibos Providencia: Integración de los 10 CRs oficiales ($1,019,956.34) y la Factura #6167 en revisión de contrarecibo ($81,780.00).',
+      'Blindaje Matemático Automatizado (65 Pruebas Unitarias): Pruebas automáticas pasando al 100% que validan comisiones (8%), IVA (16%), costos ($42/$43), filtros departamentales y responsables de área.',
+    ],
+  },
+  {
     version: 'v8.6.0 Providencia Financial Core & Official Reconciliation Suite',
     date: '18 de Agosto de 2026',
     time: '01:05 AM',

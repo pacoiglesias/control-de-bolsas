@@ -1,5 +1,26 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.7.0] - 18 Agosto 2026 (Luxury Suite, Haptic Engine & Universal Customization Edition)
+
+### Agregado y Mejorado
+- **⚡ Spotlight Universal Raycast-Style (`Ctrl + K` / `⌘ + K`):** Buscador global con navegación táctil con flechas `↑`/`↓`, sonido háptico suave al seleccionar, ejecución con `Enter` y catálogo de acciones directas (Modo Privacidad, Calculadora de Kilos, Balanza de Comprobación, Purga de Pruebas).
+- **🔍 Smart Quick-Peek Drawer:** Panel lateral ultra-rápido en 0.1s para previsualización instantánea de avance de kilos, desglose de facturas SAT, WhatsApp y botón de cobro rápido en 1 toque.
+- **🔘 Floating Quick Hub (`⚡`):** Speed-dial flotante glassmorphic en esquina inferior derecha con micro-animaciones para disparar Spotlight, Privacidad, Calculadora $/kg, Nueva Orden y Balanza.
+- **🕶️ Atajo Global de Privacidad (`Ctrl + H` / `⌘ + H`):** Oculta/muestra instantáneamente todas las cifras monetarias y utilidades en pantalla con respuesta sonora y háptica.
+- **🔊 Motor Háptico & Web Audio API Universal (`hapticEngine.ts`):** Síntesis de sonido offline (monedas de caja registradora, campana de éxito, pop táctil) y vibraciones para pantallas táctiles.
+- **⚙️ Parametrización Universal (Multi-Empresa / Multi-Taller):** Desacoplamiento total de nombres fijos. Configurable para cualquier empresa, cliente principal, taller maquilador, departamentos y encargados desde Configuración.
+- **🧹 Purga Segura de Expedientes de Prueba:** Opción de archivar registros de desarrollo en Papelera (`isDeleted: true`), blindando los 10 Contrarecibos Oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00).
+- **🛡️ Blindaje Matemático y Auditoría:** 72/72 pruebas unitarias aprobadas al 100% en Vitest y 0 errores de compilación TypeScript.
+
+## [v8.6.1] - 18 Agosto 2026 (Providencia Executive Cockpit & Departmental Intelligence Suite)
+
+### Agregado y Mejorado
+- **Menús Kebab (`⋮`) en Todo el Dashboard:** Integración de menús emergentes de 1 clic en Seguimiento de Pedidos, Facturas sin CR y Cobranza Semanal (Abrir Expediente, Facturar, Asignar CR, Cobrar Efectivo, WhatsApp formal y Prefacturas PDF).
+- **Mapeo Oficial de Responsables de Área:** Asignación corporativa de **Nava** para Textil Hogar (TH) y **Evelia** para Grupo Textil (GT), reflejada en la barra de mando (`🔵 TH · Nava` / `🟢 GT · Evelia`), en badges y en avisos de WhatsApp.
+- **Aislamiento Departamental Estricto TH vs GT:** Soporte para que un contrarecibo contenga múltiples facturas (1 CR ➔ N Facturas), con bloqueo de mezcla cruzada y validación de prefijos (`TH-` y `GT-`).
+- **Gestión de Efectivo en Mano (Caja):** Rebranding para reflejar el dinero físico real entregado por los contadores tras el 8% de comisión ($75,270.00 en saldo real).
+- **Blindaje Matemático Automatizado:** 65 pruebas unitarias automatizadas (`npm test`) pasando al 100%.
+
 ## [v8.6.0] - 18 Agosto 2026 (Providencia Financial Core & Official Reconciliation Suite)
 
 ### Agregado y Calibrado

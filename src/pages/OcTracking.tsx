@@ -182,7 +182,7 @@ export default function OcTracking() {
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(settings, "Manifiesto de Entregas Logística - Andrés a Providencia")}
+          ${getPrintHeaderHtml(settings, `Manifiesto de Entregas Logística - ${settings.providerName || 'Andrés'} a ${settings.clientShortName || 'Providencia'}`)}
           
           <h3 style="margin-top: 20px;">Órdenes de Compra (${pendingOrders.length})</h3>
           <table>
@@ -206,8 +206,8 @@ export default function OcTracking() {
           </table>
 
           <div class="signatures">
-            <div class="sig-box">Firma Fabricante (Andrés)</div>
-            <div class="sig-box">Firma Recepción (Providencia)</div>
+            <div class="sig-box">Firma Fabricante (${settings.providerName || 'Andrés'})</div>
+            <div class="sig-box">Firma Recepción (${settings.clientShortName || 'Providencia'})</div>
           </div>
 
           <script>
@@ -257,7 +257,7 @@ export default function OcTracking() {
         <div>
           <h1>Seguimiento por Orden de Compra (OC)</h1>
           <p>
-            Control integral del flujo de entrega de Andrés a Providencia: Kilos pedidos, kilos entregados en planta, facturas emitidas y contrarecibos de cobro.
+            Control integral del flujo de entrega de {settings.providerName || 'Andrés'} a {settings.clientShortName || 'Providencia'}: Kilos pedidos, kilos entregados en planta, facturas emitidas y contrarecibos de cobro.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

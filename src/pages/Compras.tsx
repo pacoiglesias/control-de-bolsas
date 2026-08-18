@@ -18,6 +18,7 @@ import type { Purchase, PurchaseOrder } from '../lib/types';
 export default function Compras() {
   const { role } = useAuth();
   const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
   const toast = useToast();
   
   const selectedProvider = 'Andres';
@@ -91,7 +92,7 @@ export default function Compras() {
       e.abono ? e.abono.toFixed(2) : '0.00',
       e.source === 'purchase' ? 'Material' : 'Pago'
     ]);
-    exportToCsv(`Estado_Cuenta_Andres_${new Date().toISOString().slice(0, 10)}`, headers, rows);
+    exportToCsv(`Estado_Cuenta_${provName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}`, headers, rows);
     toast('✅ Excel exportado', 'ok');
   }
 
@@ -101,7 +102,7 @@ export default function Compras() {
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Estado de Cuenta - Andrés</title>
+          <title>Estado de Cuenta - ${provName}</title>
           <style>
             body { font-family: system-ui, sans-serif; padding: 20px; font-size: 13px; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 32px; font-size: 12px; border: 1px solid #ccc; }
@@ -146,8 +147,8 @@ export default function Compras() {
     <>
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1>Módulo de Compras</h1>
-          <p>Control de anticipos, inventario en tránsito y estado de cuenta con el fabricante.</p>
+          <h1>Módulo de Compras & Cuenta Corriente con {provName}</h1>
+          <p>Control de anticipos, entregas en báscula, costos de maquila y estado de cuenta con el fabricante ({provName}).</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>

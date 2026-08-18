@@ -1,5 +1,7 @@
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { useToast } from '../../context/ToastContext';
 import { fromInputDate, toInputDate, fmtDateTime } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
@@ -37,10 +39,13 @@ import { FotoRemisionModal } from './FotoRemisionModal';
 
 export default function TabEntregas() {
   const ctx = useOrderModal();
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+  const toast = useToast();
   const [showPortal, setShowPortal] = React.useState(false);
   const [showFotoModal, setShowFotoModal] = React.useState(false);
 
-  const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, setTab } = ctx;
+  const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, setTab } = ctx;
   const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
 
   const handleImportMaquilaDelivery = async (d: any) => {
@@ -136,7 +141,7 @@ export default function TabEntregas() {
 
               const handleConcluirPedido = async () => {
                 const confirmar = await confirmDialog({
-                  message: `¿Confirmas concluir este pedido con los ${kilosEntregados.toLocaleString('es-MX')} kg entregados?\n\nSe considerará que Andrés ya completó las entregas de este lote y podrás facturarlo al 100% sin advertencias de kilos faltantes.`,
+                  message: `¿Confirmas concluir este pedido con los ${kilosEntregados.toLocaleString('es-MX')} kg entregados?\n\nSe considerará que ${provName} ya completó las entregas de este lote y podrás facturarlo al 100% sin advertencias de kilos faltantes.`,
                 });
                 if (!confirmar) return;
                 setForm((f: any) => ({ ...f, isClosedShort: true }));
@@ -182,7 +187,7 @@ export default function TabEntregas() {
                             className="btn btn-primary" 
                             style={{ fontSize: 11.5, padding: '4px 10px', background: '#0f172a', borderColor: '#0f172a' }}
                             onClick={handleConcluirPedido}
-                            title="Cerrar pedido si Andrés ya no entregará más kilos"
+                            title={`Cerrar pedido si ${provName} ya no entregará más kilos`}
                           >
                             🔒 Concluir Pedido ({kilosEntregados.toLocaleString('es-MX')} kg)
                           </button>
@@ -268,7 +273,7 @@ export default function TabEntregas() {
                             onBlur={e => updateDelivery(i, 'docFolio', e.target.value)}
                             disabled={readOnly || d.invoiced}
                             style={{ width: 140, fontSize: 12 }}
-                            title="Folio o número de documento de entrega de Andrés"
+                            title={`Folio o número de documento de entrega de ${provName}`}
                           />
 
                           {d.invoiced ? (

@@ -51,135 +51,191 @@ export function normalizarTexto(s: string | null | undefined): string {
 }
 
 /**
- * Determina si una factura individual pertenece a un departamento (TH o GT).
+ * Infiere el departamento ('TH' o 'GT') de una orden o factura evaluando:
+ * 1. Campo explícito `department` en factura u orden
+ * 2. Prefijos de contrarecibo (ej. TH-912, GT-742)
+ * 3. Folios de factura u OC (ej. TH-768, GT-597)
+ * 4. Nombre o tags del cliente (ej. "Textil Hogar", "TH", "Grupo Textil", "GT")
+ * 5. IDs de documento (ej. cr-th-912, cr-gt-742)
  */
-export function invoiceMatchesDepartment(inv: any, order: PurchaseOrder | any, targetDept: string): boolean {
-  if (!targetDept || targetDept === 'ALL') return true;
-  if (!inv) return false;
-  const target = targetDept.trim().toUpperCase();
-
-  // 1. Campo explícito en la factura
-  if (inv.department && typeof inv.department === 'string') {
+export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 'GT' | null {
+  // 1. Factura individual explícita
+  if (inv?.department && typeof inv.department === 'string') {
     const d = inv.department.trim().toUpperCase();
-    if (d === target) return true;
-    if (d && d !== target) return false;
+    if (d === 'TH' || d === 'GT') return d;
   }
 
-  // 2. Contrarecibo asignado a la factura
-  const invCr = (inv.collection?.contrareciboNumber || '').trim().toUpperCase();
-  if (invCr.startsWith(target + '-') || invCr.startsWith(target) || invCr.includes(target)) return true;
-  if (invCr.startsWith('TH-') || invCr.startsWith('GT-')) {
-    return false;
-  }
+  // 2. Contrarecibo en factura
+  const invCr = (inv?.collection?.contrareciboNumber || '').trim().toUpperCase();
+  if (invCr.startsWith('TH-') || invCr === 'TH') return 'TH';
+  if (invCr.startsWith('GT-') || invCr === 'GT') return 'GT';
 
-  // 3. Folio de la factura
-  const invFolio = (inv.folio || '').trim().toUpperCase();
-  if (invFolio.startsWith(target + '-') || invFolio.startsWith(target)) return true;
+  // 3. Folio de factura
+  const invFolio = (inv?.folio || '').trim().toUpperCase();
+  if (invFolio.startsWith('TH-') || invFolio === 'TH') return 'TH';
+  if (invFolio.startsWith('GT-') || invFolio === 'GT') return 'GT';
 
-  // 4. Contrarecibo a nivel de orden
-  const orderCr = (order?.collection?.contrareciboNumber || '').trim().toUpperCase();
-  if (orderCr.startsWith(target + '-') || orderCr.startsWith(target) || orderCr.includes(target)) return true;
-  if (orderCr.startsWith('TH-') || orderCr.startsWith('GT-')) {
-    return false;
-  }
-
-  // 5. Departamento explícito en la orden
+  // 4. Campo explícito en la orden
   if (order?.department && typeof order.department === 'string') {
     const d = order.department.trim().toUpperCase();
-    if (d === target) return true;
-    if (d && d !== target) return false;
+    if (d === 'TH' || d === 'GT') return d;
+    if (d.includes('TH') || d.includes('TEXTIL HOGAR')) return 'TH';
+    if (d.includes('GT') || d.includes('GRUPO TEXTIL')) return 'GT';
   }
 
-  // 6. Nombre del cliente en la orden
+  // 5. Contrarecibo a nivel de orden
+  const orderCr = (order?.collection?.contrareciboNumber || '').trim().toUpperCase();
+  if (orderCr.startsWith('TH-') || orderCr === 'TH') return 'TH';
+  if (orderCr.startsWith('GT-') || orderCr === 'GT') return 'GT';
+
+  // 6. Folio u OC de la orden
+  const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
+  if (orderFolio.startsWith('TH-') || orderFolio === 'TH') return 'TH';
+  if (orderFolio.startsWith('GT-') || orderFolio === 'GT') return 'GT';
+
+  // 7. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Grupo Textil")
   const clientStr = (order?.client || '').trim().toUpperCase();
-  if (clientStr.includes(`- ${target}`) || clientStr.includes(` ${target}`) || clientStr.endsWith(target)) return true;
-  if (clientStr.includes('- TH') || clientStr.includes('- GT')) return false;
+  if (
+    clientStr.endsWith(' TH') ||
+    clientStr.endsWith('-TH') ||
+    clientStr.includes(' TH ') ||
+    clientStr.includes('-TH-') ||
+    clientStr.includes('TEXTIL HOGAR')
+  ) {
+    return 'TH';
+  }
+  if (
+    clientStr.endsWith(' GT') ||
+    clientStr.endsWith('-GT') ||
+    clientStr.includes(' GT ') ||
+    clientStr.includes('-GT-') ||
+    clientStr.includes('GRUPO TEXTIL')
+  ) {
+    return 'GT';
+  }
 
-  // 7. Folio o OC de la orden
-  const ocStr = (order?.oc || order?.folio || '').trim().toUpperCase();
-  if (ocStr.startsWith(target + '-') || ocStr.startsWith(target)) return true;
+  // 8. Identificador del documento
+  const orderId = (order?.id || '').trim().toLowerCase();
+  if (orderId.startsWith('cr-th-') || orderId.startsWith('th-')) return 'TH';
+  if (orderId.startsWith('cr-gt-') || orderId.startsWith('gt-')) return 'GT';
 
+  const invId = (inv?.id || '').trim().toLowerCase();
+  if (invId.startsWith('inv-th-') || invId.startsWith('th-')) return 'TH';
+  if (invId.startsWith('inv-gt-') || invId.startsWith('gt-')) return 'GT';
+
+  return null;
+}
+
+/**
+ * Determina si una orden pertenece a un departamento ('TH', 'GT' o 'ALL').
+ */
+export function orderMatchesDepartment(order: PurchaseOrder | any, targetDept: string): boolean {
+  if (!targetDept || targetDept === 'ALL') return true;
+  if (!order) return false;
+  const target = targetDept.trim().toUpperCase();
+  const opposite = target === 'TH' ? 'GT' : 'TH';
+
+  const dept = inferDepartment(order);
+  if (dept === target) return true;
+  if (dept === opposite) return false;
+
+  // Si a nivel de orden fue indeterminado, revisar si alguna factura pertenece a target
+  if (Array.isArray(order.invoices) && order.invoices.length > 0) {
+    const hasTargetInvoice = order.invoices.some((inv: any) => inferDepartment(order, inv) === target);
+    if (hasTargetInvoice) return true;
+    const allOpposite = order.invoices.every((inv: any) => inferDepartment(order, inv) === opposite);
+    if (allOpposite) return false;
+  }
+
+  // Si no hay suficiente información, incluir solo en ALL
   return false;
 }
 
 /**
- * Filtra una orden de compra para un departamento específico:
+ * Determina si una factura individual pertenece a un departamento (TH o GT).
+ * Retorna TRUE si coincide positivamente con targetDept.
+ * Retorna FALSE si pertenece positivamente al departamento opuesto.
+ * Retorna NULL si es indeterminado.
+ */
+export function invoiceMatchesDepartmentStrict(inv: any, order: PurchaseOrder | any, targetDept: string): boolean | null {
+  if (!targetDept || targetDept === 'ALL') return true;
+  if (!inv) return null;
+  const target = targetDept.trim().toUpperCase();
+  const opposite = target === 'TH' ? 'GT' : 'TH';
+
+  const dept = inferDepartment(order, inv);
+  if (dept === target) return true;
+  if (dept === opposite) return false;
+  return null;
+}
+
+/**
+ * Determina si una factura pertenece a un departamento (retorna booleano).
+ */
+export function invoiceMatchesDepartment(inv: any, order: PurchaseOrder | any, targetDept: string): boolean {
+  if (!targetDept || targetDept === 'ALL') return true;
+  const result = invoiceMatchesDepartmentStrict(inv, order, targetDept);
+  return result === true;
+}
+
+/**
+ * Filtra una orden de compra para un departamento específico con aislamiento hermético:
  * - Si targetDept es 'ALL', retorna la orden intacta.
  * - Si targetDept es 'TH' o 'GT', filtra su arreglo de `invoices` para incluir ÚNICAMENTE
  *   las facturas que pertenecen a ese departamento.
- * - Si no tiene facturas pero la orden es de ese depto (ej. pedido nuevo), la conserva.
- * - Si no tiene facturas y no coincide con el depto, retorna null.
+ * - Si la orden pertenece al departamento opuesto y no tiene facturas de este depto, retorna null.
+ * - Si no tiene facturas y coincide con targetDept, la conserva.
  */
 export function filterOrderByDepartment(o: PurchaseOrder | any, targetDept: string): PurchaseOrder | null {
   if (!targetDept || targetDept === 'ALL') return o;
   if (!o) return null;
 
   const target = targetDept.trim().toUpperCase();
+  const opposite = target === 'TH' ? 'GT' : 'TH';
 
-  // Si tiene facturas, filtramos únicamente las facturas de este departamento
+  // Si tiene facturas, filtramos exclusivamente las del departamento target
   if (Array.isArray(o.invoices) && o.invoices.length > 0) {
-    const matchingInvoices = o.invoices.filter((inv: any) => invoiceMatchesDepartment(inv, o, target));
+    const matchingInvoices = o.invoices.filter((inv: any) => {
+      const result = invoiceMatchesDepartmentStrict(inv, o, target);
+      // Incluir coincidencia positiva o indeterminada solo si la orden misma es del target
+      if (result === true) return true;
+      if (result === false) return false;
+      return inferDepartment(o) === target;
+    });
+
     if (matchingInvoices.length > 0) {
       const filteredKilos = matchingInvoices.reduce((acc: number, inv: any) => acc + (inv.kilos || 0), 0);
       return {
         ...o,
-        department: target,
+        department: o.department || target,
         totalKilograms: filteredKilos > 0 ? filteredKilos : o.totalKilograms,
         invoices: matchingInvoices,
         invoiceStatuses: matchingInvoices.map((inv: any) => inv.creditCycle?.status || 'pending'),
       };
     }
+
+    // Tenía facturas pero ninguna pertenecía al target
+    return null;
   }
 
-  // Si no tiene facturas, verificamos si la orden misma pertenece al departamento
-  if ((!o.invoices || o.invoices.length === 0) && orderMatchesDepartment(o, target)) {
+  // Orden sin facturas aún (ej. pedido nuevo o remisión):
+  const orderDept = inferDepartment(o);
+  if (orderDept === target) {
     return {
       ...o,
-      department: target,
+      department: o.department || target,
     };
   }
 
+  if (orderDept === opposite) {
+    return null;
+  }
+
+  // Sin evidencia suficiente en orden vacía
   return null;
 }
 
-/**
- * Determina de forma inteligente si una orden pertenece a un departamento específico (ej. TH o GT).
- * Analiza el campo explícito `department`, prefijos en contrarecibos (ej. TH-912, GT-742),
- * sufijos en nombre de cliente (ej. "Providencia - TH"), y folios de OC.
- */
-export function orderMatchesDepartment(o: PurchaseOrder | any, targetDept: string): boolean {
-  if (!targetDept || targetDept === 'ALL') return true;
-  if (!o) return false;
-  const target = targetDept.trim().toUpperCase();
 
-  // 1. Campo explícito en la orden
-  if (o.department && typeof o.department === 'string') {
-    const d = o.department.trim().toUpperCase();
-    if (d === target) return true;
-    if (d && d !== target) return false;
-  }
-
-  // 2. Facturas de la orden
-  if (Array.isArray(o.invoices) && o.invoices.length > 0) {
-    return o.invoices.some((inv: any) => invoiceMatchesDepartment(inv, o, target));
-  }
-
-  // 3. Contrarecibos a nivel de orden
-  const orderCr = (o.collection?.contrareciboNumber || '').trim().toUpperCase();
-  if (orderCr.startsWith(target + '-') || orderCr.startsWith(target) || orderCr.includes(target)) return true;
-  if (orderCr.startsWith('TH-') || orderCr.startsWith('GT-')) return false;
-
-  // 4. Nombre del cliente (ej. "Providencia - TH" o "Providencia GT")
-  const clientStr = (o.client || '').trim().toUpperCase();
-  if (clientStr.includes(`- ${target}`) || clientStr.includes(` ${target}`) || clientStr.endsWith(target)) return true;
-  if (clientStr.includes('- TH') || clientStr.includes('- GT')) return false;
-
-  // 5. Folio o número de OC
-  const ocStr = (o.oc || o.folio || '').trim().toUpperCase();
-  if (ocStr.startsWith(target + '-') || ocStr.startsWith(target) || ocStr.includes(`-${target}-`)) return true;
-
-  return false;
-}
 
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date.getTime());

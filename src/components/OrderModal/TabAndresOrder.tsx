@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { money } from '../../lib/format';
 import { computeAndresRequirement } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 
 interface TabAndresOrderProps {
@@ -13,6 +14,10 @@ interface TabAndresOrderProps {
 
 export function TabAndresOrder({ order, config, customCostPrice, customSellPrice }: TabAndresOrderProps) {
   const toast = useToast();
+  const { settings } = useSystemSettings();
+
+  const provName = settings?.providerName || 'Andrés';
+  const clientName = settings?.clientShortName || 'Providencia';
 
   const req = useMemo(() => {
     const virtualOrder: PurchaseOrder = {
@@ -220,13 +225,13 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 16, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>🏭</span> Requerimiento de Producción para Andrés
+              <span>🏭</span> Requerimiento de Producción para {provName}
               <span className="badge" style={{ background: '#3b82f6', color: '#fff', fontSize: 11 }}>
-                Entrega Directa a Providencia
+                Entrega Directa a {clientName}
               </span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
-              Basado en la OC <strong>{req.folio}</strong> de <strong>{req.client}</strong>. Andrés entrega directo en planta sin mermas en taller.
+              Basado en la OC <strong>{req.folio}</strong> de <strong>{req.client}</strong>. {provName} entrega directo en planta sin mermas en taller.
             </div>
           </div>
 
@@ -245,9 +250,9 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
                 gap: 6,
               }}
               onClick={handlePrintRemision}
-              title="Generar remisión para que Andrés entregue en Providencia"
+              title={`Generar remisión para que ${provName} entregue en ${clientName}`}
             >
-              <span>📄</span> Remisión Providencia
+              <span>📄</span> Remisión {clientName}
             </button>
 
             <button
@@ -282,7 +287,7 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
           </div>
 
           <div style={{ background: 'var(--paper)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--line)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>Costo Andrés ($/kg)</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>Costo {provName} ($/kg)</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', fontFamily: 'monospace' }}>
               ${req.costPricePerKg.toFixed(2)}
             </div>
@@ -321,8 +326,8 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
                   <th style={{ padding: '6px 8px' }}>Cantidad</th>
                   <th style={{ padding: '6px 8px' }}>Unidad</th>
                   <th style={{ padding: '6px 8px' }}>Descripción de Medidas / Calibre</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Costo Andrés ($42)</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Venta Providencia ($43)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Costo {provName}</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Venta {clientName}</th>
                 </tr>
               </thead>
               <tbody>
@@ -359,7 +364,7 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
       {/* Vista Previa del Mensaje para Andrés */}
       <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 10, padding: 14 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>💬</span> Vista Previa del Mensaje de WhatsApp para Andrés
+          <span>💬</span> Vista Previa del Mensaje de WhatsApp para {provName}
         </div>
         <pre
           style={{

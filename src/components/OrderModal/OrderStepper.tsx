@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { getOrderSummary } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 
 interface OrderStepperProps {
   order: PurchaseOrder;
@@ -9,6 +10,9 @@ interface OrderStepperProps {
 }
 
 export function OrderStepper({ order, activeTab, onSelectTab }: OrderStepperProps) {
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+
   const summary = useMemo(() => getOrderSummary(order), [order]);
 
   const totalKilos = Number(order.totalKilograms) || 0;
@@ -39,7 +43,7 @@ export function OrderStepper({ order, activeTab, onSelectTab }: OrderStepperProp
     {
       id: 'andres',
       num: '2',
-      label: 'Pedido a Andrés',
+      label: `Pedido a ${provName}`,
       detail: hasDeliveries ? 'Entregando' : 'Por pedir',
       completed: hasDeliveries || (order.provider && order.provider !== ''),
       active: activeTab === 'andres',

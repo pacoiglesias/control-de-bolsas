@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { money } from '../lib/format';
 import { round2 } from '../lib/finance';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 export function FloatingKiloCalculator() {
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
   const [open, setOpen] = useState(false);
   const [kilosInput, setKilosInput] = useState<string>('1000');
   const [sellPrice, setSellPrice] = useState<number>(43);
@@ -104,7 +107,7 @@ export function FloatingKiloCalculator() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)', display: 'block' }}>$/kg Costo Andrés</label>
+                <label style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)', display: 'block' }}>$/kg Costo {provName}</label>
                 <input
                   type="number"
                   min="0"
@@ -127,7 +130,7 @@ export function FloatingKiloCalculator() {
                 <span style={{ fontFamily: 'monospace' }}>-{money(comisionContador)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#3b82f6' }}>
-                <span>- Costo Andrés (${costPrice}/kg):</span>
+                <span>- Costo {provName} (${costPrice}/kg):</span>
                 <span style={{ fontFamily: 'monospace' }}>-{money(costoAndres)}</span>
               </div>
               <div style={{ borderTop: '1px solid var(--line, #334155)', paddingTop: 6, marginTop: 2, display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 900, fontSize: 13 }}>

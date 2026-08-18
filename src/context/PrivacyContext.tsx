@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { triggerHaptic, playSoftClick } from '../lib/hapticEngine';
 
 interface PrivacyContextType {
   isPrivate: boolean;
@@ -30,8 +31,31 @@ export function PrivacyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isPrivate]);
 
-  const togglePrivacy = () => setIsPrivate(prev => !prev);
-  const setPrivate = (val: boolean) => setIsPrivate(val);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl + H / Cmd + H para alternar Modo Privacidad en 1 toque
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        togglePrivacy();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const togglePrivacy = () => {
+    setIsPrivate(prev => {
+      const next = !prev;
+      triggerHaptic(next ? 'medium' : 'light');
+      playSoftClick();
+      return next;
+    });
+  };
+
+  const setPrivate = (val: boolean) => {
+    setIsPrivate(val);
+    triggerHaptic('light');
+  };
 
   return (
     <PrivacyContext.Provider value={{ isPrivate, togglePrivacy, setPrivate }}>

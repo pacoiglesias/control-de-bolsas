@@ -3,10 +3,13 @@ import { money, fmtDayAndDate, toDate, nombreClienteVisible } from '../../lib/fo
 import { extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
+import { QuickPeekDrawer } from './QuickPeekDrawer';
 import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
 import { useToast } from '../../context/ToastContext';
-import { generateCollectionNotice, openWhatsAppMessage, copyToClipboard } from '../../lib/whatsappReminder';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { generateInstitutionalEmailDraft, openInstitutionalEmail, copyToClipboard } from '../../lib/whatsappReminder';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { triggerHaptic, playSoftClick } from '../../lib/hapticEngine';
 
 interface FacturasSinCRPanelProps {
   orders: PurchaseOrder[];
@@ -15,7 +18,9 @@ interface FacturasSinCRPanelProps {
 
 export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelProps) {
   const toast = useToast();
+  const { settings } = useSystemSettings();
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [peekOrder, setPeekOrder] = useState<PurchaseOrder | null>(null);
 
   // Filtrar facturas emitidas que NO tienen número de contrarecibo capturado y siguen pendientes de cobro
   const facturasSinCR: { order: PurchaseOrder; invoice: Invoice; dias: number; issueDateObj: Date | null }[] = [];
@@ -58,17 +63,32 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
   const buildKebabItems = (order: PurchaseOrder, invoice: Invoice, total: number): KebabMenuItem[] => {
     return [
       {
+        icon: '🔍',
+        label: 'Vista Rápida (Quick Peek)',
+        sublabel: 'Desglose de kilos y facturas',
+        onClick: () => {
+          playSoftClick();
+          setPeekOrder(order);
+        },
+      },
+      {
         icon: '🗂️',
         label: 'Asignar Contrarecibo',
-        sublabel: 'Capturar folio de Providencia',
+        sublabel: `Capturar folio de ${settings.clientShortName || 'Providencia'}`,
         tone: 'primary',
-        onClick: () => setSelectedOrder(order),
+        onClick: () => {
+          playSoftClick();
+          setSelectedOrder(order);
+        },
       },
       ...(onOpenOrder ? [{
         icon: '👁️',
         label: 'Abrir Expediente',
         sublabel: 'Ver detalle de orden',
-        onClick: () => onOpenOrder(order),
+        onClick: () => {
+          playSoftClick();
+          onOpenOrder(order);
+        },
       }] : []),
       {
         icon: '📄',
@@ -76,7 +96,9 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
         sublabel: 'Generar comprobante para cobro',
         onClick: async () => {
           try {
+            playSoftClick();
             await generatePrefacturaPdf(order, invoice);
+            triggerHaptic('success');
             toast('📄 Prefactura PDF generada exitosamente.', 'ok');
           } catch (e: any) {
             toast(`Error generando PDF: ${e.message}`, 'bad');
@@ -85,26 +107,44 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
       },
       {
         dividerBefore: true,
-        icon: '💬',
-        label: 'WhatsApp de Seguimiento',
-        sublabel: 'Preguntar por contrarecibo',
+        icon: '✉️',
+        label: 'Correo Institucional',
+        sublabel: 'Solicitar CR a Cuentas por Pagar',
+        tone: 'accent',
         onClick: () => {
-          const msg = generateCollectionNotice({
+          playSoftClick();
+          const draft = generateInstitutionalEmailDraft({
             folioFactura: invoice.folio || order.folio || 'S/F',
             cliente: nombreClienteVisible(order.client),
             monto: total,
             fechaVencimiento: invoice.creditCycle?.dueDate,
+            managerTH: settings?.managerTH,
+            managerGT: settings?.managerGT,
+            deptNameTH: settings?.deptNameTH,
+            deptNameGT: settings?.deptNameGT,
           });
-          openWhatsAppMessage(msg);
+          openInstitutionalEmail(draft);
         },
       },
       {
         icon: '📋',
-        label: 'Copiar Folio',
-        sublabel: `#${invoice.folio || 'S/F'}`,
+        label: 'Copiar Datos para Correo',
+        sublabel: `#${invoice.folio || 'S/F'} · ${money(total)}`,
         onClick: async () => {
-          await copyToClipboard(`Factura #${invoice.folio || 'S/F'} - Importe: ${money(total)} - ${nombreClienteVisible(order.client)}`);
-          toast('📋 Datos de factura copiados.', 'ok');
+          playSoftClick();
+          const draft = generateInstitutionalEmailDraft({
+            folioFactura: invoice.folio || order.folio || 'S/F',
+            cliente: nombreClienteVisible(order.client),
+            monto: total,
+            fechaVencimiento: invoice.creditCycle?.dueDate,
+            managerTH: settings?.managerTH,
+            managerGT: settings?.managerGT,
+            deptNameTH: settings?.deptNameTH,
+            deptNameGT: settings?.deptNameGT,
+          });
+          await copyToClipboard(draft.body);
+          triggerHaptic('success');
+          toast('📋 Datos de la factura para correo copiados.', 'ok');
         },
       },
     ];
@@ -213,6 +253,17 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
         <QuickCollectionModal
           orders={[selectedOrder]}
           onClose={() => setSelectedOrder(null)}
+        />
+      )}
+
+      {peekOrder && (
+        <QuickPeekDrawer
+          order={peekOrder}
+          onClose={() => setPeekOrder(null)}
+          onOpenFullOrder={(id) => {
+            const found = orders.find((x) => x.id === id);
+            if (found && onOpenOrder) onOpenOrder(found);
+          }}
         />
       )}
     </>
