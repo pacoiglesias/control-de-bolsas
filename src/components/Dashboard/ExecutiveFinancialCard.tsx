@@ -34,14 +34,15 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja = 0 }: Execut
     let costoAndresTotal = 0;
     let comisionContableTotal = 0;
 
-    orders.forEach(o => {
-      if (o.isClosedShort) return;
+    (orders || []).forEach(o => {
+      if (!o || o.isClosedShort) return;
 
       (o.deliveries || []).forEach(d => {
         totalKilosEntregados += Number(d.kilos) || 0;
       });
 
       (o.invoices || []).forEach(inv => {
+        if (!inv) return;
         const kg = Number(inv.kilos) || 0;
         totalKilosFacturados += kg;
         
@@ -107,7 +108,7 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja = 0 }: Execut
 💼 Facturación Subtotal: ${money(financials.subtotalFacturado)}
 
 📉 Deducciones Operativas:
-• Maquila ${provName} ($42/kg): ${money(financials.costoAndres)}
+• Costo Compra Proveedor ${provName} ($42/kg): ${money(financials.costoAndres)}
 • Comisión Contador (8%): ${money(financials.comisionContable)}
 
 💎 UTILIDAD LÍQUIDA REAL: ${money(financials.utilidadReal)}

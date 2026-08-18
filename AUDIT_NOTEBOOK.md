@@ -2045,6 +2045,18 @@ Commit: `fix(timeline): null-safe iteration and round2 deterministic email draft
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Numérica Determinista), OKR 4 (UX de Cobranza Institucional).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/ExecutiveFinancialCard.tsx`
+Problema: En la tarjeta financiera ejecutiva (`ExecutiveFinancialCard`), los bucles de cálculo de subtotal, costo y margen iteraban sobre `orders` e `invoices` sin guarda defensiva de elementos nulos, y en el resumen para portapapeles/WhatsApp se mantenía una etiqueta residual de "Maquila" en lugar de "Costo de Compra Proveedor".
+Impacto: Advertencias de renderizado ante listas transitorias y confusión terminológica en los reportes ejecutivos compartidos con socios.
+Solución: Validación defensiva `(orders || []).forEach(o => { if (!o || o.isClosedShort) return; ... })`, comprobación `if (!inv) return;` y actualización terminológica a `• Costo Compra Proveedor ${provName} ($42/kg)`.
+Riesgo: 🟢 Bajo — Componente visual financiero blindado.
+Commit: `fix(executive-card): null-safety guards and commercial nomenclature alignment`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 4 (Consistencia Terminológica y UX).
+
 
 
 
