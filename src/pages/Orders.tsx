@@ -83,7 +83,7 @@ export default function Orders() {
   // filtro, en los contadores, en la tabla y en los totales. Antes
   // getOrderSummary corria ~10 veces por renglon en cada tecla escrita.
   const conResumen = useMemo(
-    () => orders.map((o) => ({ o, s: getOrderSummary(o) })),
+    () => (orders || []).filter(Boolean).map((o) => ({ o, s: getOrderSummary(o) })),
     [orders],
   );
 

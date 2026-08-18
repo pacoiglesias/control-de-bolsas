@@ -1961,6 +1961,18 @@ Commit: `fix(caja-chica): null-safe creditCycle access and round2 deterministic 
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/pages/Orders.tsx`
+Problema: La inicialización de la lista de resúmenes de órdenes (`conResumen`) mapeaba el arreglo `orders` directamente sin filtrar referencias falsy o nulas transitorias provenientes de estados iniciales o actualizaciones en tiempo real.
+Impacto: Posibles advertencias de renderizado o excepciones en cascada en las pestañas Kanban, Lista y Radar de Expedientes.
+Solución: Filtrado defensivo previo `(orders || []).filter(Boolean).map((o) => ({ o, s: getOrderSummary(o) }))`, garantizando un arreglo puro de expedientes válidos.
+Riesgo: 🟢 Bajo — Componente de vista de expedientes blindado.
+Commit: `fix(orders): null-safe summary mapping for robust multi-tab rendering`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Determinismo de Datos), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 
