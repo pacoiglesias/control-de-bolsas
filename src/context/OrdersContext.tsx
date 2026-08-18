@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder } from '../lib/types';
+import { toDate } from '../lib/format';
 
 /**
  * Suscripción ÚNICA a purchaseOrders.
@@ -58,8 +59,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
         docs.sort((a, b) => {
-          const ta = a.processedAt?.toMillis?.() ?? 0;
-          const tb = b.processedAt?.toMillis?.() ?? 0;
+          const ta = toDate(a.processedAt)?.getTime() || toDate((a as any).createdAt)?.getTime() || 0;
+          const tb = toDate(b.processedAt)?.getTime() || toDate((b as any).createdAt)?.getTime() || 0;
           return tb - ta;
         });
         setOrders(docs);

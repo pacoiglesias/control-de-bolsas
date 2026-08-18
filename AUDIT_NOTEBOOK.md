@@ -1889,6 +1889,18 @@ Commit: `feat(ui): wcag-aa 44px touch targets and edge-aware scroll in KanbanScr
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 4 (UX, Accesibilidad WCAG AA y Microinteracciones).
 
+---
+
+[2026-08-18]
+Archivo: `src/context/OrdersContext.tsx`
+Problema: La función de ordenamiento de expedientes (`docs.sort`) llamaba a `a.processedAt?.toMillis?.()`, lo cual arriesgaba devolver 0 o fallar en documentos migrados donde `processedAt` proviene de serializaciones JSON o fechas Date estándar, o donde solo existe `createdAt`.
+Impacto: Desorden cronológico potencial en la lista de expedientes al recuperar órdenes históricas o recién importadas.
+Solución: Uso del parser universal tolerante `toDate()` para resolver timestamps `processedAt` con fallback a `createdAt` de forma determinista (`toDate(a.processedAt)?.getTime() || toDate(a.createdAt)?.getTime() || 0`).
+Riesgo: 🟢 Bajo — Ordenamiento garantizado sin alterar contratos ni interfaces.
+Commit: `fix(orders-context): tolerant timestamp sorting with createdAt fallback`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Determinismo de Datos), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 
