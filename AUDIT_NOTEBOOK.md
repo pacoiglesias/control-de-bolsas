@@ -1797,7 +1797,43 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Riesgo:** 🟢 Bajo — Componentes modulares y fluidos.
 **Commit:** `feat(luxury-suite): spotlight inteligente, quick-peek lateral, floating quick hub y ambient glow`
 **Estado:** ✅ Verificado — 72/72 pruebas pasando (100%), 0 errores TypeScript, build exitoso.
-**OKRs afectados:** OKR 3 (Rendimiento Web, Elegancia & UX de Vanguardia).
+---
+
+## 2026-08-18 (Iteración 142) — Auditoría de Fórmulas y Recibos, Calibración Hermética de TH/GT, Rediseño Ejecutivo del Centro de Control y Despliegue en Producción
+**Tipo:** Auditoría Matemática / Corrección de Filtro Departamental / UX de Configuración / Verificación de Balance
+**Archivos modificados:**
+- `src/lib/finance.ts` (Calibración determinista de `inferDepartment` y `filterOrderByDepartment` con prioridad estricta en contrarecibos y folios antes de cadenas corporativas)
+- `src/pages/Settings.tsx` (Rediseño con 3 bloques semánticos: Emisor, Cliente Corporativo con Plantas TH y GT configurables, y Fabricante con PIN de báscula + Barra Flotante de Guardado)
+- `src/pages/Dashboard.tsx` (Alineación de `deptPorCobrar`, `seguimientoOrders` y sincronización con botones de planta)
+- `src/components/Dashboard/MoneyFlowPipeline.tsx` (Removida exclusión de MIGRACION para contabilización íntegra)
+- `src/components/Dashboard/FacturasSinCRPanel.tsx` (Inclusión sin distorsión de registros)
+- `src/components/Dashboard/WeeklyCollectionSummary.tsx` (Inclusión sin distorsión de registros)
+- `src/components/Dashboard/ExecutiveFinancialCard.tsx` (Cálculo unificado de subtotal, costo y margen)
+- `src/components/Dashboard/ContrarecibosTable.tsx` (Cálculo directo por departamento)
+- `src/lib/providenciaStatementPdf.ts` (Cédula de estado de cuenta Providencia cuadrado al 100%)
+- `src/lib/netProfitReportPdf.ts` (P&L 50/50 cuadrado)
+
+**Resultados de la Auditoría:**
+1. **Cartera Cuadrada al 100%:**
+   - 10 Contrarecibos Oficiales: **$1,019,956.34**
+   - Factura en Revisión 6167: **$81,780.00**
+   - Deuda Total Providencia: **$1,101,736.34**
+   - Comisión Contable (8%): **$75,981.82**
+   - Flujo Neto a Recibir: **$1,025,754.52**
+2. **Aislamiento Departamental TH vs GT:**
+   - TH (Textil Hogar / Nava): **$584,400.42** (5 CRs: TH-912, TH-879, TH-836, TH-804, TH-768)
+   - GT (Grupo Textil / Evelia): **$435,555.92** (5 CRs: GT-742, GT-713, GT-651, GT-624, GT-597)
+   - Suma TH + GT = **$1,019,956.34**
+3. **Pruebas y Verificación:**
+   - 72/72 pruebas unitarias pasando (100%).
+   - Compilación y build de producción exitoso.
+   - Desplegado en Firebase Hosting (`https://control-de-bolsas-69.web.app` y `https://bolsas.cobertores.com/`).
+
+**Riesgo:** 🟢 Bajo — Lógica determinista auditada.
+**Commit:** `fix(audit): hermetic department filter calibration, settings redesign, receipt verification and official balance reconciliation v8.7.1`
+**Estado:** ✅ Verificado y Desplegado en Vivo.
+**OKRs afectados:** OKR 1 (Precisión Numérica), OKR 2 (Seguridad & Adaptabilidad) y OKR 3 (Rendimiento Web & UX).
+
 
 
 
