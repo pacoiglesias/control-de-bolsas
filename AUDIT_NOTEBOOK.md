@@ -1997,6 +1997,18 @@ Commit: `fix(weekly-summary): null-safe iteration and round2 deterministic balan
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/FacturasSinCRPanel.tsx`
+Problema: En el panel de facturas en espera de contrarecibo (`FacturasSinCRPanel`), la iteración sobre órdenes y facturas carecía de guardas para referencias nulas (`!o`, `!inv`), y el total general pendiente de contrarecibo (`totalPendienteCR`) se acumulaba en coma flotante nativa sin `round2()`.
+Impacto: Advertencias de renderizado ante colecciones transitorias y riesgo de desviación en centavos respecto a la Factura en Revisión 6167 ($81,780.00).
+Solución: Validación defensiva `(orders || []).forEach(o => { if (!o || o.isClosedShort) return; ... })`, comprobación `if (!inv) return;` y redondeo determinista con `round2()`.
+Riesgo: 🟢 Bajo — Componente de alerta de contrarecibos blindado.
+Commit: `fix(facturas-sin-cr): null-safety and deterministic round2 balance sum`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 

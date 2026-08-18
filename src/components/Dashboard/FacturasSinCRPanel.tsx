@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { money, fmtDayAndDate, toDate, nombreClienteVisible } from '../../lib/format';
-import { extractCr } from '../../lib/finance';
+import { extractCr, round2 } from '../../lib/finance';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
 import { QuickPeekDrawer } from './QuickPeekDrawer';
@@ -26,11 +26,12 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
   const facturasSinCR: { order: PurchaseOrder; invoice: Invoice; dias: number; issueDateObj: Date | null }[] = [];
   const hoy = Date.now();
 
-  orders.forEach((o) => {
-    if (o.isClosedShort) return;
+  (orders || []).forEach((o) => {
+    if (!o || o.isClosedShort) return;
     if (o.creditCycle?.status === 'collected') return;
 
     (o.invoices || []).forEach((inv) => {
+      if (!inv) return;
       const cr = extractCr(inv, o);
       const st = inv.creditCycle?.status;
       const totalInv = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
@@ -55,10 +56,10 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
 
   if (facturasSinCR.length === 0) return null;
 
-  const totalPendienteCR = facturasSinCR.reduce(
+  const totalPendienteCR = round2(facturasSinCR.reduce(
     (acc, f) => acc + (f.invoice.financials?.invoiceTotal ?? f.invoice.financials?.saleTotal ?? 0),
     0
-  );
+  ));
 
   const buildKebabItems = (order: PurchaseOrder, invoice: Invoice, total: number): KebabMenuItem[] => {
     return [
