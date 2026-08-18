@@ -51,7 +51,7 @@ export default function MaquiladorPortal() {
   const { isOnline } = useNetworkStatus();
 
   // Sincronizador de entregas encoladas offline
-  const syncOfflineQueue = async () => {
+  const syncOfflineQueue = React.useCallback(async () => {
     const queueStr = localStorage.getItem(STORAGE_OFFLINE_QUEUE_KEY);
     if (!queueStr) return;
     try {
@@ -73,17 +73,16 @@ export default function MaquiladorPortal() {
       }
       localStorage.removeItem(STORAGE_OFFLINE_QUEUE_KEY);
       toast(`✅ ${queue.length} entrega(s) sincronizada(s) con éxito en la nube`, 'ok');
-      recargar();
     } catch (e) {
       console.warn('Error sincronizando entregas offline', e);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (isOnline) {
       void syncOfflineQueue();
     }
-  }, [isOnline]);
+  }, [isOnline, syncOfflineQueue]);
 
   // Cargar historial guardado
   const [historial, setHistorial] = useState<any[]>(() => {

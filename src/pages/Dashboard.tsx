@@ -102,6 +102,21 @@ export default function Dashboard() {
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
 
+  const recalcStats = useMemo(() => async () => {
+    setRecalcBusy(true);
+    try {
+      const fn = httpsCallable<unknown, { ok: boolean; procesados: number; mensaje: string }>(
+        functions, 'recalcDashboardStats',
+      );
+      const res = await fn({});
+      toast(res.data.mensaje, 'ok');
+    } catch (e) {
+      toast(`No se pudieron recalcular los indicadores: ${(e as Error).message}`, 'bad');
+    } finally {
+      setRecalcBusy(false);
+    }
+  }, [toast]);
+
   // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp, R = Recalcular)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -130,22 +145,7 @@ export default function Dashboard() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nav]);
-
-  async function recalcStats() {
-    setRecalcBusy(true);
-    try {
-      const fn = httpsCallable<unknown, { ok: boolean; procesados: number; mensaje: string }>(
-        functions, 'recalcDashboardStats',
-      );
-      const res = await fn({});
-      toast(res.data.mensaje, 'ok');
-    } catch (e) {
-      toast(`No se pudieron recalcular los indicadores: ${(e as Error).message}`, 'bad');
-    } finally {
-      setRecalcBusy(false);
-    }
-  }
+  }, [nav, recalcStats]);
 
   const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', 'dashboard'));
   

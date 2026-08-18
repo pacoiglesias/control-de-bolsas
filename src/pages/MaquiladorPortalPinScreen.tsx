@@ -23,7 +23,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
 
   const del = () => setDigits((prev) => prev.slice(0, -1));
 
-  const tryLogin = async (pinToTry: string, silent = false) => {
+  const tryLogin = React.useCallback(async (pinToTry: string, silent = false) => {
     if (pinToTry.length < 4) return;
     setLoading(true);
     try {
@@ -51,15 +51,15 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
     } finally {
       setLoading(false);
     }
-  };
+  }, [rememberMe, onSuccess, toast]);
 
   // Auto-login si hay PIN guardado
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_PIN_KEY);
     if (saved && saved.length >= 4) {
-      tryLogin(saved, true);
+      void tryLogin(saved, true);
     }
-  }, []);
+  }, [tryLogin]);
 
   const handleDigit = (d: string) => {
     const next = digits + d;

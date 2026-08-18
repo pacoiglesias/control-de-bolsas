@@ -25,7 +25,9 @@ export default function EstadoCuenta() {
   const [search, setSearch] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  const allOrders: PurchaseOrder[] = data?.rawOrders?.length ? data.rawOrders : (contextOrders || []);
+  const allOrders = useMemo<PurchaseOrder[]>(() => {
+    return data?.rawOrders?.length ? data.rawOrders : (contextOrders || []);
+  }, [data?.rawOrders, contextOrders]);
 
   const statementData = useMemo(() => {
     return buildProvidenciaStatementDataFromOrders(allOrders, settings);

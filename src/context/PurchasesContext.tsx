@@ -27,7 +27,7 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
     );
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
         const rows = snap.docs
           .filter((d: any) => !d.data().isDeleted)

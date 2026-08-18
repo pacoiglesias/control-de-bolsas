@@ -269,7 +269,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const recalcFn = httpsCallable(functions, 'recalcDashboardStats');
         const res: any = await recalcFn();
         addLog(`📊 ${res.data?.mensaje || 'Dashboard recalculado con éxito.'}`);
-      } catch (_) {
+      } catch {
         addLog(`ℹ️ Recálculo local en progreso.`);
       }
 

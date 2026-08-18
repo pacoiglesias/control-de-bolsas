@@ -90,7 +90,7 @@ export function CommandPalette() {
     },
   ], [isPrivate, provName, clientName, togglePrivacy, toast, navigate]);
 
-  const ROUTES: PaletteItem[] = [
+  const ROUTES = useMemo<PaletteItem[]>(() => [
     { type: 'route', id: '/', label: '📊 Dashboard Principal', desc: 'Panel central de cobranza y operaciones', val: 'Ir' },
     { type: 'route', id: '/ordenes', label: '📂 Expedientes y Órdenes', desc: 'Gestión integral de OCs y entregas', val: 'Ir' },
     { type: 'route', id: '/cobranza', label: '💵 Cobranza y Cuentas por Cobrar', desc: 'Control de contrarecibos y fechas de pago', val: 'Ir' },
@@ -103,7 +103,7 @@ export function CommandPalette() {
     { type: 'route', id: '/audit', label: '🛡️ Auditoría & Reconciliación', desc: 'Revisión y balances cuadrados', val: 'Ir' },
     { type: 'route', id: '/portal-maquilador', label: `⚖️ Portal Proveedor / Báscula (${provName})`, desc: 'Acceso por PIN para el taller y remisiones de báscula', val: 'Ir' },
     { type: 'route', id: '/centro-control', label: '⚙️ Configuración del Sistema', desc: 'Parámetros universales de la empresa', val: 'Ir' },
-  ];
+  ], [provName]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

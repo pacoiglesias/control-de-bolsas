@@ -27,11 +27,10 @@ export type UrgentAction = {
 };
 
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
-  const saleKg = config?.salePricePerKg || 43;
-  const costKg = config?.costPricePerKg || 42;
-  const ivaRate = config?.ivaRate || 0.16;
-
   const actions = useMemo<UrgentAction[]>(() => {
+    const saleKg = config?.salePricePerKg || 43;
+    const costKg = config?.costPricePerKg || 42;
+    const ivaRate = config?.ivaRate || 0.16;
     const list: UrgentAction[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);

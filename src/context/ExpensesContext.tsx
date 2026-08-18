@@ -27,7 +27,7 @@ export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
         const rows = snap.docs
           .filter((d: any) => !d.data().isDeleted)

@@ -24,7 +24,7 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
     const q = query(collection(db, PATHS.invoices), limit(1000));
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
         const docs = snap.docs
           .map((d) => ({ id: d.id, ...(d.data() as Omit<Invoice, 'id'>) }))
