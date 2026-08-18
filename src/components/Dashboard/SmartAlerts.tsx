@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { PurchaseOrder } from '../../lib/types';
-import { money } from '../../lib/format';
+import { money, toDate } from '../../lib/format';
+import { round2 } from '../../lib/finance';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../../hooks/useConfig';
 
@@ -46,26 +47,20 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
     let worstMarginFolio = '';
     let worstMarginRate = Infinity;
 
-    for (const o of orders) {
+    for (const o of (orders || [])) {
       if (!o || !o.invoices) continue;
       for (const inv of o.invoices) {
         if (!inv) continue;
         if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.dueDate) {
-          const rawDue = inv.creditCycle.dueDate as any;
-          let dueMs = 0;
-          if (rawDue) {
-            if (typeof rawDue.toMillis === 'function') dueMs = rawDue.toMillis();
-            else if (typeof rawDue.toDate === 'function') dueMs = rawDue.toDate().getTime();
-            else if (rawDue instanceof Date) dueMs = rawDue.getTime();
-            else { const d = new Date(rawDue); if (!isNaN(d.getTime())) dueMs = d.getTime(); }
-          }
+          const due = toDate(inv.creditCycle.dueDate);
+          const dueMs = due ? due.getTime() : 0;
 
           if (dueMs > 0 && dueMs < now) {
             overdueCount++;
-            overdueTotal += (inv.financials?.invoiceTotal || 0);
+            overdueTotal = round2(overdueTotal + (inv.financials?.invoiceTotal || 0));
           } else if (dueMs > 0 && dueMs <= now + threeDaysMs) {
             nearDueCount++;
-            nearDueTotal += (inv.financials?.invoiceTotal || 0);
+            nearDueTotal = round2(nearDueTotal + (inv.financials?.invoiceTotal || 0));
           }
         }
 

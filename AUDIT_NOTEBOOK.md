@@ -2021,6 +2021,18 @@ Commit: `fix(pipeline): defensive arrays and deterministic round2 kilograms metr
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/SmartAlerts.tsx`
+Problema: El componente de alertas inteligentes (`SmartAlerts`) implementaba un bloque manual ad-hoc repetitivo para parsear fechas de vencimiento (`rawDue.toMillis`, `rawDue.toDate`, etc.) en lugar del parser centralizado `toDate()`, y acumulaba los importes vencidos y por vencer en números de punto flotante sin `round2()`.
+Impacto: Código redundante, mayor costo de mantenimiento y riesgo de micro-desviaciones por decimales binarios en el monto acumulado de facturas vencidas.
+Solución: Sustitución por `toDate(inv.creditCycle.dueDate)` y acumulación de importes con `round2(overdueTotal + ...)` y `round2(nearDueTotal + ...)`.
+Riesgo: 🟢 Bajo — Lógica de alertas del Dashboard blindada y concisa.
+Commit: `fix(smart-alerts): centralized toDate parsing and round2 deterministic totals`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 
