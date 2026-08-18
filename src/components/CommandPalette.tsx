@@ -217,15 +217,17 @@ export function CommandPalette() {
     } else if (item.type === 'route') {
       navigate(item.id);
     } else if (item.type === 'order') {
-      navigate('/ordenes');
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('open-order-modal', { detail: item.id }));
-      }, 100);
+      // Orders.tsx abre el modal del expediente leyendo ?abrir=<id> de la URL
+      // (ver useEffect "Vinculo cruzado Andres <-> Providencia"). El evento
+      // 'open-order-modal' que se disparaba aqui antes no tiene ningun
+      // listener en Orders.tsx, asi que un resultado de tipo "orden" nunca
+      // llegaba a abrir el expediente: solo dejaba a la persona parada en
+      // la lista completa, teniendo que buscarlo de nuevo a mano.
+      navigate(`/ordenes?abrir=${item.id}`);
     } else if (item.type === 'purchase') {
-      navigate('/compras');
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('open-purchase-modal', { detail: item.id }));
-      }, 100);
+      // Mismo caso que arriba: Compras.tsx lee ?abrir=<id>, no un evento
+      // 'open-purchase-modal' (que nadie escuchaba).
+      navigate(`/compras?abrir=${item.id}`);
     }
   };
 

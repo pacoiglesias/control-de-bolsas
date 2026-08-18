@@ -25,7 +25,7 @@ export function MobileQuickDock({
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(15);
-      } catch {}
+      } catch { /* vibrate puede fallar en algunos browsers — ignorar silenciosamente */ }
     }
   };
 

@@ -60,7 +60,7 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
         <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>⏱️</span> Tacómetro de Kilos del Mes
         </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: percentage >= 100 ? '#10b981' : '#f59e0b' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: percentage >= 100 ? 'var(--ok)' : 'var(--warn)' }}>
           {percentage}% de la meta
         </span>
       </div>
@@ -96,8 +96,8 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
               style={{
                 height: '100%',
                 background: percentage >= 100
-                  ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
-                  : 'linear-gradient(90deg, #f59e0b 0%, #10b981 100%)',
+                  ? 'var(--ok)'
+                  : 'linear-gradient(90deg, var(--warn) 0%, var(--ok) 100%)',
                 borderRadius: 6,
               }}
             />

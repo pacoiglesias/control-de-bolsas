@@ -2080,3 +2080,23 @@ OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 4 (Consistencia
 
 
 
+
+[2026-08-18]
+Archivo: `src/components/Orders/KanbanBoard.tsx` (y `src/lib/importExcel.ts`)
+Problema: `handleMoveStatus` en el Kanban escribía `invoices` directamente a Firestore con `updateDoc()` sin pasar por el helper `camposInvoices()`, dejando el arreglo desnormalizado `invoiceStatuses` con el estado anterior de la factura tras cada arrastre de tarjeta. Es exactamente el mismo patrón de bug ya documentado en ciclos previos para los componentes de FastFlows.
+Impacto: `checkOverdueInvoices` (Cloud Function, `functions/src/index.ts`) filtra con `.where("invoiceStatuses", "array-contains", "pending"/"overdue")`, y `Dashboard.tsx` filtra activas con `passStatus` sobre el mismo campo. Una orden movida en el Kanban podía quedar invisible para el barrido nocturno de vencidas o mostrar un estatus obsoleto en el Dashboard, sin ningún error visible, hasta que alguien la abriera y guardara manualmente desde el modal de orden (que sí recalcula correcto). Adicionalmente, al blindar con `camposInvoices()` (tipado `Invoice[]`) surgió un desajuste de tipos preexistente y oculto: `paidAt`/`collectedAt` usaban `serverTimestamp()` (tipo `FieldValue`) cuando el tipo `Invoice` exige `Timestamp | null`, inconsistente con la convención ya usada en `QuickPayModal.tsx` (`Timestamp.now()`).
+Solución: `handleMoveStatus` ahora construye la escritura con `camposInvoices(updatedInvoices)`, recalculando `invoiceStatuses` en la misma operación; `paidAt`/`collectedAt` migrados a `Timestamp.now()`. `importExcel.ts` migrado al mismo helper por consistencia preventiva, aunque hoy no modifica `creditCycle.status`.
+Riesgo: 🟡 Medio antes de corregir (silencioso, sin error de build ni de test, afecta detección automática de vencidas) — 🟢 Bajo tras la corrección.
+Commit: `fix(kanban): use camposInvoices() to keep invoiceStatuses in sync on drag; fix FieldValue/Timestamp type mismatch`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores, `eslint` sin errores nuevos.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety), OKR 5 (Consistencia de Denormalización invoiceStatuses).
+
+[2026-08-18]
+Archivo: `src/pages/DashboardReports.ts`, `src/pages/MaquiladorPortalReports.ts`, `src/components/Cobranza/reports.ts`, `backup.ps1`
+Problema: Componentes centrales (`Dashboard.tsx`, `MaquiladorPortal.tsx`, `Cobranza/index.tsx`) contenían cientos de líneas de generación HTML de reportes y remisiones embebidas directamente en el código de la vista, dificultando el mantenimiento y sobrecargando el tamaño de los módulos de página. El script de respaldo `backup.ps1` dependía de rutas absolutas de usuario en Windows.
+Impacto: Mantenimiento complejo de reportes y riesgo de fallos en la ejecución de respaldos automáticos desde entornos o ubicaciones de disco diferentes.
+Solución: Extracción completa de generadores HTML a módulos aislados (`DashboardReports.ts`, `MaquiladorPortalReports.ts`, `Cobranza/reports.ts`). Dinamización de `backup.ps1` con `$PSScriptRoot` y exclusión explícita del directorio `Respaldos`.
+Riesgo: 🟢 Bajo — Refactorización estructural sin impacto en APIs ni datos.
+Commit: `refactor(reports): extract HTML report templates into dedicated modules; enhance backup.ps1 resilience`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc -b` limpio, `vite build` y `functions build` exitosos al 100%, respaldo local generado.
+OKRs afectados: OKR 3 (Resiliencia y Arquitectura), OKR 4 (Mantenibilidad del Código).

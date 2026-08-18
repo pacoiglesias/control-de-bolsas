@@ -7,7 +7,8 @@ import { KilosProgressBar } from './KilosProgressBar';
 import { sound } from '../../lib/sounds';
 import { useToast } from '../../context/ToastContext';
 import { db, PATHS } from '../../lib/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { camposInvoices } from '../../lib/invoiceOps';
 
 type OrderWithSummary = {
   o: PurchaseOrder;
@@ -53,15 +54,23 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
         },
         collection: {
           ...(inv.collection || {}),
-          ...(targetStatus === 'paid' ? { paidAt: inv.collection?.paidAt || serverTimestamp() } : {}),
-          ...(targetStatus === 'collected' ? { collectedAt: inv.collection?.collectedAt || serverTimestamp() } : {}),
+          // Timestamp.now(), no serverTimestamp(): este objeto viaja dentro
+          // del arreglo invoices (tipado como Invoice[]), y el campo espera
+          // Timestamp | null, no FieldValue. serverTimestamp() aquí violaba
+          // el tipo silenciosamente porque antes se escribía sin pasar por
+          // camposInvoices(); mismo patrón que ya usan QuickPayModal, etc.
+          ...(targetStatus === 'paid' ? { paidAt: inv.collection?.paidAt || Timestamp.now() } : {}),
+          ...(targetStatus === 'collected' ? { collectedAt: inv.collection?.collectedAt || Timestamp.now() } : {}),
         }
       }));
 
       await updateDoc(orderRef, {
         'creditCycle.status': targetStatus,
-        ...(updatedInvoices.length > 0 ? { invoices: updatedInvoices } : {}),
-        updatedAt: serverTimestamp(),
+        // camposInvoices() recalcula invoiceStatuses junto con invoices para
+        // que no queden desincronizados (ver Ciclo de auditoría: FastFlows
+        // bypasseaba este helper y dejaba invoiceStatuses obsoleto, lo que
+        // ocultaba órdenes del barrido nocturno de vencidas y del Dashboard).
+        ...(updatedInvoices.length > 0 ? camposInvoices(updatedInvoices) : { updatedAt: serverTimestamp() }),
       });
 
       if (targetStatus === 'paid' || targetStatus === 'collected') {

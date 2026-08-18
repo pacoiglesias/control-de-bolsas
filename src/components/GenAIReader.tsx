@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
@@ -14,6 +14,7 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
   const toast = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -103,10 +104,10 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
         transition: 'all 0.2s ease',
         marginBottom: 24,
       }}
-      onClick={() => document.getElementById('genai-file-input')?.click()}
+      onClick={() => inputRef.current?.click()}
     >
       <input 
-        id="genai-file-input"
+        ref={inputRef}
         type="file" 
         accept="application/pdf, image/jpeg, image/png"
         style={{ display: 'none' }}

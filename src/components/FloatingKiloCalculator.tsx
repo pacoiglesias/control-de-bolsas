@@ -21,6 +21,16 @@ export function FloatingKiloCalculator() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open]);
 
+  // El Quick Hub (⚡) y el Command Palette (Ctrl+K) disparan este evento para
+  // abrir la calculadora desde cualquier pantalla; antes nadie lo escuchaba,
+  // así que ambos atajos no hacían nada (el de Command Palette encima
+  // mostraba un toast de "desplegada" aunque no se abriera nada).
+  useEffect(() => {
+    const handleOpen = () => setOpen(true);
+    window.addEventListener('open-kilo-calculator', handleOpen);
+    return () => window.removeEventListener('open-kilo-calculator', handleOpen);
+  }, []);
+
   const rawKg = parseFloat(kilosInput);
   const kg = isNaN(rawKg) || rawKg < 0 ? 0 : rawKg;
   const subtotalVenta = round2(kg * sellPrice);

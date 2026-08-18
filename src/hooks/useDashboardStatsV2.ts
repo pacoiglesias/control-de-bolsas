@@ -50,7 +50,7 @@ export function useDashboardStats(
 
     const kpis = statsDoc?.kpis || {};
 
-    let effectiveTotalOrders = deptOrders.length;
+    const effectiveTotalOrders = deptOrders.length;
     let effectivePendingOrders = 0;
     let effectivePedidoOrders = 0;
     let effectiveOverdueOrders = 0;

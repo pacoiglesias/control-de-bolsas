@@ -11,7 +11,7 @@ import ProximasTable from './ProximasTable';
 import EstadoCuenta from './EstadoCuenta';
 import TableroKanban from './TableroKanban';
 import { AGING_BUCKETS, agingBucket, daysLate, getOrderSummary, round2, type AgingKey, extractCr } from '../../lib/finance';
-import { escapeHtml, fmtDate, money, toDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible } from '../../lib/format';
+import { fmtDate, money, toDate, exportToCsv, shareHtmlAsPdf, nombreClienteVisible } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
 import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
@@ -21,12 +21,12 @@ import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
 import AutoConciliadorModal from './AutoConciliadorModal';
 import { SincronizadorOficialModal } from './SincronizadorOficialModal';
 import { useToast } from '../../context/ToastContext';
-import { logAction } from '../../lib/logger';
 import { sound } from '../../lib/sounds';
 import type { PurchaseOrder } from '../../lib/types';
-import confetti from 'canvas-confetti';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { promptDialog } from '../../lib/promptDialog';
+import { useCobranzaActions } from './useCobranzaActions';
+import { getCobranzaGlobalHtml, getCarteraVencidaHtml, getConsolidatedCrHtml } from './reports';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -107,597 +107,24 @@ export default function Cobranza() {
   // camposInvoices() y aplicarPorId() viven en lib/invoiceOps.ts: OrderModal
   // las necesita igual y antes tenia su propio camino para escribir
   // invoiceStatuses, con riesgo de divergir de este.
-
-  /**
-   * "Reprogramar" — cambia la fecha de vencimiento de una factura en un
-   * clic, sin abrir el expediente completo. Mismo patron de transaccion
-   * segura que toggleComplementStatus: relee el expediente dentro de la
-   * operacion en vez de escribir desde una copia local, para no pisar un
-   * cambio simultaneo de otra persona.
-   */
-  async function reprogramarVencimiento(orderId: string, invoiceId: string, nuevaFecha: Date) {
-    try {
-      await runTransaction(db, async (tx) => {
-        const ref = doc(db, PATHS.orders, orderId);
-        const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe');
-
-        const actuales: Invoice[] = snap.data().invoices ?? [];
-        const nuevas = aplicarPorId(actuales, invoiceId, (x) => ({
-          ...x,
-          creditCycle: { ...x.creditCycle, dueDate: Timestamp.fromDate(nuevaFecha) },
-        }));
-        if (!nuevas) throw new Error('La factura ya no está en el expediente');
-
-        tx.update(ref, camposInvoices(nuevas));
-
-        // ==== MIGRACION V2: Dual-write ====
-        const invModificada = nuevas.find(x => x.id === invoiceId);
-        if (invModificada) {
-          tx.set(doc(db, PATHS.invoices, invoiceId), {
-            ...invModificada,
-            orderId,
-            client: snap.data().client ?? '',
-            department: snap.data().department ?? '',
-          }, { merge: true });
-        }
-      });
-      toast(`Vencimiento reprogramado al ${nuevaFecha.toLocaleDateString('es-MX')}`, 'ok');
-    } catch (e) {
-      toast(`Error al reprogramar: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function toggleComplementStatus(orderId: string, invoiceId: string) {
-    const o = orders.find(x => x.id === orderId);
-    if (!o) return;
-    const invIndex = o.invoices?.findIndex(i => i.id === invoiceId);
-    if (invIndex === undefined || invIndex < 0) return;
-    
-    const inv = o.invoices![invIndex];
-    const current = inv.collection?.complementStatus;
-    const nextStatus = current === 'issued' ? 'pending' : 'issued';
-
-    try {
-      // Transaccion: se relee el expediente dentro de la operacion y el cambio
-      // se aplica por id de factura. Con el patron anterior se escribia el
-      // arreglo completo desde una copia local del snapshot, asi que dos
-      // usuarios simultaneos —o un usuario y el procesador de complementos
-      // XML— se pisaban: el ultimo en escribir borraba lo del otro.
-      await runTransaction(db, async (tx) => {
-        const ref = doc(db, PATHS.orders, orderId);
-        const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe');
-
-        const actuales: Invoice[] = snap.data().invoices ?? [];
-        const nuevas = aplicarPorId(actuales, invoiceId, (x) => ({
-          ...x,
-          collection: { ...x.collection, complementStatus: nextStatus },
-        }));
-        if (!nuevas) throw new Error('La factura ya no está en el expediente');
-
-        tx.update(ref, camposInvoices(nuevas));
-
-        // ==== MIGRACION V2: Dual-write ====
-        const invModificada = nuevas.find(x => x.id === invoiceId);
-        if (invModificada) {
-          tx.set(doc(db, PATHS.invoices, invoiceId), {
-            ...invModificada,
-            orderId,
-            client: snap.data().client ?? '',
-            department: snap.data().department ?? '',
-          }, { merge: true });
-        }
-      });
-      toast(`Complemento marcado como ${nextStatus === 'issued' ? 'Emitido' : 'Pendiente'}`, 'ok');
-    } catch (e) {
-      toast(`Error al actualizar complemento: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function payInvoiceExact(orderId: string, invoiceId: string, amountToPay: number) {
-    if (!(await confirmDialog(`¿Confirmas el cobro exacto por $${amountToPay.toLocaleString('es-MX', {minimumFractionDigits:2})} de esta factura?`))) return;
-
-    try {
-      await runTransaction(db, async (tx) => {
-        const ref = doc(db, PATHS.orders, orderId);
-        const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe');
-
-        const actuales: Invoice[] = snap.data().invoices ?? [];
-        const nuevas = aplicarPorId(actuales, invoiceId, (x) => ({
-          ...x,
-          creditCycle: { ...x.creditCycle, status: 'paid' },
-          collection: {
-            ...x.collection,
-            paidAmount: amountToPay,
-            paidAt: Timestamp.now(),
-          },
-        }));
-        if (!nuevas) throw new Error('La factura ya no está en el expediente');
-
-        tx.update(ref, camposInvoices(nuevas));
-
-        // ==== MIGRACION V2: Dual-write ====
-        const invModificada = nuevas.find(x => x.id === invoiceId);
-        if (invModificada) {
-          tx.set(doc(db, PATHS.invoices, invoiceId), {
-            ...invModificada,
-            orderId,
-            client: snap.data().client ?? '',
-            department: snap.data().department ?? '',
-          }, { merge: true });
-        }
-      });
-      sound.playChaChing();
-      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-      toast(`Factura cobrada con éxito.`, 'ok');
-    } catch (e) {
-      toast(`Error al cobrar factura: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function payContrareciboBlock(crNumber: string) {
-    if (!crNumber) return;
-    if (!(await confirmDialog(`¿Seguro que quieres cobrar todas las facturas pendientes del Contrarecibo ${crNumber}?`))) return;
-    
-    const doctoSap = (await promptDialog('Docto. SAP (Opcional):')) || '';
-    const doctoPago = (await promptDialog('Docto. Pago (Opcional, ej. TR_3583):')) || '';
-
-    const invoicesToPay = data.open.filter(({ o, inv }) => 
-      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
-    );
-    
-    // Que facturas hay que tocar en cada expediente. Los datos frescos se
-    // leen dentro de la transaccion, no de este snapshot.
-    const objetivo: Record<string, string[]> = {};
-    for (const { o, inv } of invoicesToPay) {
-      (objetivo[o.id] ??= []).push(inv.id);
-    }
-
-    try {
-      // writeBatch garantizaba atomicidad (todo o nada) pero no aislamiento:
-      // seguia escribiendo el arreglo completo desde una copia local. La
-      // transaccion relee cada expediente y aplica los cambios por id.
-      await runTransaction(db, async (tx) => {
-        const refs = Object.keys(objetivo).map((id) => ({
-          id,
-          ref: doc(db, PATHS.orders, id),
-        }));
-        // Firestore exige TODAS las lecturas antes de cualquier escritura.
-        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
-
-        refs.forEach(({ id, ref }, k) => {
-          const snap = snaps[k];
-          if (!snap.exists()) return;
-          let invoices: Invoice[] = snap.data().invoices ?? [];
-          for (const invoiceId of objetivo[id]) {
-            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
-              ...x,
-              creditCycle: { ...x.creditCycle, status: 'paid' },
-              collection: {
-                ...x.collection,
-                paidAmount: x.financials?.invoiceTotal ?? x.financials?.saleTotal ?? 0,
-                paidAt: Timestamp.now(),
-                sapDocument: doctoSap,
-                paymentDocument: doctoPago
-              },
-            }));
-            if (nuevas) {
-              invoices = nuevas;
-              const invModificada = nuevas.find(x => x.id === invoiceId);
-              if (invModificada) {
-                tx.set(doc(db, PATHS.invoices, invoiceId), {
-                  ...invModificada,
-                  orderId: id,
-                  client: snap.data().client ?? '',
-                  department: snap.data().department ?? '',
-                }, { merge: true });
-              }
-            }
-          }
-          tx.update(ref, camposInvoices(invoices));
-        });
-      });
-      sound.playChaChing();
-      confetti({ particleCount: 250, spread: 120, origin: { y: 0.5 } });
-      toast(`Contrarecibo ${crNumber} cobrado exitosamente`, 'ok');
-    } catch (e) {
-      toast(`Error al procesar el cobro en bloque: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function undoContrareciboBlock(crNumber: string) {
-    if (!crNumber) return;
-    if (!(await confirmDialog({ message: `¿Seguro que quieres DESHACER el cobro del Contrarecibo ${crNumber}? Las facturas volverán a pendientes.`, danger: true }))) return;
-    
-    const invoicesToUndo = data.paid.filter(({ o, inv }) => 
-      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
-    );
-    
-    const objetivo: Record<string, string[]> = {};
-    for (const { o, inv } of invoicesToUndo) {
-      (objetivo[o.id] ??= []).push(inv.id);
-    }
-
-    try {
-      await runTransaction(db, async (tx) => {
-        const refs = Object.keys(objetivo).map((id) => ({
-          id,
-          ref: doc(db, PATHS.orders, id),
-        }));
-        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
-
-        refs.forEach(({ id, ref }, k) => {
-          const snap = snaps[k];
-          if (!snap.exists()) return;
-          let invoices: Invoice[] = snap.data().invoices ?? [];
-          for (const invoiceId of objetivo[id]) {
-            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
-              ...x,
-              creditCycle: { ...x.creditCycle, status: 'pending' },
-              collection: {
-                ...x.collection,
-                paidAmount: 0,
-                paidAt: null,
-              },
-            }));
-            if (nuevas) invoices = nuevas;
-          }
-          tx.update(ref, camposInvoices(invoices));
-        });
-      });
-      toast(`Cobro del Contrarecibo ${crNumber} deshecho.`, 'ok');
-    } catch (e) {
-      toast(`Error al deshacer cobro: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function collectContrareciboBlock(crNumber: string, netCobrado: number) {
-    if (!crNumber) return;
-    if (!(await confirmDialog(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en CAJA.`))) return;
-
-    // Referencia de la transferencia (ej. "TR_3583"), distinta del numero de
-    // contrarecibo (ej. "GT-570"): sin ella no se puede conciliar el deposito
-    // contra el estado de cuenta bancario despues.
-    const transferRef = ((await promptDialog('Referencia de la transferencia (opcional, ej. TR_3583):')) || '').trim();
-
-    const invoicesToCollect = data.paid.filter(({ o, inv }) => 
-      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
-    );
-    
-    const objetivo: Record<string, string[]> = {};
-    for (const { o, inv } of invoicesToCollect) {
-      (objetivo[o.id] ??= []).push(inv.id);
-    }
-
-    // Declarado FUERA de la transaccion: el toast de exito de abajo necesita
-    // leerlo despues de que runTransaction termine, y una variable `let`
-    // declarada dentro del callback no existe fuera de el. Esto no compilaba.
-    let netCobradoReal = 0;
-
-    try {
-      // El movimiento de Caja Chica va DENTRO de la misma transaccion que el
-      // cambio de estatus. Si se separaran, un fallo a la mitad podria dejar
-      // el ingreso registrado sin las facturas marcadas, o al reves.
-      await runTransaction(db, async (tx) => {
-        const refs = Object.keys(objetivo).map((id) => ({
-          id,
-          ref: doc(db, PATHS.orders, id),
-        }));
-        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
-
-        // netCobrado se recalcula AQUI, con los datos releidos dentro de la
-        // transaccion, en vez de usar el parametro que llega desde el render.
-        // Antes viajaba tal cual desde la pantalla: si el saneador nocturno,
-        // un complemento XML u otro usuario tocaban financials entre el render
-        // y el clic, el ingreso inyectado en Caja Chica quedaba desactualizado
-        // y nada lo detectaba despues.
-        netCobradoReal = 0;
-
-        refs.forEach(({ id, ref }, k) => {
-          const snap = snaps[k];
-          if (!snap.exists()) return;
-          let invoices: Invoice[] = snap.data().invoices ?? [];
-          for (const invoiceId of objetivo[id]) {
-            const inv = invoices.find((x) => x.id === invoiceId);
-            if (inv) {
-              const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-              const comision = inv.financials?.commission ?? 0;
-              // Lo que entra a Caja Chica: la factura completa menos el
-              // honorario del contador. Sin restar el costo del material.
-              netCobradoReal += invTotal - comision;
-            }
-            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
-              ...x,
-              creditCycle: { ...x.creditCycle, status: 'collected' },
-              collection: { ...x.collection, collectedAt: Timestamp.now(), transferRef: transferRef || x.collection?.transferRef || '' },
-            }));
-            if (nuevas) {
-              invoices = nuevas;
-              const invModificada = nuevas.find(x => x.id === invoiceId);
-              if (invModificada) {
-                tx.set(doc(db, PATHS.invoices, invoiceId), {
-                  ...invModificada,
-                  orderId: id,
-                  client: snap.data().client ?? '',
-                  department: snap.data().department ?? '',
-                }, { merge: true });
-              }
-            }
-          }
-          tx.update(ref, camposInvoices(invoices));
-        });
-
-        netCobradoReal = round2(netCobradoReal);
-
-        // Un peso de tolerancia por redondeo; mas que eso significa que algo
-        // cambio de verdad entre el render y el clic.
-        if (Math.abs(netCobradoReal - netCobrado) > 1) {
-          throw new Error(
-            `El importe cambió desde que se mostró en pantalla ` +
-            `($${netCobrado.toFixed(2)} → $${netCobradoReal.toFixed(2)}). ` +
-            `Cierra este cuadro, revisa el Contrarecibo ${crNumber} e intenta de nuevo.`,
-          );
-        }
-
-        tx.set(doc(collection(db, PATHS.expenses)), {
-          date: Timestamp.now(),
-          concept: `Cobro del Contrarecibo ${crNumber}`,
-          type: 'ingreso',
-          amount: netCobradoReal,
-          createdAt: Timestamp.now(),
-        });
-      });
-      toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok', {
-        label: '↩️ Deshacer',
-        onClick: () => revertCollectedContrareciboBlock(crNumber)
-      });
-    } catch (e) {
-      toast(`Error al procesar la recolección en bloque: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function revertCollectedContrareciboBlock(crNumber: string) {
-    if (!crNumber) return;
-    if (!(await confirmDialog({ message: `¿DESHACER RECOLECCIÓN del Contrarecibo ${crNumber}? El lote regresará a "Por Recoger Dinero" y se registrará un egreso de reversión en CAJA.`, danger: true }))) return;
-    
-    const invoicesToRevert = data.collected.filter(({ o, inv }) => 
-      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
-    );
-    
-    const objetivo: Record<string, string[]> = {};
-    let totalRevertir = 0;
-    for (const { o, inv } of invoicesToRevert) {
-      (objetivo[o.id] ??= []).push(inv.id);
-      const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * config.salePricePerKg * (1 + config.ivaRate));
-      const comision = inv.financials?.commission ?? (inv.kilos * config.salePricePerKg * config.commissionRate);
-      totalRevertir += (invTotal - comision);
-    }
-
-    if (Object.keys(objetivo).length === 0) {
-      toast('No se encontraron facturas recogidas para este contrarecibo.', 'bad');
-      return;
-    }
-
-    try {
-      await runTransaction(db, async (tx) => {
-        const refs = Object.keys(objetivo).map((id) => ({
-          id,
-          ref: doc(db, PATHS.orders, id),
-        }));
-        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
-
-        refs.forEach(({ id, ref }, k) => {
-          const snap = snaps[k];
-          if (!snap.exists()) return;
-          let invoices: Invoice[] = snap.data().invoices ?? [];
-          for (const invoiceId of objetivo[id]) {
-            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
-              ...x,
-              creditCycle: { ...x.creditCycle, status: 'paid' },
-              collection: {
-                ...x.collection,
-                collectedAt: null,
-              },
-            }));
-            if (nuevas) {
-              invoices = nuevas;
-              const invModificada = nuevas.find(x => x.id === invoiceId);
-              if (invModificada) {
-                tx.set(doc(db, PATHS.invoices, invoiceId), {
-                  ...invModificada,
-                  orderId: id,
-                  client: snap.data().client ?? '',
-                  department: snap.data().department ?? '',
-                }, { merge: true });
-              }
-            }
-          }
-          tx.update(ref, camposInvoices(invoices));
-        });
-
-        tx.set(doc(collection(db, PATHS.expenses)), {
-          date: Timestamp.now(),
-          concept: `Reversión de Recolección Contrarecibo ${crNumber}`,
-          type: 'egreso',
-          amount: round2(totalRevertir),
-          createdAt: Timestamp.now(),
-        });
-      });
-
-      logAction(user?.email, 'Reversión de Recolección', { contrarecibo: crNumber, monto: totalRevertir });
-      sound.playPop();
-      toast(`↩️ Recolección del Contrarecibo ${crNumber} revertida. Regresado a "Por Recoger" y egreso por $${totalRevertir.toLocaleString('es-MX', {minimumFractionDigits:2})} registrado en CAJA.`, 'ok');
-    } catch (e) {
-      sound.playError();
-      toast(`Error al revertir la recolección: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  async function liquidateAccountantBlock(crNumber: string) {
-    if (!crNumber) return;
-    if (!(await confirmDialog(`¿Seguro que quieres MARCAR como pagada (liquidada) la comisión al contador para el CR ${crNumber}?`))) return;
-
-    // Buscamos todas las facturas de ese CR (que esten paid o collected)
-    const allCrInvoices = [...data.paid, ...data.collected].filter(({ o, inv }) => 
-      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
-    );
-    
-    const objetivo: Record<string, string[]> = {};
-    let hasPending = false;
-    for (const { o, inv } of allCrInvoices) {
-      if (!inv.collection?.accountantLiquidated) {
-        (objetivo[o.id] ??= []).push(inv.id);
-        hasPending = true;
-      }
-    }
-
-    if (!hasPending) {
-      toast('Todas las comisiones de este contrarecibo ya estaban liquidadas.', 'info');
-      return;
-    }
-
-    try {
-      await runTransaction(db, async (tx) => {
-        const refs = Object.keys(objetivo).map((id) => ({
-          id,
-          ref: doc(db, PATHS.orders, id),
-        }));
-        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
-
-        refs.forEach(({ id, ref }, k) => {
-          const snap = snaps[k];
-          if (!snap.exists()) return;
-          let invoices: Invoice[] = snap.data().invoices ?? [];
-          for (const invoiceId of objetivo[id]) {
-            const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
-              ...x,
-              collection: { 
-                ...x.collection, 
-                accountantLiquidated: true, 
-                accountantLiquidatedAt: Timestamp.now() 
-              },
-            }));
-            if (nuevas) invoices = nuevas;
-          }
-          tx.update(ref, camposInvoices(invoices));
-        });
-      });
-      sound.playSuccess();
-      toast(`✅ Comisiones del Contrarecibo ${crNumber} liquidadas a contabilidad`, 'ok');
-    } catch (e) {
-      sound.playError();
-      toast(`Error al liquidar comisiones: ${(e as Error).message}`, 'bad');
-    }
-  }
-
-  function getCobranzaGlobalHtml() {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Reporte Global de Cobranza</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
-            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-            tr:last-child td { border-bottom: none; }
-            tr:nth-child(even) { background-color: #fafaf9; }
-            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-          </style>
-        </head>
-        <body>
-          ${getPrintHeaderHtml(settings, "Reporte Global de Cobranza y Cuentas por Cobrar")}
-          
-          <div class="kpis">
-            <div class="kpi"><div class="kpi-title">TE DEBEN</div><div class="kpi-val">$${data.meDeben.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">VENCIDO</div><div class="kpi-val" style="color: #b91c1c;">$${data.vencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">COBRADO (CON CONTADOR)</div><div class="kpi-val" style="color: #047857;">$${data.cobrado.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">COMISIONES</div><div class="kpi-val" style="color: #b45309;">$${data.comisiones.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-          </div>
-
-          <h3>1. Facturas Pendientes de Cobro (${data.open.length})</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Vencimiento</th><th class="num">Monto Venta</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.open.map(x => `
-                <tr>
-                  <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
-                  <td>${escapeHtml(x.o.client || '—')}</td>
-                  <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
-                  <td>${fmtDate(x.inv.creditCycle.dueDate) || '—'}</td>
-                  <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <h3>2. Contrarecibos Cobrados (Por Recoger Efectivo - ${data.paid.length})</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th class="num">Utilidad a Ingresar</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.paid.map(x => {
-                const cr = x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '';
-                const grp = cr ? data.listaCr.find(g => g.cr === cr) : null;
-                return `
-                  <tr>
-                    <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
-                    <td>${escapeHtml(x.o.client || '—')}</td>
-                    <td>${escapeHtml(cr || '—')}</td>
-                    <td class="num">$${(grp ? grp.netCobrado : (x.inv.financials?.invoiceTotal ?? 0)).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-
-          <h3>3. Historial de Recolecciones en CAJA (${data.collected.length})</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Estado</th><th class="num">Monto Venta</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.collected.map(x => `
-                <tr>
-                  <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
-                  <td>${escapeHtml(x.o.client || '—')}</td>
-                  <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
-                  <td>Recogido (En CAJA)</td>
-                  <td class="num">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <script>
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-  }
+  //
+  // Las 8 funciones que reprograman/cobran/deshacen/liquidan facturas (antes
+  // ~480 lineas aqui mismo) se extrajeron completas a useCobranzaActions.ts,
+  // sin cambiar su logica ni sus nombres -- el objeto `ctx` mas abajo, que ya
+  // consumen TableroKanban/EstadoCuenta/AgingTable/etc, depende de que los
+  // nombres se mantengan identicos. La llamada al hook vive justo despues del
+  // useMemo `data` (mas abajo) porque estas funciones ahora reciben `data`
+  // como argumento explicito en vez de cerrarlo como closure de este
+  // componente, y por eso necesitan que `data` ya este calculado.
+  //
+  // Los 3 generadores de HTML (getCobranzaGlobalHtml, getCarteraVencidaHtml,
+  // getConsolidatedCrHtml -- ~280 lineas de puro template literal) tambien
+  // se extrajeron, a reports.ts. Estas funciones print*/share* se quedan
+  // aqui porque si tocan cosas del componente (Blob, window, toast); solo
+  // llaman a la version importada para obtener el HTML.
 
   function printCobranzaGlobalReport() {
-    const html = getCobranzaGlobalHtml();
+    const html = getCobranzaGlobalHtml(data, settings);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
@@ -705,67 +132,9 @@ export default function Cobranza() {
   }
 
   async function shareCobranzaGlobalReport() {
-    const html = getCobranzaGlobalHtml();
+    const html = getCobranzaGlobalHtml(data, settings);
     toast('Generando PDF, por favor espera...', 'ok');
     await shareHtmlAsPdf(html, `CobranzaGlobal_${new Date().toISOString().split('T')[0]}.pdf`);
-  }
-
-  function getCarteraVencidaHtml(overdueItems: any[], totalVencido: number) {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Reporte de Cartera Vencida</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
-            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-            tr:last-child td { border-bottom: none; }
-            tr:nth-child(even) { background-color: #fafaf9; }
-            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #fef2f2; border: 1px solid #fca5a5; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #991b1b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #7f1d1d; letter-spacing: -0.02em; }
-          </style>
-        </head>
-        <body>
-          ${getPrintHeaderHtml(settings, "Reporte de Cartera Vencida (Alarma)")}
-          
-          <div class="kpis">
-            <div class="kpi"><div class="kpi-title">TOTAL VENCIDO</div><div class="kpi-val">$${totalVencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">FACTURAS VENCIDAS</div><div class="kpi-val">${overdueItems.length}</div></div>
-          </div>
-
-          <h3>Detalle de Cuentas Atrasadas</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Folio</th><th>Cliente</th><th>Contrarecibo</th><th>Días Atraso</th><th class="num">Monto Vencido</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${overdueItems.length > 0 ? overdueItems.map(x => `
-                <tr>
-                  <td>${escapeHtml(x.inv.folio || x.o.folio || '—')}</td>
-                  <td><strong>${escapeHtml(x.o.client || '—')}</strong></td>
-                  <td>${escapeHtml(x.inv.collection?.contrareciboNumber || x.o.collection?.contrareciboNumber || '—')}</td>
-                  <td style="color: #b91c1c; font-weight: 600;">Hace ${daysLate(toDate(x.inv.creditCycle.dueDate))} días</td>
-                  <td class="num" style="color: #b91c1c; font-weight: bold;">$${(x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                </tr>
-              `).join('') : '<tr><td colspan="5" style="text-align: center;">No hay cartera vencida</td></tr>'}
-            </tbody>
-          </table>
-
-          <script>
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
   }
 
   function printCarteraVencida() {
@@ -775,7 +144,7 @@ export default function Cobranza() {
     });
     const totalVencido = overdueItems.reduce((sum, x) => sum + (x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0);
 
-    const html = getCarteraVencidaHtml(overdueItems, totalVencido);
+    const html = getCarteraVencidaHtml(settings, overdueItems, totalVencido);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
@@ -789,96 +158,13 @@ export default function Cobranza() {
     });
     const totalVencido = overdueItems.reduce((sum, x) => sum + (x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0);
 
-    const html = getCarteraVencidaHtml(overdueItems, totalVencido);
+    const html = getCarteraVencidaHtml(settings, overdueItems, totalVencido);
     toast('Generando PDF, por favor espera...', 'ok');
     await shareHtmlAsPdf(html, `CarteraVencida_${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
-  function getConsolidatedCrHtml(grp: any) {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Cobro - CR ${escapeHtml(grp.cr)}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 14px; line-height: 1.5; background: #fff; }
-            table { width: 100%; border-collapse: collapse; margin: 30px 0; font-size: 14px; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #cbd5e1; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
-            .summary-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 40px; width: 400px; margin-left: auto; }
-            .summary-line { display: flex; justify-content: space-between; margin-bottom: 12px; }
-            .summary-line.total { border-top: 2px solid #94a3b8; padding-top: 12px; font-weight: 800; font-size: 18px; color: #0f172a; }
-            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 14px; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 80px; text-align: center; font-weight: 600; color: #475569; }
-            .sig-box { border-top: 1px solid #94a3b8; width: 250px; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          ${getPrintHeaderHtml(settings, "Notificación de Cobro y Liquidación Comercial", `Contrarecibo: ${escapeHtml(grp.cr)} - Cliente: ${escapeHtml(grp.client)}`)}
-
-          <div class="meta-grid">
-            <div>
-              <strong>Contrarecibo (CR):</strong> ${escapeHtml(grp.cr)}<br>
-              <strong>Cliente:</strong> ${escapeHtml(grp.client)}<br>
-              <strong>Factura(s):</strong> ${grp.folios.map((f: any) => '#' + escapeHtml(f)).join(', ') || '—'}
-            </div>
-            <div style="text-align:right;">
-              <strong>Proveedor Fabricante:</strong> Andrés (Sin Mermas)<br>
-              <strong>Kilos Entregados:</strong> ${grp.totalKilos.toLocaleString('es-MX')} kg<br>
-              <strong>Estado Cobro:</strong> ${escapeHtml(grp.status)}
-            </div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Concepto / Referencia</th>
-                <th style="text-align:right;">Kilos</th>
-                <th style="text-align:right;">Venta Facturada</th>
-                <th style="text-align:right;">Costo Andrés</th>
-                <th style="text-align:right;">Comisión Contador</th>
-                <th style="text-align:right;">Utilidad Líquida Real</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Contrarecibo ${escapeHtml(grp.cr)} (${grp.folios.map((f: any) => '#' + escapeHtml(f)).join(', ')})</td>
-                <td style="text-align:right;">${grp.totalKilos.toLocaleString('es-MX')} kg</td>
-                <td style="text-align:right;">$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                <td style="text-align:right;color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                <td style="text-align:right;color:#B23A2E;">-$${grp.comisionContador.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-                <td style="text-align:right;font-weight:700;color:#2F7A52;">$${grp.netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="summary-box">
-            <div class="summary-line"><span>Total Facturado a Cliente (${escapeHtml(grp.client)}):</span><strong>$${grp.totalVenta.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
-            <div class="summary-line"><span>Costo Directo Fabricante Andrés (Sin mermas):</span><span style="color:#8A5A1E;">-$${grp.costoAndres.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="summary-line"><span>Comisión Contador / Contabilidad:</span><span style="color:#B23A2E;">-$${grp.comisionContador.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="summary-line"><span><strong>DEPÓSITO QUE RECIBES</strong> (factura menos comisión):</span><strong style="color:#2F7A52;">$${grp.netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})}</strong></div>
-            <div class="summary-line total">
-              <span>UTILIDAD LÍQUIDA REAL (MARGEN: ${grp.margenPct.toFixed(2)}%):</span>
-              <span>$${grp.netUtilidad.toLocaleString('es-MX', {minimumFractionDigits:2})}</span>
-            </div>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-box">Firma y Sello de Recepción Cliente</div>
-            <div class="sig-box">Autorización de Cobro y Entrada CAJA</div>
-          </div>
-
-          <script>
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-  }
-
   function printConsolidatedCr(grp: any) {
-    const html = getConsolidatedCrHtml(grp);
+    const html = getConsolidatedCrHtml(settings, grp);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
@@ -886,7 +172,7 @@ export default function Cobranza() {
   }
 
   async function shareConsolidatedCr(grp: any) {
-    const html = getConsolidatedCrHtml(grp);
+    const html = getConsolidatedCrHtml(settings, grp);
     toast('Generando PDF, por favor espera...', 'ok');
     await shareHtmlAsPdf(html, `Contrarecibo_${grp.cr}_${new Date().toISOString().split('T')[0]}.pdf`);
   }
@@ -1074,6 +360,23 @@ export default function Cobranza() {
         .reduce((a, x) => a + saldo(x.inv), 0),
     };
   }, [orders, config]);
+
+  // Las 8 mutaciones de Firestore extraidas a useCobranzaActions.ts (ver
+  // comentario mas arriba). Se llaman aqui, DESPUES de `data`, porque ahora
+  // reciben `data`/`orders`/`config`/`toast`/`user` como argumentos
+  // explicitos del hook en vez de cerrarlos como closures del componente --
+  // si se llamara antes de la linea de `data` de arriba, `data` todavia no
+  // existiria (const en temporal dead zone).
+  const {
+    reprogramarVencimiento,
+    toggleComplementStatus,
+    payInvoiceExact,
+    payContrareciboBlock,
+    undoContrareciboBlock,
+    collectContrareciboBlock,
+    revertCollectedContrareciboBlock,
+    liquidateAccountantBlock,
+  } = useCobranzaActions({ orders, data, config, toast, user });
 
   const filteredLista = useMemo(() => {
     let list = data.lista;

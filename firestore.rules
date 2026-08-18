@@ -195,7 +195,11 @@ service cloud.firestore {
     // Logs de errores del frontend
     match /error_logs/{logId} {
       allow read: if isSuperAdmin();
-      allow create: if true; // Permitir que el cliente escriba errores
+      // Solo usuarios autenticados pueden reportar errores. "if true" abriría
+      // la colección a escritura anónima masiva (flood/DDoS de Firestore).
+      // Si se necesita capturar errores pre-login, hacerlo via Cloud Function
+      // con validación de estructura y rate-limiting del lado del servidor.
+      allow create: if request.auth != null;
       allow update, delete: if false;
     }
 

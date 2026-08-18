@@ -282,8 +282,8 @@ export interface Product {
   description: string;
   unit: string;
   defaultPrice: number;
-  lastOrderDate?: any;
-  createdAt?: any;
+  lastOrderDate?: Timestamp | null;
+  createdAt?: Timestamp | null;
 }
 
 export interface AndresRequirement {

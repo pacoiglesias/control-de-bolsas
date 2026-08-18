@@ -46,7 +46,7 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    sourcemap: 'hidden', // genera .map para debugging pero no los expone en el bundle
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {

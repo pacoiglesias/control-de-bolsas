@@ -1,12 +1,11 @@
-$BackupDir = "C:\Users\pacoi\Downloads\CONTROL_FACTURAS_BACKUPS"
+$SourceDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+$BackupDir = if (Test-Path "C:\Users\pacoi\Downloads") { "C:\Users\pacoi\Downloads\CONTROL_FACTURAS_BACKUPS" } else { Join-Path $SourceDir "Respaldos" }
 if (!(Test-Path $BackupDir)) {
     New-Item -ItemType Directory -Path $BackupDir | Out-Null
 }
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $BackupFile = "$BackupDir\Backup_$Timestamp.zip"
-
-$SourceDir = "C:\Users\pacoi\Downloads\CONTROL  FACTURAS PROVIDENCIA"
 
 Write-Host "Creando respaldo: $BackupFile"
 
@@ -20,7 +19,7 @@ Write-Host "Copiando archivos (excluyendo node_modules, .env, .git...)"
 # robocopy devuelve códigos de error que no son necesariamente fallos (1-7 son éxito con archivos copiados)
 # _respaldo_* y *.zip tambien fuera: sin esto, cada respaldo se llevaba
 # dentro una copia completa del respaldo anterior y los ZIP de parches.
-robocopy "$SourceDir" "$TempDir" /MIR /XD node_modules dist .git .firebase "functions\node_modules" "functions\lib" "_respaldo_*" /XF .env .env.local *.log *.zip *.tsbuildinfo
+robocopy "$SourceDir" "$TempDir" /MIR /XD node_modules dist .git .firebase "functions\node_modules" "functions\lib" "_respaldo_*" "Respaldos" /XF .env .env.local *.log *.zip *.tsbuildinfo
 if ($LASTEXITCODE -ge 8) {
     Write-Error "Error copiando archivos con robocopy. Código: $LASTEXITCODE"
 }

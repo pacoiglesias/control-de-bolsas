@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { usePurchases } from '../hooks/usePurchases';
 import { useExpenses } from '../hooks/useExpenses';
 import { useConfig } from '../hooks/useConfig';
 import { useToast } from '../context/ToastContext';
-import { useProducts } from '../hooks/useProducts';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { usePrivacy } from '../context/PrivacyContext';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
 import { downloadBackupJsonFile } from '../lib/cloudBackup';
-import { CommandMenu } from './CommandMenu/CommandMenu';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
@@ -40,14 +38,11 @@ export default function Layout() {
   const { expenses } = useExpenses();
   const { config } = useConfig();
   const toast = useToast();
-  const { products } = useProducts();
   const { settings } = useSystemSettings();
   const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
-  const nav = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const clientLabel = settings.clientShortName || 'Providencia';
@@ -118,24 +113,17 @@ export default function Layout() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setCommandOpen(o => !o);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    const handleCustomOpen = () => setCommandOpen(true);
-    document.addEventListener('open-command-menu', handleCustomOpen);
-
+    // El atajo Ctrl+K y el evento 'open-command-menu' los maneja únicamente
+    // <CommandPalette/> (montado una sola vez en AppProviders). Antes Layout
+    // tenía su propio listener de Ctrl+K y su propio <CommandMenu/>, así que
+    // una sola pulsación abría dos buscadores superpuestos a la vez. El
+    // botón "Buscar..." de arriba sigue funcionando igual: solo dispara el
+    // evento, que CommandPalette escucha globalmente.
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('open-command-menu', handleCustomOpen);
     };
-  }, [nav]);
+  }, []);
 
   // Los badges leen el mismo estatus derivado que la tabla de Ordenes. Antes
   // usaban el campo viejo de la raiz y podian quedarse en cero teniendo
@@ -286,9 +274,8 @@ export default function Layout() {
             >
               💾 Respaldo Local (1 Clic)
             </button>
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              ◐ {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-            </button>
+            {/* El cambio de tema ya vive en el ícono ◐ de la barra superior
+                (siempre visible); este botón duplicaba la misma acción. */}
             <span className="who">{user?.email}</span>
             <button onClick={() => void signOut()}>⏻ Cerrar sesión</button>
           </div>
@@ -301,46 +288,14 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            <div style={{ marginBottom: 8 }}>
-              <button
-                type="button"
-                onClick={handleDownloadLocalBackup}
-                className="btn btn-small"
-                style={{
-                  fontSize: 11,
-                  padding: '4px 12px',
-                  background: 'var(--paper-sunk)',
-                  borderColor: 'var(--line)',
-                  color: 'var(--ink)',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                💾 Descargar Respaldo Local (.JSON)
-              </button>
-            </div>
+            {/* El botón de respaldo local ya vive en el pie del sidebar
+                ("💾 Respaldo Local (1 Clic)"); aquí se repetía la misma
+                acción con otra etiqueta. */}
             Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>
       </div>
-
-      <CommandMenu
-        isOpen={commandOpen}
-        onClose={() => setCommandOpen(false)}
-        orders={orders}
-        products={products}
-        onSelectOrder={(orderId, _tab) => {
-          setCommandOpen(false);
-          nav(`/ordenes?id=${orderId}`);
-        }}
-        onSelectProduct={() => {
-          setCommandOpen(false);
-          nav(`/catalogo`);
-        }}
-      />
     </div>
   );
 }

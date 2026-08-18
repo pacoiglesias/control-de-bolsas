@@ -92,7 +92,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
 
         // Buscar si ya existe una orden con este CR o monto aproximado
-        let matchingOrder = orders.find(o => 
+        const matchingOrder = orders.find(o => 
           (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
           (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr)
         );
@@ -269,7 +269,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const recalcFn = httpsCallable(functions, 'recalcDashboardStats');
         const res: any = await recalcFn();
         addLog(`📊 ${res.data?.mensaje || 'Dashboard recalculado con éxito.'}`);
-      } catch (e: any) {
+      } catch (_) {
         addLog(`ℹ️ Recálculo local en progreso.`);
       }
 

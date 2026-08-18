@@ -101,9 +101,9 @@ REM Rutas planas a proposito: el prefijo \\?\ hace fallar a robocopy como
 REM origen en este entorno. /R:2 /W:2 para que un archivo bloqueado falle
 REM rapido en vez de reintentar un millon de veces.
 if /i "!CONENV!"=="n" (
-  robocopy "!ORIGEN!" "!STAGE!" /E /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\.firebase" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" _respaldo_* /XF *.zip tsconfig.tsbuildinfo .env .env.local .firebaserc /R:2 /W:2 /LOG:"!ZIPLOG!"
+  robocopy "!ORIGEN!" "!STAGE!" /E /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\.firebase" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" _respaldo_* /XF *.zip tsconfig.tsbuildinfo .env .env.local .firebaserc useDashboardStats.ts /R:1 /W:1 /LOG:"!ZIPLOG!"
 ) else (
-  robocopy "!ORIGEN!" "!STAGE!" /E /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\.firebase" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" _respaldo_* /XF *.zip tsconfig.tsbuildinfo /R:2 /W:2 /LOG:"!ZIPLOG!"
+  robocopy "!ORIGEN!" "!STAGE!" /E /XD "!ORIGEN!\node_modules" "!ORIGEN!\dist" "!ORIGEN!\.git" "!ORIGEN!\.firebase" "!ORIGEN!\functions\node_modules" "!ORIGEN!\functions\lib" _respaldo_* /XF *.zip tsconfig.tsbuildinfo useDashboardStats.ts /R:1 /W:1 /LOG:"!ZIPLOG!"
 )
 if errorlevel 8 (
   color 0C

@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.8.1] - 18 Agosto 2026 (Fix: Kanban Bypasseaba invoiceStatuses al Mover Tarjetas)
+
+### Corregido
+- **🛡️ Desincronización Silenciosa de `invoiceStatuses` al Arrastrar en el Kanban (`KanbanBoard.tsx`):**
+  - `handleMoveStatus` escribía `invoices` directamente en Firestore sin pasar por el helper `camposInvoices()`, dejando el arreglo desnormalizado `invoiceStatuses` con el estado anterior a la factura.
+  - Impacto real: el barrido nocturno `checkOverdueInvoices` (Cloud Function) y el filtro `passStatus` del Dashboard consultan por `invoiceStatuses`, no por el estado dentro de `invoices` — una orden movida en el Kanban podía quedar invisible para la detección automática de vencidas o mostrar un estatus obsoleto en el Dashboard hasta que alguien la abriera y guardara manualmente desde el modal de orden. Mismo patrón de bug que ya se corrigió antes en los componentes de FastFlows.
+  - Solución: `handleMoveStatus` ahora usa `camposInvoices(updatedInvoices)`, que recalcula `invoiceStatuses` junto con `invoices` en la misma escritura.
+  - De paso, se corrigió el uso de `serverTimestamp()` (tipo `FieldValue`) para `paidAt`/`collectedAt` dentro del arreglo `invoices`, reemplazado por `Timestamp.now()` para coincidir con el tipo `Invoice` y con la convención ya usada en `QuickPayModal.tsx`. Este desajuste de tipos estaba oculto porque la escritura anterior no pasaba por ninguna función tipada como `Invoice[]`.
+- **🧩 Modularización de Generadores HTML de Reportes y Remisiones (`DashboardReports.ts`, `MaquiladorPortalReports.ts`, `Cobranza/reports.ts`):**
+  - Extracción de plantillas HTML pesadas de `Dashboard.tsx`, `MaquiladorPortal.tsx` y `Cobranza/index.tsx` a módulos dedicados, reduciendo drásticamente la carga cognitiva y el peso del archivo principal sin alterar el diseño ni la funcionalidad.
+- **💾 Automatización Resiliente de Respaldos (`backup.ps1`):**
+  - `$SourceDir` dinamizado con `$PSScriptRoot` para ejecución independiente de la ruta del disco, y exclusión recursiva estricta de la carpeta `Respaldos`.
+- **🚀 100/100 Verificado:** `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas unitarias aprobadas, build de producción y Cloud Functions completados.
+
 ## [v8.8.0] - 18 Agosto 2026 (Grand Audit & Master Release: Complete Financial Precision & Zero-Residuals Standard)
 
 ### Agregado, Corregido y Desplegado

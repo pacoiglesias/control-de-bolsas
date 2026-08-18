@@ -36,11 +36,11 @@ export function FloatingQuickHub() {
   };
 
   const handleNewOrder = () => {
+    // Mismo problema que en CommandPalette: 'open-order-modal' no tiene
+    // listener en Orders.tsx. El parámetro real que abre el modal de orden
+    // nueva es ?nueva=1 (ver el useEffect correspondiente en Orders.tsx).
     setIsOpen(false);
-    navigate('/ordenes');
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('open-order-modal', { detail: 'NEW' }));
-    }, 150);
+    navigate('/ordenes?nueva=1');
   };
 
   const handleBalanza = () => {

@@ -108,17 +108,17 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           }}
         >
           <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.08, filter: 'grayscale(1)' }}>💵</div>
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#047857', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ok)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
             Efectivo en Caja
           </div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: '#065f46', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+          <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ok)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
             <ResponsiveMoney value={saldoCaja} />
           </div>
           <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.35, zIndex: 0 }}>
-            <Sparkline data={[50, 60, 55, 70, 80, 75, 90]} width={240} height={40} color="#059669" />
+            <Sparkline data={[50, 60, 55, 70, 80, 75, 90]} width={240} height={40} color="var(--ok)" />
           </div>
-          <div style={{ fontSize: 13, color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
+          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)' }} />
             Efectivo disponible en mano
           </div>
         </motion.div>
@@ -144,13 +144,13 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         }}
       >
         <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.08, filter: vencidos === 0 ? 'grayscale(1)' : 'none' }}>⚠️</div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: vencidos > 0 ? '#dc2626' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Urgencias (Vencido)
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? '#991b1b' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.vencido || 0} />
         </div>
-        <div style={{ fontSize: 13, color: vencidos > 0 ? '#dc2626' : 'var(--ink-soft)', fontWeight: 700, zIndex: 1 }}>
+        <div style={{ fontSize: 13, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: 700, zIndex: 1 }}>
           {vencidos} factura{vencidos === 1 ? '' : 's'} fuera de fecha
         </div>
       </motion.div>
