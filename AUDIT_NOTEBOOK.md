@@ -1985,6 +1985,18 @@ Commit: `fix(dashboard-seguimiento): universal toDate sorting and null-safe rows
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Estabilidad Global), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/WeeklyCollectionSummary.tsx`
+Problema: El resumen semanal de cobranza ejecutiva recorría `orders` e `invoices` sin verificación de elementos nulos y acumulaba importes flotantes sin `round2()`.
+Impacto: Posibles micro-discrepancias de centavos en el total programado semanal al redactar mensajes de cobranza y reportes de WhatsApp.
+Solución: Validación defensiva `for (const o of (orders || []))` e `if (!inv) continue;`, y cálculo de saldos y total semanal con `round2()`.
+Riesgo: 🟢 Bajo — Componente de resumen de cobranza blindado.
+Commit: `fix(weekly-summary): null-safe iteration and round2 deterministic balance sums`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 

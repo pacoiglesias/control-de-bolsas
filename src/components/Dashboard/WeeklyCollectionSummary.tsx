@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PurchaseOrder } from '../../lib/types';
 import { money, fmtDayAndDate, nombreClienteVisible, toDate } from '../../lib/format';
-import { extractCr } from '../../lib/finance';
+import { extractCr, round2 } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
 import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
@@ -19,9 +19,10 @@ export function WeeklyCollectionSummary({ orders, onOpenQuickCollection }: Weekl
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const list: any[] = [];
 
-    for (const o of orders) {
-      if (!o.invoices) continue;
+    for (const o of (orders || [])) {
+      if (!o || !o.invoices) continue;
       for (const inv of o.invoices) {
+        if (!inv) continue;
         if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.status !== 'collected') {
           const cr = extractCr(inv, o);
           if (cr && inv.creditCycle?.dueDate) {
@@ -30,7 +31,7 @@ export function WeeklyCollectionSummary({ orders, onOpenQuickCollection }: Weekl
               const diff = due.getTime() - today.getTime();
               // Si vence en los próximos 7 días o ya está vencido
               if (diff <= sevenDaysMs) {
-                const saldo = (inv.financials?.invoiceTotal || 0) - (inv.collection?.paidAmount || 0);
+                const saldo = round2((inv.financials?.invoiceTotal || 0) - (inv.collection?.paidAmount || 0));
                 if (saldo > 0) {
                   list.push({
                     folio: inv.folio || o.folio || 'S/N',
@@ -52,7 +53,7 @@ export function WeeklyCollectionSummary({ orders, onOpenQuickCollection }: Weekl
 
   if (weeklyCrs.length === 0) return null;
 
-  const totalSemana = weeklyCrs.reduce((a, it) => a + it.amount, 0);
+  const totalSemana = round2(weeklyCrs.reduce((a, it) => a + it.amount, 0));
 
   const getWeeklyReportText = () => {
     const lines = weeklyCrs.map(
