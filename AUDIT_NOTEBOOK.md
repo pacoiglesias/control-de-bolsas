@@ -1901,6 +1901,18 @@ Commit: `fix(orders-context): tolerant timestamp sorting with createdAt fallback
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Determinismo de Datos), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/CommandMenu/CommandMenu.tsx`
+Problema: En el menú modal de comandos secundarios, el filtrado de búsqueda asumía que `orders` y `products` siempre son arreglos no vacíos sin elementos nulos, y no inspeccionaba contrarecibos asociados dentro del arreglo de facturas individuales (`inv.collection.contrareciboNumber`).
+Impacto: Excepciones potenciales de lectura ante listas parciales y omisión de coincidencias cuando el usuario busca un folio de contrarecibo que vive a nivel de factura.
+Solución: Blindaje defensivo con `(orders || []).filter(o => { if (!o) return false; ... })`, inclusión de búsqueda profunda en `inv.collection.contrareciboNumber` y protección de la lista de productos.
+Riesgo: 🟢 Bajo — Búsqueda más precisa y resiliente.
+Commit: `fix(command-menu): null-safe search and deep invoice contrarecibo lookup`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 3 (Resiliencia y Null-Safety), OKR 4 (UX de Búsqueda).
+
 
 
 

@@ -38,23 +38,28 @@ export function CommandMenu({ isOpen, onClose, orders, products = [], onSelectOr
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const orderResults = query.trim().length >= 2 ? orders.filter(o => {
+  const orderResults = query.trim().length >= 2 ? (orders || []).filter(o => {
+    if (!o) return false;
     const q = query.toLowerCase();
     if (o.folio?.toLowerCase().includes(q)) return true;
     if (o.client?.toLowerCase().includes(q)) return true;
     if (o.provider?.toLowerCase().includes(q)) return true;
     if (o.collection?.contrareciboNumber?.toLowerCase().includes(q)) return true;
     
-    // Check inside invoices
+    // Check inside invoices and invoice contrarecibos
     if (o.invoices?.some(inv => 
-      inv.folio?.toLowerCase().includes(q) || 
-      inv.uuid?.toLowerCase().includes(q)
+      inv && (
+        inv.folio?.toLowerCase().includes(q) || 
+        inv.uuid?.toLowerCase().includes(q) ||
+        inv.collection?.contrareciboNumber?.toLowerCase().includes(q)
+      )
     )) return true;
 
     return false;
   }).slice(0, 10) : [];
 
-  const productResults = query.trim().length >= 2 ? products.filter(p => {
+  const productResults = query.trim().length >= 2 ? (products || []).filter(p => {
+    if (!p) return false;
     const q = query.toLowerCase();
     if (p.description?.toLowerCase().includes(q)) return true;
     if (p.code?.toLowerCase().includes(q)) return true;
