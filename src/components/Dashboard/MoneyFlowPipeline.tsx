@@ -42,8 +42,8 @@ export function MoneyFlowPipeline({
     let montoEnCreditoCR = 0;
     let countConCr = 0;
 
-    orders.forEach((o) => {
-      if (o.creditCycle?.status === 'collected') return;
+    (orders || []).forEach((o) => {
+      if (!o || o.creditCycle?.status === 'collected') return;
 
       const orderCostKg = Number(o.customCostPrice) || o.invoices?.[0]?.financials?.costPricePerKg || costKg;
       const orderSaleKg = Number(o.customSellPrice) || o.invoices?.[0]?.financials?.salePricePerKg || saleKg;
@@ -72,6 +72,7 @@ export function MoneyFlowPipeline({
 
       // 3 y 4. Facturas emitidas (Sin CR vs Con CR)
       invoices.forEach((inv) => {
+        if (!inv) return;
         const invSalePrice = inv.financials?.salePricePerKg ?? orderSaleKg;
         const totalFactura = inv.financials?.invoiceTotal ?? round2((Number(inv.kilos) || 0) * invSalePrice * (1 + ivaRate));
         const paidAmt = Number(inv.collection?.paidAmount) || 0;
@@ -99,16 +100,17 @@ export function MoneyFlowPipeline({
     const montoAlmacenPorFacturar = round2(montoAlmacenTotal);
 
     // 5. Saldo en Caja Chica Líquido
-    const saldoCaja = round2(expenses.reduce((acc, e) => {
+    const saldoCaja = round2((expenses || []).reduce((acc, e) => {
+      if (!e) return acc;
       return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
     }, 0));
 
     return {
-      kilosFabricando,
+      kilosFabricando: round2(kilosFabricando),
       montoFabricandoAndres,
       countFabricando,
 
-      kilosEntregadosSinFacturar,
+      kilosEntregadosSinFacturar: round2(kilosEntregadosSinFacturar),
       montoAlmacenPorFacturar,
       countAlmacen,
 

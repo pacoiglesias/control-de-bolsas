@@ -2009,6 +2009,18 @@ Commit: `fix(facturas-sin-cr): null-safety and deterministic round2 balance sum`
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/MoneyFlowPipeline.tsx`
+Problema: En el pipeline visual de flujo de efectivo (`MoneyFlowPipeline`), la iteración sobre órdenes, facturas y egresos/ingresos de tesorería no contaba con validación defensiva para arreglos vacíos o transitorios, y las acumulaciones de kilos en taller y almacén carecían de redondeo con `round2()`.
+Impacto: Advertencias ante renderizado inicial de métricas y riesgo de acumulación de decimales binarios en los totales de kilos mostrados en el pipeline.
+Solución: Validación defensiva `(orders || []).forEach(...)`, comprobación `if (!inv) return;`, protección `(expenses || []).reduce(...)` y redondeo determinista con `round2(kilosFabricando)` y `round2(kilosEntregadosSinFacturar)`.
+Riesgo: 🟢 Bajo — Componente visual de flujo de caja blindado.
+Commit: `fix(pipeline): defensive arrays and deterministic round2 kilograms metrics`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 
