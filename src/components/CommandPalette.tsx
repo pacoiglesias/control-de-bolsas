@@ -101,7 +101,7 @@ export function CommandPalette() {
     { type: 'route', id: '/captura-rapida', label: '⚡ Captura Rápida', desc: 'Ingreso ágil de órdenes y facturas', val: 'Ir' },
     { type: 'route', id: '/mining', label: '⛏️ Data Mining', desc: 'Minería de datos y métricas avanzadas', val: 'Ir' },
     { type: 'route', id: '/audit', label: '🛡️ Auditoría & Reconciliación', desc: 'Revisión y balances cuadrados', val: 'Ir' },
-    { type: 'route', id: '/portal-maquilador', label: `🏭 Portal Maquilador (${provName})`, desc: 'Acceso por PIN para el taller', val: 'Ir' },
+    { type: 'route', id: '/portal-maquilador', label: `⚖️ Portal Proveedor / Báscula (${provName})`, desc: 'Acceso por PIN para el taller y remisiones de báscula', val: 'Ir' },
     { type: 'route', id: '/centro-control', label: '⚙️ Configuración del Sistema', desc: 'Parámetros universales de la empresa', val: 'Ir' },
   ];
 

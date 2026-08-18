@@ -148,7 +148,7 @@ export default function Compras() {
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1>Módulo de Compras & Cuenta Corriente con {provName}</h1>
-          <p>Control de anticipos, entregas en báscula, costos de maquila y estado de cuenta con el fabricante ({provName}).</p>
+          <p>Control de anticipos, entregas en báscula, costo de compra y estado de cuenta con el proveedor ({provName}).</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>

@@ -75,9 +75,9 @@ export async function generateNetProfitReportPdf(data: NetProfitReportData) {
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;">
-          <div style="font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase;">2. COSTO MAQUILA ANDRÉS ($42)</div>
+          <div style="font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase;">2. COSTO PROVEEDOR ANDRÉS ($42/KG)</div>
           <div style="font-size: 15px; font-weight: 900; color: #dc2626; margin-top: 2px;">-${money(data.costoAndresTotal)}</div>
-          <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">Materia prima y extrusión</div>
+          <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">Adquisición de bolsa terminada</div>
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;">

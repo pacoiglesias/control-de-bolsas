@@ -23,7 +23,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   companyName: 'BOLSAS ELEMENTAL',
   companyLogoUrl: '',
   providerName: 'Andrés',
-  providerTitle: 'Taller de Maquila',
+  providerTitle: 'Proveedor de Bolsa / Fabricante',
   clientName: 'Grupo Textil Providencia SA de CV',
   clientShortName: 'Providencia',
   departments: ['TH', 'GT'],

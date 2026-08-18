@@ -374,7 +374,7 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card title="🏭 3. Fabricante / Proveedor Maquilador (ej. Andrés)">
+      <Card title="🏭 3. Proveedor / Fabricante de Bolsa (ej. Andrés)">
         <div style={{ padding: 18 }}>
           <div className="form-grid">
             <Field label="Nombre del Proveedor / Fabricante">
@@ -386,10 +386,10 @@ export default function Settings() {
             <Field label="Título / Giro de la Operación">
               <input className="input boxed" type="text" value={sysForm.providerTitle ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, providerTitle: e.target.value })} 
-                placeholder="Ej. Taller Maquilador de Polietileno" />
+                placeholder="Ej. Proveedor de Bolsa / Fabricante" />
             </Field>
 
-            <Field label="PIN de Seguridad para Portal Maquilador">
+            <Field label="PIN de Seguridad para Portal de Proveedor / Báscula">
               <div style={{ display: 'flex', gap: 8 }}>
                 <input className="input boxed mono" type="text" value={maquilaPin}
                   onChange={(e) => setMaquilaPin(e.target.value)}
@@ -414,7 +414,7 @@ export default function Settings() {
                 </button>
               </div>
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Contraseña de 4 dígitos para que el maquilador acceda a <code>/maquilador</code> y registre remisiones de báscula.
+                Contraseña de 4 dígitos para que el proveedor acceda a <code>/portal-maquilador</code> y registre remisiones de báscula.
               </div>
             </Field>
           </div>

@@ -1282,10 +1282,10 @@ const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: 
 
       {/* ─── VISTA 3: AJUSTADOR MASIVO DE PRECIOS ────────────────────────────── */}
       {mode === 'batch' && (
-        <Card title="⚡ Ajustador Masivo de Precios y Costos de Maquila">
+        <Card title="⚡ Ajustador Masivo de Precios de Venta y Costos de Compra">
           <div style={{ padding: 16, maxWidth: 650 }}>
             <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-              Actualiza de forma homogénea los precios de venta y costo de maquila recalculando los expedientes sin descuadres.
+              Actualiza de forma homogénea los precios de venta a Providencia y costos de compra con Andrés recalculando los expedientes sin descuadres.
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -1301,7 +1301,7 @@ const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: 
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>Costo Maquila Andrés ($/kg):</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>Costo Compra Andrés ($/kg):</label>
                 <input
                   type="number"
                   step="0.5"

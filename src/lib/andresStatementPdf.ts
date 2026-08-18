@@ -46,7 +46,7 @@ export async function generateAndresAuditStatementPdf(data: {
       <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #7c3aed; padding-bottom: 14px; margin-bottom: 18px;">
         <div>
           <div style="font-size: 20px; font-weight: 900; color: #5b21b6; letter-spacing: -0.5px;">ESTADO DE CUENTA, ENTREGAS Y LIQUIDACIÓN</div>
-          <div style="font-size: 12px; color: #475569; font-weight: 700; margin-top: 2px;">PROVEEDOR: ANDRÉS (TALLER MAQUILADOR DE POLIETILENO)</div>
+          <div style="font-size: 12px; color: #475569; font-weight: 700; margin-top: 2px;">PROVEEDOR: ANDRÉS (FABRICANTE / PROVEEDOR DE POLIETILENO)</div>
           <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
             Distribuidora Providencia · Papalotla, Tlaxcala · Fecha: <strong>${fechaHoy}</strong>
           </div>
@@ -67,7 +67,7 @@ export async function generateAndresAuditStatementPdf(data: {
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">TOTAL FABRICADO ($)</div>
+          <div style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">TOTAL ADQUIRIDO ($)</div>
           <div style="font-size: 16px; font-weight: 900; color: #5b21b6; margin-top: 2px;">${money(data.totalPurchasesCost)}</div>
         </div>
 
@@ -100,7 +100,7 @@ export async function generateAndresAuditStatementPdf(data: {
                 <th style="padding: 6px 8px; text-align: right;">Pedido (Kg)</th>
                 <th style="padding: 6px 8px; text-align: right;">Entregado en Báscula (Kg)</th>
                 <th style="padding: 6px 8px; text-align: center;">% Surtido</th>
-                <th style="padding: 6px 8px; text-align: right;">Costo Maquila</th>
+                <th style="padding: 6px 8px; text-align: right;">Costo Compra</th>
                 <th style="padding: 6px 8px; text-align: center; border-radius: 0 4px 0 0;">Estatus</th>
               </tr>
             </thead>
@@ -128,34 +128,38 @@ export async function generateAndresAuditStatementPdf(data: {
         </div>
       ` : ''}
 
-      <!-- TABLA 2: LIBRO MAYOR CRONOLÓGICO DE MOVIMIENTOS Y PAGOS -->
+      <!-- TABLA 2: LIBRO MAYOR (ENTREGAS EN BÁSCULA VS PAGOS EFECTUADOS) -->
       <div style="margin-bottom: 24px;">
         <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 6px;">
-          ⚖️ 2. Historial Cronológico de Movimientos y Abonos de Pago:
+          ⚖️ 2. Conciliación Contable y Movimientos (Libro Mayor):
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
           <thead>
-            <tr style="background: #1e293b; color: #fff; text-transform: uppercase; font-size: 9px;">
-              <th style="padding: 6px 8px; text-align: left; border-radius: 4px 0 0 0;">Fecha</th>
+            <tr style="background: #f1f5f9; text-transform: uppercase; font-size: 9px; color: #475569; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 6px 8px; text-align: left;">Fecha</th>
               <th style="padding: 6px 8px; text-align: left;">Concepto / Detalle</th>
-              <th style="padding: 6px 8px; text-align: right;">Cargo (Material Entregado)</th>
-              <th style="padding: 6px 8px; text-align: right;">Abono (Pago Entregado)</th>
-              <th style="padding: 6px 8px; text-align: right; border-radius: 0 4px 0 0;">Saldo Acumulado</th>
+              <th style="padding: 6px 8px; text-align: right;">Entrega (Kg)</th>
+              <th style="padding: 6px 8px; text-align: right;">Valor Entrega (Cargo)</th>
+              <th style="padding: 6px 8px; text-align: right;">Pago Realizado (Abono)</th>
+              <th style="padding: 6px 8px; text-align: right;">Saldo Acumulado</th>
             </tr>
           </thead>
           <tbody>
-            ${data.ledger.map((it, idx) => `
+            ${data.ledger.map((entry: any, idx) => `
               <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-                <td style="padding: 5px 8px; color: #475569; font-weight: 600;">${fmtDayAndDate(it.date)}</td>
-                <td style="padding: 5px 8px; font-weight: 600; color: #0f172a;">${it.concept}</td>
-                <td style="padding: 5px 8px; text-align: right; font-family: monospace; color: ${it.cargo > 0 ? '#b91c1c' : '#94a3b8'};">
-                  ${it.cargo > 0 ? money(it.cargo) : '-'}
+                <td style="padding: 5px 8px; color: #64748b;">${fmtDayAndDate(entry.date)}</td>
+                <td style="padding: 5px 8px; font-weight: 600; color: #1e293b;">${entry.concept}</td>
+                <td style="padding: 5px 8px; text-align: right; font-family: monospace; color: #047857;">
+                  ${entry.kilos ? `${entry.kilos.toLocaleString('es-MX')} kg` : '—'}
                 </td>
-                <td style="padding: 5px 8px; text-align: right; font-family: monospace; color: ${it.abono > 0 ? '#15803d' : '#94a3b8'};">
-                  ${it.abono > 0 ? money(it.abono) : '-'}
+                <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 700; color: ${entry.cargo > 0 ? '#dc2626' : '#94a3b8'};">
+                  ${entry.cargo > 0 ? money(entry.cargo) : '—'}
                 </td>
-                <td style="padding: 5px 8px; text-align: right; font-weight: 800; font-family: monospace; color: ${it.balance < 0 ? '#b91c1c' : '#15803d'};">
-                  ${money(it.balance)}
+                <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 700; color: ${entry.abono > 0 ? '#16a34a' : '#94a3b8'};">
+                  ${entry.abono > 0 ? money(entry.abono) : '—'}
+                </td>
+                <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: 900; color: #0f172a;">
+                  ${money(entry.balance)}
                 </td>
               </tr>
             `).join('')}
@@ -166,7 +170,7 @@ export async function generateAndresAuditStatementPdf(data: {
       <!-- RECUADRO DE FIRMAS Y CONFORMIDAD -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 30px; padding-top: 10px;">
         <div style="text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px;">
-          <div style="font-size: 11px; font-weight: 800; color: #0f172a;">ANDRÉS (TALLER MAQUILADOR)</div>
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a;">ANDRÉS (PROVEEDOR / FABRICANTE)</div>
           <div style="font-size: 10px; color: #64748b;">Firma de conformidad de entregas surtidas y pagos</div>
         </div>
 

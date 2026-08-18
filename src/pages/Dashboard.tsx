@@ -725,7 +725,7 @@ return () => unsub();
               </span>
             </div>
             <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
-              Control Integral de Ventas, Flujo de Efectivo, Cobranza y Maquila Providencia.
+              Control Integral de Compra-Venta, Flujo de Efectivo, Cobranza y Suministro a Providencia.
             </p>
           </div>
 
@@ -1212,7 +1212,7 @@ return () => unsub();
           }}
         >
           <span>🏭</span>
-          <span>Maquila & {settings.providerName || 'Andrés'}</span>
+          <span>Compras & {settings.providerName || 'Andrés'}</span>
         </button>
 
         <button
@@ -1393,13 +1393,13 @@ return () => unsub();
           </div>
         )}
 
-        {/* VISTA 4: MAQUILA & KILOS ANDRÉS */}
+        {/* VISTA 4: COMPRAS & KILOS PROVEEDOR */}
         {(viewMode === 'production' || viewMode === 'all') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
             {viewMode !== 'all' && (
               <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>🏭</span>
-                <span>Maquila, Producción y Kilos de {settings.providerName || 'Andrés'}</span>
+                <span>Compras, Suministro y Kilos de {settings.providerName || 'Andrés'}</span>
               </div>
             )}
 

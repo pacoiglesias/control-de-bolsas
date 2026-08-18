@@ -64,13 +64,13 @@ export default function Layout() {
 
     { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
     { type: 'link', to: '/cobranza', icon: '💵', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: '🏭', label: `Maquila ${providerLabel}`, roles: ['admin'] },
+    { type: 'link', to: '/compras', icon: '🛒', label: `Compras ${providerLabel}`, roles: ['admin'] },
     { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
 
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
     { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
     { type: 'link', to: '/mining', icon: '📈', label: 'Métricas & Data Mining', roles: ['admin'] },
-    { type: 'link', to: '/portal-maquilador', icon: '🏭', label: 'Portal Maquilador', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/portal-maquilador', icon: '⚖️', label: 'Portal Proveedor / Báscula', roles: ['admin', 'manager'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
     { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
   ], [clientLabel, providerLabel]);

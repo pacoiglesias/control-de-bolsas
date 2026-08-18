@@ -15,7 +15,7 @@ describe('Motor Háptico y Parametrización Universal', () => {
   it('DEFAULT_SYSTEM_SETTINGS contiene todas las llaves para parametrización universal', () => {
     expect(DEFAULT_SYSTEM_SETTINGS.companyName).toBe('BOLSAS ELEMENTAL');
     expect(DEFAULT_SYSTEM_SETTINGS.providerName).toBe('Andrés');
-    expect(DEFAULT_SYSTEM_SETTINGS.providerTitle).toBe('Taller de Maquila');
+    expect(DEFAULT_SYSTEM_SETTINGS.providerTitle).toBe('Proveedor de Bolsa / Fabricante');
     expect(DEFAULT_SYSTEM_SETTINGS.clientName).toBe('Grupo Textil Providencia SA de CV');
     expect(DEFAULT_SYSTEM_SETTINGS.clientShortName).toBe('Providencia');
     expect(DEFAULT_SYSTEM_SETTINGS.deptCodeTH).toBe('TH');

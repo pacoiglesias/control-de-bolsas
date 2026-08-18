@@ -128,7 +128,7 @@ function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[]) => v
             🏭
           </motion.div>
           <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: 0, letterSpacing: '-0.5px' }}>
-            Portal Maquilador
+            Portal de Proveedor / Báscula
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: 6, fontSize: 14 }}>
             {provName} · Control de Entregas y Saldo
@@ -496,8 +496,8 @@ export default function MaquiladorPortal() {
         <div style="font-family: 'Inter', system-ui, sans-serif; padding: 36px; color: #0f172a; max-width: 800px; margin: 0 auto;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #7c3aed; padding-bottom: 16px; margin-bottom: 24px;">
             <div>
-              <h1 style="margin: 0; font-size: 24px; color: #6d28d9; font-weight: 800;">ESTADO DE CUENTA · MAQUILA</h1>
-              <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">Taller Maquilador: ${provName} · ${clientName}</p>
+              <h1 style="margin: 0; font-size: 24px; color: #6d28d9; font-weight: 800;">ESTADO DE CUENTA · PROVEEDOR</h1>
+              <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">Proveedor: ${provName} · Suministro a ${clientName}</p>
             </div>
             <div style="text-align: right;">
               <p style="margin: 0; font-size: 12px; color: #64748b;">Fecha de Emisión:</p>
@@ -507,7 +507,7 @@ export default function MaquiladorPortal() {
 
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px;">
             <div style="background: #f8fafc; padding: 14px; border-radius: 10px; border-left: 4px solid #8b5cf6;">
-              <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Fabricado</div>
+              <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Adquirido</div>
               <div style="font-size: 20px; font-weight: 800; color: #1e1b4b; margin-top: 4px;">${money(statement.totalPurchasesCost)}</div>
             </div>
             <div style="background: #f8fafc; padding: 14px; border-radius: 10px; border-left: 4px solid #10b981;">
@@ -577,8 +577,8 @@ export default function MaquiladorPortal() {
         <div style="font-family: 'Inter', system-ui, sans-serif; padding: 28px; color: #0f172a; max-width: 600px; margin: 0 auto; border: 2px solid #7c3aed; border-radius: 12px; background: #ffffff;">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px;">
             <div>
-              <h2 style="margin: 0; color: #6d28d9; font-size: 18px; font-weight: 800;">COMPROBANTE DE ENTREGA · MAQUILA</h2>
-              <p style="margin: 2px 0 0; font-size: 12px; color: #64748b;">Taller Maquilador: ${provName} · ${clientName}</p>
+              <h2 style="margin: 0; color: #6d28d9; font-size: 18px; font-weight: 800;">COMPROBANTE DE ENTREGA EN BÁSCULA</h2>
+              <p style="margin: 2px 0 0; font-size: 12px; color: #64748b;">Proveedor: ${provName} · Suministro a ${clientName}</p>
             </div>
             <div style="text-align: right;">
               <span style="background: #f1f5f9; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: 800; color: #0f172a;">OC ${h.folio}</span>
@@ -721,7 +721,7 @@ export default function MaquiladorPortal() {
                   gap: 8,
                 }}
               >
-                <span>Portal Maquilador</span>
+                <span>Portal Proveedor / Báscula</span>
                 <span
                   style={{
                     fontSize: 10,

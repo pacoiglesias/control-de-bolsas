@@ -77,7 +77,7 @@ export function generateAndresReceiptHtml(data: AndresReceiptData): string {
           <div style="font-size: 20px; font-weight: 900; color: #065f46; letter-spacing: -0.5px;">RECIBO OFICIAL DE PAGO Y LIQUIDACIÓN</div>
           <div style="font-size: 12px; color: #475569; font-weight: 700; margin-top: 2px;">BOLSAS ELEMENTAL / DISTRIBUIDORA PROVIDENCIA</div>
           <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-            Papalotla, Tlaxcala · Control de Maquila y Fabricación de Bolsa
+            Papalotla, Tlaxcala · Proveedor y Fabricación de Bolsa
           </div>
         </div>
 
@@ -110,7 +110,7 @@ export function generateAndresReceiptHtml(data: AndresReceiptData): string {
         <tbody>
           <tr style="border-bottom: 1px solid #e2e8f0;">
             <td style="padding: 10px 12px; font-weight: 800; color: #475569; width: 180px; background: #f8fafc;">BENEFICIARIO (PROVEEDOR):</td>
-            <td style="padding: 10px 12px; font-weight: 900; color: #0f172a; font-size: 13px;">ANDRÉS (TALLER DE MAQUILA DE POLIETILENO)</td>
+            <td style="padding: 10px 12px; font-weight: 900; color: #0f172a; font-size: 13px;">ANDRÉS (PROVEEDOR / FABRICANTE DE POLIETILENO)</td>
           </tr>
           <tr style="border-bottom: 1px solid #e2e8f0;">
             <td style="padding: 10px 12px; font-weight: 800; color: #475569; background: #f8fafc;">PAGADO POR:</td>
@@ -137,7 +137,7 @@ export function generateAndresReceiptHtml(data: AndresReceiptData): string {
 
       <!-- CLÁUSULA DE CONFORMIDAD -->
       <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 36px; font-size: 11px; color: #475569; text-align: justify;">
-        <strong>Declaración de Conformidad:</strong> Recibí en efectivo / transferencia bancaria la cantidad especificada en el presente recibo a mi entera satisfacción y conformidad, aplicable a los servicios de maquila, fabricación y entrega de bolsa plástica convenidos con la empresa.
+        <strong>Declaración de Conformidad:</strong> Recibí en efectivo / transferencia bancaria la cantidad especificada en el presente recibo a mi entera satisfacción y conformidad, aplicable al suministro, adquisición y entrega de bolsa plástica convenidos con la empresa.
       </div>
 
       <!-- SECCIÓN DE FIRMAS -->
@@ -154,7 +154,7 @@ export function generateAndresReceiptHtml(data: AndresReceiptData): string {
           <div style="border-top: 1.5px solid #0f172a; padding-top: 8px; width: 85%; margin: 0 auto;">
             <div style="font-weight: 900; font-size: 12px; color: #0f172a;">RECIBIÓ DE CONFORMIDAD</div>
             <div style="font-size: 12px; font-weight: 700; color: #065f46; margin-top: 2px;">ANDRÉS</div>
-            <div style="font-size: 10px; color: #64748b; margin-top: 1px;">Prestador de Servicios de Maquila</div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 1px;">Proveedor / Fabricante de Bolsa</div>
             <div style="font-size: 9.5px; color: #94a3b8; margin-top: 4px;">Firma y Fecha de Recibido</div>
           </div>
         </div>
