@@ -1973,6 +1973,18 @@ Commit: `fix(orders): null-safe summary mapping for robust multi-tab rendering`
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Determinismo de Datos), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/SeguimientoPedidosTable.tsx`
+Problema: En la tabla de seguimiento operativo del ciclo de vida de pedidos, el ordenamiento de filas invocaba `a.fecha?.toMillis?.()` directamente, arriesgando fallas ante fechas parseadas como Date o string ISO, además de no proteger el array `orders` ante estados de carga transitorios.
+Impacto: Excepciones potenciales de renderizado o desorden cronológico en el tablero de seguimiento operativo del Dashboard.
+Solución: Integración del parser tolerante `toDate(a.fecha)?.getTime() || 0` e inicialización segura del pipeline con `(orders || [])`.
+Riesgo: 🟢 Bajo — Componente visual de Dashboard blindado.
+Commit: `fix(dashboard-seguimiento): universal toDate sorting and null-safe rows array`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Estabilidad Global), OKR 3 (Resiliencia y Null-Safety).
+
 
 
 

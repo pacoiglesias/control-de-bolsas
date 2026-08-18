@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Card, Empty } from '../ui';
-import { money, fmtDate, nombreClienteVisible } from '../../lib/format';
+import { money, fmtDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { getOrderSummary, extractCr, inferDepartment } from '../../lib/finance';
 import { KilosProgressBar } from '../Orders/KilosProgressBar';
 import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
@@ -64,7 +64,7 @@ export function SeguimientoPedidosTable({
   };
 
   const allRows = useMemo(() => {
-    return orders
+    return (orders || [])
       .filter(o => o && (!o.isClosedShort || (o.deliveries && o.deliveries.length > 0)))
       .map((o) => {
         const s = getOrderSummary(o);
@@ -103,8 +103,8 @@ export function SeguimientoPedidosTable({
         };
       })
       .sort((a, b) => {
-        const ta = a.fecha?.toMillis?.() ?? 0;
-        const tb = b.fecha?.toMillis?.() ?? 0;
+        const ta = toDate(a.fecha)?.getTime() || 0;
+        const tb = toDate(b.fecha)?.getTime() || 0;
         return tb - ta;
       });
   }, [orders]);
