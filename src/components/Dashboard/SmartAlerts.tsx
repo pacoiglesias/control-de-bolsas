@@ -39,22 +39,31 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
     // factura ya facturada cuyo margen real (financials.tradeMargin /
     // financials.saleTotal, calculado por computeFinancials en finance.ts)
     // esté muy por debajo de ese esperado, o sea negativo (pérdida).
-    const expectedMarginRate = config.salePricePerKg > 0
-      ? (config.salePricePerKg - config.costPricePerKg) / config.salePricePerKg
-      : 0;
+    const salePrice = config?.salePricePerKg || 43;
+    const costPrice = config?.costPricePerKg || 42;
+    const expectedMarginRate = salePrice > 0 ? (salePrice - costPrice) / salePrice : 0;
     let marginAnomalyCount = 0;
     let worstMarginFolio = '';
     let worstMarginRate = Infinity;
 
     for (const o of orders) {
-      if (!o.invoices) continue;
+      if (!o || !o.invoices) continue;
       for (const inv of o.invoices) {
-        if (inv.creditCycle.status !== 'paid' && inv.creditCycle.dueDate) {
-          const dueMs = inv.creditCycle.dueDate.toMillis?.() || 0;
-          if (dueMs < now) {
+        if (!inv) continue;
+        if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.dueDate) {
+          const rawDue = inv.creditCycle.dueDate as any;
+          let dueMs = 0;
+          if (rawDue) {
+            if (typeof rawDue.toMillis === 'function') dueMs = rawDue.toMillis();
+            else if (typeof rawDue.toDate === 'function') dueMs = rawDue.toDate().getTime();
+            else if (rawDue instanceof Date) dueMs = rawDue.getTime();
+            else { const d = new Date(rawDue); if (!isNaN(d.getTime())) dueMs = d.getTime(); }
+          }
+
+          if (dueMs > 0 && dueMs < now) {
             overdueCount++;
             overdueTotal += (inv.financials?.invoiceTotal || 0);
-          } else if (dueMs <= now + threeDaysMs) {
+          } else if (dueMs > 0 && dueMs <= now + threeDaysMs) {
             nearDueCount++;
             nearDueTotal += (inv.financials?.invoiceTotal || 0);
           }

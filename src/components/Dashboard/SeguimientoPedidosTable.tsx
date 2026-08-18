@@ -65,7 +65,7 @@ export function SeguimientoPedidosTable({
 
   const allRows = useMemo(() => {
     return orders
-      .filter(o => !o.isClosedShort || (o.deliveries && o.deliveries.length > 0))
+      .filter(o => o && (!o.isClosedShort || (o.deliveries && o.deliveries.length > 0)))
       .map((o) => {
         const s = getOrderSummary(o);
         const facturasList = (o.invoices || [])

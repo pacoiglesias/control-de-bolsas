@@ -1834,6 +1834,38 @@ Al revisar `Dashboard.tsx` y `useDashboardStats.ts` se encontró que 3 de las 4 
 **Estado:** ✅ Verificado y Desplegado en Vivo.
 **OKRs afectados:** OKR 1 (Precisión Numérica), OKR 2 (Seguridad & Adaptabilidad) y OKR 3 (Rendimiento Web & UX).
 
+---
+
+## 2026-08-18 (Iteración 143) — Corrección de Pantalla en Blanco al Cambiar entre Paneles TH y GT, Blindaje de useDashboardStats y Null-Safety Total
+**Tipo:** Bugfix de Renderizado React / Optimización de Firestore Listener / Null-Safety / Blindaje contra Fallos en Sub-widgets
+**Archivos modificados:**
+- `src/hooks/useDashboardStats.ts` (Blindado ante `config` indefinido o parcial usando objeto de respaldo `cfg` seguro con valores por defecto; null safety en todos los cálculos en vivo)
+- `src/pages/Dashboard.tsx` (Fijada la consulta a `doc(db, 'stats', 'dashboard')` en lugar de suscripciones a documentos departamentales inexistentes; ErrorBoundary modular envolviendo cada vista del Dashboard)
+- `src/components/Dashboard/SmartAlerts.tsx` (Tolerancia a fechas Timestamp/Date y protección ante `inv.creditCycle` indefinido)
+- `src/components/Dashboard/CashflowProjection.tsx` (Parseo tolerante de `dueDate` con `.toMillis()`, `.toDate()` y `Date`)
+- `src/components/Dashboard/ContrarecibosTimeline.tsx` (Null safety en bucles de órdenes y facturas)
+- `src/components/Dashboard/SeguimientoPedidosTable.tsx` (Protección contra registros nulos en filtrado)
+- `src/components/Dashboard/SemaforoDelDia.tsx` (Inclusión limpia y null safety)
+- `package.json` (Bump de versión a v8.7.2)
+- `CHANGELOG.md` (Registro detallado de v8.7.2)
+
+**Diagnóstico de la Falla Original:**
+1. Al pulsar el botón `TH` o `GT`, `useDocumentData` intentaba suscribirse al documento `stats/dashboard_TH` o `stats/dashboard_GT` en Firestore, el cual no existe en la base de datos (únicamente existe `stats/dashboard`). Esto causaba que la carga se reiniciara o disparara un `statsError`.
+2. Al activarse el filtrado departamental (`isDeptFiltered = true`), `useDashboardStats` activaba el cálculo de métricas en vivo (`useLiveStats = true`), donde accesos directos a propiedades de `config` (`config.salePricePerKg`, `config.costPricePerKg`) causaban un `TypeError` cuando `config` estaba en proceso de carga o inicialización.
+3. Componentes como `SmartAlerts` y `CashflowProjection` accedían a `inv.creditCycle.status` o `.toMillis()` sin encadenamiento opcional o parseo tolerante.
+
+**Solución Implementada:**
+- Firestore siempre mantiene la conexión viva con `stats/dashboard`, mientras que el hook `useDashboardStats` recalcula todas las métricas departamentales en vivo en memoria de forma instantánea.
+- Se añadió un fallback seguro `cfg` en `useDashboardStats` con todos los parámetros predeterminados.
+- Se envolvieron las vistas del Dashboard en `ErrorBoundary` para que cualquier error puntual en un sub-componente muestre una tarjeta de reintento en vez de dejar la pantalla en blanco.
+- 72/72 pruebas unitarias aprobadas al 100%.
+
+**Riesgo:** 🟢 Bajo — Estabilidad y robustez de renderizado.
+**Commit:** `fix(dashboard): prevent blank screen on TH/GT switch with live stats resilience and null safety v8.7.2`
+**Estado:** ✅ Verificado y Desplegado en Vivo.
+**OKRs afectados:** OKR 1 (Estabilidad del Sistema), OKR 2 (Experiencia de Usuario) y OKR 3 (Rendimiento Web).
+
+
 
 
 

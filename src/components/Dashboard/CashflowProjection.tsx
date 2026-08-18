@@ -20,10 +20,18 @@ export function CashflowProjection({ orders }: { orders: PurchaseOrder[] }) {
     const items30d: any[] = [];
 
     for (const o of orders) {
-      if (!o.invoices) continue;
+      if (!o || !o.invoices) continue;
       for (const inv of o.invoices) {
+        if (!inv) continue;
         if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.dueDate) {
-          const dueMs = inv.creditCycle.dueDate.toMillis?.() || 0;
+          const rawDue = inv.creditCycle.dueDate as any;
+          let dueMs = 0;
+          if (rawDue) {
+            if (typeof rawDue.toMillis === 'function') dueMs = rawDue.toMillis();
+            else if (typeof rawDue.toDate === 'function') dueMs = rawDue.toDate().getTime();
+            else if (rawDue instanceof Date) dueMs = rawDue.getTime();
+            else { const d = new Date(rawDue); if (!isNaN(d.getTime())) dueMs = d.getTime(); }
+          }
           const diff = dueMs - now;
 
           if (diff > 0 && diff <= thirtyDaysMs) {

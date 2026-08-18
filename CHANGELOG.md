@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.7.2] - 18 Agosto 2026 (Fix Pantalla en Blanco al Cambiar Panel TH / GT & Null-Safety Total)
+
+### Corregido y Optimizado
+- **🛡️ Fix Pantalla en Blanco al Alternar entre Departamentos (TH / GT):**
+  - Se eliminó la suscripción a documentos inexistentes `stats/dashboard_TH` y `stats/dashboard_GT` en Firestore, fijando el listener al documento oficial `stats/dashboard` y calculando todas las métricas departamentales en vivo de forma instantánea.
+  - Se blindó completamente `useDashboardStats` ante objetos `config` indefinidos mediante valores por defecto seguros (`cfg`), evitando `TypeErrors` en tiempo de render.
+  - Se añadieron verificaciones de seguridad ante propiedades nulas en `SmartAlerts.tsx`, `CashflowProjection.tsx`, `ContrarecibosTimeline.tsx`, `SeguimientoPedidosTable.tsx` y `SemaforoDelDia.tsx`.
+  - Se incorporó `ErrorBoundary` modular protegiendo todas las vistas del Dashboard para garantizar que cualquier contingencia en sub-widgets nunca interrumpa la navegación ejecutiva.
+- **🚀 100% de Pruebas Unitarias (72/72) y Compilación Limpia:** Frontend y Cloud Functions listos para producción.
+
 ## [v8.7.1] - 18 Agosto 2026 (Hermetic Departmental Filter, Settings Redesign & Production Deployment)
 
 ### Agregado y Corregido

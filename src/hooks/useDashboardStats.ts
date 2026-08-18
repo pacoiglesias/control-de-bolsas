@@ -13,6 +13,16 @@ export function useDashboardStats(
   deptFilter?: string
 ) {
   return useMemo(() => {
+    const cfg: FinancialConfig = {
+      salePricePerKg: config?.salePricePerKg || 43,
+      costPricePerKg: config?.costPricePerKg || 42,
+      commissionRate: typeof config?.commissionRate === 'number' ? config.commissionRate : 0.08,
+      commissionBase: config?.commissionBase || 'subtotal',
+      ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
+      creditDays: config?.creditDays || 30,
+      historicalDebtAndres: typeof config?.historicalDebtAndres === 'number' ? config.historicalDebtAndres : -102670.27,
+    };
+
     const st = statsDoc || {};
     const kpis = st.kpis || { totalKilos: 0, totalVendido: 0, netoTotal: 0, margenTotal: 0, gananciaRealizadaTotal: 0, porCobrar: 0, porCobrarSinCR: 0, porCobrarConCR: 0, vencido: 0, cobrado: 0, netoCobrado: 0, porRecibir: 0, montoPendienteFacturar: 0 };
     const counters = st.counters || { pendingOrders: 0, overdueOrders: 0, manualReview: 0, totalOrders: 0, pedidoOrders: 0, paymentDaysCount: 0 };
@@ -39,7 +49,7 @@ export function useDashboardStats(
     const liveMesesObj: Record<string, { venta: number; gananciaRealizada: number; margen: number }> = {};
 
     deptOrders.forEach(o => {
-      if (o.isClosedShort) return;
+      if (!o || o.isClosedShort) return;
       const isPedido = (o as any).status === 'pedido' || (!o.invoices?.length && !o.deliveries?.length);
       if (isPedido) livePedidoOrdersCount++;
 
@@ -48,10 +58,11 @@ export function useDashboardStats(
       let hasReview = false;
 
       (o.invoices || []).forEach(inv => {
+        if (!inv) return;
         liveFacturasEmitidasCount++;
-        const kilos = inv.kilos || 0;
+        const kilos = Number(inv.kilos) || 0;
         liveTotalKilos += kilos;
-        const total = inv.financials?.invoiceTotal ?? (kilos * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+        const total = inv.financials?.invoiceTotal ?? (kilos * cfg.salePricePerKg * (1 + cfg.ivaRate));
         liveTotalVendido += total;
 
         const stStatus = inv.creditCycle?.status;
@@ -61,8 +72,8 @@ export function useDashboardStats(
 
         if (stStatus === 'paid' || stStatus === 'collected') {
           liveCobrado += total;
-          const comm = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(total, config);
-          const cost = kilos * (config.costPricePerKg || 42);
+          const comm = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(total, cfg);
+          const cost = kilos * cfg.costPricePerKg;
           liveNetoCobrado += (total - comm);
           const profit = total - cost - comm;
           liveGananciaRealizadaCalc += Math.max(0, profit);
@@ -90,8 +101,8 @@ export function useDashboardStats(
             const mKey = dateObj.toISOString().slice(0, 7);
             if (!liveMesesObj[mKey]) liveMesesObj[mKey] = { venta: 0, gananciaRealizada: 0, margen: 0 };
             liveMesesObj[mKey].venta += total;
-            const cost = kilos * (config.costPricePerKg || 42);
-            const comm = computeCommissionFromInvoiceTotal(total, config);
+            const cost = kilos * cfg.costPricePerKg;
+            const comm = computeCommissionFromInvoiceTotal(total, cfg);
             liveMesesObj[mKey].margen += Math.max(0, total - cost);
             if (stStatus === 'paid' || stStatus === 'collected') {
               liveMesesObj[mKey].gananciaRealizada += Math.max(0, total - cost - comm);
@@ -128,7 +139,7 @@ export function useDashboardStats(
     const effectivePaymentDaysSum = useLiveStats ? livePaymentDaysSum : (kpis.paymentDaysSum || 0);
     const avgDSO = effectivePaymentDaysCount > 0 ? effectivePaymentDaysSum / effectivePaymentDaysCount : 0;
 
-    const alerts = extractDashboardAlerts(activeOrders, avgDSO, config);
+    const alerts = extractDashboardAlerts(activeOrders, avgDSO, cfg);
     const vencidas = alerts.vencidas;
     const proximas = alerts.proximas;
     const porRecibir = alerts.porRecibir;
@@ -141,7 +152,7 @@ export function useDashboardStats(
     // Respaldo en vivo de margen total
     let liveMargenTotal = useLiveStats ? 0 : (kpis.margenTotal || 0);
     if (useLiveStats || kpis.margenTotal === 0) {
-      liveMargenTotal = calculateLiveMargenTotal(deptOrders, config.costPricePerKg);
+      liveMargenTotal = calculateLiveMargenTotal(deptOrders, cfg.costPricePerKg);
     }
 
     // Cálculo en vivo directo de Por Cobrar y Vencidos desde las órdenes reales
@@ -152,11 +163,12 @@ export function useDashboardStats(
     const now = Date.now();
 
     activeOrders.forEach(o => {
-      if (o.isClosedShort) return;
+      if (!o || o.isClosedShort) return;
       (o.invoices || []).forEach(inv => {
+        if (!inv) return;
         const stStatus = inv.creditCycle?.status;
         if (stStatus === 'pending' || stStatus === 'overdue' || stStatus === 'facturado') {
-          const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+          const amt = inv.financials?.invoiceTotal ?? ((Number(inv.kilos) || 0) * cfg.salePricePerKg * (1 + cfg.ivaRate));
           livePorCobrar += amt;
           const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
           if (cr) {
@@ -199,10 +211,10 @@ export function useDashboardStats(
       totalKilosInvoiced += oInv;
     });
     const kilosPendientesFacturar = Math.max(0, totalKilosDelivered - totalKilosInvoiced);
-    const valorPendienteFacturar = kilosPendientesFacturar * (config.costPricePerKg || 42);
+    const valorPendienteFacturar = kilosPendientesFacturar * cfg.costPricePerKg;
 
     const deudaTotalProvidencia = (effectivePorCobrar || 0) + (kpis.montoPendienteFacturar || 0);
-    const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, config);
+    const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, cfg);
     const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
 
     const allMeses = Object.keys(mesesObjEffective).sort();
@@ -263,9 +275,9 @@ export function useDashboardStats(
     let totalPurchasesCost = 0;
     (purchases || []).forEach(p => {
       if (normalizarTexto(p.provider) !== 'andres') return;
-      totalPurchasesCost += (p.receivedKilos ?? 0) * (p.pricePerKg || config.costPricePerKg || 42);
+      totalPurchasesCost += (p.receivedKilos ?? 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
-    const deudaHistorica = config.historicalDebtAndres || 0;
+    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : -102670.27;
     const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica; // Negativo = Deuda
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));

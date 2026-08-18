@@ -43,8 +43,9 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
     const items: TimelineItem[] = [];
 
     orders.forEach((o) => {
-      if (o.isClosedShort) return;
+      if (!o || o.isClosedShort) return;
       (o.invoices || []).forEach((inv) => {
+        if (!inv) return;
         const cr = extractCr(inv, o);
         const st = inv.creditCycle?.status;
         

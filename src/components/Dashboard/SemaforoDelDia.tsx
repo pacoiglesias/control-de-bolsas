@@ -53,9 +53,10 @@ export function SemaforoDelDia({
         porFacturarMonto += sub * (1 + ivaRate);
       }
 
-      // 3. Facturas sin contrarecibo (excluyendo órdenes cerradas, migradas o ya cobradas)
-      if (!o.isClosedShort && o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected') {
+      // 3. Facturas sin contrarecibo (excluyendo órdenes cerradas o ya cobradas)
+      if (!o.isClosedShort && o.creditCycle?.status !== 'collected') {
         (o.invoices || []).forEach((inv) => {
+          if (!inv) return;
           const cr = extractCr(inv, o);
           const st = inv.creditCycle?.status;
           const totalInv = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;

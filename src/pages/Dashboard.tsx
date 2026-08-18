@@ -42,6 +42,7 @@ import { MagicPasteModal } from '../components/MagicPasteModal';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
 import { getOrderSummary, filterOrderByDepartment, inferDepartment } from '../lib/finance';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 
@@ -158,7 +159,7 @@ export default function Dashboard() {
     }
   }
 
-  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', deptFilter === 'ALL' ? 'dashboard' : `dashboard_${deptFilter}`));
+  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', 'dashboard'));
   
   const loading = loadingStats || loadingGlobalOrders || loadingExp;
   const error = statsError?.message;
@@ -1268,162 +1269,163 @@ return () => unsub();
       </div>
 
       {/* ─── 4. CONTENIDO MODULAR SEGÚN EL ESPACIO DE TRABAJO SELECCIONADO ──── */}
+      <ErrorBoundary>
+        {/* VISTA 1: RESUMEN EJECUTIVO */}
+        {(viewMode === 'executive' || viewMode === 'all') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* A. Radar Proactivo + Dock de Comandos Rápidos */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
+              {/* Lado Izquierdo: Asistente Proactivo */}
+              <div style={{ flex: 1.5 }}>
+                <ProactiveBriefingCard
+                  orders={seguimientoOrders}
+                  config={config as any}
+                  onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+                  onOpenQuickCollection={() => setShowQuickCollection(true)}
+                  onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+                />
+              </div>
 
-      {/* VISTA 1: RESUMEN EJECUTIVO */}
-      {(viewMode === 'executive' || viewMode === 'all') && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* A. Radar Proactivo + Dock de Comandos Rápidos */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
-            {/* Lado Izquierdo: Asistente Proactivo */}
-            <div style={{ flex: 1.5 }}>
-              <ProactiveBriefingCard
+              {/* Lado Derecho: Acciones Rápidas Ejecutivas */}
+              <div style={{ flex: 1 }}>
+                <QuickActionsBar
+                  role={role}
+                  onNewOrder={() => nav('/ordenes?nueva=1')}
+                  onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+                  onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+                  onQuickInvoice={() => setShowQuickInvoice(true)}
+                  onQuickCollection={() => setShowQuickCollection(true)}
+                  onQuickPay={() => setShowQuickPay(true)}
+                  onOpenMagicPaste={() => setShowMagicPaste(true)}
+                  onOpenCorteMensual={() => setShowCorteMensual(true)}
+                  onRecalc={() => void recalcStats()}
+                  recalcBusy={recalcBusy}
+                />
+              </div>
+            </div>
+
+            {/* B. Pipeline Financiero de 5 Estaciones */}
+            <MoneyFlowPipeline
+              orders={seguimientoOrders}
+              expenses={expenses}
+              config={config}
+              nav={nav}
+              selectedStage={selectedPipelineStage}
+              onSelectStage={setSelectedPipelineStage}
+            />
+
+            {/* C. Tabla de Órdenes Vinculada al Pipeline */}
+            <SeguimientoPedidosTable
+              orders={seguimientoOrders}
+              filterStage={selectedPipelineStage}
+              onFilterStageChange={setSelectedPipelineStage}
+              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+              onQuickInvoice={() => setShowQuickInvoice(true)}
+              onQuickCollection={() => setShowQuickCollection(true)}
+            />
+
+            {/* D. Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
+            {role === 'admin' && (
+              <ExecutiveFinancialCard
                 orders={seguimientoOrders}
-                config={config as any}
+                config={config}
+                saldoCaja={saldoCaja}
+              />
+            )}
+          </div>
+        )}
+
+        {/* VISTA 2: EXPEDIENTES & OCS */}
+        {viewMode === 'orders' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>📁</span>
+              <span>Expedientes, Órdenes de Compra y Entregas en Báscula</span>
+            </div>
+
+            <SeguimientoPedidosTable
+              orders={seguimientoOrders}
+              filterStage={selectedPipelineStage}
+              onFilterStageChange={setSelectedPipelineStage}
+              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+              onQuickInvoice={() => setShowQuickInvoice(true)}
+              onQuickCollection={() => setShowQuickCollection(true)}
+            />
+          </div>
+        )}
+
+        {/* VISTA 3: CENTRO DE COBRANZA */}
+        {(viewMode === 'collection' || viewMode === 'all') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
+            {viewMode !== 'all' && (
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📆</span>
+                <span>Centro de Cobranza & Contrarecibos Providencia</span>
+              </div>
+            )}
+
+            <WeeklyCollectionSummary
+              orders={seguimientoOrders}
+              onOpenQuickCollection={() => setShowQuickCollection(true)}
+            />
+
+            <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
+
+            {renderPorRecibirPanel()}
+
+            <FacturasSinCRPanel
+              orders={seguimientoOrders}
+              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+              <SemaforoDelDia
+                orders={seguimientoOrders}
+                purchases={purchases}
+                config={config}
+                nav={nav}
                 onOpenQuickInvoice={() => setShowQuickInvoice(true)}
                 onOpenQuickCollection={() => setShowQuickCollection(true)}
-                onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
               />
-            </div>
-
-            {/* Lado Derecho: Acciones Rápidas Ejecutivas */}
-            <div style={{ flex: 1 }}>
-              <QuickActionsBar
-                role={role}
-                onNewOrder={() => nav('/ordenes?nueva=1')}
-                onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-                onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-                onQuickInvoice={() => setShowQuickInvoice(true)}
-                onQuickCollection={() => setShowQuickCollection(true)}
-                onQuickPay={() => setShowQuickPay(true)}
-                onOpenMagicPaste={() => setShowMagicPaste(true)}
-                onOpenCorteMensual={() => setShowCorteMensual(true)}
-                onRecalc={() => void recalcStats()}
-                recalcBusy={recalcBusy}
-              />
+              <SmartAlerts orders={activeOrders} />
+              <CashflowProjection orders={activeOrders} />
             </div>
           </div>
+        )}
 
-          {/* B. Pipeline Financiero de 5 Estaciones */}
-          <MoneyFlowPipeline
-            orders={seguimientoOrders}
-            expenses={expenses}
-            config={config}
-            nav={nav}
-            selectedStage={selectedPipelineStage}
-            onSelectStage={setSelectedPipelineStage}
-          />
+        {/* VISTA 4: MAQUILA & KILOS ANDRÉS */}
+        {(viewMode === 'production' || viewMode === 'all') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
+            {viewMode !== 'all' && (
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🏭</span>
+                <span>Maquila, Producción y Kilos de {settings.providerName || 'Andrés'}</span>
+              </div>
+            )}
 
-          {/* C. Tabla de Órdenes Vinculada al Pipeline */}
-          <SeguimientoPedidosTable
-            orders={seguimientoOrders}
-            filterStage={selectedPipelineStage}
-            onFilterStageChange={setSelectedPipelineStage}
-            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-            onQuickInvoice={() => setShowQuickInvoice(true)}
-            onQuickCollection={() => setShowQuickCollection(true)}
-          />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+              <KilosSpeedometer orders={activeOrders} />
+              <BandejaMaquilaWidget />
+            </div>
+          </div>
+        )}
 
-          {/* D. Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
-          {role === 'admin' && (
+        {/* VISTA 5: CORTE FINANCIERO & P&L (50/50) */}
+        {viewMode === 'pnl' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>⚖️</span>
+              <span>Corte Financiero Ejecutivo & Reparto de Utilidades 50/50</span>
+            </div>
+
             <ExecutiveFinancialCard
               orders={seguimientoOrders}
               config={config}
               saldoCaja={saldoCaja}
             />
-          )}
-        </div>
-      )}
-
-      {/* VISTA 2: EXPEDIENTES & OCS */}
-      {viewMode === 'orders' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>📁</span>
-            <span>Expedientes, Órdenes de Compra y Entregas en Báscula</span>
           </div>
-
-          <SeguimientoPedidosTable
-            orders={seguimientoOrders}
-            filterStage={selectedPipelineStage}
-            onFilterStageChange={setSelectedPipelineStage}
-            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-            onQuickInvoice={() => setShowQuickInvoice(true)}
-            onQuickCollection={() => setShowQuickCollection(true)}
-          />
-        </div>
-      )}
-
-      {/* VISTA 3: CENTRO DE COBRANZA */}
-      {(viewMode === 'collection' || viewMode === 'all') && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
-          {viewMode !== 'all' && (
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>📆</span>
-              <span>Centro de Cobranza & Contrarecibos Providencia</span>
-            </div>
-          )}
-
-          <WeeklyCollectionSummary
-            orders={seguimientoOrders}
-            onOpenQuickCollection={() => setShowQuickCollection(true)}
-          />
-
-          <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
-
-          {renderPorRecibirPanel()}
-
-          <FacturasSinCRPanel
-            orders={seguimientoOrders}
-            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-          />
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-            <SemaforoDelDia
-              orders={seguimientoOrders}
-              purchases={purchases}
-              config={config}
-              nav={nav}
-              onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-              onOpenQuickCollection={() => setShowQuickCollection(true)}
-            />
-            <SmartAlerts orders={activeOrders} />
-            <CashflowProjection orders={activeOrders} />
-          </div>
-        </div>
-      )}
-
-      {/* VISTA 4: MAQUILA & KILOS ANDRÉS */}
-      {(viewMode === 'production' || viewMode === 'all') && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
-          {viewMode !== 'all' && (
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>🏭</span>
-              <span>Maquila, Producción y Kilos de {settings.providerName || 'Andrés'}</span>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-            <KilosSpeedometer orders={activeOrders} />
-            <BandejaMaquilaWidget />
-          </div>
-        </div>
-      )}
-
-      {/* VISTA 5: CORTE FINANCIERO & P&L (50/50) */}
-      {viewMode === 'pnl' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 900, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>⚖️</span>
-            <span>Corte Financiero Ejecutivo & Reparto de Utilidades 50/50</span>
-          </div>
-
-          <ExecutiveFinancialCard
-            orders={seguimientoOrders}
-            config={config}
-            saldoCaja={saldoCaja}
-          />
-        </div>
-      )}
+        )}
+      </ErrorBoundary>
 
       {/* ─── 4. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ──────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 32, marginBottom: 32 }}>
