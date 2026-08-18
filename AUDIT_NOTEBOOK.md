@@ -1913,6 +1913,18 @@ Commit: `fix(command-menu): null-safe search and deep invoice contrarecibo looku
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 3 (Resiliencia y Null-Safety), OKR 4 (UX de Búsqueda).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/CurrencyInput.tsx`
+Problema: La detección de foco dependía de `document.activeElement?.id !== props.id`. Al utilizarse sin un atributo `id` explícito en los componentes consumidores, la condición evaluaba a verdadero continuamente, provocando que el valor se formateara a moneda forzosamente a mitad de la escritura, interrumpiendo el cursor y la entrada numérica.
+Impacto: Dificultad para editar precios unitarios y costos por kilo en campos numéricos de configuración y captura.
+Solución: Control de foco mediante estado React local (`isFocused`), memoización estática de formateadores `Intl.NumberFormat`, sanitización de múltiples puntos decimales accidentales y propagación de `onFocus`/`onBlur`.
+Riesgo: 🟢 Bajo — Componente de entrada numérica autocontenido.
+Commit: `fix(ui): stable focus handling, decimal sanitization and intl memoization in CurrencyInput`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Numérica en Inputs), OKR 4 (UX de Captura y Edición).
+
 
 
 
