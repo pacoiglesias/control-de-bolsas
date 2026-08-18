@@ -1877,6 +1877,18 @@ Commit: `perf(format): memoize Intl.NumberFormat instances to accelerate table r
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` con 0 errores.
 OKRs afectados: OKR 2 (Rendimiento Web & Eficiencia), OKR 4 (UX & Fluidez de Renderizado).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/ui/KanbanScrollWrapper.tsx`
+Problema: Los botones de navegación horizontal del tablero Kanban medían 32x32px (por debajo del estándar WCAG AA de 44x44px para dispositivos táctiles), no detectaban si el usuario ya estaba en el inicio o fin del scroll (permanecían siempre activos sin feedback de límite) y carecían de respuesta táctil háptica.
+Impacto: Dificultad de pulsación en pantallas táctiles y falta de certeza visual sobre el alcance de las columnas.
+Solución: Ampliación de área táctil a 44x44px, implementación de observadores de desplazamiento con detección en tiempo real de bordes (`canScrollLeft`, `canScrollRight`), deshabilitado con opacidad y cursor semántico en límites, aceleración táctil (`-webkit-overflow-scrolling: touch`) e integración de respuesta auditiva/háptica (`playSoftClick`, `triggerHaptic`).
+Riesgo: 🟢 Bajo — Componente visual desacoplado.
+Commit: `feat(ui): wcag-aa 44px touch targets and edge-aware scroll in KanbanScrollWrapper`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 4 (UX, Accesibilidad WCAG AA y Microinteracciones).
+
 
 
 
