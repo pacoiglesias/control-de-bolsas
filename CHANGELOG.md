@@ -1,5 +1,17 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.7.3] - 18 Agosto 2026 (Staff Engineer Quality Sprint: Rendimiento Intl, Null-Safety Total, WCAG-AA & Determinismo Financiero)
+
+### Optimizado y Blindado
+- **⚡ Memoización Estática de `Intl.NumberFormat` (`format.ts`):** Formateadores pre-instanciados para `money`, `kilos`, `compactMoney` y `percent`, reduciendo la recolección de basura y acelerando el renderizado de listas de expedientes y facturas.
+- **♿ Accesibilidad WCAG-AA y Scroll Táctil (`KanbanScrollWrapper.tsx`):** Botones con área táctil ampliada a 44x44px, detección en tiempo real de bordes de desplazamiento (`canScrollLeft`, `canScrollRight`), respuesta háptica (`playSoftClick`) y aceleración nativa.
+- **🛡️ Ordenamiento Cronológico Blindado (`OrdersContext.tsx`):** Uso de `toDate()` universal con fallback determinista a `createdAt` para soportar cualquier estructura de datos histórica sin fallas.
+- **🔍 Búsqueda Robusta y Exhaustiva (`CommandMenu.tsx`):** Null-safety completo en filtrado de órdenes y productos con inspección profunda en números de contrarecibo a nivel factura.
+- **⌨️ Captura Numérica y Foco Estable (`CurrencyInput.tsx`):** Estado de foco controlado en React (`isFocused`), sanitización contra puntos decimales duplicados y prevención de saltos de cursor.
+- **📆 Resiliencia en Fechas y Alertas (`DeliveryDueBanner.tsx` y `SmartAlerts.tsx`):** Unificación del parseo de fechas con `toDate()` y acumulación de importes vencidos con `round2()`.
+- **💰 Blindaje de Tesorería, Compras y Pipeline (`CajaChica.tsx`, `OrderModals.tsx`, `MoneyFlowPipeline.tsx`, `WeeklyCollectionSummary.tsx`, `FacturasSinCRPanel.tsx`):** Guards contra división por cero, sumatorias deterministas con `round2()` y null-safety absoluto.
+- **🧪 100% de Tests Aprobados (72/72) y Compilación TypeScript Limpia:** Cero errores de tipado o regresiones.
+
 ## [v8.7.2] - 18 Agosto 2026 (Fix Pantalla en Blanco al Cambiar Panel TH / GT & Null-Safety Total)
 
 ### Corregido y Optimizado
