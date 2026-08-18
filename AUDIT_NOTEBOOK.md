@@ -1937,6 +1937,18 @@ Commit: `fix(delivery-banner): resilient date parsing with universal toDate`
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Estabilidad Global), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Compras/OrderModals.tsx`
+Problema: En el modal de anticipos/órdenes de compra (`OrderModal`), el cálculo de kilos esperados dividía directamente `monto / costPricePerKg` sin validar si `costPricePerKg` era cero o indefinido, pudiendo persistir `Infinity` o `NaN` en Firestore. Además, el autor del registro de auditoría (`logAction`) estaba fijado como texto estático `'Sistema'` en lugar del usuario autenticado.
+Impacto: Corrupción potencial de datos numéricos en órdenes de proveedor y pérdida de trazabilidad en bitácoras de auditoría.
+Solución: Validación estricta con fallback seguro `safeCostPrice` ($42.00/kg), redondeo determinista con `round2(monto / safeCostPrice)`, asignación por defecto del proveedor (`provider || 'Andrés'`) y registro de `user?.email` en `logAction`.
+Riesgo: 🟢 Bajo — Lógica de compra-venta calibrada y validada.
+Commit: `fix(compras-modals): safe division guard, round2 and user audit log in OrderModal`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Numérica Determinista), OKR 3 (Seguridad & Trazabilidad de Auditoría).
+
 
 
 
