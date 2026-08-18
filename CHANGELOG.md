@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.7.1] - 18 Agosto 2026 (Hermetic Departmental Filter, Settings Redesign & Production Deployment)
+
+### Agregado y Corregido
+- **🎯 Calibración Determinista de Filtro TH / GT:** Resolución de la colisión de nombres donde la razón social corporativa `"Grupo Textil Providencia S.A. de C.V."` reclasificaba facturas de Textil Hogar a GT. Prioridad estricta para prefijos de contrarecibos (`TH-912`, `GT-742`, etc.), folios y códigos de área.
+- **🏬 Rediseño Semántico del Centro de Control (`/centro-control`):** Estructura en 3 tarjetas ejecutivas: (1) Identidad de la Empresa, (2) Cliente Principal con Plantas TH (Textil Hogar / Nava) y GT (Grupo Textil / Evelia) 100% configurables, y (3) Taller Fabricante (Andrés) con PIN seguro de báscula.
+- **💾 Barra Flotante de Guardado Rápido:** Notificación inteligente inferior al detectar cambios en configuración para guardar todo en 1 clic.
+- **📊 Conciliación Oficial de Cartera Cuadrada:**
+  - 10 Contrarecibos Oficiales: **$1,019,956.34** (TH: $584,400.42 / GT: $435,555.92)
+  - Factura en Revisión 6167: **$81,780.00**
+  - Total Deuda Providencia: **$1,101,736.34**
+  - Comisión Contable (8%): **$75,981.82**
+  - Flujo Neto a Recibir: **$1,025,754.52**
+- **🚀 Despliegue en Vivo:** Frontend PWA y Cloud Functions compilados y desplegados al 100% en `https://bolsas.cobertores.com/`.
+
 ## [v8.7.0] - 18 Agosto 2026 (Luxury Suite, Haptic Engine & Universal Customization Edition)
 
 ### Agregado y Mejorado
