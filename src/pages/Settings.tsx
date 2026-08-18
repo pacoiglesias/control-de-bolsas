@@ -492,7 +492,7 @@ export default function Settings() {
             <div className="calc-line"><span>Costo</span><span className="mono">− {money(preview.costTotal)}</span></div>
             <div className="calc-line"><span>Comisión {percent(form.commissionRate)}</span><span className="mono">− {money(preview.commission)}</span></div>
             <div className="calc-line total"><span>Flujo neto por cada 1,000 kg</span><span className="mono">{money(preview.netCashFlow)}</span></div>
-            <div className="calc-line"><span>Margen sobre venta</span><span className="mono">{((preview.netCashFlow / preview.saleTotal) * 100).toFixed(2)}%</span></div>
+            <div className="calc-line"><span>Margen sobre venta</span><span className="mono">{preview.saleTotal > 0 ? ((preview.netCashFlow / preview.saleTotal) * 100).toFixed(2) : '0.00'}%</span></div>
           </div>
         </div>
       </Card>

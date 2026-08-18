@@ -41,7 +41,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
   const pendingInvoices = useMemo<PendingInvoiceItem[]>(() => {
     const list: PendingInvoiceItem[] = [];
     orders.forEach(o => {
-      if (o.isClosedShort || o.client === 'MIGRACION') return;
+      if (!o || o.isClosedShort) return;
       if (o.creditCycle?.status === 'collected') return;
 
       (o.invoices || []).forEach(inv => {

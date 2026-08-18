@@ -30,9 +30,10 @@ export default function ProximasTable() {
           <>
           {/* Resumen rápido e interactivo de filtros */}
           {(() => {
-            const sinCrCount = data.lista.filter((x: any) => !x.hasCr).length;
-            const vencidosCount = data.lista.filter((x: any) => x.hasCr && (x.d ?? 0) > 0).length;
-            const enPlazoCount = data.lista.filter((x: any) => x.hasCr && (x.d ?? 0) <= 0).length;
+            const lista = data?.lista || [];
+            const sinCrCount = lista.filter((x: any) => x && !x.hasCr).length;
+            const vencidosCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) > 0).length;
+            const enPlazoCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) <= 0).length;
             return (
               <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Filtro rápido:</span>
@@ -41,7 +42,7 @@ export default function ProximasTable() {
                   onClick={() => setFilterType('todos')}
                   style={{ padding: '4px 12px', fontSize: 12 }}
                 >
-                  Todos ({data.lista.length})
+                  Todos ({lista.length})
                 </button>
                 <button
                   className={`btn-small`}

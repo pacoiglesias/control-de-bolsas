@@ -150,9 +150,9 @@ export function CommandPalette() {
       (a) => a.label.toLowerCase().includes(q) || a.desc.toLowerCase().includes(q)
     );
 
-    const matchedOrders: PaletteItem[] = orders
+    const matchedOrders: PaletteItem[] = (orders || [])
       .filter((o) => {
-        if ((o as any).isDeleted) return false;
+        if (!o || (o as any).isDeleted) return false;
         const matchFolio = o.folio?.toLowerCase().includes(q);
         const matchOc = (o as any).oc?.toLowerCase().includes(q);
         const matchClient = o.client?.toLowerCase().includes(q);

@@ -3,7 +3,7 @@ import { useCobranza } from './CobranzaContext';
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useToast } from '../../context/ToastContext';
 import { Card, Empty } from '../ui';
-import { money, fmtDate } from '../../lib/format';
+import { money, fmtDate, toDate } from '../../lib/format';
 import type { PurchaseOrder } from '../../lib/types';
 import { Timestamp } from 'firebase/firestore';
 import { generateProvidenciaStatementPdf, buildProvidenciaStatementDataFromOrders } from '../../lib/providenciaStatementPdf';
@@ -62,7 +62,7 @@ export default function EstadoCuenta() {
     });
 
     // Ordenar cronológicamente
-    entries.sort((a, b) => (a.date?.toMillis() || 0) - (b.date?.toMillis() || 0));
+    entries.sort((a, b) => (toDate(a.date)?.getTime() || 0) - (toDate(b.date)?.getTime() || 0));
 
     let runningBalance = 0;
     const finalEntries: LedgerEntry[] = [];

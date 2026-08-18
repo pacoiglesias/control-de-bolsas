@@ -43,7 +43,8 @@ export default function TableroKanban() {
     // la propia tarjeta mostraba "CR: TH-836" en verde mientras el tablero
     // la clasificaba como "Sin CR". Con `data.lista` el campo ya viene
     // calculado correctamente.
-    data.lista.forEach((x: any) => {
+    (data?.lista || []).forEach((x: any) => {
+      if (!x) return;
       if (!x.hasCr) {
         colRevision.push(x);
       } else {
@@ -51,8 +52,8 @@ export default function TableroKanban() {
       }
     });
 
-    data.paid.forEach((x: any) => colContador.push(x));
-    data.collected.forEach((x: any) => colCaja.push(x));
+    (data?.paid || []).forEach((x: any) => { if (x) colContador.push(x); });
+    (data?.collected || []).forEach((x: any) => { if (x) colCaja.push(x); });
 
     // Sort "Por Cobrar" so overdue is at the top
     colPorCobrar.sort((a, b) => (b.d ?? -999) - (a.d ?? -999));

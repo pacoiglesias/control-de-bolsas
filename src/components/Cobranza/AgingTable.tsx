@@ -27,26 +27,29 @@ export default function AgingTable() {
                 </tr>
               </thead>
               <tbody>
-                {data.clientes.map((c: string) => (
-                  <tr key={c}>
-                    <td><strong>{c}</strong></td>
-                    {AGING_BUCKETS.map((b) => (
-                      <td key={b.key} className="num mono"
-                        style={b.key === 'd90p' && data.porCliente[c][b.key] > 0 ? { color: 'var(--bad)', fontWeight: 700 } : undefined}>
-                        {data.porCliente[c][b.key] ? money(data.porCliente[c][b.key]) : '—'}
-                      </td>
-                    ))}
-                    <td className="num mono" style={{ fontWeight: 700 }}>{money(data.porCliente[c].total)}</td>
-                  </tr>
-                ))}
+                {(data?.clientes || []).map((c: string) => {
+                  const clientBucket = data?.porCliente?.[c] || { d1_30: 0, d31_60: 0, d61_90: 0, d90p: 0, total: 0 };
+                  return (
+                    <tr key={c}>
+                      <td><strong>{c}</strong></td>
+                      {AGING_BUCKETS.map((b) => (
+                        <td key={b.key} className="num mono"
+                          style={b.key === 'd90p' && (clientBucket as any)[b.key] > 0 ? { color: 'var(--bad)', fontWeight: 700 } : undefined}>
+                          {(clientBucket as any)[b.key] ? money((clientBucket as any)[b.key]) : '—'}
+                        </td>
+                      ))}
+                      <td className="num mono" style={{ fontWeight: 700 }}>{money(clientBucket.total)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr>
                   <td>Total</td>
                   {AGING_BUCKETS.map((b) => (
-                    <td key={b.key} className="num">{money(data.totalPorBucket[b.key])}</td>
+                    <td key={b.key} className="num">{money(data?.totalPorBucket?.[b.key] || 0)}</td>
                   ))}
-                  <td className="num">{money(data.meDeben)}</td>
+                  <td className="num">{money(data?.meDeben || 0)}</td>
                 </tr>
               </tfoot>
             </table>

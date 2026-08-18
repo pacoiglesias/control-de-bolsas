@@ -3,7 +3,7 @@ import { doc, setDoc, serverTimestamp, Timestamp, addDoc, collection, runTransac
 import { db, PATHS } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { toInputDate, fromInputDate } from '../../lib/format';
+import { toInputDate, fromInputDate, toDate } from '../../lib/format';
 import { Modal, Field, Empty } from '../ui';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
 import { newDeliveryEvent, updateDeliveryField, updateDeliveryItemQuantity, computeDeliveredTotals, migrateLegacyDeliveries, upsertAndresPurchase } from '../../lib/deliveries';
@@ -140,7 +140,9 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
         const snap = await tx.get(ref);
         if (!snap.exists()) throw new Error('El expediente ya no existe.');
         const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
-        if (baselineUpdatedAt && freshUpdatedAt && freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()) {
+        const tFresh = toDate(freshUpdatedAt)?.getTime();
+        const tBase = toDate(baselineUpdatedAt)?.getTime();
+        if (tBase && tFresh && tFresh !== tBase) {
           throw new Error('Este expediente fue modificado. Ciérralo y vuelve a intentarlo.');
         }
         tx.set(ref, { deliveries: nuevasDeliveries, updatedAt: serverTimestamp() }, { merge: true });

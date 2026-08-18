@@ -5,6 +5,7 @@ import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveri
 import { safeDeleteDoc, logAction } from '../../lib/logger';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { findDuplicateOrderFolio } from '../../lib/duplicateGuards';
+import { toDate } from '../../lib/format';
 
 export function useOrderActions() {
   async function saveOrder({
@@ -85,10 +86,12 @@ export function useOrderActions() {
         }
 
         const freshUpdatedAt = (snap.data()?.updatedAt as Timestamp | undefined) ?? null;
+        const tFresh = toDate(freshUpdatedAt)?.getTime();
+        const tBase = toDate(baselineUpdatedAt)?.getTime();
         if (
-          baselineUpdatedAt &&
-          freshUpdatedAt &&
-          freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()
+          tBase &&
+          tFresh &&
+          tFresh !== tBase
         ) {
           throw new Error(
             'Este expediente fue modificado por otra persona mientras lo editabas. ' +
