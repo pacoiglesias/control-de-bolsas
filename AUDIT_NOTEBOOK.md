@@ -2033,6 +2033,18 @@ Commit: `fix(smart-alerts): centralized toDate parsing and round2 deterministic 
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
 OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety).
 
+---
+
+[2026-08-18]
+Archivo: `src/components/Dashboard/ContrarecibosTimeline.tsx`
+Problema: En el cronograma visual de vencimientos y en el redactor de correos a Cuentas por Pagar (`ContrarecibosTimeline`), los acumuladores `totalPorCobrarProximo` y `emailDraft.total` realizaban reducciones sobre montos flotantes sin `round2()`.
+Impacto: Posibles micro-discrepancias en los centavos mostrados en el asunto y cuerpo de los correos institucionales de cobro enviados al cliente Providencia.
+Solución: Validación defensiva de arreglos `(orders || []).forEach(...)` y redondeo determinista con `round2(filteredItems.reduce(...))` y `round2(targetList.reduce(...))`.
+Riesgo: 🟢 Bajo — Componente de cobranza institucional blindado.
+Commit: `fix(timeline): null-safe iteration and round2 deterministic email draft totals`
+Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores.
+OKRs afectados: OKR 1 (Precisión Numérica Determinista), OKR 4 (UX de Cobranza Institucional).
+
 
 
 

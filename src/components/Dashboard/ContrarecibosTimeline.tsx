@@ -7,7 +7,7 @@ import { useUndo } from '../../context/UndoContext';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { playCashRegisterSound } from '../../lib/soundEffects';
 import { camposInvoices } from '../../lib/invoiceOps';
-import { extractCr } from '../../lib/finance';
+import { extractCr, round2 } from '../../lib/finance';
 import { money, toDate, fmtDayAndDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
 import { Modal } from '../ui';
@@ -42,7 +42,7 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
 
     const items: TimelineItem[] = [];
 
-    orders.forEach((o) => {
+    (orders || []).forEach((o) => {
       if (!o || o.isClosedShort) return;
       (o.invoices || []).forEach((inv) => {
         if (!inv) return;
@@ -94,13 +94,13 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
     return true;
   }).slice(0, 15);
 
-  const totalPorCobrarProximo = filteredItems.reduce((acc, it) => acc + it.amount, 0);
+  const totalPorCobrarProximo = round2(filteredItems.reduce((acc, it) => acc + it.amount, 0));
 
   // Redactor Inteligente de Correo Consolidado a Cuentas por Pagar (Providencia)
   const emailDraft = useMemo(() => {
     const listToInclude = timelineData.filter(it => it.status === 'overdue' || it.status === 'today' || it.status === 'this_week');
     const targetList = listToInclude.length > 0 ? listToInclude : timelineData;
-    const total = targetList.reduce((sum, it) => sum + it.amount, 0);
+    const total = round2(targetList.reduce((sum, it) => sum + it.amount, 0));
 
     const subject = `Estado de Cuenta y Solicitud de Programación de Pago - Contrarecibos Grupo Textil Providencia`;
 
