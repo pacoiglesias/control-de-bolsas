@@ -7,6 +7,7 @@ import { addDays, computeFinancials, round2 } from '../../lib/finance';
 import { db, PATHS } from '../../lib/firebase';
 import { sound } from '../../lib/sounds';
 import type { Invoice, OrderStatus, PurchaseOrder } from '../../lib/types';
+import type { FinanceConfigCore } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import { promptDialog } from '../../lib/promptDialog';
@@ -18,7 +19,11 @@ interface InvoiceWidgetProps {
   order: PurchaseOrder;
   provName: string;
   config: any;
-  dynamicConfig: any;
+  // FIX: era `any`. En la practica siempre es un FinancialConfig (de
+  // useConfig()) o el resultado de configEfectiva() -- ambos son
+  // estructuralmente un FinanceConfigCore (mismo minimo comun que ya usa
+  // computeFinancials/saveInvoice), asi que ese es el tipo real, no `any`.
+  dynamicConfig: FinanceConfigCore;
   readOnly: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
@@ -178,7 +183,15 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                             diferencia,
                             createdAt: serverTimestamp(),
                           });
-                          await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, {});
+                          // FIX: aqui se pasaba `{}` como config -- funcionaba
+                          // "de chiripa" solo porque saveInvoice prefiere los
+                          // financials YA guardados en la factura sobre el
+                          // config recibido. Si algun dia una factura llegaba
+                          // aqui sin financials completos (legado/migracion),
+                          // esto habria producido NaN o tronado en
+                          // computeFinancials. Se pasa el dynamicConfig real
+                          // (mismo que ya usa el resto del componente).
+                          await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, dynamicConfig);
                           if (Math.abs(diferencia) > 0.01) {
                             toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
                           } else {

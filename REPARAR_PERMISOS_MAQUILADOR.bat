@@ -1,28 +1,35 @@
 @echo off
-echo =======================================================
-echo     REPARANDO PERMISOS DEL PORTAL MAQUILADOR EN LA NUBE
-echo =======================================================
+chcp 65001 >nul
+title Control Bolsas - OBSOLETO, este permiso ya no aplica
+color 0E
+cls
 echo.
-echo Este script hara publica la nueva funcion del portal
-echo para que Andres pueda ver su estado de cuenta.
+echo  ============================================================
+echo    ESTE SCRIPT QUEDO OBSOLETO
+echo  ============================================================
 echo.
-echo Paso 1: Intentando aplicar el permiso con gcloud...
-call gcloud run services add-iam-policy-binding getmaquilaledger --region=us-east1 --member=allUsers --role=roles/run.invoker --project=control-de-bolsas-89c88
-
-if %errorlevel% neq 0 (
-    echo.
-    echo [AVISO] Necesitas iniciar sesion en Google Cloud.
-    echo Abriendo una ventana de navegador para que inicies sesion...
-    call gcloud auth login
-    echo.
-    echo Intentando de nuevo despues del login...
-    call gcloud run services add-iam-policy-binding getmaquilaledger --region=us-east1 --member=allUsers --role=roles/run.invoker --project=control-de-bolsas-89c88
-)
-
+echo   REPARAR_PERMISOS_MAQUILADOR.bat le daba permiso publico
+echo   con "gcloud run services add-iam-policy-binding" a un
+echo   servicio de Cloud Run llamado "getmaquilaledger".
 echo.
-echo =======================================================
-echo PROCESO TERMINADO.
-echo Si ves un mensaje arriba diciendo "Updated IAM policy", 
-echo entonces el portal maquilador ya funciona al 100%%.
-echo =======================================================
+echo   Ese servicio ya no existe en el proyecto. Las funciones
+echo   actuales son otras (getActiveMaquilaOrders,
+echo   parseUploadedPDF, checkOverdueInvoices, etc.), y el acceso
+echo   publico que necesita el portal del maquilador ya se declara
+echo   directamente en el codigo:
+echo.
+echo     exports.getActiveMaquilaOrders = onCall(
+echo       { invoker: "public", cors: true }, ...^)
+echo.
+echo   Es decir: cada vez que se despliega con
+echo   INSTALAR_BUILD_DEPLOY.bat, Firebase ya deja ese permiso
+echo   configurado solo, sin necesidad de este script.
+echo.
+echo   Si algun dia el portal del maquilador vuelve a dar error de
+echo   permisos, lo primero es revisar la consola de Firebase
+echo   Functions -^> el nombre de la funcion afectada, y correr
+echo   "gcloud run services add-iam-policy-binding" con el NOMBRE
+echo   REAL de esa funcion (no "getmaquilaledger"^).
+echo.
 pause
+exit /b 0

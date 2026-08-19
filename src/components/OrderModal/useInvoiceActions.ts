@@ -2,7 +2,7 @@ import { doc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
-import { computeFinancials } from '../../lib/finance';
+import { computeFinancials, type FinanceConfigCore } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { logAction } from '../../lib/logger';
@@ -12,7 +12,7 @@ export function useInvoiceActions() {
   const toast = useToast();
   const { user } = useAuth();
 
-  async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: any) {
+  async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: FinanceConfigCore) {
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
       const invRef = doc(db, PATHS.invoices, updatedInvoice.id);

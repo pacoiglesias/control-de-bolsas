@@ -1,32 +1,30 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title Control Bolsas - Proteger Codigo (repo privado)
-color 0B
+title Control Bolsas - Hacer el repositorio publico
+color 0E
 cls
 echo.
 echo  ============================================================
-echo    PROTEGER CODIGO - Hacer el repositorio de GitHub privado
+echo    HACER PUBLICO EL REPOSITORIO DE GITHUB
 echo  ============================================================
 echo.
-echo   Esta version ya NO pide pegar ningun Token de GitHub.
-echo   Usa el CLI oficial de GitHub (gh), que guarda tu sesion de
-echo   forma segura en este usuario de Windows -- igual que hace
-echo   Firebase con "firebase login". Nunca escribes ni pegas
-echo   ninguna clave en esta ventana.
+echo   [!] Ojo: esto es lo contrario de PROTEGER_CODIGO.bat.
+echo       Cualquiera en internet va a poder ver y descargar todo
+echo       el codigo del repositorio, incluido su historial.
+echo.
+echo   No se sube ningun archivo nuevo por hacer esto -- .env,
+echo   .firebase y demas ya estan excluidos por el .gitignore y
+echo   nunca han llegado al repo. Pero si algun secreto llegara a
+echo   estar en el historial de commits, quedaria visible tambien.
 echo.
 cd /d "%~dp0"
 
 where gh >nul 2>nul
 if errorlevel 1 (
-  color 0E
-  echo  [!] No encuentro el CLI de GitHub ^(gh^) instalado.
-  echo.
-  echo      Instalalo con uno de estos metodos y vuelve a correr
-  echo      este script:
-  echo        winget install --id GitHub.cli
-  echo      o descargalo de: https://cli.github.com
-  echo.
+  color 0C
+  echo  [X] No encuentro el CLI de GitHub ^(gh^) instalado.
+  echo      Corre INSTALAR_GH.bat primero.
   pause
   exit /b 1
 )
@@ -34,9 +32,8 @@ if errorlevel 1 (
 echo  --- Verificando sesion de GitHub ---
 call gh auth status >nul 2>nul
 if errorlevel 1 (
-  echo  [!] No hay sesion activa. Voy a abrir tu navegador para que
-  echo      inicies sesion tu mismo ^(gh nunca ve ni guarda tu
-  echo      contrasena, solo confirmas con un clic^)...
+  echo  [!] No hay sesion activa. Abriendo el navegador para que
+  echo      inicies sesion tu mismo...
   call gh auth login --web --git-protocol https
   if errorlevel 1 (
     color 0C
@@ -52,7 +49,6 @@ echo  --- Detectando el repositorio ---
 if not exist ".git" (
   color 0C
   echo  [X] Esta carpeta no es un repositorio git todavia.
-  echo      Corre PUSH_TO_GIT.bat primero para inicializarlo.
   pause & exit /b 1
 )
 
@@ -61,15 +57,22 @@ for /f "tokens=*" %%r in ('gh repo view --json nameWithOwner -q ".nameWithOwner"
 if "!REPO!"=="" (
   color 0C
   echo  [X] No pude detectar el repo de GitHub desde esta carpeta.
-  echo      Revisa que ya hayas corrido PUSH_TO_GIT.bat al menos
-  echo      una vez, y que el remoto "origin" apunte a GitHub.
   pause & exit /b 1
 )
 
 echo  [OK] Repositorio detectado: !REPO!
 echo.
-echo  --- Cambiando a privado ---
-call gh repo edit "!REPO!" --visibility private --accept-visibility-change-consequences
+set "CONFIRMAR="
+set /p CONFIRMAR="  Seguro que quieres hacer '!REPO!' PUBLICO? (escribe si): "
+if /i not "!CONFIRMAR!"=="si" (
+  echo  [-] Cancelado. No se hizo ningun cambio.
+  pause
+  exit /b 0
+)
+
+echo.
+echo  --- Cambiando a publico ---
+call gh repo edit "!REPO!" --visibility public --accept-visibility-change-consequences
 if errorlevel 1 (
   color 0C
   echo  [X] No se pudo cambiar la visibilidad. Revisa el mensaje de arriba.
@@ -79,7 +82,8 @@ if errorlevel 1 (
 color 0A
 echo.
 echo  ============================================================
-echo    LISTO. El repositorio !REPO! ya quedo privado.
+echo    LISTO. El repositorio !REPO! ya quedo publico.
+echo    Para volver a protegerlo, corre PROTEGER_CODIGO.bat
 echo  ============================================================
 pause
 exit /b 0

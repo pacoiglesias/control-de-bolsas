@@ -4,14 +4,18 @@ import { money, toInputDate } from '../../lib/format';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { Timestamp } from 'firebase/firestore';
-import { extractCr } from '../../lib/finance';
+import { extractCr, type FinanceConfigCore } from '../../lib/finance';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 import { useToast } from '../../context/ToastContext';
 
 interface InvoiceDrawerProps {
   invoice: Invoice;
   order: PurchaseOrder;
-  dynamicConfig: any;
+  // FIX: era `any`. Los dos lugares que renderizan este drawer
+  // (ContrarecibosTable.tsx, TableroKanban.tsx) pasan el `config` de
+  // useConfig() -- un FinancialConfig, que es estructuralmente un
+  // FinanceConfigCore (mismo tipo que ya usan computeFinancials/saveInvoice).
+  dynamicConfig: FinanceConfigCore;
   onClose: () => void;
 }
 

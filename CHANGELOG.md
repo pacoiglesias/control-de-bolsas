@@ -1,5 +1,24 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.8.6] - 19 Agosto 2026 (Revisión de una lista externa de hallazgos: 1 bug real encontrado al tipar, 3 falsos positivos descartados, 3 limpiezas menores)
+
+### Corregido
+- **💰 "Recibir en Caja" desde el widget de factura (`InvoiceWidget.tsx`) pasaba un config vacío `{}` a `saveInvoice`:** funcionaba "de chiripa" porque `saveInvoice` prefiere los datos financieros ya guardados en la factura sobre el config recibido — pero una factura vieja/migrada sin esos datos completos habría producido un cálculo en `NaN` o un error al confirmar el cobro. Se encontró al quitarle el tipo `any` a `dynamicConfig` (ver abajo): TypeScript señaló que `{}` no cumplía el tipo real. Corregido para pasar el config real.
+- **🔧 Tipos `any` innecesarios en `dynamicConfig` (`InvoiceDrawer.tsx`, `InvoiceWidget.tsx`, `useInvoiceActions.ts`):** en la práctica siempre es un `FinanceConfigCore` real (de `useConfig()` o de `configEfectiva()`); tiparlo correctamente es lo que expuso el bug de arriba.
+- **🧹 Condiciones redundantes en `inferDepartment()` (`finance.ts`):** cada verificación de prefijo TH/GT traía 3 condiciones donde 2 eran redundantes (`startsWith('TH-')` y `=== 'TH'` ya están cubiertas por `startsWith('TH')`). Mismo comportamiento, código más simple.
+- **📎 Cloud Functions sin globals de Node en ESLint (`eslint.config.js`):** `npm run lint` ya cubre `functions/src/**` (no le faltaba linter, como decía el hallazgo original), pero usaba `globals.browser` para todo el repo. Se agregó un override con `globals.node` para esos archivos — inofensivo hoy, pero evita un futuro falso "no-undef" si se usa un global de Node ahí.
+- **🔢 Número mágico en `bridge.ts`:** el `version: 4` del respaldo HTML offline ahora es la constante exportada `HTML_STATE_VERSION`.
+
+### Revisado y descartado (falsos positivos de la lista recibida)
+- "Expedientes con folio + saleTotal=0 invisibles en finance.ts": revisado a fondo — la condición de síntesis de factura (`o.folio || saleTotal > 0`) ya cubre ese caso correctamente vía el `o.folio ||` (si hay folio, se sintetiza sin importar el saleTotal). No se encontró el hueco descrito.
+- "html2pdf.js (982KB) sin lazy import": ya se carga con `await import('html2pdf.js')` en los 8 lugares donde se usa — confirmado en el build, es su propio chunk separado, no viaja en el bundle principal.
+- "Fallback de clipboard con execCommand('copy') obsoleto": es intencional — es el único fallback posible para copiar al portapapeles en un contexto no seguro (HTTP), y solo se usa cuando `navigator.clipboard` no está disponible. No hay reemplazo moderno para ese caso.
+
+### Pendiente de decisión (no se tocó sin preguntar)
+- `math.ts`: confirmado que ningún archivo de la aplicación lo importa (solo su propia prueba unitaria, 19 casos). ¿Lo elimino o lo dejamos como utilidad disponible para el futuro?
+- `DashboardModalsHost.tsx` con ~28 props de estado de modales: candidato real a refactor con `useReducer`, pero es un cambio estructural con riesgo real de romper el cableado de algún modal — mejor planearlo aparte, no meterlo en un parche de por sí.
+- **🚀 100% Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
 ## [v8.8.5] - 19 Agosto 2026 (Pulido Funcional y Operativo: Doble-clic, Confirmaciones, Búsqueda y Fechas)
 
 ### Corregido y Mejorado

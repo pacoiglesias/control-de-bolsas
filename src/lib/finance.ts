@@ -68,18 +68,22 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   }
 
   // 2. Contrarecibo en factura O en orden via extractCr
+  // FIX: cada condicion traia 3 clausulas donde 2 eran redundantes --
+  // startsWith('TH-') y === 'TH' ya estan cubiertas por startsWith('TH')
+  // (toda cadena que empieza con "TH-" tambien empieza con "TH", y "TH"
+  // tambien "empieza con" "TH"). Mismo comportamiento, sin la redundancia.
   const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim().toUpperCase();
-  if (invCr.startsWith('TH-') || invCr === 'TH' || invCr.startsWith('TH')) return 'TH';
-  if (invCr.startsWith('GT-') || invCr === 'GT' || invCr.startsWith('GT')) return 'GT';
+  if (invCr.startsWith('TH')) return 'TH';
+  if (invCr.startsWith('GT')) return 'GT';
 
   const extracted = extractCr(inv, order).trim().toUpperCase();
-  if (extracted.startsWith('TH-') || extracted === 'TH' || extracted.startsWith('TH')) return 'TH';
-  if (extracted.startsWith('GT-') || extracted === 'GT' || extracted.startsWith('GT')) return 'GT';
+  if (extracted.startsWith('TH')) return 'TH';
+  if (extracted.startsWith('GT')) return 'GT';
 
   // 3. Folio de factura
   const invFolio = (inv?.folio || '').trim().toUpperCase();
-  if (invFolio.startsWith('TH-') || invFolio === 'TH' || invFolio.startsWith('TH')) return 'TH';
-  if (invFolio.startsWith('GT-') || invFolio === 'GT' || invFolio.startsWith('GT')) return 'GT';
+  if (invFolio.startsWith('TH')) return 'TH';
+  if (invFolio.startsWith('GT')) return 'GT';
 
   // 4. Campo explícito en la orden
   if (order?.department && typeof order.department === 'string') {
@@ -369,7 +373,7 @@ export function getOrderSummary(o: PurchaseOrder) {
       realizedProfit = realizedProfit.plus(proportion.times(profitForThisInvoice));
     }
 
-    const s = i.creditCycle.status;
+    const s = i.creditCycle?.status;
     if (s === 'overdue') hasOverdue = true;
     if (s === 'manual_review') hasManual = true;
     if (s === 'pending') hasPending = true;
@@ -455,7 +459,7 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: nu
   activeOrders.forEach(o => {
     const invoices = o.invoices || [];
     invoices.forEach(inv => {
-      const s = inv.creditCycle.status;
+      const s = inv.creditCycle?.status;
       if (s === 'pending' || s === 'overdue') {
         let dDate: Date | null = null;
         if (inv.creditCycle.dueDate) {

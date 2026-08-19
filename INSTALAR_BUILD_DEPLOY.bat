@@ -49,6 +49,27 @@ if errorlevel 1 (
   echo.
 )
 
+REM FIX: antes, si la sesion de "firebase login" habia expirado (o nunca
+REM se habia hecho en esta maquina/usuario de Windows), el fallo salia
+REM hasta el paso 6 -- despues de ya haber corrido typecheck, pruebas,
+REM lint y build completos (varios minutos perdidos). Ahora se checa la
+REM sesion ANTES de arrancar nada mas. "firebase login" abre el navegador
+REM UNA sola vez; despues, la sesion queda guardada en este usuario de
+REM Windows y los deploys siguientes ya no piden login de nuevo.
+echo  --- Verificando sesion de Firebase ---
+call firebase projects:list >nul 2>nul
+if errorlevel 1 (
+  echo  [!] No hay sesion activa de Firebase en esta maquina. Abriendo login...
+  call firebase login
+  if errorlevel 1 (
+    color 0C
+    echo  [X] No se pudo iniciar sesion en Firebase. Sin sesion no hay deploy posible.
+    pause & exit /b 1
+  )
+) else (
+  echo  [OK] Sesion de Firebase activa
+)
+
 echo  --- 1/6 Dependencias ---
 REM npm ci en vez de npm install: reinstala exactamente lo que dice el
 REM package-lock.json. Si npm ci falla ^(por ejemplo el lock no esta
@@ -153,12 +174,30 @@ if errorlevel 1 (
 
 echo.
 echo  --- 6b. Cloud Functions ---
+REM FIX: "User code failed to load. Cannot determine backend specification.
+REM Timeout after 10000." -- el CLI de Firebase le da solo 10 segundos a
+REM Node para cargar y analizar functions/lib/index.js antes de rendirse.
+REM En Windows, con antivirus revisando los ~255 paquetes de
+REM functions/node_modules mas el SDK de Gemini, 10s a veces no alcanza
+REM aunque el codigo este bien -- no es un bug del proyecto. La solucion
+REM oficial de Firebase es subir ese limite con esta variable de entorno
+REM (ver https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization).
+set FUNCTIONS_DISCOVERY_TIMEOUT=60
 call firebase deploy --only functions
 if errorlevel 1 (
+  echo  [!] Primer intento fallo. Reintentando una vez mas...
+  echo      ^(la primera carga de node_modules en disco suele ser la mas lenta;
+  echo      un segundo intento casi siempre pasa^)
+  call firebase deploy --only functions
+)
+if errorlevel 1 (
   color 0E
-  echo  [!] Fallo el despliegue de funciones.
-  echo      Si el error menciona la clave GOOGLE_GENAI_API_KEY,
+  echo  [!] Fallo el despliegue de funciones despues de 2 intentos.
+  echo      Si el error menciona la clave GEMINI_API_KEY,
   echo      corre CONFIGURAR_CLAVE_GEMINI.bat.
+  echo      Si sigue diciendo "Timeout after 10000" o similar, excluye
+  echo      la carpeta del proyecto del antivirus (ver instrucciones que
+  echo      Claude te compartio) y vuelve a intentar.
   set /p CONTINUAR_FN="  Continuo con el frontend de todos modos? (s/n): "
   if /i not "!CONTINUAR_FN!"=="s" (pause & exit /b 1)
 )
@@ -167,8 +206,24 @@ echo.
 echo  --- 6c. Hosting ---
 call firebase deploy --only hosting
 if errorlevel 1 (
+  REM FIX: se ha visto que "firebase deploy --only hosting" a veces
+  REM imprime "Deploy complete!" con las URLs de los dos sitios YA
+  REM publicadas, y aun asi el proceso termina con un
+  REM "Error: An unexpected error has occurred." y codigo de salida
+  REM distinto de cero -- un problema conocido del propio CLI de Firebase,
+  REM no del proyecto. Reintentar una vez suele bastar; si el sitio ya
+  REM quedo publicado, este segundo intento es casi instantaneo.
+  echo  [!] Primer intento de Hosting fallo o el CLI reporto un error
+  echo      inesperado despues de "Deploy complete!". Reintentando...
+  call firebase deploy --only hosting
+)
+if errorlevel 1 (
   color 0C
-  echo  [X] Fallo el despliegue del frontend.
+  echo  [X] Fallo el despliegue del frontend despues de 2 intentos.
+  echo      Revisa arriba: si ya viste "Deploy complete!" con las URLs
+  echo      de control-de-bolsas-69.web.app y control-de-bolsas-89c88.web.app
+  echo      antes del error, es muy probable que SI se haya publicado bien
+  echo      -- entra a las URLs para confirmar antes de preocuparte.
   pause & exit /b 1
 )
 
