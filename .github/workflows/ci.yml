@@ -1,35 +1,65 @@
-name: CI Pipeline
+name: CI — Validación de calidad
 
+# Se ejecuta en todos los PRs y en cada push a main.
+# No despliega nada: su único propósito es ser una barrera de calidad.
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  test:
+  validate:
+    name: Deps · Typecheck · Tests · Lint · Build
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Run tests
-      run: npm run test
-      
-    - name: Build frontend
-      run: npm run build
-      
-    - name: Install functions dependencies
-      run: npm --prefix functions ci
-      
-    - name: Build functions
-      run: npm --prefix functions run build
+      # ── 1. Código ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # ── 2. Dependencias ──────────────────────────────────────────────────────
+      - name: Instalar dependencias (raíz)
+        run: npm ci
+
+      - name: Instalar dependencias (functions)
+        run: npm --prefix functions ci
+
+      # ── 3. Typecheck ─────────────────────────────────────────────────────────
+      - name: Typecheck raíz (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Typecheck functions (tsc --noEmit)
+        run: npm --prefix functions run typecheck
+
+      # ── 4. Pruebas unitarias ─────────────────────────────────────────────────
+      - name: Tests (vitest run)
+        run: npm test
+
+      # ── 5. Lint ───────────────────────────────────────────────────────────────
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      # ── 6. Build (smoke-test — sin variables de entorno reales) ──────────────
+      # El objetivo es verificar que el código compila, no producir un bundle
+      # desplegable. Las variables VITE_FIREBASE_* se inyectan solo en deploy.yml.
+      - name: Build raíz (tsc -b + vite build)
+        run: npm run build
+        env:
+          # Valores ficticios para que Vite no sustituya por `undefined`.
+          # El bundle resultante NO es apto para producción.
+          VITE_FIREBASE_API_KEY: ci-placeholder
+          VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder
+          VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          VITE_FIREBASE_APP_ID: 1:000000000000:web:ci-placeholder
+
+      - name: Build functions (tsc)
+        run: npm --prefix functions run build

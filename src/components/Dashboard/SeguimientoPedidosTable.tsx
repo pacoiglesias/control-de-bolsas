@@ -39,10 +39,20 @@ export function SeguimientoPedidosTable({
   const getOrderStage = (o: PurchaseOrder): PipelineStageKey => {
     const s = getOrderSummary(o);
     const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || s.kilosDelivered;
-    const deliveries = o.deliveries || [];
-    const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (Number(d.kilos) || 0), 0);
-    const invoices = o.invoices || [];
-    const kilosFacturados = invoices.reduce((a: number, i: any) => a + (Number(i.kilos) || 0), 0);
+    // FIX: antes esta funcion volvia a sumar o.deliveries/o.invoices "a mano"
+    // en vez de reusar lo que getOrderSummary() ya calculo (la MISMA fuente
+    // que alimenta la barra "✅ 100% Surtido" de abajo). Eso las
+    // desincronizaba en dos casos: (1) entregas capturadas con desglose por
+    // items[] en vez de un campo `kilos` plano se sumaban como 0 aqui, y (2)
+    // expedientes viejos sin o.deliveries capturadas -- donde getOrderSummary
+    // sintetiza una entrega a partir de lo facturado -- daban 0 kilos
+    // entregados aqui aunque ya estuvieran 100% facturados. Resultado real:
+    // ordenes ya facturadas y con Contrarecibo asignado se quedaban
+    // etiquetadas "🏭 En Producción" en vez de avanzar a "Sin CR"/"En
+    // Crédito", aunque la propia barra de progreso ya mostraba 100% Surtido.
+    const kilosEntregados = s.kilosDelivered;
+    const invoices = s.invoices;
+    const kilosFacturados = s.kilosInvoiced;
 
     if (s.status === 'collected') return '5_caja';
 

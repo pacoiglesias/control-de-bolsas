@@ -86,6 +86,7 @@ export function KebabMenu({
       <button
         type="button"
         title={title}
+        aria-label={title}
         aria-haspopup="true"
         aria-expanded={isOpen}
         onClick={(e) => {

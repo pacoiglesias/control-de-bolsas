@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { kilos as fmtKilos } from '../../lib/format';
-import { extractCr, round2 } from '../../lib/finance';
+import { extractCr, getOrderSummary, round2 } from '../../lib/finance';
 import { ResponsiveMoney } from '../ui';
 import type { PurchaseOrder, Expense, FinancialConfig } from '../../lib/types';
 
@@ -48,11 +48,21 @@ export function MoneyFlowPipeline({
       const orderCostKg = Number(o.customCostPrice) || o.invoices?.[0]?.financials?.costPricePerKg || costKg;
       const orderSaleKg = Number(o.customSellPrice) || o.invoices?.[0]?.financials?.salePricePerKg || saleKg;
 
-      const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 0;
-      const deliveries = o.deliveries || [];
-      const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (Number(d.kilos) || 0), 0);
-      const invoices = o.invoices || [];
-      const kilosFacturados = invoices.reduce((a: number, i: any) => a + (Number(i.kilos) || 0), 0);
+      // FIX: kilosEntregados/kilosFacturados se recalculaban aqui sumando
+      // o.deliveries/o.invoices "a mano", igual que en SeguimientoPedidosTable
+      // (mismo bug, mismo sitio corregido). No sumaban entregas con desglose
+      // por items[] ni aplicaban el fallback de getOrderSummary que sintetiza
+      // una entrega/factura para expedientes viejos sin o.deliveries
+      // capturadas -- asi que ordenes ya facturadas y con CR se contaban aqui
+      // como "Fabricando" (kilosFabricando/montoFabricandoAndres), inflando
+      // ese KPI y sub-contando "Sin CR"/"En Crédito". Ahora se reusa
+      // getOrderSummary(o), la misma fuente que ya usan OcTracking.tsx y
+      // SemaforoDelDia.tsx.
+      const summary = getOrderSummary(o);
+      const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || summary.kilosDelivered;
+      const kilosEntregados = summary.kilosDelivered;
+      const invoices = summary.invoices;
+      const kilosFacturados = summary.kilosInvoiced;
 
       // 1. Kilos que Andrés está fabricando
       if (!o.isClosedShort && totalKilos > kilosEntregados) {

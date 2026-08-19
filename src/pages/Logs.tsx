@@ -105,12 +105,26 @@ export default function Logs() {
     if (!(await confirmDialog({ message: '¿Estás seguro de que deseas borrar TODA la bitácora? Esto no se puede deshacer.', danger: true }))) return;
     setClearing(true);
     try {
-      const q = query(collection(db, 'system_logs'), limit(500));
-      const snap = await getDocs(q);
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      toast('Bitácora limpiada con éxito', 'ok');
+      // FIX: antes solo borraba UN lote de 500 (el maximo de un batch de
+      // Firestore) y decia "limpiada con exito" sin importar cuantos
+      // registros quedaran. Si la bitacora tenia mas de 500, se borraban
+      // 500 al azar y el resto se quedaba ahi con el mensaje diciendo que
+      // ya estaba vacia. Ahora repite en lotes hasta que ya no queden
+      // documentos.
+      let totalBorrados = 0;
+      // Tope de seguridad (200 lotes = 100k registros) para no crear un
+      // bucle infinito si algo mas sigue escribiendo logs al mismo tiempo.
+      for (let i = 0; i < 200; i++) {
+        const q = query(collection(db, 'system_logs'), limit(500));
+        const snap = await getDocs(q);
+        if (snap.empty) break;
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        totalBorrados += snap.docs.length;
+        if (snap.docs.length < 500) break;
+      }
+      toast(`Bitácora limpiada con éxito (${totalBorrados.toLocaleString('es-MX')} registros borrados)`, 'ok');
     } catch (e) {
       toast(`Error al limpiar: ${(e as Error).message}`, 'bad');
     } finally {

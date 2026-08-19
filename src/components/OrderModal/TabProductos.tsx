@@ -213,7 +213,7 @@ export default function TabProductos() {
                           {money(it.amount)}
                         </td>
                         <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
-                          {!readOnly && <button className="btn btn-icon" onClick={() => removeItem(i)}>🗑️</button>}
+                          {!readOnly && <button className="btn btn-icon" title="Eliminar partida" aria-label="Eliminar partida" onClick={() => removeItem(i)}>🗑️</button>}
                         </td>
                       </tr>
                     ))}

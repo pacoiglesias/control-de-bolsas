@@ -72,6 +72,7 @@ export default function Dashboard() {
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
+  const [recibiendoId, setRecibiendoId] = useState<string | null>(null);
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [monthFilter, setMonthFilter] = useState<string>('ALL');
   const [showContrarecibosDrawer, setShowContrarecibosDrawer] = useState(false);
@@ -401,24 +402,32 @@ return () => unsub();
   }
 
   async function handleRecibir(r: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }) {
-    if (!(await confirmDialog(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`))) return;
-    
+    // FIX: el boton "Recibir" no se deshabilitaba mientras la operacion
+    // estaba en vuelo (confirmDialog + 2 escrituras a Firestore). En una
+    // conexion lenta, si no se ve nada pasar de inmediato, un segundo tap
+    // sobre la misma factura corria TODO el flujo otra vez -- duplicando
+    // el ingreso en Caja Chica para el mismo dinero. recibiendoId bloquea
+    // la fila especifica mientras esta corriendo esta operacion.
+    if (recibiendoId === r.invoiceId) return;
+    setRecibiendoId(r.invoiceId);
     try {
+      if (!(await confirmDialog(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`))) return;
+
       // 1. Encontrar la orden para actualizar el invoice especifico
       const orderRef = doc(db, PATHS.orders, r.orderId);
       const orderSnap = await getDoc(orderRef);
       if (!orderSnap.exists()) throw new Error("Orden no encontrada");
-      
+
       const orderData = orderSnap.data();
       const invoices = orderData.invoices || [];
       const invIndex = invoices.findIndex((i: any) => i.id === r.invoiceId);
       if (invIndex === -1) throw new Error("Factura no encontrada");
-      
+
       invoices[invIndex].creditCycle.status = 'collected';
       invoices[invIndex].collection = { ...invoices[invIndex].collection, collectedAt: Timestamp.now() };
-      
+
       await updateDoc(orderRef, { invoices });
-      
+
       // 2. Ingreso a caja chica
       await addDoc(collection(db, PATHS.expenses), {
         date: Timestamp.now(),
@@ -428,10 +437,12 @@ return () => unsub();
         notes: `Documento: $${r.invoiceTotal.toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${r.commission.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
         createdAt: serverTimestamp(),
       });
-      
+
       toast(`💵 Recibido del contador. $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
     } catch (e: any) {
       toast('Error: ' + e.message, 'bad');
+    } finally {
+      setRecibiendoId(null);
     }
   }
 
@@ -1180,7 +1191,7 @@ return () => unsub();
 
             <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
 
-            <PorRecibirPanel porRecibir={k.porRecibir} totalPorRecibir={k.totalPorRecibir} onRecibir={handleRecibir} />
+            <PorRecibirPanel porRecibir={k.porRecibir} totalPorRecibir={k.totalPorRecibir} onRecibir={handleRecibir} recibiendoId={recibiendoId} />
 
             <FacturasSinCRPanel
               orders={seguimientoOrders}

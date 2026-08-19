@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
@@ -23,7 +23,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
 
   const del = () => setDigits((prev) => prev.slice(0, -1));
 
-  const tryLogin = React.useCallback(async (pinToTry: string, silent = false) => {
+  const tryLogin = useCallback(async (pinToTry: string, silent = false) => {
     if (pinToTry.length < 4) return;
     setLoading(true);
     try {

@@ -1,5 +1,5 @@
 import { getPrintHeaderHtml } from '../../lib/format';
-import { escapeHtml, toDate } from '../../lib/format';
+import { escapeHtml, toDate, fmtDate } from '../../lib/format';
 import { round2, computeFinancials } from '../../lib/finance';
 
 
@@ -27,7 +27,10 @@ export function printRemision({ folio, client, department, kilosNum, config, set
             <strong>Departamento:</strong> ${escapeHtml(department) || '—'}<br>
           </div>
           <div style="text-align: right;">
-            <strong>Fecha de Emisión:</strong> ${new Date().toLocaleDateString()}<br>
+            <!-- FIX: sin locale, esto usaba el formato del navegador (podia
+                 salir mes-primero, "8/19/2026") en vez del es-MX (dd/mmm/aaaa)
+                 que usa el resto de los documentos impresos del sistema. -->
+            <strong>Fecha de Emisión:</strong> ${fmtDate(new Date())}<br>
             <strong>Clave SAT:</strong> ${escapeHtml(config.satClaveProdServ) || '—'}<br>
             <strong>Unidad SAT:</strong> ${escapeHtml(config.satClaveUnidad) || '—'}<br>
             <strong>Método/Forma de pago:</strong> ${escapeHtml(config.satMetodoPago) || '—'} / ${escapeHtml(config.satFormaPago) || '—'}<br>

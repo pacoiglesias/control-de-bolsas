@@ -20,9 +20,12 @@ interface PorRecibirPanelProps {
   porRecibir: PorRecibirItem[];
   totalPorRecibir: number;
   onRecibir: (r: PorRecibirItem) => void;
+  /** id de la factura cuya operacion "Recibir" esta en vuelo ahora mismo (o null).
+   * Deshabilita ese renglon para que un doble-tap no duplique el ingreso en Caja Chica. */
+  recibiendoId?: string | null;
 }
 
-export function PorRecibirPanel({ porRecibir, totalPorRecibir, onRecibir }: PorRecibirPanelProps) {
+export function PorRecibirPanel({ porRecibir, totalPorRecibir, onRecibir, recibiendoId }: PorRecibirPanelProps) {
   if (porRecibir.length === 0) return null;
   const totalBruto = porRecibir.reduce((acc, r) => acc + r.invoiceTotal, 0);
   const totalComision = porRecibir.reduce((acc, r) => acc + r.commission, 0);
@@ -108,10 +111,13 @@ export function PorRecibirPanel({ porRecibir, totalPorRecibir, onRecibir }: PorR
                     padding: '4px 8px',
                     fontSize: 11,
                     fontWeight: 700,
+                    opacity: recibiendoId === r.invoiceId ? 0.6 : 1,
+                    cursor: recibiendoId === r.invoiceId ? 'wait' : 'pointer',
                   }}
+                  disabled={recibiendoId === r.invoiceId}
                   onClick={() => onRecibir(r)}
                 >
-                  💵 Recibir
+                  {recibiendoId === r.invoiceId ? '⏳ Procesando…' : '💵 Recibir'}
                 </button>
               </td>
             </tr>
