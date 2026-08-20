@@ -95,14 +95,56 @@ git commit -m "$tituloCorto" -m "$mensaje" | Out-Null
 if ($LASTEXITCODE -ne 0) { Fail "git commit fallo (revisa el mensaje de arriba)." }
 
 $rama = git rev-parse --abbrev-ref HEAD
+
+# FIX: si el repositorio quedo en "detached HEAD" (no parado sobre ninguna
+# rama real -- pasa cuando se copia la carpeta .git desde otro lado, ej. la
+# USB, en ese estado), "git rev-parse --abbrev-ref HEAD" devuelve literalmente
+# la palabra "HEAD" en vez del nombre de tu rama. Entonces "git push origin
+# HEAD" no tiene a donde publicarlo y truena con "not a full refname". Aqui
+# se detecta ese caso y se para la rama real (main, o la que ya exista)
+# encima del commit actual antes de subir -- no se pierde nada, solo se
+# mueve el puntero de la rama a donde ya estaba el commit recien hecho.
+if ($rama -eq 'HEAD') {
+  Write-Host ""
+  Write-Host "  [!] El repositorio esta en modo 'detached HEAD' (sin rama real)." -ForegroundColor Yellow
+  Write-Host "      Reparando antes de subir..." -ForegroundColor Yellow
+
+  $ramaDestino = $null
+  $defaultRemoto = git symbolic-ref -q --short refs/remotes/origin/HEAD 2>$null
+  if ($LASTEXITCODE -eq 0 -and $defaultRemoto) {
+    $ramaDestino = $defaultRemoto -replace '^origin/', ''
+  }
+  if (-not $ramaDestino) {
+    $ramasLocales = git branch --format='%(refname:short)' 2>$null
+    if ($ramasLocales -contains 'main') { $ramaDestino = 'main' }
+    elseif ($ramasLocales -contains 'master') { $ramaDestino = 'master' }
+  }
+  if (-not $ramaDestino) { $ramaDestino = 'main' }
+
+  git branch -f $ramaDestino HEAD
+  if ($LASTEXITCODE -ne 0) { Fail "No se pudo crear/mover la rama '$ramaDestino' sobre el commit actual." }
+  git checkout $ramaDestino
+  if ($LASTEXITCODE -ne 0) { Fail "No se pudo cambiar a la rama '$ramaDestino'." }
+
+  $rama = $ramaDestino
+  Write-Host "  [OK] Reparado. Ahora paras sobre la rama '$rama'." -ForegroundColor Green
+}
+
 Write-Host "  --- Subiendo a GitHub (rama: $rama) ---" -ForegroundColor Yellow
-git push origin $rama
+git push -u origin $rama
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
-  Write-Host "  [!] git push fallo. Si es la primera vez en esta rama, intenta:" -ForegroundColor Yellow
-  Write-Host "      git push -u origin $rama" -ForegroundColor White
-  Read-Host "  Presiona ENTER para salir"
-  exit 1
+  Write-Host "  [!] git push fallo. Causa mas comun: el remoto tiene commits que tu no." -ForegroundColor Yellow
+  $r = Read-Host "  Intento 'git pull --rebase' y vuelvo a subir? (s/n)"
+  if ($r -eq 's' -or $r -eq 'S') {
+    git pull --rebase origin $rama
+    if ($LASTEXITCODE -ne 0) { Fail "El rebase tiene conflictos. Resuelvelos a mano y vuelve a correr esto." }
+    git push -u origin $rama
+    if ($LASTEXITCODE -ne 0) { Fail "Sigue fallando el push despues del rebase. Revisa el mensaje de arriba." }
+  } else {
+    Read-Host "  Presiona ENTER para salir"
+    exit 1
+  }
 }
 
 Write-Host ""
@@ -110,4 +152,13 @@ Write-Host "  ============================================================" -For
 Write-Host "    LISTO. Subido a GitHub como:" -ForegroundColor Green
 Write-Host "    $tituloCorto" -ForegroundColor White
 Write-Host "  ============================================================" -ForegroundColor Green
+
+# Respaldo local (rota y deja los ultimos 5) -- mismo paso final que ya
+# hacia PUSH_TO_GIT.bat, para no perder esa funcion al dejar un solo script.
+if (Test-Path "backup.ps1") {
+  Write-Host ""
+  Write-Host "  --- Respaldo local ---" -ForegroundColor Yellow
+  & .\backup.ps1
+}
+
 Read-Host "  Presiona ENTER para salir"
