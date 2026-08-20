@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, Timestamp, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { useUndo } from '../../context/UndoContext';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { playCashRegisterSound } from '../../lib/soundEffects';
-import { camposInvoices } from '../../lib/invoiceOps';
+import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
 import { extractCr, round2 } from '../../lib/finance';
 import { money, toDate, fmtDayAndDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
@@ -119,34 +119,54 @@ export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProp
     const confirmMsg = `¿Confirmas registrar el cobro de ${money(it.amount)} para el Contrarecibo #${it.cr} (Factura #${it.folio})?`;
     if (!(await confirmDialog(confirmMsg))) return;
 
-    const previousInvoices = it.order.invoices || [];
-    const updatedInvoices = previousInvoices.map((inv) => {
-      if (inv.id === it.invoice.id || (inv.folio && inv.folio === it.folio)) {
-        return {
-          ...inv,
-          creditCycle: {
-            ...inv.creditCycle,
-            status: 'paid' as const,
-          },
-          collection: {
-            ...inv.collection,
-            contrareciboNumber: it.cr,
-            paidAmount: it.amount,
-            paymentDate: Timestamp.now(),
-          },
-        };
-      }
-      return inv;
-    });
+    const orderRef = doc(db, PATHS.orders, it.order.id);
+    const invoiceId = it.invoice.id;
 
+    // FIX: antes se armaban `previousInvoices`/`updatedInvoices` a partir de
+    // `it.order.invoices` (una copia capturada al momento del render) y se
+    // escribian con updateDoc sin transaccion, tanto para marcar como
+    // cobrado como para el "Deshacer" (hasta 12s despues). Si cualquier
+    // otra factura del mismo expediente cambiaba en ese lapso -- por otro
+    // usuario, por el Kanban, por el saneador nocturno -- ese cambio se
+    // perdia al sobrescribir TODO el arreglo invoices con la copia vieja.
+    // Ahora cada paso relee el expediente real dentro de una transaccion y
+    // solo toca la factura por id (aplicarPorId), igual que ya hace
+    // Cobranza/useCobranzaActions.ts.
     await executeWithUndo(
       async () => {
-        await updateDoc(doc(db, PATHS.orders, it.order.id), camposInvoices(updatedInvoices));
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) throw new Error('El expediente ya no existe');
+          const actuales: Invoice[] = snap.data().invoices ?? [];
+          const nuevas = aplicarPorId(actuales, invoiceId, (inv) => ({
+            ...inv,
+            creditCycle: { ...inv.creditCycle, status: 'paid' as const },
+            collection: {
+              ...inv.collection,
+              contrareciboNumber: it.cr,
+              paidAmount: it.amount,
+              paymentDate: Timestamp.now(),
+            },
+          }));
+          if (!nuevas) throw new Error('La factura ya no está en el expediente');
+          tx.update(orderRef, camposInvoices(nuevas));
+        });
         playCashRegisterSound();
         toast(`✅ Factura #${it.folio} (CR #${it.cr}) marcada como COBRADA.`, 'ok');
       },
       async () => {
-        await updateDoc(doc(db, PATHS.orders, it.order.id), camposInvoices(previousInvoices));
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) throw new Error('El expediente ya no existe');
+          const actuales: Invoice[] = snap.data().invoices ?? [];
+          const nuevas = aplicarPorId(actuales, invoiceId, (inv) => ({
+            ...inv,
+            creditCycle: { ...inv.creditCycle, status: it.invoice.creditCycle?.status ?? 'pending' },
+            collection: { ...it.invoice.collection },
+          }));
+          if (!nuevas) throw new Error('La factura ya no está en el expediente');
+          tx.update(orderRef, camposInvoices(nuevas));
+        });
         toast('↩️ Cobro revertido exitosamente.', 'ok');
       },
       `Cobro de ${money(it.amount)} registrado en CR #${it.cr}`,

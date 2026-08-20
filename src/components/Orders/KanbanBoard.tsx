@@ -7,21 +7,33 @@ import { KilosProgressBar } from './KilosProgressBar';
 import { sound } from '../../lib/sounds';
 import { useToast } from '../../context/ToastContext';
 import { db, PATHS } from '../../lib/firebase';
-import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { camposInvoices } from '../../lib/invoiceOps';
+import type { Invoice } from '../../lib/types';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 type OrderWithSummary = {
   o: PurchaseOrder;
   s: any; // getOrderSummary return type
 };
 
+// FIX (v8.9.2): la columna "paid" (Con el Contador) usaba var(--ok) --
+// el mismo verde de "exito" que se usa en todo el sistema para "collected"
+// (ya en caja). Eso hacia que una factura que TODAVIA no esta cobrada de
+// verdad -- solo esta en manos del contador, un paso antes -- se viera
+// identica en color a una que ya esta resuelta. En OrderModal/InvoiceWidget
+// esa misma factura "paid" ya se mostraba en ambar (STATUS_TONE.paid =
+// 'b-warn' en lib/types.ts, la definicion canonica) -- eran dos pantallas
+// contradiciendose sobre si una factura "paid" ya esta bien o todavia
+// necesita atencion. Ahora el Kanban usa el mismo ambar que el resto del
+// sistema para "paid", y reserva el verde exclusivamente para "collected".
 const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: string; nextStatus?: OrderStatus; nextLabel?: string }[] = [
   { id: 'pedido', label: 'Pendiente de Facturar', color: 'var(--ink)', bg: 'var(--paper-sunk)', nextStatus: 'facturado', nextLabel: '➔ Facturar' },
   { id: 'facturado', label: 'Facturado', color: 'var(--info)', bg: 'var(--info-bg)', nextStatus: 'pending', nextLabel: '➔ Con CR' },
   { id: 'pending', label: 'Con Contrarecibo', color: 'var(--warn)', bg: 'var(--warn-bg)', nextStatus: 'paid', nextLabel: '➔ Con Contador' },
   { id: 'overdue', label: 'Vencidas', color: 'var(--bad)', bg: 'var(--bad-bg)', nextStatus: 'paid', nextLabel: '➔ Con Contador' },
   { id: 'manual_review', label: 'Revisión Manual', color: 'var(--kanban-review)', bg: 'var(--kanban-review-bg)', nextStatus: 'pending', nextLabel: '➔ Reactivar' },
-  { id: 'paid', label: 'Con el Contador', color: 'var(--ok)', bg: 'var(--ok-bg)', nextStatus: 'collected', nextLabel: '➔ En Caja' },
+  { id: 'paid', label: 'Con el Contador', color: 'var(--warn)', bg: 'var(--warn-bg)', nextStatus: 'collected', nextLabel: '➔ En Caja' },
   { id: 'collected', label: '✅ Cobrado y Recolectado', color: 'var(--kanban-collected)', bg: 'var(--kanban-collected-bg)' },
 ];
 
@@ -46,31 +58,57 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
     setMovingId(order.id);
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
-      const updatedInvoices = (order.invoices || []).map(inv => ({
-        ...inv,
-        creditCycle: {
-          ...(inv.creditCycle || {}),
-          status: targetStatus,
-        },
-        collection: {
-          ...(inv.collection || {}),
-          // Timestamp.now(), no serverTimestamp(): este objeto viaja dentro
-          // del arreglo invoices (tipado como Invoice[]), y el campo espera
-          // Timestamp | null, no FieldValue. serverTimestamp() aquí violaba
-          // el tipo silenciosamente porque antes se escribía sin pasar por
-          // camposInvoices(); mismo patrón que ya usan QuickPayModal, etc.
-          ...(targetStatus === 'paid' ? { paidAt: inv.collection?.paidAt || Timestamp.now() } : {}),
-          ...(targetStatus === 'collected' ? { collectedAt: inv.collection?.collectedAt || Timestamp.now() } : {}),
-        }
-      }));
 
-      await updateDoc(orderRef, {
-        'creditCycle.status': targetStatus,
-        // camposInvoices() recalcula invoiceStatuses junto con invoices para
-        // que no queden desincronizados (ver Ciclo de auditoría: FastFlows
-        // bypasseaba este helper y dejaba invoiceStatuses obsoleto, lo que
-        // ocultaba órdenes del barrido nocturno de vencidas y del Dashboard).
-        ...(updatedInvoices.length > 0 ? camposInvoices(updatedInvoices) : { updatedAt: serverTimestamp() }),
+      // FIX: antes se leia `order.invoices` directo de la prop (una copia
+      // que puede tener uno o mas renders de retraso respecto a Firestore)
+      // y se escribia con updateDoc sin transaccion. Si alguien mas
+      // modificaba ese mismo expediente entre que este tablero cargo y que
+      // se soltara la tarjeta (otro usuario, el Auto-Conciliador, el
+      // saneador nocturno), ese cambio se perdia silenciosamente al
+      // sobrescribir TODO el arreglo invoices con esta copia vieja.
+      // runTransaction relee el expediente real dentro de la operacion,
+      // igual que ya hace Cobranza/useCobranzaActions.ts.
+      //
+      // Ademas, ya no se tocan facturas que ya estan 'paid' o 'collected':
+      // arrastrar la tarjeta del EXPEDIENTE (que puede agrupar varias
+      // facturas en distintos estatus) no debe retroceder una factura que
+      // ya llego mas lejos que las demas.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(orderRef);
+        if (!snap.exists()) throw new Error('El expediente ya no existe');
+
+        const current: Invoice[] = snap.data().invoices ?? [];
+        const updatedInvoices = current.map(inv => {
+          if (inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected') {
+            return inv;
+          }
+          return {
+            ...inv,
+            creditCycle: {
+              ...(inv.creditCycle || {}),
+              status: targetStatus,
+            },
+            collection: {
+              ...(inv.collection || {}),
+              // Timestamp.now(), no serverTimestamp(): este objeto viaja dentro
+              // del arreglo invoices (tipado como Invoice[]), y el campo espera
+              // Timestamp | null, no FieldValue. serverTimestamp() aquí violaba
+              // el tipo silenciosamente porque antes se escribía sin pasar por
+              // camposInvoices(); mismo patrón que ya usan QuickPayModal, etc.
+              ...(targetStatus === 'paid' ? { paidAt: inv.collection?.paidAt || Timestamp.now() } : {}),
+              ...(targetStatus === 'collected' ? { collectedAt: inv.collection?.collectedAt || Timestamp.now() } : {}),
+            }
+          };
+        });
+
+        tx.update(orderRef, {
+          'creditCycle.status': targetStatus,
+          // camposInvoices() recalcula invoiceStatuses junto con invoices para
+          // que no queden desincronizados (ver Ciclo de auditoría: FastFlows
+          // bypasseaba este helper y dejaba invoiceStatuses obsoleto, lo que
+          // ocultaba órdenes del barrido nocturno de vencidas y del Dashboard).
+          ...(updatedInvoices.length > 0 ? camposInvoices(updatedInvoices) : { updatedAt: serverTimestamp() }),
+        });
       });
 
       if (targetStatus === 'paid' || targetStatus === 'collected') {
@@ -99,6 +137,20 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
     e.dataTransfer.dropEffect = 'move';
   };
 
+  // FIX (v8.9.2): arrastrar una tarjeta la deja caer en CUALQUIER columna,
+  // sin importar cuantos pasos se salte -- de "Pendiente de Facturar"
+  // directo a "Cobrado y Recolectado" con un solo movimiento, sin avisar
+  // nada. A diferencia del boton "Con Contador -> En Caja" (que siempre
+  // avanza un paso a la vez), arrastrar puede saltarse el registro del
+  // Contrarecibo o el paso por el Contador por accidente. Estos dos saltos
+  // son los que de verdad importan (los demas son reordenamientos normales
+  // del dia a dia), asi que solo esos piden confirmacion.
+  const esSaltoArriesgado = (actual: OrderStatus, destino: OrderStatus): boolean => {
+    if (destino === 'collected' && actual !== 'paid') return true;
+    if ((destino === 'paid' || destino === 'collected') && (actual === 'pedido' || actual === 'facturado')) return true;
+    return false;
+  };
+
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>, targetStatus: OrderStatus) => {
     e.preventDefault();
     setActiveTarget(null);
@@ -107,6 +159,18 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
       if (data.orderId && data.currentStatus !== targetStatus) {
         const found = items.find(it => it.o.id === data.orderId);
         if (found) {
+          if (esSaltoArriesgado(data.currentStatus, targetStatus)) {
+            const actualLabel = KANBAN_COLUMNS.find(c => c.id === data.currentStatus)?.label || data.currentStatus;
+            const destinoLabel = KANBAN_COLUMNS.find(c => c.id === targetStatus)?.label || targetStatus;
+            const ok = await confirmDialog({
+              title: 'Salto de varios pasos',
+              message: `Vas a mover "${found.o.folio || found.o.oc || 'este expediente'}" de "${actualLabel}" directo a "${destinoLabel}", saltándote los pasos de en medio (contrarecibo / contador). ¿Seguro que ya se cumplieron y solo faltaba actualizar el tablero?`,
+              confirmLabel: 'Sí, mover de todos modos',
+              cancelLabel: 'Cancelar',
+              danger: true,
+            });
+            if (!ok) return;
+          }
           await handleMoveStatus(found.o, targetStatus);
         }
       }

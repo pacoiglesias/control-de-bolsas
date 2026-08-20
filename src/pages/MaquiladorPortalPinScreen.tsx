@@ -44,6 +44,12 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
         setTimeout(() => setShake(false), 600);
         if (err?.code === 'functions/permission-denied') {
           toast('PIN incorrecto', 'bad');
+        } else if (err?.code === 'functions/resource-exhausted') {
+          // FIX (v8.9.2): mensaje real del bloqueo por intentos fallidos,
+          // en vez del generico "Error de conexión" que no explicaba nada.
+          toast(err?.message || 'Demasiados intentos fallidos. Espera unos minutos.', 'bad');
+        } else if (err?.code === 'functions/failed-precondition') {
+          toast(err?.message || 'El PIN del portal no está configurado.', 'bad');
         } else {
           toast('Error de conexión con el servidor.', 'bad');
         }

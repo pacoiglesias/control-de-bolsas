@@ -62,6 +62,7 @@ export function extractStats(data: any): Record<string, any> {
   let hasOverdue = false;
   let hasManual = false;
   let hasPending = false;
+  let hasFacturado = false;
   let allPaid = true;
   let hasCollected = false;
 
@@ -70,6 +71,7 @@ export function extractStats(data: any): Record<string, any> {
     if (s === 'overdue' || estaVencidaEnVivo(inv, data.collection?.contrareciboNumber, ahora)) hasOverdue = true;
     if (s === 'manual_review') hasManual = true;
     if (s === 'pending') hasPending = true;
+    if (s === 'facturado') hasFacturado = true;
     if (s === 'collected') hasCollected = true;
     if (s !== 'paid' && s !== 'collected') allPaid = false;
   }
@@ -79,6 +81,14 @@ export function extractStats(data: any): Record<string, any> {
     if (hasOverdue) status = 'overdue';
     else if (hasManual) status = 'manual_review';
     else if (hasPending) status = 'pending';
+    // FIX: faltaba esta rama (ya existe en src/lib/finance.ts getOrderSummary,
+    // linea ~408). Sin ella, un expediente con TODAS sus facturas en estatus
+    // 'facturado' (emitida, sin CR aun) no es overdue/manual/pending y tampoco
+    // allPaid, asi que "status" se quedaba con el valor viejo de
+    // data.creditCycle?.status (a veces 'pedido' desactualizado) -- el
+    // expediente se volvia invisible para pendingOrders/overdueOrders/
+    // manualReview en las KPIs del Dashboard.
+    else if (hasFacturado) status = 'facturado';
     else if (allPaid) status = hasCollected ? 'collected' : 'paid';
   }
   
@@ -123,9 +133,14 @@ export function extractStats(data: any): Record<string, any> {
       // inv.financials.commission es un valor guardado (snapshot); para
       // facturas importadas por XML ese campo puede no haberse llenado
       // nunca, dejando la comision en $0 aunque la comision real siga
-      // aplicando. Respaldo con la tasa estandar (6.9%), mismo patron ya
-      // usado arriba para costPerKg (fallback a $42).
-      const invCommission = Number(inv.financials?.commission || (invTotal * 0.069));
+      // aplicando. Respaldo con la tasa estandar del sistema (8%, ver
+      // FinancialConfig.commissionRate en src/lib/types.ts y el mismo
+      // fallback en src/lib/finance.ts computeCommissionFromInvoiceTotal).
+      // FIX: aqui decia 0.069 (6.9%), un valor que no corresponde a ninguna
+      // tasa configurada en el sistema -- desalineaba "Ganancia Realizada"
+      // y "Por Recibir" del Dashboard contra la vista en vivo (que usa 8%)
+      // para exactamente las facturas XML que este respaldo cubre.
+      const invCommission = Number(inv.financials?.commission || (invTotal * 0.08));
       
       margen += invMargin;
       
@@ -152,7 +167,8 @@ export function extractStats(data: any): Record<string, any> {
         if (s === 'paid') {
           cobrado += paidAmt > 0 ? paidAmt : invTotal;
           netoCobrado += invNet;
-          const commission = Number(inv.financials?.commission || (invTotal * 0.069));
+          // FIX: mismo ajuste que arriba, 6.9% -> 8% (tasa estandar real).
+          const commission = Number(inv.financials?.commission || (invTotal * 0.08));
           porRecibir += (invTotal - commission);
         }
         
@@ -473,25 +489,22 @@ export const recalcDashboardStats = onCall(
       'GT-597': { issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, department: 'GT' },
     };
 
-    // 1. Purga física y permanente de expedientes obsoletos, duplicados y basura
-    const allOrdersSnap = await db.collection(COL_ORDERS).get();
-    for (const d of allOrdersSnap.docs) {
-      const data = d.data();
-      const folio = (data.folio || '').trim().toUpperCase();
-      const oc = (data.oc || '').trim().toUpperCase();
-      const cr = (data.collection?.contrareciboNumber || '').trim().toUpperCase();
-      const invoiceCrs = (data.invoices || []).map((i: any) => (i.collection?.contrareciboNumber || i.folio || '').trim().toUpperCase());
+    // FIX (v8.9.2): esta función se llama "recalcDashboardStats" y su propio
+    // comentario de arriba dice que solo reconstruye los contadores del
+    // Dashboard sin tocar los expedientes -- pero aquí abajo, hasta hace un
+    // momento, había un borrado físico y permanente de CUALQUIER expediente
+    // que no apareciera en el mapa OFFICIAL_CR_MAP de 10 contrarecibos
+    // (aparentemente escrito para una limpieza puntual de datos de prueba en
+    // algún momento del desarrollo). Como recalcDashboardStats es una función
+    // que cualquier admin puede volver a llamar cuando quiera desde el botón
+    // "Recalcular Indicadores", eso significaba que CUALQUIER expediente
+    // real creado después de que se escribió ese mapa -- es decir, prácticamente
+    // todo tu trabajo actual -- se borraba para siempre la próxima vez que
+    // alguien recalculara. Se quita por completo: esta función ya nunca borra
+    // nada, solo suma y cuenta lo que ya existe.
 
-      const isMatchingCr = OFFICIAL_CR_MAP[folio] || OFFICIAL_CR_MAP[oc] || OFFICIAL_CR_MAP[cr] || invoiceCrs.some((c: string) => OFFICIAL_CR_MAP[c]);
-      const is6167 = folio === '6167' || oc === '120267114014' || (data.invoices || []).some((i: any) => i.folio === '6167');
-
-      // Si es un documento marcado como eliminado o no pertenece a los oficiales, borrarlo físicamente
-      if ((!isMatchingCr && !is6167) || data.isDeleted) {
-        await d.ref.delete();
-      }
-    }
-
-    // 2. Garantizar los 10 Contrarecibos Oficiales
+    // Garantizar los 10 Contrarecibos Oficiales (solo los RECREA si faltan o
+    // fueron borrados -- nunca sobreescribe uno que ya existe y sigue activo)
     for (const [crNumber, crData] of Object.entries(OFFICIAL_CR_MAP)) {
       const crDocId = `cr-${crNumber.toLowerCase().replace(/[^a-z0-9_-]/g, '')}`;
       const crDocRef = db.collection(COL_ORDERS).doc(crDocId);

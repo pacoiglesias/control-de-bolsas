@@ -17,6 +17,7 @@ import {
   computeFinancials,
   configEfectiva,
   round2,
+  normalizarTexto,
   type FinanceConfigCore,
 } from "./shared/finance.core";
 import { parseDocumentData } from "./ai/extractor";
@@ -68,6 +69,61 @@ async function readConfig(): Promise<FinanceConfigCore> {
   };
 }
 
+const MAQUILA_PIN_REF_PATH = 'system_settings_private/maquila';
+const MAQUILA_PIN_MAX_INTENTOS = 5;
+const MAQUILA_PIN_BLOQUEO_MINUTOS = 15;
+
+/**
+ * FIX (v8.9.2): el PIN del Portal Maquilador son 4 digitos (10,000
+ * combinaciones) y esta funcion es publica -- sin limite de intentos,
+ * cualquiera podia programar un script que probara las 10,000 combinaciones
+ * en minutos y quedarse dentro (ver el estado de cuenta real de Andres, o
+ * registrar entregas falsas). Ahora, despues de 5 intentos fallidos
+ * seguidos, se bloquea 15 minutos -- se lee y escribe en una transaccion
+ * para que dos intentos simultaneos no se "brinquen" el contador.
+ *
+ * Tambien se quita el valor por defecto '2468': si el documento del PIN no
+ * existe o no tiene el campo 'pin', ahora la funcion falla cerrada (nadie
+ * entra) en vez de fallar abierta hacia un PIN conocido y publicado en el
+ * historial de este mismo repositorio.
+ */
+async function validarPinMaquila(db: FirebaseFirestore.Firestore, pinIntentado: string): Promise<void> {
+  const ref = db.doc(MAQUILA_PIN_REF_PATH);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.data() || {};
+    const realPin = data.pin;
+    if (!realPin) {
+      throw new HttpsError('failed-precondition', 'El PIN del portal no esta configurado. Contacta al administrador.');
+    }
+
+    const ahora = Date.now();
+    const bloqueadoHastaMs = data.pinLockedUntil ? (data.pinLockedUntil as FirebaseFirestore.Timestamp).toMillis() : 0;
+    if (bloqueadoHastaMs > ahora) {
+      const minutosRestantes = Math.ceil((bloqueadoHastaMs - ahora) / 60000);
+      throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes} minuto(s).`);
+    }
+
+    if (pinIntentado === realPin) {
+      // Exito: se limpia el contador para no arrastrar intentos viejos.
+      if (data.pinFailedAttempts || data.pinLockedUntil) {
+        tx.update(ref, { pinFailedAttempts: FieldValue.delete(), pinLockedUntil: FieldValue.delete() });
+      }
+      return;
+    }
+
+    const intentosPrevios = bloqueadoHastaMs > 0 ? 0 : (data.pinFailedAttempts || 0);
+    const intentos = intentosPrevios + 1;
+    if (intentos >= MAQUILA_PIN_MAX_INTENTOS) {
+      const bloqueadoHasta = Timestamp.fromMillis(ahora + MAQUILA_PIN_BLOQUEO_MINUTOS * 60000);
+      tx.update(ref, { pinFailedAttempts: 0, pinLockedUntil: bloqueadoHasta });
+      throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${MAQUILA_PIN_BLOQUEO_MINUTOS} minuto(s).`);
+    }
+    tx.update(ref, { pinFailedAttempts: intentos });
+    throw new HttpsError('permission-denied', 'PIN incorrecto');
+  });
+}
+
 // Force deploy to fix CORS/IAM policy
 export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, async (request) => {
 
@@ -82,11 +138,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, 
   // Firestore nunca deja leer al cliente (system_settings_private), no del
   // documento publico donde vivia antes.
   if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
-  const pinSnap = await db.collection('system_settings_private').doc('maquila').get();
-  const realPin = pinSnap.data()?.pin || '2468';
-  if (pin !== realPin) {
-    throw new HttpsError('permission-denied', 'PIN incorrecto');
-  }
+  await validarPinMaquila(db, pin);
 
   if (action === 'ledger') {
     const configSnap = await db.collection('config').doc('financials').get();
@@ -94,9 +146,14 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, 
     const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
 
     const purchasesSnap = await db.collection('purchases').get();
+    // FIX: comparaba con .toLowerCase() simple, que nunca hace match contra
+    // "Andrés" (con acento) -- el nombre real que escriben OrderModals.tsx y
+    // PagarAndresModal.tsx. Por eso el Estado de Cuenta del Portal Maquilador
+    // mostraba $0.00 / 0 kg entregados aunque si hubiera compras reales.
+    // normalizarTexto() ya resuelve esto en el frontend; ahora es compartida.
     const provPurchases = purchasesSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter((p: any) => p.provider && p.provider.toLowerCase() === 'andres');
+      .filter((p: any) => p.provider && normalizarTexto(p.provider) === 'andres');
 
     const orderIds = provPurchases.map(p => p.id);
     const orderById = new Map();
@@ -110,7 +167,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, 
     const expensesSnap = await db.collection('expenses').get();
     const provExpenses = expensesSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter((e: any) => e.provider && e.provider.toLowerCase() === 'andres');
+      .filter((e: any) => e.provider && normalizarTexto(e.provider) === 'andres');
 
     const totalReceivedKilos = provPurchases.reduce((acc, p: any) => acc + (p.receivedKilos ?? 0), 0);
     const totalPurchasesCost = provPurchases.reduce((acc, p: any) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)), 0);
@@ -202,7 +259,68 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, 
   return activeOrders;
 });
 
+// FIX (protección + bitácora, a raíz de una revisión del Portal Maquilador):
+// antes el portal escribia entregas directo a Firestore desde el cliente
+// (addDoc a maquilaDeliveries), permitido por la regla "request.auth !=
+// null". El problema: cualquiera puede llamar signInAnonymously() desde la
+// consola del navegador -- la configuracion publica de Firebase (apiKey,
+// projectId, etc.) no es secreta, viaja en cualquier build del sitio -- y
+// con eso escribir entregas falsas SIN conocer el PIN real. La lectura ya
+// estaba protegida (getActiveMaquilaOrders valida el PIN en el servidor);
+// la escritura no lo estaba.
+//
+// Esta funcion mueve la escritura al servidor: valida el PIN igual que
+// getActiveMaquilaOrders, y solo entonces crea la entrega con el Admin SDK
+// (que no pasa por las reglas de Firestore). Ademas deja un registro en
+// system_logs -- la bitácora que ya usa el resto del sistema (Logs.tsx) --
+// para poder ver despues qué se registró desde el portal, cuándo y para
+// qué expediente. firestore.rules ya no permite crear maquilaDeliveries
+// desde el cliente en absoluto (ver v8.8.9): todo pasa por aquí.
+export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true }, async (request) => {
+  const { pin, orderId, folio, productDescription, kilos, docType, docFolio, notes, status } = request.data || {};
+  const db = getFirestore();
 
+  if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
+  await validarPinMaquila(db, pin);
+
+  const kilosNum = Number(kilos);
+  if (!orderId || !Number.isFinite(kilosNum) || kilosNum <= 0) {
+    throw new HttpsError('invalid-argument', 'Datos de entrega incompletos o inválidos');
+  }
+
+  const now = FieldValue.serverTimestamp();
+  const deliveryRef = db.collection('maquilaDeliveries').doc();
+  await deliveryRef.set({
+    date: now,
+    orderId,
+    folio: folio || '',
+    productDescription: productDescription || '',
+    kilos: kilosNum,
+    docType: docType || 'remision',
+    docFolio: docFolio || null,
+    notes: notes || null,
+    status: status || 'pending',
+    createdAt: now,
+  });
+
+  // Bitácora: el portal se accede solo con PIN (sin cuenta/correo por
+  // persona), asi que "user" identifica el origen, no a un individuo.
+  await db.collection('system_logs').add({
+    user: 'portal-maquilador',
+    action: 'Entrega Registrada (Portal Maquilador)',
+    details: {
+      deliveryId: deliveryRef.id,
+      orderId,
+      folio: folio || '',
+      kilos: kilosNum,
+      docType: docType || 'remision',
+      docFolio: docFolio || null,
+    },
+    timestamp: now,
+  });
+
+  return { id: deliveryRef.id };
+});
 
 /** Cache corto de config/financials: el sanitizador se dispara en cascada
  *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo

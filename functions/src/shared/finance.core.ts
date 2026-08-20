@@ -52,6 +52,20 @@ export function round2(n: number): number {
   return new Decimal(n).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
 }
 
+/**
+ * Normaliza texto para comparaciones que no deben depender de acentos ni
+ * mayusculas -- "Andres" vs "Andrés" son el mismo proveedor para cualquier
+ * humano, pero como strings JS son distintos byte a byte. Vivia solo en
+ * src/lib/finance.ts (frontend); getActiveMaquilaOrders en index.ts
+ * comparaba con un .toLowerCase() simple que nunca hace match contra
+ * "Andrés" (con acento), asi que el Estado de Cuenta del Portal Maquilador
+ * mostraba $0.00 / 0 kg entregados aunque si hubiera compras y pagos reales
+ * registrados. Ahora vive aqui, compartida entre frontend y backend.
+ */
+export function normalizarTexto(s: string | null | undefined): string {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 export function computeFinancials(
   kilos: number,
   cfg: FinanceConfigCore,

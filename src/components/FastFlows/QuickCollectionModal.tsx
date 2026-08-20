@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, Timestamp, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { useOrders } from '../../hooks/useOrders';
@@ -181,28 +181,39 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
         ordersMap.get(it.orderId)!.invoiceIds.add(it.invoice.id);
       });
 
-      // Actualizar cada orden con el mismo CR y fecha de cobro
-      for (const [orderId, { order, invoiceIds }] of ordersMap.entries()) {
-        const updatedInvoices = (order.invoices || []).map(inv => {
-          if (invoiceIds.has(inv.id)) {
-            return {
-              ...inv,
-              collection: {
-                ...inv.collection,
-                contrareciboNumber: cleanCr,
-                contrareciboDate: Timestamp.now(),
-              },
-              creditCycle: {
-                ...inv.creditCycle,
-                status: 'pending' as const,
-                dueDate: dueTimestamp,
-              },
-            };
-          }
-          return inv;
+      // Actualizar cada orden con el mismo CR y fecha de cobro.
+      // FIX: antes se mapeaba sobre `order.invoices` (copia capturada al
+      // abrir el modal, potencialmente desactualizada) y se escribia con
+      // updateDoc sin transaccion -- un cambio concurrente a cualquier otra
+      // factura de ese mismo expediente se perdia al sobrescribir todo el
+      // arreglo. Ahora cada expediente relee su estado real dentro de una
+      // transaccion antes de escribir.
+      for (const [orderId, { invoiceIds }] of ordersMap.entries()) {
+        const orderRef = doc(db, PATHS.orders, orderId);
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) return;
+          const actuales: Invoice[] = snap.data().invoices ?? [];
+          const nuevas = actuales.map(inv => {
+            if (invoiceIds.has(inv.id)) {
+              return {
+                ...inv,
+                collection: {
+                  ...inv.collection,
+                  contrareciboNumber: cleanCr,
+                  contrareciboDate: Timestamp.now(),
+                },
+                creditCycle: {
+                  ...inv.creditCycle,
+                  status: 'pending' as const,
+                  dueDate: dueTimestamp,
+                },
+              };
+            }
+            return inv;
+          });
+          tx.update(orderRef, camposInvoices(nuevas));
         });
-
-        await updateDoc(doc(db, PATHS.orders, orderId), camposInvoices(updatedInvoices));
       }
 
       playCashRegisterSound();

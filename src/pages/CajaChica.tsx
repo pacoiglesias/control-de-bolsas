@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, collection, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, collection, setDoc, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
@@ -673,8 +673,19 @@ function ExpenseDrawer({ expense, onClose, provName, saldoCajaActual = 0 }: { ex
         onClose();
       },
       async () => {
+        // FIX: antes esto hacia setDoc(ref, expense) -- un REEMPLAZO
+        // COMPLETO del documento con la copia de `expense` capturada al
+        // abrir este cajón (posiblemente desactualizada si algo más lo
+        // tocó mientras tanto). safeDeleteDoc solo puso 3 campos
+        // (isDeleted/deletedAt/deletedBy); deshacerlo debe quitar
+        // exactamente esos 3 campos, igual que restoreOrder() ya hace
+        // para expedientes -- no reescribir el documento entero.
         const ref = doc(db, PATHS.expenses, expense.id);
-        await setDoc(ref, expense);
+        await updateDoc(ref, {
+          isDeleted: deleteField(),
+          deletedAt: deleteField(),
+          deletedBy: deleteField(),
+        });
         await logAction(user?.email, 'Borrado de Movimiento Deshecho', { id: expense.id });
       },
       `Movimiento de caja eliminado: ${expense.concept}`

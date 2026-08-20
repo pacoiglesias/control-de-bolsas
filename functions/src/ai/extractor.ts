@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI, Type } from "@google/genai";
+import { getFirestore } from "firebase-admin/firestore";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -12,9 +13,24 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
 export const parseDocumentData = onCall(
   { secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 60, region: "us-central1" },
   async (request) => {
-    // Solo usuarios autenticados pueden usar esto
-    if (!request.auth) {
+    // FIX (v8.9.2): "if (!request.auth)" tambien deja pasar una sesion
+    // anonima (signInAnonymously desde la consola del navegador, con la
+    // configuracion publica de Firebase -- no es secreta). Eso significaba
+    // que cualquiera podia gastar el presupuesto de la API de Gemini sin
+    // haber iniciado sesion de verdad. Ahora se exige correo verificado Y
+    // estar dado de alta como admin o manager, igual que reprocessOrder.
+    const uid = request.auth?.uid;
+    if (!uid) {
       throw new HttpsError("unauthenticated", "Debe estar autenticado para usar el lector inteligente.");
+    }
+    if (!request.auth?.token?.email_verified) {
+      throw new HttpsError("permission-denied", "Tu correo debe estar verificado.");
+    }
+    const db = getFirestore();
+    const adminSnap = await db.collection("admins").doc(uid).get();
+    const rol = adminSnap.data()?.role;
+    if (!adminSnap.exists || (rol !== "admin" && rol !== "manager")) {
+      throw new HttpsError("permission-denied", "Tu cuenta no tiene permiso para usar el lector inteligente.");
     }
 
     const { base64, mimeType } = request.data;

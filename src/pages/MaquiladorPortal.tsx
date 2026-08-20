@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, PATHS, functions } from '../lib/firebase';
+import { functions } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { httpsCallable } from 'firebase/functions';
 import { money } from '../lib/format';
@@ -51,24 +50,38 @@ export default function MaquiladorPortal() {
   const { isOnline } = useNetworkStatus();
 
   // Sincronizador de entregas encoladas offline
+  //
+  // FIX (protección + bitácora): antes esto escribia directo a Firestore con
+  // addDoc(). La regla que lo permitia era "request.auth != null" -- pero
+  // cualquiera puede llamar signInAnonymously() desde la consola del
+  // navegador (la config publica de Firebase no es secreta) SIN conocer el
+  // PIN real, e inyectar entregas falsas. Ahora pasa por la Cloud Function
+  // registrarEntregaMaquila, que valida el PIN en el servidor (igual que ya
+  // hace getActiveMaquilaOrders) antes de escribir, y ademas deja un
+  // registro en la bitácora (system_logs) de cada entrega -- eso es lo que
+  // permite despues ver "qué se movió" desde el Portal Maquilador.
+  const registrarEntregaFn = useMemo(() => httpsCallable(functions, 'registrarEntregaMaquila'), []);
+
   const syncOfflineQueue = React.useCallback(async () => {
     const queueStr = localStorage.getItem(STORAGE_OFFLINE_QUEUE_KEY);
     if (!queueStr) return;
+    if (!pin) return; // sin PIN en memoria no hay forma de autenticar el envío
     try {
       const queue = JSON.parse(queueStr);
       if (!Array.isArray(queue) || queue.length === 0) return;
       toast(`Sincronizando ${queue.length} entrega(s) guardada(s) offline...`, 'info');
-      
+
       for (const item of queue) {
-        await addDoc(collection(db, PATHS.maquilaDeliveries), {
-          date: serverTimestamp(),
+        await registrarEntregaFn({
+          pin,
           orderId: item.orderId,
           folio: item.folio,
           productDescription: item.productDescription,
           kilos: item.kilos,
+          docType: item.docType || 'remision',
+          docFolio: item.docFolio || null,
           notes: item.notes || null,
           status: item.status,
-          createdAt: serverTimestamp(),
         });
       }
       localStorage.removeItem(STORAGE_OFFLINE_QUEUE_KEY);
@@ -76,7 +89,7 @@ export default function MaquiladorPortal() {
     } catch (e) {
       console.warn('Error sincronizando entregas offline', e);
     }
-  }, [toast]);
+  }, [toast, pin, registrarEntregaFn]);
 
   useEffect(() => {
     if (isOnline) {
@@ -98,6 +111,11 @@ export default function MaquiladorPortal() {
     setPin(p);
     setActiveOrders(orders);
     setAuth(true);
+    // Ya no hace falta signInAnonymously() aqui (v8.8.7 lo agrego para
+    // maquilaDeliveries/expenses): desde que registrar una entrega pasa por
+    // registrarEntregaMaquila (Cloud Function que valida el PIN en el
+    // servidor), este portal no necesita ninguna sesion de Firebase Auth --
+    // el acceso lo controla el PIN, validado en el backend.
     syncOfflineQueue();
   };
 
@@ -200,8 +218,11 @@ export default function MaquiladorPortal() {
     }
 
     try {
-      const deliveryRef = await addDoc(collection(db, PATHS.maquilaDeliveries), {
-        date: serverTimestamp(),
+      // FIX: mismo cambio que syncOfflineQueue -- pasa por la Cloud Function
+      // (valida PIN en el servidor + deja bitácora) en vez de escribir
+      // directo a Firestore desde el cliente.
+      const res = await registrarEntregaFn({
+        pin,
         orderId: selectedOrder.orderId,
         folio: selectedOrder.folio,
         productDescription: selectedOrder.productDescription,
@@ -210,8 +231,8 @@ export default function MaquiladorPortal() {
         docFolio: docFolio.trim() || null,
         notes: deliveryNotes.trim() || null,
         status: requiresApproval ? 'pending_approval' : 'pending',
-        createdAt: serverTimestamp(),
       });
+      const deliveryId = (res.data as any)?.id;
 
       // Disparar Confetti
       confetti({
@@ -222,7 +243,7 @@ export default function MaquiladorPortal() {
       });
 
       const newEntry = {
-        id: deliveryRef.id,
+        id: deliveryId,
         folio: selectedOrder.folio,
         productDescription: selectedOrder.productDescription,
         kilos: numKilos,

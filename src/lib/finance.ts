@@ -18,6 +18,7 @@ export {
   computeCommissionFromInvoiceTotal,
   configEfectiva,
   round2,
+  normalizarTexto,
 } from '../../functions/src/shared/finance.core';
 export type {
   FinanceConfigCore,
@@ -37,18 +38,11 @@ export function extractCr(inv: any, o?: any): string {
   return cr;
 }
 
-/**
- * Normaliza texto para comparaciones que no deben depender de acentos ni
- * mayusculas -- "Andres" vs "Andrés" son el mismo proveedor para cualquier
- * humano, pero como strings JS son distintos byte a byte. Sin esto, dos
- * partes del sistema que escriben el nombre de forma ligeramente distinta
- * (una con acento, otra sin) dejan de coincidir en los filtros — cada
- * pantalla termina sumando un subconjunto distinto de compras/gastos del
- * mismo proveedor real, con resultados que nunca cuadran entre si.
- */
-export function normalizarTexto(s: string | null | undefined): string {
-  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-}
+// normalizarTexto ahora vive en functions/src/shared/finance.core.ts (se
+// reexporta arriba) para que el mismo criterio de comparacion lo usen tanto
+// el frontend como getActiveMaquilaOrders en el backend -- antes solo
+// estaba aqui, y el backend comparaba con un .toLowerCase() simple que
+// nunca hacia match contra "Andrés" con acento.
 
 /**
  * Infiere el departamento ('TH' o 'GT') de una orden o factura evaluando:

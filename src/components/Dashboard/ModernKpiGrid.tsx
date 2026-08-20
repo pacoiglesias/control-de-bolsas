@@ -151,7 +151,13 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           <ResponsiveMoney value={k.vencido || 0} />
         </div>
         <div style={{ fontSize: 13, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: 700, zIndex: 1 }}>
-          {vencidos} factura{vencidos === 1 ? '' : 's'} fuera de fecha
+          {/* FIX (v8.9.1): "fuera de fecha" a secas se confundía con el aviso
+              de OverdueBanner ("N se vencieron recientemente"), que cuenta
+              algo distinto (solo lo que cruzó a vencido en el chequeo
+              automático de las últimas horas). Este número de aquí es el
+              acumulado total a hoy -- se aclara explícitamente para que no
+              parezcan el mismo dato cuando no coinciden. */}
+          {vencidos} factura{vencidos === 1 ? '' : 's'} vencida{vencidos === 1 ? '' : 's'} en total (acumulado a hoy)
         </div>
       </motion.div>
       
