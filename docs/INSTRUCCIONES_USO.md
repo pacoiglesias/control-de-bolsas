@@ -1,102 +1,77 @@
-# Manual de Uso Maestro: ERP Control de Bolsas (v5.7.0)
+# Manual de Uso Maestro: ERP Control Universal (v8.7.0)
 
-> **Cambios de la v5.7.0 que conviene conocer**
-> - **Tamaño máximo de archivo: 5 MB.** Es el límite real que alcanza a leer la IA. Si un PDF pesa más, el sistema lo deja en «Revisión manual» explicando el motivo, en vez de descartarlo en silencio como hacía antes.
-> - **Altas de usuario:** al dar de alta a un empleado se le envía un correo de verificación. **Tiene que abrirlo antes de poder entrar.** Es un requisito de las reglas de seguridad y no se puede saltar.
-> - **Catálogo:** la pantalla ya carga. Se alimenta sola con las partidas de los expedientes que vas guardando.
-
-
-Bienvenido a tu sistema automatizado de Control de Bolsas. Este manual detalla de la "A a la Z" todos los flujos operativos, las automatizaciones de inteligencia artificial, y cómo el sistema conecta tus ventas con tus deudas y gastos sin que tengas que capturar las cosas dos veces.
-
----
-
-## 1. Órdenes de Venta: El Inicio de Todo
-
-### A. Subir pedidos automáticamente (Con Inteligencia Artificial)
-1. Ve al menú **"Subir Órdenes"**.
-2. Arrastra los PDFs de las Órdenes de Compra (OC) que te mandaron los clientes.
-3. El sistema mandará llamar a **Gemini (Inteligencia Artificial)**, el cual va a leer y extraer: Folio, Cliente, Kilos Totales y una **tabla con el detalle exacto de artículos, cantidades y precios**.
-4. Un indicador sonoro te avisará cuando termine. El expediente se habrá creado solo.
-
-### B. Crear un pedido manualmente (Sin PDF)
-Si te pasaron un pedido por teléfono o WhatsApp:
-1. Ve a **"Órdenes / Ventas"**.
-2. Arriba a la derecha dale clic en **"+ Nuevo Pedido"**.
-3. Se abrirá el expediente en blanco para que tú mismo llenes el Cliente, Folio y agregues los artículos a la tabla.
+> **Novedades Clave de la Versión v8.7.0**
+> - **⚡ Spotlight Universal (`Ctrl + K` / `⌘ + K`):** Buscador inteligente con navegación por flechas `↑` `↓` y `Enter` para buscar órdenes, contrarecibos, compras o ejecutar acciones directas.
+> - **🔍 Smart Quick-Peek Drawer:** Panel lateral que se abre en 0.1 segundos para ver avance de kilos y estatus sin abrir modales pesados.
+> - **🕶️ Atajo Global de Privacidad (`Ctrl + H`):** Oculta/muestra todas las cifras y utilidades en 1 segundo con cristal esmerilado para trabajar en público.
+> - **🔘 Floating Quick Hub (`⚡`):** Botón flotante en esquina inferior derecha para acceso inmediato a todas las funciones clave.
+> - **⚙️ Parametrización Total Multi-Empresa:** Configura tu razón social, taller maquilador, cliente y departamentos desde Configuración.
+> - **🧹 Purga Segura de Pruebas:** Archiva en la Papelera los registros de desarrollo y conserva exactos los 10 CRs oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00).
 
 ---
 
-## 2. El Expediente Perfecto (Fijar Utilidades Inmutables)
+## 1. Acceso Rápido y Navegación Inteligente
 
-Una vez creado el expediente (ya sea por IA o a mano), dale clic en "Órdenes / Ventas" para abrirlo. 
+### A. Spotlight Universal (`Ctrl + K`)
+1. Presiona `Ctrl + K` (o `⌘ + K` en Mac) en cualquier pantalla del ERP.
+2. Escribe el número de Contrarecibo (ej. `TH-912`), folio de OC, nombre de cliente o una acción (ej. *"Privacidad"*, *"Calculadora"*, *"Balanza"*).
+3. Usa las flechas `↑` y `↓` para moverte entre los resultados y presiona `Enter` para abrirlo.
 
-### A. Confirmar el Costo y la Comisión
-1. En la primera pestaña (**Resumen**), verifica que los artículos estén correctos.
-2. **¡PASO CRÍTICO!** Escribe a cómo le vas a comprar la mercancía a tu fabricante en el campo **Costo de Compra (Andrés)**.
-3. El campo **Comisión (%)** ya vendrá pre-cargado desde tu pantalla de Configuración. Si para este cliente en particular acordaste una comisión distinta, cámbiala ahí mismo.
-4. **Dale clic a Guardar**. Al hacerlo, el sistema le tomará una "fotografía" (Snapshot) a estos números. Si en el futuro la comisión general o tus costos suben, **este expediente jamás alterará su rentabilidad histórica**.
+### B. Modo Privacidad (`Ctrl + H`)
+- Si estás con choferes, proveedores o clientes y no quieres que vean tus montos de facturación ni márgenes de ganancia, presiona `Ctrl + H`.
+- Todas las cifras monetarias se difuminarán de inmediato. Presiona `Ctrl + H` de nuevo para restaurarlas.
 
----
-
-## 3. Entregas, Facturación y Contrarecibos
-
-Cuando vayas avanzando con el pedido, entra al expediente:
-- **Entregas:** Pestaña para ir sumando cuántos kilos le mandas físicamente al cliente. El sistema te dice el remanente. Aquí puedes descargar un "PDF de Remisión" para que te lo firmen.
-- **Facturas:** Pestaña donde subes los XML o PDFs de tus facturas y metes su importe total neto. **El sistema usa la Regla de Oro del IVA:** La utilidad final de tu factura asume que el IVA cobrado se queda contigo como ganancia líquida `(Utilidad = Total Facturado - Costos - Comisión)`.
-- **Contrarecibos (Cobranza):** Si el cliente te agrupa varias facturas bajo un número de Contrarecibo (ej. GT-123), se lo asignas en la pestaña de Cobranza del expediente.
+### C. Botón Flotante de Acciones (`⚡`)
+- En la esquina inferior derecha encontrarás el botón flotante. Al pulsarlo se desplegará el menú rápido con accesos directos al Spotlight, Modo Privacidad, Calculadora de Kilos y Balanza.
 
 ---
 
-## 4. Pago a Fabricantes (Deudas y Automatización)
+## 2. Gestión de Órdenes y Expedientes
 
-No tienes que capturar tus deudas. El sistema lo hace por ti.
+### A. Vista Rápida de Expedientes (Quick Peek)
+- En la tabla de Contrarecibos o Facturas en Revisión del Dashboard, haz clic en el menú contextual (⋮) y selecciona **"🔍 Vista Rápida"**.
+- Se abrirá un panel lateral derecho mostrando:
+  - Kilos pedidos vs kilos entregados en báscula y avance en porcentaje.
+  - Facturas timbradas y su estatus.
+  - Botón directo para **Cobrar en 1 Toque**, **Enviar WhatsApp** o **Abrir Expediente Completo**.
 
-1. **La Deuda Automática:** En el momento exacto en que guardaste una Venta con Kilos Facturados y tu "Costo de Compra", el sistema se fue calladito a la pantalla de **"Compras"** y sumó esa deuda a Andrés.
-2. **Consultar y Pagar:** Ve a **"Compras"** en el menú izquierdo. Verás tu deuda global.
-3. Dale clic a la operación que le vas a abonar a Andrés.
-4. En el modal, anota en **Pagado (Anticipo)** el dinero que le vas a transferir o dar en efectivo.
-5. **Dale a Guardar**.
-
----
-
-## 5. Caja Chica (Gastos Automatizados)
-
-El sistema vigila tu flujo de efectivo en la pantalla de **Caja Chica**. 
-1. **Egreso Automático:** Cuando le diste "Guardar" al pago de Andrés en el paso anterior, ¡Pum! El sistema registró solito un gasto en la Caja Chica llamado "Pago a proveedor Andrés". 
-2. **Ingreso Automático:** Cuando cobres una factura (ver siguiente punto) y el dinero esté en tus manos, se inyectará como un ingreso en esta misma caja.
-3. **Gastos Manuales:** Obviamente, aquí también puedes agregar tus propios gastos operativos (gasolina, viáticos, sueldos) manualmente.
+### B. Subir pedidos con Inteligencia Artificial
+1. Ve al menú **"Subir Órdenes"** o **"Captura Rápida"**.
+2. Arrastra los PDFs de las Órdenes de Compra (OC).
+3. Gemini extraerá automáticamente el folio, cliente, kilos totales y la tabla de artículos con sus precios congelados.
 
 ---
 
-## 6. Cobranza Inteligente (Flujo de 3 Estados)
+## 3. Cobranza y Contrarecibos
 
-Ve al menú **"Cobranza"**. Aquí ves el dinero que te deben tus clientes. El sistema usa 3 estados con colores:
-* 🔴 **Por Cobrar:** La factura la tiene el cliente.
-* 🟡 **Con el Contador:** El cliente ya depositó, pero el dinero cayó en la cuenta del contador y no te lo ha dado.
-* 🟢 **Cobrada:** El dinero físico ya lo recibiste y está en tu cuenta.
+### A. Aislamiento Hermético TH / GT
+- En el Dashboard principal puedes alternar entre **🔵 TH** y **🟢 GT** usando los botones superiores con el nombre de sus responsables (ej. *Lic. Nava* / *Lic. Evelia*).
+- Cada pestaña muestra únicamente los expedientes de su departamento, y la suma de ambas coincide exactamente al centavo con el consolidado general.
 
-### Cobro Rápido y Rentabilidad Líquida
-- Si agrupaste facturas con un **Contrarecibo (GT-xxx)**, verás un bloque amarillo hermoso con una **"Rentabilidad Líquida Real"** que te dice exactamente en porcentaje y pesos cuánto te quedó libre quitando a Andrés y al Contador.
-- Puedes darle clic al botón "💰 Cobrar Todo el Contrarecibo" y el sistema liquidará todas sus facturas de un solo golpe.
-
----
-
-## 7. Catálogo (Semáforo Predictivo)
-
-Ve al menú **"Catálogo"**.
-El sistema lleva una bitácora del precio al que has vendido cada uno de tus productos.
-- 🟢 **Verde:** ¡Felicidades! Lograste subirle el precio de venta a este producto frente a su promedio histórico.
-- 🟡 **Amarillo:** Lo estás vendiendo exactamente al mismo precio de siempre.
-- 🔴 **Rojo:** ¡Cuidado! Le bajaste el precio a este producto comparado con el pasado.
+### B. Menú Kebab (⋮) de Cobranza
+- Cada fila cuenta con un menú contextual (⋮) con 6 opciones directas:
+  - 🔍 **Vista Rápida (Quick Peek)**
+  - 📋 **Abrir Expediente Completo**
+  - ✏️ **Editar Cobranza (Drawer Lateral)**
+  - 💵 **Marcar Pagado (1 Toque)** (con sonido de caja registradora)
+  - ✉️ **Borrador de Correo Institucional**
+  - 💬 **Recordatorio por WhatsApp**
 
 ---
 
-## 8. Funciones Clave de Master Admin
+## 4. Control de Maquila y Fabricante
 
-* **Monitoreo Live de Bitácora:** Ve a `Logs`. Verás una consola en tiempo real (Live) donde aparecerá cada movimiento que haga cualquier usuario en otra computadora al instante.
-* **Búsqueda Global:** Presiona `Ctrl + K` en cualquier lugar para buscar a la velocidad de la luz cualquier folio o cliente.
-* **PWA (App):** Instálalo como aplicación desde tu navegador Chrome/Safari.
-* **Respaldo Offline:** Ve a `Respaldo`. Descarga tu HTML portátil. Podrás revisar tus expedientes en un avión sin internet y calculará las utilidades respetando tus configuraciones de comisiones inmutables y reglas de IVA.
+1. Ve a **"Compras"** para consultar el Libro Mayor cronológico con el taller maquilador.
+2. Cada entrega en báscula genera un cargo y cada abono genera un **Recibo Oficial Impreso para Firma**.
+3. Puedes generar el **PDF Auditado** con el balance vivo y desglose de pedidos surtidos.
+
+---
+
+## 5. Parámetros del Sistema y Mantenimiento
+
+1. Ve a **"Configuración"** (`/centro-control`).
+2. Configura los datos de tu empresa, cliente principal, taller maquilador, códigos y nombres de departamentos.
+3. Si deseas limpiar registros de prueba antiguos, usa la tarjeta **"🧹 Auditoría de Datos: Purga de Expedientes de Prueba"**. Conserverá intactos tus 10 Contrarecibos Oficiales y la Factura 6167.
 
 ---
 

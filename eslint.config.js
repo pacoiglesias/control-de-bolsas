@@ -28,4 +28,17 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
+  {
+    // FIX: `npm run lint` (eslint .) en la raiz YA cubre functions/src/**
+    // -- no era cierto que "Cloud Functions no tiene linter", solo que
+    // usaba `globals.browser` para TODO el repo, incluido el backend.
+    // Cloud Functions corre en Node, no en el navegador, asi que globals
+    // como `process`/`Buffer`/`__dirname` no estaban declarados para esos
+    // archivos -- inofensivo hoy (no se usan), pero un futuro uso legitimo
+    // de un global de Node ahi habria disparado un falso "no-undef".
+    files: ['functions/src/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 );

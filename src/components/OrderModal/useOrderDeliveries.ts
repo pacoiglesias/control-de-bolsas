@@ -53,7 +53,21 @@ export function useOrderDeliveries(
   }, [setForm]);
 
   const removeDelivery = useCallback(async (index: number) => {
-    if (await confirmDialog({ message: '¿Eliminar esta entrega?', danger: true })) {
+    let targetDeliv: any = null;
+    setForm((f: any) => {
+      targetDeliv = f.deliveries?.[index];
+      return f;
+    });
+
+    const isInvoiced = targetDeliv?.invoiced;
+    const kg = targetDeliv?.kilos || targetDeliv?.items?.reduce((a: number, it: any) => a + (Number(it.quantity) || 0), 0) || 0;
+
+    let msg = `¿Eliminar la entrega #${index + 1} (${kg} kg)?`;
+    if (isInvoiced) {
+      msg = `⚠️ ¡ADVERTENCIA!\n\nLa entrega #${index + 1} (${kg} kg) ya fue marcada como FACTURADA.\n\nSi la eliminas, podría haber discrepancia entre los kilos entregados en báscula y los kilos facturados.\n\n¿Estás seguro de que deseas eliminarla?`;
+    }
+
+    if (await confirmDialog({ message: msg, danger: true })) {
       setForm((f: any) => {
         const next = [...f.deliveries];
         next.splice(index, 1);
@@ -67,15 +81,51 @@ export function useOrderDeliveries(
       const nextDelivs = [...f.deliveries];
       nextDelivs[index] = { ...nextDelivs[index], invoiced: true };
       
-      // Calculate how many total kilos were in this delivery
+      // Calculate how many total kilos were in this delivery and map items
       const d = nextDelivs[index];
-      const kilos = (d.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0) || d.kilos || 0;
+      const dItems = d.items || [];
+      const kilos = dItems.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0) || d.kilos || 0;
+
+      const orderItems = f.items || [];
+      let invoiceItems: any[] = [];
+
+      if (dItems.length > 0) {
+        invoiceItems = dItems
+          .filter((di: any) => Number(di.quantity) > 0)
+          .map((di: any) => {
+            const matched = orderItems.find((oi: any) => oi.id === di.itemId || oi.code === di.itemId);
+            const unitPrice = Number(matched?.unitPrice || f.customSellPrice || 43);
+            const qty = Number(di.quantity);
+            return {
+              id: matched?.id || crypto.randomUUID(),
+              code: matched?.code || '24111500',
+              description: matched?.description || 'Bolsa de Polietileno',
+              quantity: qty,
+              unit: matched?.unit || 'Kilos',
+              unitPrice: unitPrice,
+              amount: qty * unitPrice,
+            };
+          });
+      } else if (orderItems.length === 1 && kilos > 0) {
+        const matched = orderItems[0];
+        const unitPrice = Number(matched.unitPrice || f.customSellPrice || 43);
+        invoiceItems = [{
+          id: matched.id || crypto.randomUUID(),
+          code: matched.code || '24111500',
+          description: matched.description || 'Bolsa de Polietileno',
+          quantity: kilos,
+          unit: matched.unit || 'Kilos',
+          unitPrice: unitPrice,
+          amount: kilos * unitPrice,
+        }];
+      }
 
       // Draft a new invoice
       const newInv: Invoice = {
         id: crypto.randomUUID(),
         orderId: f.id || '',
         kilos,
+        items: invoiceItems.length > 0 ? invoiceItems : undefined,
         creditCycle: { status: 'pedido' },
       };
 

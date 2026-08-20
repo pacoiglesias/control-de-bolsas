@@ -3,7 +3,7 @@ import { doc, setDoc, serverTimestamp, Timestamp, addDoc, collection, runTransac
 import { db, PATHS } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { toInputDate, fromInputDate } from '../../lib/format';
+import { toInputDate, fromInputDate, toDate } from '../../lib/format';
 import { Modal, Field, Empty } from '../ui';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
 import { newDeliveryEvent, updateDeliveryField, updateDeliveryItemQuantity, computeDeliveredTotals, migrateLegacyDeliveries, upsertAndresPurchase } from '../../lib/deliveries';
@@ -21,7 +21,8 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
   
   // No products needed in this specific simplified logic, they are in the order if anything
   const monto = Number(montoOC) || 0;
-  const kilosCalculados = monto / costPricePerKg;
+  const safeCostPrice = Number(costPricePerKg) > 0 ? Number(costPricePerKg) : 42;
+  const kilosCalculados = round2(monto / safeCostPrice);
 
   async function save() {
     if (!monto || monto <= 0) return toast('El monto debe ser mayor a 0', 'bad');
@@ -30,17 +31,17 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
       const d = fromInputDate(fecha) ?? new Date();
       await setDoc(doc(db, PATHS.purchases, purchase.id), {
         date: Timestamp.fromDate(d),
-        provider: purchase.provider,
+        provider: purchase.provider || 'Andrés',
         expectedKilos: kilosCalculados,
         receivedKilos: purchase.receivedKilos ?? 0,
-        pricePerKg: costPricePerKg,
+        pricePerKg: safeCostPrice,
         totalAmount: monto,
         paidAmount: purchase.paidAmount ?? 0,
         status: purchase.status ?? 'pedido',
         createdAt: purchase.createdAt ?? serverTimestamp(),
       }, { merge: true });
       
-      await logAction('Sistema', purchase.createdAt ? 'Edición de Anticipo/OC a Andrés' : 'Nuevo Anticipo/OC a Andrés', {
+      await logAction(user?.email || 'Sistema', purchase.createdAt ? 'Edición de Anticipo/OC a Andrés' : 'Nuevo Anticipo/OC a Andrés', {
         id: purchase.id,
         montoOC: monto
       });
@@ -140,7 +141,9 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
         const snap = await tx.get(ref);
         if (!snap.exists()) throw new Error('El expediente ya no existe.');
         const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
-        if (baselineUpdatedAt && freshUpdatedAt && freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()) {
+        const tFresh = toDate(freshUpdatedAt)?.getTime();
+        const tBase = toDate(baselineUpdatedAt)?.getTime();
+        if (tBase && tFresh && tFresh !== tBase) {
           throw new Error('Este expediente fue modificado. Ciérralo y vuelve a intentarlo.');
         }
         tx.set(ref, { deliveries: nuevasDeliveries, updatedAt: serverTimestamp() }, { merge: true });

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
+import { toDate } from '../lib/format';
 
 export interface MaquilaDelivery {
   id: string;
@@ -31,8 +32,8 @@ export function useMaquilaDeliveries() {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as MaquilaDelivery));
         // Sort locally
         items.sort((a, b) => {
-          const tA = a.createdAt?.toMillis() || 0;
-          const tB = b.createdAt?.toMillis() || 0;
+          const tA = toDate(a.createdAt)?.getTime() || 0;
+          const tB = toDate(b.createdAt)?.getTime() || 0;
           return tA - tB;
         });
         setDeliveries(items);

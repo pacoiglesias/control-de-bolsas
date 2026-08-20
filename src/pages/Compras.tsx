@@ -10,13 +10,15 @@ import { AndresLedgerTable } from '../components/Compras/AndresLedgerTable';
 import { PurchaseDrawer } from '../components/Compras/PurchaseDrawer';
 import { RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderModals';
 import { ComprasKanban } from '../components/Compras/ComprasKanban';
-import { exportToCsv, getPrintHeaderHtml, fmtDate } from '../lib/format';
+import { exportToCsv, getPrintHeaderHtml, fmtDate, nombreClienteVisible } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
+import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
 import type { Purchase, PurchaseOrder } from '../lib/types';
 
 export default function Compras() {
   const { role } = useAuth();
   const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
   const toast = useToast();
   
   const selectedProvider = 'Andres';
@@ -90,7 +92,7 @@ export default function Compras() {
       e.abono ? e.abono.toFixed(2) : '0.00',
       e.source === 'purchase' ? 'Material' : 'Pago'
     ]);
-    exportToCsv(`Estado_Cuenta_Andres_${new Date().toISOString().slice(0, 10)}`, headers, rows);
+    exportToCsv(`Estado_Cuenta_${provName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}`, headers, rows);
     toast('✅ Excel exportado', 'ok');
   }
 
@@ -100,7 +102,7 @@ export default function Compras() {
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Estado de Cuenta - Andrés</title>
+          <title>Estado de Cuenta - ${provName}</title>
           <style>
             body { font-family: system-ui, sans-serif; padding: 20px; font-size: 13px; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 32px; font-size: 12px; border: 1px solid #ccc; }
@@ -145,8 +147,8 @@ export default function Compras() {
     <>
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1>Módulo de Compras</h1>
-          <p>Control de anticipos, inventario en tránsito y estado de cuenta con el fabricante.</p>
+          <h1>Módulo de Compras & Cuenta Corriente con {provName}</h1>
+          <p>Control de anticipos, entregas en báscula, costo de compra y estado de cuenta con el proveedor ({provName}).</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>
@@ -172,8 +174,46 @@ export default function Compras() {
           title="Libro Mayor Cronológico" 
           actions={
             <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-icon"
+                onClick={async () => {
+                  toast('📄 Generando Estado de Cuenta y Entregas Auditado...', 'info');
+                  const deliveriesList = provPurchases.map(p => {
+                    const ord = orderById.get(p.id);
+                    const orderedKg = p.expectedKilos || Number(ord?.totalKilograms) || 0;
+                    const receivedKg = p.receivedKilos || 0;
+                    const costKg = p.pricePerKg || currentCostPerKg || 42;
+                    return {
+                      folio: ord?.folio || ord?.oc || p.id,
+                      client: ord?.client ? nombreClienteVisible(ord.client) : 'Providencia',
+                      orderedKg,
+                      receivedKg,
+                      costPerKg: costKg,
+                      totalCost: receivedKg * costKg,
+                      status: p.status || 'pedido',
+                      deliveryDate: p.date,
+                    };
+                  });
+
+                  await generateAndresAuditStatementPdf({
+                    totalReceivedKilos,
+                    totalPurchasesCost,
+                    totalPagado,
+                    saldoProveedor,
+                    deudaHistorica,
+                    currentCostPerKg,
+                    ledger: ledgerWithBalance as any,
+                    deliveriesList,
+                  });
+                  toast('✅ Estado de cuenta y entregas PDF generado', 'ok');
+                }}
+                title="Generar Estado de Cuenta Oficial con Detalle de Entregas en PDF"
+                style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700 }}
+              >
+                📄 PDF Auditado
+              </button>
               <button className="btn btn-icon" onClick={exportComprasCsv} title="Descargar CSV">📊 CSV</button>
-              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte">🖨️ PDF</button>
+              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte">🖨️ Imprimir</button>
             </div>
           }
         >

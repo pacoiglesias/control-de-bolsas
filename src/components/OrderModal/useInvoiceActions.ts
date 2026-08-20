@@ -2,14 +2,17 @@ import { doc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
-import { computeFinancials } from '../../lib/finance';
+import { computeFinancials, type FinanceConfigCore } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { logAction } from '../../lib/logger';
 import { confirmDialog } from '../../lib/confirmDialog';
 
 export function useInvoiceActions() {
   const toast = useToast();
+  const { user } = useAuth();
 
-  async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: any) {
+  async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: FinanceConfigCore) {
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
       const invRef = doc(db, PATHS.invoices, updatedInvoice.id);
@@ -68,6 +71,12 @@ export function useInvoiceActions() {
         tx.set(invRef, finalInv, { merge: true });
       });
 
+      await logAction(user?.email, 'Factura Guardada', {
+        orderId: order.id,
+        folio: updatedInvoice.folio,
+        kilos: updatedInvoice.kilos,
+      });
+
       toast('Factura guardada correctamente', 'ok');
     } catch (e: any) {
       toast(`No se pudo guardar la factura: ${e.message}`, 'bad');
@@ -76,7 +85,17 @@ export function useInvoiceActions() {
   }
 
   async function deleteInvoice(order: PurchaseOrder, invoiceId: string) {
-    if (!(await confirmDialog({ message: '¿Seguro que deseas eliminar esta factura?', danger: true }))) return;
+    const invToDelete = (order.invoices || []).find(i => i.id === invoiceId);
+    const cr = invToDelete?.collection?.contrareciboNumber;
+    const isPaid = invToDelete?.creditCycle?.status === 'paid' || invToDelete?.creditCycle?.status === 'collected';
+
+    let warningMsg = `¿Estás seguro de que deseas eliminar la Factura #${invToDelete?.folio || '(sin folio)'}?`;
+    if (cr || isPaid) {
+      warningMsg = `⚠️ ¡ADVERTENCIA CRÍTICA!\n\nLa Factura #${invToDelete?.folio || '(sin folio)'} ya tiene Contrarecibo (${cr || 'registrado'}) o pagos en caja.\n\nSi la eliminas, alterará las cuentas por cobrar y el historial financiero.\n\nEsta acción quedará registrada en la bitácora de auditoría. ¿Deseas proceder?`;
+    }
+
+    if (!(await confirmDialog({ message: warningMsg, danger: true }))) return;
+
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
       const invRef = doc(db, PATHS.invoices, invoiceId);
@@ -94,6 +113,16 @@ export function useInvoiceActions() {
         });
 
         tx.delete(invRef);
+      });
+
+      await logAction(user?.email, 'Factura Eliminada', {
+        orderId: order.id,
+        orderFolio: order.folio,
+        invoiceId,
+        folio: invToDelete?.folio,
+        kilos: invToDelete?.kilos,
+        total: invToDelete?.financials?.invoiceTotal,
+        cr: invToDelete?.collection?.contrareciboNumber,
       });
 
       toast('Factura eliminada', 'ok');

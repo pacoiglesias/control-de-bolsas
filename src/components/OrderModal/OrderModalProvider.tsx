@@ -4,7 +4,7 @@ import {
   computeDeliveredTotals,
   migrateLegacyDeliveries
 } from '../../lib/deliveries';
-import { toDate } from '../../lib/format';
+import { toDate, fmtDate } from '../../lib/format';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import type { FinancialConfig, PurchaseOrder } from '../../lib/types';
 import { httpsCallable } from 'firebase/functions';
@@ -212,7 +212,12 @@ export function OrderModalProvider({
       toast('Este cliente no tiene correo capturado. Agrégalo en la pestaña Resumen para poder notificarlo.', 'bad');
       return;
     }
-    const dateStr = form.estimatedDeliveryDate ? form.estimatedDeliveryDate.toDate().toLocaleDateString() : '(por definir)';
+    // FIX: toLocaleDateString() sin locale usaba el idioma/formato de fecha
+    // del navegador de quien tuviera la sesion abierta (podia salir
+    // "8/19/2026" mes-primero en vez de "19/Ago/2026") -- inconsistente con
+    // el formato es-MX que usa el resto del sistema. Se usa fmtDate(), el
+    // mismo helper que ya formatea fechas en todas las demas pantallas.
+    const dateStr = form.estimatedDeliveryDate ? fmtDate(form.estimatedDeliveryDate) : '(por definir)';
     const subject = encodeURIComponent(`Confirmación de Entrega - Pedido #${form.folio || 'S/N'}`);
     const body = encodeURIComponent(`Estimado cliente,\n\nLe informamos que su pedido #${form.folio || 'S/N'} por la cantidad de ${kilosNum} kg tiene una fecha estimada de entrega para el ${dateStr}.\n\nSaludos,\nProvidencia`);
     window.location.href = `mailto:${encodeURIComponent(correo)}?subject=${subject}&body=${body}`;

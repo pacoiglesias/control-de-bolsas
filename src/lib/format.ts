@@ -2,32 +2,59 @@ import type { Timestamp } from 'firebase/firestore';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-export const money = (n: number | undefined | null): string =>
-  (Number(n) || 0).toLocaleString('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const FORMATTER_MONEY = new Intl.NumberFormat('es-MX', {
+  style: 'currency',
+  currency: 'MXN',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
-export const kilos = (n: number | undefined | null): string =>
-  `${(Number(n) || 0).toLocaleString('es-MX')} kg`;
+const FORMATTER_KILOS = new Intl.NumberFormat('es-MX', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+const FORMATTER_COMPACT_M = new Intl.NumberFormat('es-MX', {
+  maximumFractionDigits: 2,
+});
+
+const FORMATTER_COMPACT_K = new Intl.NumberFormat('es-MX', {
+  maximumFractionDigits: 1,
+});
+
+const FORMATTER_PERCENT = new Intl.NumberFormat('es-MX', {
+  maximumFractionDigits: 3,
+});
+
+export const money = (n: number | undefined | null): string => {
+  const num = Number(n);
+  return FORMATTER_MONEY.format(Number.isFinite(num) ? num : 0);
+};
+
+export const kilos = (n: number | undefined | null): string => {
+  const num = Number(n);
+  return `${FORMATTER_KILOS.format(Number.isFinite(num) ? num : 0)} kg`;
+};
 
 export const compactMoney = (n: number | undefined | null): string => {
-  const num = Number(n) || 0;
-  if (Math.abs(num) >= 1_000_000) return `$${(num / 1_000_000).toLocaleString('es-MX', { maximumFractionDigits: 2 })}M`;
-  if (Math.abs(num) >= 1_000) return `$${(num / 1_000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}k`;
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '$0.00';
+  if (Math.abs(num) >= 1_000_000) return `$${FORMATTER_COMPACT_M.format(num / 1_000_000)}M`;
+  if (Math.abs(num) >= 1_000) return `$${FORMATTER_COMPACT_K.format(num / 1_000)}k`;
   return money(num);
 };
 
 export const compactKilos = (n: number | undefined | null): string => {
-  const num = Number(n) || 0;
-  if (Math.abs(num) >= 1_000) return `${(num / 1_000).toLocaleString('es-MX', { maximumFractionDigits: 1 })}t`;
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '0 kg';
+  if (Math.abs(num) >= 1_000) return `${FORMATTER_COMPACT_K.format(num / 1_000)}t`;
   return kilos(num);
 };
 
-export const percent = (n: number | undefined | null): string =>
-  `${((Number(n) || 0) * 100).toLocaleString('es-MX', { maximumFractionDigits: 3 })}%`;
+export const percent = (n: number | undefined | null): string => {
+  const num = Number(n);
+  return `${FORMATTER_PERCENT.format((Number.isFinite(num) ? num : 0) * 100)}%`;
+};
 
 /**
  * "MIGRACION" es un marcador interno para expedientes historicos donde
@@ -43,11 +70,63 @@ export function nombreClienteVisible(client: string | null | undefined): string 
   return client || '—';
 }
 
+/**
+ * Responsables de Área Providencia:
+ * - Textil Hogar (TH): Nava (configurable)
+ * - Grupo Textil (GT): Evelia (configurable)
+ */
+export const DEPARTMENT_MANAGERS: Record<string, { name: string; fullDept: string; title: string }> = {
+  TH: {
+    name: 'Nava',
+    fullDept: 'Textil Hogar',
+    title: 'Nava · Textil Hogar',
+  },
+  GT: {
+    name: 'Evelia',
+    fullDept: 'Grupo Textil',
+    title: 'Evelia · Grupo Textil',
+  },
+};
+
+export function getDepartmentManager(
+  deptOrClient?: string | null,
+  settings?: { managerTH?: string; managerGT?: string } | null
+): string {
+  if (!deptOrClient) return '';
+  const upper = deptOrClient.toUpperCase();
+  const managerTH = settings?.managerTH || 'Nava';
+  const managerGT = settings?.managerGT || 'Evelia';
+  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return managerTH;
+  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return managerGT;
+  return '';
+}
+
+export function getDepartmentBadgeLabel(
+  deptOrClient?: string | null,
+  settings?: { managerTH?: string; managerGT?: string } | null
+): string {
+  if (!deptOrClient) return '';
+  const upper = deptOrClient.toUpperCase();
+  const managerTH = settings?.managerTH || 'Nava';
+  const managerGT = settings?.managerGT || 'Evelia';
+  if (upper.includes('TH') || upper.includes('TEXTIL HOGAR')) return `TH (${managerTH})`;
+  if (upper.includes('GT') || upper.includes('GRUPO TEXTIL')) return `GT (${managerGT})`;
+  return deptOrClient;
+}
+
+const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
 /** Firestore devuelve Timestamp; los formularios y calculos usan Date. */
-export function toDate(ts: Timestamp | Date | null | undefined): Date | null {
+export function toDate(ts: Timestamp | Date | null | undefined | any): Date | null {
   if (!ts) return null;
-  if (ts instanceof Date) return ts;
-  if (typeof (ts as Timestamp).toDate === 'function') return (ts as Timestamp).toDate();
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+  if (typeof ts.toDate === 'function') return ts.toDate();
+  if (typeof ts.toMillis === 'function') return new Date(ts.toMillis());
+  if (typeof ts === 'object' && typeof ts.seconds === 'number') return new Date(ts.seconds * 1000);
+  if (typeof ts === 'string' || typeof ts === 'number') {
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) return d;
+  }
   return null;
 }
 
@@ -57,10 +136,33 @@ export function fmtDate(ts: Timestamp | Date | null | undefined): string {
   return `${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
 }
 
+export function fmtDayAndDate(ts: Timestamp | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  const diaSem = DIAS_SEMANA[d.getDay()];
+  return `${diaSem}, ${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
+}
+
+export function fmtDateFull(ts: Timestamp | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  const DIAS_COMPLETOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const MESES_COMPLETOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  return `${DIAS_COMPLETOS[d.getDay()]} ${d.getDate()} de ${MESES_COMPLETOS[d.getMonth()]}, ${d.getFullYear()}`;
+}
+
 export function fmtDateTime(ts: Timestamp | Date | null | undefined): string {
   const d = toDate(ts);
   if (!d) return '—';
   return d.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+export function fmtDateTimeFull(ts: Timestamp | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  const fecha = fmtDateFull(d);
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${fecha} · ${hora}`;
 }
 
 /** yyyy-mm-dd para <input type="date"> en hora local, no UTC. */

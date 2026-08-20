@@ -3,17 +3,42 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Función principal para verificar si el usuario es administrador.
-    function isAdmin() {
+    // Prioriza Custom Claims (role: 'admin' o admin: true), lectura en /admins/{uid}
+    // y fallback de arranque seguro para correos institucionales verificados.
+    function hasAdminClaim() {
       return request.auth != null
         && request.auth.token.email_verified == true
+        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
+    }
+
+    function hasAdminDoc() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // FIX (v8.9.2): antes cualquier correo @cobertores.com entraba aquí
+    // también, no solo las dos cuentas personales de abajo. Eso lo hacía
+    // admin total de forma AUTOMATICA E IRREVOCABLE: la pantalla de Usuarios
+    // tiene un botón "Revocar Acceso" que borra el documento en /admins/{uid},
+    // pero isBootstrapOwner() no depende de ese documento -- así que revocar
+    // no hacía nada para ninguna cuenta de ese dominio, seguían siendo admin
+    // igual. Ahora solo las dos cuentas del dueño (el arranque de emergencia
+    // real del sistema) entran aquí; cualquier otra persona de
+    // @cobertores.com que necesite acceso se da de alta normal desde
+    // Usuarios -> Agregar, y ESA sí se puede revocar de verdad.
+    function isBootstrapOwner() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email != null
         && (
-          request.auth.token.admin == true ||
-          (request.auth.token.email != null && (
-            request.auth.token.email == "paco.iglesias@gmail.com" ||
-            request.auth.token.email == "pacoismael@gmail.com" ||
-            request.auth.token.email.matches(".*@cobertores\\.com")
-          ))
+          request.auth.token.email == "paco.iglesias@gmail.com" ||
+          request.auth.token.email == "pacoismael@gmail.com"
         );
+    }
+
+    function isAdmin() {
+      return hasAdminClaim() || hasAdminDoc() || isBootstrapOwner();
     }
 
     // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager.
@@ -21,15 +46,17 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email_verified == true
         && (
-          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-          || isAdmin()
+          isAdmin()
+          || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         );
     }
 
     function getRole() {
-      return isAdmin() 
-        ? 'admin' 
-        : get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+      return isAdmin()
+        ? 'admin'
+        : (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+            : 'viewer');
     }
 
     function isSuperAdmin() {
@@ -130,10 +157,15 @@ service cloud.firestore {
     }
 
     match /expenses/{expenseId} {
-      // El Super Admin puede leer y escribir.
-      // El Maquilador (usuario anónimo sin rol) puede leer los egresos que pertenezcan a la categoría "Maquila".
-      allow read: if isSuperAdmin() || (request.auth != null && resource.data.category == 'Maquila');
-      allow write: if isSuperAdmin();
+      // FIX (v8.9.2): la segunda rama de abajo dejaba leer cualquier gasto
+      // de categoría "Maquila" a CUALQUIER sesión con request.auth != null,
+      // incluida una anónima creada desde la consola del navegador con la
+      // configuración pública de Firebase (no es secreta). Ya no hace falta:
+      // desde v8.8.9 el Portal Maquilador lee sus datos a través de la Cloud
+      // Function getActiveMaquilaOrders, que usa el Admin SDK y no pasa por
+      // estas reglas -- así que el cliente ya no necesita permiso de lectura
+      // directa aquí.
+      allow read, write: if isSuperAdmin();
     }
 
     match /purchases/{purchaseId} {
@@ -146,8 +178,15 @@ service cloud.firestore {
     
     match /maquilaDeliveries/{deliveryId} {
       allow read: if isAuthenticatedUser();
-      // El maquilador se autentica anónimamente para enviar su reporte
-      allow create: if request.auth != null;
+      // FIX (v8.8.9): antes "allow create: if request.auth != null" dejaba
+      // que CUALQUIERA con la configuracion publica de Firebase (no es
+      // secreta, viaja en el sitio) llamara signInAnonymously() desde la
+      // consola del navegador e inyectara entregas falsas sin conocer el
+      // PIN real del Portal Maquilador. Ahora la unica forma de crear un
+      // documento aqui es la Cloud Function registrarEntregaMaquila, que
+      // valida el PIN en el servidor y usa el Admin SDK (no pasa por estas
+      // reglas) -- por eso el cliente ya no necesita permiso de create.
+      allow create: if isManagerOrAdmin();
       allow update, delete: if isManagerOrAdmin();
     }
 
@@ -195,7 +234,15 @@ service cloud.firestore {
     // Logs de errores del frontend
     match /error_logs/{logId} {
       allow read: if isSuperAdmin();
-      allow create: if true; // Permitir que el cliente escriba errores
+      // FIX (v8.9.2): "request.auth != null" también deja pasar una sesión
+      // anónima (signInAnonymously desde la consola del navegador, con la
+      // configuración pública de Firebase -- no es secreta). La app ya no usa
+      // sesiones anónimas para nada desde v8.8.9, así que exigir un usuario
+      // real (isAuthenticatedUser()) cierra esa puerta sin quitarle nada a
+      // nadie. Un choque de la app ANTES de iniciar sesión simplemente no
+      // deja rastro aquí (ya se loguea en la consola del navegador con
+      // console.error de cualquier forma).
+      allow create: if isAuthenticatedUser();
       allow update, delete: if false;
     }
 

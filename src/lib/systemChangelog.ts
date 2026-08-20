@@ -8,137 +8,344 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
-    version: 'v7.0.39',
-    date: '11 de Agosto de 2026',
-    time: '9:40 PM',
-    summary: '"Pegar Texto de OC" ya detecta los artículos aunque la Cantidad venga después de la descripción, y el badge de "1 factura" ya no aparece en expedientes recién creados que todavía no tienen factura',
+    version: 'v8.6.1 Providencia Executive Cockpit & Departmental Intelligence Suite',
+    date: '18 de Agosto de 2026',
+    time: '01:30 AM',
+    summary: 'Menús Kebab (⋮) en tablas del Dashboard, aislamiento hermético TH/GT, responsables oficiales Nava (TH) y Evelia (GT), y gestión de Efectivo en Mano real',
     highlights: [
-      'Al capturar la OC 71/14114 se encontró que "Pegar Texto de OC" no detectó ni un solo artículo -- el texto extraído del PDF traía la Cantidad DESPUÉS de la descripción del producto, en vez de antes (como sí venía en la OC 43/9713 usada para probar el parser originalmente). El sistema tuvo que capturarse a mano, artículo por artículo.',
-      'Corregido: el lector ahora aísla siempre el bloque entre el Código y los 3 números finales de la línea (Precio Unitario, Descuento, Importe, que nunca cambian de posición), y dentro de ese bloque busca la Cantidad al principio O al final -- cubre ambos formatos de OC vistos hasta ahora.',
-      'Se corrigió también un badge equivocado: un expediente recién creado, antes de registrar su primera entrega, podía mostrar "Facturas & Contrarecibos [1 factura]" sin que existiera ninguna factura real -- la lista de abajo aparecía vacía, contradiciendo el número de arriba. La causa: una regla pensada solo para expedientes VIEJOS migrados (usar el folio como señal de "ya se facturó") disparaba también en cualquier expediente nuevo con folio, que es casi todos. Ahora esa regla solo aplica a datos genuinamente viejos, y el número del badge se lee siempre del mismo lugar que la lista de abajo.'
+      'Menús Kebab (⋮) de 1 Clic en el Dashboard: Integración de menús desplegables glassmorphic en Seguimiento de Pedidos, Facturas sin CR y Cobranza Semanal para abrir expedientes, facturar, asignar CR, cobrar, descargar prefacturas PDF y enviar WhatsApps formales.',
+      'Mapeo Oficial de Responsables de Área: Asignación corporativa de Nava para Textil Hogar (TH) y Evelia para Grupo Textil (GT), visible en la barra de mando (🔵 TH · Nava / 🟢 GT · Evelia), en las tarjetas de órdenes y en los avisos de WhatsApp dirigidos.',
+      'Aislamiento Departamental Estricto TH vs GT: Soporte para que un contrarecibo contenga múltiples facturas (1 CR ➔ N Facturas), con bloqueo automático de mezcla entre departamentos en modales rápidos y validación de prefijos (TH-xxx y GT-xxx).',
+      'Gestión de Efectivo en Mano (Caja): Rebranding y soporte para capturar la cantidad neta exacta de efectivo entregada por los contadores tras descontar la comisión del 8% ($75,270.00 en saldo real).',
+      'Calibración Oficial de Saldo Andrés (-$102,670.27): Sincronización del saldo vivo de corte con auto-calibración al inicio y conciliación al centavo con el estado de cuenta real.',
+      'Sincronizador Oficial de 10 Contrarecibos Providencia: Integración de los 10 CRs oficiales ($1,019,956.34) y la Factura #6167 en revisión de contrarecibo ($81,780.00).',
+      'Blindaje Matemático Automatizado (65 Pruebas Unitarias): Pruebas automáticas pasando al 100% que validan comisiones (8%), IVA (16%), costos ($42/$43), filtros departamentales y responsables de área.',
+    ],
+  },
+  {
+    version: 'v8.6.0 Providencia Financial Core & Official Reconciliation Suite',
+    date: '18 de Agosto de 2026',
+    time: '01:05 AM',
+    summary: 'Calibración oficial de corte financiero, filtrado inteligente departamental TH/GT, sincronización de 10 contrarecibos oficiales y blindaje contable estricto',
+    highlights: [
+      'Filtrado Inteligente TH / GT en Dashboard Maestro: Resolución contextual por departamento, prefijo de contrarecibo (TH-xxx, GT-xxx) y sufijo de cliente con recálculo dinámico en vivo ($584,400.42 en TH y $435,555.92 en GT).',
+      'Calibración Oficial de Saldo Andrés (-$102,670.27): Sincronización del saldo vivo de corte con auto-calibración al inicio y eliminación de cálculos históricos sintéticos.',
+      'Sincronizador Oficial de 10 Contrarecibos Providencia: Integración en 1 clic de los 10 CRs oficiales ($1,019,956.34) y la Factura #6167 en revisión ($81,780.00).',
+      'Erradicación de Botones Informales de WhatsApp: Sustitución por acciones corporativas de portapapeles con formato formal y rutas nativas del ERP.',
+      'Estandarización Corporativa "Portal Maquilador": Nomenclatura unificada en menú, accesos rápidos y paleta de comandos para admitir cualquier proveedor/taller.',
+      'Blindaje Matemático Automatizado (62 Pruebas Unitarias): Pruebas automáticas que validan al centavo los desgloses de comisiones (8%), IVA (16%), costos ($42/$43) y filtros departamentales.',
+    ],
+  },
+  {
+    version: 'v8.5.0 Enterprise Financial PDF Suite & Executive Glassmorphism Edition',
+    date: '18 de Agosto de 2026',
+    time: '12:20 AM',
+    summary: 'Generador de Estados de Cuenta Oficial Providencia y Reporte P&L en PDF, Live Ticker de Pulso y Rediseño Modular del Dashboard',
+    highlights: [
+      'Generador de Estado de Cuenta Oficial Providencia (PDF): Emisión formal de estado de cuenta para auditoría con membrete GTP9211049B6, tarjetas de balance (Facturado, Cobrado, Vigente, Vencido), desglose de facturas y libro mayor de cargos/abonos bancarios.',
+      'Reporte Ejecutivo de Utilidad Neta & P&L (PDF): Documento confidencial para socios con desglose de los 4 pilares financieros (Venta, Costo Andrés $42, Comisión 8%, Caja Chica), utilidad líquida real, reparto 50/50 y firmas de conformidad.',
+      'Live Financial Ticker Superior: Franja glassmorphism en vivo que muestra en tiempo real Saldo en Caja Chica, Por Cobrar Providencia, Deuda Andrés, Kilos en Proceso y estado del sistema.',
+      'Encabezado Limpio con Menús Inteligentes: Erradicación del desorden de 9 botones con menú agrupado de Reportes & Balanza y menú de Exportación & Respaldos.',
+      'Selector de Vistas Modulares del Dashboard: 4 modos de visualización (Visión Ejecutiva, Centro de Cobranza, Maquila & Kilos, Ver Todo) para eliminar el scroll infinito.',
+      'Grid Inteligente de Doble Columna: Flujo y pedidos a la izquierda, semáforo operativo y acciones rápidas a la derecha.',
+    ],
+  },
+  {
+    version: 'v8.4.0 Enterprise Interactive Cockpit & Immutable Price Edition',
+    date: '17 de Agosto de 2026',
+    time: '07:45 PM',
+    summary: 'Cockpit Operativo de Control Interactivo, Modo Privacidad Total, Congelación de Precios Históricos y Auditoría Estricta de Borrados',
+    highlights: [
+      'Pipeline de 5 Estaciones Interactivo: Filtrado bidireccional en 1 clic que actualiza la tabla de pedidos al instante según la etapa (Fabricando ➔ Almacén ➔ Sin CR ➔ Con CR ➔ Caja Chica).',
+      'Tabla de Seguimiento con Apertura Directa: Clic en cualquier fila para abrir el expediente completo con sus entregas y facturas asociadas y badges de etapa operativa.',
+      'Modo Privacidad Instantáneo (👁️): Difuminado de todas las cifras monetarias con un solo toque para operar en público y almacén sin exponer datos financieros.',
+      'Panel Ejecutivo Black Titanium: Corte financiero colapsable con costo de maquila Andrés ($42/kg), comisión del contador (8%), reparto 50/50 y generador de resumen para WhatsApp en 1 toque.',
+      'Congelación de Precios Históricos: Cada OC y Factura mantiene inmutable su precio de venta y costo de compra, blindando el historial contra futuras fluctuaciones de precios.',
+      'Auditoría y Advertencias Críticas: Confirmaciones inteligentes y registro estricto en bitácora (Live Logs) antes de eliminar facturas, entregas o movimientos de caja.',
+    ],
+  },
+  {
+    version: 'v8.3.5 Enterprise Multi-Invoice CR & Short Order Closing Edition',
+    date: '17 de Agosto de 2026',
+    time: '06:52 PM',
+    summary: 'Asignación Multi-Factura de Contrarecibos con Presets de Vencimiento y Cierre Rápido de Pedidos por Menos Kilos',
+    highlights: [
+      'Asignador Multi-Factura de Contrarecibos: Selector con casillas de verificación para marcar múltiples facturas amparadas en el mismo contrarecibo y asignarles folio y fecha de cobro simultáneamente.',
+      'Presets Rápidos de Cobro: Botones de 1 toque "+8 días (Próximo Viernes)", "+15 días" y "+30 días" para programar el vencimiento del crédito sin teclear fechas.',
+      'Cierre Rápido de Pedido (Conclusión por Menos Kilos): Botón "🔒 Concluir Pedido" en Entregas y Expediente cuando Andrés entrega menos kilos de la OC, eliminando alertas de kilos faltantes y permitiendo facturar el 100% de lo entregado.',
+    ],
+  },
+  {
+    version: 'v8.3.4 Enterprise Multi-Concept Invoicing & Mobile PWA Supercharged Edition',
+    date: '17 de Agosto de 2026',
+    time: '06:40 PM',
+    summary: 'Facturación Multi-Concepto Interactiva, Prefacturas PDF por Partida, Experiencia Móvil Bottom Sheet y Asistente Proactivo',
+    highlights: [
+      'Facturación Rápida Multi-Concepto: Selector interactivo con casillas de verificación para marcar conceptos específicos a facturar, kilos y precios individuales, botón "⚡ Máx" y botón "+ Agregar Concepto" al vuelo.',
+      'Prefactura PDF Inteligente: Generador dinámico que imprime únicamente los conceptos fiscales y cantidades asignadas a la factura seleccionada con desglose SAT oficial.',
+      'Experiencia Móvil PWA Nativa: Modales estilo Bottom Sheet que se abren desde abajo y se cierran arrastrando hacia abajo con el pulgar, muelle de navegación con respuesta háptica y badges en tiempo real.',
+      'Asistente Proactivo de Acciones del Día: Widget inteligente que detecta en vivo las tareas prioritarias (entregas por facturar, cobranzas vencidas, cobros del contador) con botón de ejecución en 1 clic.',
+      'Badges Proactivos en Expediente: Puntos de alerta ámbar en la pestaña "Entregas" para no olvidar facturar remisiones pendientes y contadores dinámicos de partidas.',
+    ],
+  },
+  {
+    version: 'v8.3.3 Enterprise Deep Integrity & Tracking Edition',
+    date: '16 de Agosto de 2026',
+    time: '11:10 PM',
+    summary: 'Auditoría Universal de Tablas de Seguimiento, Exportadores Excel y Detección de Contrarecibos',
+    highlights: [
+      'Seguimiento Integral de Pedidos: Nueva vista con desglose claro de Facturas emitidas, Contrarecibos (CR) y barras visuales de avance de kilos por orden.',
+      'Sincronización de Tablas y Exportadores: ContrarecibosTable, OcTracking, SeguimientoPedidosTable y exportToExcel unificados bajo el extractor universal extractCr.',
+      'Badge "Sin CR" Preciso: La alerta pulsante solo se activa para facturas vivas emitidas que no tienen contrarecibo asignado, eliminando falsos positivos en órdenes liquidadas o históricas.',
+    ],
+  },
+  {
+    version: 'v8.3.2 Enterprise Strict CR vs Invoice Separation Edition',
+    date: '16 de Agosto de 2026',
+    time: '11:05 PM',
+    summary: 'Auditoría y Separación Estricta de Contrarecibos vs Facturas',
+    highlights: [
+      'Corrección Estricta del Semáforo y Panel sin CR: Las facturas que ya fueron cobradas o pagadas, o que tienen un contrarecibo asignado a nivel de orden/folio (ej: TH- o GT-), quedan debidamente identificadas y nunca se cuentan erróneamente como "en espera de CR".',
+      'Extracción Universal de Contrarecibos: Centralización con extractCr en Semáforo del Día, Pipeline de Flujo de Efectivo, Panel de Facturas sin CR y filtros de Órdenes.',
+    ],
+  },
+  {
+    version: 'v8.3.1 Enterprise Order Progress & Instant Backup Edition',
+    date: '16 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Barras de Progreso de Kilos Entregados por Andrés y Respaldo Local de Base de Datos en 1 Clic',
+    highlights: [
+      'Barras Visuales de Progreso de Kilos: Indicadores dinámicos de porcentaje de entrega y kilos faltantes en Tablero Kanban, Listado de Órdenes y Compras.',
+      'Respaldo de Emergencia en 1 Clic: Botón directo en la barra superior y pie de página para descargar al instante un archivo .JSON con todos los pedidos, compras, contrarecibos y caja chica para llevar en tu celular o USB.',
+    ],
+  },
+  {
+    version: 'v8.3.0 Enterprise Instant Collection & Undo Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:52 PM',
+    summary: 'Botón de 1 Toque "Ya Cobrado", Deshacer Flotante y Visibilidad Universal de Contrarecibos',
+    highlights: [
+      'Botón [✅ Ya Cobrado] Directo: En cada tarjeta de contrarecibo en móvil o escritorio, registra el cobro en 1 solo toque con sonido de caja registradora.',
+      'Botón Flotante [↩️ Deshacer]: Si tocas "Ya Cobrado" por error, un banner flotante te permite revertir el cobro de inmediato durante 12 segundos.',
+      'Extracción Exhaustiva de Contrarecibos: Motor de detección que garantiza que ninguna factura con contrarecibo quede oculta, calculando fechas límite de cobro de respaldo.',
+    ],
+  },
+  {
+    version: 'v8.2.9 Enterprise Anti-Duplicate Shield & Security Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:45 PM',
+    summary: 'Blindaje Universal contra Folios Repetidos (Contrarecibos, Facturas, OCs y Remisiones) y Auditoría en Tiempo Real',
+    highlights: [
+      'Blindaje Anti-Duplicidad de Contrarecibos: Motor centralizado que bloquea y alerta en tiempo real si se intenta registrar un contrarecibo que ya fue usado en otra factura u orden.',
+      'Prevención de Facturas y OCs Repetidas: Detección y advertencia inmediata al capturar o pegar números de factura u órdenes de compra preexistentes.',
+      'Seguridad y Bitácora de Acciones por Usuario: Monitor en tiempo real (Live Logs) que audita cada movimiento, usuario responsable (email) y detalles de cada cambio en Firestore.',
+    ],
+  },
+  {
+    version: 'v8.2.8 Enterprise Unbilled Auto-Pilot Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:40 PM',
+    summary: 'Auto-Facturación de Kilos Entregados y Tarjetas Táctiles de Facturas sin Contrarecibo',
+    highlights: [
+      'Auto-Completado de Kilos Pendientes en Facturación Rápida: Detección infalible de todos los kilos entregados pendientes de facturar, con botón de 1 toque para llenar el remanente exacto y cálculo de precios personalizados por cliente.',
+      'Tarjetas Táctiles para Facturas sin Contrarecibo: Rediseño responsivo en cuadrícula de tarjetas con días de antigüedad, monto con IVA y botón directo [📝 Asignar CR] optimizado para celular.',
+    ],
+  },
+  {
+    version: 'v8.2.7 Enterprise Operations Velocity Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:35 PM',
+    summary: 'Chips de Filtrado en Cobranza, Presets de Abono a Andrés en 1 Clic y Detección de Remisiones Duplicadas',
+    highlights: [
+      'Chips de Filtrado Rápido de Contrarecibos: Filtra en 1 toque por [Todos], [🚨 Vencidos], [⚡ Esta Semana] o [📆 Próximos 30 Días] con conteo y suma monetaria en tiempo real.',
+      'Presets de Abono a Andrés en 1 Clic: Botones directos para liquidar la deuda total con Andrés, abonar el 50% o aportar el total de efectivo disponible en Caja Chica con un solo toque.',
+      'Detector de Remisiones Duplicadas: Validación automática que alerta si un folio de remisión ya fue registrado en otra orden, protegiendo contra duplicidad de kilos recibidos.',
+    ],
+  },
+  {
+    version: 'v8.2.6 Enterprise Contrarecibos Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:30 PM',
+    summary: 'Visibilidad Total de Fechas de Contrarecibos en Móvil y Escritorio con Cobro Local',
+    highlights: [
+      'Fechas de Cobro Destacadas en Móvil: El Timeline de Contrarecibos ahora muestra de forma prominente la fecha exacta de cobro con día de la semana (ej. Jue, 20/Ago/2026), monto con IVA y badge de días restantes o vencimiento.',
+      'Parseo Universal de Fechas de Firestore: toDate actualizado para soportar de manera infalible objetos Timestamp, strings ISO y timestamps serializados sin omitir ningún contrarecibo.',
+      'Acción Rápida de Cobro Local: Cada tarjeta de contrarecibo incluye botón directo [💸 Cobrar] que abre el modal local de cobranza al instante.',
+    ],
+  },
+  {
+    version: 'v8.2.5 Enterprise Cashflow Guard Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:25 PM',
+    summary: 'Blindaje y Verificación en Tiempo Real de Efectivo en Caja para Pagos y Anticipos a Andrés',
+    highlights: [
+      'Validación de Saldo de Caja Chica: El modal de pago a Andrés y los egresos de tesorería ahora verifican en vivo el efectivo disponible, proyectando el saldo remanente y alertando con advertencias explícitas en caso de saldo insuficiente.',
+      'Sugerencia Inteligente de Fondos del Contador: Si la caja no tiene suficiente efectivo pero existen fondos cobrados en tránsito con el contador, el sistema notifica de inmediato el monto disponible para recibir antes de pagar.',
+      'Acceso Unificado a Pago de Fabricante: La acción de pago en el Dashboard y la barra móvil abre de forma directa el modal de abono a Andrés con control de liquidez.',
+    ],
+  },
+  {
+    version: 'v8.2.4 Enterprise Local Mobile Engine Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:20 PM',
+    summary: 'Dock de Operaciones 100% Locales para Móvil y Eliminación de Salidas Forzadas a WhatsApp',
+    highlights: [
+      'Acciones 100% Locales en Móvil: El dock flotante móvil ahora ejecuta directamente las operaciones del sistema (➕ Nueva OC, 📝 Facturar Entregas, 💸 Cobrar / Contrarecibos, 💳 Pagar Andrés, 📋 Pegar OC, ⚖️ Calc Kilos) dentro de la aplicación sin expulsar al usuario.',
+      'Priorización de Asignación Local en Facturas sin CR: Los botones de acción rápida abren de inmediato el modal local de captura de Contrarecibo [📝 Asignar CR] o el expediente [📂 Ver OC].',
+    ],
+  },
+  {
+    version: 'v8.2.3 Enterprise Unified Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:15 PM',
+    summary: 'Restauración Integral del Dashboard Maestro Completo con Todos los Datos y Paneles Visibles',
+    highlights: [
+      'Visibilidad Total y Permanente: Se eliminó el ocultamiento por pestañas del Dashboard, restaurando la visión completa de los 13 paneles simultáneamente (KPIs Ejecutivos, Semáforo del Día, Pipeline de Flujo, Reparto de Socios 50/50, Velocímetro de Kilos, Timeline de Contrarecibos, Dinero por Recibir del Contador y Facturas sin CR).',
+      'Consistencia de Datos Financieros: Todas las métricas de rentabilidad, cobro y flujo de efectivo se calculan rigurosamente con los expedientes auditados y filtros de departamento/período.',
+      'Atajos de Teclado Globales Preservados: Acceso instantáneo con [N] para Nueva OC, [F] para Facturar, [C] para Cobrar, [P] para Pegado WhatsApp y [R] para Recalcular.',
+    ],
+  },
+  {
+    version: 'v8.2.2 Enterprise ActionRadar Precision Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:05 PM',
+    summary: 'Escaneo Exhaustivo de Acciones Operativas y Detección Total de Expedientes en Radar',
+    highlights: [
+      'Alimentación con Universo Total de Órdenes: ActionRadar ahora recibe el conjunto íntegro de expedientes (incluyendo órdenes nuevas en proceso, entregas sin factura y facturas sin CR) sin exclusiones de filtro de estatus previo.',
+      'Detección de Facturas sin Contrarecibo: Incorporada alerta proactiva para todas las facturas emitidas que aún no tienen número de contrarecibo con botón directo [📋 Pedir CR por WhatsApp].',
+      'Parseo Tolerante de Fechas de Vencimiento: Detección exacta de contrarecibos vencidos o por vencer compatible con Timestamps de Firestore, fechas en string y objetos Date.',
+      'Sincronización de Indicador Urgente: El conteo de alertas urgentes en la barra móvil y de escritorio ahora refleja con precisión matemática el 100% de los pendientes reales.',
+    ],
+  },
+  {
+    version: 'v8.2.1 Enterprise Hotfix Edition',
+    date: '16 de Agosto de 2026',
+    time: '10:00 PM',
+    summary: 'Corrección de Cumplimiento Estricto de Reglas de Hooks en Dashboard',
+    highlights: [
+      'Resolución de Error #310 de React: Reubicación de los hooks useMemo antes de cualquier early-return de carga en Dashboard.tsx.',
+      'Estabilidad Total en Inicialización: Garantizado orden idéntico de hooks en todos los ciclos de renderizado sin importar el estado de carga o filtros.',
+    ],
+  },
+  {
+    version: 'v8.2.0 Enterprise Cockpit Pro Edition',
+    date: '16 de Agosto de 2026',
+    time: '09:50 PM',
+    summary: 'Cockpit Pro Inteligente de 2 Columnas para Pantallas Grandes y Atajos de Teclado Globales',
+    highlights: [
+      'Cockpit Pro Balanceado en Desktop: En pantallas grandes, el Dashboard se divide inteligentemente en 2 columnas maestras (Operación & Cobranza a la izquierda, Finanzas & Kilos a la derecha), reduciendo el scroll vertical en más del 50%.',
+      'Atajos de Teclado Globales (Power-User Shortcuts): Presiona [N] para Nueva OC, [F] para Facturar, [C] para Cobro Rápido, [P] para Pegado Mágico de WhatsApp, [1..5] para alternar pestañas y [R] para Recalcular.',
+      'Selector Dinámico de Vista en Desktop: Alterna instantáneamente con 1 clic entre el modo [🎛️ Cockpit Pro (2 Col)] y la [🏢 Vista Clásica].',
+      'Barra Guía de Atajos de Teclado: Indicadores sutiles tipo terminal financiera en la parte superior para acelerar la operación de oficina.',
+    ],
+  },
+  {
+    version: 'v8.1.0 Enterprise Mobile Ultra Edition',
+    date: '16 de Agosto de 2026',
+    time: '09:15 PM',
+    summary: 'Dashboard Mobile-First Ultra-Práctico con Dock Flotante de 1 Toque, Resumen Ejecutivo y Pestañas Segmentadas',
+    highlights: [
+      'Dock Rápido Flotante en Móvil (MobileQuickDock): Acceso permanente a Radar de Acciones, Facturación con 1 clic, Cobro Rápido, Pegado de WhatsApp y Calculadora $43/$42 con un solo toque del pulgar.',
+      'Tarjeta de Resumen Ejecutivo Móvil (MobileExecutiveCard): Muestra instantáneamente los 3 números vitales (Caja Líquida, Dinero por Cobrar en la Calle y Kilos Entregados con barra de meta mensual).',
+      'Pestañas de Navegación Segmentada (MobileTabSelector): Navegación ultrarrápida entre [⚡ Hoy], [💰 Dinero], [🚚 Kilos], [🧾 Cobranza] y [🏢 Todo] sin saturación de scroll infinito.',
+      'Ergonomía Táctil y Touch-Targets de Alta Gama: Botones grandes y ergonómicos (mínimo 48px), micro-animaciones Framer Motion y soporte para safe-area-insets en dispositivos móviles.',
+    ],
+  },
+  {
+    version: 'v8.0.0 Enterprise Platinum Edition',
+    date: '16 de Agosto de 2026',
+    time: '04:15 PM',
+    summary: 'Suite Completa de Tableros Kanban Interactivos con Drag & Drop, Botones de Avance Rápido y Sincronización Total',
+    highlights: [
+      'Kanban Interactivo de Órdenes Providencia (/ordenes): Arrastrar y soltar con el ratón entre las 7 columnas del ciclo operativo con resalte visual y confirmación sonora.',
+      'Botones de Avance Rápido y Selector Móvil: Cada tarjeta incluye botón de 1 clic [➔ Siguiente Fase] y menú [Mover a...] para operar con agilidad desde celulares y tablets.',
+      'Tablero Kanban de Compras a Andrés (/compras): Visualización por 4 etapas de abastecimiento (Pedido, En Fabricación, Recibido Falta Pagar, Liquidado) con animaciones Framer Motion.',
+      'Tablero Kanban Logístico (/seguimiento-oc): Control visual de entregas en báscula, material en camino y pendientes de remisión/facturación.',
+      'Compatibilidad Total Claro/Oscuro: Estandarización de todas las columnas y tarjetas Kanban mediante variables CSS dinámicas del sistema.',
+    ],
+  },
+  {
+    version: 'v7.9.0 Enterprise Staff Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '04:00 PM',
+    summary: 'Optimización Integral de Rendimiento, Accesibilidad WCAG AA, Blindaje Numérico y Pegado Directo de WhatsApp',
+    highlights: [
+      'Blindaje Numérico de Casos Extremos: Suite completa de 49 pruebas unitarias validando precisión en micro-pesadas (0.01 kg) y macro-órdenes (500,000 kg) sin pérdida de centavos.',
+      'Optimización de Rendimiento Firestore: Eliminación de re-renders redundantes por metadatos de red en OrdersContext, acelerando la navegación general.',
+      'Accesibilidad Universal WCAG AA: Primitivos UI con roles semánticos (region, meter, dialog), etiquetas aria descriptivas y áreas táctiles ergonómicas para dispositivos móviles.',
+      'Reconciliación React con Keys Estables: Optimización del timeline de contrarecibos y navegación con un clic hacia el módulo de Cobranza.',
+      'Pipeline de Capital y Tacómetro Memoizados: Renderizado ultrarrápido y reactivo a los cambios de estado de inventario y caja.',
+      'Botón de Pegado Directo de Portapapeles: Pegado con un toque de mensajes de WhatsApp de choferes o maquiladores con extracción instantánea de kilos y folio.',
+    ],
+  },
+  {
+    version: 'v7.8.0 Enterprise Master Edition',
+    date: '16 de Agosto de 2026',
+    time: '03:15 PM',
+    summary: 'Suite Completa de 20 Mejoras Gráficas e Intuitivas: Pipeline de Dinero, Tacómetro de Kilos, Timeline de Contrarecibos, Calculadora Flotante, Pegado Mágico WhatsApp, Estado de Cuenta Andrés PDF, Desglose 8% y Respaldo Total a Excel',
+    highlights: [
+      'Pipeline Visual del Flujo del Dinero: monitor interactivo en tiempo real que traza el capital en 5 etapas: Taller Fabricando ($) ➔ Entregado sin Facturar ($) ➔ En Espera de CR ($) ➔ Con el Contador ($) ➔ En Caja Efectivo ($).',
+      'Tacómetro y Velocímetro de Kilos del Mes: medidor visual con barra de progreso que compara los kilos entregados contra la meta mensual de la empresa.',
+      'Timeline de Contrarecibos con Esferas Semanales: línea de tiempo con bolitas codificadas por color (rojo vencido, ámbar vence esta semana, verde en tiempo).',
+      'Calculadora Flotante de Kilos ↔ Pesos: conversor interactivo accesible desde cualquier pantalla con desglose de factura c/IVA, comisión 8%, costo Andrés y ganancia neta 50/50.',
+      'Pegado Mágico Universal de WhatsApp: modal que analiza mensajes de texto de choferes o maquilador y extrae automáticamente kilos, bultos y folio de OC.',
+      'Estado de Cuenta Auditado para Andrés en PDF: generador de liquidación oficial de maquila con costo pactado a $42/kg, abonos, saldo y recuadro para firmas.',
+      'Desglose Automático de Comisión Contador (8%): en Caja Chica se separa claramente el total cobrado con IVA, la comisión retenida y el neto limpio a recibir.',
+      'Control y Amortización de Anticipos: gestión automática de adelantos de efectivo a Andrés compensados conforme entrega kilos en báscula.',
+      'Respaldo Total Offline a Excel (.xlsx): botón en la barra superior que genera un libro multi-pestaña con todo el negocio (órdenes, facturas, compras y flujo de caja).',
+      'Efectos de Sonido Hápticos (Web Audio API): timbres y campana de caja registradora al cobrar contrarecibos y asignar pagos (100% offline).',
+      'Barras de Progreso Tricolor en Tablas: indicador visual por renglón con kilos entregados, facturados y pendientes.',
+      'Tema Dark Titanium y Animaciones Neon Pulse: elevación estética con respiración neón en badges de estatus prioritarios.'
     ]
   },
   {
-    version: 'v7.0.38',
-    date: '11 de Agosto de 2026',
-    time: '8:15 PM',
-    summary: 'Bug real encontrado en vivo: "Guardar cambios" en un expediente podía quedarse colgado sin avisar nada, si el sistema necesitaba preguntar algo antes de guardar',
+    version: 'v7.7.0',
+    date: '16 de Agosto de 2026',
+    time: '02:50 PM',
+    summary: 'Generador de Prefacturas PDF desde la OC, Captura Rápida de Contrarecibos, Tarjeta de Utilidad y Reparto de Socios 50/50 y Cobranza Semanal para el Contador',
     highlights: [
-      'Al registrar la entrega de 3,700kg del pedido 43/9713 (para preparar el pago a Andrés), "Guardar cambios" parecía no hacer nada -- ningún error, ningún aviso, la ventana se quedaba exactamente igual sin importar cuántas veces se le diera clic.',
-      'La causa: al completar los kilos pedidos, el sistema pregunta "¿Deseas marcar esta orden como finalizada?" ANTES de guardar -- pero esa pregunta se dibuja como una ventana normal, no "por encima de todo" como debería. Como ya había otra ventana abierta (la del expediente), las dos quedaban empatadas y el navegador pintaba la del expediente por encima, dejando la pregunta invisible y sin poder darle clic. El guardado se quedaba esperando una respuesta que nunca podía llegar por la pantalla.',
-      'Mismo riesgo en cualquier otra pregunta o dato que el sistema pida mientras ya hay una ventana abierta (por ejemplo, al borrar una entrega desde dentro del expediente). Corregido de raíz: esas preguntas ahora siempre se dibujan por encima de cualquier otra ventana, sin importar cuál se abrió primero.',
-      'La entrega de 3,700kg del pedido 43/9713 quedó registrada correctamente una vez destrabado: Kilos Pedidos/Entregados 3,700kg, Proveedor "Andres", y el Libro Mayor de Compras ya refleja "Entrega (Amortización) OC-43/9713 $155,400.00" -- el monto que hay que prepararle a Andrés por esta entrega.'
+      'Generador de Prefacturas Formales en PDF: toma datos de la Orden de Compra (OC), aplica claves SAT (24111500, KGM), desglose de subtotal, 16% IVA y total con letra en pesos para compartir en 1 clic con el contador.',
+      'Control Estricto de Contrarecibos (CR): nuevo filtro [⚠️ Sin Contrarecibo], badges con pulso ámbar en la lista de órdenes y botón de captura rápida [+ Asignar CR] en 1 clic sin abrir todo el expediente.',
+      'Tarjeta Ejecutiva de Reparto de Socios (50/50): cálculo automático de utilidad neta descontando costo de Andrés ($42/kg) y 8% del contador, con división exacta para Paco y su socio.',
+      'Resumen de Cobranza Semanal para el Contador: compilador inteligente de todos los contrarecibos que vencen en los próximos 7 días con botón directo para enviar la relación por WhatsApp.',
+      'Flujo de Caja Simplificado: 4 pilares limpios enfocados en Efectivo en Caja, Por Recibir del Contador, Cuenta con Andrés y Reparto a Socios.',
+      'Portal del Maquilador v2.5: cola de entregas offline con auto-sincronización y calculadora de bultos/rollos a kilos.'
     ]
   },
   {
-    version: 'v7.0.37',
-    date: '11 de Agosto de 2026',
-    time: '6:10 PM',
-    summary: 'Registrar el pago de un contrarecibo ya no exige copiar y pegar el texto del Complemento -- se puede subir el .xml del SAT directo',
+    version: 'v7.5.0',
+    date: '15 de Agosto de 2026',
+    time: '11:15 PM',
+    summary: 'Corte Mensual para Contabilidad en 1 Clic, Asistente de Foto de Remisión Providencia y Centro de Notificaciones Proactivas Push',
     highlights: [
-      'El usuario pidió mejorar el registro de un pago liberado hoy. "💰 Pegar Complemento" solo aceptaba texto copiado a mano del PDF -- se agregó "📄 Subir XML de Pago" al lado, que lee el archivo .xml del Complemento de Pago del SAT directamente.',
-      'No hizo falta escribir un parser nuevo: la función que ya procesaba el texto pegado (processPagoText) tenía un "Formato 4" pensado justo para esto -- busca los atributos Folio="..." e ImpPagado="..." tal como aparecen en el XML crudo (nodo DoctoRelacionado del Complemento de Pago). Solo faltaba poder darle el archivo directo en vez de obligar a copiar/pegar su texto.',
-      'Mismo patrón que "📄 Subir XML" para facturas (v7.0.36): un botón, un input de archivo oculto, sin cambiar el comportamiento existente de "Pegar Complemento" para quien prefiera seguir así.'
+      'Generador de Corte Mensual para Contabilidad: selector de mes que calcula facturación, cobranza de Providencia, costo de Andrés ($42/kg) y utilidad real neta con exportación en PDF oficial y Excel (.xlsx) de 3 pestañas.',
+      'Asistente de Foto de Remisión / Báscula: sube o pega (Ctrl+V) la foto del comprobante sellado por Providencia recibido por WhatsApp y registra la entrega en 1 clic.',
+      'Centro de Alertas y Notificaciones Push en vivo: campanita en el menú superior con badges de contrarecibos por vencer, facturas sin CR > 3 días y soporte para notificaciones web del navegador.'
     ]
   },
   {
-    version: 'v7.0.36',
-    date: '11 de Agosto de 2026',
-    time: '5:50 PM',
-    summary: 'Se capturó la factura 6159 ($79,826.00) y se conectó -- por fin -- la carga del XML real de una factura, que ya estaba programada pero nunca tenía botón para usarse',
+    version: 'v7.4.0',
+    date: '15 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Auto-Conciliador Bancario de Pagos, Remisiones para Andrés, Respaldo a Medianoche, Seguimiento de OC corregido y Diseño Web Responsive',
     highlights: [
-      'Factura #6159 (OC 120267114014, mismo expediente que la #6167) capturada con sus 3 conceptos: 1,464.16 kg, $79,826.00 total, emitida 03/Ago/2026. Verificado en Cuentas por Cobrar: "En Revisión (Sin CR)" ahora suma $161,606.00 (6159 + 6167), exacto contra el control del usuario.',
-      'Al preguntar el usuario si el sistema podía leer el XML de una factura (el archivo que timbra el SAT, no el texto copiado de un PDF), se encontró que SÍ existía todo el código para hacerlo -- lib/xmlParser.ts, con pruebas unitarias, y processParsedXml ya conectado al contexto del expediente -- pero el botón para usarlo nunca se agregó a la pantalla: el <input type="file"> estaba oculto en el HTML sin que nada lo activara, y su manejador de evento estaba vacío. Una función completa, lista, invisible.',
-      'Se agregó el botón "📄 Subir XML" junto a "Pegar Texto (PDF)" en Facturas & Contrarecibos. Sube el .xml, lo lee y llena Folio, kilos, OC y fecha directo del archivo -- sin copiar y pegar nada.',
-      'De paso, xmlParser.ts no leía el atributo Folio="6159" del CFDI -- solo el UUID largo (ej. 8F5BDFBE-357C-...) -- así que una factura subida por XML se habría guardado con ese UUID como número de factura en vez del folio real que Providencia usa para dar seguimiento. Corregido para leer el Folio humano igual que ya hacía "Pegar Texto (PDF)", con el mismo candado que impide usar TH-/GT- como folio de factura (esos prefijos son exclusivos de contrarecibos).'
+      'Auto-Conciliador Bancario inteligente en Cobranza: pega depósitos bancarios desde Excel y el sistema detecta coincidencias por Contrarecibo o Monto exacto, aplicando cobros en lote en 1 clic.',
+      'Generador Oficial de Remisiones para Andrés en 1 Clic: genera la hoja oficial de entrega con formato Providencia, partidas, kilos pesados y firmas.',
+      'Flujo Financiero Limpio y Directo: se eliminó la distracción de comisiones del contador; el sistema se enfoca 100% en lo que cobras, lo que pagas a Andrés ($42/kg) y tu ganancia real.',
+      'Respaldo Automático a Medianoche con Cloud Scheduler diario a las 00:00 y botón para descargar copia .JSON física al instante.',
+      'Seguimiento por OC (/oc) totalmente corregido: eliminados filtros restrictivos y agregadas pestañas por etapa (Por Entregar, Por Facturar, En Cobranza, Completadas).',
+      'Diseño Web Responsive Fluido: auto-ajuste ergonómico para celular, tablet, laptop y 4K con touch targets de 42px y tablas con scroll suave.'
     ]
   },
   {
-    version: 'v7.0.35',
-    date: '11 de Agosto de 2026',
-    time: '12:20 PM',
-    summary: 'El campo "Folio" de una factura ya no invita a inventar un número cuando en realidad solo hay contrarecibo',
+    version: 'v7.3.0',
+    date: '15 de Agosto de 2026',
+    time: '8:45 PM',
+    summary: 'Requerimiento de Producción para Andrés, Pipeline Visual de 6 Etapas, Semáforo del Día y Sábana de Auditoría Data Grid interactiva',
     highlights: [
-      'La mayoría de los contrarecibos capturados en el sistema no tienen un número de factura real detrás -- solo el CR, el monto y las fechas. El campo "Folio" no lo dejaba claro, así que se prestaba a escribir un número inventado nada más para no dejarlo vacío.',
-      'Ahora el campo dice explícitamente "Folio (opcional si no hay factura, solo CR)" con un texto de ejemplo que invita a dejarlo vacío. El sistema ya manejaba esto internamente (guarda "S/N" si se deja en blanco) -- este cambio solo lo hace visible.',
-      'Primer paso de un pendiente más grande: hacer que capturar OC, entregas y contrarecibos sea más simple e intuitivo en general -- sigue en curso.'
-    ]
-  },
-  {
-    version: 'v7.0.34',
-    date: '11 de Agosto de 2026',
-    time: '11:40 AM',
-    summary: '$109,040 de una factura real desaparecían de Cuentas por Cobrar por un estatus corrupto -- y el botón "Guardar Cambios" se quedaba prendido para siempre incluso cuando el guardado sí funcionaba',
-    highlights: [
-      'La factura #6097 (Contrarecibo TH-879, $109,040.00) tenía un valor de estatus que no coincidía con ninguna de las 5 opciones válidas del sistema -- por eso aparecía agrupada en "Otras" en vez de "Por Cobrar" dentro del expediente, y por eso Cuentas por Cobrar la excluía por completo de su tablero y de su total. El dinero era real y estaba correctamente facturado; solo era invisible para cobranza. Corregido: el total de "Pendientes de Cobro" pasó de $940,130.34 a $1,049,170.34, cuadrando exacto contra el libro de control del usuario.',
-      'Al corregir esa factura se descubrió un bug aparte: después de guardar una factura con éxito, el aviso "⚠️ Tienes cambios sin guardar" y el botón "💾 Guardar Cambios" se quedaban visibles para siempre -- el sistema SÍ guardaba, pero la pantalla seguía pidiendo guardar de nuevo. Causa: comparaba el formulario contra la factura recién guardada con JSON.stringify, y el guardado le agrega campos que el formulario nunca tuvo (fecha de actualización, cálculos financieros recalculados), así que nunca volvían a verse "iguales" aunque todo estuviera bien.',
-      'Se eliminó también, por confirmado como dato falso (no existía en el libro de control del usuario), un expediente fantasma "TH-713B" de $108,647.46 sin ninguna orden de compra ni cliente capturado detrás.'
-    ]
-  },
-  {
-    version: 'v7.0.33',
-    date: '11 de Agosto de 2026',
-    time: '10:20 AM',
-    summary: 'El texto de "Deuda Histórica con Andrés" en Ajustes decía lo contrario de lo que hace la fórmula -- por eso el saldo con Andrés salía volteado (a favor en vez de deuda)',
-    highlights: [
-      'La fórmula del saldo con Andrés (usada igual en 3 archivos: Compras, Dashboard y Caja Chica) trata "Deuda Histórica" como un ANTICIPO a tu favor cuando es positiva -- lo dice su propio comentario en el código ("Negativo = Deuda, Positivo = Saldo a Favor"). Pero el texto de ayuda junto al campo en Ajustes decía justo lo opuesto: "valores positivos indican que le debes a Andrés". Cualquiera que capturara ese campo siguiendo la instrucción en pantalla iba a terminar con el saldo invertido.',
-      'Corregido el texto para que describa lo que la fórmula realmente hace. No se tocó la fórmula ni ningún cálculo -- es un cambio de texto explicativo únicamente.',
-      'Pendiente (requiere acción del usuario, no de código): el valor ya capturado en ese campo ($1,227,839.35) se guardó bajo la instrucción incorrecta y por eso el saldo con Andrés en vivo sale "+$39,670.27 a favor" cuando, según el Excel de control, debería ser "-$102,670.27 de deuda". El valor corregido que hay que capturar es $1,085,498.81 -- verificado para que el resultado cuadre exactamente con el Excel.'
-    ]
-  },
-  {
-    version: 'v7.0.32',
-    date: '11 de Agosto de 2026',
-    time: '9:10 AM',
-    summary: 'El Dashboard decía "Tienes 1 órdenes con entregas pero sin facturar" sin que ninguna orden real apareciera al dar clic en "Facturar Ahora" -- era un residuo de punto flotante, no una orden perdida',
-    highlights: [
-      'El contador del servidor sumaba los kilos entregados y los kilos facturados con suma directa de JavaScript, sin redondear -- con varias facturas o entregas de kilos decimales, la resta podía dejar un residuo microscópico (como 0.00000000003) que técnicamente es "mayor que cero" y encendía la alerta, aunque para cualquier propósito real los kilos entregados y facturados fueran idénticos.',
-      'El cliente (la pantalla de Órdenes y su chip "Pendiente de Facturar") sí redondea a 2 decimales antes de comparar -- por eso el chip decía (0) mientras el Dashboard insistía en 1, y "Recalcular Indicadores" no lo arreglaba: reutiliza la misma fórmula, así que recalculaba el mismo residuo una y otra vez.',
-      'Ahora el servidor redondea los kilos entregados y facturados antes de restarlos, igual que el cliente. Confirmado con tsc y con los 40 tests de fórmulas financieras.'
-    ]
-  },
-  {
-    version: 'v7.0.31',
-    date: '12 de Agosto de 2026',
-    time: '12:40 AM',
-    summary: 'El deploy se detenía en "las pruebas fallaron" -- eran 4 pruebas con el precio viejo ($47/kg) hardcodeado, no un error nuevo en los cálculos',
-    highlights: [
-      'Cuando el precio de venta de respaldo bajó de $47 a $43/kg (v7.0.24), 4 pruebas automáticas se quedaron comparando contra los montos calculados con el precio viejo -- el código calculaba bien con $43, las pruebas comparaban contra $47 y por eso "fallaban".',
-      'Actualizados los montos esperados en las pruebas al precio vigente ($43/kg). Confirmado: los 40 tests de fórmulas financieras pasan.',
-      'Hallazgo real que sí vale la pena revisar: con el precio de respaldo actual ($43/kg venta, $42/kg costo, 8% de comisión), el margen por kilo sin precio propio capturado queda negativo (-$2.44/kg) -- si algún expediente depende de ese respaldo en vez de tener su propio precio acordado, está perdiendo dinero en la fórmula. No se tocó ningún precio real, solo se documenta para que se revise.'
-    ]
-  },
-  {
-    version: 'v7.0.30',
-    date: '12 de Agosto de 2026',
-    time: '12:10 AM',
-    summary: 'DESPLEGAR_ROBUSTO.bat ya no parece congelarse en el paso de dependencias -- sin cambios en la app',
-    highlights: [
-      'El paso "dependencias y pruebas" hacía una reinstalación completa de node_modules (npm ci, que borra todo y reinstala) dos veces seguidas, sin mostrar nada en pantalla -- en Windows con antivirus eso puede tardar varios minutos en silencio absoluto, indistinguible de estar colgado.',
-      'Ahora solo instala dependencias si de verdad faltan (node_modules no existe), muestra un aviso de que puede tardar la primera vez, y va marcando OK en cada sub-paso para que se vea que sigue avanzando.',
-      'En despliegues repetidos -- lo normal después del primero -- este paso ahora tarda segundos en vez de minutos.'
-    ]
-  },
-  {
-    version: 'v7.0.29',
-    date: '11 de Agosto de 2026',
-    time: '11:50 PM',
-    summary: 'Limpieza de scripts .bat -- sin cambios en la app. Corregido un bug de sintaxis que cerraba DESPLEGAR_ROBUSTO.bat de golpe',
-    highlights: [
-      'DESPLEGAR_ROBUSTO.bat tenía paréntesis mal escapados dentro de bloques "if" que rompían el interprete de Windows y cerraban la ventana antes de tiempo. Corregido, y además se le sumaron las pruebas automáticas y la instalación exacta de dependencias que ya traía INSTALL_AND_DEPLOY.bat, más la actualización automática de firebase-tools y el registro en DEPLOY_LOG.txt.',
-      '6 scripts .bat viejos (versiones de instalador de hace semanas, deploys de una fecha específica ya publicados) quedaron fuera del repositorio -- superados por DESPLEGAR_ROBUSTO.bat. Nuevo LIMPIAR_BATS_VIEJOS.bat para borrarlos del disco con un clic.',
-      'CONTROL_MAESTRO.bat ahora manda al script robusto en vez de un "firebase deploy" sin pruebas ni reintentos.'
-    ]
-  },
-  {
-    version: 'v7.0.28',
-    date: '11 de Agosto de 2026',
-    time: '11:20 PM',
-    summary: 'Corregido el timeout "Cannot determine backend specification" que tumbaba el deploy de Functions, más un .bat de despliegue más robusto',
-    highlights: [
-      'La librería de IA (Gemini, para el lector inteligente de documentos) se cargaba completa apenas Firebase revisaba las funciones para publicarlas -- no cuando de verdad se usaba. Esa librería es pesada, y cargarla contaba contra el límite de 10 segundos que usa Firebase en esa revisión, causando el error de timeout visto al desplegar.',
-      'Ahora esa librería se carga solo cuando el lector de IA se usa de verdad, no durante la revisión de Firebase.',
-      'Nuevo DESPLEGAR_ROBUSTO.bat: verifica la sesión de Firebase antes de empezar, fija el proyecto correcto, amplía el límite de espera de Functions a 60 segundos como respaldo adicional, y reintenta una vez automáticamente si el primer intento de Functions falla.'
+      'Pestaña "Pedido a Andrés" en cada orden: cálculo de compra a $42/kg, ganancia limpia y WhatsApp automático listo para enviar.',
+      'Pipeline visual de 6 etapas (OrderStepper) y banner de sugerencia de siguiente acción proactiva.',
+      'Sábana de Auditoría Interactiva en Vivo (AuditSync): edición directa de celdas en pantalla, pegado Ctrl+V desde Excel y rollback en 1 clic.'
     ]
   },
   {

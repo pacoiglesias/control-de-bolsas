@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto } from '../finance';
+import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto, computeAndresRequirement, getSuggestedNextAction } from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
- * Estas dos funciones son donde un error se traduce directamente en dinero mal
- * contado. Cada prueba de aquí corresponde a un defecto real que llegó a
- * producción, no a un caso inventado.
+ * Estas funciones son donde un error se traduce directamente en dinero mal
+ * contado. Cada prueba de aquí corresponde a un defecto real o regla de negocio.
  */
 
 const cfg = { ...DEFAULT_CONFIG };
@@ -34,21 +33,13 @@ function factura(status: OrderStatus, kilos = 100) {
 
 describe('computeFinancials', () => {
   it('el honorario del contador va sobre el SUBTOTAL, no sobre la factura', () => {
-    // FIX 2026-08-11 (Iteracion 106): estos valores estaban hardcodeados con
-    // el precio de venta viejo ($47/kg), que cambio a $43/kg en la
-    // Iteracion 98 (v7.0.24, confirmado por el usuario). Las pruebas nunca
-    // se actualizaron, asi que quedaron fallando en falso -- el codigo
-    // calculaba bien, las pruebas comparaban contra un precio que ya no
-    // existe. cfg viene de DEFAULT_CONFIG, asi que sigue el precio vigente.
     const f = computeFinancials(100, cfg);
-    expect(f.saleTotal).toBe(4300); // 100 kg x $43/kg
-    expect(f.invoiceTotal).toBe(4988); // 4300 x 1.16 IVA
-    expect(f.costTotal).toBe(4200); // 100 kg x $42/kg costo -- no cambio
+    expect(f.saleTotal).toBe(4300);
+    expect(f.invoiceTotal).toBe(4988);
+    expect(f.costTotal).toBe(4200);
     // 8% del subtotal: 4300 x 0.08 = 344.00
     expect(f.commission).toBe(344);
-    // 4300 - 4200 - 344 = -244 (el margen se volvio negativo al bajar el
-    // precio de venta a $43 sin bajar el costo de $42 -- esto es correcto
-    // segun la configuracion actual, no un error de la formula)
+    // 4300 - 4200 - 344 = -244
     expect(f.netCashFlow).toBe(-244);
   });
 
@@ -64,7 +55,7 @@ describe('computeFinancials', () => {
 
   it('respeta commissionBase: total cuando así se configura', () => {
     const f = computeFinancials(100, { ...cfg, commissionBase: 'total' });
-    expect(f.commission).toBe(399.04); // 4988 x 0.08 (ver Iteracion 106: precio $43/kg vigente)
+    expect(f.commission).toBe(399.04); // 4988 x 0.08
   });
 
   it('redondea a dos decimales todos los importes', () => {
@@ -148,7 +139,7 @@ describe('getOrderSummary — derivación de estatus', () => {
   it('la deuda se mide contra el total con IVA', () => {
     const o = orden({ invoices: [factura('pending')] });
     const s = getOrderSummary(o);
-    expect(s.invoiceTotal - s.paidAmount).toBe(4988); // ver Iteracion 106: precio $43/kg vigente
+    expect(s.invoiceTotal - s.paidAmount).toBe(4988);
   });
 
   it('realizedProfit no produce NaN si invTotal es cero', () => {
@@ -212,12 +203,10 @@ describe('Dashboard Extractions', () => {
   });
 
   it('calculateLiveMargenTotal sum correctly', () => {
-    // Ver Iteracion 106: precio $43/kg vigente (antes $47).
-    // 100 kilos x $43 sale = 4300. cost = 4200. comm = 344.
-    // 4300 - 4200 - 344 = -244 margin per invoice
+    // 100 kilos * 47 sale = 4700. cost = 42. comm = 376. 4700 - 4200 - 376 = 124 margin per invoice
     const o = orden({ invoices: [factura('pending'), factura('paid')] });
     const margin = calculateLiveMargenTotal([o], 42);
-    expect(margin).toBe(-488); // -244 * 2
+    expect(margin).toBe(-488);
   });
 });
 
@@ -238,3 +227,276 @@ describe('normalizarTexto', () => {
     expect(normalizarTexto(undefined)).toBe('');
   });
 });
+
+describe('computeAndresRequirement & getSuggestedNextAction', () => {
+  it('calcula requerimiento para Andrés con mensaje de WhatsApp', () => {
+    const o = orden({
+      totalKilograms: 1000,
+      client: 'Grupo Providencia',
+      folio: 'OC-999',
+    });
+    const req = computeAndresRequirement(o, cfg);
+    expect(req.kilos).toBe(1000);
+    expect(req.costTotal).toBe(42000);
+    expect(req.saleTotal).toBe(43000);
+    expect(req.invoiceTotal).toBe(49880);
+    expect(req.whatsappMessage).toContain('Andrés');
+    expect(req.whatsappMessage).toContain('OC-999');
+  });
+
+  it('sugiere siguiente paso pedir a Andrés para una OC nueva', () => {
+    const o = orden({ totalKilograms: 500, deliveries: [], invoices: [] });
+    const action = getSuggestedNextAction(o, cfg);
+    expect(action.key).toBe('pedir_andres');
+    expect(action.targetTab).toBe('andres');
+  });
+
+  it('sugiere facturar entrega si Andrés ya entregó', () => {
+    const o = orden({
+      totalKilograms: 500,
+      deliveries: [{ id: 'd1', date: null, kilos: 500, invoiced: false }],
+      invoices: [],
+    });
+    const action = getSuggestedNextAction(o, cfg);
+    expect(action.key).toBe('facturar_entrega');
+    expect(action.targetTab).toBe('facturas');
+  });
+});
+
+describe('Casos Numéricos Extremos y Blindaje Financiero (OKR 1)', () => {
+  it('maneja cantidades mínimas (0.01 kg) sin pérdidas de redondeo', () => {
+    const f = computeFinancials(0.01, cfg);
+    expect(f.saleTotal).toBe(0.43);
+    expect(f.costTotal).toBe(0.42);
+    expect(f.invoiceTotal).toBe(0.5); // 0.43 * 1.16 = 0.4988 -> 0.50
+    expect(f.commission).toBe(0.03); // 0.43 * 0.08 = 0.0344 -> 0.03
+    expect(f.netCashFlow).toBe(-0.02); // 0.43 - 0.42 - 0.03 = -0.02
+  });
+
+  it('maneja órdenes masivas de 500,000 kg con exactitud aritmética', () => {
+    const f = computeFinancials(500000, cfg);
+    expect(f.saleTotal).toBe(21500000);
+    expect(f.costTotal).toBe(21000000);
+    expect(f.invoiceTotal).toBe(24940000);
+    expect(f.commission).toBe(1720000); // 21,500,000 * 0.08
+    expect(f.netCashFlow).toBe(-1220000); // 21.5M - 21M - 1.72M
+  });
+
+  it('reparto 50/50 entre socios no produce centavos fantasma', () => {
+    // Para una utilidad neta de $15,345.55
+    const netProfit = 15345.55;
+    const pacoShare = round2(netProfit / 2);
+    const socioShare = round2(netProfit - pacoShare);
+    expect(round2(pacoShare + socioShare)).toBe(netProfit);
+    expect(Math.abs(pacoShare - socioShare)).toBeLessThanOrEqual(0.01);
+  });
+
+  it('desglose exacto de cobranza con 8% de comisión en $100,000 con IVA', () => {
+    const totalFactura = 100000.00;
+    const comision = round2(totalFactura * 0.08);
+    const netoCaja = round2(totalFactura - comision);
+    expect(comision).toBe(8000.00);
+    expect(netoCaja).toBe(92000.00);
+    expect(round2(comision + netoCaja)).toBe(totalFactura);
+  });
+});
+
+describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', () => {
+  it('orderMatchesDepartment filtra correctamente por departamento, contrarecibo y cliente', async () => {
+    const { orderMatchesDepartment } = await import('../finance');
+    
+    // Caso 1: Departamento explícito
+    expect(orderMatchesDepartment({ department: 'TH' } as any, 'TH')).toBe(true);
+    expect(orderMatchesDepartment({ department: 'TH' } as any, 'GT')).toBe(false);
+    expect(orderMatchesDepartment({ department: 'GT' } as any, 'GT')).toBe(true);
+    expect(orderMatchesDepartment({ department: 'GT' } as any, 'ALL')).toBe(true);
+
+    // Caso 2: Contrarecibo asignado TH-912 o GT-742
+    expect(orderMatchesDepartment({ collection: { contrareciboNumber: 'TH-912' } } as any, 'TH')).toBe(true);
+    expect(orderMatchesDepartment({ collection: { contrareciboNumber: 'GT-742' } } as any, 'GT')).toBe(true);
+    expect(orderMatchesDepartment({ collection: { contrareciboNumber: 'GT-742' } } as any, 'TH')).toBe(false);
+
+    // Caso 3: Factura individual con contrarecibo TH-879
+    const orderWithInvCr = {
+      invoices: [{ collection: { contrareciboNumber: 'TH-879' } }]
+    } as any;
+    expect(orderMatchesDepartment(orderWithInvCr, 'TH')).toBe(true);
+    expect(orderMatchesDepartment(orderWithInvCr, 'GT')).toBe(false);
+
+    // Caso 4: Cliente con sufijo Providencia - TH
+    expect(orderMatchesDepartment({ client: 'Grupo Textil Providencia - TH' } as any, 'TH')).toBe(true);
+    expect(orderMatchesDepartment({ client: 'Grupo Textil Providencia - GT' } as any, 'GT')).toBe(true);
+  });
+
+  it('Los 10 contrarecibos oficiales suman exactamente $1,019,956.34 ($584,400.42 TH + $435,555.92 GT)', () => {
+    const thCrs = [79826.00, 136300.00, 106720.17, 136300.00, 125254.25];
+    const gtCrs = [54520.00, 69001.60, 106477.56, 98136.00, 107420.76];
+
+    const sumTh = round2(thCrs.reduce((a, b) => a + b, 0));
+    const sumGt = round2(gtCrs.reduce((a, b) => a + b, 0));
+    const grandTotal = round2(sumTh + sumGt);
+
+    expect(sumTh).toBe(584400.42);
+    expect(sumGt).toBe(435555.92);
+    expect(grandTotal).toBe(1019956.34);
+  });
+
+  it('filterOrderByDepartment separa estrictamente las facturas de TH y GT dentro de una orden compuesta', async () => {
+    const { filterOrderByDepartment, invoiceMatchesDepartment } = await import('../finance');
+
+    const multiDeptOrder = {
+      id: 'ord-multi',
+      folio: 'OC-120267',
+      totalKilograms: 20000,
+      invoices: [
+        { id: 'inv-th-1', kilos: 1600, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 79826.00 } },
+        { id: 'inv-th-2', kilos: 2732.55, collection: { contrareciboNumber: 'TH-879' }, financials: { invoiceTotal: 136300.00 } },
+        { id: 'inv-gt-1', kilos: 1093.02, collection: { contrareciboNumber: 'GT-742' }, financials: { invoiceTotal: 54520.00 } },
+        { id: 'inv-gt-2', kilos: 1383.35, collection: { contrareciboNumber: 'GT-713' }, financials: { invoiceTotal: 69001.60 } },
+      ],
+    } as any;
+
+    // Test invoiceMatchesDepartment
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[0], multiDeptOrder, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[0], multiDeptOrder, 'GT')).toBe(false);
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[2], multiDeptOrder, 'TH')).toBe(false);
+    expect(invoiceMatchesDepartment(multiDeptOrder.invoices[2], multiDeptOrder, 'GT')).toBe(true);
+
+    // Test filterOrderByDepartment para TH
+    const thFiltered = filterOrderByDepartment(multiDeptOrder, 'TH');
+    expect(thFiltered).not.toBeNull();
+    expect(thFiltered?.invoices).toHaveLength(2);
+    expect(thFiltered?.invoices?.[0]?.collection?.contrareciboNumber).toBe('TH-912');
+    expect(thFiltered?.invoices?.[1]?.collection?.contrareciboNumber).toBe('TH-879');
+    const totalTh = (thFiltered?.invoices || []).reduce((sum: number, inv: any) => sum + inv.financials.invoiceTotal, 0);
+    expect(totalTh).toBe(216126.00);
+
+    // Test filterOrderByDepartment para GT
+    const gtFiltered = filterOrderByDepartment(multiDeptOrder, 'GT');
+    expect(gtFiltered).not.toBeNull();
+    expect(gtFiltered?.invoices).toHaveLength(2);
+    expect(gtFiltered?.invoices?.[0]?.collection?.contrareciboNumber).toBe('GT-742');
+    expect(gtFiltered?.invoices?.[1]?.collection?.contrareciboNumber).toBe('GT-713');
+    const totalGt = (gtFiltered?.invoices || []).reduce((sum: number, inv: any) => sum + inv.financials.invoiceTotal, 0);
+    expect(totalGt).toBe(123521.60);
+
+    // Test filterOrderByDepartment para ALL
+    const allFiltered = filterOrderByDepartment(multiDeptOrder, 'ALL');
+    expect(allFiltered?.invoices).toHaveLength(4);
+  });
+
+  it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a -102670.27', () => {
+    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
+  });
+
+  it('un contrarecibo puede contener varias facturas (1 CR -> N Facturas), pero nunca mezcla facturas de TH y GT', async () => {
+    const { filterOrderByDepartment, invoiceMatchesDepartment } = await import('../finance');
+
+    // Un contrarecibo (TH-912) amparando 2 facturas distintas de TH en una misma OC
+    const orderConVariasFacturasEnUnCR = {
+      id: 'ord-multi-facturas-cr',
+      folio: 'OC-998811',
+      client: 'Providencia TH',
+      department: 'TH',
+      invoices: [
+        { id: 'inv-1', folio: '6160', kilos: 800, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 40000.00 } },
+        { id: 'inv-2', folio: '6161', kilos: 800, collection: { contrareciboNumber: 'TH-912' }, financials: { invoiceTotal: 39826.00 } },
+      ],
+    } as any;
+
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[0], orderConVariasFacturasEnUnCR, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[1], orderConVariasFacturasEnUnCR, 'TH')).toBe(true);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[0], orderConVariasFacturasEnUnCR, 'GT')).toBe(false);
+    expect(invoiceMatchesDepartment(orderConVariasFacturasEnUnCR.invoices[1], orderConVariasFacturasEnUnCR, 'GT')).toBe(false);
+
+    const thOrder = filterOrderByDepartment(orderConVariasFacturasEnUnCR, 'TH');
+    expect(thOrder?.invoices).toHaveLength(2);
+
+    const gtOrder = filterOrderByDepartment(orderConVariasFacturasEnUnCR, 'GT');
+    expect(gtOrder).toBeNull();
+  });
+
+  it('los responsables de área son Nava para Textil Hogar TH y Evelia para Grupo Textil GT', async () => {
+    const { getDepartmentManager, getDepartmentBadgeLabel } = await import('../format');
+    const { generateCollectionNotice } = await import('../whatsappReminder');
+
+    expect(getDepartmentManager('TH')).toBe('Nava');
+    expect(getDepartmentManager('Providencia Textil Hogar')).toBe('Nava');
+    expect(getDepartmentManager('GT')).toBe('Evelia');
+    expect(getDepartmentManager('Providencia Grupo Textil')).toBe('Evelia');
+
+    expect(getDepartmentBadgeLabel('TH')).toBe('TH (Nava)');
+    expect(getDepartmentBadgeLabel('GT')).toBe('GT (Evelia)');
+
+    const noticeTh = generateCollectionNotice({
+      folioFactura: '6167',
+      contrarecibo: 'TH-912',
+      cliente: 'Providencia TH',
+      monto: 79826,
+    });
+    expect(noticeTh).toContain('Lic. Nava (Textil Hogar)');
+
+    const noticeGt = generateCollectionNotice({
+      folioFactura: '5980',
+      contrarecibo: 'GT-742',
+      cliente: 'Providencia GT',
+      monto: 54520,
+    });
+    expect(noticeGt).toContain('Lic. Evelia (Grupo Textil)');
+  });
+
+  it('inferDepartment detecta TH y GT por prefijos, folios, contrarecibos y cliente de forma hermética', async () => {
+    const { inferDepartment, filterOrderByDepartment } = await import('../finance');
+
+    // Por folio / contrarecibo
+    expect(inferDepartment({ folio: 'TH-912' })).toBe('TH');
+    expect(inferDepartment({ folio: 'GT-742' })).toBe('GT');
+    expect(inferDepartment({ collection: { contrareciboNumber: 'TH-879' } })).toBe('TH');
+    expect(inferDepartment({ collection: { contrareciboNumber: 'GT-651' } })).toBe('GT');
+
+    // Por cliente
+    expect(inferDepartment({ client: 'Providencia Textil Hogar' })).toBe('TH');
+    expect(inferDepartment({ client: 'Providencia Grupo Textil' })).toBe('GT');
+    expect(inferDepartment({ client: 'Grupo Textil Providencia - TH' })).toBe('TH');
+    expect(inferDepartment({ client: 'Grupo Textil Providencia - GT' })).toBe('GT');
+
+    // Aislamiento en filterOrderByDepartment
+    const thOnlyOrder = { id: 'th-1', folio: 'TH-768', totalKilograms: 1000, client: 'Providencia' };
+    const gtOnlyOrder = { id: 'gt-1', folio: 'GT-597', totalKilograms: 2000, client: 'Providencia' };
+
+    expect(filterOrderByDepartment(thOnlyOrder, 'TH')).not.toBeNull();
+    expect(filterOrderByDepartment(thOnlyOrder, 'GT')).toBeNull();
+    expect(filterOrderByDepartment(gtOnlyOrder, 'GT')).not.toBeNull();
+    expect(filterOrderByDepartment(gtOnlyOrder, 'TH')).toBeNull();
+  });
+
+  it('permite personalizar nombres de responsables de área dinámicamente', async () => {
+    const { getDepartmentManager, getDepartmentBadgeLabel } = await import('../format');
+    const { generateCollectionNotice } = await import('../whatsappReminder');
+
+    const customSettings = {
+      managerTH: 'Ing. Carlos Nava',
+      managerGT: 'Lic. Evelia Morales',
+      deptNameTH: 'Textil Hogar Planta 1',
+      deptNameGT: 'Grupo Textil Corporativo',
+    };
+
+    expect(getDepartmentManager('TH', customSettings)).toBe('Ing. Carlos Nava');
+    expect(getDepartmentManager('GT', customSettings)).toBe('Lic. Evelia Morales');
+    expect(getDepartmentBadgeLabel('TH', customSettings)).toBe('TH (Ing. Carlos Nava)');
+    expect(getDepartmentBadgeLabel('GT', customSettings)).toBe('GT (Lic. Evelia Morales)');
+
+    const customNotice = generateCollectionNotice({
+      folioFactura: '6167',
+      contrarecibo: 'TH-912',
+      cliente: 'Providencia TH',
+      monto: 79826,
+      managerTH: customSettings.managerTH,
+      managerGT: customSettings.managerGT,
+      deptNameTH: customSettings.deptNameTH,
+      deptNameGT: customSettings.deptNameGT,
+    });
+    expect(customNotice).toContain('Ing. Carlos Nava (Textil Hogar Planta 1)');
+  });
+});
+

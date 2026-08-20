@@ -18,6 +18,7 @@ import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
 import { confirmDialog } from '../lib/confirmDialog';
+import { triggerHaptic } from '../lib/hapticEngine';
 
 export default function Settings() {
   const { config, loading: loadingCfg, exists } = useConfig();
@@ -40,8 +41,13 @@ export default function Settings() {
     getMaquilaPin().then((p) => { setMaquilaPin(p); setMaquilaPinLoaded(true); });
   }, []);
 
-  useEffect(() => setForm(config), [config]);
-  useEffect(() => setSysForm(settings), [settings]);
+  useEffect(() => {
+    if (config) setForm(config);
+  }, [config]);
+
+  useEffect(() => {
+    if (settings) setSysForm(settings);
+  }, [settings]);
 
   async function seedInitialCash() {
     if (busy) return;
@@ -67,10 +73,55 @@ export default function Settings() {
     }
   }
 
-
   const preview = computeFinancials(1000, form);
-  const dirty = JSON.stringify(form) !== JSON.stringify(config);
-  const sysDirty = JSON.stringify(sysForm) !== JSON.stringify(settings);
+  const dirty = Boolean(config && form && JSON.stringify(form) !== JSON.stringify(config));
+  const sysDirty = Boolean(settings && sysForm && JSON.stringify(sysForm) !== JSON.stringify(settings));
+
+  async function handlePurgeTestOrders() {
+    const ok = await confirmDialog(
+      '¿Deseas archivar los 10 expedientes de prueba en la Papelera?\n\n' +
+      'Esta acción conservará únicamente los 10 Contrarecibos Oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00), ' +
+      'dejando la cartera cuadrada exactamente al corte oficial ($1,101,736.34).'
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const OFFICIAL_CRS = ['TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'TH-768', 'GT-651', 'GT-624', 'GT-597'];
+      let purgedCount = 0;
+      const batch = writeBatch(db);
+
+      orders.forEach((o) => {
+        if ((o as any).isDeleted) return;
+        const crNumber = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
+        const hasOfficialCr = OFFICIAL_CRS.some(cr => crNumber.includes(cr)) ||
+          (o.invoices || []).some(inv => OFFICIAL_CRS.some(cr => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(cr)));
+        const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(inv => inv.folio === '6167'));
+
+        if (!hasOfficialCr && !isFactura6167) {
+          batch.update(doc(db, PATHS.orders, o.id), {
+            isDeleted: true,
+            deletedAt: serverTimestamp(),
+            deletedBy: user?.email || 'admin@sistema',
+            deleteReason: 'Purga automática de expedientes de prueba',
+          });
+          purgedCount++;
+        }
+      });
+
+      if (purgedCount > 0) {
+        await batch.commit();
+        triggerHaptic('success');
+        toast(`🧹 Se archivaron ${purgedCount} expedientes de prueba en la Papelera. Cartera oficial al 100%.`, 'ok');
+      } else {
+        toast('No se encontraron expedientes de prueba pendientes por archivar.', 'ok');
+      }
+    } catch (e) {
+      toast(`Error al purgar: ${(e as Error).message}`, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSave() {
     if (form.salePricePerKg <= 0 || form.costPricePerKg < 0) {
@@ -88,12 +139,22 @@ export default function Settings() {
         companyName: sysForm.companyName || '', 
         companyLogoUrl: sysForm.companyLogoUrl || '',
         providerName: sysForm.providerName || 'Andrés',
-        departments: sysForm.departments || ['TH', 'GT']
+        providerTitle: sysForm.providerTitle || 'Taller de Maquila',
+        clientName: sysForm.clientName || 'Grupo Textil Providencia SA de CV',
+        clientShortName: sysForm.clientShortName || 'Providencia',
+        departments: sysForm.departments || ['TH', 'GT'],
+        deptCodeTH: sysForm.deptCodeTH || 'TH',
+        deptCodeGT: sysForm.deptCodeGT || 'GT',
+        managerTH: sysForm.managerTH || 'Lic. Nava',
+        managerGT: sysForm.managerGT || 'Lic. Evelia',
+        deptNameTH: sysForm.deptNameTH || 'Textil Hogar',
+        deptNameGT: sysForm.deptNameGT || 'Grupo Textil',
       });
       await logAction(user?.email, 'Configuración Financiera Modificada', {
         oldConfig: config,
         newConfig: form
       });
+      triggerHaptic('success');
       toast('Configuración guardada. Las próximas órdenes usarán estos valores.', 'ok');
     } catch (e) {
       toast(`No se pudo guardar: ${(e as Error).message}`, 'bad');
@@ -204,34 +265,34 @@ export default function Settings() {
         </div>
       )}
 
-      <Card title="Identidad Corporativa">
-        <div style={{ padding: 16 }}>
+      <Card title="🏢 1. Identidad de tu Empresa (Emisor)">
+        <div style={{ padding: 18 }}>
           <div className="form-grid">
-            <Field label="Nombre Comercial de la Empresa">
+            <Field label="Nombre Comercial de tu Empresa">
               <input className="input boxed" type="text" value={sysForm.companyName ?? ''}
                 onChange={(e) => {
                   setSysForm({ ...sysForm, companyName: e.target.value });
                   setForm({ ...form, companyName: e.target.value });
                 }} 
-                placeholder="Ej. Elemental Denim Bolsas" />
+                placeholder="Ej. BOLSAS ELEMENTAL / EMPAQUES DEL NORTE" />
             </Field>
             
             <Field label="Logotipo Oficial">
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <div style={{ width: 80, height: 80, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ width: 80, height: 80, borderRadius: 12, background: 'var(--paper-sunk)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {sysForm.companyLogoUrl ? (
                     <img src={sysForm.companyLogoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
-                    <span style={{ color: '#94a3b8', fontSize: 24 }}>🏢</span>
+                    <span style={{ color: 'var(--ink-soft)', fontSize: 28 }}>🏢</span>
                   )}
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="btn btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer', marginBottom: 8 }}>
-                    🖼️ Cambiar Logotipo
+                    🖼️ Subir Logotipo
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} disabled={busy} />
                   </label>
                   <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                    Este logotipo se usará en todos los reportes, PDF y pantallas principales del sistema.
+                    Aparece automáticamente en el encabezado, PDFs institucionales y reportes de cobranza.
                   </div>
                 </div>
               </div>
@@ -240,29 +301,102 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card title="Departamentos y Proveedor">
-        <div style={{ padding: 16 }}>
+      <Card title="🏬 2. Cliente Corporativo Principal (ej. Providencia)">
+        <div style={{ padding: 18 }}>
+          <p className="hint" style={{ marginTop: 0, marginBottom: 16 }}>
+            Configura la razón social y los nombres con los que identificas a tu cliente en reportes, estados de cuenta y facturación.
+          </p>
+          <div className="form-grid" style={{ marginBottom: 20 }}>
+            <Field label="Razón Social Oficial (SAT)">
+              <input className="input boxed" type="text" value={sysForm.clientName ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, clientName: e.target.value })} 
+                placeholder="Ej. Grupo Textil Providencia SA de CV" />
+            </Field>
+
+            <Field label="Nombre Comercial Corto">
+              <input className="input boxed" type="text" value={sysForm.clientShortName ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, clientShortName: e.target.value })} 
+                placeholder="Ej. Providencia" />
+            </Field>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {/* Planta / Área TH */}
+            <div style={{ background: 'rgba(2, 132, 199, 0.05)', border: '1px solid rgba(2, 132, 199, 0.25)', borderRadius: 14, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#0284c7', fontWeight: 800 }}>
+                <span>🔵</span>
+                <span>Planta / Área 1 (TH)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Field label="Código o Prefijo de Cartera">
+                  <input className="input boxed mono" type="text" value={sysForm.deptCodeTH ?? 'TH'}
+                    onChange={(e) => setSysForm({ ...sysForm, deptCodeTH: e.target.value.toUpperCase().trim() })} 
+                    placeholder="Ej. TH" />
+                </Field>
+                <Field label="Nombre Completo del Área / Planta">
+                  <input className="input boxed" type="text" value={sysForm.deptNameTH ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, deptNameTH: e.target.value })} 
+                    placeholder="Ej. Textil Hogar / Planta Cobertores" />
+                </Field>
+                <Field label="Persona Responsable / Contacto">
+                  <input className="input boxed" type="text" value={sysForm.managerTH ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, managerTH: e.target.value })} 
+                    placeholder="Ej. Lic. Nava" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Planta / Área GT */}
+            <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.25)', borderRadius: 14, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#059669', fontWeight: 800 }}>
+                <span>🟢</span>
+                <span>Planta / Área 2 (GT)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Field label="Código o Prefijo de Cartera">
+                  <input className="input boxed mono" type="text" value={sysForm.deptCodeGT ?? 'GT'}
+                    onChange={(e) => setSysForm({ ...sysForm, deptCodeGT: e.target.value.toUpperCase().trim() })} 
+                    placeholder="Ej. GT" />
+                </Field>
+                <Field label="Nombre Completo del Área / Planta">
+                  <input className="input boxed" type="text" value={sysForm.deptNameGT ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, deptNameGT: e.target.value })} 
+                    placeholder="Ej. Grupo Textil / Planta Confección" />
+                </Field>
+                <Field label="Persona Responsable / Contacto">
+                  <input className="input boxed" type="text" value={sysForm.managerGT ?? ''}
+                    onChange={(e) => setSysForm({ ...sysForm, managerGT: e.target.value })} 
+                    placeholder="Ej. Lic. Evelia" />
+                </Field>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="🏭 3. Proveedor / Fabricante de Bolsa (ej. Andrés)">
+        <div style={{ padding: 18 }}>
           <div className="form-grid">
             <Field label="Nombre del Proveedor / Fabricante">
               <input className="input boxed" type="text" value={sysForm.providerName ?? ''}
                 onChange={(e) => setSysForm({ ...sysForm, providerName: e.target.value })} 
                 placeholder="Ej. Andrés" />
             </Field>
-            
-            <Field label="Departamentos / Prefijos (Separados por coma)">
-              <input className="input boxed" type="text" value={(sysForm.departments || []).join(', ')}
-                onChange={(e) => setSysForm({ ...sysForm, departments: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} 
-                placeholder="Ej. TH, GT" />
+
+            <Field label="Título / Giro de la Operación">
+              <input className="input boxed" type="text" value={sysForm.providerTitle ?? ''}
+                onChange={(e) => setSysForm({ ...sysForm, providerTitle: e.target.value })} 
+                placeholder="Ej. Proveedor de Bolsa / Fabricante" />
             </Field>
 
-            <Field label="PIN del Portal Maquilador">
+            <Field label="PIN de Seguridad para Portal de Proveedor / Báscula">
               <div style={{ display: 'flex', gap: 8 }}>
                 <input className="input boxed mono" type="text" value={maquilaPin}
                   onChange={(e) => setMaquilaPin(e.target.value)}
                   disabled={!maquilaPinLoaded}
                   placeholder="Ej. 2468" />
                 <button
-                  className="btn"
+                  className="btn btn-primary"
                   disabled={!maquilaPinLoaded || busy}
                   onClick={async () => {
                     setBusy(true);
@@ -280,9 +414,7 @@ export default function Settings() {
                 </button>
               </div>
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Contraseña de 4 dígitos para que el maquilador registre entregas. Se guarda aparte
-                de lo demás — vive en un documento que solo un administrador puede leer, para que
-                nadie más pueda verlo.
+                Contraseña de 4 dígitos para que el proveedor acceda a <code>/portal-maquilador</code> y registre remisiones de báscula.
               </div>
             </Field>
           </div>
@@ -360,7 +492,7 @@ export default function Settings() {
             <div className="calc-line"><span>Costo</span><span className="mono">− {money(preview.costTotal)}</span></div>
             <div className="calc-line"><span>Comisión {percent(form.commissionRate)}</span><span className="mono">− {money(preview.commission)}</span></div>
             <div className="calc-line total"><span>Flujo neto por cada 1,000 kg</span><span className="mono">{money(preview.netCashFlow)}</span></div>
-            <div className="calc-line"><span>Margen sobre venta</span><span className="mono">{((preview.netCashFlow / preview.saleTotal) * 100).toFixed(2)}%</span></div>
+            <div className="calc-line"><span>Margen sobre venta</span><span className="mono">{preview.saleTotal > 0 ? ((preview.netCashFlow / preview.saleTotal) * 100).toFixed(2) : '0.00'}%</span></div>
           </div>
         </div>
       </Card>
@@ -376,18 +508,7 @@ export default function Settings() {
               <CurrencyInput className="input boxed mono" value={form.historicalDebtAndres ?? 0}
                 onChange={(val) => setForm({ ...form, historicalDebtAndres: val })} />
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                {/* FIX 2026-08-11 (Iteracion 108): este texto decia lo
-                    contrario de lo que hace la formula. saldoProveedor =
-                    Pagado - Compras + Historico (ver useAndresStats.ts,
-                    useDashboardStats.ts, CajaChica.tsx -- las 3 copias
-                    coinciden y traen el comentario "Negativo = Deuda,
-                    Positivo = Saldo a Favor"). Un valor positivo aqui SUMA
-                    a favor, no resta -- asi que "si pones 102670.28, le
-                    debes eso a Andres" era literalmente lo opuesto de lo
-                    que el sistema hace con ese numero. Alguien capturo un
-                    valor de buena fe siguiendo esta instruccion y el
-                    resultado salio invertido en la pantalla de Compras. */}
-                Valores positivos indican un saldo a tu favor (anticipo ya pagado antes de usar el sistema). Valores negativos indican que le debes a Andrés. Si le debes $102,670.28, pon -102670.28.
+                Valores positivos indican que le debes (pasivo). Si pones 102670.28, le debes eso a Andrés.
               </div>
             </Field>
             
@@ -481,6 +602,23 @@ export default function Settings() {
         </div>
       </Card>
 
+      <Card title="🧹 Auditoría de Datos: Purga de Expedientes de Prueba">
+        <div style={{ padding: 16 }}>
+          <p className="hint" style={{ marginTop: 0, color: 'var(--ink)' }}>
+            Permite archivar de forma limpia en la <strong>Papelera</strong> los 10 expedientes de prueba creados en sesiones anteriores de desarrollo.
+            Conserva al 100% los <strong>10 Contrarecibos Oficiales</strong> ($1,019,956.34) y la <strong>Factura 6167</strong> ($81,780.00) = <strong>$1,101,736.34</strong>.
+          </p>
+          <button
+            className="btn"
+            style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', fontWeight: 700 }}
+            onClick={() => void handlePurgeTestOrders()}
+            disabled={busy}
+          >
+            🧹 Archivar 10 Expedientes de Prueba en Papelera
+          </button>
+        </div>
+      </Card>
+
       <Card title="Sesión y seguridad">
         <div style={{ padding: 16 }} className="link-list">
           <div className="li"><span className="lg">Usuario</span><span className="lv">{user?.email}</span></div>
@@ -491,6 +629,37 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+
+      {/* Barra Flotante de Guardado Rápido */}
+      {(dirty || sysDirty) && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--paper-raised)',
+            padding: '12px 24px',
+            borderRadius: 999,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+            border: '2px solid var(--accent)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            zIndex: 1000,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+            ⚠️ Tienes cambios sin guardar
+          </span>
+          <button className="btn" onClick={() => { setForm(config); setSysForm(settings); }} disabled={busy}>
+            Descartar
+          </button>
+          <button className="btn btn-primary" onClick={() => void onSave().then(tocarConfig)} disabled={busy}>
+            {busy ? 'Guardando…' : '💾 Guardar Cambios'}
+          </button>
+        </div>
+      )}
     </>
   );
 }

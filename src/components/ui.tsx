@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '../lib/types';
 import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 import { useConfig } from '../hooks/useConfig';
+import { usePrivacy } from '../context/PrivacyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function KpiCard({
@@ -149,8 +150,9 @@ export function CopyButton({ text, label }: { text: string; label?: string; }) {
     <button
       type="button"
       className="btn-icon"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'auto', padding: '2px 6px', height: 24, fontSize: 11, color: copied ? 'var(--ok)' : 'var(--ink-soft)' }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'auto', padding: '4px 8px', minHeight: 28, fontSize: 11, color: copied ? 'var(--ok)' : 'var(--ink-soft)', cursor: 'pointer' }}
       title={`Copiar ${label ?? text}`}
+      aria-label={`Copiar ${label ?? text}`}
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(text);
@@ -158,7 +160,7 @@ export function CopyButton({ text, label }: { text: string; label?: string; }) {
         setTimeout(() => setCopied(false), 2000);
       }}
     >
-      {copied ? '✅' : '📋'}
+      <span aria-hidden="true">{copied ? '✅' : '📋'}</span>
       {label && <span style={{ fontWeight: 600 }}>{label}</span>}
     </button>
   );
@@ -193,6 +195,9 @@ export function Drawer({
   return (
     <AnimatePresence>
       <div 
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || 'Panel lateral'}
         style={{
           position: 'fixed',
           top: 0,
@@ -210,6 +215,7 @@ export function Drawer({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
+          aria-hidden="true"
           style={{
             position: 'absolute',
             top: 0, left: 0, right: 0, bottom: 0,
@@ -240,7 +246,7 @@ export function Drawer({
         >
           {title && (
             <div style={{
-              padding: '24px',
+              padding: '20px 24px',
               borderBottom: '1px solid var(--line-soft)',
               display: 'flex',
               justifyContent: 'space-between',
@@ -251,7 +257,8 @@ export function Drawer({
               <button 
                 onClick={onClose} 
                 className="btn-icon" 
-                style={{ width: 32, height: 32, background: 'var(--bg-inset)', borderRadius: '50%' }}
+                aria-label="Cerrar panel lateral"
+                style={{ width: 36, height: 36, minHeight: 36, background: 'var(--bg-inset)', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 ✕
               </button>
@@ -271,27 +278,11 @@ export function Modal({
   onClose,
   children,
   wide,
-  elevated,
 }: {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
-  // FIX 2026-08-11: confirmDialog()/promptDialog() (ConfirmDialogHost /
-  // PromptDialogHost) se renderizan como componentes normales, montados una
-  // sola vez cerca de la raiz de la app -- NO usan un portal. Cuando se
-  // invocan DESDE ADENTRO de un modal ya abierto (p. ej. el aviso "Has
-  // completado los kilos pedidos..." al guardar un expediente), su <div
-  // className="modal-root"> queda mas arriba en el DOM que el modal del
-  // expediente, y con el mismo z-index ambos quedan "empatados": el
-  // navegador pinta encima al que aparece DESPUES en el arbol, que es el
-  // expediente -- el confirm queda invisible y sin poder darle click, con
-  // el guardado colgado esperando esa respuesta para siempre (indistinguible
-  // de un boton roto). Se detecto en vivo intentando registrar una entrega
-  // de 3,700kg: "Guardar cambios" parecia no hacer nada. `elevated` le da a
-  // ESTE modal un z-index mayor para que un confirm/prompt anidado SIEMPRE
-  // quede encima, sin importar el orden en el DOM.
-  elevated?: boolean;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   // onClose casi siempre es una funcion nueva en cada render del padre. Antes
@@ -360,9 +351,11 @@ export function Modal({
     };
   }, []);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   return (
     <AnimatePresence>
-      <div className={`modal-root${elevated ? ' modal-root--top' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <motion.div 
           className="modal-scrim" 
           onClick={onClose} 
@@ -373,11 +366,24 @@ export function Modal({
         <motion.div 
           className={`modal-box glass-modal ${wide ? 'wide' : ''}`} 
           ref={boxRef}
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={isMobile ? { opacity: 0, y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+          exit={isMobile ? { opacity: 0, y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
+          drag={isMobile ? "y" : false}
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 0.6 }}
+          onDragEnd={(_e, info) => {
+            if (info.offset.y > 90 || info.velocity.y > 400) {
+              onCloseRef.current();
+            }
+          }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         >
+          {isMobile && (
+            <div className="modal-drag-pill-container" aria-hidden="true">
+              <div className="modal-drag-handle" />
+            </div>
+          )}
           <div className="modal-head">
             <h2 id="modal-title">{title}</h2>
             <button className="icon-btn" onClick={onClose} aria-label="Cerrar modal">
@@ -429,7 +435,28 @@ export function Skeleton({ className = '', style }: { className?: string; style?
   return <div className={`skeleton ${className}`} style={style} />;
 }
 
-export function ResponsiveMoney({ value }: { value: number }) {
+export function ResponsiveMoney({ value, forceShow }: { value: number; forceShow?: boolean }) {
+  const { isPrivate } = usePrivacy();
+  
+  if (isPrivate && !forceShow) {
+    return (
+      <span 
+        className="privacy-mask" 
+        title="Modo discreto activo"
+        style={{ 
+          filter: 'blur(6px)', 
+          userSelect: 'none', 
+          opacity: 0.85, 
+          transition: 'filter 0.25s ease',
+          display: 'inline-block' 
+        }}
+      >
+        <span className="hide-mobile">{money(value)}</span>
+        <span className="hide-desktop">{compactMoney(value)}</span>
+      </span>
+    );
+  }
+
   return (
     <>
       <span className="hide-mobile">{money(value)}</span>

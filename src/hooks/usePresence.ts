@@ -46,7 +46,7 @@ export function usePresence() {
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleUnload);
     };
-  }, [user?.uid, location.pathname]);
+  }, [user?.uid, user?.email, location.pathname]);
 
   // Listen to others
   useEffect(() => {

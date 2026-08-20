@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
+import { toDate } from '../lib/format';
 import type { Invoice } from '../lib/types';
 
 interface InvoicesState {
@@ -23,15 +24,15 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
     const q = query(collection(db, PATHS.invoices), limit(1000));
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
         const docs = snap.docs
           .map((d) => ({ id: d.id, ...(d.data() as Omit<Invoice, 'id'>) }))
           .filter((inv) => inv.creditCycle?.status !== 'collected');
           
         docs.sort((a, b) => {
-          const ta = a.createdAt?.toMillis?.() ?? 0;
-          const tb = b.createdAt?.toMillis?.() ?? 0;
+          const ta = toDate(a.createdAt)?.getTime() ?? 0;
+          const tb = toDate(b.createdAt)?.getTime() ?? 0;
           return tb - ta;
         });
         setInvoices(docs);

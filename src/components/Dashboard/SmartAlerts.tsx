@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { PurchaseOrder } from '../../lib/types';
-import { money } from '../../lib/format';
+import { money, toDate } from '../../lib/format';
+import { round2 } from '../../lib/finance';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../../hooks/useConfig';
 
@@ -39,24 +40,27 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
     // factura ya facturada cuyo margen real (financials.tradeMargin /
     // financials.saleTotal, calculado por computeFinancials en finance.ts)
     // esté muy por debajo de ese esperado, o sea negativo (pérdida).
-    const expectedMarginRate = config.salePricePerKg > 0
-      ? (config.salePricePerKg - config.costPricePerKg) / config.salePricePerKg
-      : 0;
+    const salePrice = config?.salePricePerKg || 43;
+    const costPrice = config?.costPricePerKg || 42;
+    const expectedMarginRate = salePrice > 0 ? (salePrice - costPrice) / salePrice : 0;
     let marginAnomalyCount = 0;
     let worstMarginFolio = '';
     let worstMarginRate = Infinity;
 
-    for (const o of orders) {
-      if (!o.invoices) continue;
+    for (const o of (orders || [])) {
+      if (!o || !o.invoices) continue;
       for (const inv of o.invoices) {
-        if (inv.creditCycle.status !== 'paid' && inv.creditCycle.dueDate) {
-          const dueMs = inv.creditCycle.dueDate.toMillis?.() || 0;
-          if (dueMs < now) {
+        if (!inv) continue;
+        if (inv.creditCycle?.status !== 'paid' && inv.creditCycle?.dueDate) {
+          const due = toDate(inv.creditCycle.dueDate);
+          const dueMs = due ? due.getTime() : 0;
+
+          if (dueMs > 0 && dueMs < now) {
             overdueCount++;
-            overdueTotal += (inv.financials?.invoiceTotal || 0);
-          } else if (dueMs <= now + threeDaysMs) {
+            overdueTotal = round2(overdueTotal + (inv.financials?.invoiceTotal || 0));
+          } else if (dueMs > 0 && dueMs <= now + threeDaysMs) {
             nearDueCount++;
-            nearDueTotal += (inv.financials?.invoiceTotal || 0);
+            nearDueTotal = round2(nearDueTotal + (inv.financials?.invoiceTotal || 0));
           }
         }
 

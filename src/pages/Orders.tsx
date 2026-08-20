@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
@@ -8,43 +8,34 @@ import { doc, collection } from 'firebase/firestore';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from '../components/OrderModal';
 import KanbanBoard from '../components/Orders/KanbanBoard';
+import { ActionRadar } from '../components/Dashboard/ActionRadar';
+import { QuickCrModal } from '../components/QuickCrModal';
+import { KilosProgressBar } from '../components/Orders/KilosProgressBar';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
-import { getOrderSummary } from '../lib/finance';
+import { getOrderSummary, extractCr } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
-const FILTERS: { key: 'all' | OrderStatus; label: string }[] = [
+const FILTERS: { key: 'all' | 'sin_cr' | OrderStatus; label: string }[] = [
   { key: 'all', label: 'Todas' },
-  // "pedido" es el expediente sin ninguna factura creada todavia: es
-  // literalmente "lo que falta por facturar". Se llamaba "Pedidos", que no
-  // decia nada de eso.
-  { key: 'pedido', label: '📝 Pendiente de Facturar' },
-  { key: 'facturado', label: 'Facturado' },
-  { key: 'pending', label: 'Con CR' },
-  { key: 'overdue', label: 'Vencidas' },
-  // Se llamaba "Cobradas", pero el estado 'paid' significa que la factura
-  // ya esta en manos del contador para su tramite -- el dinero todavia NO
-  // esta en caja. El badge de cada fila (STATUS_LABEL en types.ts) ya
-  // decia "🟡 Con el Contador"; el chip del filtro decia otra cosa
-  // distinta para el mismo estado, y el usuario entraba esperando ver
-  // dinero cobrado y encontraba filas que contradecian el nombre del
-  // filtro que acababa de tocar.
+  { key: 'pedido', label: '📝 Pendientes de Facturar' },
+  { key: 'sin_cr', label: '⚠️ Sin Contrarecibo' },
+  { key: 'pending', label: '⏳ Con CR (Por Cobrar)' },
+  { key: 'overdue', label: '🚨 Vencidas' },
   { key: 'paid', label: '🟡 Con el Contador' },
-  // 'collected' es el estado que de verdad significa "ya esta el dinero
-  // en caja" -- antes no tenia chip propio, asi que no habia forma de ver
-  // de un vistazo solo lo que ya esta 100% cobrado sin restar a mano.
-  { key: 'collected', label: '✅ Recibidas' },
-  { key: 'manual_review', label: 'Revisión' },
+  { key: 'collected', label: '✅ Recibidas en Caja' },
 ];
 
 export default function Orders() {
   const { orders, loading, error } = useOrders();
   const { role } = useAuth();
   const { config } = useConfig();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
-  const [viewMode, setViewMode] = useState<'list'|'kanban'>('kanban');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('kanban');
   
   const [page, setPage] = useState(1);
   const pageSize = 30;
@@ -55,7 +46,7 @@ export default function Orders() {
     if (q !== null && q !== search) setSearch(q);
   }, [params, search]);
 
-  const filter = (params.get('filtro') as 'all' | OrderStatus) ?? 'all';
+  const filter = (params.get('filtro') as 'all' | 'sin_cr' | OrderStatus) ?? 'all';
 
   useEffect(() => {
     if (params.get('nueva') === '1') {
@@ -92,7 +83,7 @@ export default function Orders() {
   // filtro, en los contadores, en la tabla y en los totales. Antes
   // getOrderSummary corria ~10 veces por renglon en cada tecla escrita.
   const conResumen = useMemo(
-    () => orders.map((o) => ({ o, s: getOrderSummary(o) })),
+    () => (orders || []).filter(Boolean).map((o) => ({ o, s: getOrderSummary(o) })),
     [orders],
   );
 
@@ -132,6 +123,20 @@ export default function Orders() {
       // todavia no se han facturado.
       if (filter === 'pedido') {
         if (s.kilosDelivered <= s.kilosInvoiced) return false;
+      } else if (filter === 'sin_cr') {
+        if (o.client === 'MIGRACION' || o.isClosedShort) return false;
+        if (o.creditCycle?.status === 'collected') return false;
+        if (s.invoices.length === 0) return false;
+        const faltaCr = s.invoices.some((i: any) => {
+          const cr = extractCr(i, o);
+          const st = i.creditCycle?.status;
+          const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
+          const paidAmt = i.collection?.paidAmount || 0;
+          if (cr) return false;
+          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+        });
+        if (!faltaCr) return false;
       } else if (filter !== 'all' && s.status !== filter) {
         return false;
       }
@@ -168,6 +173,7 @@ export default function Orders() {
   }, [rows, page]);
 
   useEffect(() => {
+    const target = observerTarget.current;
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && rows.length > page * pageSize) {
@@ -177,16 +183,16 @@ export default function Orders() {
       { threshold: 1.0 }
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    if (target) {
+      observer.observe(target);
     }
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
+      if (target) {
+        observer.unobserve(target);
       }
     };
-  }, [observerTarget, page, rows.length]);
+  }, [page, rows.length, pageSize]);
 
   // Resetear página al cambiar filtro o búsqueda
   useEffect(() => {
@@ -196,11 +202,25 @@ export default function Orders() {
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: conResumen.length };
     let pendienteFacturar = 0;
+    let sinCrCount = 0;
     conResumen.forEach(({ o, s }) => {
-      if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION') pendienteFacturar++;
+      if (s.kilosDelivered > s.kilosInvoiced && o.client !== 'MIGRACION' && !o.isClosedShort) pendienteFacturar++;
+      if (o.client !== 'MIGRACION' && !o.isClosedShort && o.creditCycle?.status !== 'collected' && s.invoices.length > 0) {
+        const hasSinCr = s.invoices.some((i: any) => {
+          const cr = extractCr(i, o);
+          const st = i.creditCycle?.status;
+          const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
+          const paidAmt = i.collection?.paidAmount || 0;
+          if (cr) return false;
+          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+        });
+        if (hasSinCr) sinCrCount++;
+      }
       c[s.status] = (c[s.status] ?? 0) + 1;
     });
     c.pedido = pendienteFacturar;
+    c.sin_cr = sinCrCount;
     return c;
   }, [conResumen]);
 
@@ -331,11 +351,11 @@ export default function Orders() {
           <span className="spacer" />
           <div style={{ display: 'flex', gap: 4, background: 'var(--bg-body)', padding: 4, borderRadius: 8, marginRight: 12 }}>
             <button 
-              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
-              onClick={() => setViewMode('list')}
+              className={`btn-small ${viewMode === 'radar' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'radar' ? '#d97706' : 'transparent', color: viewMode === 'radar' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 700 }}
+              onClick={() => setViewMode('radar')}
             >
-              ☰ Lista
+              ⚡ Acciones Hoy
             </button>
             <button 
               className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
@@ -343,6 +363,13 @@ export default function Orders() {
               onClick={() => setViewMode('kanban')}
             >
               ◫ Tablero
+            </button>
+            <button 
+              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
+              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              onClick={() => setViewMode('list')}
+            >
+              ☰ Lista
             </button>
           </div>
           <input
@@ -354,7 +381,17 @@ export default function Orders() {
           />
         </div>
 
-        {rows.length === 0 ? (
+        {viewMode === 'radar' ? (
+          <div style={{ padding: '20px 16px' }}>
+            <ActionRadar
+              orders={orders}
+              purchases={[]}
+              config={config}
+              nav={(path) => navigate(path)}
+              onOpenOrder={(o) => setSelected(o)}
+            />
+          </div>
+        ) : rows.length === 0 ? (
           <Empty icon="📭">
             {filter === 'all' && !search ? (
               // Lista totalmente vacia (no solo un filtro sin resultados):
@@ -435,8 +472,40 @@ export default function Orders() {
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
-                        {summary.invoices.some((i: any) => i.collection?.contrareciboNumber) && (() => {
-                          const conCr = summary.invoices.filter((i: any) => i.collection?.contrareciboNumber);
+                        {!o.isClosedShort && o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected' && summary.invoices.length > 0 && summary.invoices.some((i: any) => {
+                          const cr = extractCr(i, o);
+                          const st = i.creditCycle?.status;
+                          const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
+                          const paidAmt = i.collection?.paidAmount || 0;
+                          if (cr) return false;
+                          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+                          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+                        }) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <span className="badge-sin-cr-pulse" style={{ fontSize: '0.72em', fontWeight: 800, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>⚠️ SIN CR</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickCrOrder(o);
+                              }}
+                              title="Capturar Contrarecibo rápidamente"
+                              style={{
+                                background: 'rgba(37, 99, 235, 0.12)',
+                                border: '1px solid rgba(37, 99, 235, 0.3)',
+                                color: '#2563eb',
+                                borderRadius: 6,
+                                padding: '1px 6px',
+                                fontSize: '0.75em',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              + Asignar CR
+                            </button>
+                          </div>
+                        )}
+                        {summary.invoices.some((i: any) => extractCr(i, o)) && (() => {
+                          const conCr = summary.invoices.filter((i: any) => extractCr(i, o));
                           const expandido = crExpandido.has(o.id);
                           const ESTADO_LABEL: Record<string, { texto: string; color: string }> = {
                             overdue: { texto: 'Vencido', color: 'var(--bad)' },
@@ -444,6 +513,7 @@ export default function Orders() {
                             paid: { texto: 'Con contador', color: 'var(--warn)' },
                             collected: { texto: 'Cobrado', color: 'var(--ok)' },
                           };
+                          const mainCr = extractCr(conCr[0], o);
                           if (!expandido) {
                             return (
                               <button
@@ -452,7 +522,7 @@ export default function Orders() {
                               >
                                 <span style={{ fontSize: '0.72em', fontWeight: 700, color: '#047857', background: '#d1fae5', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>CR</span>
                                 <span style={{ fontSize: '0.85em', color: 'var(--accent)', textDecoration: 'underline' }}>
-                                  {conCr.length === 1 ? conCr[0].collection?.contrareciboNumber : `${conCr.length} contrarecibos — ver cada uno`}
+                                  {conCr.length === 1 ? mainCr : `${conCr.length} contrarecibos — ver cada uno`}
                                 </span>
                               </button>
                             );
@@ -461,9 +531,10 @@ export default function Orders() {
                             <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 220 }}>
                               {conCr.map((inv: any) => {
                                 const estado = ESTADO_LABEL[inv.creditCycle?.status] || ESTADO_LABEL.pending;
+                                const thisCr = extractCr(inv, o);
                                 return (
                                   <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8em', padding: '3px 6px', background: 'var(--paper-sunk)', borderRadius: 4 }}>
-                                    <span style={{ fontWeight: 700, color: '#047857' }}>{inv.collection.contrareciboNumber}</span>
+                                    <span style={{ fontWeight: 700, color: '#047857' }}>{thisCr}</span>
                                     <span className="mono">{money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0)}</span>
                                     <span style={{ color: estado.color, fontWeight: 600 }}>{estado.texto}</span>
                                   </div>
@@ -481,10 +552,29 @@ export default function Orders() {
                       </td>
                       <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
-                      <td className="num mono">{o.totalKilograms ? kilos(o.totalKilograms) : '—'}</td>
-                      <td className="num mono">{summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}</td>
-                      <td className="num mono" style={{ color: (o.totalKilograms ?? 0) - summary.kilosDelivered > 0 ? 'var(--bad)' : 'inherit' }}>
-                        {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? kilos((o.totalKilograms ?? 0) - summary.kilosDelivered) : '—'}
+                      <td className="num mono" style={{ minWidth: 140 }}>
+                        <KilosProgressBar
+                          compact
+                          deliveredKg={summary.kilosDelivered}
+                          totalKg={o.totalKilograms || (o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || summary.kilosDelivered}
+                        />
+                      </td>
+                      <td className="num mono">
+                        {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
+                        {o.totalKilograms && summary.kilosDelivered >= o.totalKilograms && (
+                          <span style={{ display: 'block', fontSize: '0.75em', color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
+                        )}
+                      </td>
+                      <td className="num mono">
+                        {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? (
+                          <span style={{ color: '#d97706', fontWeight: 700 }}>
+                            ⏳ {kilos((o.totalKilograms ?? 0) - summary.kilosDelivered)}
+                          </span>
+                        ) : o.totalKilograms ? (
+                          <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85em' }}>
+                            🟢 0 kg (Al día)
+                          </span>
+                        ) : '—'}
                       </td>
                       <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
                       <td className="num mono">{money(summary.invoiceTotal)}</td>
@@ -536,6 +626,13 @@ export default function Orders() {
           onClose={() => setSelected(null)}
           readOnly={role === 'viewer'}
           initialTab={initialModalTab}
+        />
+      )}
+
+      {quickCrOrder && (
+        <QuickCrModal
+          order={orders.find((o) => o.id === quickCrOrder.id) ?? quickCrOrder}
+          onClose={() => setQuickCrOrder(null)}
         />
       )}
     </>

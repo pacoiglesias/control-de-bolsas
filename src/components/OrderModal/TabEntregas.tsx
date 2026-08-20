@@ -1,5 +1,7 @@
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { useToast } from '../../context/ToastContext';
 import { fromInputDate, toInputDate, fmtDateTime } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
@@ -33,12 +35,17 @@ function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) 
   );
 }
 
+import { FotoRemisionModal } from './FotoRemisionModal';
+
 export default function TabEntregas() {
   const ctx = useOrderModal();
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+  const toast = useToast();
   const [showPortal, setShowPortal] = React.useState(false);
+  const [showFotoModal, setShowFotoModal] = React.useState(false);
 
-  if (!ctx) return null;
-  const { form, setForm, readOnly, provName, kilosEntregados, kilosPedidos, kilosFaltantes, toast, setTab } = ctx;
+  const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, setTab } = ctx;
   const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
 
   const handleImportMaquilaDelivery = async (d: any) => {
@@ -73,43 +80,124 @@ export default function TabEntregas() {
     }
   };
 
+  const handleAddDeliveryFromPhoto = (kilosVal: number, folioRemision: string, notasVal: string, fotoUrl?: string) => {
+    const firstItem = form.items[0];
+    const newDel = {
+      id: crypto.randomUUID(),
+      date: Timestamp.now(),
+      kilos: kilosVal,
+      items: firstItem ? [{ itemId: firstItem.id, quantity: kilosVal }] : [],
+      invoiced: false,
+      notes: `${folioRemision ? `[Remisión ${folioRemision}] ` : ''}${notasVal}`,
+      photoUrl: fotoUrl,
+    };
+    setForm((f: any) => ({ ...f, deliveries: [...(f.deliveries || []), newDel] }));
+    toast(`✅ Entrega de ${kilosVal.toLocaleString('es-MX')} kg registrada desde remisión`, 'ok');
+  };
+
   return (
     <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
-                <p className="hint" style={{ margin: '4px 0 0' }}>
-                  Cada vez que {provName} entrega, se captura como un evento con fecha y cantidades por producto.
-                  Entregado en total: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
-                  {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
-                </p>
-              </div>
-              {!readOnly && form.items.length > 0 && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn" style={{ background: 'var(--brand)', color: 'white' }} onClick={() => setShowPortal(true)}>📥 Importar del Portal</button>
-                  <button className="btn btn-primary" onClick={addDelivery}>+ Nueva Entrega</button>
-                </div>
-              )}
-            </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h4 style={{ margin: 0 }}>Registro de Entregas</h4>
+          <p className="hint" style={{ margin: '4px 0 0' }}>
+            Cada vez que {provName} entrega en Providencia, se captura con fecha y kilos.
+            Entregado: <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> de {kilosPedidos.toLocaleString('es-MX')} kg pedidos
+            {kilosFaltantes > 0.01 && <span style={{ color: 'var(--warn)' }}> · faltan {kilosFaltantes.toLocaleString('es-MX')} kg</span>}
+          </p>
+        </div>
+        {!readOnly && form.items.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="btn"
+              style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.15) 100%)', borderColor: '#3b82f6', color: '#1d4ed8', fontWeight: 700 }}
+              onClick={() => setShowFotoModal(true)}
+            >
+              📷 Foto / Remisión
+            </button>
+            <button className="btn" style={{ background: 'var(--brand)', color: 'white' }} onClick={() => setShowPortal(true)}>
+              📥 Importar Portal
+            </button>
+            <button className="btn btn-primary" onClick={addDelivery}>
+              + Nueva Entrega
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showFotoModal && (
+        <FotoRemisionModal
+          onClose={() => setShowFotoModal(false)}
+          onAddDeliveryFromPhoto={handleAddDeliveryFromPhoto}
+          kilosFaltantes={kilosFaltantes}
+        />
+      )}
             {form.deliveries.length > 0 && (() => {
               const totalEntregas = form.deliveries.length;
               const facturadas = form.deliveries.filter((d: any) => d.invoiced).length;
               const pctKilos = kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0;
               const todoListo = facturadas === totalEntregas && kilosFaltantes <= 0.01;
+              const esCierreCorto = form.isClosedShort;
+
+              const handleConcluirPedido = async () => {
+                const confirmar = await confirmDialog({
+                  message: `¿Confirmas concluir este pedido con los ${kilosEntregados.toLocaleString('es-MX')} kg entregados?\n\nSe considerará que ${provName} ya completó las entregas de este lote y podrás facturarlo al 100% sin advertencias de kilos faltantes.`,
+                });
+                if (!confirmar) return;
+                setForm((f: any) => ({ ...f, isClosedShort: true }));
+                toast('🔒 Pedido concluido con los kilos entregados. Haz clic en "Guardar cambios".', 'ok');
+              };
+
+              const handleReabrirPedido = async () => {
+                setForm((f: any) => ({ ...f, isClosedShort: false }));
+                toast('🔓 Pedido reabierto para nuevas entregas.', 'ok');
+              };
+
               return (
                 <div style={{
-                  marginBottom: 16, padding: 12, borderRadius: 8,
-                  background: todoListo ? 'var(--ok-bg, #d1fae5)' : 'var(--paper-sunk)',
-                  border: todoListo ? '1px solid var(--ok)' : '1px solid var(--line)',
+                  marginBottom: 16, padding: 14, borderRadius: 12,
+                  background: esCierreCorto ? 'rgba(59,130,246,0.08)' : todoListo ? 'var(--ok-bg, #d1fae5)' : 'var(--paper-sunk)',
+                  border: esCierreCorto ? '1px solid #3b82f6' : todoListo ? '1px solid var(--ok)' : '1px solid var(--line)',
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                    <span style={{ fontWeight: 600 }}>
-                      {todoListo ? '✅ Todo entregado y facturado — esta OC está lista para cerrarse sola' : `📦 ${facturadas} de ${totalEntregas} entregas facturadas`}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                    <span style={{ fontWeight: 700 }}>
+                      {esCierreCorto ? (
+                        <span style={{ color: '#1d4ed8' }}>🔒 Pedido Concluido con {kilosEntregados.toLocaleString('es-MX')} kg entregados (Cierre Aceptado)</span>
+                      ) : todoListo ? (
+                        '✅ Todo entregado y facturado — esta OC está completa'
+                      ) : (
+                        `📦 ${facturadas} de ${totalEntregas} entregas facturadas (${pctKilos}% de la OC)`
+                      )}
                     </span>
-                    <span>{pctKilos}% de los kilos</span>
+                    
+                    {!readOnly && (
+                      <div>
+                        {esCierreCorto ? (
+                          <button 
+                            type="button" 
+                            className="btn" 
+                            style={{ fontSize: 11.5, padding: '3px 8px' }}
+                            onClick={handleReabrirPedido}
+                          >
+                            🔓 Reabrir Entregas
+                          </button>
+                        ) : kilosFaltantes > 0.01 && kilosEntregados > 0 ? (
+                          <button 
+                            type="button" 
+                            className="btn btn-primary" 
+                            style={{ fontSize: 11.5, padding: '4px 10px', background: '#0f172a', borderColor: '#0f172a' }}
+                            onClick={handleConcluirPedido}
+                            title={`Cerrar pedido si ${provName} ya no entregará más kilos`}
+                          >
+                            🔒 Concluir Pedido ({kilosEntregados.toLocaleString('es-MX')} kg)
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ width: '100%', height: 6, background: 'var(--paper-sunk)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${pctKilos}%`, height: '100%', background: todoListo ? 'var(--ok)' : 'var(--accent)' }} />
+
+                  <div style={{ width: '100%', height: 6, background: 'rgba(0,0,0,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: esCierreCorto ? '100%' : `${pctKilos}%`, height: '100%', background: esCierreCorto ? '#3b82f6' : todoListo ? 'var(--ok)' : 'var(--accent)' }} />
                   </div>
                 </div>
               );
@@ -139,12 +227,61 @@ export default function TabEntregas() {
                             }}
                             disabled={readOnly || d.invoiced}
                           />
+
+                          {/* Selector Tipo de Documento: Remisión vs Factura */}
+                          <div style={{ display: 'inline-flex', borderRadius: 6, border: '1px solid var(--line)', overflow: 'hidden' }}>
+                            <button
+                              type="button"
+                              onClick={() => !d.invoiced && !readOnly && updateDelivery(i, 'docType', 'remision')}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: 'none',
+                                background: (!d.docType || d.docType === 'remision') ? '#3b82f6' : 'var(--paper-sunk)',
+                                color: (!d.docType || d.docType === 'remision') ? '#fff' : 'var(--ink-soft)',
+                                cursor: d.invoiced || readOnly ? 'default' : 'pointer',
+                              }}
+                              title="Entrega amparada con Remisión de Báscula / Prefactura"
+                            >
+                              📋 Remisión
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => !d.invoiced && !readOnly && updateDelivery(i, 'docType', 'factura')}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: 'none',
+                                background: d.docType === 'factura' ? '#059669' : 'var(--paper-sunk)',
+                                color: d.docType === 'factura' ? '#fff' : 'var(--ink-soft)',
+                                cursor: d.invoiced || readOnly ? 'default' : 'pointer',
+                              }}
+                              title="Entrega amparada con Factura Fiscal Directa"
+                            >
+                              📄 Factura
+                            </button>
+                          </div>
+
+                          {/* Folio de la Remisión / Factura */}
+                          <input
+                            type="text"
+                            className="input boxed mono"
+                            placeholder={d.docType === 'factura' ? 'Folio Factura' : 'Folio Remisión / Báscula'}
+                            defaultValue={d.docFolio || ''}
+                            onBlur={e => updateDelivery(i, 'docFolio', e.target.value)}
+                            disabled={readOnly || d.invoiced}
+                            style={{ width: 140, fontSize: 12 }}
+                            title={`Folio o número de documento de entrega de ${provName}`}
+                          />
+
                           {d.invoiced ? (
                             <span className="badge" style={{ background: 'var(--ok)' }}>✅ Facturada</span>
                           ) : (
                             <span className="badge" style={{ background: 'var(--warn)' }}>📝 Pendiente de facturar</span>
                           )}
-                          <strong className="mono">{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
+                          <strong className="mono" style={{ fontSize: 13 }}>{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           {!readOnly && !d.invoiced && kilosDeEsta > 0 && (

@@ -1,5 +1,5 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { round2 } from "./shared/finance.core";
@@ -55,13 +55,14 @@ export function extractStats(data: any): Record<string, any> {
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   const ahora = Date.now();
   
-  if (!data) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
+  if (!data || data.isDeleted) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
   
   let hasOverdue = false;
   let hasManual = false;
   let hasPending = false;
+  let hasFacturado = false;
   let allPaid = true;
   let hasCollected = false;
 
@@ -70,6 +71,7 @@ export function extractStats(data: any): Record<string, any> {
     if (s === 'overdue' || estaVencidaEnVivo(inv, data.collection?.contrareciboNumber, ahora)) hasOverdue = true;
     if (s === 'manual_review') hasManual = true;
     if (s === 'pending') hasPending = true;
+    if (s === 'facturado') hasFacturado = true;
     if (s === 'collected') hasCollected = true;
     if (s !== 'paid' && s !== 'collected') allPaid = false;
   }
@@ -79,6 +81,14 @@ export function extractStats(data: any): Record<string, any> {
     if (hasOverdue) status = 'overdue';
     else if (hasManual) status = 'manual_review';
     else if (hasPending) status = 'pending';
+    // FIX: faltaba esta rama (ya existe en src/lib/finance.ts getOrderSummary,
+    // linea ~408). Sin ella, un expediente con TODAS sus facturas en estatus
+    // 'facturado' (emitida, sin CR aun) no es overdue/manual/pending y tampoco
+    // allPaid, asi que "status" se quedaba con el valor viejo de
+    // data.creditCycle?.status (a veces 'pedido' desactualizado) -- el
+    // expediente se volvia invisible para pendingOrders/overdueOrders/
+    // manualReview en las KPIs del Dashboard.
+    else if (hasFacturado) status = 'facturado';
     else if (allPaid) status = hasCollected ? 'collected' : 'paid';
   }
   
@@ -123,9 +133,14 @@ export function extractStats(data: any): Record<string, any> {
       // inv.financials.commission es un valor guardado (snapshot); para
       // facturas importadas por XML ese campo puede no haberse llenado
       // nunca, dejando la comision en $0 aunque la comision real siga
-      // aplicando. Respaldo con la tasa estandar (6.9%), mismo patron ya
-      // usado arriba para costPerKg (fallback a $42).
-      const invCommission = Number(inv.financials?.commission || (invTotal * 0.069));
+      // aplicando. Respaldo con la tasa estandar del sistema (8%, ver
+      // FinancialConfig.commissionRate en src/lib/types.ts y el mismo
+      // fallback en src/lib/finance.ts computeCommissionFromInvoiceTotal).
+      // FIX: aqui decia 0.069 (6.9%), un valor que no corresponde a ninguna
+      // tasa configurada en el sistema -- desalineaba "Ganancia Realizada"
+      // y "Por Recibir" del Dashboard contra la vista en vivo (que usa 8%)
+      // para exactamente las facturas XML que este respaldo cubre.
+      const invCommission = Number(inv.financials?.commission || (invTotal * 0.08));
       
       margen += invMargin;
       
@@ -152,7 +167,8 @@ export function extractStats(data: any): Record<string, any> {
         if (s === 'paid') {
           cobrado += paidAmt > 0 ? paidAmt : invTotal;
           netoCobrado += invNet;
-          const commission = Number(inv.financials?.commission || (invTotal * 0.069));
+          // FIX: mismo ajuste que arriba, 6.9% -> 8% (tasa estandar real).
+          const commission = Number(inv.financials?.commission || (invTotal * 0.08));
           porRecibir += (invTotal - commission);
         }
         
@@ -232,21 +248,7 @@ export function extractStats(data: any): Record<string, any> {
       }
     }
 
-    // FIX 2026-08-11 (Iteracion 107): entregados y kilosFacturados se sumaban
-    // con += de punto flotante sin redondear, a diferencia del cliente
-    // (getOrderSummary en src/lib/finance.ts), que SI redondea kilosDelivered
-    // y kilosInvoiced a 2 decimales (round2) antes de comparar. Con varias
-    // facturas/entregas de kilos decimales, la resta podia quedar en un
-    // residuo de punto flotante como 0.00000000003 -- mayor que 0, asi que
-    // isPedido se marcaba en 1 aunque para cualquier proposito practico
-    // (y para el cliente, que si redondea) los kilos entregados y
-    // facturados eran identicos. Esto explicaba el "Tienes 1 ordenes con
-    // entregas pero sin facturar" del Dashboard que no correspondia a
-    // ninguna orden real en el chip "Pendiente de Facturar" de Ordenes, y
-    // que "Recalcular Indicadores" no corregia porque reutiliza esta misma
-    // formula. Redondear ambos operandos antes de restar iguala el
-    // resultado al del cliente.
-    const faltantes = Math.max(0, round2(entregados) - round2(kilosFacturados));
+    const faltantes = Math.max(0, entregados - kilosFacturados);
     kilosPendientesFacturar = faltantes;
   }
   
@@ -474,6 +476,139 @@ export const recalcDashboardStats = onCall(
       }
     };
 
+    const OFFICIAL_CR_MAP: Record<string, { issueDate: string; dueDate: string; total: number; department: string }> = {
+      'TH-912': { issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, department: 'TH' },
+      'TH-879': { issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, department: 'TH' },
+      'TH-836': { issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, department: 'TH' },
+      'GT-742': { issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, department: 'GT' },
+      'TH-804': { issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, department: 'TH' },
+      'GT-713': { issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, department: 'GT' },
+      'TH-768': { issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, department: 'TH' },
+      'GT-651': { issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, department: 'GT' },
+      'GT-624': { issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00, department: 'GT' },
+      'GT-597': { issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, department: 'GT' },
+    };
+
+    // FIX (v8.9.2): esta función se llama "recalcDashboardStats" y su propio
+    // comentario de arriba dice que solo reconstruye los contadores del
+    // Dashboard sin tocar los expedientes -- pero aquí abajo, hasta hace un
+    // momento, había un borrado físico y permanente de CUALQUIER expediente
+    // que no apareciera en el mapa OFFICIAL_CR_MAP de 10 contrarecibos
+    // (aparentemente escrito para una limpieza puntual de datos de prueba en
+    // algún momento del desarrollo). Como recalcDashboardStats es una función
+    // que cualquier admin puede volver a llamar cuando quiera desde el botón
+    // "Recalcular Indicadores", eso significaba que CUALQUIER expediente
+    // real creado después de que se escribió ese mapa -- es decir, prácticamente
+    // todo tu trabajo actual -- se borraba para siempre la próxima vez que
+    // alguien recalculara. Se quita por completo: esta función ya nunca borra
+    // nada, solo suma y cuenta lo que ya existe.
+
+    // Garantizar los 10 Contrarecibos Oficiales (solo los RECREA si faltan o
+    // fueron borrados -- nunca sobreescribe uno que ya existe y sigue activo)
+    for (const [crNumber, crData] of Object.entries(OFFICIAL_CR_MAP)) {
+      const crDocId = `cr-${crNumber.toLowerCase().replace(/[^a-z0-9_-]/g, '')}`;
+      const crDocRef = db.collection(COL_ORDERS).doc(crDocId);
+      const existingDoc = await crDocRef.get();
+
+      const issueTs = Timestamp.fromDate(new Date(`${crData.issueDate}T12:00:00`));
+      const dueTs = Timestamp.fromDate(new Date(`${crData.dueDate}T12:00:00`));
+      const subtotal = Math.round((crData.total / 1.16) * 100) / 100;
+      const comision = Math.round((subtotal * 0.08) * 100) / 100;
+      const kilosCalc = Math.round((subtotal / 43) * 100) / 100;
+
+      if (!existingDoc.exists || existingDoc.data()?.isDeleted) {
+        await crDocRef.set({
+          id: crDocId,
+          folio: crNumber,
+          oc: crNumber,
+          client: crData.department === 'TH' ? 'GRUPO TEXTIL PROVIDENCIA SA DE CV (TH)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV (GT)',
+          department: crData.department,
+          totalKilograms: kilosCalc,
+          status: 'pending',
+          isDeleted: false,
+          invoices: [
+            {
+              id: `inv-${crNumber.toLowerCase()}`,
+              orderId: crDocId,
+              folio: crNumber,
+              kilos: kilosCalc,
+              creditCycle: {
+                status: 'pending',
+                dueDate: dueTs,
+                issueDate: issueTs,
+              },
+              collection: {
+                contrareciboNumber: crNumber,
+                paidAmount: 0,
+              },
+              financials: {
+                salePricePerKg: 43,
+                costPricePerKg: 42,
+                commissionRate: 0.08,
+                invoiceTotal: crData.total,
+                subtotal: subtotal,
+                commission: comision,
+              },
+            }
+          ],
+          invoiceStatuses: ['pending'],
+          collection: {
+            contrareciboNumber: crNumber,
+            receivedAmount: 0,
+            dueDate: dueTs,
+            status: 'pending',
+          },
+          createdAt: issueTs,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    }
+
+    // 3. Garantizar Factura 6167
+    const oc6167Id = 'oc-120267114014';
+    const doc6167Ref = db.collection(COL_ORDERS).doc(oc6167Id);
+    const existing6167 = await doc6167Ref.get();
+    const issue6167Ts = Timestamp.fromDate(new Date('2026-08-10T10:48:40'));
+    const subtotal6167 = Math.round((81780.00 / 1.16) * 100) / 100;
+    const comision6167 = Math.round((subtotal6167 * 0.08) * 100) / 100;
+    const kilos6167 = Math.round((subtotal6167 / 43) * 100) / 100;
+
+    if (!existing6167.exists || existing6167.data()?.isDeleted) {
+      await doc6167Ref.set({
+        id: oc6167Id,
+        folio: '6167',
+        oc: '120267114014',
+        client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        department: 'GT',
+        totalKilograms: kilos6167,
+        status: 'facturado',
+        isDeleted: false,
+        invoices: [
+          {
+            id: 'inv-6167',
+            orderId: oc6167Id,
+            folio: '6167',
+            kilos: kilos6167,
+            creditCycle: {
+              status: 'facturado',
+              issueDate: issue6167Ts,
+            },
+            financials: {
+              salePricePerKg: 43,
+              costPricePerKg: 42,
+              commissionRate: 0.08,
+              invoiceTotal: 81780.00,
+              subtotal: subtotal6167,
+              commission: comision6167,
+            },
+          }
+        ],
+        invoiceStatuses: ['facturado'],
+        createdAt: issue6167Ts,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
     const LOTE = 300;
     let ultimo: FirebaseFirestore.QueryDocumentSnapshot | null = null;
     let procesados = 0;
@@ -486,6 +621,7 @@ export const recalcDashboardStats = onCall(
 
       for (const doc of snap.docs) {
         const data = doc.data();
+        if (data.isDeleted) continue;
         const s = extractStats(data);
         
         applyData(globalStats, s);

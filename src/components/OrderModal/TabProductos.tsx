@@ -14,7 +14,6 @@ export default function TabProductos() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
   const [preview, setPreview] = useState<ParsedOC | null>(null);
-  if (!ctx) return null;
   const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast } = ctx;
   const { products } = useProducts();
   const { addItem, updateItem, removeItem } = useOrderProducts(form.items, setForm, config);
@@ -214,7 +213,7 @@ export default function TabProductos() {
                           {money(it.amount)}
                         </td>
                         <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
-                          {!readOnly && <button className="btn btn-icon" onClick={() => removeItem(i)}>🗑️</button>}
+                          {!readOnly && <button className="btn btn-icon" title="Eliminar partida" aria-label="Eliminar partida" onClick={() => removeItem(i)}>🗑️</button>}
                         </td>
                       </tr>
                     ))}

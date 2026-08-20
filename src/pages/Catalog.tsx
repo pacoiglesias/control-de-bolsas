@@ -21,6 +21,11 @@ export default function Catalog() {
   const [nuevo, setNuevo] = useState({ code: '', description: '', unit: 'kg', defaultPrice: '' });
   const [creando, setCreando] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  // FIX: era la unica lista de tamaño real en el sistema sin caja de
+  // busqueda (Orders/Logs/MaquiladorPortal/Cobranza ya la tienen). Sin
+  // filtro, encontrar un producto especifico en un catalogo grande obliga
+  // a hacer scroll manual entre las tarjetas.
+  const [search, setSearch] = useState('');
 
   const analytics = useMemo(() => {
     if (!products || !orders) return [];
@@ -91,6 +96,15 @@ export default function Catalog() {
       return b.orderCount - a.orderCount;
     });
   }, [products, orders]);
+
+  const analyticsFiltrados = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return analytics;
+    return analytics.filter(p =>
+      (p.description || '').toLowerCase().includes(q) ||
+      (p.code || '').toLowerCase().includes(q)
+    );
+  }, [analytics, search]);
 
   if (pLoad || oLoad) return (
     <div className="content">
@@ -217,8 +231,20 @@ export default function Catalog() {
         {analytics.length === 0 ? (
           <p className="hint">Aún no hay productos en tu catálogo. Se agregarán automáticamente al guardar nuevas órdenes.</p>
         ) : (
+          <>
+            <input
+              className="search-input"
+              type="search"
+              placeholder="Buscar por descripción o código (SKU)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ marginBottom: 16, width: '100%', maxWidth: 420 }}
+            />
+            {analyticsFiltrados.length === 0 ? (
+              <p className="hint">Ningún producto coincide con "{search}".</p>
+            ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16, padding: '4px 0' }}>
-            {analytics.map((p, index) => (
+            {analyticsFiltrados.map((p, index) => (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -315,6 +341,8 @@ export default function Catalog() {
               </motion.div>
             ))}
           </div>
+            )}
+          </>
         )}
       </Card>
 

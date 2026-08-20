@@ -1,11 +1,22 @@
 import { Empty } from '../ui';
-import { fmtDate, money } from '../../lib/format';
+import { fmtDayAndDate, money } from '../../lib/format';
+import { printAndresReceipt } from '../../lib/andresReceiptPdf';
 import type { LedgerEntry } from '../../hooks/useAndresStats';
 
 export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledgerWithBalance: LedgerEntry[], deudaHistorica: number }) {
   if (ledgerWithBalance.length === 0 && deudaHistorica === 0) {
     return <Empty>No hay movimientos registrados en el libro mayor.</Empty>;
   }
+
+  const handlePrintPastReceipt = (e: LedgerEntry) => {
+    printAndresReceipt({
+      amount: e.abono || 0,
+      concept: e.concept || 'Abono por Maquila y Fabricación de Bolsa',
+      date: e.date,
+      saldoRestante: e.balance,
+      payerName: 'Administración / Socios Providencia',
+    });
+  };
 
   return (
     <div className="table-scroll">
@@ -23,12 +34,13 @@ export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledge
             <th className="num">Cargo (Sube Deuda)</th>
             <th className="num">Abono (Baja Deuda)</th>
             <th className="num">Saldo Acumulado</th>
+            <th style={{ textAlign: 'center' }}>Comprobante</th>
           </tr>
         </thead>
         <tbody>
           {ledgerWithBalance.map((e, i) => (
             <tr key={`${e.id}-${i}`}>
-              <td className="mono">{fmtDate(e.date)}</td>
+              <td className="mono" style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtDayAndDate(e.date)}</td>
               <td>
                 {e.source === 'historical' ? (
                   <span className="badge b-warn">Histórico</span>
@@ -47,6 +59,21 @@ export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledge
               </td>
               <td className="num mono" style={{ color: e.balance > 0 ? 'var(--ok)' : 'var(--bad)', fontWeight: 700 }}>
                 {money(e.balance)}
+              </td>
+              <td style={{ textAlign: 'center' }}>
+                {e.source === 'expense' && e.abono > 0 ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 11, padding: '2px 8px', fontWeight: 700 }}
+                    onClick={() => handlePrintPastReceipt(e)}
+                    title="Imprimir Recibo de este Pago para Firma de Andrés"
+                  >
+                    🖨️ Recibo
+                  </button>
+                ) : (
+                  <span style={{ color: 'var(--ink-faint)', fontSize: 11 }}>—</span>
+                )}
               </td>
             </tr>
           ))}

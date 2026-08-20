@@ -11,6 +11,11 @@ import { getOrderSummary } from './finance';
 
 export const HTML_TEMPLATE_PATH = '/respaldo/control-bolsas-offline.html';
 
+/** Version del formato de `HtmlState` que se escribe en el respaldo HTML
+ * offline. Subela si cambias la forma de alguno de sus campos, para poder
+ * distinguir respaldos viejos de nuevos si algun dia se necesita migrar. */
+export const HTML_STATE_VERSION = 4;
+
 export interface HtmlFactura {
   id: string;
   seq: number;
@@ -141,7 +146,7 @@ export function ordersToHtmlState(
   }));
 
   return {
-    version: 4,
+    version: HTML_STATE_VERSION,
     sync: {
       fuente: 'Control Bolsas v5 (Firebase)',
       fecha: new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }),

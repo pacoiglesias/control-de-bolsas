@@ -1,98 +1,102 @@
 # Flujo Completo — Control Bolsas ERP
-### Revisión exhaustiva contra el negocio real (Actualizado a v6.36.0)
+### Revisión exhaustiva contra el negocio real (Actualizado a v8.5.0 Enterprise)
 
-Este documento describe, paso por paso, tu flujo operativo y cómo el ERP lo resuelve de manera exacta, incluyendo las últimas implementaciones de automatización y UI Premium (Kanban Drag & Drop).
+Este documento describe, paso por paso, el flujo operativo y financiero exacto del negocio, detallando cómo el ERP lo modela de principio a fin, incluyendo las herramientas de automatización, generación de reportes PDF oficiales y el Cockpit Modular del Dashboard.
 
 ---
 
-## 0. El negocio, en una frase
+## 0. El Negocio en una Frase
 
-Andrés te vende bolsas de polietileno. Tú se las revendes a Grupo Textil Providencia (departamentos **TH** y **GT**). Ganas la diferencia entre lo que le pagas a Andrés y lo que le cobras a Providencia, menos la comisión que te cobra el contador por gestionar el cobro.
+Andrés fabrica y te vende bolsas y película de polietileno a costo base (**$42.00/kg**). Tú se las revendes a Grupo Textil Providencia SA de CV (departamentos **TH** y **GT**) a precio pactado (**$43.00/kg + 16% IVA**). La ganancia neta líquida resulta de la diferencia entre venta y costo de maquila, deduciendo el **8% de comisión contable sobre subtotal** y gastos de flete/caja chica, para distribuirse al **50% Paco / 50% Socio**.
 
+```text
+OC Providencia ➔ Pedido Andrés ($42/kg) ➔ Entrega en Báscula ➔ Factura SAT ($43/kg + IVA)
+    ➔ Contrarecibo (CR) ➔ Cobro Providencia ➔ Comisión Contador (8%)
+    ➔ Ingreso Neto a Caja Chica (TR_xxxx) ➔ Reporte P&L & Reparto 50/50
 ```
-Providencia pide (OC) → tú le pides a Andrés → Andrés entrega (Notifica en su Portal)
-    → facturas lo entregado → Providencia paga → sale el contrarecibo
-    → contabilidad te entrega el dinero (menos su comisión) → entra a tu caja
-```
 
 ---
 
-## 1. Llega el pedido (OC) de Providencia
+## 1. Llega la Orden de Compra (OC) de Providencia
 
-**Tu proceso:** Te llega una Orden de Compra de Providencia (TH o GT), con los artículos, cantidades y precios pactados.
+**Proceso Real:** Recibes una Orden de Compra de Providencia por correo, PDF o WhatsApp, con partidas, especificaciones, claves y kilos nominales.
 
-**✅ Lo que hace el sistema:**
-- `Subir Órdenes` (`/subir`) — pegas el texto del PDF y el sistema extrae folio, cliente y renglones automáticamente.
-- `Captura Rápida` (`/captura-rapida`) — permite procesar datos crudos.
-- Si el folio ya existe, el sistema te avisa. Cliente y proveedor se autocompletan.
-
----
-
-## 2. Se lo mandas a Andrés, empieza a producir
-
-**Tu proceso:** Le pasas la OC a Andrés, él la produce, y te da una fecha estimada de entrega.
-
-**✅ Lo que hace el sistema:**
-- El expediente nace en estatus **`pedido`** y aparece en la tarjeta **"📝 Pendiente de Facturar"** del Dashboard.
-- En la vista **Compras** (`/compras`) puedes ver qué pedidos están pendientes de surtirse por el fabricante.
+**✅ Lo que hace el ERP:**
+- **`[➕ Nuevo Expediente]`** o **Pegado Mágico (`Ctrl+P`)**: extrae y procesa los datos crudos en segundos.
+- Asigna folio único (`OC-XXXX`) y calcula los kilos y montos proyectados.
+- Nace el **Stepper de 6 Etapas** dentro de la orden (`OC Recibida ➔ Pedido Andrés ➔ Entrega Directa ➔ Factura SAT ➔ Contrarecibo ➔ Cobrado en Caja`).
 
 ---
 
-## 3. Anticipos a Andrés (Opcional)
+## 2. Pedido de Fabricación a Andrés ($42.00/kg)
 
-**Tu proceso:** Andrés a veces pide un anticipo antes de entregar.
+**Proceso Real:** Le envías las especificaciones a Andrés para extrusión y corte de polietileno.
 
-**✅ Lo que hace el sistema:**
-- En **Caja Chica** (`/caja-chica`) registras un egreso a proveedor "Andrés".
-- El **Estado de Cuenta con Andrés** automáticamente suma este saldo a tu favor, para descontarlo cuando lleguen las entregas. Todo cuadrando matemáticamente sin intervención manual adicional.
-
----
-
-## 4. Andrés entrega la mercancía
-
-**Tu proceso:** Andrés entrega la mercancía (una o varias veces por OC).
-
-**✅ Lo que hace el sistema:**
-- **Portal Maquilador (`/portal-maquilador`):** Andrés ingresa su PIN, selecciona la orden y reporta los kilos entregados.
-- **Notificación en Vivo:** El sistema muestra una notificación en la `BandejaMaquilaWidget` directo en tu Dashboard. Tú solo haces clic en "Ver" y validas.
-- Cada entrega es un **evento separado**.
+**✅ Lo que hace el ERP:**
+- En la pestaña **"Pedido a Andrés"**, genera la orden de maquila calculando los kilos necesarios.
+- Botón **`[💬 WhatsApp]`**: genera la ficha técnica en un mensaje formateado listo para enviar a Andrés.
+- En el Dashboard, el monto se contabiliza en la estación **"1. En Taller de Andrés"** del Pipeline de Flujo de Dinero.
 
 ---
 
-## 5. Facturas lo entregado
+## 3. Anticipos y Cuenta Corriente con Andrés
 
-**Tu proceso:** Facturas exclusivamente las cantidades que Andrés ya te entregó.
+**Proceso Real:** Pagos y anticipos para material o liquidación de entregas.
 
-**✅ Lo que hace el sistema:**
-- Botón **"🧾 Facturar esta entrega"** — factura solo lo recibido, sin sobreescribir totales ni promediar.
-- Protecciones estructurales: no puedes refacturar la misma entrega dos veces.
-
----
-
-## 6. Revisión y Contrarecibo (TR / GT / TH)
-
-**Tu proceso:** Envías facturas a Providencia, las revisan y emiten un contrarecibo que ampara una o varias facturas.
-
-**✅ Lo que hace el sistema:**
-- **Tablero Kanban Drag & Drop (`/cobranza`):** Arrastras la factura de la columna "En Revisión" a "Por Cobrar".
-- Al soltarla, el sistema te pide el número de Contrarecibo (ej. TH-836).
-- Agrupación visual automática: las facturas con el mismo contrarecibo viajan juntas.
+**✅ Lo que hace el ERP:**
+- En **Compras (`/compras`)** o **Caja Chica (`/caja-chica`)**, se registran egresos directos a Andrés.
+- **Libro Mayor de Andrés:** Aplica automáticamente las amortizaciones de kilos entregados (`kilos * $42`) contra los anticipos y la deuda histórica, manteniendo el saldo al centavo.
 
 ---
 
-## 7. Cobro y depósito en Caja Chica
+## 4. Andrés Entrega en Báscula de Providencia
 
-**Tu proceso:** Providencia paga, el contador descuenta su 8% de comisión y te deposita el restante en tu caja real.
+**Proceso Real:** El chofer descarga en el almacén de Providencia y recibe la remisión pesada y sellada.
 
-**✅ Lo que hace el sistema:**
-- En el tablero Kanban, arrastras la tarjeta hacia la columna amarilla **"🟡 Con el Contador"** (Providencia pagó) y finalmente a la columna verde **"✅ En Caja Chica"**.
-- **Magia de Sincronización:** Al soltar en la columna verde, el sistema descuenta matemáticamente el 8% de comisión e **inyecta el ingreso líquido directamente a la CAJA CHICA**.
-- Tu saldo de caja cuadra al centavo. Si te equivocas y mueves la tarjeta de regreso, el sistema genera automáticamente un egreso de reversión.
+**✅ Lo que hace el ERP:**
+- **Pestaña "Entregas":** Registras la remisión con fecha y kilos netos de báscula.
+- **Cierre Rápido por Menos Kilos:** Si Andrés entregó menos kilos del pedido original y no habrá más surtido, el botón **`[🔒 Concluir Pedido]`** ajusta el expediente eliminando alertas de kilos faltantes.
+- En el Dashboard, los kilos entregados pasan inmediatamente a la estación **"2. En Almacén Providencia (Por Facturar)"**.
 
 ---
 
-## ✅ Conclusión del Flujo (v6.36.0)
+## 5. Facturación SAT (CFDI 4.0) a Precio de Venta ($43.00/kg + IVA)
 
-Todas las etapas están cubiertas con automatización, sincronización atómica de bases de datos y una interfaz moderna. El flujo de dinero está garantizado sin necesidad de doble captura.
+**Proceso Real:** Emisión de la factura electrónica por los kilos entregados.
+
+**✅ Lo que hace el ERP:**
+- **Facturación Rápida Multi-Partida (`F` o `[⚡ Facturar]`):** Permite seleccionar exactamente qué partidas y cuántos kilos ampara la factura.
+- Validador anti-duplicados (impide capturar 2 veces el mismo folio).
+- Genera la **Prefactura PDF SAT** oficial para cotejo contable previo.
+
+---
+
+## 6. Radicación de Contrarecibo (CR) y Crédito
+
+**Proceso Real:** Providencia valida la factura y entrega el Contrarecibo físico con fecha de pago programada.
+
+**✅ Lo que hace el ERP:**
+- **Asignador Multi-Factura de Contrarecibos:** Casillas de verificación para asociar 2 o más facturas al mismo contrarecibo y asignar presets rápidos de vencimiento (`+8 días`, `+15 días`, `+30 días`).
+- **Timeline y Semáforo de Cobranza:** Clasifica las facturas en **Vigentes** y **Vencidas** con alertas de vencimiento para seguimiento oportuno.
+- **Estado de Cuenta Oficial Providencia (PDF):** En `/cobranza`, botón **`[📄 Descargar Estado de Cuenta (PDF)]`** con membrete fiscal, detalle de facturas y libro mayor de depósitos.
+
+---
+
+## 7. Cobro, Comisión Contable (8%) y Depósito a Caja Chica
+
+**Proceso Real:** Providencia transfiere los fondos; el contador descuenta el 8% de comisión contable sobre subtotal y deposita el neto en efectivo.
+
+**✅ Lo que hace el ERP:**
+- Al registrar el cobro (vía botón **`[💵 Recibir]`** o modal de cobranza), el sistema calcula:
+  $$\text{Neto a Caja} = \text{Total Factura} - (\text{Subtotal} \times 0.08)$$
+- Inyecta automáticamente el asiento de ingreso en **Caja Chica** con folio de transferencia `TR_xxxx`.
+- Actualiza el **Reporte Ejecutivo de Utilidad Neta & P&L (PDF)** con el reparto **50% Paco / 50% Socio**.
+
+---
+
+## ✅ Conclusión y Auditoría del Sistema (v8.5.0 Enterprise)
+
+El sistema garantiza trazabilidad matemática total, inmutabilidad de precios históricos, exportaciones a Excel/JSON y generación de documentos PDF ejecutivos y fiscales con un solo clic.
+
 
 

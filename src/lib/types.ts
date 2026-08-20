@@ -55,7 +55,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    * honorario que cobra el contador por gestionar la cobranza.
    */
   commissionBase: 'subtotal',
-  historicalDebtAndres: -123175.56,
+  historicalDebtAndres: -102670.27,
   // Tomados de una OC real del negocio; editables en Configuracion.
   satClaveProdServ: '24111500',
   satClaveUnidad: 'KGM',
@@ -138,6 +138,11 @@ export interface Delivery {
   /** A qué factura quedó ligada, una vez facturada. */
   invoiceId?: string;
   notes?: string;
+  docType?: 'remision' | 'factura';
+  docFolio?: string;
+  driver?: string;
+  packagesCount?: number;
+  photoUrl?: string;
 }
 
 export interface Invoice {
@@ -151,6 +156,7 @@ export interface Invoice {
   financials?: OrderFinancials;
   creditCycle: CreditCycle;
   collection?: CollectionInfo;
+  items?: PurchaseOrderItem[];
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
 }
@@ -276,6 +282,35 @@ export interface Product {
   description: string;
   unit: string;
   defaultPrice: number;
-  lastOrderDate?: any;
-  createdAt?: any;
+  lastOrderDate?: Timestamp | null;
+  createdAt?: Timestamp | null;
 }
+
+export interface AndresRequirement {
+  orderId: string;
+  folio: string;
+  client: string;
+  kilos: number;
+  costPricePerKg: number;
+  costTotal: number;
+  salePricePerKg: number;
+  saleTotal: number;
+  invoiceTotal: number;
+  commissionEst: number;
+  netProfitEst: number;
+  profitPerKg: number;
+  items: PurchaseOrderItem[];
+  whatsappMessage: string;
+}
+
+export interface NextActionInfo {
+  key: 'pedir_andres' | 'esperar_entrega' | 'facturar_entrega' | 'pedir_contrarecibo' | 'avisar_contador' | 'recibir_caja' | 'completada';
+  title: string;
+  description: string;
+  actionLabel?: string;
+  badgeTone: 'info' | 'warn' | 'bad' | 'ok';
+  targetTab?: 'resumen' | 'andres' | 'entregas' | 'facturas' | 'costos';
+  whatsappType?: 'andres' | 'providencia' | 'contador';
+  whatsappText?: string;
+}
+

@@ -13,8 +13,12 @@ import { confirmDialog } from '../../lib/confirmDialog';
 import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
 import TabEntregas from './TabEntregas';
+import { TabAndresOrder } from './TabAndresOrder';
+import { OrderStepper } from './OrderStepper';
+import { NextActionBanner } from './NextActionBanner';
 import { money } from '../../lib/format';
 import { useProducts } from '../../hooks/useProducts';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 
 // ─── Identidad visual de cada documento ───────────────────────────────────────
 const BADGE = {
@@ -47,10 +51,10 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     order,
     form,
     readOnly,
+    config,
     knownClients,
     knownProviders,
     knownClientEmails,
-    kilosFaltantes,
     tab,
     setTab,
     busy,
@@ -100,33 +104,19 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
       .filter(Boolean)
   )] as string[];
 
-  // FIX 2026-08-11: antes leia form.invoices (estado local del formulario,
-  // sembrado solo UNA VEZ al abrir el expediente via getOrderSummary) --
-  // TabFacturas.tsx en cambio siempre lee order.invoices (el objeto vivo,
-  // persistido). Esa divergencia era la causa secundaria del badge
-  // "1 factura" fantasma: el badge decia 1 (heredado de la sintesis vieja
-  // de getOrderSummary) mientras la lista de TabFacturas, leyendo el dato
-  // real, aparecia vacia. Se unifica en la misma fuente viva.
-  const invoiceCount: number = order?.invoices?.length ?? 0;
+  const invoiceCount: number = form.invoices?.length ?? 0;
 
-  // ── Siguiente paso automático ──────────────────────────────────────────────
-  const siguientePaso = (() => {
-    const entregasSinFacturar = form.deliveries.filter((d: any) => !d.invoiced).length;
-    if (!form.client.trim() || !form.provider.trim())
-      return { texto: 'Faltan datos básicos (cliente o proveedor).', boton: 'Ir a Resumen', ir: 'resumen' as TabName, tono: '#fef3c7' };
-    if (form.items.length === 0)
-      return { texto: 'Agrega los productos de esta Orden de Compra (o usa "📋 Pegar Texto OC" / "🤖 Escanear OC" para autollenarlos).', boton: 'Ir a Productos', ir: 'productos' as TabName, tono: '#fef3c7' };
-    if (entregasSinFacturar > 0)
-      return { texto: `${entregasSinFacturar} entrega(s) sin facturar.`, boton: 'Ir a Facturar', ir: 'entregas' as TabName, tono: '#dbeafe' };
-    if (kilosFaltantes > 0.01)
-      return { texto: `Faltan ${kilosFaltantes.toLocaleString('es-MX')} kg por entregar.`, boton: 'Ir a Entregas', ir: 'entregas' as TabName, tono: '#dbeafe' };
-    return null;
-  })();
 
-  const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number }[] = [
+  const hasUninvoicedDeliveries = form.deliveries.some((d: any) => !d.invoiced);
+
+  const { settings } = useSystemSettings();
+  const provName = settings?.providerName || 'Andrés';
+
+  const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number; alert?: boolean }[] = [
     { key: 'resumen',   label: '📋 Expediente' },
     { key: 'productos', label: '📦 Orden de Compra', count: form.items.length },
-    { key: 'entregas',  label: '🚛 Entregas',        count: form.deliveries.length },
+    { key: 'andres',    label: `🏭 Pedido a ${provName}` },
+    { key: 'entregas',  label: '🚛 Entregas', count: form.deliveries.length, alert: hasUninvoicedDeliveries },
   ];
 
   return (
@@ -168,6 +158,26 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
           {knownClientEmails.map((e: string) => <option key={e} value={e} />)}
         </datalist>
 
+        {/* ── Pipeline Visual del Expediente ── */}
+        <OrderStepper
+          order={order}
+          activeTab={tab}
+          onSelectTab={(t) => {
+            if (t === 'facturas') setShowCRModal(true);
+            else setTab(t as any);
+          }}
+        />
+
+        {/* ── Asistente Proactivo de Siguiente Acción ── */}
+        <NextActionBanner
+          order={order}
+          config={config}
+          onNavigateTab={(t) => {
+            if (t === 'facturas') setShowCRModal(true);
+            else setTab(t as any);
+          }}
+        />
+
         {/* ── Auditoría de Viabilidad ── */}
         <div style={{
           marginBottom: 12, padding: '8px 14px', borderRadius: 8,
@@ -182,23 +192,6 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
             {viabilityWarning && <span style={{ color: 'var(--bad)', marginLeft: 8 }}>Saldo insuficiente</span>}
           </div>
         </div>
-
-        {/* ── Siguiente paso automático ── */}
-        {!readOnly && siguientePaso && (
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            background: siguientePaso.tono, borderRadius: 8, padding: '10px 14px',
-            marginBottom: 12, fontSize: 14,
-          }}>
-            <span style={{ fontWeight: 600 }}>👉 {siguientePaso.texto}</span>
-            {tab !== siguientePaso.ir && (
-              <button className="btn btn-primary" style={{ fontSize: 13 }}
-                onClick={() => setTab(siguientePaso!.ir)}>
-                {siguientePaso.boton} →
-              </button>
-            )}
-          </div>
-        )}
 
         {/* ── BOTÓN DESTACADO: Facturas & CR ────────────────────────────────── */}
         <button
@@ -239,7 +232,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
           <span style={{ opacity: 0.7 }}>Abrir →</span>
         </button>
 
-        {/* ── Tabs: SOLO Expediente · OC · Entregas ── */}
+        {/* ── Tabs: SOLO Expediente · OC · Pedido Andrés · Entregas ── */}
         <div style={{
           display: 'flex', gap: 6, marginBottom: 16,
           borderBottom: '2px solid var(--line)', paddingBottom: 0,
@@ -267,6 +260,20 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
                   {t.count}
                 </span>
               )}
+              {t.alert && (
+                <span 
+                  style={{
+                    display: 'inline-block',
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: '#f59e0b',
+                    marginLeft: 5,
+                    boxShadow: '0 0 6px #f59e0b',
+                  }} 
+                  title="Hay entregas pendientes de facturar"
+                />
+              )}
             </button>
           ))}
           <span style={{ flex: 1 }} />
@@ -287,10 +294,12 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
             >
               {tab === 'resumen'   && <TabResumen />}
               {tab === 'productos' && <TabProductos />}
+              {tab === 'andres'    && <TabAndresOrder order={order} config={config} customCostPrice={form.customCostPrice} customSellPrice={form.customSellPrice} />}
               {tab === 'entregas'  && <TabEntregas />}
             </motion.div>
           </AnimatePresence>
         </div>
+
 
         {/* ── Pie del modal ── */}
         <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 8 }}>

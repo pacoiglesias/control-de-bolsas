@@ -114,8 +114,14 @@ export default function Users() {
     }
   };
 
-  const handleRoleChange = async (userId: string, currentRole: string, newRole: string) => {
+  const handleRoleChange = async (userId: string, email: string, currentRole: string, newRole: string) => {
     if (currentRole === newRole) return;
+    // FIX: el cambio de rol se aplicaba al instante con solo seleccionar
+    // la opcion en el <select>, sin confirmacion -- a diferencia de
+    // "Revocar Acceso" (abajo), que si pregunta. Un misclic podia volver
+    // Admin (acceso financiero completo) a una cuenta de piso de fabrica
+    // sin que nadie lo notara. Se agrega la misma confirmacion.
+    if (!(await confirmDialog({ message: `¿Cambiar el rol de ${email} de "${currentRole}" a "${newRole}"?`, danger: newRole === 'admin' }))) return;
     try {
       await updateDoc(doc(db, 'admins', userId), { role: newRole });
       toast('Rol actualizado', 'ok');
@@ -210,7 +216,7 @@ export default function Users() {
                         className="input-field" 
                         style={{ padding: '4px 8px', fontSize: 13, minHeight: 'auto', background: 'var(--surface-sunken)' }}
                         value={u.role}
-                        onChange={(e) => handleRoleChange(u.id, u.role, e.target.value)}
+                        onChange={(e) => handleRoleChange(u.id, u.email, u.role, e.target.value)}
                       >
                         <option value="viewer">Viewer</option>
                         <option value="manager">Manager</option>

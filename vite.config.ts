@@ -17,7 +17,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // FIX (v8.9.0): 'masked-icon.svg' se listaba aqui pero el archivo nunca
+      // existio en public/ -- referencia muerta desde el template original.
+      // 'favicon.ico' antes tampoco existia (index.html apuntaba directo a
+      // /logo.png); ahora si existe, generado a partir del logo real.
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Control Bolsas ERP',
         short_name: 'ERP Providencia',
@@ -46,7 +50,7 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    sourcemap: 'hidden', // genera .map para debugging pero no los expone en el bundle
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {

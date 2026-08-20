@@ -1,10 +1,10 @@
 import { useCobranza } from './CobranzaContext';
 import { Card, Empty, CopyButton, StatusBadge } from '../ui';
-import { fmtDate, nombreClienteVisible } from '../../lib/format';
+import { fmtDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { promptDialog } from '../../lib/promptDialog';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, toast, filterType, setFilterType, setSelected } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, toast, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 
@@ -30,9 +30,10 @@ export default function ProximasTable() {
           <>
           {/* Resumen rápido e interactivo de filtros */}
           {(() => {
-            const sinCrCount = data.lista.filter((x: any) => !x.hasCr).length;
-            const vencidosCount = data.lista.filter((x: any) => x.hasCr && (x.d ?? 0) > 0).length;
-            const enPlazoCount = data.lista.filter((x: any) => x.hasCr && (x.d ?? 0) <= 0).length;
+            const lista = data?.lista || [];
+            const sinCrCount = lista.filter((x: any) => x && !x.hasCr).length;
+            const vencidosCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) > 0).length;
+            const enPlazoCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) <= 0).length;
             return (
               <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Filtro rápido:</span>
@@ -41,7 +42,7 @@ export default function ProximasTable() {
                   onClick={() => setFilterType('todos')}
                   style={{ padding: '4px 12px', fontSize: 12 }}
                 >
-                  Todos ({data.lista.length})
+                  Todos ({lista.length})
                 </button>
                 <button
                   className={`btn-small`}
@@ -136,21 +137,11 @@ export default function ProximasTable() {
                         </button>
                         <button
                           className="btn-small"
-                          style={{ padding: '2px 6px', fontSize: '10px', background: '#25D366', border: '1px solid #25D366', color: '#fff' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            sendWhatsApp(o, inv, d);
-                          }}
-                        >
-                          💬 WhatsApp
-                        </button>
-                        <button
-                          className="btn-small"
                           style={{ padding: '2px 6px', fontSize: '10px', background: 'var(--bg-card)', border: '1px solid var(--line)', color: 'var(--ink)' }}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const dueMs = inv.creditCycle.dueDate?.toMillis?.();
-                            const actual = dueMs !== undefined ? new Date(dueMs).toISOString().slice(0, 10) : '';
+                            const d = toDate(inv.creditCycle.dueDate);
+                            const actual = d ? d.toISOString().slice(0, 10) : '';
                             const input = await promptDialog({ message: 'Nueva fecha de vencimiento:', defaultValue: actual, inputType: 'date' });
                             if (!input) return;
                             const nuevaFecha = new Date(`${input}T00:00:00`);

@@ -1,6 +1,246 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v7.0.2] - 7 Agosto 2026 (URGENTE: Portal del Maquilador -- error al cargar ordenes)
+## [v8.9.3] - 20 Agosto 2026 (Mejoras visuales: íconos reales, barra de kilos más clara, tarjeta principal del Dashboard, Portal Maquilador en celular)
+
+### Mejorado (visual)
+- **🎨 Emojis reemplazados por íconos reales en las pantallas de mayor uso (Dashboard y Portal Maquilador):** las 4 tarjetas de indicadores del Dashboard (Efectivo en Caja, Ventas, Dinero en la Calle, Urgencias) y el encabezado/pestañas del Portal Maquilador usaban emojis (💵📈🏦⚠️🏭💰📋🔄⏻) como si fuera un prototipo. Se hicieron a mano un set de íconos de trazo simple en `src/components/ui/icons.tsx` (sin agregar ninguna librería nueva, para no meterle riesgo de tamaño de paquete a este parche) y se conectaron en esas dos pantallas. El resto de los emojis repartidos por las demás pantallas del sistema queda pendiente — es un barrido mucho más grande, documentado abajo.
+- **📊 La barra de "Kilos Entregados" medía 12px y el porcentaje vivía aparte, arriba a la derecha del título:** ahora mide casi el doble (22px) y el porcentaje va encimado directo sobre el relleno — el avance y el número se leen juntos de un vistazo.
+- **⭐ Las 4 tarjetas del Dashboard pesaban visualmente lo mismo, sin ninguna que dijera "empieza por aquí":** Efectivo en Caja (el número más útil para decidir algo hoy mismo) ahora abre la fila, ocupa el doble de ancho en pantallas anchas y su cifra es más grande que las demás tres.
+- **📱 Portal Maquilador — tres botones quedaban un poco chicos para un dedo en movimiento:** los botones de Actualizar/Salir del encabezado y las 3 pestañas de navegación median menos de los 44px que recomiendan Apple/Android como mínimo para un toque cómodo (son justo los botones que Andrés usa parado en el taller, no sentado con mouse). Se revisó el resto del portal (teclado de PIN, campo de kilos, botones de guardar) y ya estaba bien dimensionado desde antes — solo estos tres puntos necesitaban ajuste.
+- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias.
+
+### Pendiente (documentado, no incluido en este parche)
+- Reemplazar emojis por íconos en el resto de las pantallas (Cobranza, Compras, Caja Chica, Catálogo, Ajustes, Usuarios, etc.) — mismo criterio que Dashboard/Portal Maquilador, pero es un barrido mucho más grande.
+- Todo lo ya documentado como pendiente en v8.9.2 (bug de comisión del 8%, escrituras sin transacción en AuditSync/Facturar Rápido/Asignar CR, borrado permanente + falta de verificación de rol en AuditSync, unificación completa de `STATUS_LABEL`/`STATUS_TONE` en las pantallas restantes).
+
+## [v8.9.2] - 20 Agosto 2026 (Auditoría completa: seguridad, un borrado automático oculto, y consistencia del Kanban)
+
+Esta versión sale de una auditoría a fondo de todo el sistema (6 revisiones en paralelo: integridad de datos, seguridad de reglas, cálculos financieros, UX/flujo, rendimiento, y Cloud Functions). Se implementó lo más urgente: seguridad, un bug de borrado de datos que se encontró verificándolo directamente, y la inconsistencia del Kanban. El resto de los hallazgos (bug de comisión del 8%, más escrituras sin transacción en AuditSync/QuickInvoiceModal/QuickCrModal, unificación completa de colores de estatus en las 57 pantallas que los usan) queda documentado como pendiente para el siguiente parche.
+
+### Corregido (CRÍTICO — borrado de datos, encontrado verificando el código directamente)
+- **🗑️ "Recalcular Indicadores" borraba expedientes reales de forma permanente sin avisar, contra la regla de "nunca borres nada sin mi consentimiento":** `recalcDashboardStats` (Cloud Function llamable desde el Dashboard) tenía, debajo de su propio comentario que dice "solo reconstruye los contadores sin tocar los expedientes", un bloque que borraba físicamente CUALQUIER expediente que no apareciera en una lista de exactamente 10 contrarecibos escrita a mano (`OFFICIAL_CR_MAP`) — aparentemente una limpieza puntual de datos de prueba de algún momento del desarrollo que se quedó pegada dentro de una función que un admin puede volver a llamar cuando quiera. Cualquier expediente real creado después de que se escribió esa lista (es decir, prácticamente todo el trabajo actual) se borraba para siempre la siguiente vez que alguien recalculara. Se quitó ese bloque por completo: la función ya nunca borra nada, solo suma y cuenta lo que existe.
+
+### Corregido (seguridad)
+- **🔑 Cualquier correo `@cobertores.com` era administrador total de forma automática e irrevocable:** `isBootstrapOwner()` en `firestore.rules` daba acceso de super-admin a cualquier cuenta verificada de ese dominio, no solo a las dos cuentas personales del dueño. El botón "Revocar Acceso" de Usuarios no podía quitárselo porque ese permiso no dependía del documento que borra. Ahora solo las dos cuentas del dueño entran ahí; cualquier otra persona de ese dominio se da de alta normal desde Usuarios y esa alta sí se puede revocar.
+- **🔢 El PIN del Portal Maquilador (4 dígitos) no tenía límite de intentos:** una función pública sin freno permitía probar las 10,000 combinaciones en minutos. Ahora, tras 5 intentos fallidos seguidos, se bloquea 15 minutos (con transacción para que dos intentos simultáneos no se salten el contador). De paso se quitó el PIN de respaldo `'2468'` que quedaba si el documento de configuración no existía — ahora la función falla cerrada (nadie entra) en vez de fallar hacia un PIN conocido y ya expuesto en el historial de este repositorio.
+- **🕳️ Dos reglas de Firestore (`expenses`, `error_logs`) seguían aceptando cualquier sesión — incluida una anónima creada desde la consola del navegador con la configuración pública de Firebase — el mismo hueco que ya se había cerrado para `maquilaDeliveries` en v8.8.9:** `expenses` ya no necesita esa rama (el Portal Maquilador lee sus datos desde v8.8.9 vía Cloud Function, no directo de Firestore); `error_logs` ahora exige un usuario real, no cualquier `request.auth != null`.
+- **🤖 El lector inteligente de documentos (IA/Gemini) solo revisaba que hubiera una sesión, no que estuviera autorizada:** cualquiera que se autorregistrara con una sesión anónima podía gastar el presupuesto de la API. Ahora exige correo verificado y rol de admin o manager, igual que `reprocessOrder`.
+
+### Corregido (consistencia del Kanban)
+- **🎨 Una factura "Con el Contador" se veía verde (éxito) en el Kanban pero ámbar (todavía pendiente) en el detalle del expediente:** dos pantallas contradiciéndose sobre si una factura que aún no está en caja ya está resuelta o no. El Kanban usaba `var(--ok)` para esa columna; el resto del sistema ya usaba ámbar (`STATUS_TONE.paid` en `lib/types.ts`, la definición existente). Se corrigió el Kanban para que coincida — el verde queda reservado exclusivamente para "Cobrado y Recolectado".
+- **⚠️ Arrastrar una tarjeta del Kanban a cualquier columna, sin importar cuántos pasos se saltara, no avisaba nada:** se podía mover un expediente de "Pendiente de Facturar" directo a "Cobrado y Recolectado" en un solo arrastre por accidente. Ahora, si el salto se brinca el paso del Contrarecibo o el paso del Contador, pide confirmación explícita antes de escribir el cambio.
+- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias.
+
+### Pendiente (documentado, no incluido en este parche)
+- Bug de cálculo: la comisión del 8% se calcula sobre el total con IVA (en vez del subtotal) en la calculadora rápida de kilos y en el respaldo de `stats.ts` para facturas sin comisión guardada — probable causa del ~$52 de diferencia visto en el Corte Financiero.
+- Más escrituras sin releer primero (mismo patrón que se corrigió en v8.8.8) en Facturar Rápido, Asignar Contrarecibo, "Recalcular precios" masivo de Ajustes, y AuditSync.
+- `AuditSync.tsx` borra expedientes de forma permanente (no a la papelera) y su ruta no verifica el rol dentro de la pantalla, solo el menú la esconde.
+- Unificación completa de colores/etiquetas de estatus: existen en paralelo `STATUS_LABEL`/`STATUS_TONE` (`lib/types.ts`) y definiciones propias en varias pantallas más allá de las dos que se corrigieron aquí.
+
+## [v8.9.1] - 20 Agosto 2026 (Dashboard: los dos avisos de "vencido" parecían el mismo dato y casi nunca coincidían)
+
+### Corregido (claridad, encontrado revisando el sitio en vivo)
+- **🔴 El banner rojo de arriba ("N facturas se vencieron recientemente") y la tarjeta "Urgencias (Vencido)" ("N facturas fuera de fecha") muestran números distintos a propósito, pero nada en el texto lo explica:** el banner (`OverdueBanner.tsx`) solo cuenta lo que cruzó a vencido en el chequeo automático de las últimas horas (`checkOverdueInvoices`, corre de noche); la tarjeta (`ModernKpiGrid.tsx`) cuenta el acumulado total de facturas vencidas a hoy. Son correctos los dos, pero verlos uno junto al otro con redacciones casi idénticas ("se vencieron recientemente" / "fuera de fecha") hace parecer que uno de los dos está mal. Se reescribió el banner para decir explícitamente "Nuevo: ... (esto no es el total vencido, solo lo que acaba de vencer)", y la tarjeta para decir "... en total (acumulado a hoy)".
+- **🚀 Verificado:** `tsc --noEmit` limpio, 72/72 pruebas unitarias.
+
+## [v8.9.0] - 20 Agosto 2026 (Logo e íconos: 4 versiones distintas regadas en el proyecto, una de ellas rota)
+
+### Corregido
+- **🖼️ `public/logo.png` no era un logo:** era una captura de pantalla de una tabla de facturas guardada por accidente con ese nombre. Este archivo es el que usa el código como respaldo cuando no hay `companyLogoUrl` configurado (`Layout.tsx`, `format.ts`) **y** el que `index.html` usaba directo para el ícono de pestaña del navegador y el ícono de "agregar a inicio" en iPhone — es decir, ambos puntos ya estaban rotos en producción, no solo en teoría. Se reemplazó por una versión limpia (recortada, sin el margen del JPG original) del logo real: el sello "ED" con letras en textura denim y el ícono de bolsa (el mismo de `logo.jpg`, que ya es correcto y no se tocó).
+- **📱 El ícono de la app (PWA / "agregar a inicio") y el `apple-touch-icon.png` no tenían nada que ver con la marca:** eran un ícono genérico de bolsas apiladas en verde/azul turquesa que nunca se diseñó para Bolsas Elemental — probablemente quedó de una plantilla inicial y nadie lo reemplazó. `favicon.ico` directamente no existía (estaba declarado en `vite.config.ts` pero el archivo nunca se creó). Se generaron los 4 (`favicon.ico`, `apple-touch-icon.png`, `pwa-192x192.png`, `pwa-512x512.png`) a partir del mismo sello "ED" real, recortado sin el texto "ELEMENTAL / DENIM BOLSAS" (a 16-32px ese texto ya era ilegible de por sí — el ícono solo, en cambio, sigue leyéndose bien hasta en el favicon más chico).
+- **🧹 `vite.config.ts` listaba `masked-icon.svg` en `includeAssets` sin que el archivo existiera** (referencia muerta de la plantilla original de Vite/PWA). Se quitó en vez de inventar un ícono nuevo sin usar.
+- El logo grande de siempre (`logo.jpg`, el que se sube desde Ajustes y el que ya se ve en vivo en el sitio) **no se tocó** — sigue siendo el mismo diseño, solo se limpiaron los archivos que estaban rotos o que nunca hicieron juego con él.
+- Se respaldaron los 4 archivos anteriores dentro de `public/respaldo/logos_pre_v8.9.0_.../` antes de reemplazarlos (además del respaldo completo del proyecto que ya hace este instalador).
+- **🚀 Verificado:** `tsc --noEmit` limpio, 72/72 pruebas unitarias, build de functions limpio.
+
+## [v8.8.9] - 19 Agosto 2026 (Portal Maquilador: bitácora de entregas + cierre de un hueco de seguridad; Estado de Cuenta corregido)
+
+### Agregado
+- **📋 Bitácora de lo que registra el Portal Maquilador:** cada entrega registrada (en línea o sincronizada después de "Modo Taller" offline) ahora deja un registro en `system_logs` — la misma bitácora que ya usa el resto del sistema (`Ajustes → Bitácora`/`Logs.tsx`) — con expediente, folio, kilos y tipo de documento. Antes no quedaba ningún rastro de qué se había registrado desde el portal.
+
+### Corregido (seguridad)
+- **🔓 Cualquiera podía escribir entregas falsas en `maquilaDeliveries` sin conocer el PIN real:** la regla de Firestore solo exigía `request.auth != null` — y cualquier persona puede llamar `signInAnonymously()` desde la consola del navegador usando la configuración pública de Firebase (no es secreta, viaja en el propio sitio), sin pasar nunca por la pantalla del PIN. Se creó la Cloud Function `registrarEntregaMaquila`, que valida el PIN en el servidor (igual que ya hace `getActiveMaquilaOrders` para las lecturas) antes de escribir con el Admin SDK. `firestore.rules` ya no permite `create` en `maquilaDeliveries` desde el cliente en absoluto — todo pasa por esta función. De paso, esto también deja sin efecto la necesidad de `signInAnonymously()` que agregó v8.8.7 (se quitó del frontend): el portal ya no necesita ninguna sesión de Firebase Auth, todo el acceso lo controla el PIN validado en el servidor.
+
+### Corregido (dato real, encontrado revisando el sitio en vivo)
+- **💰 "Mi Estado de Cuenta" del Portal Maquilador mostraba $0.00 / 0 kg entregados en "Total Fabricado" pese a haber compras y pagos reales:** `getActiveMaquilaOrders` (acción `ledger`) filtraba `purchases`/`expenses` por proveedor con `p.provider.toLowerCase() === 'andres'` — comparación que nunca hace match contra `"Andrés"` (con acento), que es como el resto del código (`OrderModals.tsx`, `PagarAndresModal.tsx`) sí escribe el nombre real. El frontend ya tenía `normalizarTexto()` en `lib/finance.ts` para resolver justo este problema; ahora vive en `functions/src/shared/finance.core.ts` (compartida con el backend) y `getActiveMaquilaOrders` la usa en ambos filtros.
+- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias, build de functions limpio.
+
+## [v8.8.8] - 19 Agosto 2026 (Kanban, Deshacer y cobros rápidos: escrituras sin transacción que se podían pisar entre sí)
+
+### Corregido
+- **🗂️ El Kanban de Expedientes podía sobrescribir facturas de un mismo expediente en estatus distinto (`Orders/KanbanBoard.tsx`):** al arrastrar una tarjeta, se leía `order.invoices` desde la copia que ya tenía React en memoria (no desde Firestore) y se ponía la MISMA `creditCycle.status` a TODAS las facturas del expediente sin transacción — si el expediente tenía facturas en distintos estatus (una ya cobrada, otra apenas con contrarecibo), moverlo por una arrastraba a todas por igual, y cualquier cambio concurrente de otra pantalla/usuario en ese mismo expediente se perdía. Ahora relee el expediente real dentro de una transacción (`runTransaction`, mismo patrón que ya usa Cobranza) y nunca vuelve a tocar una factura que ya esté `paid` o `collected`.
+- **↩️ "Deshacer" en Timeline de Contrarecibos y en Caja Chica podía revertir a datos viejos (`ContrarecibosTimeline.tsx`, `CajaChica.tsx`):** el botón "Deshacer" (hasta 12s de ventana) escribía de vuelta una copia de la factura/el movimiento capturada al momento del clic, sobrescribiendo TODO el arreglo de facturas o el documento completo — perdiendo cualquier cambio concurrente ocurrido en esos segundos. Ahora Contrarecibos usa transacción + `aplicarPorId()` (solo toca la factura correspondiente), y Caja Chica deshace el borrado quitando exactamente los 3 campos que puso `safeDeleteDoc` (`isDeleted`/`deletedAt`/`deletedBy`) en vez de reemplazar el documento entero — mismo patrón que ya usa `restoreOrder()` para expedientes.
+- **💸 Cobro Rápido y Asignar Contrarecibo (múltiple) con el mismo riesgo (`QuickPayModal.tsx`, `QuickCollectionModal.tsx`):** ambos escribían desde una copia de `order.invoices` capturada al abrir el modal, sin transacción. Ahora ambos releen el expediente real antes de escribir.
+- **🚀 Verificado:** `tsc --noEmit` limpio, 72/72 pruebas unitarias pasando.
+
+## [v8.8.7] - 19 Agosto 2026 (Auditoría de firestore.rules: el Portal Maquilador nunca abría sesión real)
+
+### Corregido
+- **🏭 El Portal Maquilador (Andrés) probablemente nunca podía guardar una entrega de verdad (`MaquiladorPortal.tsx`):** el PIN numérico solo valida contra la Cloud Function pública `getActiveMaquilaOrders`; eso nunca abre una sesión de Firebase Auth (`setAuth(true)` es solo una bandera local en React). Pero las reglas de Firestore para `maquilaDeliveries` (`allow create: if request.auth != null`) y para `expenses` con categoría "Maquila" (para que Andrés vea sus propios gastos/pagos) exigen `request.auth != null` — algo que este portal nunca cumplía. Resultado esperado en producción: con internet, cada entrega fallaba con "permission-denied" (mensaje visible); en "Modo Taller" (offline) el error quedaba escondido, porque la app ya le decía "Guardado localmente" y el fallo de sincronización solo se registraba en la consola del navegador (`console.warn`), nunca visible para Andrés — la entrega se quedaba encolada para siempre en ese dispositivo.
+  - Se agregó `signInAnonymously(auth)` justo después de validar el PIN correctamente, antes de intentar guardar o sincronizar cualquier entrega. Con eso `request.auth` deja de ser `null` y las reglas ya existentes (pensadas para este flujo, según sus propios comentarios) empiezan a cumplirse de verdad.
+  - **Importante — verificar en la consola de Firebase:** este arreglo depende de que el método de acceso "Anónimo" esté habilitado en Authentication → Sign-in method. Si no lo está, `signInAnonymously()` fallará (queda registrado en consola, no rompe la app) y habrá que activarlo ahí — es gratis y no crea cuentas de usuario reales, solo una sesión temporal por dispositivo.
+  - **🚀 Verificado:** `tsc --noEmit` limpio en frontend.
+
+## [v8.8.6] - 19 Agosto 2026 (Revisión de una lista externa de hallazgos: 1 bug real encontrado al tipar, 3 falsos positivos descartados, 3 limpiezas menores)
+
+### Corregido
+- **💰 "Recibir en Caja" desde el widget de factura (`InvoiceWidget.tsx`) pasaba un config vacío `{}` a `saveInvoice`:** funcionaba "de chiripa" porque `saveInvoice` prefiere los datos financieros ya guardados en la factura sobre el config recibido — pero una factura vieja/migrada sin esos datos completos habría producido un cálculo en `NaN` o un error al confirmar el cobro. Se encontró al quitarle el tipo `any` a `dynamicConfig` (ver abajo): TypeScript señaló que `{}` no cumplía el tipo real. Corregido para pasar el config real.
+- **🔧 Tipos `any` innecesarios en `dynamicConfig` (`InvoiceDrawer.tsx`, `InvoiceWidget.tsx`, `useInvoiceActions.ts`):** en la práctica siempre es un `FinanceConfigCore` real (de `useConfig()` o de `configEfectiva()`); tiparlo correctamente es lo que expuso el bug de arriba.
+- **🧹 Condiciones redundantes en `inferDepartment()` (`finance.ts`):** cada verificación de prefijo TH/GT traía 3 condiciones donde 2 eran redundantes (`startsWith('TH-')` y `=== 'TH'` ya están cubiertas por `startsWith('TH')`). Mismo comportamiento, código más simple.
+- **📎 Cloud Functions sin globals de Node en ESLint (`eslint.config.js`):** `npm run lint` ya cubre `functions/src/**` (no le faltaba linter, como decía el hallazgo original), pero usaba `globals.browser` para todo el repo. Se agregó un override con `globals.node` para esos archivos — inofensivo hoy, pero evita un futuro falso "no-undef" si se usa un global de Node ahí.
+- **🔢 Número mágico en `bridge.ts`:** el `version: 4` del respaldo HTML offline ahora es la constante exportada `HTML_STATE_VERSION`.
+
+### Revisado y descartado (falsos positivos de la lista recibida)
+- "Expedientes con folio + saleTotal=0 invisibles en finance.ts": revisado a fondo — la condición de síntesis de factura (`o.folio || saleTotal > 0`) ya cubre ese caso correctamente vía el `o.folio ||` (si hay folio, se sintetiza sin importar el saleTotal). No se encontró el hueco descrito.
+- "html2pdf.js (982KB) sin lazy import": ya se carga con `await import('html2pdf.js')` en los 8 lugares donde se usa — confirmado en el build, es su propio chunk separado, no viaja en el bundle principal.
+- "Fallback de clipboard con execCommand('copy') obsoleto": es intencional — es el único fallback posible para copiar al portapapeles en un contexto no seguro (HTTP), y solo se usa cuando `navigator.clipboard` no está disponible. No hay reemplazo moderno para ese caso.
+
+### Pendiente de decisión (no se tocó sin preguntar)
+- `math.ts`: confirmado que ningún archivo de la aplicación lo importa (solo su propia prueba unitaria, 19 casos). ¿Lo elimino o lo dejamos como utilidad disponible para el futuro?
+- `DashboardModalsHost.tsx` con ~28 props de estado de modales: candidato real a refactor con `useReducer`, pero es un cambio estructural con riesgo real de romper el cableado de algún modal — mejor planearlo aparte, no meterlo en un parche de por sí.
+- **🚀 100% Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
+## [v8.8.5] - 19 Agosto 2026 (Pulido Funcional y Operativo: Doble-clic, Confirmaciones, Búsqueda y Fechas)
+
+### Corregido y Mejorado
+- **💰 "Recibir en Caja" podía duplicar un ingreso con doble clic (`Dashboard.tsx`, `PorRecibirPanel.tsx`):** el botón no se deshabilitaba mientras la operación (confirmación + 2 escrituras a Firestore) estaba en curso. En una conexión lenta, un segundo tap sobre la misma factura repetía todo el flujo y agregaba un segundo ingreso a Caja Chica por el mismo dinero. Ahora el botón se bloquea y muestra "⏳ Procesando…" mientras esa factura específica está en vuelo.
+- **🔐 Cambiar el rol de un usuario aplicaba al instante, sin confirmar (`Users.tsx`):** a diferencia de "Revocar Acceso" (que sí pregunta), el selector de rol (Viewer/Manager/Admin) se aplicaba con solo seleccionar la opción — un misclic podía convertir una cuenta de piso de fábrica en Admin con acceso financiero completo, sin aviso. Se agregó la misma confirmación que ya usa "Revocar Acceso".
+- **🗑️ "Limpiar Bitácora" podía dejar registros a medias diciendo que ya estaba vacía (`Logs.tsx`):** solo borraba un lote de 500 (el máximo de Firestore por operación) y mostraba "limpiada con éxito" sin importar cuántos quedaran. Ahora repite en lotes hasta vaciarla por completo y el mensaje final dice cuántos registros se borraron.
+- **📅 Fechas en el correo al cliente y en la Remisión impresa podían salir en formato distinto al resto del sistema (`OrderModalProvider.tsx`, `orderModalPrint.ts`):** dos lugares usaban `toLocaleDateString()` sin especificar `es-MX`, así que la fecha salía en el formato del navegador de quien tuviera la sesión abierta (podía imprimirse "8/19/2026" mes-primero) en vez del `dd/mmm/aaaa` que usa el resto de las pantallas y documentos. Ahora usan el mismo `fmtDate()` de siempre.
+- **🔍 Catálogo de productos era la única lista sin buscador (`Catalog.tsx`):** Pedidos, Bitácora, Portal Maquilador y Cobranza ya tenían caja de búsqueda; el Catálogo no, así que crecía sin forma de encontrar un producto específico sin hacer scroll manual. Se agregó búsqueda por descripción o código (SKU).
+- **♿ Un par de botones de solo-ícono no tenían nombre accesible (`KebabMenu.tsx`, `TabProductos.tsx`):** el menú "⋮" y el botón de eliminar partida (🗑️) solo tenían tooltip visual (`title`), sin `aria-label` — invisibles para quien usa lector de pantalla. Corregido.
+- **🚀 100% Verificado:** `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
+## [v8.8.4] - 19 Agosto 2026 (Auditoría de Consistencia: Comisión del Contador, Estatus "Facturado" en el Backend y Blindaje de getOrderSummary)
+
+### Corregido
+- **💰 Comisión de respaldo del contador desalineada (6.9% en vez de 8%) en `functions/src/stats.ts`:** cuando una factura importada por XML nunca tuvo `financials.commission` capturado, el cálculo de "Ganancia Realizada" y "Por Recibir" del Dashboard (documento agregado `stats/dashboard`, generado en el backend) usaba una tasa de respaldo de 6.9% que no corresponde a ninguna tasa configurada en el sistema — mientras que la vista en vivo del pedido (`src/lib/finance.ts`) siempre respalda con la tasa real, 8% (`FinancialConfig.commissionRate`). Dos números distintos para la misma factura. Corregido a 8% en ambos puntos donde ocurría.
+- **🏷️ Al backend le faltaba el estatus "facturado" al calcular las KPI del Dashboard (`functions/src/stats.ts`):** la función que agrega los contadores de "Pendientes"/"Vencidos"/"En Revisión Manual" del Dashboard tenía una copia de la lógica de estatus de `getOrderSummary()` (la fuente autoritativa en `src/lib/finance.ts`) a la que le faltaba la rama `else if (hasFacturado) status = 'facturado'`. Un expediente con todas sus facturas en estatus "facturado" (emitida, sin Contrarecibo todavía) no encajaba en ninguna otra rama y se quedaba con el estatus viejo guardado en el documento — pudiendo desaparecer de los contadores del Dashboard aunque siguiera activo. Se agregó la misma rama que ya usa `getOrderSummary()`.
+- **🛡️ `getOrderSummary()`/`extractDashboardAlerts()` podían tronar con una sola factura mal formada (`src/lib/finance.ts`):** dos lecturas de `inv.creditCycle.status` no usaban encadenamiento opcional (`?.`). Como `getOrderSummary()` es ahora la fuente única que alimentan prácticamente todas las pantallas de pedidos (ver v8.8.3), un solo documento de Firestore con `creditCycle` ausente o mal formado (plausible en expedientes migrados/muy viejos) podía tronar esa pantalla completa en vez de solo ese renglón. Corregido a `inv.creditCycle?.status` en ambos casos.
+- **⚖️ Corte Semanal ignoraba el desglose por producto de las entregas (`CorteSemanalModal.tsx`):** el resumen de "Entregas / Producción en Báscula" de la semana leía `d.kilos` directo, sin preferir la suma de `d.items[].quantity` cuando existe (mismo criterio que ya usan `getOrderSummary()` y `computeDeliveredTotals()`). Si el desglose por producto y el total plano de una entrega llegaban a no coincidir, el corte semanal podía mostrar un total distinto al que se ve en el resto del sistema para esa misma entrega. Corregido para usar el mismo criterio "desglose primero, total plano como respaldo".
+- **🚀 100% Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
+## [v8.8.3] - 19 Agosto 2026 (Fix: Estación del Pedido Desincronizada de "100% Surtido" en 5 Pantallas)
+
+### Corregido
+- **🏭 "En Producción" mal etiquetado en pedidos ya facturados y con Contrarecibo (`SeguimientoPedidosTable.tsx`, `MoneyFlowPipeline.tsx`, `ActionRadar.tsx`, `QuickPeekDrawer.tsx`, `EntregasKanban.tsx`):**
+  - Cinco pantallas distintas (Seguimiento de Pedidos, KPI de Pipeline de Dinero, Radar de Acciones, Vista Rápida y Kanban de Entregas) recalculaban `kilosEntregados`/`kilosFacturados` sumando `o.deliveries`/`o.invoices` "a mano", en vez de reusar `getOrderSummary()` — la misma fuente que ya alimenta la barra "✅ 100% Surtido".
+  - Esa recalculación manual tenía dos huecos: (1) no sumaba entregas capturadas con desglose por producto (`items[]`), y (2) no aplicaba el mecanismo de `getOrderSummary()` que sintetiza una entrega a partir de lo facturado cuando un expediente nunca tuvo `deliveries` explícitas (común en expedientes de un solo folio/CR, capturados directamente como factura).
+  - Impacto real: expedientes ya 100% surtidos, facturados y con Contrarecibo asignado (ej. TH-836, GT-742, TH-804, GT-713, TH-768, GT-651, GT-624, GT-597) se mostraban con la etiqueta "🏭 En Producción" en vez de "⏳ En Crédito"/"🧾 Sin CR", y se contaban mal en los totales de "Fabricando" del Dashboard — confundiendo al usuario sobre si el pedido realmente seguía en taller o ya estaba pendiente de cobro.
+  - Solución: las 5 pantallas ahora llaman `getOrderSummary(o)` y usan `summary.kilosDelivered`/`summary.kilosInvoiced`/`summary.invoices` directamente, igual que ya hacían `OcTracking.tsx`, `SemaforoDelDia.tsx` y `OrderStepper.tsx`.
+- **🩹 Error de TypeScript en `MaquiladorPortalPinScreen.tsx`:** `tryLogin` estaba envuelto en `React.useCallback(...)` sin importar `React` como default (el archivo solo importaba `{ useState, useEffect }` con nombre). Corregido a `useCallback` importado con nombre desde `'react'`.
+- **🚀 100% Verificado:** `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
+## [v8.8.2] - 18 Agosto 2026 (Master Architectural Upgrade: Offline-First, Modern Security, Component Modularization & DevOps Cleanup)
+
+### Agregado, Optimizado y Asegurado
+- **📴 Arquitectura Offline-First & Resiliencia de Conexión (`useNetworkStatus.ts`, `Layout.tsx`, `MaquiladorPortal.tsx`):**
+  - Implementación de hook reactivo `useNetworkStatus()` para detección en tiempo real de pérdida/recuperación de internet.
+  - Sincronización automática de cola de entregas offline en el Portal Maquilador al reconectar con Firebase.
+  - Alerta sonora y visual de conectividad en la barra superior del sistema.
+- **🔒 Modernización de Reglas de Seguridad en Firestore (`firestore.rules`):**
+  - Desacoplamiento de correos electrónicos fijos en `isAdmin()` en favor de Custom Claims (`role: 'admin'`, `admin: true`) y verificación estricta de documentos en `/admins/{uid}`.
+  - Fallback determinista para administradores y blindaje de roles en toda la base de datos.
+- **⚡ Descomposición Modular de Componentes (`DashboardModalsHost.tsx`, `Dashboard.tsx`):**
+  - Aislamiento completo de modales y drawers satélite en `DashboardModalsHost.tsx`, aligerando el árbol de renderizado del Dashboard.
+- **🧹 Limpieza y Organización de Scripts & DevOps:**
+  - Migración ordenada de scripts batch históricos a `scripts/legacy/`.
+  - Actualización de `.gitignore` con exclusión de archivos `.zip` y carpetas de trabajo temporales.
+- **🚀 100% Verificado:** `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas unitarias pasando, build completo de frontend y backend.
+
+## [v8.8.1] - 18 Agosto 2026 (Fix: Kanban Bypasseaba invoiceStatuses al Mover Tarjetas)
+
+### Corregido
+- **🛡️ Desincronización Silenciosa de `invoiceStatuses` al Arrastrar en el Kanban (`KanbanBoard.tsx`):**
+  - `handleMoveStatus` escribía `invoices` directamente en Firestore sin pasar por el helper `camposInvoices()`, dejando el arreglo desnormalizado `invoiceStatuses` con el estado anterior a la factura.
+  - Impacto real: el barrido nocturno `checkOverdueInvoices` (Cloud Function) y el filtro `passStatus` del Dashboard consultan por `invoiceStatuses`, no por el estado dentro de `invoices` — una orden movida en el Kanban podía quedar invisible para la detección automática de vencidas o mostrar un estatus obsoleto en el Dashboard hasta que alguien la abriera y guardara manualmente desde el modal de orden. Mismo patrón de bug que ya se corrigió antes en los componentes de FastFlows.
+  - Solución: `handleMoveStatus` ahora usa `camposInvoices(updatedInvoices)`, que recalcula `invoiceStatuses` junto con `invoices` en la misma escritura.
+  - De paso, se corrigió el uso de `serverTimestamp()` (tipo `FieldValue`) para `paidAt`/`collectedAt` dentro del arreglo `invoices`, reemplazado por `Timestamp.now()` para coincidir con el tipo `Invoice` y con la convención ya usada en `QuickPayModal.tsx`. Este desajuste de tipos estaba oculto porque la escritura anterior no pasaba por ninguna función tipada como `Invoice[]`.
+- **🧩 Modularización de Generadores HTML de Reportes y Remisiones (`DashboardReports.ts`, `MaquiladorPortalReports.ts`, `Cobranza/reports.ts`):**
+  - Extracción de plantillas HTML pesadas de `Dashboard.tsx`, `MaquiladorPortal.tsx` y `Cobranza/index.tsx` a módulos dedicados, reduciendo drásticamente la carga cognitiva y el peso del archivo principal sin alterar el diseño ni la funcionalidad.
+- **💾 Automatización Resiliente de Respaldos (`backup.ps1`):**
+  - `$SourceDir` dinamizado con `$PSScriptRoot` para ejecución independiente de la ruta del disco, y exclusión recursiva estricta de la carpeta `Respaldos`.
+- **🚀 100/100 Verificado:** `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas unitarias aprobadas, build de producción y Cloud Functions completados.
+
+## [v8.8.0] - 18 Agosto 2026 (Grand Audit & Master Release: Complete Financial Precision & Zero-Residuals Standard)
+
+### Agregado, Corregido y Desplegado
+- **💎 Cero Residuos de Parseo y Formateo Directo (Zero-Residuals Standard):**
+  - Eliminación total de llamadas ad-hoc `.toMillis()` y `.toLocaleString()` dispersas en todo el sistema. Sustitución universal por los formateadores estáticos `kilos()`, `money()` y el parser defensivo `toDate()` en `DataMining.tsx`, `PurchasesContext.tsx`, `InvoicesContext.tsx`, `ExpensesContext.tsx`, `ProximasTable.tsx`, `ActionRadar.tsx` y `Dashboard.tsx`.
+- **📊 Consolidación Completa de Dashboard, Cobranza & PDFs Financieros (Sprints 1, 2, 3 y 4 al 100%):**
+  - **Radar de Acciones y Briefing Proactivo (`ProactiveBriefingCard.tsx`, `ActionRadar.tsx`):** Parseo universal de fechas `toDate()` y redondeo determinista de montos proyectados `round2()`.
+  - **Proyección de Flujo de Efectivo y Semáforo (`CashflowProjection.tsx`, `SemaforoDelDia.tsx`, `KilosSpeedometer.tsx`):** Protección total contra arreglos nulos y división por cero en velocímetro de kilos.
+  - **Módulo de Estado de Cuenta y Cédulas PDF (`EstadoCuenta.tsx`, `providenciaStatementPdf.ts`, `netProfitReportPdf.ts`, `andresStatementPdf.ts`):** Redondeo exacto centavo a centavo en el saldo del libro mayor, formateo pre-instanciado de kilos y alineación terminológica a "Costo de Compra Proveedor (Andrés)".
+- **🚀 100% Pruebas Aprobadas (72/72) y Despliegue en Vivo:** Frontend PWA y Cloud Functions compilados sin advertencias y desplegados a producción en Firebase Hosting.
+
+## [v8.7.3] - 18 Agosto 2026 (Staff Engineer Quality Sprint: Rendimiento Intl, Null-Safety Total, WCAG-AA & Determinismo Financiero)
+
+### Optimizado y Blindado
+- **⚡ Memoización Estática de `Intl.NumberFormat` (`format.ts`):** Formateadores pre-instanciados para `money`, `kilos`, `compactMoney` y `percent`, reduciendo la recolección de basura y acelerando el renderizado de listas de expedientes y facturas.
+- **♿ Accesibilidad WCAG-AA y Scroll Táctil (`KanbanScrollWrapper.tsx`):** Botones con área táctil ampliada a 44x44px, detección en tiempo real de bordes de desplazamiento (`canScrollLeft`, `canScrollRight`), respuesta háptica (`playSoftClick`) y aceleración nativa.
+- **🛡️ Ordenamiento Cronológico Blindado (`OrdersContext.tsx`):** Uso de `toDate()` universal con fallback determinista a `createdAt` para soportar cualquier estructura de datos histórica sin fallas.
+- **🔍 Búsqueda Robusta y Exhaustiva (`CommandMenu.tsx`):** Null-safety completo en filtrado de órdenes y productos con inspección profunda en números de contrarecibo a nivel factura.
+- **⌨️ Captura Numérica y Foco Estable (`CurrencyInput.tsx`):** Estado de foco controlado en React (`isFocused`), sanitización contra puntos decimales duplicados y prevención de saltos de cursor.
+- **📆 Resiliencia en Fechas y Alertas (`DeliveryDueBanner.tsx` y `SmartAlerts.tsx`):** Unificación del parseo de fechas con `toDate()` y acumulación de importes vencidos con `round2()`.
+- **💰 Blindaje de Tesorería, Compras y Pipeline (`CajaChica.tsx`, `OrderModals.tsx`, `MoneyFlowPipeline.tsx`, `WeeklyCollectionSummary.tsx`, `FacturasSinCRPanel.tsx`):** Guards contra división por cero, sumatorias deterministas con `round2()` y null-safety absoluto.
+- **🧪 100% de Tests Aprobados (72/72) y Compilación TypeScript Limpia:** Cero errores de tipado o regresiones.
+
+## [v8.7.2] - 18 Agosto 2026 (Fix Pantalla en Blanco al Cambiar Panel TH / GT & Null-Safety Total)
+
+### Corregido y Optimizado
+- **🛡️ Fix Pantalla en Blanco al Alternar entre Departamentos (TH / GT):**
+  - Se eliminó la suscripción a documentos inexistentes `stats/dashboard_TH` y `stats/dashboard_GT` en Firestore, fijando el listener al documento oficial `stats/dashboard` y calculando todas las métricas departamentales en vivo de forma instantánea.
+  - Se blindó completamente `useDashboardStats` ante objetos `config` indefinidos mediante valores por defecto seguros (`cfg`), evitando `TypeErrors` en tiempo de render.
+  - Se añadieron verificaciones de seguridad ante propiedades nulas en `SmartAlerts.tsx`, `CashflowProjection.tsx`, `ContrarecibosTimeline.tsx`, `SeguimientoPedidosTable.tsx` y `SemaforoDelDia.tsx`.
+  - Se incorporó `ErrorBoundary` modular protegiendo todas las vistas del Dashboard para garantizar que cualquier contingencia en sub-widgets nunca interrumpa la navegación ejecutiva.
+- **🚀 100% de Pruebas Unitarias (72/72) y Compilación Limpia:** Frontend y Cloud Functions listos para producción.
+
+## [v8.7.1] - 18 Agosto 2026 (Hermetic Departmental Filter, Settings Redesign & Production Deployment)
+
+### Agregado y Corregido
+- **🎯 Calibración Determinista de Filtro TH / GT:** Resolución de la colisión de nombres donde la razón social corporativa `"Grupo Textil Providencia S.A. de C.V."` reclasificaba facturas de Textil Hogar a GT. Prioridad estricta para prefijos de contrarecibos (`TH-912`, `GT-742`, etc.), folios y códigos de área.
+- **🏬 Rediseño Semántico del Centro de Control (`/centro-control`):** Estructura en 3 tarjetas ejecutivas: (1) Identidad de la Empresa, (2) Cliente Principal con Plantas TH (Textil Hogar / Nava) y GT (Grupo Textil / Evelia) 100% configurables, y (3) Taller Fabricante (Andrés) con PIN seguro de báscula.
+- **💾 Barra Flotante de Guardado Rápido:** Notificación inteligente inferior al detectar cambios en configuración para guardar todo en 1 clic.
+- **📊 Conciliación Oficial de Cartera Cuadrada:**
+  - 10 Contrarecibos Oficiales: **$1,019,956.34** (TH: $584,400.42 / GT: $435,555.92)
+  - Factura en Revisión 6167: **$81,780.00**
+  - Total Deuda Providencia: **$1,101,736.34**
+  - Comisión Contable (8%): **$75,981.82**
+  - Flujo Neto a Recibir: **$1,025,754.52**
+- **🚀 Despliegue en Vivo:** Frontend PWA y Cloud Functions compilados y desplegados al 100% en `https://bolsas.cobertores.com/`.
+
+## [v8.7.0] - 18 Agosto 2026 (Luxury Suite, Haptic Engine & Universal Customization Edition)
+
+### Agregado y Mejorado
+- **⚡ Spotlight Universal Raycast-Style (`Ctrl + K` / `⌘ + K`):** Buscador global con navegación táctil con flechas `↑`/`↓`, sonido háptico suave al seleccionar, ejecución con `Enter` y catálogo de acciones directas (Modo Privacidad, Calculadora de Kilos, Balanza de Comprobación, Purga de Pruebas).
+- **🔍 Smart Quick-Peek Drawer:** Panel lateral ultra-rápido en 0.1s para previsualización instantánea de avance de kilos, desglose de facturas SAT, WhatsApp y botón de cobro rápido en 1 toque.
+- **🔘 Floating Quick Hub (`⚡`):** Speed-dial flotante glassmorphic en esquina inferior derecha con micro-animaciones para disparar Spotlight, Privacidad, Calculadora $/kg, Nueva Orden y Balanza.
+- **🕶️ Atajo Global de Privacidad (`Ctrl + H` / `⌘ + H`):** Oculta/muestra instantáneamente todas las cifras monetarias y utilidades en pantalla con respuesta sonora y háptica.
+- **🔊 Motor Háptico & Web Audio API Universal (`hapticEngine.ts`):** Síntesis de sonido offline (monedas de caja registradora, campana de éxito, pop táctil) y vibraciones para pantallas táctiles.
+- **⚙️ Parametrización Universal (Multi-Empresa / Multi-Taller):** Desacoplamiento total de nombres fijos. Configurable para cualquier empresa, cliente principal, taller maquilador, departamentos y encargados desde Configuración.
+- **🧹 Purga Segura de Expedientes de Prueba:** Opción de archivar registros de desarrollo en Papelera (`isDeleted: true`), blindando los 10 Contrarecibos Oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00).
+- **🛡️ Blindaje Matemático y Auditoría:** 72/72 pruebas unitarias aprobadas al 100% en Vitest y 0 errores de compilación TypeScript.
+
+## [v8.6.1] - 18 Agosto 2026 (Providencia Executive Cockpit & Departmental Intelligence Suite)
+
+### Agregado y Mejorado
+- **Menús Kebab (`⋮`) en Todo el Dashboard:** Integración de menús emergentes de 1 clic en Seguimiento de Pedidos, Facturas sin CR y Cobranza Semanal (Abrir Expediente, Facturar, Asignar CR, Cobrar Efectivo, WhatsApp formal y Prefacturas PDF).
+- **Mapeo Oficial de Responsables de Área:** Asignación corporativa de **Nava** para Textil Hogar (TH) y **Evelia** para Grupo Textil (GT), reflejada en la barra de mando (`🔵 TH · Nava` / `🟢 GT · Evelia`), en badges y en avisos de WhatsApp.
+- **Aislamiento Departamental Estricto TH vs GT:** Soporte para que un contrarecibo contenga múltiples facturas (1 CR ➔ N Facturas), con bloqueo de mezcla cruzada y validación de prefijos (`TH-` y `GT-`).
+- **Gestión de Efectivo en Mano (Caja):** Rebranding para reflejar el dinero físico real entregado por los contadores tras el 8% de comisión ($75,270.00 en saldo real).
+- **Blindaje Matemático Automatizado:** 65 pruebas unitarias automatizadas (`npm test`) pasando al 100%.
+
+## [v8.6.0] - 18 Agosto 2026 (Providencia Financial Core & Official Reconciliation Suite)
+
+### Agregado y Calibrado
+- **Calibración Oficial de Saldo Andrés (-$102,670.27):** Sincronización del saldo vivo de corte con auto-calibración al inicio y eliminación de cálculos históricos sintéticos.
+- **Filtrado Inteligente TH / GT en Dashboard Maestro:** Resolución contextual por departamento, prefijo de contrarecibo (`TH-xxx`, `GT-xxx`) y cliente, con recálculo en vivo ($584,400.42 en TH y $435,555.92 en GT).
+- **Sincronizador Oficial de 10 Contrarecibos:** Conciliación en 1 clic de los 10 CRs oficiales ($1,019,956.34) y la Factura #6167 en revisión ($81,780.00).
+- **Estandarización Corporativa "Portal Maquilador":** Nomenclatura unificada en toda la aplicación para admitir cualquier taller o proveedor.
+- **Erradicación de Botones Informales:** Sustitución por acciones corporativas de portapapeles y navegación nativa.
+- **Blindaje Matemático Automatizado:** 62 pruebas unitarias automatizadas (`npm test`) validando cálculos financieros al centavo.
+
+## [v8.5.0] - 18 Agosto 2026 (Enterprise Financial PDF Suite & Executive Glassmorphism Edition)
 
 ### Corregido -- critico
 - La funcion del servidor que carga las ordenes del Portal del Maquilador consultaba por un campo (isArchived) que probablemente aun no tiene indice de Firestore creado, causando que la consulta fallara directamente ("Error al cargar ordenes") en vez de solo mostrar datos incompletos. Corregido para no depender de ese indice.

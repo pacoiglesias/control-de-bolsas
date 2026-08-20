@@ -5,13 +5,12 @@ import { Timestamp } from 'firebase/firestore';
 import { addDays } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
-import { parseXmlInvoice } from '../../lib/xmlParser';
 import type { Invoice } from '../../lib/types';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const pagoFileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -41,48 +40,11 @@ export default function TabFacturas() {
   if (!ctx) return null;
   
   // NOTE: We now read invoices from the ACTUAL order in context, not the unsaved form state.
-  const { order, readOnly, provName, config, dynamicConfig, processFacturaText, processPagoText, processParsedXml, toast, kilosPendientesDeFacturar } = ctx;
+  const { order, readOnly, provName, config, dynamicConfig, processFacturaText, processPagoText, toast, kilosPendientesDeFacturar } = ctx;
   const invoices = order.invoices || [];
 
-  // FIX 2026-08-11: este handler existia desde antes como un stub vacio
-  // ("e.target.value = ''") -- el <input type="file" accept=".xml"> estaba
-  // en el DOM pero ningun boton visible llamaba a fileInputRef.current.click(),
-  // asi que la funcionalidad de subir el XML real del CFDI (ya implementada
-  // en lib/xmlParser.ts + useInvoiceParser.processParsedXml, con pruebas
-  // unitarias incluidas) nunca era alcanzable desde la interfaz. Se detecto
-  // al preguntar el usuario "el sistema tiene para leer los xml de facturas?".
-  const handleXmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // permitir volver a subir el mismo archivo si hace falta reintentar
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = parseXmlInvoice(text);
-      await processParsedXml(parsed);
-    } catch (err: any) {
-      toast(`No se pudo leer el XML: ${err?.message || 'archivo inválido'}`, 'bad');
-    }
-  };
-
-  // El "Complemento de Pago" que libera un contrarecibo tambien llega como
-  // XML timbrado por el SAT (nodo pago20:Pago con uno o mas
-  // pago20:DoctoRelacionado, cada uno con Folio e ImpPagado). processPagoText
-  // ya sabe leer ese formato -- su "Formato 4" busca exactamente esos
-  // atributos con una expresion regular sobre el texto crudo -- porque hasta
-  // hoy la unica forma de llegar a el era copiar/pegar el texto visible del
-  // PDF. Aqui simplemente se lee el archivo .xml tal cual y se le pasa el
-  // texto crudo a la misma funcion: no hace falta un parser nuevo, el que ya
-  // existe fue escrito pensando en XML crudo desde el principio.
-  const handlePagoXmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.target.value = '';
-    if (!file) return;
-    try {
-      const text = await file.text();
-      await processPagoText(text);
-    } catch (err: any) {
-      toast(`No se pudo leer el XML del pago: ${err?.message || 'archivo inválido'}`, 'bad');
-    }
   };
 
   const addInvoiceLocal = async () => {
@@ -103,7 +65,7 @@ export default function TabFacturas() {
       await saveInvoice(order, newInv, dynamicConfig);
       setExpandedIds(prev => new Set(prev).add(nuevoId));
       toast('Factura creada exitosamente', 'ok');
-    } catch (e: any) {
+    } catch {
       // error handled in saveInvoice
     }
   };
@@ -118,12 +80,9 @@ export default function TabFacturas() {
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
-            <input type="file" accept=".xml" ref={pagoFileInputRef} style={{ display: 'none' }} onChange={handlePagoXmlUpload} />
-
-            <button className="btn" onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }} title="Sube el archivo .xml del CFDI timbrado por el SAT. Se lee el Folio, kilos, OC y fecha directo del archivo, sin copiar/pegar texto.">📄 Subir XML</button>
+            
             <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
             <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
-            <button className="btn" onClick={() => pagoFileInputRef.current?.click()} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }} title="Sube el archivo .xml del Complemento de Pago timbrado por el SAT. Se detecta el monto pagado y la fecha directo del archivo, sin copiar/pegar texto.">📄 Subir XML de Pago</button>
 
             {pegando === 'factura' && (
               <PasteTextModal
@@ -153,8 +112,80 @@ export default function TabFacturas() {
           </div>
         )}
       </div>
+
+      {/* 🏛️ Widget de Datos Listos para Facturar en el Portal del SAT (CFDI 4.0) */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.12) 100%)',
+        border: '1px solid #0284c7',
+        borderRadius: 10,
+        padding: '12px 16px',
+        marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>🏛️</span> Datos para emitir Factura SAT (CFDI 4.0) a Providencia
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: 11, padding: '3px 8px', background: '#2563eb', color: '#fff', border: 'none', fontWeight: 700 }}
+              onClick={async () => {
+                toast('📄 Generando Prefactura en PDF...', 'info');
+                await generatePrefacturaPdf(order, null);
+                toast('✅ Prefactura descargada con éxito', 'ok');
+              }}
+            >
+              📄 Prefactura PDF
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ fontSize: 11, padding: '3px 8px' }}
+              onClick={() => {
+                const rfc = 'GTP930115PU1';
+                const razon = 'GRUPO TEXTIL PROVIDENCIA';
+                const regimen = '601 - General de Ley Personas Morales';
+                const uso = 'G01 - Adquisición de mercancías';
+                const claveProd = '24111500';
+                const claveUnidad = 'KGM';
+                const precio = (dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2);
+                const txt = `RFC: ${rfc}\nNombre: ${razon}\nRégimen: ${regimen}\nUso CFDI: ${uso}\nClave ProdServ: ${claveProd}\nUnidad: ${claveUnidad}\nPrecio Unitario: $${precio}\nObjeto Impuesto: 02 - Sí objeto de impuesto (IVA 16%)\nMétodo de Pago: PPD\nForma de Pago: 99`;
+                navigator.clipboard.writeText(txt);
+                toast('📋 Datos fiscales copiados para el portal del SAT', 'ok');
+              }}
+            >
+              📋 Copiar para SAT
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, fontSize: 11 }}>
+          <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
+            <span style={{ color: 'var(--ink-soft)' }}>RFC Receptor:</span><br/>
+            <strong>GTP930115PU1</strong>
+          </div>
+          <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
+            <span style={{ color: 'var(--ink-soft)' }}>Clave SAT:</span><br/>
+            <strong>24111500</strong> (Bolsas)
+          </div>
+          <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
+            <span style={{ color: 'var(--ink-soft)' }}>Unidad:</span><br/>
+            <strong>KGM</strong> (Kilogramo)
+          </div>
+          <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
+            <span style={{ color: 'var(--ink-soft)' }}>Precio Sugerido:</span><br/>
+            <strong style={{ color: 'var(--ok)' }}>${(dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2)}</strong> / kg
+          </div>
+          <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
+            <span style={{ color: 'var(--ink-soft)' }}>Impuesto / Pago:</span><br/>
+            <strong>IVA 16% · PPD (99)</strong>
+          </div>
+        </div>
+      </div>
       
       {invoices.length === 0 ? (
+
         <div className="empty">
           <span className="empty-icon">🧾</span>
           <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>Sin Facturas</strong>

@@ -5,6 +5,7 @@ import { useExpenses } from './useExpenses';
 import { useOrders } from './useOrders';
 import { useConfig } from './useConfig';
 import { round2, normalizarTexto } from '../lib/finance';
+import { toDate } from '../lib/format';
 export type LedgerEntry = {
   id: string;
   date: Timestamp | null;
@@ -73,8 +74,8 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     ];
 
     ledger.sort((a, b) => {
-      const ta = a.date?.toMillis() ?? 0;
-      const tb = b.date?.toMillis() ?? 0;
+      const ta = toDate(a.date)?.getTime() || 0;
+      const tb = toDate(b.date)?.getTime() || 0;
       return ta - tb;
     });
 
@@ -101,11 +102,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     const o = orderById.get(p.id);
     if (!o?.estimatedDeliveryDate) return false;
     const kilosFaltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
-    // Igual que en OrdersContext.tsx y SeguimientoPedidosTable.tsx: el campo
-    // puede estar presente pero no ser un Timestamp real (datos migrados o
-    // capturados por otra via). Antes esto llamaba .toMillis() directo --
-    // si tronaba, se caia toda la pantalla de Compras al calcular alertas.
-    const ms = o.estimatedDeliveryDate?.toMillis?.();
+    const ms = toDate(o.estimatedDeliveryDate)?.getTime();
     return kilosFaltan > 0.01 && ms !== undefined && ms < hoy;
   }), [provPurchases, orderById, hoy]);
 

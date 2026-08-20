@@ -104,32 +104,18 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
   };
 
   const processParsedXml = async (data: ParsedInvoiceData) => {
-    // Preferir el Folio "humano" del CFDI (ej. "6159", el que Providencia
-    // usa para referenciar la factura en sus contrarecibos) sobre el UUID
-    // -- el UUID solo se usa como respaldo si el XML no trae Folio, igual
-    // que en processFacturaText. Sin esto, toda factura subida como XML
-    // quedaba guardada con un folio ilegible (el UUID completo) en vez del
-    // numero que el usuario reconoce y necesita para dar seguimiento.
-    const finalFolio = data.folio?.trim() || data.uuid;
-
-    if (finalFolio.toUpperCase().startsWith('GT') || finalFolio.toUpperCase().startsWith('TH')) {
-      toast('Error: TH y GT son numeraciones exclusivas de un CONTRARECIBO. No se pueden registrar como número de Factura.', 'bad');
-      return;
-    }
-
-    // Validación Antiduplicados (por folio humano y, aparte, por UUID -- una
-    // factura no debería poder subirse dos veces aunque cambiara el folio).
+    // Validación Antiduplicados
     const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
-    if (currentInvoicesFolios.includes(finalFolio.toUpperCase()) || currentInvoicesFolios.includes(data.uuid)) {
-      toast(`La Factura #${finalFolio} ya existe en este mismo expediente.`, 'bad');
+    if (currentInvoicesFolios.includes(data.uuid)) {
+      toast(`La Factura #${data.uuid} ya existe en este mismo expediente.`, 'bad');
       return;
     }
     if (allOrders && allOrders.length > 0) {
-      const duplicadoGlobal = allOrders.find(o =>
-        (o.invoices || []).some((i: any) => i.folio?.trim().toUpperCase() === finalFolio.toUpperCase() || i.folio?.trim().toUpperCase() === data.uuid)
+      const duplicadoGlobal = allOrders.find(o => 
+        (o.invoices || []).some((i: any) => i.folio?.trim().toUpperCase() === data.uuid)
       );
       if (duplicadoGlobal) {
-        toast(`La Factura #${finalFolio} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
+        toast(`La Factura #${data.uuid} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
         return;
       }
     }
@@ -142,30 +128,30 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     });
 
     // Asegurar que la fecha viene con la zona horaria correcta (generalmente el SAT devuelve YYYY-MM-DDTHH:mm:ss)
-    const issue = new Date(data.fecha + 'Z');
+    const issue = new Date(data.fecha + 'Z'); 
     const due = addDays(issue, config.creditDays);
 
     const newInvoice: Invoice = {
       id: Date.now().toString(),
       orderId: orderId,
-      folio: finalFolio,
+      folio: data.uuid,
       kilos: totalKilos, // O 0 si preferimos que lo llenen manual
-      oc: data.oc || '',
-      creditCycle: {
-        status: 'pending',
-        issueDate: Timestamp.fromDate(issue),
-        dueDate: Timestamp.fromDate(due)
+      oc: '',
+      creditCycle: { 
+        status: 'pending', 
+        issueDate: Timestamp.fromDate(issue), 
+        dueDate: Timestamp.fromDate(due) 
       },
-      collection: {
-        paidAmount: 0,
-        contrareciboNumber: '',
-        notes: ''
+      collection: { 
+        paidAmount: 0, 
+        contrareciboNumber: '', 
+        notes: '' 
       }
     };
 
     try {
       await setInvoices([...invoices, newInvoice]);
-      toast(`Factura XML procesada. Folio: ${finalFolio}. Subtotal: $${data.subTotal}`, 'ok');
+      toast(`Factura XML Procesada. UUID: ${data.uuid}. Subtotal: $${data.subTotal}`, 'ok');
     } catch (e: any) {
       toast(`No se pudo guardar la factura: ${e?.message || 'error desconocido'}`, 'bad');
     }

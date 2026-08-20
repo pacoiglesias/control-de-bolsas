@@ -1,11 +1,10 @@
-import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
-import Decimal from 'decimal.js-light';
-import { motion } from 'framer-motion';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { useMemo, useState, useEffect } from 'react';
+import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { money, shareHtmlAsPdf, monthLabel, fmtDate, getPrintHeaderHtml } from '../lib/format';
+import { money, shareHtmlAsPdf, monthLabel, fmtDate, toDate } from '../lib/format';
+import { round2 } from '../lib/finance';
 import { exportToExcel } from '../lib/export';
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
@@ -14,29 +13,33 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useAuth } from '../context/AuthContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
-import { Skeleton, Drawer } from '../components/ui';
+import { Skeleton } from '../components/ui';
 import { confirmDialog } from '../lib/confirmDialog';
-import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
+import { createCloudBackup, listCloudBackups, restoreCloudBackup, downloadBackupJsonFile, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
 import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
-import { ContrarecibosTable } from '../components/Dashboard/ContrarecibosTable';
 import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
 import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
-import { SpeedDial } from '../components/Dashboard/SpeedDial';
-import { useDashboardStats } from '../hooks/useDashboardStats';
+import { useDashboardStats } from '../hooks/useDashboardStatsV2';
 import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
-import { QuickInvoiceModal } from '../components/FastFlows/QuickInvoiceModal';
-import { QuickPayModal } from '../components/FastFlows/QuickPayModal';
-import { QuickCollectionModal } from '../components/FastFlows/QuickCollectionModal';
 import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
 import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
 import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
-
-const CloudBackupsModal = lazy(() => import('../components/Dashboard/CloudBackupsModal').then(m => ({ default: m.CloudBackupsModal })));
-const LiveLogsModal = lazy(() => import('../components/Dashboard/LiveLogsModal').then(m => ({ default: m.LiveLogsModal })));
-const ChangelogModalComponent = lazy(() => import('../components/Dashboard/ChangelogFeed').then(m => ({ default: m.ChangelogModal })));
+import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
+import { ExecutiveFinancialCard } from '../components/Dashboard/ExecutiveFinancialCard';
+import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectionSummary';
+import { MoneyFlowPipeline, type PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
+import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
+import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
+import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
+import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
+import { getOrderSummary, filterOrderByDepartment, inferDepartment } from '../lib/finance';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { PorRecibirPanel } from '../components/Dashboard/PorRecibirPanel';
+import { getRentabilidadHtml } from './DashboardReports';
+import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 
 
 
@@ -69,6 +72,7 @@ export default function Dashboard() {
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
+  const [recibiendoId, setRecibiendoId] = useState<string | null>(null);
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [monthFilter, setMonthFilter] = useState<string>('ALL');
   const [showContrarecibosDrawer, setShowContrarecibosDrawer] = useState(false);
@@ -76,8 +80,30 @@ export default function Dashboard() {
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
   const [showQuickCollection, setShowQuickCollection] = useState(false);
   const [showQuickPay, setShowQuickPay] = useState(false);
+  const [showCorteMensual, setShowCorteMensual] = useState(false);
+  const [showCorteSemanal, setShowCorteSemanal] = useState(false);
+  const [showBalanza, setShowBalanza] = useState(false);
+  const [showMagicPaste, setShowMagicPaste] = useState(false);
+  const [showSincronizador, setShowSincronizador] = useState(false);
+  const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
+  const [viewMode, setViewMode] = useState<'executive' | 'orders' | 'collection' | 'production' | 'pnl' | 'all'>('executive');
+  const [showReportsMenu, setShowReportsMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
-  async function recalcStats() {
+  // Cerrar menús al hacer clic fuera o presionar Escape
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.dropdown-container')) {
+        setShowReportsMenu(false);
+        setShowExportMenu(false);
+      }
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
+  const recalcStats = useMemo(() => async () => {
     setRecalcBusy(true);
     try {
       const fn = httpsCallable<unknown, { ok: boolean; procesados: number; mensaje: string }>(
@@ -90,9 +116,39 @@ export default function Dashboard() {
     } finally {
       setRecalcBusy(false);
     }
-  }
+  }, [toast]);
 
-  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', deptFilter === 'ALL' ? 'dashboard' : `dashboard_${deptFilter}`));
+  // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp, R = Recalcular)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const k = e.key.toLowerCase();
+      if (k === 'n') {
+        e.preventDefault();
+        nav('/ordenes?nueva=1');
+      } else if (k === 'f') {
+        e.preventDefault();
+        setShowQuickInvoice(true);
+      } else if (k === 'c') {
+        e.preventDefault();
+        setShowQuickCollection(true);
+      } else if (k === 'p') {
+        e.preventDefault();
+        setShowMagicPaste(true);
+      } else if (k === 'r') {
+        e.preventDefault();
+        void recalcStats();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nav, recalcStats]);
+
+  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', 'dashboard'));
   
   const loading = loadingStats || loadingGlobalOrders || loadingExp;
   const error = statsError?.message;
@@ -147,6 +203,15 @@ return () => unsub();
     fetchHealth();
   }, [role]);
 
+  // Auto-calibración automática del saldo histórico con Andrés al valor oficial de corte (-102,670.27)
+  useEffect(() => {
+    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === undefined || config.historicalDebtAndres === 0)) {
+      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true }).catch((err: any) => {
+        console.warn('Auto-calibración config/financials:', err);
+      });
+    }
+  }, [role, config]);
+
   async function handleCreateBackup() {
     setBackupBusy(true);
     try {
@@ -192,13 +257,15 @@ return () => unsub();
       setBackupBusy(false);
     }
   }
-    // Filter global orders exactly as the original query did, PLUS by department
+    // Filter global orders exactly as the original query did, PLUS by department and per-invoice
     const activeOrders = useMemo(() => {
-      return globalOrders.filter((o: PurchaseOrder) => {
-        const passDept = deptFilter === 'ALL' || o.department === deptFilter;
-        const passStatus = o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s));
-        return passDept && passStatus;
-      });
+      return globalOrders
+        .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
+        .filter((o): o is PurchaseOrder => {
+          if (!o) return false;
+          const passStatus = Boolean(o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s)));
+          return passStatus;
+        });
     }, [globalOrders, deptFilter]);
 
     // Seguimiento de Pedidos necesita ver el expediente DESDE que se pega la
@@ -209,10 +276,49 @@ return () => unsub();
     // invisible en esta tabla hasta la primera factura, contradiciendo el
     // proposito de la pantalla ("OC, Entregas, Pagos y Cobros").
     const seguimientoOrders = useMemo(() => {
-      return globalOrders.filter((o: PurchaseOrder) => deptFilter === 'ALL' || o.department === deptFilter);
+      return globalOrders
+        .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
+        .filter((o): o is PurchaseOrder => o !== null);
     }, [globalOrders, deptFilter]);
 
-  const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses);
+  // Métricas financieras departamentales en vivo para los botones de filtrado
+  const deptPorCobrar = useMemo(() => {
+    let all = 0;
+    let th = 0;
+    let gt = 0;
+    let allCount = 0;
+    let thCount = 0;
+    let gtCount = 0;
+
+    globalOrders.forEach(o => {
+      if (o.isClosedShort) return;
+      (o.invoices || []).forEach(inv => {
+        const st = inv.creditCycle?.status;
+        const paidAmt = inv.collection?.paidAmount || 0;
+        const total = inv.financials?.invoiceTotal ?? (Number(inv.kilos || 0) * (config?.salePricePerKg || 43) * (1 + (config?.ivaRate || 0.16)));
+        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim().toUpperCase();
+
+        if (st === 'paid' || st === 'collected' || (paidAmt >= total && total > 0)) return;
+        if (total <= 0) return;
+
+        all += total;
+        if (cr) allCount++;
+
+        const dept = inferDepartment(o, inv);
+        if (dept === 'TH') {
+          th += total;
+          if (cr) thCount++;
+        } else if (dept === 'GT') {
+          gt += total;
+          if (cr) gtCount++;
+        }
+      });
+    });
+
+    return { all, th, gt, allCount, thCount, gtCount };
+  }, [globalOrders, config]);
+
+  const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
 
   // El contador de "Vencido" del agregado del servidor cuenta EXPEDIENTES,
   // no contrarecibos — correcto casi siempre (un expediente = una factura),
@@ -227,34 +333,38 @@ return () => unsub();
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
         const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
         if (!cr) continue;
-        // FIX 2026-08-10 (Iteracion 97): antes esto leia dueDate?.toMillis?.(),
-        // que SOLO funciona si dueDate quedo guardado como Timestamp nativo de
-        // Firestore. Cualquier factura cuyo dueDate se haya guardado como
-        // string/Date normal (ej. datos migrados o escritos desde un flujo
-        // distinto) hacia que venc quedara `undefined`, y la condicion
-        // `if (venc && venc < ahora)` la saltaba en silencio -- SIN contarla
-        // como vencida aunque lo fuera. Resultado real visto en produccion:
-        // la tarjeta "Urgencias (Vencido)" mostraba un monto de dinero mayor
-        // a cero pero "0 facturas fuera de fecha" al mismo tiempo -- las dos
-        // mitades del mismo letrero, calculadas con dos formulas distintas
-        // que no estaban de acuerdo. Ahora usa el mismo parseo tolerante
-        // (Timestamp, Date, o string/numero) que ya usa el servidor
-        // (toDate() en functions/src/stats.ts) para esta misma comprobacion.
-        const rawDue = inv.creditCycle?.dueDate as any;
-        let venc: number | null = null;
-        if (rawDue) {
-          if (typeof rawDue.toMillis === 'function') venc = rawDue.toMillis();
-          else if (typeof rawDue.toDate === 'function') venc = rawDue.toDate().getTime();
-          else if (rawDue instanceof Date) venc = rawDue.getTime();
-          else { const d = new Date(rawDue); if (!isNaN(d.getTime())) venc = d.getTime(); }
-        }
+        const due = toDate(inv.creditCycle?.dueDate);
+        const venc: number | null = due ? due.getTime() : null;
         if (venc !== null && venc < ahora) n++;
       }
     }
     return n;
   }, [activeOrders]);
 
-  const saldoCaja = expenses.reduce((acc, e) => new Decimal(acc).plus(e.type === 'ingreso' ? e.amount : -e.amount).toNumber(), 0);
+  const saldoCaja = round2((expenses || []).reduce((acc, e) => {
+    if (!e) return acc;
+    return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
+  }, 0));
+
+  const pendingInvoicesCount = useMemo(() => {
+    return seguimientoOrders.filter(o => {
+      if (o.isClosedShort) return false;
+      const s = getOrderSummary(o);
+      return s.kilosDelivered > s.kilosInvoiced + 0.01;
+    }).length;
+  }, [seguimientoOrders]);
+
+  const pendingCollectionsCount = useMemo(() => {
+    let count = 0;
+    seguimientoOrders.forEach(o => {
+      (o.invoices || []).forEach(inv => {
+        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [seguimientoOrders]);
 
   if (loading || loadingExp) {
     return (
@@ -274,77 +384,11 @@ return () => unsub();
   }
   if (error) return <div className="alert bad">{error}</div>;
 
-  function getRentabilidadHtml() {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Reporte de Utilidad Comercial</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
-            .kpis { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-            .kpi { flex: 1; min-width: 150px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px 20px; border-radius: 8px; }
-            .kpi-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 8px; }
-            .kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-            h2, h3 { font-size: 16px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 32px; margin-bottom: 16px; font-weight: 700; }
-            .flow-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; }
-            .flow-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-            .flow-row:last-child { border-bottom: none; }
-            .flow-label { font-weight: 600; color: #475569; }
-            .flow-val { font-family: monospace; font-size: 15px; }
-            .flow-total { font-weight: 800; font-size: 18px; color: #0f172a; border-top: 2px solid #cbd5e1; padding-top: 16px; margin-top: 8px; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 80px; text-align: center; font-weight: 600; color: #475569; }
-            .sig-box { border-top: 1px solid #94a3b8; width: 250px; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          ${getPrintHeaderHtml(settings, "Reporte de Rentabilidad (Utilidad Comercial)")}
-          
-          <div style="margin-bottom: 24px; font-size: 14px; color: #475569; font-weight: 500;">
-            ${k.periodText}
-          </div>
-
-          <div class="kpis">
-            <div class="kpi"><div class="kpi-title">TOTAL VENDIDO</div><div class="kpi-val">$${k.ventasTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">UTILIDAD BRUTA (MARGIN)</div><div class="kpi-val" style="color: #047857;">$${k.margenTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">GANANCIA LÍQUIDA EN CAJA</div><div class="kpi-val" style="color: #2563eb;">$${k.gananciaRealizadaTotal.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-          </div>
-
-          <h3>Cascada Financiera: Deuda Proyectada</h3>
-          <div class="flow-box">
-            <div class="flow-row"><span class="flow-label">1. Dinero en la calle (Por cobrar):</span><span class="flow-val">$${(k.porCobrar || 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row"><span class="flow-label">2. Mercancía entregada pendiente de facturar:</span><span class="flow-val">$${(k.montoPendienteFacturar || 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row flow-total"><span class="flow-label">Deuda Bruta de Providencia:</span><span class="flow-val" style="color: #b91c1c;">$${k.deudaTotalProvidencia.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row"><span class="flow-label">Menos Comisión Contable Estimada:</span><span class="flow-val" style="color: #047857;">-$${k.comisionContable.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-            <div class="flow-row flow-total"><span class="flow-label">Dinero Real a Recibir (Neto):</span><span class="flow-val" style="color: #2563eb;">$${k.dineroRealARecibir.toLocaleString('es-MX', {minimumFractionDigits:2})}</span></div>
-          </div>
-
-          <h3>Métricas Operativas</h3>
-          <div class="flow-box">
-            <div class="flow-row"><span class="flow-label">Kilos Procesados:</span><span class="flow-val">${k.kilosTotal.toLocaleString('es-MX')} kg</span></div>
-            <div class="flow-row"><span class="flow-label">Facturas Emitidas:</span><span class="flow-val">${k.facturasEmitidas.toLocaleString('es-MX')} facturas</span></div>
-            <div class="flow-row"><span class="flow-label">Órdenes Atendidas:</span><span class="flow-val">${k.totalOrders.toLocaleString('es-MX')} OC's</span></div>
-            <div class="flow-row"><span class="flow-label">Costo por Kilo Base:</span><span class="flow-val">$${(config?.costPricePerKg || 0).toLocaleString('es-MX', {minimumFractionDigits:2})} MXN/kg</span></div>
-            <div class="flow-row"><span class="flow-label">Venta por Kilo Base:</span><span class="flow-val">$${(config?.salePricePerKg || 0).toLocaleString('es-MX', {minimumFractionDigits:2})} MXN/kg</span></div>
-          </div>
-
-          <div class="signatures">
-            <div class="sig-box">Elaborado Por</div>
-            <div class="sig-box">Aprobado / Revisado</div>
-          </div>
-
-          <script>
-            window.onafterprint = () => window.close();
-            window.onload = () => { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-  }
-
+  // getRentabilidadHtml (el generador puro de HTML, ~70 lineas de template
+  // literal) se extrajo a DashboardReports.ts. Estas 2 funciones se quedan
+  // aqui porque si tocan cosas del componente (Blob, window, toast).
   function printRentabilidad() {
-    const html = getRentabilidadHtml();
+    const html = getRentabilidadHtml(settings, k, config);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
@@ -352,30 +396,38 @@ return () => unsub();
   }
 
   async function shareRentabilidad() {
-    const html = getRentabilidadHtml();
+    const html = getRentabilidadHtml(settings, k, config);
     toast('Generando PDF, por favor espera...', 'ok');
     await shareHtmlAsPdf(html, `Rentabilidad_Providencia_${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
   async function handleRecibir(r: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }) {
-    if (!(await confirmDialog(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`))) return;
-    
+    // FIX: el boton "Recibir" no se deshabilitaba mientras la operacion
+    // estaba en vuelo (confirmDialog + 2 escrituras a Firestore). En una
+    // conexion lenta, si no se ve nada pasar de inmediato, un segundo tap
+    // sobre la misma factura corria TODO el flujo otra vez -- duplicando
+    // el ingreso en Caja Chica para el mismo dinero. recibiendoId bloquea
+    // la fila especifica mientras esta corriendo esta operacion.
+    if (recibiendoId === r.invoiceId) return;
+    setRecibiendoId(r.invoiceId);
     try {
+      if (!(await confirmDialog(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`))) return;
+
       // 1. Encontrar la orden para actualizar el invoice especifico
       const orderRef = doc(db, PATHS.orders, r.orderId);
       const orderSnap = await getDoc(orderRef);
       if (!orderSnap.exists()) throw new Error("Orden no encontrada");
-      
+
       const orderData = orderSnap.data();
       const invoices = orderData.invoices || [];
       const invIndex = invoices.findIndex((i: any) => i.id === r.invoiceId);
       if (invIndex === -1) throw new Error("Factura no encontrada");
-      
+
       invoices[invIndex].creditCycle.status = 'collected';
       invoices[invIndex].collection = { ...invoices[invIndex].collection, collectedAt: Timestamp.now() };
-      
+
       await updateDoc(orderRef, { invoices });
-      
+
       // 2. Ingreso a caja chica
       await addDoc(collection(db, PATHS.expenses), {
         date: Timestamp.now(),
@@ -385,99 +437,850 @@ return () => unsub();
         notes: `Documento: $${r.invoiceTotal.toLocaleString('es-MX', {minimumFractionDigits:2})} — Comisión: $${r.commission.toLocaleString('es-MX', {minimumFractionDigits:2})}`,
         createdAt: serverTimestamp(),
       });
-      
+
       toast(`💵 Recibido del contador. $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} agregado a CAJA.`, 'ok');
     } catch (e: any) {
       toast('Error: ' + e.message, 'bad');
+    } finally {
+      setRecibiendoId(null);
     }
   }
 
+  // El panel "Por Recibir del Contador" (~100 lineas de JSX) se extrajo a
+  // components/Dashboard/PorRecibirPanel.tsx como componente presentacional
+  // puro. handleRecibir (arriba) se queda aqui porque si toca Firestore.
+
   return (
-    <>
-      <div className="page-head">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h1>Dashboard Maestro</h1>
-            <p>Visión integral: Ventas, Cobranza (Flujo) y Operación con Providencia.</p>
+    <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
+      {/* ─── 0. LIVE FINANCIAL TICKER (FRANJA DE PULSO EN VIVO) ────────────── */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.88) 100%)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 16,
+          padding: '10px 18px',
+          marginBottom: 20,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 14,
+          boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.25)',
+          color: '#f8fafc',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>💵</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Efectivo en Caja</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: saldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(saldoCaja)}</div>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              className="btn"
-              style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6', fontWeight: 600 }}
-              onClick={async () => {
-                // Antes este boton descargaba un archivo estatico
-                // (/plantilla_llena.xlsx) guardado una sola vez en el
-                // servidor: una foto congelada que nunca se actualizaba con
-                // los datos reales. Si alguien la editaba pensando que eran
-                // los datos de hoy y la volvia a subir, pisaba cambios
-                // reales con informacion vieja. Ahora usa la MISMA
-                // exportacion en vivo que el resto del sistema.
-                toast('Generando sábana con los datos actuales...', 'info');
-                try {
-                  await exportToExcel();
-                  toast('Sábana descargada', 'ok');
-                } catch (e) {
-                  toast(`Error al exportar: ${(e as Error).message}`, 'bad');
-                }
-              }}
-            >
-              ⬇️ Descargar Sábana (datos actuales)
-            </button>
-            <button className="btn" style={{ background: '#7e22ce', color: '#fff', borderColor: '#7e22ce', fontWeight: 600 }} onClick={() => window.location.href = '/audit'}>
-              ⚖️ Auditoría Maestra
-            </button>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareRentabilidad}>
-              <span className="icon">📤</span> Compartir PDF
-            </button>
-            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printRentabilidad}>
-              📈 Imprimir Reporte
-            </button>
+
+          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>🏷️</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Por Cobrar (Providencia)</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8' }}>{money(k.porCobrar)}</div>
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>⚖️</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con {settings.providerName || 'Andrés'}</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: k.deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
+                {money(k.deudaAndres)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>📦</span>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Kilos en Proceso</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#c084fc' }}>{k.kilosTotal.toLocaleString('es-MX')} kg</div>
+            </div>
           </div>
         </div>
-        <div className="tabs" style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button className={deptFilter === 'ALL' ? 'active' : ''} onClick={() => setDeptFilter('ALL')}>🏢 Toda la Empresa</button>
-          {(settings?.departments || ['TH', 'GT']).map(d => (
-            <button key={d} className={deptFilter === d ? 'active' : ''} onClick={() => setDeptFilter(d)}>{d}</button>
-          ))}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>Mes P&L:</span>
-            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={{ padding: '6px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--paper)', fontSize: 13, fontWeight: 600, color: 'var(--ink)', outline: 'none' }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 999,
+              padding: '3px 10px',
+              fontSize: 11,
+              fontWeight: 800,
+              color: '#34d399',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+            En Línea
+          </span>
+        </div>
+      </div>
+
+      {/* ─── 1. ENCABEZADO PRINCIPAL CONSOLIDADO (LIMPIO Y ERGONÓMICO) ──────── */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 14 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
+              <span className="badge" style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 8px' }}>
+                v{__APP_VERSION__} Enterprise
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
+              Control Integral de Compra-Venta, Flujo de Efectivo, Cobranza y Suministro a Providencia.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* BOTÓN HERO: NUEVO EXPEDIENTE */}
+            <button
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 13.5,
+                padding: '9px 18px',
+                borderRadius: 12,
+                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+              }}
+              onClick={() => nav('/ordenes?nueva=1')}
+            >
+              <span style={{ fontSize: 16 }}>➕</span>
+              <span>Nuevo Expediente</span>
+            </button>
+
+            {/* DROPDOWN 1: REPORTES & BALANZA */}
+            <div className="dropdown-container" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowReportsMenu((prev) => !prev);
+                  setShowExportMenu(false);
+                }}
+                style={{
+                  background: 'var(--paper-raised)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  padding: '9px 14px',
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <span>📑</span>
+                <span>Reportes & Balanza</span>
+                <span style={{ fontSize: 10, opacity: 0.6 }}>{showReportsMenu ? '▲' : '▼'}</span>
+              </button>
+
+              {showReportsMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--paper-raised)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 14,
+                    padding: 6,
+                    minWidth: 240,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowCorteMensual(true); }}
+                  >
+                    📑 Corte Mensual Contable
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowCorteSemanal(true); }}
+                  >
+                    📅 Corte Semanal (Histórico)
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowBalanza(true); }}
+                  >
+                    ⚖️ Balanza de Comprobación
+                  </button>
+                  <div style={{ height: 1, background: 'var(--line-soft)', margin: '2px 0' }} />
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); setShowSincronizador(true); }}
+                  >
+                    ⚡ Sincronizar 10 Contrarecibos
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* DROPDOWN 2: EXPORTAR & RESPALDO */}
+            <div className="dropdown-container" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowExportMenu((prev) => !prev);
+                  setShowReportsMenu(false);
+                }}
+                style={{
+                  background: 'var(--paper-raised)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  padding: '9px 14px',
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <span>📥</span>
+                <span>Exportar</span>
+                <span style={{ fontSize: 10, opacity: 0.6 }}>{showExportMenu ? '▲' : '▼'}</span>
+              </button>
+
+              {showExportMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--paper-raised)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 14,
+                    padding: 6,
+                    minWidth: 230,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={async () => {
+                      setShowExportMenu(false);
+                      toast('Generando sábana Excel con los datos actuales...', 'info');
+                      try {
+                        await exportToExcel();
+                        toast('Sábana Excel descargada con éxito', 'ok');
+                      } catch (e) {
+                        toast(`Error al exportar: ${(e as Error).message}`, 'bad');
+                      }
+                    }}
+                  >
+                    📊 Sábana Excel en Vivo
+                  </button>
+
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      try {
+                        downloadBackupJsonFile(globalOrders, purchases, expenses, config as any);
+                        toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
+                      } catch (e: any) {
+                        toast(`Error al exportar: ${e.message}`, 'bad');
+                      }
+                    }}
+                  >
+                    💾 Respaldo Local (1 Clic)
+                  </button>
+
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowExportMenu(false); void shareRentabilidad(); }}
+                  >
+                    📄 PDF Resumen de Rentabilidad
+                  </button>
+
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowExportMenu(false); printRentabilidad(); }}
+                  >
+                    🖨️ Imprimir Reporte
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* BARRA DE FILTRADO UNIFICADA CON MONTOS EN VIVO */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            background: 'var(--paper-raised)',
+            padding: '10px 16px',
+            borderRadius: 16,
+            border: '1px solid var(--line-soft)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setDeptFilter('ALL')}
+              style={{
+                borderRadius: 10,
+                padding: '7px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: deptFilter === 'ALL' ? '1px solid var(--accent)' : '1px solid var(--line)',
+                background: deptFilter === 'ALL' ? 'var(--accent-tint)' : 'var(--paper)',
+                color: deptFilter === 'ALL' ? 'var(--accent-deep)' : 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>🏢 Toda la Empresa</span>
+              <span style={{
+                background: deptFilter === 'ALL' ? 'var(--accent)' : 'var(--paper-sunk)',
+                color: deptFilter === 'ALL' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.all)}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeptFilter('TH')}
+              style={{
+                borderRadius: 10,
+                padding: '7px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: deptFilter === 'TH' ? '1px solid #0284c7' : '1px solid var(--line)',
+                background: deptFilter === 'TH' ? '#e0f2fe' : 'var(--paper)',
+                color: deptFilter === 'TH' ? '#0369a1' : 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              title={`${settings.deptNameTH || 'Textil Hogar'} — Responsable: ${settings.managerTH || 'Lic. Nava'}`}
+            >
+              <span>🔵 TH · {settings.managerTH || 'Nava'}</span>
+              <span style={{
+                background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
+                color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.th)}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeptFilter('GT')}
+              style={{
+                borderRadius: 10,
+                padding: '7px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: deptFilter === 'GT' ? '1px solid #16a34a' : '1px solid var(--line)',
+                background: deptFilter === 'GT' ? '#dcfce7' : 'var(--paper)',
+                color: deptFilter === 'GT' ? '#15803d' : 'var(--ink)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              title={`${settings.deptNameGT || 'Grupo Textil'} — Responsable: ${settings.managerGT || 'Lic. Evelia'}`}
+            >
+              <span>🟢 GT · {settings.managerGT || 'Evelia'}</span>
+              <span style={{
+                background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
+                color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.gt)}
+              </span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+              📅 Período P&L:
+            </span>
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 10,
+                border: '1px solid var(--line)',
+                background: 'var(--paper)',
+                fontSize: 13,
+                fontWeight: 700,
+                color: 'var(--ink)',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
               <option value="ALL">Histórico Global</option>
-              {[...k.mesesKeys].reverse().map(m => (
-                <option key={m} value={m}>{monthLabel(m)}</option>
+              {[...k.mesesKeys].reverse().map((m) => (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                </option>
               ))}
             </select>
           </div>
         </div>
       </div>
 
-      {role !== 'viewer' && (
-        <SpeedDial 
-          onNewOrder={() => nav('/ordenes?nueva=1&tab=productos')}
-          onManualSale={() => nav('/ordenes?nueva=1')}
-          onFastEntry={() => nav('/captura-rapida')}
-          onNewExpense={() => nav('/cajachica')}
+      {/* ─── 2. HERO SUITE DE 4 PILARES FINANCIEROS (SIEMPRE VISIBLE) ──────── */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+          <Skeleton style={{ height: 150, borderRadius: 20 }} />
+        </div>
+      ) : (
+        <ModernKpiGrid
+          k={k}
+          role={role}
+          saldoCaja={saldoCaja}
+          monthFilter={monthFilter}
+          nav={nav}
+          contrarecibosVencidosCount={contrarecibosVencidosCount}
+          config={config}
         />
       )}
 
-      {role === 'admin' && (
-        <>
-          <SmartAlerts orders={activeOrders} />
-          <CashflowProjection orders={activeOrders} />
-        </>
-      )}
+      {/* ─── 3. SELECTOR DE ESPACIO DE TRABAJO (PESTAÑAS MODULARES DE ALTA DENSIDAD) ───── */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 24,
+          background: 'var(--paper-sunk)',
+          padding: 6,
+          borderRadius: 16,
+          border: '1px solid var(--line-soft)',
+          overflowX: 'auto',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setViewMode('executive')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'executive' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'executive' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>🌟</span>
+          <span>Resumen Ejecutivo</span>
+        </button>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24, marginTop: role === 'admin' ? 16 : 24 }}>
-        
+        <button
+          type="button"
+          onClick={() => setViewMode('orders')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'orders' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'orders' ? 'var(--accent)' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'orders' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>📁</span>
+          <span>Expedientes & OCs ({seguimientoOrders.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode('collection')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'collection' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'collection' ? '#0284c7' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'collection' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>📆</span>
+          <span>Centro de Cobranza</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode('production')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'production' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'production' ? '#7c3aed' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'production' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>🏭</span>
+          <span>Compras & {settings.providerName || 'Andrés'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode('pnl')}
+          style={{
+            flex: 1,
+            minWidth: 150,
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'pnl' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'pnl' ? '#059669' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'pnl' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>⚖️</span>
+          <span>Corte & P&L (50/50)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode('all')}
+          style={{
+            flex: 1,
+            minWidth: 110,
+            padding: '10px 14px',
+            borderRadius: 12,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: viewMode === 'all' ? 'var(--paper-raised)' : 'transparent',
+            color: viewMode === 'all' ? 'var(--ink)' : 'var(--ink-soft)',
+            boxShadow: viewMode === 'all' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span>👁️</span>
+          <span>Ver Todo</span>
+        </button>
+      </div>
+
+      {/* ─── 4. CONTENIDO MODULAR SEGÚN EL ESPACIO DE TRABAJO SELECCIONADO ──── */}
+      <ErrorBoundary>
+        {/* VISTA 1: RESUMEN EJECUTIVO */}
+        {(viewMode === 'executive' || viewMode === 'all') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* A. Radar Proactivo + Dock de Comandos Rápidos */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
+              {/* Lado Izquierdo: Asistente Proactivo */}
+              <div style={{ flex: 1.5 }}>
+                <ProactiveBriefingCard
+                  orders={seguimientoOrders}
+                  config={config as any}
+                  onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+                  onOpenQuickCollection={() => setShowQuickCollection(true)}
+                  onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+                />
+              </div>
+
+              {/* Lado Derecho: Acciones Rápidas Ejecutivas */}
+              <div style={{ flex: 1 }}>
+                <QuickActionsBar
+                  role={role}
+                  onNewOrder={() => nav('/ordenes?nueva=1')}
+                  onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
+                  onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
+                  onQuickInvoice={() => setShowQuickInvoice(true)}
+                  onQuickCollection={() => setShowQuickCollection(true)}
+                  onQuickPay={() => setShowQuickPay(true)}
+                  onOpenMagicPaste={() => setShowMagicPaste(true)}
+                  onOpenCorteMensual={() => setShowCorteMensual(true)}
+                  onRecalc={() => void recalcStats()}
+                  recalcBusy={recalcBusy}
+                />
+              </div>
+            </div>
+
+            {/* B. Pipeline Financiero de 5 Estaciones */}
+            <MoneyFlowPipeline
+              orders={seguimientoOrders}
+              expenses={expenses}
+              config={config}
+              nav={nav}
+              selectedStage={selectedPipelineStage}
+              onSelectStage={setSelectedPipelineStage}
+            />
+
+            {/* C. Tabla de Órdenes Vinculada al Pipeline */}
+            <SeguimientoPedidosTable
+              orders={seguimientoOrders}
+              filterStage={selectedPipelineStage}
+              onFilterStageChange={setSelectedPipelineStage}
+              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+              onQuickInvoice={() => setShowQuickInvoice(true)}
+              onQuickCollection={() => setShowQuickCollection(true)}
+            />
+
+            {/* D. Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
+            {role === 'admin' && (
+              <ExecutiveFinancialCard
+                orders={seguimientoOrders}
+                config={config}
+                saldoCaja={saldoCaja}
+              />
+            )}
+          </div>
+        )}
+
+        {/* VISTA 2: EXPEDIENTES & OCS */}
+        {viewMode === 'orders' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>📁</span>
+              <span>Expedientes, Órdenes de Compra y Entregas en Báscula</span>
+            </div>
+
+            <SeguimientoPedidosTable
+              orders={seguimientoOrders}
+              filterStage={selectedPipelineStage}
+              onFilterStageChange={setSelectedPipelineStage}
+              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+              onQuickInvoice={() => setShowQuickInvoice(true)}
+              onQuickCollection={() => setShowQuickCollection(true)}
+            />
+          </div>
+        )}
+
+        {/* VISTA 3: CENTRO DE COBRANZA */}
+        {(viewMode === 'collection' || viewMode === 'all') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
+            {viewMode !== 'all' && (
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📆</span>
+                <span>Centro de Cobranza & Contrarecibos Providencia</span>
+              </div>
+            )}
+
+            <WeeklyCollectionSummary
+              orders={seguimientoOrders}
+              onOpenQuickCollection={() => setShowQuickCollection(true)}
+            />
+
+            <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
+
+            <PorRecibirPanel porRecibir={k.porRecibir} totalPorRecibir={k.totalPorRecibir} onRecibir={handleRecibir} recibiendoId={recibiendoId} />
+
+            <FacturasSinCRPanel
+              orders={seguimientoOrders}
+              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+              <SemaforoDelDia
+                orders={seguimientoOrders}
+                purchases={purchases}
+                config={config}
+                nav={nav}
+                onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+                onOpenQuickCollection={() => setShowQuickCollection(true)}
+              />
+              <SmartAlerts orders={activeOrders} />
+              <CashflowProjection orders={activeOrders} />
+            </div>
+          </div>
+        )}
+
+        {/* VISTA 4: COMPRAS & KILOS PROVEEDOR */}
+        {(viewMode === 'production' || viewMode === 'all') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
+            {viewMode !== 'all' && (
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🏭</span>
+                <span>Compras, Suministro y Kilos de {settings.providerName || 'Andrés'}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+              <KilosSpeedometer orders={activeOrders} />
+              <BandejaMaquilaWidget />
+            </div>
+          </div>
+        )}
+
+        {/* VISTA 5: CORTE FINANCIERO & P&L (50/50) */}
+        {viewMode === 'pnl' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>⚖️</span>
+              <span>Corte Financiero Ejecutivo & Reparto de Utilidades 50/50</span>
+            </div>
+
+            <ExecutiveFinancialCard
+              orders={seguimientoOrders}
+              config={config}
+              saldoCaja={saldoCaja}
+            />
+          </div>
+        )}
+      </ErrorBoundary>
+
+      {/* ─── 4. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ──────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 32, marginBottom: 32 }}>
         {role === 'admin' && (
-          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--ok-bg)', color: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--paper-raised)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--line-soft)',
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: 'var(--ok-bg)',
+                color: 'var(--ok)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+              }}
+            >
               ⚡
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Último Movimiento (Live)</span>
-                <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>● En vivo</span>
+                <span>Último Movimiento</span>
+                <span className="live-status-pill" style={{ fontSize: 10, padding: '2px 6px' }}>● En vivo</span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
                 🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
@@ -485,23 +1288,43 @@ return () => unsub();
               <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {liveLogs[0]?.action || 'Sistema iniciado'}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
-                Por: {liveLogs[0]?.user || '—'}
-              </div>
               <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-                ⚡ Monitor Live de Movimientos
+                ⚡ Ver Monitor de Eventos
               </button>
             </div>
           </div>
         )}
 
-        <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--accent-sunk)', color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+        <div
+          style={{
+            padding: 16,
+            background: 'var(--paper-raised)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--line-soft)',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              background: 'var(--accent-sunk)',
+              color: 'var(--accent-deep)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+            }}
+          >
             🚀
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Versión del Sistema</span>
+              <span>Versión del ERP</span>
               <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>v{__APP_VERSION__}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
@@ -511,14 +1334,37 @@ return () => unsub();
               {SYSTEM_CHANGELOG[0]?.summary ?? ''}
             </div>
             <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              📜 Bitácora de Parches
+              📜 Bitácora de Versiones
             </button>
           </div>
         </div>
 
         {role === 'admin' && (
-          <div style={{ padding: 16, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--info-bg)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--paper-raised)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--line-soft)',
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: 'var(--info-bg)',
+                color: 'var(--info)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+              }}
+            >
               🛡️
             </div>
             <div style={{ flex: 1 }}>
@@ -533,337 +1379,77 @@ return () => unsub();
                 <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
                   📋 5 Máx
                 </button>
+                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
+                  {recalcBusy ? '⏳ Recalculando…' : '🔄 Recalcular'}
+                </button>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      <BandejaMaquilaWidget />
-      
-      {/* 🚀 Widget Proactivo: Asistente de Siguiente Acción */}
-      {(k.pedidoPendiente.length > 0 || k.urgentes15 > 0 || k.review.length > 0) && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(217,119,6,0.2) 100%)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, boxShadow: 'var(--shadow-hover)' }}
-        >
-          <div style={{ fontSize: 32, filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.5))' }}>✨</div>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ margin: 0, fontSize: 16, color: 'var(--accent)' }}>Sugerencias Proactivas</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: 14, color: 'var(--ink-soft)' }}>
-              {k.pedidoPendiente.length > 0 ? `Tienes ${k.pedidoPendiente.length} órdenes con entregas pero sin facturar. ` : ''}
-              {k.urgentes15 > 0 ? `Existen ${k.urgentes15} contrarecibos urgentes por cobrar. ` : ''}
-              {k.review.length > 0 ? `Hay ${k.review.length} XMLs esperando validación manual.` : ''}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {k.pedidoPendiente.length > 0 && <button className="btn btn-primary" onClick={() => nav('/ordenes?filtro=pedido')}>Facturar Ahora</button>}
-            {k.urgentes15 > 0 && <button className="btn" onClick={() => nav('/cobranza')}>Cobrar</button>}
-            <button className="btn" onClick={() => nav('/config')}>⚙️ Configuración</button>
-          </div>
-        </motion.div>
-      )}
+      {/* ─── MODALES Y DRAWERS DE CONTROL (MODULARIZADOS) ─────────────────── */}
+      <DashboardModalsHost
+        showContrarecibosDrawer={showContrarecibosDrawer}
+        setShowContrarecibosDrawer={setShowContrarecibosDrawer}
+        showSeguimientoDrawer={showSeguimientoDrawer}
+        setShowSeguimientoDrawer={setShowSeguimientoDrawer}
+        showQuickInvoice={showQuickInvoice}
+        setShowQuickInvoice={setShowQuickInvoice}
+        showQuickCollection={showQuickCollection}
+        setShowQuickCollection={setShowQuickCollection}
+        showQuickPay={showQuickPay}
+        setShowQuickPay={setShowQuickPay}
+        showCorteMensual={showCorteMensual}
+        setShowCorteMensual={setShowCorteMensual}
+        showCorteSemanal={showCorteSemanal}
+        setShowCorteSemanal={setShowCorteSemanal}
+        showBalanza={showBalanza}
+        setShowBalanza={setShowBalanza}
+        showBackupsModal={showBackupsModal}
+        setShowBackupsModal={setShowBackupsModal}
+        showChangelogModal={showChangelogModal}
+        setShowChangelogModal={setShowChangelogModal}
+        showLiveLogsModal={showLiveLogsModal}
+        setShowLiveLogsModal={setShowLiveLogsModal}
+        showMagicPaste={showMagicPaste}
+        setShowMagicPaste={setShowMagicPaste}
+        showSincronizador={showSincronizador}
+        setShowSincronizador={setShowSincronizador}
+        seguimientoOrders={seguimientoOrders}
+        activeOrders={activeOrders}
+        globalOrders={globalOrders}
+        expenses={expenses}
+        purchases={purchases}
+        config={config as any}
+        settings={settings}
+        saldoCaja={saldoCaja}
+        cloudBackups={cloudBackups}
+        backupBusy={backupBusy}
+        handleCreateBackup={handleCreateBackup}
+        handleRestoreBackup={handleRestoreBackup as any}
+        liveLogs={liveLogs}
+        nav={nav}
+      />
 
-      {/* Panel de Semáforo de Alertas Visuales - Control de Gestión */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: k.criticos30 > 0 ? 'rgba(239,68,68,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.criticos30 > 0 ? '#ef4444' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🔴</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink-faint)' }}>Críticos (&gt;30 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.criticos30 > 0 ? '#b91c1c' : 'var(--ink)' }}>{k.criticos30} factura(s)</div>
-          </div>
-        </div>
+      {/* La calculadora flotante ahora se monta una sola vez de forma
+          global en App.tsx (junto a CommandPalette/FloatingQuickHub), para
+          que el atajo funcione desde cualquier pantalla y no solo aquí. */}
 
-        <div style={{ background: k.urgentes15 > 0 ? 'rgba(249,115,22,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.urgentes15 > 0 ? '#f97316' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟠</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink-faint)' }}>Urgentes (16-30 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.urgentes15 > 0 ? '#c2410c' : 'var(--ink)' }}>{k.urgentes15} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: k.recientes1 > 0 ? 'rgba(234,179,8,0.12)' : 'var(--paper-sunk)', border: `1px solid ${k.recientes1 > 0 ? '#eab308' : 'var(--line)'}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟡</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: k.recientes1 > 0 ? '#a16207' : 'var(--ink-faint)' }}>Recientes (1-15 días)</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: k.recientes1 > 0 ? '#a16207' : 'var(--ink)' }}>{k.recientes1} factura(s)</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>🟢</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#047857' }}>Por Recoger Contador</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#047857' }}>{k.porRecibir.length} contrarecibo(s)</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>📅</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 7 Días</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion7d)}</div>
-          </div>
-        </div>
-
-        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 22 }}>📈</div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Flujo a 15 Días</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ok)' }}>{money(k.proyeccion15d)}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* FIX 2026-08-10 (Iteracion 97): este aviso usaba k.overdue.length, un
-          conteo por EXPEDIENTE que viene del agregado cacheado del servidor
-          (counters.overdueOrders) -- pero la etiqueta dice "contrarecibo(s)",
-          que es por FACTURA, no por expediente. Un expediente con varias
-          facturas (ej. el de la migracion original) contaba como 1 aunque
-          tuviera varios contrarecibos vencidos adentro. contrarecibosVencidosCount
-          ya cuenta por factura y en vivo (mismo criterio de fecha que usa el
-          monto en pesos de al lado), asi que ambas mitades del aviso ahora
-          salen de la misma fuente. */}
-      {(contrarecibosVencidosCount > 0 || k.review.length > 0) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-          {contrarecibosVencidosCount > 0 && (
-            <div className="alert bad" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 20 }}>⚠️</span>
-              <div style={{ flex: 1 }}>
-                <strong>Atención:</strong> Tienes {contrarecibosVencidosCount} contrarecibo{contrarecibosVencidosCount > 1 ? 's' : ''} vencido{contrarecibosVencidosCount > 1 ? 's' : ''} por <strong>{money(k.vencido)}</strong>.
-              </div>
-              <button className="btn btn-danger" onClick={() => nav('/cobranza')}>Ir a Cobranza</button>
-            </div>
-          )}
-          {k.review.length > 0 && (
-            <div className="alert warn" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 20 }}>🔍</span>
-              <div style={{ flex: 1 }}>
-                <strong>Revisión manual:</strong> {k.review.length} archivo{k.review.length > 1 ? 's' : ''} con errores en XML o que esperan captura manual.
-              </div>
-              <button className="btn" onClick={() => nav('/ordenes?filtro=manual_review')} style={{ background: 'var(--warn)', color: '#fff', borderColor: 'var(--warn)' }}>Revisar Ahora</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* AGREGADO 2026-08-11 (Iteracion 101): la unica etapa del flujo real
-          del usuario (OC -> entregas -> factura -> contrarecibo -> deposito
-          -> comision -> caja) que no tenia ninguna alerta -- una factura ya
-          emitida que sigue esperando que Providencia entregue el numero de
-          contrarecibo era invisible hasta este panel. */}
-      <FacturasSinCRPanel orders={activeOrders} />
-
-      {k.porRecibir.length > 0 && (() => {
-        const totalBruto = k.porRecibir.reduce((acc: number, r: any) => acc + r.invoiceTotal, 0);
-        const totalComision = k.porRecibir.reduce((acc: number, r: any) => acc + r.commission, 0);
-        return (
-        <div style={{
-          background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2218 100%)',
-          border: '1px solid var(--ok)',
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 22,
-        }}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>
-              💼 Por Recibir del Contador
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-              Estas facturas ya fueron cobradas por el cliente — el contador aún no te da el efectivo
-            </div>
-          </div>
-          {/* Flujo claro en 3 pasos: lo que cobró el cliente -> comisión -> lo que de verdad entra a Caja.
-              Antes solo se veia el neto final, sin explicar de donde salia — cualquiera que no conociera
-              el descuento del contador de memoria tenia que sumar la tabla completa para entender la diferencia. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '14px 18px' }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Cobrado por el cliente</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{money(totalBruto)}</div>
-            </div>
-            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.35)' }}>−</div>
-            <div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Comisión del contador</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#f87171' }}>{money(totalComision)}</div>
-            </div>
-            <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.35)' }}>=</div>
-            <div style={{ marginLeft: 'auto' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Esto es lo que entra a tu Caja</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--ok)' }}>{money(k.totalPorRecibir)}</div>
-            </div>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
-                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Factura</th>
-                <th style={{ padding: '6px 8px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Contrarecibo</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Importe Factura</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Comisión</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>Neto a recibir</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {k.porRecibir.map((r: any, idx: number) => (
-                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                  <td style={{ padding: '8px 8px', color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>#{r.folio}</td>
-                  <td style={{ padding: '8px 8px', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{r.cr}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'rgba(255,255,255,0.8)' }}>{money(r.invoiceTotal)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--bad)' }}>-{money(r.commission)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right', color: 'var(--ok)', fontWeight: 700 }}>{money(r.net)}</td>
-                  <td style={{ padding: '8px 8px', textAlign: 'right' }}>
-                    <button className="btn" style={{ background: 'rgba(34,197,94,0.2)', color: 'var(--ok)', borderColor: 'var(--ok)', padding: '4px 10px', fontSize: 12, fontWeight: 600 }} onClick={() => handleRecibir(r)}>
-                      💵 Recibir → CAJA
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-            Abre la factura → "💵 Recibida del Contador → Caja Chica" para mover el dinero automáticamente.
-          </div>
-        </div>
-        );
-      })()}
-
-      {role !== 'viewer' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {role === 'admin' && (
-            <button className="btn" onClick={() => nav('/compras')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-              <span style={{ fontSize: 24 }}>🏭</span>
-              <span style={{ fontWeight: 600 }}>Comprar al Fabricante</span>
-            </button>
-          )}
-          <button className="btn" onClick={() => nav('/cobranza')} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}>
-            <span style={{ fontSize: 24 }}>💰</span>
-            <span style={{ fontWeight: 600 }}>Registrar Cobro</span>
-          </button>
-          {role === 'admin' && (
-            <button
-              className="btn"
-              onClick={() => { window.location.href = '/audit'; }}
-              title="Sube tu Excel corregido y aplica los cambios a la base de datos."
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}
-            >
-              <span style={{ fontSize: 24 }}>⚖️</span>
-              <span style={{ fontWeight: 600 }}>Ir a Auditoría Maestra</span>
-            </button>
-          )}
-          {role === 'admin' && (
-            <button
-              className="btn"
-              onClick={() => void recalcStats()}
-              disabled={recalcBusy}
-              title="Reconstruye los indicadores de este panel leyendo todos los expedientes. Úsalo si las cifras se ven en cero o descuadradas."
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', justifyContent: 'center', height: '100px' }}
-            >
-              <span style={{ fontSize: 24 }}>{recalcBusy ? '⏳' : '🔄'}</span>
-              <span style={{ fontWeight: 600 }}>{recalcBusy ? 'Recalculando…' : 'Recalcular Indicadores'}</span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {(statsDoc?.counters?.totalOrders ?? 0) === 0 && role === 'admin' && (
-        <div className="alert info" style={{ marginBottom: 22, padding: '16px 20px', borderRadius: 'var(--radius)' }}>
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
-            El sistema no tiene órdenes registradas aún
-          </div>
-          <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-            Puedes cargar varios expedientes de golpe desde un Excel en la Auditoría Maestra,
-            o capturar el primero a mano desde Expedientes.
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-            <button className="btn btn-primary" onClick={() => window.location.href = '/audit'}>
-              ⚖️ Ir a la Auditoría Maestra
-            </button>
-            <button className="btn" onClick={() => nav('/ordenes?nueva=1')}>
-              + Capturar a mano
-            </button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 32 }}>
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-          <Skeleton style={{ height: 160, borderRadius: 20 }} />
-        </div>
-      ) : (
-        <ModernKpiGrid k={k} role={role} saldoCaja={saldoCaja} monthFilter={monthFilter} nav={nav} contrarecibosVencidosCount={contrarecibosVencidosCount} config={config} />
-      )}
-
-      <QuickActionsBar 
-        role={role}
+      {/* Dock Rápido de Acciones Locales en Móvil (1 Toque) */}
+      <MobileQuickDock
         onNewOrder={() => nav('/ordenes?nueva=1')}
-        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
         onQuickInvoice={() => setShowQuickInvoice(true)}
         onQuickCollection={() => setShowQuickCollection(true)}
         onQuickPay={() => setShowQuickPay(true)}
+        onMagicPaste={() => setShowMagicPaste(true)}
+        onOpenCalculator={() => {
+          const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
+          if (btn) btn.click();
+        }}
+        pendingInvoicesCount={pendingInvoicesCount}
+        pendingCollectionsCount={pendingCollectionsCount}
       />
-
-      {showContrarecibosDrawer && (
-        <Drawer title="Vencimientos (Contrarecibos)" onClose={() => setShowContrarecibosDrawer(false)} width={900}>
-          <ContrarecibosTable orders={activeOrders} />
-        </Drawer>
-      )}
-
-      {showSeguimientoDrawer && (
-        <Drawer title="Seguimiento de Pedidos" onClose={() => setShowSeguimientoDrawer(false)} width={1000}>
-          <SeguimientoPedidosTable orders={seguimientoOrders} />
-        </Drawer>
-      )}
-
-      {showQuickInvoice && (
-        <QuickInvoiceModal 
-          orders={activeOrders} 
-          onClose={() => setShowQuickInvoice(false)} 
-        />
-      )}
-
-      {showQuickCollection && (
-        <QuickCollectionModal 
-          orders={activeOrders} 
-          onClose={() => setShowQuickCollection(false)} 
-        />
-      )}
-
-      {showQuickPay && (
-        <QuickPayModal 
-          orders={activeOrders} 
-          onClose={() => setShowQuickPay(false)} 
-        />
-      )}
-
-      <Suspense fallback={null}>
-        {showBackupsModal && (
-          <CloudBackupsModal 
-            onClose={() => setShowBackupsModal(false)}
-            cloudBackups={cloudBackups as any}
-            backupBusy={backupBusy}
-            handleCreateBackup={handleCreateBackup}
-            handleRestoreBackup={handleRestoreBackup as any}
-          />
-        )}
-
-        {showChangelogModal && (
-          <ChangelogModalComponent onClose={() => setShowChangelogModal(false)} />
-        )}
-
-        {showLiveLogsModal && (
-          <LiveLogsModal 
-            onClose={() => setShowLiveLogsModal(false)}
-            liveLogs={liveLogs as any}
-          />
-        )}
-      </Suspense>
-    </>
+    </div>
   );
 }

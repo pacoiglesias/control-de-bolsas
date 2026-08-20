@@ -175,57 +175,111 @@ html::-webkit-scrollbar{width:14px}
 html::-webkit-scrollbar-track{background:var(--paper-sunk)}
 html::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;border:3px solid var(--paper-sunk);background-clip:content-box}
 html{scrollbar-width:auto;scrollbar-color:var(--accent) var(--paper-sunk)}
-body{background:var(--bg-body);color:var(--ink);font-family:'Outfit','Inter',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{background:var(--bg-body);color:var(--ink);font-family:'Plus Jakarta Sans','Outfit',system-ui,-apple-system,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;line-height:1.5}
 h1,h2,h3{font-family:'Outfit','Space Grotesk',system-ui,sans-serif; letter-spacing: -0.03em;}
-.mono,code{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.mono,code{font-family:'JetBrains Mono','IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 code{background:var(--paper-sunk);padding:1px 5px;border-radius:4px;font-size:.92em}
 button{font-family:inherit;cursor:pointer}
-input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transition:all 0.2s ease}
+input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--ink);transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-/* Seleccion y barras de scroll: dos detalles chicos que se notan mucho.
-   Mismo color de acento (naranja) en TODA la aplicacion -- vertical,
-   horizontal, tablas, modales -- para que sea inconfundible, no un gris
-   mas oscuro que todavia podria pasar desapercibido. */
+/* Seleccion y barras de scroll: estilizadas, esbeltas y no invasivas */
 ::selection{background:var(--accent-tint);color:var(--accent-deep)}
-*{scrollbar-width:auto;scrollbar-color:var(--accent) var(--paper-sunk)}
-*::-webkit-scrollbar{width:14px;height:14px}
-*::-webkit-scrollbar-track{background:var(--paper-sunk)}
-*::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px;border:3px solid var(--paper-sunk);background-clip:content-box}
-*::-webkit-scrollbar-thumb:hover{background:var(--accent-deep);border:3px solid var(--paper-sunk);background-clip:content-box}
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--paper-sunk);
+}
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--paper-sunk);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-deep);
+}
 
-.app-shell{display:grid;grid-template-columns:260px 1fr;min-height:100vh} /* Ligeramente más ancho el sidebar */
-.sidebar{background:var(--sidebar);color:var(--sidebar-ink);padding:24px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:60;border-right:1px solid var(--sidebar-line);transition:all 0.3s ease}
-.brand{padding:0 8px 24px;border-bottom:1px solid var(--sidebar-line);margin-bottom:16px}
-.brand-mark{font-family:'Space Grotesk', sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.02em;color:#fff}
-.brand-sub{font-size:11px;color:var(--ink-faint);margin-top:4px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600}
-.nav{display:flex;flex-direction:column;gap:4px;flex:1}
-.nav-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--radius-sm);border:none;background:transparent;color:var(--sidebar-ink);opacity:0.8;text-decoration:none;font-size:14px;font-weight:500;position:relative;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1)}
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.sidebar {
+  background: var(--sidebar);
+  color: var(--sidebar-ink);
+  padding: 16px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  z-index: 60;
+  border-right: 1px solid var(--sidebar-line);
+  transition: all 0.3s ease;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+.brand{padding:0 8px 18px;border-bottom:1px solid var(--sidebar-line);margin-bottom:14px;flex-shrink:0}
+.brand-mark{font-family:'Space Grotesk', sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em;color:#fff}
+.brand-sub{font-size:10.5px;color:var(--ink-faint);margin-top:3px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600}
+.nav{display:flex;flex-direction:column;gap:3px;flex:1 1 auto;overflow-y:visible}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);border:none;background:transparent;color:var(--sidebar-ink);opacity:0.85;text-decoration:none;font-size:13.5px;font-weight:500;position:relative;transition:all 0.18s cubic-bezier(0.4, 0, 0.2, 1);flex-shrink:0}
 .nav-item:hover{background:var(--sidebar-hover);color:#fff;opacity:1}
-.nav-item.active{background:var(--sidebar-active);color:#fff;opacity:1;box-shadow:inset 3px 0 0 0 var(--accent)}
+.nav-item.active{background:var(--sidebar-active);color:#fff;opacity:1;box-shadow:inset 3px 0 0 0 var(--accent);font-weight:600}
 .nav-num{font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);width:20px;flex:none;transition:color 0.2s ease}
 .nav-item.active .nav-num{color:var(--accent)}
 .nav-badge{margin-left:auto;background:var(--bad);color:#fff;font-size:11px;font-family:'Inter', sans-serif;font-weight:700;padding:2px 8px;border-radius:20px;box-shadow:0 0 0 1px var(--sidebar)}
 .nav-badge.soft{background:var(--warn)}
-.sidebar-foot{border-top:1px solid var(--sidebar-line);padding-top:16px;margin-top:16px;display:flex;flex-direction:column;gap:8px}
-.sidebar-foot button{background:none;border:1px solid var(--sidebar-line);color:var(--sidebar-ink);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;font-weight:500;text-align:left;transition:all 0.2s ease;opacity:0.8}
+.sidebar-foot{border-top:1px solid var(--sidebar-line);padding-top:14px;margin-top:14px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.sidebar-foot button{background:none;border:1px solid var(--sidebar-line);color:var(--sidebar-ink);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;font-weight:500;text-align:left;transition:all 0.2s ease;opacity:0.85}
 .sidebar-foot button:hover{border-color:var(--accent);color:#fff;background:rgba(255,255,255,0.05);opacity:1}
 .sidebar-foot .who{font-size:11px;color:var(--ink-soft);padding:0 4px;word-break:break-all;font-weight:500}
 
-.topbar{display:flex;position:sticky;top:0;z-index:55;background:var(--glass);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid var(--glass-border);color:var(--ink);align-items:center;gap:12px;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));box-shadow:var(--shadow-sm)}
+.topbar{display:flex;position:sticky;top:0;z-index:55;background:var(--glass);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid var(--glass-border);color:var(--ink);align-items:center;gap:12px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));box-shadow:var(--shadow-sm)}
 .topbar .t-title{font-family:'Outfit', 'Space Grotesk', sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.01em}
-.icon-btn{background:transparent;border:1px solid var(--line);color:var(--ink-soft);border-radius:var(--radius-sm);width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;transition:all 0.2s ease;background:var(--field)}
+.icon-btn{background:transparent;border:1px solid var(--line);color:var(--ink-soft);border-radius:var(--radius-sm);width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;font-size:17px;transition:all 0.2s ease;background:var(--field)}
 .icon-btn:hover{background:var(--paper-sunk);color:var(--ink);border-color:var(--ink-faint)}
-.scrim{display:none;position:fixed;inset:0;background:rgba(15, 23, 42, 0.6);backdrop-filter:blur(4px);z-index:59;transition:opacity 0.3s ease}
-.scrim.show{display:block}
+.nav-scrim, .scrim{display:none;position:fixed;inset:0;background:rgba(15, 23, 42, 0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:998;transition:opacity 0.25s ease}
+.nav-scrim.open, .scrim.show{display:block}
 .spacer{flex:1;min-width:0}
 
-.main{min-width:0}
-.content{padding:32px 40px 80px;max-width:1600px;margin:0 auto}
-.page-head{margin-bottom:28px}
-.page-head h1{font-size:28px;margin:0 0 8px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
-.page-head p{margin:0;color:var(--ink-soft);font-size:15px;max-width:720px;line-height:1.6}
+.main{min-width:0;width:100%;overflow-x:hidden;display:flex;flex-direction:column}
+.content{padding:24px 32px 80px;max-width:1600px;width:100%;box-sizing:border-box;margin:0 auto;overflow-x:hidden}
+.page-head{margin-bottom:24px}
+.page-head h1{font-size:26px;margin:0 0 6px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.page-head p{margin:0;color:var(--ink-soft);font-size:14px;max-width:720px;line-height:1.5}
 
 /* --- Glassmorphism Utils --- */
 .glass-panel {
@@ -269,23 +323,25 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 
 /* Dashboard Quick Actions Buttons */
 .quick-btn {
-  padding: 16px 20px;
-  font-size: 15px;
-  border-radius: 16px;
-  display: flex;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  border-radius: 12px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-weight: 600;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
 }
 .quick-btn .icon {
-  font-size: 20px;
+  font-size: 16px;
 }
 .quick-btn.primary {
   background: var(--accent);
   color: #fff;
   border: none;
-  box-shadow: 0 10px 20px -10px var(--accent);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
 }
 .quick-btn.primary:hover {
   background: var(--accent-deep);
@@ -298,6 +354,7 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .quick-btn.glass {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--blur-radius));
+  -webkit-backdrop-filter: blur(var(--blur-radius));
   border: 1px solid var(--glass-border);
   color: var(--text);
 }
@@ -305,7 +362,6 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
   background: var(--info-bg);
   color: var(--info-deep);
   border: none;
-  margin-left: auto;
 }
 
 .card{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:16px;box-shadow:var(--shadow-sm);margin-bottom:24px;overflow:hidden;transition:all 0.25s ease;animation:fadeInCard 0.5s ease-out backwards}
@@ -361,15 +417,12 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);transi
 .btn-link{background:none;border:none;color:var(--accent-deep);font-size:12px;text-decoration:underline;padding:8px 0;width:100%}
 .full-w{width:100%;justify-content:center}
 
-.table-scroll{overflow-x:auto;margin:0 -24px;padding:0 24px}
-/* La barra de scroll por defecto del navegador es delgada y gris clara —
-   casi invisible sobre el tema oscuro de esta app. Sin verla, no era obvio
-   que las tablas anchas tuvieran mas columnas a la derecha. */
-.table-scroll::-webkit-scrollbar{height:10px}
-.table-scroll::-webkit-scrollbar-track{background:var(--paper-sunk,#1a1a1a);border-radius:6px}
-.table-scroll::-webkit-scrollbar-thumb{background:var(--accent,#D97706);border-radius:6px}
+.table-scroll{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;margin:0;padding:0 0 6px 0}
+.table-scroll::-webkit-scrollbar{height:7px}
+.table-scroll::-webkit-scrollbar-track{background:var(--paper-sunk,#1a1a1a);border-radius:4px}
+.table-scroll::-webkit-scrollbar-thumb{background:var(--accent,#D97706);border-radius:4px}
 .table-scroll::-webkit-scrollbar-thumb:hover{background:var(--accent-deep,#B45309)}
-.table-scroll{scrollbar-width:auto;scrollbar-color:var(--accent,#D97706) var(--paper-sunk,#1a1a1a)}
+.table-scroll{scrollbar-width:thin;scrollbar-color:var(--accent,#D97706) var(--paper-sunk,#1a1a1a)}
 .data-table{width:100%;border-collapse:separate;border-spacing:0 6px;white-space:nowrap;font-size:13.5px}
 /* Columnas del tablero Kanban de Cobranza: son angostas (300px), asi que
    la barra de scroll global de 14px se veia recortada contra apenas 4px
@@ -459,18 +512,14 @@ textarea.input{min-height:80px;resize:vertical;line-height:1.5}
    "no se ve la barra de scroll en la subpantalla".
 */
 .modal-root{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px}
-/* FIX 2026-08-11: confirmDialog()/promptDialog() no usan portal -- si se
-   invocan desde DENTRO de otro modal ya abierto, sin esto quedan pintados
-   debajo de el (empatados en z-index, pierde el que aparece antes en el
-   DOM) y se vuelven invisibles e inalcanzables con clicks, dejando la
-   promesa que esperan colgada para siempre. Ver components/ui.tsx (prop
-   `elevated` de Modal). */
-.modal-root.modal-root--top{z-index:1200}
 .modal-scrim{position:absolute;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(2px)}
 .modal-box{position:relative;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;background:var(--paper-raised);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden}
 .modal-box.wide{max-width:1100px}
+.modal-drag-pill-container{display:flex;justify-content:center;align-items:center;padding-top:10px;padding-bottom:2px;cursor:grab;touch-action:none}
+.modal-drag-handle{width:44px;height:5px;background:var(--line-soft,rgba(150,150,150,0.4));border-radius:999px;transition:background .2s}
+.modal-drag-pill-container:active .modal-drag-handle{background:var(--accent,#2563eb)}
 .modal-head{flex-shrink:0}
-.modal-body{padding:24px;overflow-y:auto;flex:1;min-height:0}
+.modal-body{padding:24px;overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
 .modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;flex-wrap:wrap}
 
 @keyframes slideUpModal{from{transform:translateY(20px) scale(0.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
@@ -514,45 +563,186 @@ textarea.input{min-height:80px;resize:vertical;line-height:1.5}
 
 .show-mobile{display:none}
 
-@media (max-width:900px){
-  .app-shell{grid-template-columns:1fr}
-  .topbar{display:flex}
-  .sidebar{position:fixed;inset:0 auto 0 0;width:266px;transform:translateX(-100%);transition:transform .22s;height:100dvh}
-  .sidebar.open{transform:translateX(0)}
-  .content{padding:16px 14px 80px}
-  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
-  .kpi-value{font-size:16px}
-  .kpi-card.hero{grid-column:1/-1}
-  .kpi-card.hero .kpi-value{font-size:26px}
-  .kpi-label{min-height:0; font-size: 10px;}
-  .btn,.chip{min-height:40px;display:inline-flex;align-items:center}
-  .input,.search-input{font-size:16px}
-  .search-input{width:100%}
-  .modal-actions .btn{flex:1;justify-content:center}
+/* =========================================================================
+   SISTEMA DE DISEÑO RESPONSIVO FLUIDO (Móvil, Tablet, Laptop, Monitor 4K)
+   ========================================================================= */
+
+/* Laptops y Pantallas Medianas (1024px - 1440px) */
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 240px 1fr;
+  }
+  .content {
+    padding: clamp(16px, 2.5vw, 28px) clamp(16px, 3vw, 32px) 80px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: 12px;
+  }
+}
+
+/* Tablets y Pantallas Pequeñas (769px - 1023px) */
+@media (max-width: 1024px) {
+  .modal-box {
+    max-width: min(94vw, 760px);
+    max-height: 92vh;
+  }
+  .modal-box.wide {
+    max-width: 96vw;
+  }
+  .data-table th, .data-table td {
+    padding: 10px 14px;
+    font-size: 12.5px;
+  }
+  .card-head {
+    padding: 12px 16px;
+  }
+}
+
+/* Móviles y Teléfonos (<= 768px) */
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .topbar {
+    display: flex;
+  }
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(84vw, 300px);
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    z-index: 999;
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .content {
+    padding: 14px 12px 90px;
+  }
+  .page-head {
+    margin-bottom: 16px;
+  }
+  .page-head h1 {
+    font-size: 22px;
+  }
+  .page-head p {
+    font-size: 13px;
+  }
   
+  /* KPI Grid en Móvil: Cuadrícula ultra-fluida de 2 columnas */
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .kpi-card {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .kpi-value {
+    font-size: 17px;
+  }
+  .kpi-card.hero {
+    grid-column: 1 / -1;
+  }
+  .kpi-card.hero .kpi-value {
+    font-size: 26px;
+  }
+  .kpi-label {
+    min-height: 0;
+    font-size: 10.5px;
+    margin-bottom: 4px;
+  }
+  
+  /* Botones e Inputs Táctiles */
+  .btn, .chip {
+    min-height: 42px;
+    font-size: 13px;
+  }
+  .input, .search-input, .input-field {
+    font-size: 16px !important; /* Previene zoom involuntario en iOS Safari */
+    min-height: 42px;
+  }
+  .search-input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Modales en Móvil: Estilo Bottom Sheet Nativo */
+  .modal-root, .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+    justify-content: center;
+  }
+  .modal, .modal-box {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 93dvh !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.4) !important;
+    margin-bottom: 0 !important;
+  }
+  .modal-body {
+    padding: 16px 16px max(24px, env(safe-area-inset-bottom, 24px)) !important;
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 46px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  /* Botones de acción rápida */
   .quick-btn {
     padding: 12px 14px;
     font-size: 13px;
     border-radius: 12px;
-    flex: 1 1 calc(50% - 8px);
+    flex: 1 1 calc(50% - 6px);
     justify-content: center;
   }
   .quick-btn.portal {
     margin-left: 0;
+    flex: 1 1 100%;
   }
   .quick-btn .icon {
     font-size: 16px;
   }
 
-  .hide-mobile{display:none!important}
-  .show-mobile{display:inline!important}
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: inline-flex !important; }
 }
-@media print{
-  .sidebar,.topbar,.no-print,.chip-row,.toast-root,.modal-overlay{display:none!important}
-  .app-shell{display:block}
-  body{background:#fff}
-  .card{box-shadow:none;border-color:#999}
+
+@media print {
+  .sidebar, .topbar, .no-print, .chip-row, .toast-root, .modal-overlay, .tabs { display: none !important; }
+  .app-shell { display: block; }
+  body { background: #fff; }
+  .card { box-shadow: none; border-color: #999; }
 }
+
 
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 10px;border-radius:24px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#fff}
 .cr-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:var(--ink);border:1px solid var(--line);background:var(--bg-body);transition:transform 0.1s}
@@ -724,3 +914,214 @@ button:active {
   font-size: 11px;
   font-weight: 700;
 }
+
+/* =========================================================================
+   Micro-interacciones y Presencia en Tiempo Real (v7.5.0)
+========================================================================= */
+@keyframes livePulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.live-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  display: inline-block;
+  animation: livePulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+.live-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--ok-bg);
+  color: var(--ok);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-whatsapp {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  transition: all 0.15s ease;
+}
+
+.btn-whatsapp:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+}
+
+/* =========================================================================
+   Badges y Efectos Visuales de Alta Gama (v7.7.0)
+========================================================================= */
+@keyframes amberPulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.5); }
+  70% { box-shadow: 0 0 0 5px rgba(217, 119, 6, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+}
+
+.badge-sin-cr-pulse {
+  animation: amberPulseGlow 2s infinite ease-in-out;
+}
+
+.glass-card-pro {
+  background: var(--paper-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card-pro:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+.data-table tbody tr {
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.data-table tbody tr:hover {
+  background-color: var(--paper-sunk) !important;
+}
+
+/* Neon Breathing Pulse Animations */
+@keyframes neonPulseGreen {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.4), 0 0 10px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 0 22px rgba(16, 185, 129, 0.4);
+  }
+}
+
+@keyframes neonPulseAmber {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.4), 0 0 10px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.8), 0 0 22px rgba(245, 158, 11, 0.4);
+  }
+}
+
+@keyframes neonPulseRed {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.4), 0 0 10px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.8), 0 0 22px rgba(239, 68, 68, 0.4);
+  }
+}
+
+.pulse-neon-green {
+  animation: neonPulseGreen 2s infinite ease-in-out;
+}
+
+.pulse-neon-amber {
+  animation: neonPulseAmber 2s infinite ease-in-out;
+}
+
+.pulse-neon-red {
+  animation: neonPulseRed 2s infinite ease-in-out;
+}
+
+/* Tabular Number Alignment */
+.mono, .num, td.num {
+  font-family: 'Roboto Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mobile First Executive Utilities (v8.1.0) */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  .desktop-only-block {
+    display: none !important;
+  }
+  .page, .app-main, .container {
+    padding-bottom: 90px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-quick-dock {
+    display: none !important;
+  }
+}
+
+/* ─── Clases de Resplandor Ambiental & Suite de Lujo (v8.7.0) ─────────────── */
+.glow-sky {
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-sky:hover {
+  box-shadow: 0 0 35px rgba(59, 130, 246, 0.4) !important;
+}
+
+.glow-emerald {
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-emerald:hover {
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.45) !important;
+}
+
+.glow-amber {
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-amber:hover {
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.45) !important;
+}
+
+.glow-purple {
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.25) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.glow-purple:hover {
+  box-shadow: 0 0 35px rgba(168, 85, 247, 0.45) !important;
+}
+
+.quick-hub-pill {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.quick-hub-pill:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+}
+.quick-hub-pill:active {
+  transform: translateY(0) scale(0.98) !important;
+}
+
+

@@ -7,6 +7,8 @@ import {
   deleteDoc,
   query,
   serverTimestamp,
+  writeBatch,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { logAction } from './logger';
@@ -190,4 +192,177 @@ export async function restoreCloudBackup(
     ordersRestored: facturas.length,
     message: `Respaldo del ${snapshot.createdAt ? snapshot.createdAt.toLocaleString('es-MX') : 'hace un momento'} restaurado exitosamente.`,
   };
+}
+
+/**
+ * Descarga inmediata de respaldo completo en archivo .json local para guardar en Celular / USB
+ */
+export function downloadBackupJsonFile(
+  orders: PurchaseOrder[],
+  purchases: Purchase[],
+  expenses: Expense[],
+  config: FinancialConfig
+) {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateTag = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+
+  const data = {
+    app: 'ControlBolsas-ERP Providencia Master',
+    version: '8.3.0',
+    exportDate: now.toISOString(),
+    formattedDate: now.toLocaleString('es-MX'),
+    counts: {
+      totalOrders: orders.length,
+      totalPurchases: purchases.length,
+      totalExpenses: expenses.length,
+    },
+    orders,
+    purchases,
+    expenses,
+    config,
+  };
+  const jsonStr = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Respaldo_Control_Bolsas_${dateTag}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Lee un archivo .json subido por el usuario y restaura las órdenes, compras, gastos y config a Firestore.
+ */
+export async function restoreBackupFromJsonFile(
+  file: File,
+  userEmail: string | null | undefined
+): Promise<{ orders: number; purchases: number; expenses: number; message: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const data = JSON.parse(text);
+
+        let ordersToRestore: any[] = [];
+        let purchasesToRestore: any[] = [];
+        let expensesToRestore: any[] = [];
+
+        if (Array.isArray(data.orders)) {
+          ordersToRestore = data.orders;
+          purchasesToRestore = Array.isArray(data.purchases) ? data.purchases : [];
+          expensesToRestore = Array.isArray(data.expenses) ? data.expenses : [];
+        } else if (Array.isArray(data.facturas)) {
+          ordersToRestore = (data.facturas as any[]).map((f: any) => ({
+            id: f.id || `ord-${f.folio}`,
+            folio: f.folio,
+            oc: f.oc || f.folio,
+            client: f.client || 'Providencia',
+            totalKilograms: f.kilos || 0,
+            invoices: [
+              {
+                id: `inv-${f.folio}`,
+                orderId: f.id || `ord-${f.folio}`,
+                folio: f.folio,
+                kilos: f.kilos || 0,
+                creditCycle: {
+                  status: f.status || 'pending',
+                  dueDate: f.dueDate ? Timestamp.fromDate(new Date(f.dueDate)) : undefined,
+                  issueDate: f.issueDate ? Timestamp.fromDate(new Date(f.issueDate)) : undefined,
+                },
+                collection: {
+                  contrareciboNumber: f.contrarecibo || '',
+                  paidAmount: f.paidAmount || 0,
+                },
+                financials: {
+                  invoiceTotal: f.monto || (f.kilos * 43 * 1.16),
+                } as any,
+              }
+            ],
+            invoiceStatuses: [f.status || 'pending'],
+            status: f.status || 'pending',
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          }));
+        } else {
+          throw new Error('El archivo no tiene un formato de respaldo JSON válido.');
+        }
+
+        const batchSize = 400;
+        let batch = writeBatch(db);
+        let opCount = 0;
+
+        for (const order of ordersToRestore) {
+          if (!order.id) continue;
+          const ref = doc(db, 'purchaseOrders', order.id);
+          batch.set(ref, {
+            ...order,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+          opCount++;
+          if (opCount >= batchSize) {
+            await batch.commit();
+            batch = writeBatch(db);
+            opCount = 0;
+          }
+        }
+
+        for (const purchase of purchasesToRestore) {
+          if (!purchase.id) continue;
+          const ref = doc(db, 'purchases', purchase.id);
+          batch.set(ref, {
+            ...purchase,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+          opCount++;
+          if (opCount >= batchSize) {
+            await batch.commit();
+            batch = writeBatch(db);
+            opCount = 0;
+          }
+        }
+
+        for (const expense of expensesToRestore) {
+          if (!expense.id) continue;
+          const ref = doc(db, 'expenses', expense.id);
+          batch.set(ref, {
+            ...expense,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+          opCount++;
+          if (opCount >= batchSize) {
+            await batch.commit();
+            batch = writeBatch(db);
+            opCount = 0;
+          }
+        }
+
+        if (opCount > 0) {
+          await batch.commit();
+        }
+
+        await logAction(userEmail, 'Restauración desde Archivo JSON', {
+          ordersCount: ordersToRestore.length,
+          purchasesCount: purchasesToRestore.length,
+          expensesCount: expensesToRestore.length,
+          fileName: file.name,
+        });
+
+        resolve({
+          orders: ordersToRestore.length,
+          purchases: purchasesToRestore.length,
+          expenses: expensesToRestore.length,
+          message: `Restauradas ${ordersToRestore.length} órdenes, ${purchasesToRestore.length} compras y ${expensesToRestore.length} movimientos de caja.`,
+        });
+      } catch (err: any) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    reader.readAsText(file);
+  });
 }

@@ -1,4 +1,4 @@
-import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from './types';
+import type { PurchaseOrder, Invoice, Delivery, OrderStatus, FinancialConfig, AndresRequirement, NextActionInfo } from './types';
 import Decimal from 'decimal.js-light';
 
 /**
@@ -18,6 +18,7 @@ export {
   computeCommissionFromInvoiceTotal,
   configEfectiva,
   round2,
+  normalizarTexto,
 } from '../../functions/src/shared/finance.core';
 export type {
   FinanceConfigCore,
@@ -37,18 +38,212 @@ export function extractCr(inv: any, o?: any): string {
   return cr;
 }
 
+// normalizarTexto ahora vive en functions/src/shared/finance.core.ts (se
+// reexporta arriba) para que el mismo criterio de comparacion lo usen tanto
+// el frontend como getActiveMaquilaOrders en el backend -- antes solo
+// estaba aqui, y el backend comparaba con un .toLowerCase() simple que
+// nunca hacia match contra "Andrés" con acento.
+
 /**
- * Normaliza texto para comparaciones que no deben depender de acentos ni
- * mayusculas -- "Andres" vs "Andrés" son el mismo proveedor para cualquier
- * humano, pero como strings JS son distintos byte a byte. Sin esto, dos
- * partes del sistema que escriben el nombre de forma ligeramente distinta
- * (una con acento, otra sin) dejan de coincidir en los filtros — cada
- * pantalla termina sumando un subconjunto distinto de compras/gastos del
- * mismo proveedor real, con resultados que nunca cuadran entre si.
+ * Infiere el departamento ('TH' o 'GT') de una orden o factura evaluando:
+ * 1. Campo explícito `department` en factura u orden
+ * 2. Prefijos de contrarecibo (ej. TH-912, GT-742)
+ * 3. Folios de factura u OC (ej. TH-768, GT-597)
+ * 4. Nombre o tags del cliente (ej. "Textil Hogar", "TH", "Grupo Textil", "GT")
+ * 5. IDs de documento (ej. cr-th-912, cr-gt-742)
  */
-export function normalizarTexto(s: string | null | undefined): string {
-  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 'GT' | null {
+  // 1. Factura individual explícita
+  if (inv?.department && typeof inv.department === 'string') {
+    const d = inv.department.trim().toUpperCase();
+    if (d === 'TH' || d === 'GT') return d;
+    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
+    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
+  }
+
+  // 2. Contrarecibo en factura O en orden via extractCr
+  // FIX: cada condicion traia 3 clausulas donde 2 eran redundantes --
+  // startsWith('TH-') y === 'TH' ya estan cubiertas por startsWith('TH')
+  // (toda cadena que empieza con "TH-" tambien empieza con "TH", y "TH"
+  // tambien "empieza con" "TH"). Mismo comportamiento, sin la redundancia.
+  const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim().toUpperCase();
+  if (invCr.startsWith('TH')) return 'TH';
+  if (invCr.startsWith('GT')) return 'GT';
+
+  const extracted = extractCr(inv, order).trim().toUpperCase();
+  if (extracted.startsWith('TH')) return 'TH';
+  if (extracted.startsWith('GT')) return 'GT';
+
+  // 3. Folio de factura
+  const invFolio = (inv?.folio || '').trim().toUpperCase();
+  if (invFolio.startsWith('TH')) return 'TH';
+  if (invFolio.startsWith('GT')) return 'GT';
+
+  // 4. Campo explícito en la orden
+  if (order?.department && typeof order.department === 'string') {
+    const d = order.department.trim().toUpperCase();
+    if (d === 'TH' || d === 'GT') return d;
+    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
+    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
+  }
+
+  // 5. Contrarecibo a nivel de orden
+  const orderCr = (order?.collection?.contrareciboNumber || order?.contrarecibo || '').trim().toUpperCase();
+  if (orderCr.startsWith('TH-') || orderCr === 'TH' || orderCr.startsWith('TH')) return 'TH';
+  if (orderCr.startsWith('GT-') || orderCr === 'GT' || orderCr.startsWith('GT')) return 'GT';
+
+  // 6. Folio u OC de la orden
+  const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
+  if (orderFolio.startsWith('TH-') || orderFolio === 'TH' || orderFolio.startsWith('TH')) return 'TH';
+  if (orderFolio.startsWith('GT-') || orderFolio === 'GT' || orderFolio.startsWith('GT')) return 'GT';
+
+  // 7. Identificador del documento
+  const orderId = (order?.id || '').trim().toLowerCase();
+  if (orderId.includes('cr-th') || orderId.includes('inv-th') || orderId.includes('th-') || orderId.endsWith('-th')) return 'TH';
+  if (orderId.includes('cr-gt') || orderId.includes('inv-gt') || orderId.includes('gt-') || orderId.endsWith('-gt')) return 'GT';
+
+  const invId = (inv?.id || '').trim().toLowerCase();
+  if (invId.includes('cr-th') || invId.includes('inv-th') || invId.includes('th-') || invId.endsWith('-th')) return 'TH';
+  if (invId.includes('cr-gt') || invId.includes('inv-gt') || invId.includes('gt-') || invId.endsWith('-gt')) return 'GT';
+
+  // 8. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Providencia - GT")
+  const clientStr = (order?.client || '').trim().toUpperCase();
+  if (
+    clientStr === 'TH' ||
+    clientStr.endsWith(' TH') ||
+    clientStr.endsWith('-TH') ||
+    clientStr.includes(' TH ') ||
+    clientStr.includes('-TH-') ||
+    clientStr.includes(' - TH') ||
+    clientStr.includes('TEXTIL HOGAR')
+  ) {
+    return 'TH';
+  }
+  if (
+    clientStr === 'GT' ||
+    clientStr.endsWith(' GT') ||
+    clientStr.endsWith('-GT') ||
+    clientStr.includes(' GT ') ||
+    clientStr.includes('-GT-') ||
+    clientStr.includes(' - GT') ||
+    clientStr.includes('GRUPO TEXTIL')
+  ) {
+    return 'GT';
+  }
+
+  return null;
 }
+
+/**
+ * Determina si una orden pertenece a un departamento ('TH', 'GT' o 'ALL').
+ */
+export function orderMatchesDepartment(order: PurchaseOrder | any, targetDept: string): boolean {
+  if (!targetDept || targetDept === 'ALL') return true;
+  if (!order) return false;
+  const target = targetDept.trim().toUpperCase();
+  const opposite = target === 'TH' ? 'GT' : 'TH';
+
+  const dept = inferDepartment(order);
+  if (dept === target) return true;
+  if (dept === opposite) return false;
+
+  // Si a nivel de orden fue indeterminado, revisar si alguna factura pertenece a target
+  if (Array.isArray(order.invoices) && order.invoices.length > 0) {
+    const hasTargetInvoice = order.invoices.some((inv: any) => inferDepartment(order, inv) === target);
+    if (hasTargetInvoice) return true;
+    const allOpposite = order.invoices.every((inv: any) => inferDepartment(order, inv) === opposite);
+    if (allOpposite) return false;
+  }
+
+  // Si no hay suficiente información, incluir solo en ALL
+  return false;
+}
+
+/**
+ * Determina si una factura individual pertenece a un departamento (TH o GT).
+ * Retorna TRUE si coincide positivamente con targetDept.
+ * Retorna FALSE si pertenece positivamente al departamento opuesto.
+ * Retorna NULL si es indeterminado.
+ */
+export function invoiceMatchesDepartmentStrict(inv: any, order: PurchaseOrder | any, targetDept: string): boolean | null {
+  if (!targetDept || targetDept === 'ALL') return true;
+  if (!inv) return null;
+  const target = targetDept.trim().toUpperCase();
+  const opposite = target === 'TH' ? 'GT' : 'TH';
+
+  const dept = inferDepartment(order, inv);
+  if (dept === target) return true;
+  if (dept === opposite) return false;
+  return null;
+}
+
+/**
+ * Determina si una factura pertenece a un departamento (retorna booleano).
+ */
+export function invoiceMatchesDepartment(inv: any, order: PurchaseOrder | any, targetDept: string): boolean {
+  if (!targetDept || targetDept === 'ALL') return true;
+  const result = invoiceMatchesDepartmentStrict(inv, order, targetDept);
+  return result === true;
+}
+
+/**
+ * Filtra una orden de compra para un departamento específico con aislamiento hermético:
+ * - Si targetDept es 'ALL', retorna la orden intacta.
+ * - Si targetDept es 'TH' o 'GT', filtra su arreglo de `invoices` para incluir ÚNICAMENTE
+ *   las facturas que pertenecen a ese departamento.
+ * - Si la orden pertenece al departamento opuesto y no tiene facturas de este depto, retorna null.
+ * - Si no tiene facturas y coincide con targetDept, la conserva.
+ */
+export function filterOrderByDepartment(o: PurchaseOrder | any, targetDept: string): PurchaseOrder | null {
+  if (!targetDept || targetDept === 'ALL') return o;
+  if (!o) return null;
+
+  const target = targetDept.trim().toUpperCase();
+  const opposite = target === 'TH' ? 'GT' : 'TH';
+
+  // Si tiene facturas, filtramos exclusivamente las del departamento target
+  if (Array.isArray(o.invoices) && o.invoices.length > 0) {
+    const matchingInvoices = o.invoices.filter((inv: any) => {
+      const result = invoiceMatchesDepartmentStrict(inv, o, target);
+      // Incluir coincidencia positiva o indeterminada solo si la orden misma es del target
+      if (result === true) return true;
+      if (result === false) return false;
+      return inferDepartment(o) === target;
+    });
+
+    if (matchingInvoices.length > 0) {
+      const filteredKilos = matchingInvoices.reduce((acc: number, inv: any) => acc + (inv.kilos || 0), 0);
+      return {
+        ...o,
+        department: o.department || target,
+        totalKilograms: filteredKilos > 0 ? filteredKilos : o.totalKilograms,
+        invoices: matchingInvoices,
+        invoiceStatuses: matchingInvoices.map((inv: any) => inv.creditCycle?.status || 'pending'),
+      };
+    }
+
+    // Tenía facturas pero ninguna pertenecía al target
+    return null;
+  }
+
+  // Orden sin facturas aún (ej. pedido nuevo o remisión):
+  const orderDept = inferDepartment(o);
+  if (orderDept === target) {
+    return {
+      ...o,
+      department: o.department || target,
+    };
+  }
+
+  if (orderDept === opposite) {
+    return null;
+  }
+
+  // Sin evidencia suficiente en orden vacía
+  return null;
+}
+
+
 
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date.getTime());
@@ -105,19 +300,8 @@ export function getOrderSummary(o: PurchaseOrder) {
   // factura aqui lo marcaria como "FACTURADO" con kilos completos sin que
   // exista ninguna factura real, exactamente el caso de un expediente
   // recien capturado con "Pendiente de Facturar".
-  // FIX 2026-08-11: la condicion original disparaba con solo "o.folio ||
-  // ...", pero CASI TODO expediente (nuevo o viejo) tiene folio. Eso hacia
-  // que cualquier expediente recien creado -- que aun no ha recibido su
-  // primera entrega, un estado transitorio normal -- mostrara un badge
-  // fantasma de "1 factura" sin que existiera ninguna factura real (el
-  // guard de tieneEntregasExplicitas no alcanzaba a cubrir el hueco entre
-  // "crear el expediente" y "registrar la primera entrega"). o.financials
-  // (a nivel de ORDEN, distinto de invoice.financials) solo se llena en
-  // datos VIEJOS migrados sin trazabilidad de facturas -- es la unica
-  // senal confiable de "esto es un expediente legado", asi que se usa
-  // como condicion unica, quitando la rama o.folio.
   const tieneEntregasExplicitas = (o.deliveries?.length || 0) > 0;
-  if (invoices.length === 0 && !tieneEntregasExplicitas && (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0)) {
+  if (invoices.length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
     invoices.push({
       id: o.id + '-inv0',
       orderId: o.id,
@@ -183,7 +367,7 @@ export function getOrderSummary(o: PurchaseOrder) {
       realizedProfit = realizedProfit.plus(proportion.times(profitForThisInvoice));
     }
 
-    const s = i.creditCycle.status;
+    const s = i.creditCycle?.status;
     if (s === 'overdue') hasOverdue = true;
     if (s === 'manual_review') hasManual = true;
     if (s === 'pending') hasPending = true;
@@ -269,7 +453,7 @@ export function extractDashboardAlerts(activeOrders: PurchaseOrder[], avgDSO: nu
   activeOrders.forEach(o => {
     const invoices = o.invoices || [];
     invoices.forEach(inv => {
-      const s = inv.creditCycle.status;
+      const s = inv.creditCycle?.status;
       if (s === 'pending' || s === 'overdue') {
         let dDate: Date | null = null;
         if (inv.creditCycle.dueDate) {
@@ -338,4 +522,163 @@ export function calculateLiveMargenTotal(activeOrders: PurchaseOrder[], defaultC
   });
   return round2(liveMargenTotal.toNumber());
 }
+
+export function computeAndresRequirement(order: PurchaseOrder, config: FinancialConfig): AndresRequirement {
+  const items = order.items && order.items.length > 0 ? order.items : [];
+  const itemsKilos = items.reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+  const kilos = itemsKilos > 0 ? itemsKilos : (Number(order.totalKilograms) || 0);
+
+  const costPricePerKg = Number(order.customCostPrice ?? config?.costPricePerKg ?? 42);
+  const salePricePerKg = Number(order.customSellPrice ?? config?.salePricePerKg ?? 43);
+
+  const costTotal = round2(new Decimal(kilos).times(costPricePerKg).toNumber());
+  const saleTotal = round2(new Decimal(kilos).times(salePricePerKg).toNumber());
+  const ivaRate = config?.ivaRate ?? 0.16;
+  const invoiceTotal = round2(new Decimal(saleTotal).times(1 + ivaRate).toNumber());
+
+  const netProfitEst = round2(new Decimal(saleTotal).minus(costTotal).toNumber());
+  const profitPerKg = round2(new Decimal(salePricePerKg).minus(costPricePerKg).toNumber());
+
+  const folio = order.folio || order.oc || 'S/F';
+  const client = order.client || 'Providencia';
+
+  const itemsText = items.length > 0
+    ? items.map(it => `• ${it.quantity} ${it.unit || 'kg'} - ${it.description || 'Bolsa'}`).join('\n')
+    : `• ${kilos.toLocaleString('es-MX')} kg de bolsa polietileno`;
+
+  const whatsappMessage = 
+`Hola Andrés, te paso pedido de la OC ${folio} (${client}):
+${itemsText}
+Total: ${kilos.toLocaleString('es-MX')} kg
+Costo pactado: $${costPricePerKg.toFixed(2)}/kg (Total: $${costTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })})
+Favor de entregar directamente en la planta de ${client} y compartirnos la remisión. Gracias!`;
+
+  return {
+    orderId: order.id,
+    folio,
+    client,
+    kilos,
+    costPricePerKg,
+    costTotal,
+    salePricePerKg,
+    saleTotal,
+    invoiceTotal,
+    commissionEst: 0,
+    netProfitEst,
+    profitPerKg,
+    items,
+    whatsappMessage,
+  };
+}
+
+export function getSuggestedNextAction(order: PurchaseOrder, _config?: FinancialConfig): NextActionInfo {
+  const deliveries = order.deliveries || [];
+  const rawInvoices = order.invoices || [];
+  const summary = getOrderSummary(order);
+  const totalKilos = Number(order.totalKilograms) || 0;
+  const kilosEntregados = deliveries.length > 0 ? summary.kilosDelivered : 0;
+  const kilosFacturados = rawInvoices.length > 0 ? summary.kilosInvoiced : 0;
+  const invoices = summary.invoices;
+
+  const folio = order.folio || order.oc || 'S/F';
+  const client = order.client || 'Providencia';
+
+  // 1. Si no hay entregas registradas y no hay facturas: pedir a Andrés
+  if (deliveries.length === 0 && rawInvoices.length === 0) {
+    return {
+      key: 'pedir_andres',
+      title: 'Pedir Material a Andrés',
+      description: `Genera el requerimiento y envía el pedido de ${totalKilos.toLocaleString('es-MX')} kg a Andrés.`,
+      actionLabel: 'Ver Pedido a Andrés',
+      badgeTone: 'info',
+      targetTab: 'andres',
+      whatsappType: 'andres',
+      whatsappText: `Hola Andrés, te paso pedido de OC ${folio} (${client}) por ${totalKilos.toLocaleString('es-MX')} kg.`,
+    };
+  }
+
+
+
+  // 2. Si hay entregas pero faltan por facturar
+  if (kilosEntregados > kilosFacturados + 0.01) {
+    const porFacturar = round2(kilosEntregados - kilosFacturados);
+    return {
+      key: 'facturar_entrega',
+      title: 'Facturar Entregas de Andrés',
+      description: `Andrés ya entregó ${porFacturar.toLocaleString('es-MX')} kg en Providencia pendientes de facturar.`,
+      actionLabel: '⚡ Facturar Ahora',
+      badgeTone: 'warn',
+      targetTab: 'facturas',
+    };
+  }
+
+  // 3. Si hay facturas emitidas pero sin contrarecibo
+  const invSinCr = invoices.find(i => (i.creditCycle.status === 'facturado' || i.creditCycle.status === 'pending') && !i.collection?.contrareciboNumber?.trim());
+  if (invSinCr) {
+    return {
+      key: 'pedir_contrarecibo',
+      title: 'Solicitar Contrarecibo a Providencia',
+      description: `Factura #${invSinCr.folio || 'S/F'} emitida. Solicitar número de contrarecibo a Providencia.`,
+      actionLabel: 'Capturar Contrarecibo',
+      badgeTone: 'warn',
+      targetTab: 'facturas',
+      whatsappType: 'providencia',
+      whatsappText: `Buenas tardes, envío factura #${invSinCr.folio || ''} de la OC ${folio}. ¿Me apoyan con su número de contrarecibo?`,
+    };
+  }
+
+  // 4. Si hay contrarecibos vencidos
+  const invVencida = invoices.find(i => i.creditCycle.status === 'overdue');
+  if (invVencida) {
+    const cr = invVencida.collection?.contrareciboNumber || invVencida.folio || '';
+    const saldo = (invVencida.financials?.invoiceTotal || 0) - (invVencida.collection?.paidAmount || 0);
+    return {
+      key: 'avisar_contador',
+      title: 'Contrarecibo Vencido',
+      description: `Contrarecibo ${cr} vencido por $${saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Gestionar cobro con el contador.`,
+      actionLabel: 'Avisar al Contador',
+      badgeTone: 'bad',
+      targetTab: 'facturas',
+      whatsappType: 'contador',
+      whatsappText: `Hola Contador, el contrarecibo ${cr} de la OC ${folio} ($${saldo.toFixed(2)}) ya venció. ¿Cuándo se programa el pago?`,
+    };
+  }
+
+  // 5. Si el cliente ya pagó y está con el contador listo para recibir a caja
+  const invPaid = invoices.find(i => i.creditCycle.status === 'paid');
+  if (invPaid) {
+    const total = invPaid.financials?.invoiceTotal || 0;
+    const comm = invPaid.financials?.commission || round2(total * 0.08);
+    const neto = round2(total - comm);
+    return {
+      key: 'recibir_caja',
+      title: 'Cobro Listo con el Contador',
+      description: `El cliente ya pagó. Recibir $${neto.toLocaleString('es-MX', { minimumFractionDigits: 2 })} netos a Caja Chica.`,
+      actionLabel: '💵 Recibir → CAJA',
+      badgeTone: 'ok',
+      targetTab: 'facturas',
+    };
+  }
+
+  // 6. Si todo está entregado y cobrado
+  if (summary.status === 'collected' || (kilosEntregados >= totalKilos - 0.01 && invoices.length > 0 && invoices.every(i => i.creditCycle.status === 'collected'))) {
+    return {
+      key: 'completada',
+      title: 'Orden Completada y Cobrada',
+      description: 'Esta orden fue entregada, facturada y cobrada al 100%.',
+      badgeTone: 'ok',
+      targetTab: 'resumen',
+    };
+  }
+
+  return {
+    key: 'esperar_entrega',
+    title: 'Esperando Entrega de Andrés',
+    description: `Pedido en curso. Andrés debe entregar ${totalKilos.toLocaleString('es-MX')} kg en Providencia.`,
+    actionLabel: 'Registrar Entrega',
+    badgeTone: 'info',
+    targetTab: 'entregas',
+  };
+}
+
 

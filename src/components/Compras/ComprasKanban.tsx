@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
+import { KilosProgressBar } from '../Orders/KilosProgressBar';
 
 /**
  * Tablero Kanban para Compras — mismo patron visual que el de Cobranza
@@ -39,18 +41,16 @@ export function ComprasKanban({
     return { pedido, transito, recibidoSinPagar, pagado };
   }, [purchases]);
 
-  // FIX 2026-08-10 (Staff Engineer -- task ERP #12): las 4 columnas tenían
-  // su fondo/badge en hex fijo pensado solo para modo claro -- en modo
-  // oscuro se veían como "islas" de fondo casi blanco. Ahora usan
-  // variables CSS que ya cambian solas en [data-theme="dark"].
-  const colStyle = (bg: string) => ({
+  const colStyle = (bg: string, borderColor: string) => ({
     flex: '0 0 300px',
     background: bg,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     display: 'flex',
     flexDirection: 'column' as const,
-    maxHeight: '70vh',
+    maxHeight: '72vh',
+    border: `1px solid ${borderColor}`,
+    boxShadow: 'var(--shadow-soft)',
   });
 
   const renderCard = (p: Purchase) => {
@@ -60,80 +60,89 @@ export function ComprasKanban({
     const pct = esperados > 0 ? Math.min(100, Math.round((recibidos / esperados) * 100)) : 0;
     const restaPagar = (p.totalAmount ?? 0) - (p.paidAmount ?? 0);
     return (
-      <div
+      <motion.div
         key={p.id}
+        whileHover={{ y: -3, scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
         onClick={() => onSelect(p)}
         style={{
           background: 'var(--paper-raised)',
           border: '1px solid var(--line)',
-          borderRadius: 8,
-          padding: 12,
+          borderRadius: 12,
+          padding: 14,
           marginBottom: 10,
           cursor: 'pointer',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.06)',
         }}
       >
-        <div style={{ fontWeight: 700, fontSize: 14 }} className="mono">{o?.folio || 'S/F'}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontWeight: 800, fontSize: 14 }} className="mono">{o?.folio || 'S/F'}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>{pct}%</span>
+        </div>
         <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 8 }}>{o?.client || '—'}</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-soft)', marginBottom: 4 }}>
-          <span>{recibidos.toFixed(0)} / {esperados.toFixed(0)} kg</span>
-          <span>{pct}%</span>
+        
+        <div style={{ marginBottom: 8 }}>
+          <KilosProgressBar
+            compact
+            deliveredKg={recibidos}
+            totalKg={esperados}
+          />
         </div>
-        <div style={{ width: '100%', height: 6, background: 'var(--paper-sunk)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }} />
-        </div>
+
         {restaPagar > 0.01 ? (
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--bad)' }}>Faltan {restaPagar.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--bad)', fontFamily: 'monospace' }}>
+            Faltan {restaPagar.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+          </div>
         ) : (
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ok)' }}>✅ Liquidado</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ok)' }}>✅ Liquidado 100%</div>
         )}
-      </div>
+      </motion.div>
     );
   };
 
   return (
     <KanbanScrollWrapper>
-      <div style={colStyle('var(--paper-sunk)')}>
-        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-          <span>📋 Pedido</span>
-          <span style={{ background: 'var(--paper-raised)', color: 'var(--ink-soft)', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.pedido.length}</span>
+      <div style={colStyle('var(--paper-sunk)', 'var(--line)')}>
+        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+          <span>📋 Pedido a Andrés</span>
+          <span style={{ background: 'var(--paper-raised)', color: 'var(--ink-soft)', padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{cols.pedido.length}</span>
         </div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.pedido.map(renderCard)}
-          {cols.pedido.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, marginTop: 20 }}>Sin pedidos aquí</div>}
+          {cols.pedido.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12, marginTop: 24, fontStyle: 'italic' }}>Sin pedidos aquí</div>}
         </div>
       </div>
 
-      <div style={colStyle('var(--warn-bg)')}>
-        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--warn)' }}>
-          <span>🚚 En Tránsito (parcial)</span>
-          <span style={{ background: 'var(--paper-raised)', color: 'var(--warn)', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.transito.length}</span>
+      <div style={colStyle('var(--warn-bg)', 'rgba(245,158,11,0.25)')}>
+        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--warn)', fontSize: 13 }}>
+          <span>🚚 En Fabricación / Tránsito</span>
+          <span style={{ background: 'var(--paper-raised)', color: 'var(--warn)', padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{cols.transito.length}</span>
         </div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.transito.map(renderCard)}
-          {cols.transito.length === 0 && <div style={{ textAlign: 'center', color: 'var(--warn)', fontSize: 13, marginTop: 20 }}>Nada en tránsito</div>}
+          {cols.transito.length === 0 && <div style={{ textAlign: 'center', color: 'var(--warn)', fontSize: 12, marginTop: 24, fontStyle: 'italic' }}>Nada en tránsito</div>}
         </div>
       </div>
 
-      <div style={colStyle('var(--bad-bg)')}>
-        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--bad)' }}>
+      <div style={colStyle('var(--bad-bg)', 'rgba(239,68,68,0.25)')}>
+        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--bad)', fontSize: 13 }}>
           <span>📦 Recibido — Falta Pagar</span>
-          <span style={{ background: 'var(--paper-raised)', color: 'var(--bad)', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.recibidoSinPagar.length}</span>
+          <span style={{ background: 'var(--paper-raised)', color: 'var(--bad)', padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{cols.recibidoSinPagar.length}</span>
         </div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.recibidoSinPagar.map(renderCard)}
-          {cols.recibidoSinPagar.length === 0 && <div style={{ textAlign: 'center', color: 'var(--bad)', fontSize: 13, marginTop: 20 }}>Nada pendiente de pago</div>}
+          {cols.recibidoSinPagar.length === 0 && <div style={{ textAlign: 'center', color: 'var(--bad)', fontSize: 12, marginTop: 24, fontStyle: 'italic' }}>Nada pendiente de pago</div>}
         </div>
       </div>
 
-      <div style={colStyle('var(--ok-bg)')}>
-        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--ok)' }}>
-          <span>✅ Pagado</span>
-          <span style={{ background: 'var(--paper-raised)', color: 'var(--ok)', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{cols.pagado.length}</span>
+      <div style={colStyle('var(--ok-bg)', 'rgba(16,185,129,0.25)')}>
+        <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--ok)', fontSize: 13 }}>
+          <span>✅ Pagado y Liquidado</span>
+          <span style={{ background: 'var(--paper-raised)', color: 'var(--ok)', padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{cols.pagado.length}</span>
         </div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
+        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {cols.pagado.map(renderCard)}
-          {cols.pagado.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ok)', fontSize: 13, marginTop: 20 }}>Nada liquidado todavía</div>}
+          {cols.pagado.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ok)', fontSize: 12, marginTop: 24, fontStyle: 'italic' }}>Nada liquidado todavía</div>}
         </div>
       </div>
     </KanbanScrollWrapper>

@@ -1,10 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
 
 export function BandejaMaquilaWidget() {
   const { deliveries, loading } = useMaquilaDeliveries();
+  const { settings } = useSystemSettings();
   const nav = useNavigate();
+  const provName = settings.providerName || 'Andrés';
 
   if (loading || deliveries.length === 0) return null;
 
@@ -16,9 +19,9 @@ export function BandejaMaquilaWidget() {
     >
       <div style={{ fontSize: 32 }}>📥</div>
       <div style={{ flex: 1 }}>
-        <h3 style={{ margin: 0, fontSize: 16, color: 'var(--brand-dark)' }}>Bandeja de Entregas (Portal Maquilador)</h3>
+        <h3 style={{ margin: 0, fontSize: 16, color: 'var(--brand-dark)' }}>Bandeja de Recepción (Entregas en Báscula)</h3>
         <p style={{ margin: '4px 0 0 0', fontSize: 14, color: 'var(--brand)' }}>
-          Andrés ha reportado <strong>{deliveries.length}</strong> entrega(s) pendiente(s) de revisión.
+          {provName} ha reportado <strong>{deliveries.length}</strong> entrega(s) pendiente(s) de revisión.
         </p>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>

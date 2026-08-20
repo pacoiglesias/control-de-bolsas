@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, collection, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, collection, setDoc, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
@@ -12,12 +12,13 @@ import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { logAction } from '../lib/logger';
 import { useToast } from '../context/ToastContext';
-import { fmtDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
-import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
+import { fmtDate, fmtDayAndDate, money, toInputDate, fromInputDate, exportToCsv, getPrintHeaderHtml, shareHtmlAsPdf } from '../lib/format';
+import { computeCommissionFromInvoiceTotal, normalizarTexto, round2 } from '../lib/finance';
 import type { Expense } from '../lib/types';
 import { safeDeleteDoc } from '../lib/logger';
 import { motion } from 'framer-motion';
 import { useUndo } from '../context/UndoContext';
+import { confirmDialog } from '../lib/confirmDialog';
 
 export default function CajaChica() {
   const { role } = useAuth();
@@ -26,6 +27,7 @@ export default function CajaChica() {
   const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
   const { settings } = useSystemSettings();
+  const toast = useToast();
   const [selected, setSelected] = useState<Expense | null>(null);
 
 
@@ -34,8 +36,40 @@ export default function CajaChica() {
     return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
   }, 0);
 
-  // Calc deuda real con el proveedor
   const provName = settings?.providerName || 'Andrés';
+
+  const [cajaFilter, setCajaFilter] = useState<'all' | 'ingreso' | 'andres' | 'socios' | 'otros'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Total acumulado retirado por los socios
+  const totalRepartoSocios = expenses.filter((e) => {
+    if (e.type !== 'egreso') return false;
+    const c = (e.concept || '').toLowerCase();
+    return c.includes('socio') || c.includes('reparto') || c.includes('utilidad') || c.includes('paco') || c.includes('ganancia') || c.includes('retiro');
+  }).reduce((a, e) => a + e.amount, 0);
+
+  // Filtrado de movimientos
+  const filteredExpenses = expenses.filter((e) => {
+    const isAndres = e.provider && e.provider.toLowerCase() === provName.toLowerCase();
+    const c = (e.concept || '').toLowerCase();
+    const isSocio = e.type === 'egreso' && (c.includes('socio') || c.includes('reparto') || c.includes('utilidad') || c.includes('paco') || c.includes('ganancia') || c.includes('retiro'));
+
+    if (cajaFilter === 'ingreso' && e.type !== 'ingreso') return false;
+    if (cajaFilter === 'andres' && !isAndres) return false;
+    if (cajaFilter === 'socios' && !isSocio) return false;
+    if (cajaFilter === 'otros' && (e.type !== 'egreso' || isAndres || isSocio)) return false;
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const matchConcept = (e.concept || '').toLowerCase().includes(q);
+      const matchProvider = (e.provider || '').toLowerCase().includes(q);
+      if (!matchConcept && !matchProvider) return false;
+    }
+    return true;
+  });
+
+  const filteredIngresos = filteredExpenses.filter((e) => e.type === 'ingreso').reduce((a, e) => a + e.amount, 0);
+  const filteredEgresos = filteredExpenses.filter((e) => e.type === 'egreso').reduce((a, e) => a + e.amount, 0);
   // ANTES: "provPurchases" no filtraba por proveedor pese al nombre --
   // era TODAS las compras del sistema, de cualquier proveedor. Una sola
   // compra registrada para otro caso (o con acento distinto en el nombre)
@@ -57,18 +91,22 @@ export default function CajaChica() {
   // Positivo = Saldo a Favor / Anticipo (Pagamos mas de lo que recibimos)
   const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
-  // Calc dinero en tránsito (estatus 'paid')
-  const dineroEnTransito = orders.reduce((acc, o) => {
-    if (!o.invoices) return acc;
-    return acc + o.invoices.reduce((sum, inv) => {
-      if (inv.creditCycle.status === 'paid') {
+  // Calc desglose de dinero en tránsito (estatus 'paid')
+  let totalBrutoCobrado = 0;
+  let totalComisionContador = 0;
+  let dineroEnTransito = 0;
+
+  (orders || []).forEach((o) => {
+    (o?.invoices || []).forEach((inv) => {
+      if (inv?.creditCycle?.status === 'paid') {
         const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16)));
         const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
-        return sum + (totalFactura - comision);
+        totalBrutoCobrado = round2(totalBrutoCobrado + totalFactura);
+        totalComisionContador = round2(totalComisionContador + comision);
+        dineroEnTransito = round2(dineroEnTransito + (totalFactura - comision));
       }
-      return sum;
-    }, 0);
-  }, 0);
+    });
+  });
 
   function getCajaChicaHtml() {
     const totalIngresos = expenses.filter(e => e.type === 'ingreso').reduce((a, e) => a + e.amount, 0);
@@ -79,7 +117,7 @@ export default function CajaChica() {
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Reporte de CAJA - ERP Bolsas Elemental</title>
+          <title>Reporte de Caja y Tesorería - Providencia</title>
           <style>
             body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
             table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
@@ -149,8 +187,6 @@ export default function CajaChica() {
     await shareHtmlAsPdf(html, `CajaChica_${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
-  const toast = useToast();
-
   function exportCajaChicaCsv() {
     const headers = ['Fecha', 'Concepto', 'Proveedor', 'Tipo', 'Monto'];
     const rows = expenses.map(e => [
@@ -184,8 +220,8 @@ export default function CajaChica() {
   return (
     <>
       <div className="page-head">
-        <h1>CAJA</h1>
-        <p>Control de efectivo, comisiones contables y gastos diversos.</p>
+        <h1>FLUJO DE EFECTIVO & REPARTO</h1>
+        <p>Control directo del dinero recibido de contadores, pagos a {provName} y retiro de utilidades.</p>
       </div>
 
       <motion.div 
@@ -194,24 +230,39 @@ export default function CajaChica() {
         className="kpi-grid" 
         style={{ marginBottom: 32 }}
       >
-        <Card title="💰 SALDO EN CAJA">
+        {/* 1. Saldo Líquido en Mano */}
+        <Card title="💰 EFECTIVO EN CAJA">
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
             <div>
-              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)', letterSpacing: '-1px' }}>
+              <div className="num" style={{ fontSize: 38, fontWeight: 800, color: saldo < 0 ? 'var(--bad)' : 'var(--ok)', letterSpacing: '-1px' }}>
                 {money(saldo)}
               </div>
-              <p className="hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 14 }}>Efectivo físico disponible en caja actualmente.</p>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 13 }}>Dinero líquido disponible en mano actualmente.</p>
             </div>
           </div>
         </Card>
         
-        <Card title="🚚 DINERO EN TRÁNSITO">
+        {/* 2. Dinero en Tránsito con Contadores */}
+        <Card title="🚚 POR RECIBIR DEL CONTADOR">
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
             <div>
-              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)', letterSpacing: '-1px' }}>
+              <div className="num" style={{ fontSize: 38, fontWeight: 800, color: dineroEnTransito > 0 ? 'var(--warn)' : 'var(--ink)', letterSpacing: '-1px' }}>
                 {money(dineroEnTransito)}
               </div>
-              <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>Cobrado por los contadores, pendiente de entregar a caja.</p>
+              <div style={{ marginTop: 6, marginBottom: 10, fontSize: 11.5, background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--line-soft)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ink-soft)' }}>
+                  <span>Cobrado Providencia (c/IVA):</span>
+                  <span className="mono">{money(totalBrutoCobrado)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b91c1c', fontWeight: 600 }}>
+                  <span>Comisión Contador (8%):</span>
+                  <span className="mono">-{money(totalComisionContador)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#047857', fontWeight: 800, borderTop: '1px solid var(--line-soft)', paddingTop: 3, marginTop: 3 }}>
+                  <span>Neto Limpio a Caja:</span>
+                  <span className="mono">{money(dineroEnTransito)}</span>
+                </div>
+              </div>
             </div>
             <motion.button 
               whileHover={dineroEnTransito > 0 ? { scale: 1.02 } : {}}
@@ -232,29 +283,27 @@ export default function CajaChica() {
               onClick={() => setSelected({
                 id: doc(collection(db, PATHS.expenses)).id,
                 date: Timestamp.fromDate(new Date()),
-                concept: 'Recolección de Contabilidad',
+                concept: 'Efectivo Recibido de Contadores (Cobranza Providencia)',
                 amount: dineroEnTransito,
                 type: 'ingreso',
                 createdAt: null,
               } as Expense)}
             >
-              📥 {dineroEnTransito > 0 ? 'Recolectar Efectivo a Caja' : 'Nada por recolectar'}
+              💵 {dineroEnTransito > 0 ? 'Recibir Efectivo en Mano' : 'Sin efectivo por recibir'}
             </motion.button>
           </div>
         </Card>
 
-        <Card title={`⚖️ ESTADO CON ${provName.toUpperCase()}`}>
+        {/* 3. Cuenta con Andrés */}
+        <Card title={`🏭 CUENTA CON ${provName.toUpperCase()}`}>
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
             <div>
-              <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldoProveedor < 0 ? 'var(--bad)' : saldoProveedor > 0 ? 'var(--ok)' : 'var(--ink)', letterSpacing: '-1px' }}>
+              <div className="num" style={{ fontSize: 38, fontWeight: 800, color: saldoProveedor < 0 ? 'var(--bad)' : saldoProveedor > 0 ? 'var(--ok)' : 'var(--ink)', letterSpacing: '-1px' }}>
                 {saldoProveedor < 0 ? '-' : '+'}{money(Math.abs(saldoProveedor))}
               </div>
-              <p className="hint" style={{ marginTop: 8, marginBottom: 8, fontSize: 14 }}>
-                {saldoProveedor < 0 ? `Deuda activa (Total a pagar a ${provName}).` : saldoProveedor > 0 ? `Saldo a favor (${provName} te debe).` : 'Cuentas completamente saldadas.'}
+              <p className="hint" style={{ marginTop: 6, marginBottom: 8, fontSize: 13 }}>
+                {saldoProveedor < 0 ? `Deuda por pagar a ${provName}.` : saldoProveedor > 0 ? `Saldo a favor con ${provName}.` : 'Cuentas al día.'}
               </p>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8, marginBottom: 12 }}>
-               Fórmula: <strong>Pagado</strong> ({money(totalPagado)}) - <strong>Compras</strong> ({money(totalPurchasesCost)}) + <strong>Histórico</strong> ({money(deudaHistorica)})
             </div>
             <motion.button 
               whileHover={{ scale: 1.02 }}
@@ -279,25 +328,56 @@ export default function CajaChica() {
                 createdAt: null,
               } as Expense)}
             >
-              {saldoProveedor < 0 ? '💸 Pagar Deuda Exacta' : '💸 Dar Anticipo / Pago a Cuenta'}
+              {saldoProveedor < 0 ? '💸 Pagar Deuda' : '💸 Dar Abono / Anticipo'}
+            </motion.button>
+          </div>
+        </Card>
+
+        {/* 4. Reparto de Ganancias a Socios */}
+        <Card title="🤝 REPARTO A SOCIOS">
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <div>
+              <div className="num" style={{ fontSize: 38, fontWeight: 800, color: '#7c3aed', letterSpacing: '-1px' }}>
+                {money(totalRepartoSocios)}
+              </div>
+              <p className="hint" style={{ marginTop: 6, marginBottom: 12, fontSize: 13 }}>Total acumulado retirado por Paco y socio.</p>
+            </div>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="btn" 
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                background: 'rgba(124, 58, 237, 0.15)', 
+                borderColor: '#7c3aed', 
+                color: '#7c3aed', 
+                fontWeight: 'bold' 
+              }} 
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: 'Retiro de Ganancias - Socios',
+                amount: 0,
+                type: 'egreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              🤝 Retirar Ganancia
             </motion.button>
           </div>
         </Card>
       </motion.div>
 
       {(() => {
-        // Cobros donde lo que realmente entro a Caja fue distinto de lo
-        // calculado (comision configurada vs comision real que aplico el
-        // contador). Antes esto nunca se registraba -- el sistema
-        // guardaba el monto calculado como si fuera el real, sin poder
-        // detectar el patron.
         const conDiferencia = expenses.filter((e: any) => typeof e.diferencia === 'number' && Math.abs(e.diferencia) > 0.01);
         if (conDiferencia.length === 0) return null;
         const totalDiferencia = conDiferencia.reduce((a: number, e: any) => a + e.diferencia, 0);
         return (
           <Card title="⚖️ Esperado vs. Real — Diferencias en Cobros">
             <p className="hint" style={{ marginBottom: 12 }}>
-              Cada vez que confirmas "Recibida del Contador", comparamos lo calculado contra lo que realmente escribiste que llegó.
+              Cada vez que confirmas "Recibida del Contador", comparamos lo calculado contra lo que realmente llegó.
               {totalDiferencia !== 0 && (
                 <> Acumulado: <strong style={{ color: totalDiferencia > 0 ? 'var(--ok)' : 'var(--bad)' }}>{totalDiferencia > 0 ? '+' : ''}{money(totalDiferencia)}</strong></>
               )}
@@ -320,58 +400,154 @@ export default function CajaChica() {
 
       <Card
         actions={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn no-print" style={{ background: '#047857', color: 'white', borderColor: '#047857', fontWeight: 600 }} onClick={() => setSelected({
-              id: doc(collection(db, PATHS.expenses)).id,
-              date: Timestamp.fromDate(new Date()),
-              concept: '',
-              amount: 0,
-              type: 'ingreso',
-              createdAt: null,
-            } as Expense)}>
-              ➕ Ingreso
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="btn no-print"
+              style={{ background: '#047857', color: 'white', borderColor: '#047857', fontWeight: 700 }}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: 'Cobro de Factura Providencia (Contador)',
+                amount: 0,
+                type: 'ingreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              💵 + Recibir del Contador
             </button>
-            <button className="btn no-print" style={{ background: '#b91c1c', color: 'white', borderColor: '#b91c1c', fontWeight: 600 }} onClick={() => setSelected({
-              id: doc(collection(db, PATHS.expenses)).id,
-              date: Timestamp.fromDate(new Date()),
-              concept: '',
-              amount: 0,
-              type: 'egreso',
-              createdAt: null,
-            } as Expense)}>
-              ➖ Egreso
+            <button
+              className="btn no-print"
+              style={{ background: '#0284c7', color: 'white', borderColor: '#0284c7', fontWeight: 700 }}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: `Abono a ${provName}`,
+                provider: provName,
+                amount: 0,
+                type: 'egreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              🏭 Pagar a {provName}
             </button>
+            <button
+              className="btn no-print"
+              style={{ background: '#7c3aed', color: 'white', borderColor: '#7c3aed', fontWeight: 700 }}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: 'Retiro de Ganancias - Socios',
+                amount: 0,
+                type: 'egreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              🤝 Reparto de Ganancias
+            </button>
+            <button
+              className="btn no-print"
+              style={{ background: 'var(--paper-sunk)', color: 'var(--ink)', borderColor: 'var(--line)', fontWeight: 600 }}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: '',
+                amount: 0,
+                type: 'egreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              ➖ Otro Gasto
+            </button>
+
             <span className="spacer" />
-            <button className="btn no-print" onClick={exportCajaChicaCsv}>📥 Exportar Excel (CSV)</button>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <button className="btn no-print" onClick={exportCajaChicaCsv}>📥 CSV</button>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCajaChicaReport}>
-                <span className="icon">📤</span> Compartir PDF
+                <span className="icon">📤</span> PDF
               </button>
               <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printCajaChicaReport}>
-                📈 Imprimir Reporte de Caja
+                📈 Imprimir
               </button>
             </div>
           </div>
         }
-        title="Movimientos"
-        hint={`Saldo actual: ${money(saldo)}`}
+        title="Historial de Movimientos de Efectivo"
+        hint={`Mostrando ${filteredExpenses.length} de ${expenses.length} registros`}
       >
-        {expenses.length === 0 ? (
-          <Empty>No hay movimientos de caja registrados.</Empty>
+        {/* Barra de Filtros y Buscador */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(
+              [
+                ['all', 'Todos'],
+                ['ingreso', '📥 Cobros de Contadores'],
+                ['andres', `🏭 Pagos a ${provName}`],
+                ['socios', '🤝 Reparto a Socios'],
+                ['otros', '💸 Otros Egresos'],
+              ] as const
+            ).map(([f, label]) => (
+              <button
+                key={f}
+                onClick={() => setCajaFilter(f)}
+                style={{
+                  background: cajaFilter === f ? 'var(--accent)' : 'var(--paper-sunk)',
+                  color: cajaFilter === f ? '#fff' : 'var(--ink)',
+                  border: '1px solid var(--line-soft)',
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <input
+            type="text"
+            placeholder="🔍 Buscar movimiento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--line)',
+              background: 'var(--paper-sunk)',
+              color: 'var(--ink)',
+              fontSize: 12.5,
+              minWidth: 200,
+              outline: 'none',
+            }}
+          />
+        </div>
+
+        {/* Resumen de totales filtrados */}
+        {(cajaFilter !== 'all' || searchTerm.trim()) && (
+          <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>
+            <span>Ingresos: <strong style={{ color: '#047857' }}>+{money(filteredIngresos)}</strong></span>
+            <span>Egresos: <strong style={{ color: '#b91c1c' }}>-{money(filteredEgresos)}</strong></span>
+            <span>Neto: <strong style={{ color: 'var(--ink)' }}>{money(filteredIngresos - filteredEgresos)}</strong></span>
+          </div>
+        )}
+
+        {filteredExpenses.length === 0 ? (
+          <Empty>No hay movimientos que coincidan con el filtro o búsqueda.</Empty>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
-            {expenses.map((e, index) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+            {filteredExpenses.map((e, index) => (
               <motion.div 
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(index * 0.03, 0.3) }}
+                transition={{ delay: Math.min(index * 0.02, 0.2) }}
                 key={e.id} 
                 onClick={() => setSelected(e)} 
                 style={{ 
                   background: 'var(--glass-bg)', 
                   border: '1px solid var(--glass-border)',
                   borderRadius: 12, 
-                  padding: '16px 20px',
+                  padding: '14px 18px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -380,25 +556,25 @@ export default function CajaChica() {
                   backdropFilter: 'blur(8px)',
                   WebkitBackdropFilter: 'blur(8px)',
                 }}
-                whileHover={{ scale: 1.01, boxShadow: '0 8px 15px -3px rgba(0,0,0,0.05)' }}
+                whileHover={{ scale: 1.01, boxShadow: '0 6px 14px -3px rgba(0,0,0,0.06)' }}
                 whileTap={{ scale: 0.99 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ 
-                    width: 44, height: 44, borderRadius: 12, 
+                    width: 40, height: 40, borderRadius: 10, 
                     background: e.type === 'ingreso' ? '#dcfce7' : '#fee2e2',
                     color: e.type === 'ingreso' ? '#166534' : '#991b1b',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, flexShrink: 0
+                    fontSize: 18, flexShrink: 0
                   }}>
                     {e.type === 'ingreso' ? '📥' : '📤'}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)', marginBottom: 2 }}>{e.concept}</div>
-                    <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-                      <span className="mono">{fmtDate(e.date)}</span>
+                    <div style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--ink)', marginBottom: 2 }}>{e.concept}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                      <span className="mono" style={{ fontWeight: 600 }}>{fmtDayAndDate(e.date)}</span>
                       {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
-                        <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                        <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
                           ● Abono a Proveedor
                         </span>
                       )}
@@ -408,7 +584,7 @@ export default function CajaChica() {
                 <div className="mono" style={{ 
                   color: e.type === 'ingreso' ? 'var(--ok)' : 'var(--ink)', 
                   fontWeight: 800, 
-                  fontSize: 17,
+                  fontSize: 16,
                   textAlign: 'right'
                 }}>
                   {e.type === 'ingreso' ? '+' : '-'}{money(e.amount)}
@@ -420,13 +596,13 @@ export default function CajaChica() {
       </Card>
 
       {selected && (
-        <ExpenseDrawer expense={selected} onClose={() => setSelected(null)} provName={provName} />
+        <ExpenseDrawer expense={selected} onClose={() => setSelected(null)} provName={provName} saldoCajaActual={saldo} />
       )}
     </>
   );
 }
 
-function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClose: () => void; provName: string }) {
+function ExpenseDrawer({ expense, onClose, provName, saldoCajaActual = 0 }: { expense: Expense; onClose: () => void; provName: string; saldoCajaActual?: number }) {
   const { user } = useAuth();
   const toast = useToast();
   const { executeWithUndo } = useUndo();
@@ -444,7 +620,13 @@ function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClo
 
   async function save() {
     if (!form.concept.trim()) return toast('Falta concepto', 'bad');
-    if (Number(form.amount) <= 0) return toast('Monto inválido', 'bad');
+    const amt = Number(form.amount);
+    if (amt <= 0) return toast('Monto inválido', 'bad');
+
+    if (form.type === 'egreso' && !expense.createdAt && amt > saldoCajaActual) {
+      const msg = `⚠️ ATENCIÓN: El saldo en efectivo en Caja Chica es de ${money(saldoCajaActual)}, pero intentas registrar un egreso de ${money(amt)}.\n\nLa caja quedará en saldo negativo de ${money(saldoCajaActual - amt)}.\n\n¿Deseas continuar?`;
+      if (!(await confirmDialog(msg))) return;
+    }
 
     setBusy(true);
     try {
@@ -473,20 +655,38 @@ function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClo
   }
 
   async function remove() {
+    const isIngreso = expense.type === 'ingreso';
+    const tipoStr = isIngreso ? 'ingreso / cobro' : 'gasto / retiro';
+    const msg = `⚠️ ¿Estás seguro de que deseas eliminar este ${tipoStr} de Caja Chica?\n\nConcepto: "${expense.concept}"\nMonto: $${Number(expense.amount || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\nEsta acción quedará registrada en la bitácora de auditoría.`;
+
+    if (!(await confirmDialog({ message: msg, danger: true }))) return;
+
     executeWithUndo(
       async () => {
         await safeDeleteDoc(user?.email, doc(db, PATHS.expenses, expense.id), expense);
-        await logAction(user?.email, 'Gasto Eliminado', {
+        await logAction(user?.email, 'Movimiento de Caja Eliminado', {
           id: expense.id,
           concept: expense.concept,
-          amount: expense.amount
+          amount: expense.amount,
+          type: expense.type,
         });
         onClose();
       },
       async () => {
+        // FIX: antes esto hacia setDoc(ref, expense) -- un REEMPLAZO
+        // COMPLETO del documento con la copia de `expense` capturada al
+        // abrir este cajón (posiblemente desactualizada si algo más lo
+        // tocó mientras tanto). safeDeleteDoc solo puso 3 campos
+        // (isDeleted/deletedAt/deletedBy); deshacerlo debe quitar
+        // exactamente esos 3 campos, igual que restoreOrder() ya hace
+        // para expedientes -- no reescribir el documento entero.
         const ref = doc(db, PATHS.expenses, expense.id);
-        await setDoc(ref, expense);
-        await logAction(user?.email, 'Borrado de Gasto Deshecho', { id: expense.id });
+        await updateDoc(ref, {
+          isDeleted: deleteField(),
+          deletedAt: deleteField(),
+          deletedBy: deleteField(),
+        });
+        await logAction(user?.email, 'Borrado de Movimiento Deshecho', { id: expense.id });
       },
       `Movimiento de caja eliminado: ${expense.concept}`
     );
@@ -504,8 +704,50 @@ function ExpenseDrawer({ expense, onClose, provName }: { expense: Expense; onClo
             <option value="ingreso">Ingreso (Reposición)</option>
           </select>
         </Field>
-        <Field label="Concepto (e.g. Gasolina, Papelería)">
-          <input className="input boxed" value={form.concept} onChange={(e) => set('concept', e.target.value)} />
+        <Field label="Concepto">
+          <input className="input boxed" value={form.concept} onChange={(e) => set('concept', e.target.value)} placeholder="Ej. Gasolina, Flete..." />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+            {(form.type === 'egreso'
+              ? [
+                  { label: '⛽ Gasolina', concept: 'Gasolina', prov: 'Gasolinera' },
+                  { label: '🚛 Flete', concept: 'Flete y Acarreo de Material', prov: '' },
+                  { label: `🏭 Pago ${provName}`, concept: 'Pago de Producción / Kilos', prov: provName },
+                  { label: '💼 Retiro Socios', concept: 'Retiro de Utilidades Socios', prov: 'Socios' },
+                  { label: '📦 Empaque / Fleje', concept: 'Material de Empaque y Fleje', prov: '' },
+                  { label: '🛠️ Mantenimiento', concept: 'Mantenimiento y Reparaciones', prov: '' },
+                  { label: '🍔 Viáticos / Comida', concept: 'Comida y Viáticos Operativos', prov: '' },
+                ]
+              : [
+                  { label: '📥 Cobro Factura', concept: 'Depósito / Cobro Factura Contador', prov: 'Contador' },
+                  { label: '💰 Aportación Socios', concept: 'Aportación de Capital Socios', prov: 'Socios' },
+                  { label: '🔄 Reembolso / Ajuste', concept: 'Reembolso / Ajuste de Caja', prov: '' },
+                ]
+            ).map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="chip"
+                style={{
+                  fontSize: 11,
+                  padding: '3px 8px',
+                  background: form.concept === preset.concept ? 'var(--accent)' : 'var(--paper-sunk)',
+                  color: form.concept === preset.concept ? '#fff' : 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                }}
+                onClick={() => {
+                  setForm((f) => ({
+                    ...f,
+                    concept: preset.concept,
+                    provider: preset.prov || f.provider,
+                  }));
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
         </Field>
         <Field label="Proveedor / Fabricante / Beneficiario">
           <input className="input boxed" value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder={`Ej. ${provName}`} />

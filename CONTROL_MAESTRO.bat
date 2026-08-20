@@ -56,11 +56,24 @@ goto menu
 :subir
 cls
 echo =======================================================
-echo Este menu ya no despliega directo -- usa el script
-echo dedicado, que hace pruebas, sube GitHub y reintenta
-echo Functions si hace falta.
+echo Compilando y subiendo el sistema a Produccion...
 echo =======================================================
-call DESPLEGAR_ROBUSTO.bat
+REM FIX: esta opcion llamaba "npm run deploy" directo -- sin typecheck,
+REM sin pruebas, sin el orden correcto (reglas antes que Cloud Functions
+REM antes que Hosting), y sin el ajuste de FUNCTIONS_DISCOVERY_TIMEOUT que
+REM evita el error "Timeout after 10000" al desplegar Cloud Functions desde
+REM Windows con antivirus activo. Si alguna vez el deploy fallaba de forma
+REM rara usando esta opcion del menu, esa era la causa mas probable. Ahora
+REM usa el mismo script robusto que ya usan los instaladores de parches.
+if exist "INSTALAR_BUILD_DEPLOY.bat" (
+  call INSTALAR_BUILD_DEPLOY.bat
+) else (
+  echo  [!] No encontre INSTALAR_BUILD_DEPLOY.bat -- uso el metodo anterior.
+  call npm run deploy
+)
+echo.
+echo ¡Despliegue finalizado!
+pause
 goto menu
 
 :salir

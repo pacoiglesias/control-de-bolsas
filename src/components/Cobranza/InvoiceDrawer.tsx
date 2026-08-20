@@ -4,18 +4,26 @@ import { money, toInputDate } from '../../lib/format';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { Timestamp } from 'firebase/firestore';
-import { extractCr } from '../../lib/finance';
+import { extractCr, type FinanceConfigCore } from '../../lib/finance';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { useToast } from '../../context/ToastContext';
 
 interface InvoiceDrawerProps {
   invoice: Invoice;
   order: PurchaseOrder;
-  dynamicConfig: any;
+  // FIX: era `any`. Los dos lugares que renderizan este drawer
+  // (ContrarecibosTable.tsx, TableroKanban.tsx) pasan el `config` de
+  // useConfig() -- un FinancialConfig, que es estructuralmente un
+  // FinanceConfigCore (mismo tipo que ya usan computeFinancials/saveInvoice).
+  dynamicConfig: FinanceConfigCore;
   onClose: () => void;
 }
 
 export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: InvoiceDrawerProps) {
+  const toast = useToast();
   const { saveInvoice } = useInvoiceActions();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const hasChanges = JSON.stringify(invoice) !== JSON.stringify(localInvoice);
   
   const updateField = (fieldPath: string[], value: any) => {
@@ -32,8 +40,30 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
   };
 
   const handleSave = async () => {
+    const rawCr = (localInvoice.collection?.contrareciboNumber || '').trim().toUpperCase();
+    const isTH = order.department === 'TH' || (order.client || '').toUpperCase().includes('TH');
+    const isGT = order.department === 'GT' || (order.client || '').toUpperCase().includes('GT');
+
+    if (isTH && rawCr.startsWith('GT-')) {
+      toast('⚠️ Separación Estricta: Las facturas de TH no pueden llevar un contrarecibo GT.', 'bad');
+      return;
+    }
+    if (isGT && rawCr.startsWith('TH-')) {
+      toast('⚠️ Separación Estricta: Las facturas de GT no pueden llevar un contrarecibo TH.', 'bad');
+      return;
+    }
+
     await saveInvoice(order, localInvoice, dynamicConfig);
     onClose();
+  };
+
+  const handleDownloadPdf = async () => {
+    setPdfBusy(true);
+    try {
+      await generatePrefacturaPdf(order, localInvoice);
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   const cr = extractCr(localInvoice, order);
@@ -44,9 +74,9 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
       title={`Factura ${localInvoice.folio || order.folio || 'S/N'}`}
       onClose={onClose}
       side="right"
-      width={450}
+      width={480}
     >
-      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         
         {/* ENCABEZADO Y STATUS */}
         <div className="glass-panel" style={{ padding: '16px', borderRadius: 'var(--radius)', borderTop: `4px solid ${isLate ? 'var(--bad)' : 'var(--accent)'}` }}>
@@ -63,6 +93,61 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             </div>
           </div>
         </div>
+
+        {/* DESGLOSE DE CONCEPTOS Y SUBPRODUCTOS */}
+        <Card title="📦 Conceptos & Subproductos">
+          <div style={{ fontSize: 13, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+            <span>Kilos Facturados:</span>
+            <strong className="mono" style={{ fontSize: 14 }}>{(localInvoice.kilos || 0).toLocaleString('es-MX')} kg</strong>
+          </div>
+          {localInvoice.collection?.notes && (
+            <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginBottom: 8, background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 6 }}>
+              {localInvoice.collection.notes}
+            </div>
+          )}
+          {localInvoice.items && localInvoice.items.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {localInvoice.items.map((it, idx) => (
+                <div key={it.id || idx} style={{ background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 6, fontSize: 11.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{it.description}</div>
+                    <div style={{ color: 'var(--ink-soft)', fontSize: 10.5 }}>Clave SAT: {it.code || '24111500'}</div>
+                  </div>
+                  <div className="mono" style={{ fontWeight: 700 }}>
+                    {(it.quantity || 0).toLocaleString('es-MX')} kg
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : order.items && order.items.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {order.items.map((it, idx) => (
+                <div key={it.id || idx} style={{ background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 6, fontSize: 11.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{it.description}</div>
+                    <div style={{ color: 'var(--ink-soft)', fontSize: 10.5 }}>Código: {it.code || 'S/C'}</div>
+                  </div>
+                  <div className="mono" style={{ fontWeight: 700 }}>
+                    {(it.quantity || 0).toLocaleString('es-MX')} kg
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+              Concepto general de venta de polietileno.
+            </div>
+          )}
+          <button
+            type="button"
+            className="btn"
+            style={{ width: '100%', marginTop: 12, background: 'var(--paper)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 700, fontSize: 12.5 }}
+            onClick={handleDownloadPdf}
+            disabled={pdfBusy}
+          >
+            <span>📄</span> {pdfBusy ? 'Generando PDF...' : 'Descargar Prefactura PDF'}
+          </button>
+        </Card>
 
         {/* CONTRARECIBO Y FECHAS */}
         <Card title="Ciclo de Crédito">

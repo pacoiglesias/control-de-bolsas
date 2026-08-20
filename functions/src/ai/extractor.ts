@@ -1,21 +1,8 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-// NOTA (2026-08-11): "@google/genai" se importaba arriba, a nivel de
-// modulo -- eso obliga a Node a cargar el SDK completo (y sus
-// dependencias transitivas: google-auth-library, etc.) apenas se
-// requiere este archivo, ANTES de que arranque la funcion. El comando
-// `firebase deploy --only functions` primero hace una fase de
-// "descubrimiento" que carga TODO el codigo de functions/ solo para leer
-// la configuracion de cada funcion (no para ejecutarlas) -- y esa fase
-// tiene un limite de 10 segundos por defecto. Con el import a nivel de
-// modulo, cargar este SDK pesado contaba contra ese limite de 10s aunque
-// nadie estuviera usando el lector de IA en ese momento, causando el
-// error "Cannot determine backend specification. Timeout after 10000"
-// que reporto el usuario. Solucion oficial de Firebase para este caso
-// exacto (ver la URL del propio mensaje de error): mover el import
-// pesado a DENTRO del handler con un import dinamico, para que solo se
-// cargue cuando la funcion de verdad se ejecuta, no durante el
-// descubrimiento del deploy.
+import { GoogleGenAI, Type } from "@google/genai";
+import { getFirestore } from "firebase-admin/firestore";
+
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 /**
@@ -26,9 +13,24 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
 export const parseDocumentData = onCall(
   { secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 60, region: "us-central1" },
   async (request) => {
-    // Solo usuarios autenticados pueden usar esto
-    if (!request.auth) {
+    // FIX (v8.9.2): "if (!request.auth)" tambien deja pasar una sesion
+    // anonima (signInAnonymously desde la consola del navegador, con la
+    // configuracion publica de Firebase -- no es secreta). Eso significaba
+    // que cualquiera podia gastar el presupuesto de la API de Gemini sin
+    // haber iniciado sesion de verdad. Ahora se exige correo verificado Y
+    // estar dado de alta como admin o manager, igual que reprocessOrder.
+    const uid = request.auth?.uid;
+    if (!uid) {
       throw new HttpsError("unauthenticated", "Debe estar autenticado para usar el lector inteligente.");
+    }
+    if (!request.auth?.token?.email_verified) {
+      throw new HttpsError("permission-denied", "Tu correo debe estar verificado.");
+    }
+    const db = getFirestore();
+    const adminSnap = await db.collection("admins").doc(uid).get();
+    const rol = adminSnap.data()?.role;
+    if (!adminSnap.exists || (rol !== "admin" && rol !== "manager")) {
+      throw new HttpsError("permission-denied", "Tu cuenta no tiene permiso para usar el lector inteligente.");
     }
 
     const { base64, mimeType } = request.data;
@@ -36,10 +38,6 @@ export const parseDocumentData = onCall(
     if (!base64 || !mimeType) {
       throw new HttpsError("invalid-argument", "Se requiere 'base64' y 'mimeType'.");
     }
-
-    // Import dinamico: el SDK pesado solo se carga aqui, en tiempo de
-    // ejecucion real de la funcion (ver nota arriba).
-    const { GoogleGenAI, Type } = await import("@google/genai");
 
     // Inicializar el SDK con la llave inyectada de Google Cloud Secret Manager
     const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });

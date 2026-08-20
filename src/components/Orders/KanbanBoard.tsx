@@ -1,41 +1,49 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { kilos, money } from '../../lib/format';
+import { money } from '../../lib/format';
 import type { OrderStatus, PurchaseOrder } from '../../lib/types';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
+import { KilosProgressBar } from './KilosProgressBar';
 import { sound } from '../../lib/sounds';
+import { useToast } from '../../context/ToastContext';
+import { db, PATHS } from '../../lib/firebase';
+import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { camposInvoices } from '../../lib/invoiceOps';
+import type { Invoice } from '../../lib/types';
+import { confirmDialog } from '../../lib/confirmDialog';
 
 type OrderWithSummary = {
   o: PurchaseOrder;
   s: any; // getOrderSummary return type
 };
 
-// FIX 2026-08-10 (Staff Engineer -- task ERP #12): antes cada columna traía
-// su propio color/bg en hex fijo (pensado solo para modo claro) -- en modo
-// oscuro esa combinación de fondo casi blanco + texto casi negro se veía
-// como una "isla" de modo claro dentro de una app oscura. Ahora usan
-// variables CSS (var(--...)) que ya cambian solas según [data-theme="dark"],
-// igual que el resto del sistema (ver src/index.css).
-const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: string }[] = [
-  { id: 'pedido', label: 'Pendiente de Facturar', color: 'var(--ink)', bg: 'var(--paper-sunk)' },
-  { id: 'facturado', label: 'Facturado', color: 'var(--info)', bg: 'var(--info-bg)' },
-  { id: 'pending', label: 'Con Contrarecibo', color: 'var(--warn)', bg: 'var(--warn-bg)' },
-  { id: 'overdue', label: 'Vencidas', color: 'var(--bad)', bg: 'var(--bad-bg)' },
-  { id: 'manual_review', label: 'Revisión Manual', color: 'var(--kanban-review)', bg: 'var(--kanban-review-bg)' },
-  { id: 'paid', label: 'Con el Contador', color: 'var(--ok)', bg: 'var(--ok-bg)' },
+// FIX (v8.9.2): la columna "paid" (Con el Contador) usaba var(--ok) --
+// el mismo verde de "exito" que se usa en todo el sistema para "collected"
+// (ya en caja). Eso hacia que una factura que TODAVIA no esta cobrada de
+// verdad -- solo esta en manos del contador, un paso antes -- se viera
+// identica en color a una que ya esta resuelta. En OrderModal/InvoiceWidget
+// esa misma factura "paid" ya se mostraba en ambar (STATUS_TONE.paid =
+// 'b-warn' en lib/types.ts, la definicion canonica) -- eran dos pantallas
+// contradiciendose sobre si una factura "paid" ya esta bien o todavia
+// necesita atencion. Ahora el Kanban usa el mismo ambar que el resto del
+// sistema para "paid", y reserva el verde exclusivamente para "collected".
+const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: string; nextStatus?: OrderStatus; nextLabel?: string }[] = [
+  { id: 'pedido', label: 'Pendiente de Facturar', color: 'var(--ink)', bg: 'var(--paper-sunk)', nextStatus: 'facturado', nextLabel: '➔ Facturar' },
+  { id: 'facturado', label: 'Facturado', color: 'var(--info)', bg: 'var(--info-bg)', nextStatus: 'pending', nextLabel: '➔ Con CR' },
+  { id: 'pending', label: 'Con Contrarecibo', color: 'var(--warn)', bg: 'var(--warn-bg)', nextStatus: 'paid', nextLabel: '➔ Con Contador' },
+  { id: 'overdue', label: 'Vencidas', color: 'var(--bad)', bg: 'var(--bad-bg)', nextStatus: 'paid', nextLabel: '➔ Con Contador' },
+  { id: 'manual_review', label: 'Revisión Manual', color: 'var(--kanban-review)', bg: 'var(--kanban-review-bg)', nextStatus: 'pending', nextLabel: '➔ Reactivar' },
+  { id: 'paid', label: 'Con el Contador', color: 'var(--warn)', bg: 'var(--warn-bg)', nextStatus: 'collected', nextLabel: '➔ En Caja' },
   { id: 'collected', label: '✅ Cobrado y Recolectado', color: 'var(--kanban-collected)', bg: 'var(--kanban-collected-bg)' },
 ];
 
 export default function KanbanBoard({ items, onSelect }: { items: OrderWithSummary[], onSelect: (o: PurchaseOrder) => void }) {
+  const toast = useToast();
+  const [activeTarget, setActiveTarget] = useState<OrderStatus | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
+
   // Group items by status
   const grouped = items.reduce((acc, item) => {
-    // "Pendiente de Facturar" en la lista (Iteracion 68) significa
-    // "hay kilos entregados sin facturar", sin importar si ya existe una
-    // factura parcial -- distinto al status puro. Antes este tablero
-    // agrupaba solo por status, asi que un expediente con una factura
-    // parcial ya capturada (status='pending') aparecia aqui como
-    // "Con Contrarecibo" en vez de "Pendiente de Facturar", aunque la
-    // lista SI lo mostrara ahi -- mismos datos, dos lugares distintos
-    // del sistema en desacuerdo. Ahora usan el mismo criterio.
     const tieneKilosSinFacturar = item.s.kilosDelivered > item.s.kilosInvoiced;
     const status: OrderStatus = (tieneKilosSinFacturar && item.o.client !== 'MIGRACION')
       ? 'pedido'
@@ -45,10 +53,137 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
     return acc;
   }, {} as Record<OrderStatus, OrderWithSummary[]>);
 
+  const handleMoveStatus = async (order: PurchaseOrder, targetStatus: OrderStatus) => {
+    if (!order.id) return;
+    setMovingId(order.id);
+    try {
+      const orderRef = doc(db, PATHS.orders, order.id);
+
+      // FIX: antes se leia `order.invoices` directo de la prop (una copia
+      // que puede tener uno o mas renders de retraso respecto a Firestore)
+      // y se escribia con updateDoc sin transaccion. Si alguien mas
+      // modificaba ese mismo expediente entre que este tablero cargo y que
+      // se soltara la tarjeta (otro usuario, el Auto-Conciliador, el
+      // saneador nocturno), ese cambio se perdia silenciosamente al
+      // sobrescribir TODO el arreglo invoices con esta copia vieja.
+      // runTransaction relee el expediente real dentro de la operacion,
+      // igual que ya hace Cobranza/useCobranzaActions.ts.
+      //
+      // Ademas, ya no se tocan facturas que ya estan 'paid' o 'collected':
+      // arrastrar la tarjeta del EXPEDIENTE (que puede agrupar varias
+      // facturas en distintos estatus) no debe retroceder una factura que
+      // ya llego mas lejos que las demas.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(orderRef);
+        if (!snap.exists()) throw new Error('El expediente ya no existe');
+
+        const current: Invoice[] = snap.data().invoices ?? [];
+        const updatedInvoices = current.map(inv => {
+          if (inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected') {
+            return inv;
+          }
+          return {
+            ...inv,
+            creditCycle: {
+              ...(inv.creditCycle || {}),
+              status: targetStatus,
+            },
+            collection: {
+              ...(inv.collection || {}),
+              // Timestamp.now(), no serverTimestamp(): este objeto viaja dentro
+              // del arreglo invoices (tipado como Invoice[]), y el campo espera
+              // Timestamp | null, no FieldValue. serverTimestamp() aquí violaba
+              // el tipo silenciosamente porque antes se escribía sin pasar por
+              // camposInvoices(); mismo patrón que ya usan QuickPayModal, etc.
+              ...(targetStatus === 'paid' ? { paidAt: inv.collection?.paidAt || Timestamp.now() } : {}),
+              ...(targetStatus === 'collected' ? { collectedAt: inv.collection?.collectedAt || Timestamp.now() } : {}),
+            }
+          };
+        });
+
+        tx.update(orderRef, {
+          'creditCycle.status': targetStatus,
+          // camposInvoices() recalcula invoiceStatuses junto con invoices para
+          // que no queden desincronizados (ver Ciclo de auditoría: FastFlows
+          // bypasseaba este helper y dejaba invoiceStatuses obsoleto, lo que
+          // ocultaba órdenes del barrido nocturno de vencidas y del Dashboard).
+          ...(updatedInvoices.length > 0 ? camposInvoices(updatedInvoices) : { updatedAt: serverTimestamp() }),
+        });
+      });
+
+      if (targetStatus === 'paid' || targetStatus === 'collected') {
+        sound.playChaChing();
+      } else {
+        sound.playSwoosh();
+      }
+
+      const colInfo = KANBAN_COLUMNS.find(c => c.id === targetStatus);
+      toast(`✨ Orden ${order.folio || order.oc || 'actualizada'} movida a "${colInfo?.label || targetStatus}"`, 'ok');
+    } catch (err: any) {
+      console.error('Error al mover orden:', err);
+      toast('No se pudo mover el expediente. Verifica tu conexión.', 'bad');
+    } finally {
+      setMovingId(null);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, currentStatus: OrderStatus) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ orderId, currentStatus }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  // FIX (v8.9.2): arrastrar una tarjeta la deja caer en CUALQUIER columna,
+  // sin importar cuantos pasos se salte -- de "Pendiente de Facturar"
+  // directo a "Cobrado y Recolectado" con un solo movimiento, sin avisar
+  // nada. A diferencia del boton "Con Contador -> En Caja" (que siempre
+  // avanza un paso a la vez), arrastrar puede saltarse el registro del
+  // Contrarecibo o el paso por el Contador por accidente. Estos dos saltos
+  // son los que de verdad importan (los demas son reordenamientos normales
+  // del dia a dia), asi que solo esos piden confirmacion.
+  const esSaltoArriesgado = (actual: OrderStatus, destino: OrderStatus): boolean => {
+    if (destino === 'collected' && actual !== 'paid') return true;
+    if ((destino === 'paid' || destino === 'collected') && (actual === 'pedido' || actual === 'facturado')) return true;
+    return false;
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>, targetStatus: OrderStatus) => {
+    e.preventDefault();
+    setActiveTarget(null);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+      if (data.orderId && data.currentStatus !== targetStatus) {
+        const found = items.find(it => it.o.id === data.orderId);
+        if (found) {
+          if (esSaltoArriesgado(data.currentStatus, targetStatus)) {
+            const actualLabel = KANBAN_COLUMNS.find(c => c.id === data.currentStatus)?.label || data.currentStatus;
+            const destinoLabel = KANBAN_COLUMNS.find(c => c.id === targetStatus)?.label || targetStatus;
+            const ok = await confirmDialog({
+              title: 'Salto de varios pasos',
+              message: `Vas a mover "${found.o.folio || found.o.oc || 'este expediente'}" de "${actualLabel}" directo a "${destinoLabel}", saltándote los pasos de en medio (contrarecibo / contador). ¿Seguro que ya se cumplieron y solo faltaba actualizar el tablero?`,
+              confirmLabel: 'Sí, mover de todos modos',
+              cancelLabel: 'Cancelar',
+              danger: true,
+            });
+            if (!ok) return;
+          }
+          await handleMoveStatus(found.o, targetStatus);
+        }
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
+    }
+  };
+
   return (
     <KanbanScrollWrapper>
       {KANBAN_COLUMNS.map(col => {
         const colItems = grouped[col.id] || [];
+        const isHovered = activeTarget === col.id;
         
         // Kanban Inteligente: Ordenar por prioridad (Monto * Cercanía)
         if (col.id === 'pending' || col.id === 'overdue') {
@@ -60,7 +195,31 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
         }
 
         return (
-          <div key={col.id} className="kanban-column" style={{ minWidth: 320, width: 320, background: col.bg, borderRadius: 20, padding: 16, border: `1px solid color-mix(in srgb, ${col.color} 20%, transparent)`, display: 'flex', flexDirection: 'column', maxHeight: '75vh', boxShadow: 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3), 0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+          <div
+            key={col.id}
+            className="kanban-column"
+            onDragOver={handleDragOver}
+            onDragEnter={() => setActiveTarget(col.id)}
+            onDragLeave={() => setActiveTarget(null)}
+            onDrop={(e) => handleDrop(e, col.id)}
+            style={{
+              minWidth: 320,
+              width: 320,
+              background: isHovered ? 'color-mix(in srgb, var(--ink) 8%, transparent)' : col.bg,
+              borderRadius: 20,
+              padding: 16,
+              border: isHovered
+                ? `2px dashed ${col.color}`
+                : `1px solid color-mix(in srgb, ${col.color} 20%, transparent)`,
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '75vh',
+              boxShadow: isHovered
+                ? '0 0 15px rgba(217, 119, 6, 0.25)'
+                : 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3), 0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+              transition: 'all 0.2s ease',
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '0 4px' }}>
               <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: col.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {col.label}
@@ -72,57 +231,125 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
             
             <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4, flex: 1 }}>
               {colItems.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 20, color: 'var(--ink-faint)', fontSize: 12, fontStyle: 'italic' }}>
-                  Sin expedientes
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--ink-faint)', fontSize: 12, fontStyle: 'italic', border: '1px dashed var(--line-soft)', borderRadius: 12 }}>
+                  {isHovered ? '✨ Suelta aquí para mover' : 'Sin expedientes'}
                 </div>
               ) : (
-                colItems.map(item => (
-                  <motion.div
-                    layoutId={`order-${item.o.id}`}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ y: -4, scale: 1.02, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      sound.playSwoosh();
-                      onSelect(item.o);
-                    }}
-                    key={item.o.id}
-                    style={{
-                      background: 'var(--glass-bg)', 
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                      border: '1px solid var(--glass-border)', 
-                      borderRadius: 16, 
-                      padding: 16,
-                      cursor: 'pointer',
-                      display: 'flex', flexDirection: 'column', gap: 8,
-                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>
-                        {item.o.oc || item.o.folio || 'Sin Folio'}
-                      </div>
-                      <div className="num" style={{ fontWeight: 800, color: 'var(--ink)', fontSize: 14 }}>
-                        {money(item.s.invoiceTotal)}
-                      </div>
-                    </div>
-                    
-                    <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                      <strong>{item.o.client || 'Sin Cliente'}</strong>
-                    </div>
+                colItems.map(item => {
+                  const isMoving = movingId === item.o.id;
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 2 }}>
-                      <div>
-                        {kilos(item.s.kilosDelivered)} kg de {kilos(item.o.totalKilograms || 0)} kg
+                  return (
+                    <motion.div
+                      layoutId={`order-${item.o.id}`}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: isMoving ? 0.5 : 1, scale: 1 }}
+                      whileHover={{ y: -4, scale: 1.02, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
+                      whileTap={{ scale: 0.98 }}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e as any, item.o.id, col.id)}
+                      onClick={() => {
+                        sound.playSwoosh();
+                        onSelect(item.o);
+                      }}
+                      key={item.o.id}
+                      style={{
+                        background: 'var(--glass-bg)', 
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        border: '1px solid var(--glass-border)', 
+                        borderRadius: 16, 
+                        padding: 14,
+                        cursor: 'grab',
+                        display: 'flex', flexDirection: 'column', gap: 8,
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 12, opacity: 0.5, cursor: 'grab' }} title="Arrastra para mover">⋮⋮</span>
+                          {item.o.oc || item.o.folio || 'Sin Folio'}
+                        </div>
+                        <div className="num" style={{ fontWeight: 800, color: 'var(--ink)', fontSize: 14 }}>
+                          {money(item.s.invoiceTotal)}
+                        </div>
                       </div>
-                      <div style={{ color: item.s.invoiceTotal - item.s.paidAmount > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                        Deuda: {money(item.s.invoiceTotal - item.s.paidAmount)}
+                      
+                      <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                        <strong>{item.o.client || 'Sin Cliente'}</strong>
                       </div>
-                    </div>
-                  </motion.div>
-                ))
+
+                      {/* Barra Visual de Avance de Kilos */}
+                      <KilosProgressBar
+                        deliveredKg={item.s.kilosDelivered}
+                        totalKg={item.o.totalKilograms || (item.o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || item.s.kilosDelivered}
+                      />
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 2 }}>
+                        <div style={{ color: item.s.invoiceTotal - item.s.paidAmount > 0 ? 'var(--bad)' : 'var(--ok)', fontWeight: 700 }}>
+                          Saldo Deuda: {money(item.s.invoiceTotal - item.s.paidAmount)}
+                        </div>
+                      </div>
+
+                      {/* Quick Move Action Buttons */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginTop: 4,
+                          paddingTop: 6,
+                          borderTop: '1px dashed var(--line-soft)',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {col.nextStatus && col.nextLabel && (
+                          <button
+                            type="button"
+                            onClick={() => handleMoveStatus(item.o, col.nextStatus!)}
+                            disabled={isMoving}
+                            style={{
+                              flex: 1,
+                              background: 'var(--accent)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '4px 8px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {col.nextLabel}
+                          </button>
+                        )}
+                        <select
+                          value={col.id}
+                          onChange={(e) => handleMoveStatus(item.o, e.target.value as OrderStatus)}
+                          disabled={isMoving}
+                          aria-label="Mover a otro estado"
+                          style={{
+                            background: 'var(--paper-sunk)',
+                            color: 'var(--ink)',
+                            border: '1px solid var(--line)',
+                            borderRadius: 6,
+                            padding: '3px 6px',
+                            fontSize: 10,
+                            cursor: 'pointer',
+                            maxWidth: 100,
+                          }}
+                        >
+                          <option value="" disabled>Mover a...</option>
+                          {KANBAN_COLUMNS.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </motion.div>
+                  );
+                })
               )}
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
+import { toDate } from '../lib/format';
 import type { Expense } from '../lib/types';
 
 interface ExpensesContextState {
@@ -26,12 +27,12 @@ export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
         const rows = snap.docs
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...d.data() }) as Expense);
-        rows.sort((a: any, b: any) => (b.date?.toMillis?.() ?? 0) - (a.date?.toMillis?.() ?? 0));
+        rows.sort((a: any, b: any) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
         setExpenses(rows);
         setLoading(false);
         setError(null);

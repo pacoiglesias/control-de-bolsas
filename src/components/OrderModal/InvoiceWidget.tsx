@@ -7,16 +7,23 @@ import { addDays, computeFinancials, round2 } from '../../lib/finance';
 import { db, PATHS } from '../../lib/firebase';
 import { sound } from '../../lib/sounds';
 import type { Invoice, OrderStatus, PurchaseOrder } from '../../lib/types';
+import type { FinanceConfigCore } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import { promptDialog } from '../../lib/promptDialog';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 
 interface InvoiceWidgetProps {
   invoice: Invoice;
   order: PurchaseOrder;
   provName: string;
   config: any;
-  dynamicConfig: any;
+  // FIX: era `any`. En la practica siempre es un FinancialConfig (de
+  // useConfig()) o el resultado de configEfectiva() -- ambos son
+  // estructuralmente un FinanceConfigCore (mismo minimo comun que ya usa
+  // computeFinancials/saveInvoice), asi que ese es el tipo real, no `any`.
+  dynamicConfig: FinanceConfigCore;
   readOnly: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
@@ -27,27 +34,9 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const { saveInvoice, deleteInvoice } = useInvoiceActions();
   const toast = useToast();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
-
-  // FIX 2026-08-11 (Iteracion 109): "hasChanges" comparaba localInvoice
-  // contra la prop `invoice` con JSON.stringify -- pero handleSave() (via
-  // saveInvoice() en useInvoiceActions.ts) escribe a Firestore un objeto
-  // CON CAMPOS QUE EL SERVIDOR NORMALIZA (updatedAt: Timestamp.now(),
-  // financials recalculados, folio, orderId, clientId, oc...) que
-  // localInvoice nunca tuvo. Cuando el listener en tiempo real traia de
-  // vuelta esa version normalizada como la nueva prop `invoice`, YA NO
-  // coincidia con localInvoice -- asi que "Tienes cambios sin guardar" y
-  // el boton "Guardar Cambios" se quedaban visibles PARA SIEMPRE, incluso
-  // justo despues de un guardado exitoso. Eso hizo parecer, al corregir el
-  // estatus atorado de la factura 6097 (CR TH-879), que el guardado habia
-  // fallado dos veces seguidas -- en realidad SI se guardo ambas veces
-  // (confirmado end-to-end: Cobranza paso de contar $940,130.34 a
-  // $1,049,170.34, exacto contra el Excel de control). Un flag explicito
-  // que se prende en cada edicion y se apaga solo cuando handleSave()
-  // termina sin error es inmune a esta discrepancia de forma, porque no
-  // depende de que la prop y el estado local vuelvan a verse identicos
-  // byte a byte.
-  const [dirty, setDirty] = useState(false);
-  const hasChanges = dirty;
+  
+  // Track if there are local unsaved changes
+  const hasChanges = JSON.stringify(invoice) !== JSON.stringify(localInvoice);
 
   const baseFin = computeFinancials(localInvoice.kilos, dynamicConfig);
   const fin = { ...baseFin, ...localInvoice.financials };
@@ -64,7 +53,6 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const isLate = (localInvoice.creditCycle.status === 'overdue' || localInvoice.creditCycle.status === 'pending') && d !== null && d > 0;
 
   const updateField = (fieldPath: string[], value: any) => {
-    setDirty(true);
     setLocalInvoice(prev => {
       const next = { ...prev };
       let current: any = next;
@@ -80,11 +68,8 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const handleSave = async () => {
     try {
       await saveInvoice(order, localInvoice, dynamicConfig);
-      setDirty(false);
-    } catch (error) {
-      // toast already handled in useInvoiceActions -- se deja "dirty" en
-      // true a proposito: si fallo, los cambios siguen sin guardar de
-      // verdad y el boton debe seguir ofreciendo reintentar.
+    } catch {
+      // toast already handled in useInvoiceActions
     }
   };
 
@@ -132,77 +117,105 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
             <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
                {hasChanges && <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>⚠️ Tienes cambios sin guardar</span>}
             </div>
-            {!readOnly && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {hasChanges && (
-                  <button className="btn btn-primary" onClick={handleSave} style={{ padding: '4px 12px', fontSize: 13 }}>
-                    💾 Guardar Cambios
-                  </button>
-                )}
-                {localInvoice.creditCycle.status === 'paid' && (
-                  <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 13 }}
-                    onClick={async () => {
-                      const invTotal = fin.invoiceTotal;
-                      const commission = fin.commission || 0;
-                      const netEsperado = invTotal - commission;
-                      const respuesta = await promptDialog({
-                        message: `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
-                        defaultValue: netEsperado.toFixed(2),
-                      });
-                      if (respuesta === null) return;
-                      const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
-                      if (isNaN(netReal) || netReal <= 0) {
-                        toast('Monto inválido, no se registró nada.', 'bad');
-                        return;
-                      }
-                      const diferencia = round2(netReal - netEsperado);
-                      sound.playCash();
-                      try {
-                        await addDoc(collection(db, PATHS.expenses), {
-                          date: Timestamp.now(),
-                          concept: `Cobro factura #${localInvoice.folio ?? '?'} (CR: ${localInvoice.collection?.contrareciboNumber ?? '—'})`,
-                          amount: netReal,
-                          type: 'ingreso',
-                          notes: `Documento: $${invTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} — Comisión: $${commission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
-                          montoEsperado: round2(netEsperado),
-                          montoReal: round2(netReal),
-                          diferencia,
-                          createdAt: serverTimestamp(),
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 13, padding: '4px 12px', background: '#2563eb', color: '#fff', border: 'none', fontWeight: 600 }}
+                onClick={async () => {
+                  toast('📄 Generando Prefactura PDF de esta factura...', 'info');
+                  await generatePrefacturaPdf(order, localInvoice);
+                  toast('✅ Prefactura descargada', 'ok');
+                }}
+              >
+                📄 Prefactura PDF
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const fol = localInvoice.folio || order.folio || 'S/N';
+                  const kgs = localInvoice.kilos || 0;
+                  const tot = fin.invoiceTotal;
+                  const text = `Hola Andrés, te comparto los datos de la Factura autorizada para la entrega en Providencia:\n\n📄 *Factura:* #${fol}\n📦 *Kilos amparados:* ${kgs.toLocaleString('es-MX')} kg\n🏢 *Cliente:* Grupo Textil Providencia\n💰 *Total c/IVA:* ${money(tot)}\n\nPor favor que el chofer lleve este documento / folio al descargar en báscula. Saludos.`;
+                  openWhatsAppMessage(text);
+                }}
+                style={{ padding: '4px 10px', fontSize: 12, background: 'rgba(16,185,129,0.1)', color: '#047857', borderColor: '#10b981', fontWeight: 700 }}
+                title="Mandar folio de factura a Andrés por WhatsApp para que su chofer la lleve a Providencia"
+              >
+                📲 Enviar a Andrés (WhatsApp)
+              </button>
+
+              {!readOnly && (
+                <>
+                  {hasChanges && (
+                    <button className="btn btn-primary" onClick={handleSave} style={{ padding: '4px 12px', fontSize: 13 }}>
+                      💾 Guardar Cambios
+                    </button>
+                  )}
+                  {localInvoice.creditCycle.status === 'paid' && (
+                    <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 13 }}
+                      onClick={async () => {
+                        const invTotal = fin.invoiceTotal;
+                        const commission = fin.commission || 0;
+                        const netEsperado = invTotal - commission;
+                        const respuesta = await promptDialog({
+                          message: `Esperado (con comisión de ${(commission / invTotal * 100).toFixed(3)}%): $${netEsperado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n¿Cuánto recibiste realmente en Caja?`,
+                          defaultValue: netEsperado.toFixed(2),
                         });
-                        await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, {});
-                        if (Math.abs(diferencia) > 0.01) {
-                          toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
-                        } else {
-                          toast(`💵 Recibido del contador. $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA.`, 'ok');
+                        if (respuesta === null) return;
+                        const netReal = Number(respuesta.replace(/[^0-9.-]/g, ''));
+                        if (isNaN(netReal) || netReal <= 0) {
+                          toast('Monto inválido, no se registró nada.', 'bad');
+                          return;
                         }
-                      } catch {
-                        toast('No se pudo registrar en CAJA.', 'bad');
-                      }
-                    }}>
-                    💵 Recibida del Contador → CAJA
+                        const diferencia = round2(netReal - netEsperado);
+                        sound.playCash();
+                        try {
+                          await addDoc(collection(db, PATHS.expenses), {
+                            date: Timestamp.now(),
+                            concept: `Cobro factura #${localInvoice.folio ?? '?'} (CR: ${localInvoice.collection?.contrareciboNumber ?? '—'})`,
+                            amount: netReal,
+                            type: 'ingreso',
+                            notes: `Documento: $${invTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} — Comisión: $${commission.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+                            montoEsperado: round2(netEsperado),
+                            montoReal: round2(netReal),
+                            diferencia,
+                            createdAt: serverTimestamp(),
+                          });
+                          // FIX: aqui se pasaba `{}` como config -- funcionaba
+                          // "de chiripa" solo porque saveInvoice prefiere los
+                          // financials YA guardados en la factura sobre el
+                          // config recibido. Si algun dia una factura llegaba
+                          // aqui sin financials completos (legado/migracion),
+                          // esto habria producido NaN o tronado en
+                          // computeFinancials. Se pasa el dynamicConfig real
+                          // (mismo que ya usa el resto del componente).
+                          await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, dynamicConfig);
+                          if (Math.abs(diferencia) > 0.01) {
+                            toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
+                          } else {
+                            toast(`💵 Recibido del contador. $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA.`, 'ok');
+                          }
+                        } catch {
+                          toast('No se pudo registrar en CAJA.', 'bad');
+                        }
+                      }}>
+                      💵 Recibida del Contador → CAJA
+                    </button>
+                  )}
+                  <button className="btn btn-danger" onClick={() => deleteInvoice(order, localInvoice.id)} style={{ padding: '4px 12px', fontSize: 13 }}>
+                     Eliminar
                   </button>
-                )}
-                <button className="btn btn-danger" onClick={() => deleteInvoice(order, localInvoice.id)} style={{ padding: '4px 12px', fontSize: 13 }}>
-                   Eliminar
-                </button>
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="form-grid">
-            {/* FIX 2026-08-11 (Iteracion 110): a peticion del usuario, quien
-                aclaro que la mayoria de los contrarecibos capturados NO
-                tienen un numero de factura real detras (a diferencia de
-                casos como 6167/6159, que si son facturas propiamente
-                dichas en revision) -- este campo se dejaba sin ninguna
-                senal de que es opcional, invitando a escribir folios
-                inventados solo para "llenar el campo". Si se deja vacio,
-                saveInvoice() ya usa "S/N" automaticamente (ver
-                useInvoiceActions.ts) -- este cambio solo lo hace visible. */}
-            <Field label="Folio (opcional si no hay factura, solo CR)">
+            <Field label="Folio">
               <div style={{ display: 'flex', gap: 4 }}>
-                <input className="input boxed mono" value={localInvoice.folio || ''}
-                  placeholder="Déjalo vacío si no tienes el folio de la factura"
+                <input className="input boxed mono" value={localInvoice.folio || ''} 
                   onChange={e => updateField(['folio'], e.target.value.toUpperCase())} disabled={readOnly} />
                 {localInvoice.folio && <CopyButton text={localInvoice.folio} />}
               </div>
@@ -273,6 +286,38 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
               </div>
             </Field>
           </div>
+
+          {localInvoice.items && localInvoice.items.length > 0 && (
+            <div style={{ marginTop: 16, background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📦</span> Partidas / Conceptos de esta Factura ({localInvoice.items.length})
+              </div>
+              <div className="table-scroll">
+                <table className="data-table" style={{ fontSize: 11.5, width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 100 }}>Clave SAT</th>
+                      <th>Descripción del Concepto</th>
+                      <th className="num" style={{ width: 100 }}>Kilos</th>
+                      <th className="num" style={{ width: 90 }}>P. Unitario</th>
+                      <th className="num" style={{ width: 110 }}>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {localInvoice.items.map((it, idx) => (
+                      <tr key={it.id || idx}>
+                        <td className="mono" style={{ color: 'var(--ink-soft)' }}>{it.code || '24111500'}</td>
+                        <td style={{ fontWeight: 600 }}>{it.description}</td>
+                        <td className="num mono" style={{ fontWeight: 700 }}>{it.quantity.toLocaleString('es-MX')} {it.unit || 'kg'}</td>
+                        <td className="num mono">{money(it.unitPrice)}</td>
+                        <td className="num mono" style={{ fontWeight: 800, color: '#047857' }}>{money(it.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           
           <div className="calc-box" style={{ marginTop: 16 }}>
             <div className="calc-line">

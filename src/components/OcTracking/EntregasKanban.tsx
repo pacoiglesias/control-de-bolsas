@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { PurchaseOrder } from '../../lib/types';
-import { computeDeliveredTotals } from '../../lib/deliveries';
+import { getOrderSummary } from '../../lib/finance';
 import { money, kilos as fmtKilos } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 
@@ -25,9 +25,17 @@ export function EntregasKanban({
 
     for (const o of orders) {
       const kilosPedidos = o.totalKilograms || 0;
-      const { kilosEntregados } = computeDeliveredTotals(o.deliveries ?? []);
-      const invoices = o.invoices ?? [];
-      const kilosFacturados = invoices.reduce((a, i) => a + (i.kilos || 0), 0);
+      // FIX: computeDeliveredTotals(o.deliveries) daba 0 kg entregados para
+      // expedientes viejos sin o.deliveries capturadas (solo factura), y
+      // kilosFacturados sumaba o.invoices sin ese mismo fallback -- asi que
+      // ordenes ya facturadas y cobradas se quedaban atoradas en la columna
+      // "Pedido" en vez de avanzar. Se usa getOrderSummary(o), que ya
+      // resuelve ambos casos (mismo arreglo aplicado en
+      // SeguimientoPedidosTable/MoneyFlowPipeline/ActionRadar/QuickPeekDrawer).
+      const summary = getOrderSummary(o);
+      const kilosEntregados = summary.kilosDelivered;
+      const invoices = summary.invoices;
+      const kilosFacturados = summary.kilosInvoiced;
       const entregaCompleta = kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01;
       const facturaCompleta = kilosEntregados > 0 && kilosFacturados >= kilosEntregados - 0.01;
       const todasCobradas = invoices.length > 0 && invoices.every(i => {
@@ -56,7 +64,7 @@ export function EntregasKanban({
 
   const renderCard = (o: PurchaseOrder) => {
     const kilosPedidos = o.totalKilograms || 0;
-    const { kilosEntregados } = computeDeliveredTotals(o.deliveries ?? []);
+    const kilosEntregados = getOrderSummary(o).kilosDelivered;
     const pct = kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0;
     const totalFacturas = (o.invoices ?? []).reduce((a, i) => a + (i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0), 0);
     return (
@@ -94,24 +102,31 @@ export function EntregasKanban({
   };
 
   const columnas = [
-    { key: 'pedido', title: '📋 Pedido', bg: '#f8fafc', badge: '#cbd5e1', items: cols.pedido, empty: 'Sin pedidos aquí' },
-    { key: 'enCamino', title: '🚚 En Camino', bg: '#fffbeb', badge: '#fde68a', items: cols.enCamino, empty: 'Nada en camino' },
-    { key: 'sinFacturar', title: '📦 Entregado — Sin Facturar', bg: '#fef3c7', badge: '#fbbf24', items: cols.sinFacturar, empty: 'Todo facturado' },
-    { key: 'porCobrar', title: '🧾 Facturado — Por Cobrar', bg: '#fef2f2', badge: '#fca5a5', items: cols.porCobrar, empty: 'Nada pendiente de cobro' },
-    { key: 'cobrado', title: '✅ Cobrado', bg: '#f0fdf4', badge: '#86efac', items: cols.cobrado, empty: 'Nada cobrado todavía' },
+    { key: 'pedido', title: '📋 Pedido', bg: 'var(--paper-sunk)', badge: 'var(--line)', color: 'var(--ink)', items: cols.pedido, empty: 'Sin pedidos aquí' },
+    { key: 'enCamino', title: '🚚 En Camino', bg: 'var(--warn-bg)', badge: 'rgba(245,158,11,0.2)', color: 'var(--warn)', items: cols.enCamino, empty: 'Nada en camino' },
+    { key: 'sinFacturar', title: '📦 Entregado — Sin Facturar', bg: 'rgba(245,158,11,0.15)', badge: 'rgba(245,158,11,0.25)', color: 'var(--warn)', items: cols.sinFacturar, empty: 'Todo facturado' },
+    { key: 'porCobrar', title: '🧾 Facturado — Por Cobrar', bg: 'var(--bad-bg)', badge: 'rgba(239,68,68,0.2)', color: 'var(--bad)', items: cols.porCobrar, empty: 'Nada pendiente de cobro' },
+    { key: 'cobrado', title: '✅ Cobrado', bg: 'var(--ok-bg)', badge: 'rgba(16,185,129,0.2)', color: 'var(--ok)', items: cols.cobrado, empty: 'Nada cobrado todavía' },
   ];
 
   return (
     <KanbanScrollWrapper>
       {columnas.map(col => (
-        <div key={col.key} style={colStyle(col.bg)}>
-          <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+        <div
+          key={col.key}
+          style={{
+            ...colStyle(col.bg),
+            border: `1px solid color-mix(in srgb, ${col.color} 25%, transparent)`,
+            boxShadow: 'var(--shadow-soft)',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: col.color }}>
             <span>{col.title}</span>
-            <span style={{ background: col.badge, padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{col.items.length}</span>
+            <span style={{ background: col.badge, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{col.items.length}</span>
           </div>
-          <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 10 }}>
+          <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
             {col.items.map(renderCard)}
-            {col.items.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, marginTop: 20 }}>{col.empty}</div>}
+            {col.items.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12, marginTop: 24, fontStyle: 'italic' }}>{col.empty}</div>}
           </div>
         </div>
       ))}

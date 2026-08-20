@@ -1,0 +1,512 @@
+import { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { doc, Timestamp, runTransaction } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+import { useToast } from '../../context/ToastContext';
+import { useUndo } from '../../context/UndoContext';
+import { confirmDialog } from '../../lib/confirmDialog';
+import { playCashRegisterSound } from '../../lib/soundEffects';
+import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
+import { extractCr, round2 } from '../../lib/finance';
+import { money, toDate, fmtDayAndDate, fmtDate, nombreClienteVisible } from '../../lib/format';
+import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
+import { Modal } from '../ui';
+import type { PurchaseOrder, Invoice } from '../../lib/types';
+
+interface ContrarecibosTimelineProps {
+  orders: PurchaseOrder[];
+  nav: (path: string) => void;
+}
+
+interface TimelineItem {
+  order: PurchaseOrder;
+  invoice: Invoice;
+  folio: string;
+  cr: string;
+  dueDate: Date;
+  amount: number;
+  status: 'overdue' | 'today' | 'this_week' | 'future';
+  daysDiff: number;
+}
+
+export function ContrarecibosTimeline({ orders, nav }: ContrarecibosTimelineProps) {
+  const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'semana' | 'mes'>('todos');
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const toast = useToast();
+  const { executeWithUndo } = useUndo();
+
+  const timelineData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const items: TimelineItem[] = [];
+
+    (orders || []).forEach((o) => {
+      if (!o || o.isClosedShort) return;
+      (o.invoices || []).forEach((inv) => {
+        if (!inv) return;
+        const cr = extractCr(inv, o);
+        const st = inv.creditCycle?.status;
+        
+        // Incluimos cualquier factura con contrarecibo que no esté cobrada/pagada
+        if (cr && st !== 'paid' && st !== 'collected') {
+          let due = toDate(inv.creditCycle?.dueDate);
+          if (!due) due = toDate(inv.collection?.contrareciboDate);
+          if (!due) due = toDate(inv.creditCycle?.issueDate);
+          if (!due) due = toDate(o.estimatedDeliveryDate || o.processedAt || o.updatedAt);
+          if (!due) due = new Date();
+
+          due.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const amt = inv.financials?.invoiceTotal ?? (inv.financials?.saleTotal ?? 0);
+
+          let status: 'overdue' | 'today' | 'this_week' | 'future' = 'future';
+          if (diffDays < 0) status = 'overdue';
+          else if (diffDays === 0) status = 'today';
+          else if (diffDays <= 7) status = 'this_week';
+
+          items.push({
+            order: o,
+            invoice: inv,
+            folio: inv.folio || o.folio || 'S/N',
+            cr,
+            dueDate: due,
+            amount: amt,
+            status,
+            daysDiff: diffDays,
+          });
+        }
+      });
+    });
+
+    return items.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  }, [orders]);
+
+  const countVencidos = timelineData.filter((it) => it.status === 'overdue').length;
+  const countSemana = timelineData.filter((it) => it.status === 'today' || it.status === 'this_week').length;
+  const countMes = timelineData.filter((it) => it.daysDiff >= 0 && it.daysDiff <= 30).length;
+
+  const filteredItems = timelineData.filter((it) => {
+    if (filterType === 'vencidos') return it.status === 'overdue';
+    if (filterType === 'semana') return it.status === 'today' || it.status === 'this_week';
+    if (filterType === 'mes') return it.daysDiff >= 0 && it.daysDiff <= 30;
+    return true;
+  }).slice(0, 15);
+
+  const totalPorCobrarProximo = round2(filteredItems.reduce((acc, it) => acc + it.amount, 0));
+
+  // Redactor Inteligente de Correo Consolidado a Cuentas por Pagar (Providencia)
+  const emailDraft = useMemo(() => {
+    const listToInclude = timelineData.filter(it => it.status === 'overdue' || it.status === 'today' || it.status === 'this_week');
+    const targetList = listToInclude.length > 0 ? listToInclude : timelineData;
+    const total = round2(targetList.reduce((sum, it) => sum + it.amount, 0));
+
+    const subject = `Estado de Cuenta y Solicitud de Programación de Pago - Contrarecibos Grupo Textil Providencia`;
+
+    const itemsText = targetList.map((it, idx) => {
+      const statusStr = it.daysDiff < 0 ? `Vencido hace ${Math.abs(it.daysDiff)} días` : it.daysDiff === 0 ? 'Vence Hoy' : `Vence el ${fmtDate(it.dueDate)}`;
+      return `${idx + 1}. CR: ${it.cr} | Factura: #${it.folio} | Vencimiento: ${fmtDate(it.dueDate)} (${statusStr}) | Importe: ${money(it.amount)}`;
+    }).join('\n');
+
+    const body = `Estimado Departamento de Cuentas por Pagar / Tesorería,\nGrupo Textil Providencia SA de CV,\n\nEsperando se encuentren muy bien.\n\nPor medio del presente correo, me permito compartirles la relación de Contrarecibos emitidos que se encuentran pendientes de pago a la fecha, solicitando cordialmente su valioso apoyo para su programación y confirmación de fecha estimada de dispersión:\n\n${itemsText}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 TOTAL PENDIENTE DE PAGO: ${money(total)}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAgradezco de antemano su atención y colaboración para el seguimiento de esta cuenta.\n\nQuedo a sus órdenes para cualquier aclaración o envío de documentación adicional.\n\nAtentamente,\nPaco Iglesias\nBolsas y Empaques Providencia`;
+
+    return { subject, body, count: targetList.length, total };
+  }, [timelineData]);
+
+  // Acción Rápida de 1 Toque: Marcar como Cobrado con Deshacer (Undo)
+  const handleMarkCollectedDirectly = async (it: TimelineItem) => {
+    const confirmMsg = `¿Confirmas registrar el cobro de ${money(it.amount)} para el Contrarecibo #${it.cr} (Factura #${it.folio})?`;
+    if (!(await confirmDialog(confirmMsg))) return;
+
+    const orderRef = doc(db, PATHS.orders, it.order.id);
+    const invoiceId = it.invoice.id;
+
+    // FIX: antes se armaban `previousInvoices`/`updatedInvoices` a partir de
+    // `it.order.invoices` (una copia capturada al momento del render) y se
+    // escribian con updateDoc sin transaccion, tanto para marcar como
+    // cobrado como para el "Deshacer" (hasta 12s despues). Si cualquier
+    // otra factura del mismo expediente cambiaba en ese lapso -- por otro
+    // usuario, por el Kanban, por el saneador nocturno -- ese cambio se
+    // perdia al sobrescribir TODO el arreglo invoices con la copia vieja.
+    // Ahora cada paso relee el expediente real dentro de una transaccion y
+    // solo toca la factura por id (aplicarPorId), igual que ya hace
+    // Cobranza/useCobranzaActions.ts.
+    await executeWithUndo(
+      async () => {
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) throw new Error('El expediente ya no existe');
+          const actuales: Invoice[] = snap.data().invoices ?? [];
+          const nuevas = aplicarPorId(actuales, invoiceId, (inv) => ({
+            ...inv,
+            creditCycle: { ...inv.creditCycle, status: 'paid' as const },
+            collection: {
+              ...inv.collection,
+              contrareciboNumber: it.cr,
+              paidAmount: it.amount,
+              paymentDate: Timestamp.now(),
+            },
+          }));
+          if (!nuevas) throw new Error('La factura ya no está en el expediente');
+          tx.update(orderRef, camposInvoices(nuevas));
+        });
+        playCashRegisterSound();
+        toast(`✅ Factura #${it.folio} (CR #${it.cr}) marcada como COBRADA.`, 'ok');
+      },
+      async () => {
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) throw new Error('El expediente ya no existe');
+          const actuales: Invoice[] = snap.data().invoices ?? [];
+          const nuevas = aplicarPorId(actuales, invoiceId, (inv) => ({
+            ...inv,
+            creditCycle: { ...inv.creditCycle, status: it.invoice.creditCycle?.status ?? 'pending' },
+            collection: { ...it.invoice.collection },
+          }));
+          if (!nuevas) throw new Error('La factura ya no está en el expediente');
+          tx.update(orderRef, camposInvoices(nuevas));
+        });
+        toast('↩️ Cobro revertido exitosamente.', 'ok');
+      },
+      `Cobro de ${money(it.amount)} registrado en CR #${it.cr}`,
+      12000
+    );
+  };
+
+  if (timelineData.length === 0) {
+    return (
+      <div
+        style={{
+          background: 'var(--paper)',
+          border: '1px solid var(--line)',
+          borderRadius: 14,
+          padding: '16px 20px',
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 24 }}>🟢</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>
+              Agenda de Cobranza al Día
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              No tienes contrarecibos pendientes de cobrar en este momento.
+            </div>
+          </div>
+        </div>
+        <button className="btn" onClick={() => nav('/cobranza')} style={{ fontSize: 12, fontWeight: 700 }}>
+          Ver Historial de Cobranza →
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        role="region"
+        aria-label="Línea de tiempo de contrarecibos por cobrar"
+        style={{
+          background: 'var(--paper)',
+          border: '1px solid var(--line)',
+          borderRadius: 14,
+          padding: '16px 20px',
+          marginBottom: 24,
+          boxShadow: 'var(--shadow-soft)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>📅</span> Próximos Vencimientos de Contrarecibos (Cobranza)
+              <span className="badge" style={{ background: 'var(--accent)', color: '#fff', fontSize: 11 }}>
+                {filteredItems.length} de {timelineData.length}
+              </span>
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Fechas exactas de cobro programadas con Providencia. Toca <strong>[✅ Ya Cobrado]</strong> para registrarlo con 1 toque.
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: 'var(--ink-soft)', textTransform: 'uppercase', fontWeight: 700 }}>Total a Cobrar:</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>{money(totalPorCobrarProximo)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowEmailModal(true)}
+              className="btn"
+              style={{
+                fontSize: 11.5,
+                padding: '6px 12px',
+                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(30, 64, 175, 0.25)',
+              }}
+              title="Generar correo formal con todos los contrarecibos vencidos para Cuentas por Pagar"
+            >
+              📧 Redactar Correo Cuentas por Pagar
+            </button>
+            <button
+              onClick={() => nav('/cobranza')}
+              aria-label="Ver todos los contrarecibos en cobranza"
+              className="btn"
+              style={{ fontSize: 11, padding: '4px 10px', color: 'var(--accent)', fontWeight: 700 }}
+            >
+              Ver todos →
+            </button>
+          </div>
+        </div>
+
+        {/* Barra de Filtros Rápidos por Chip */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <button
+            type="button"
+            className={`chip ${filterType === 'todos' ? 'active' : ''}`}
+            onClick={() => setFilterType('todos')}
+            style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            📋 Todos ({timelineData.length})
+          </button>
+          {countVencidos > 0 && (
+            <button
+              type="button"
+              className={`chip ${filterType === 'vencidos' ? 'active' : ''}`}
+              onClick={() => setFilterType('vencidos')}
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                background: filterType === 'vencidos' ? '#ef4444' : 'rgba(239, 68, 68, 0.1)',
+                color: filterType === 'vencidos' ? '#fff' : '#b91c1c',
+                border: '1px solid #ef4444',
+                fontWeight: 700,
+              }}
+            >
+              🚨 Vencidos ({countVencidos})
+            </button>
+          )}
+          <button
+            type="button"
+            className={`chip ${filterType === 'semana' ? 'active' : ''}`}
+            onClick={() => setFilterType('semana')}
+            style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            ⚡ Esta Semana ({countSemana})
+          </button>
+          <button
+            type="button"
+            className={`chip ${filterType === 'mes' ? 'active' : ''}`}
+            onClick={() => setFilterType('mes')}
+            style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            📆 Próximos 30 Días ({countMes})
+          </button>
+        </div>
+
+        {/* Grid / Lista Responsiva de Contrarecibos con Fechas Destacadas */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {filteredItems.map((it, idx) => {
+            const isOverdue = it.status === 'overdue';
+            const isToday = it.status === 'today';
+            const isThisWeek = it.status === 'this_week';
+
+            const borderColor = isOverdue ? '#ef4444' : isToday ? '#10b981' : isThisWeek ? '#f59e0b' : 'var(--line)';
+            const headerBg = isOverdue ? 'rgba(239,68,68,0.12)' : isToday ? 'rgba(16,185,129,0.12)' : isThisWeek ? 'rgba(245,158,11,0.12)' : 'var(--paper-sunk)';
+            const badgeColor = isOverdue ? '#b91c1c' : isToday ? '#047857' : isThisWeek ? '#b45309' : 'var(--ink-soft)';
+
+            return (
+              <motion.div
+                key={idx}
+                whileHover={{ y: -2, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}
+                style={{
+                  background: 'var(--paper-raised)',
+                  border: `1px solid ${borderColor}`,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                {/* Cabecera con Fecha Exacta */}
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    background: headerBg,
+                    borderBottom: `1px solid ${borderColor}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>📅</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>
+                      {fmtDayAndDate(it.dueDate)}
+                    </span>
+                  </div>
+                  <span
+                    className="badge"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      background: isOverdue ? '#fee2e2' : isToday ? '#dcfce7' : isThisWeek ? '#fef3c7' : 'var(--paper)',
+                      color: badgeColor,
+                    }}
+                  >
+                    {isOverdue
+                      ? `⚠️ Vencido hace ${Math.abs(it.daysDiff)} d`
+                      : isToday
+                      ? '🟢 Vence Hoy'
+                      : it.daysDiff === 1
+                      ? '⏳ Vence Mañana'
+                      : `En ${it.daysDiff} días`}
+                  </span>
+                </div>
+
+                {/* Cuerpo con Datos Clave */}
+                <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--accent-deep)' }}>
+                        CR #{it.cr}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+                        Factura #{it.folio} • {nombreClienteVisible(it.order.client)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>Importe c/IVA:</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace', color: 'var(--ink)' }}>
+                        {money(it.amount)}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        className="btn btn-primary"
+                        style={{ fontSize: 11, padding: '5px 10px', fontWeight: 800, background: '#10b981', borderColor: '#059669', color: '#fff' }}
+                        onClick={() => void handleMarkCollectedDirectly(it)}
+                        title="Marcar inmediatamente como cobrado (con botón para deshacer)"
+                      >
+                        ✅ Cobrado
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ fontSize: 11, padding: '5px 8px', fontWeight: 600 }}
+                        onClick={() => setSelectedOrder(it.order)}
+                        title="Abrir formulario de cobranza"
+                      >
+                        📝 Detalle
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedOrder && (
+        <QuickCollectionModal
+          orders={[selectedOrder]}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
+
+      {showEmailModal && (
+        <Modal title="📧 Correo Consolidado a Cuentas por Pagar (Providencia)" onClose={() => setShowEmailModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
+              Este borrador formal consolida todos los <strong>{emailDraft.count} contrarecibos</strong> pendientes/vencidos ({money(emailDraft.total)}) en un solo mensaje profesional listo para enviar por correo a la Tesorería de Grupo Textil Providencia.
+            </p>
+
+            <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
+                Asunto del Correo:
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>
+                {emailDraft.subject}
+              </div>
+            </div>
+
+            <textarea
+              readOnly
+              value={emailDraft.body}
+              style={{
+                width: '100%',
+                height: 220,
+                fontSize: 12,
+                fontFamily: 'monospace',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid var(--line)',
+                background: 'var(--paper-raised)',
+                color: 'var(--ink)',
+                resize: 'vertical',
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    navigator.clipboard.writeText(emailDraft.body);
+                    toast('📋 Texto del correo copiado al portapapeles.', 'ok');
+                  }}
+                  style={{ fontWeight: 700 }}
+                >
+                  📋 Copiar Texto Completo
+                </button>
+                <a
+                  href={`mailto:cuentasporpagar@providencia.com.mx?subject=${encodeURIComponent(emailDraft.subject)}&body=${encodeURIComponent(emailDraft.body)}`}
+                  className="btn btn-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  ✉️ Abrir en Mi Correo (Outlook/Gmail)
+                </a>
+              </div>
+
+              <button type="button" className="btn" onClick={() => setShowEmailModal(false)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+

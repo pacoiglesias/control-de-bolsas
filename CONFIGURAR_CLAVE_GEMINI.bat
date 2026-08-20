@@ -25,7 +25,12 @@ if errorlevel 1 (
 echo  [..] A continuacion pega la clave y presiona Enter.
 echo       No se va a ver mientras la escribes: es normal.
 echo.
-call firebase functions:secrets:set GOOGLE_GENAI_API_KEY
+REM FIX: aqui decia GOOGLE_GENAI_API_KEY, pero el codigo real
+REM (functions/src/ai/extractor.ts, defineSecret) espera un secreto
+REM llamado GEMINI_API_KEY. Con el nombre viejo, este script guardaba la
+REM clave en un secreto que la funcion nunca lee -- el lector de PDFs con
+REM IA se quedaba sin clave real aunque este script dijera "LISTO".
+call firebase functions:secrets:set GEMINI_API_KEY
 if errorlevel 1 (
   color 0C
   echo  [X] No se pudo guardar la clave.

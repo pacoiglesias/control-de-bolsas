@@ -141,14 +141,18 @@ if errorlevel 1 (
 
 echo.
 echo  [..] Consultando la clave de Gemini...
-call firebase functions:secrets:access GOOGLE_GENAI_API_KEY --non-interactive > "!TMPLOG!" 2>&1
+REM FIX: el nombre real del secreto (el que de verdad lee
+REM functions/src/ai/extractor.ts via defineSecret) es GEMINI_API_KEY, no
+REM GOOGLE_GENAI_API_KEY -- con el nombre viejo este diagnostico revisaba
+REM el secreto equivocado.
+call firebase functions:secrets:access GEMINI_API_KEY --non-interactive > "!TMPLOG!" 2>&1
 if errorlevel 1 (
-  echo  [!] No pude leer GOOGLE_GENAI_API_KEY.
+  echo  [!] No pude leer GEMINI_API_KEY.
   echo      Puede ser que no este configurada, o que tu cuenta no tenga
   echo      permiso para leer secretos. Si la IA no procesa PDFs,
   echo      corre CONFIGURAR_CLAVE_GEMINI.bat
 ) else (
-  echo  [OK] GOOGLE_GENAI_API_KEY configurada
+  echo  [OK] GEMINI_API_KEY configurada
 )
 
 :RESUMEN
@@ -158,7 +162,7 @@ echo.
 echo  ============================================================
 if !FALLOS!==0 (
   color 0A
-  echo    TODO EN ORDEN. Puedes correr INSTALL_AND_DEPLOY.bat
+  echo    TODO EN ORDEN. Puedes correr INSTALAR_BUILD_DEPLOY.bat
 ) else (
   color 0E
   echo    !FALLOS! punto^(s^) por resolver. Arregla los [X] de arriba.

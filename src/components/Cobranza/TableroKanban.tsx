@@ -6,6 +6,8 @@ import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { InvoiceDrawer } from './InvoiceDrawer';
 import { useConfig } from '../../hooks/useConfig';
+import { useToast } from '../../context/ToastContext';
+import { generateCollectionNotice } from '../../lib/whatsappReminder';
 
 // FIX 2026-08-10 (Staff Engineer -- task ERP #12): este tablero tenía sus
 // 4 columnas con degradados y colores de texto en hex/rgba fijos (pensados
@@ -22,6 +24,7 @@ const TONE: Record<string, { color: string; bg: string }> = {
 
 export default function TableroKanban() {
   const { data, money, moveInvoice } = useContext(CobranzaContext)!;
+  const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<{o: any, inv: any} | null>(null);
   const { config: dynamicConfig } = useConfig();
@@ -40,7 +43,8 @@ export default function TableroKanban() {
     // la propia tarjeta mostraba "CR: TH-836" en verde mientras el tablero
     // la clasificaba como "Sin CR". Con `data.lista` el campo ya viene
     // calculado correctamente.
-    data.lista.forEach((x: any) => {
+    (data?.lista || []).forEach((x: any) => {
+      if (!x) return;
       if (!x.hasCr) {
         colRevision.push(x);
       } else {
@@ -48,8 +52,8 @@ export default function TableroKanban() {
       }
     });
 
-    data.paid.forEach((x: any) => colContador.push(x));
-    data.collected.forEach((x: any) => colCaja.push(x));
+    (data?.paid || []).forEach((x: any) => { if (x) colContador.push(x); });
+    (data?.collected || []).forEach((x: any) => { if (x) colCaja.push(x); });
 
     // Sort "Por Cobrar" so overdue is at the top
     colPorCobrar.sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
@@ -163,13 +167,44 @@ export default function TableroKanban() {
         {/* Quick Actions Bar */}
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
           {(inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') && (
-            <button 
-              className="btn" 
-              style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8 }}
-              onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
-            >
-              💸 Cobro Rápido
-            </button>
+            <>
+              <button 
+                className="btn" 
+                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600 }}
+                onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
+              >
+                💸 Cobro Rápido
+              </button>
+              <button
+                className="btn"
+                title="Copiar aviso formal de cobro al portapapeles"
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  background: 'var(--paper-sunk)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                onClick={() => {
+                  const notice = generateCollectionNotice({
+                    cliente: nombreClienteVisible(o.client) || 'Grupo Textil Providencia',
+                    folioFactura: inv.folio || o.folio || 'S/N',
+                    contrarecibo: cr || undefined,
+                    monto: amt,
+                    fechaVencimiento: inv.creditCycle?.dueDate,
+                  });
+                  navigator.clipboard.writeText(notice);
+                  toast('📋 Aviso de cobro copiado al portapapeles.', 'ok');
+                }}
+              >
+                <span>📋</span> Copiar Aviso
+              </button>
+            </>
           )}
           {inv.creditCycle.status === 'paid' && (
             <>

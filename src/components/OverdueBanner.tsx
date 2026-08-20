@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, limit, onSnapshot, orderBy, query, Timestamp } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
+import { toDate } from '../lib/format';
 
 /**
  * Aviso de facturas recien vencidas, visible al abrir CUALQUIER pantalla.
@@ -32,7 +33,8 @@ export function OverdueBanner() {
       const ts: Timestamp | null = data.timestamp ?? null;
       // Solo interesa si paso en las ultimas 48h -- un aviso de hace dos
       // semanas ya no aporta nada y solo estorbaria en pantalla.
-      if (ts && Date.now() - ts.toMillis() > 48 * 60 * 60 * 1000) { setAviso(null); return; }
+      const tsMs = toDate(ts)?.getTime() || 0;
+      if (tsMs > 0 && Date.now() - tsMs > 48 * 60 * 60 * 1000) { setAviso(null); return; }
       setAviso({
         id: hit.id,
         cantidad: data.details?.cantidad ?? 0,
@@ -61,7 +63,13 @@ export function OverdueBanner() {
         margin: '0 0 16px 0', fontSize: 13, fontWeight: 600,
       }}
     >
-      <span>🔴 {aviso.cantidad} factura{aviso.cantidad === 1 ? '' : 's'} se venci{aviso.cantidad === 1 ? 'ó' : 'eron'} recientemente{listaFolios ? `: ${listaFolios}` : ''}.</span>
+      {/* FIX (v8.9.1): este número es solo lo NUEVO (lo que cruzó a vencido
+          en el chequeo automático de las últimas horas) -- no el total
+          acumulado que muestra la tarjeta "Urgencias (Vencido)" del
+          Dashboard. Antes decían casi lo mismo ("N se vencieron
+          recientemente" vs "N facturas fuera de fecha") y se veían como si
+          fueran el mismo dato aunque casi nunca coincidieran. */}
+      <span>🔴 Nuevo: {aviso.cantidad} factura{aviso.cantidad === 1 ? '' : 's'} se venci{aviso.cantidad === 1 ? 'ó' : 'eron'} en las últimas horas (esto no es el total vencido, solo lo que acaba de vencer){listaFolios ? `: ${listaFolios}` : ''}.</span>
       <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
         <button
           className="btn"

@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
-import { useProducts } from '../hooks/useProducts';
+import { usePurchases } from '../hooks/usePurchases';
+import { useExpenses } from '../hooks/useExpenses';
+import { useConfig } from '../hooks/useConfig';
+import { useToast } from '../context/ToastContext';
 import { useSystemSettings } from '../hooks/useSystemSettings';
+import { usePrivacy } from '../context/PrivacyContext';
 import { getOrderSummary } from '../lib/finance';
 import { sound } from '../lib/sounds';
-import { CommandMenu } from './CommandMenu/CommandMenu';
+import { downloadBackupJsonFile } from '../lib/cloudBackup';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
+import { NotificationsCenter } from './NotificationsCenter';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -20,26 +26,6 @@ type NavItem = {
   roles: string[];
 };
 
-const NAV: NavItem[] = [
-  { type: 'link', to: '/', icon: '📊', label: 'Dashboard', end: true, roles: ['admin', 'manager', 'viewer'] },
-  
-  { type: 'group', label: '-- COMERCIAL --', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/ordenes', icon: '📋', label: 'Gestión de Órdenes', roles: ['admin', 'manager', 'viewer'] },
-  { type: 'link', to: '/oc', icon: '🚚', label: 'Logística y Entregas', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Productos', roles: ['admin', 'manager'] },
-
-  { type: 'group', label: '-- FINANZAS --', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/cobranza', icon: '💰', label: 'Cuentas por Cobrar (CxC)', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Asistida', roles: ['admin', 'manager'] },
-  { type: 'link', to: '/compras', icon: '🏭', label: 'Cuentas por Pagar (CxP)', roles: ['admin'] },
-  { type: 'link', to: '/caja-chica', icon: '🏦', label: 'Tesorería y Caja', roles: ['admin'] },
-
-  { type: 'group', label: '-- SISTEMA --', roles: ['admin'] },
-  { type: 'link', to: '/mining', icon: '📊', label: 'Reportes y Data Mining', roles: ['admin'] },
-  { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Ajustes del Sistema', roles: ['admin'] },
-  { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
-];
-
 function initTheme(): 'light' | 'dark' {
   const saved = localStorage.getItem('cb-theme');
   if (saved === 'dark' || saved === 'light') return saved;
@@ -49,14 +35,51 @@ function initTheme(): 'light' | 'dark' {
 export default function Layout() {
   const { user, role, signOut } = useAuth();
   const { orders } = useOrders();
-  const { products } = useProducts();
+  const { purchases } = usePurchases();
+  const { expenses } = useExpenses();
+  const { config } = useConfig();
+  const toast = useToast();
   const { settings } = useSystemSettings();
+  const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const location = useLocation();
-  const nav = useNavigate();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const { isOnline } = useNetworkStatus();
+
+  const clientLabel = settings.clientShortName || 'Providencia';
+  const providerLabel = settings.providerName || 'Andrés';
+
+  const navItems = useMemo<NavItem[]>(() => [
+    { type: 'link', to: '/', icon: '📊', label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
+    
+    { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', icon: '🚚', label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
+
+    { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/cobranza', icon: '💵', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: '🛒', label: `Compras ${providerLabel}`, roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
+
+    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
+    { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
+    { type: 'link', to: '/mining', icon: '📈', label: 'Métricas & Data Mining', roles: ['admin'] },
+    { type: 'link', to: '/portal-maquilador', icon: '⚖️', label: 'Portal Proveedor / Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
+  ], [clientLabel, providerLabel]);
+
+  const handleDownloadLocalBackup = () => {
+    try {
+      downloadBackupJsonFile(orders, purchases, expenses, config);
+      sound.playSuccess();
+      toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
+    } catch (err: any) {
+      toast(`Error al exportar respaldo: ${err.message}`, 'bad');
+    }
+  };
 
   // Red de seguridad: si algun modal llegara a fallar a mitad de una
   // interaccion sin completar su limpieza (ver el bloqueo de scroll en
@@ -75,40 +98,17 @@ export default function Layout() {
 
   useEffect(() => {
     setNavOpen(false);
-    const item = NAV.find((n) => n.to && (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
+    const item = navItems.find((n) => n.to && (n.end ? location.pathname === n.to : location.pathname === n.to || (n.to !== '/' && location.pathname.startsWith(n.to))));
     document.title = item ? `${item.label} · Bolsas Elemental` : 'Bolsas Elemental ERP';
-  }, [location.pathname]);
+  }, [location.pathname, navItems]);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
+    if (isOnline) {
       sound.playSuccess();
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
+    } else {
       sound.playError();
-    };
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setCommandOpen(o => !o);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    const handleCustomOpen = () => setCommandOpen(true);
-    document.addEventListener('open-command-menu', handleCustomOpen);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('open-command-menu', handleCustomOpen);
-    };
-  }, [nav]);
+    }
+  }, [isOnline]);
 
   // Los badges leen el mismo estatus derivado que la tabla de Ordenes. Antes
   // usaban el campo viejo de la raiz y podian quedarse en cero teniendo
@@ -133,20 +133,71 @@ export default function Layout() {
           ☰
         </button>
         <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
+
+        {/* Barra de Búsqueda Rápida Universal */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-command-menu'))}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'var(--paper-sunk)',
+            border: '1px solid var(--line-soft)',
+            borderRadius: 20,
+            padding: '5px 12px',
+            color: 'var(--ink-soft)',
+            fontSize: 12.5,
+            fontWeight: 500,
+            cursor: 'pointer',
+            marginLeft: 8,
+            transition: 'all 0.2s ease',
+          }}
+          title="Buscar cualquier orden, factura o contrarecibo (Ctrl + K)"
+        >
+          <span>🔍</span>
+          <span style={{ fontSize: 12 }}>Buscar...</span>
+          <kbd style={{ fontSize: 10, background: 'var(--paper-raised)', border: '1px solid var(--line)', borderRadius: 4, padding: '1px 5px', color: 'var(--ink-soft)' }}>Ctrl K</kbd>
+        </button>
+
         <span className="spacer" />
         <OnlineUsers />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16, fontSize: 13, color: isOnline ? 'var(--ok)' : 'var(--bad)', fontWeight: 500 }}>
-          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }}></span>
-          {isOnline ? 'Sistema OK' : 'Sin conexión'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
+          <div className="live-status-pill" style={{ background: isOnline ? 'var(--ok-bg)' : 'var(--bad-bg)', color: isOnline ? 'var(--ok)' : 'var(--bad)', borderColor: isOnline ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)' }}>
+            <span className={isOnline ? 'live-pulse-dot' : ''} style={{ width: 7, height: 7, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }} />
+            <span>{isOnline ? 'En Vivo' : 'Sin Conexión'}</span>
+          </div>
         </div>
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          aria-label="Cambiar tema"
-          title="Ctrl+K para Buscar"
-        >
-          ◐
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Botón de Modo Privado / Discreto */}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={togglePrivacy}
+            aria-label={isPrivate ? "Modo Discreto Activo (Clic para mostrar cifras)" : "Modo Visible (Clic para ocultar cifras)"}
+            title={isPrivate ? "Modo Discreto Activo: Las cifras sensibles están ocultas en público. Clic para mostrar." : "Modo Visible: Clic para ocultar cifras sensibles en público."}
+            style={{
+              background: isPrivate ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+              color: isPrivate ? '#f59e0b' : 'inherit',
+              border: isPrivate ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent',
+              borderRadius: 8,
+              fontSize: 16,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {isPrivate ? '🙈' : '👁️'}
+          </button>
+          
+          <NotificationsCenter />
+          <button
+            className="icon-btn"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label="Cambiar tema"
+            title="Cambiar tema Claro / Oscuro"
+          >
+            ◐
+          </button>
+        </div>
       </header>
 
       <div className="app-shell">
@@ -159,10 +210,10 @@ export default function Layout() {
             </div>
           </div>
           <nav className="nav">
-            {NAV.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
+            {navItems.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
               if (it.type === 'group') {
                 return (
-                  <div key={it.label} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginTop: '20px', marginBottom: '4px', paddingLeft: '16px', letterSpacing: '0.5px' }}>
+                  <div key={it.label} style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink-soft)', opacity: 0.75, marginTop: '18px', marginBottom: '4px', paddingLeft: '12px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                     {it.label}
                   </div>
                 );
@@ -188,9 +239,28 @@ export default function Layout() {
             })}
           </nav>
           <div className="sidebar-foot">
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              ◐ {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            <button
+              type="button"
+              onClick={handleDownloadLocalBackup}
+              title="Descargar copia de seguridad completa a tu dispositivo"
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 700,
+                borderRadius: 8,
+                padding: '8px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+            >
+              💾 Respaldo Local (1 Clic)
             </button>
+            {/* El cambio de tema ya vive en el ícono ◐ de la barra superior
+                (siempre visible); este botón duplicaba la misma acción. */}
             <span className="who">{user?.email}</span>
             <button onClick={() => void signOut()}>⏻ Cerrar sesión</button>
           </div>
@@ -203,26 +273,14 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
+            {/* El botón de respaldo local ya vive en el pie del sidebar
+                ("💾 Respaldo Local (1 Clic)"); aquí se repetía la misma
+                acción con otra etiqueta. */}
             Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>
       </div>
-
-      <CommandMenu
-        isOpen={commandOpen}
-        onClose={() => setCommandOpen(false)}
-        orders={orders}
-        products={products}
-        onSelectOrder={(orderId, _tab) => {
-          setCommandOpen(false);
-          nav(`/ordenes?id=${orderId}`);
-        }}
-        onSelectProduct={() => {
-          setCommandOpen(false);
-          nav(`/catalogo`);
-        }}
-      />
     </div>
   );
 }

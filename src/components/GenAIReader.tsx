@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
@@ -14,6 +14,7 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
   const toast = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -93,9 +94,9 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       style={{
-        border: `2px dashed ${isDragging ? '#3b82f6' : '#cbd5e1'}`,
-        backgroundColor: isDragging ? '#eff6ff' : '#f8fafc',
-        borderRadius: 12,
+        border: `2px dashed ${isDragging ? 'var(--info)' : 'var(--line)'}`,
+        backgroundColor: isDragging ? 'var(--info-bg)' : 'var(--paper)',
+        borderRadius: 'var(--radius)',
         padding: compact ? 16 : 32,
         textAlign: 'center',
         cursor: 'pointer',
@@ -103,10 +104,10 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
         transition: 'all 0.2s ease',
         marginBottom: 24,
       }}
-      onClick={() => document.getElementById('genai-file-input')?.click()}
+      onClick={() => inputRef.current?.click()}
     >
       <input 
-        id="genai-file-input"
+        ref={inputRef}
         type="file" 
         accept="application/pdf, image/jpeg, image/png"
         style={{ display: 'none' }}
@@ -116,15 +117,15 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
       {isProcessing ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <Spinner />
-          <p style={{ margin: 0, color: '#3b82f6', fontWeight: 600 }}>La IA está leyendo el documento...</p>
+          <p style={{ margin: 0, color: 'var(--info)', fontWeight: 600 }}>La IA está leyendo el documento...</p>
         </div>
       ) : (
         <div>
           <div style={{ fontSize: compact ? 24 : 32, marginBottom: 8 }}>🪄</div>
-          <h3 style={{ margin: '0 0 4px 0', color: '#0f172a', fontSize: compact ? 14 : 16 }}>
+          <h3 style={{ margin: '0 0 4px 0', color: 'var(--ink)', fontSize: compact ? 14 : 16 }}>
             Lector Inteligente
           </h3>
-          <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+          <p style={{ margin: 0, color: 'var(--ink-soft)', fontSize: 13 }}>
             Arrastra tu Factura o Nota (PDF/Imagen) o haz clic para subir
           </p>
         </div>

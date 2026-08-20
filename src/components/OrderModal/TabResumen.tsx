@@ -107,7 +107,7 @@ export default function TabResumen() {
                       style={{ marginTop: 6, fontSize: 11, padding: '4px 8px', width: '100%' }}
                       onClick={() => nav(`/compras?abrir=${order.id}`)}
                     >
-                      🏭 Ver compra en Andrés →
+                      🏭 Ver compra en {provName} →
                     </button>
                   )}
                 </Field>
@@ -213,20 +213,45 @@ export default function TabResumen() {
               </div>
             </div>
             
-            <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <div>
                 <strong>Estado del Expediente: </strong> <StatusBadge status={liveSummary.status} />
               </div>
-              {form.isClosedShort && <span className="badge" style={{ background: 'var(--warn)' }}>🔒 Cierre Forzado</span>}
-              {!form.isClosedShort && liveSummary.status === 'pending' && kilosNum - liveSummary.kilosDelivered > 0 && (
-                <button className="btn btn-primary" style={{ background: 'var(--ink)', borderColor: 'var(--ink)', fontSize: 12 }} onClick={async () => {
-                  if (await confirmDialog('¿Seguro que deseas forzar el cierre de esta Orden? Ya no aparecerá como pendiente en almacén aunque falten kilos.')) {
-                    set('isClosedShort', true);
-                    toast('Orden marcada para cierre. Haz clic en Guardar Cambios.', 'ok');
-                  }
-                }}>
-                  🔒 Forzar Cierre (Faltan Kilos)
-                </button>
+              {form.isClosedShort ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="badge" style={{ background: '#2563eb', color: '#fff', fontWeight: 700 }}>
+                    🔒 Concluido con {liveSummary.kilosDelivered.toLocaleString('es-MX')} kg
+                  </span>
+                  {!readOnly && (
+                    <button 
+                      type="button" 
+                      className="btn" 
+                      style={{ fontSize: 11.5, padding: '3px 8px' }}
+                      onClick={() => {
+                        set('isClosedShort', false);
+                        toast('🔓 Pedido reabierto para nuevas entregas.', 'ok');
+                      }}
+                    >
+                      🔓 Reabrir
+                    </button>
+                  )}
+                </div>
+              ) : (
+                !readOnly && kilosNum - liveSummary.kilosDelivered > 0.01 && liveSummary.kilosDelivered > 0 && (
+                  <button 
+                    type="button"
+                    className="btn btn-primary" 
+                    style={{ background: '#0f172a', borderColor: '#0f172a', fontSize: 12, fontWeight: 700 }} 
+                    onClick={async () => {
+                      if (await confirmDialog(`¿Confirmas concluir y cerrar este pedido con los ${liveSummary.kilosDelivered.toLocaleString('es-MX')} kg entregados?\n\nYa no se esperarán más entregas de ${provName} para esta OC y podrás facturarla al 100%.`)) {
+                        set('isClosedShort', true);
+                        toast('🔒 Pedido concluido con los kilos entregados. Haz clic en "Guardar cambios".', 'ok');
+                      }
+                    }}
+                  >
+                    🔒 Concluir Pedido ({liveSummary.kilosDelivered.toLocaleString('es-MX')} kg)
+                  </button>
+                )
               )}
             </div>
           </>

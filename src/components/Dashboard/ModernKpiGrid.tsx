@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { ResponsiveMoney } from '../ui';
-import { money } from '../../lib/format';
+import { kilos as fmtKilos } from '../../lib/format';
 import { Sparkline } from './Sparkline';
+import { IconWallet, IconTrendingUp, IconBank, IconAlertTriangle } from '../ui/icons';
 
 interface ModernKpiGridProps {
   k: any;
@@ -19,9 +20,54 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 32 }}>
-      
-      {/* 1. Ventas del Mes */}
-      <motion.div 
+
+      {/* FIX (v8.9.3): las 4 tarjetas pesaban visualmente lo mismo -- nada le
+          decía al ojo "empieza por aquí". Efectivo en Caja es el número que
+          más importa para decidir algo HOY (¿alcanza para pagar tal cosa?),
+          así que ahora abre la fila, ocupa el doble de ancho en pantallas
+          anchas (gridColumn: span 2 -- en angostas simplemente vuelve a ser
+          una tarjeta normal de ancho completo, sin romper el responsive) y
+          su cifra es más grande que las demás. */}
+      {/* 1. Efectivo en Caja -- la tarjeta principal */}
+      {!isViewer && (
+        <motion.div
+          whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(16,185,129,0.25)' }}
+          transition={{ type: 'spring', stiffness: 300 }}
+          onClick={() => nav('/caja-chica')}
+          style={{
+            gridColumn: 'span 2',
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(5,150,105,0.2) 100%)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(16,185,129,0.35)',
+            borderRadius: 20,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'hidden',
+            cursor: 'pointer'
+          }}
+        >
+          <IconWallet size={100} style={{ position: 'absolute', top: -14, right: -14, opacity: 0.1, color: 'var(--ok)' }} />
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ok)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
+            Efectivo en Caja
+          </div>
+          <div style={{ fontSize: 40, fontWeight: 900, color: 'var(--ok)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+            <ResponsiveMoney value={saldoCaja} />
+          </div>
+          <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.35, zIndex: 0 }}>
+            <Sparkline data={[50, 60, 55, 70, 80, 75, 90]} width={240} height={40} color="var(--ok)" />
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)' }} />
+            Efectivo disponible en mano
+          </div>
+        </motion.div>
+      )}
+
+      {/* 2. Ventas del Mes */}
+      <motion.div
         whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(0,0,0,0.1)' }}
         transition={{ type: 'spring', stiffness: 300 }}
         style={{
@@ -37,7 +83,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           overflow: 'hidden'
         }}
       >
-        <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.05, filter: 'grayscale(1)' }}>📈</div>
+        <IconTrendingUp size={80} style={{ position: 'absolute', top: -12, right: -12, opacity: 0.08, color: 'var(--accent)' }} />
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Ventas {monthFilter === 'ALL' ? 'Totales' : 'del Mes'}
         </div>
@@ -47,16 +93,14 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
           <Sparkline data={[120, 150, 130, 180, 140, 200, 170]} width={240} height={40} color="var(--accent)" />
         </div>
-        {!isViewer && (
-          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)' }} />
-            Utilidad Bruta: {money(k.margenTotal || 0)}
-          </div>
-        )}
+        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
+          📦 Kilos amparados: {fmtKilos(k.kilosTotal || k.totalKilos || k.kilos || 0)} kg
+        </div>
       </motion.div>
 
-      {/* 2. Dinero en la calle (Por Cobrar) */}
-      <motion.div 
+      {/* 3. Dinero en la calle (Por Cobrar) */}
+      <motion.div
         whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(0,0,0,0.1)' }}
         transition={{ type: 'spring', stiffness: 300 }}
         onClick={() => nav('/cobranza')}
@@ -74,12 +118,12 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           cursor: 'pointer'
         }}
       >
-        <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.05, filter: 'grayscale(1)' }}>🏦</div>
+        <IconBank size={80} style={{ position: 'absolute', top: -12, right: -12, opacity: 0.08, color: 'var(--warn)' }} />
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Dinero en la Calle
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: k.porCobrar > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-          <ResponsiveMoney value={k.dineroRealARecibir || k.porCobrar || 0} />
+        <div style={{ fontSize: 32, fontWeight: 900, color: (k.porCobrar || k.dineroRealARecibir) > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+          <ResponsiveMoney value={k.porCobrar || k.dineroRealARecibir || 0} />
         </div>
         <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.2, zIndex: 0 }}>
           <Sparkline data={[200, 180, 190, 150, 160, 130, 120]} width={240} height={40} color="var(--warn)" />
@@ -89,52 +133,16 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         </div>
       </motion.div>
 
-      {/* 3. Caja Chica */}
-      {!isViewer && (
-        <motion.div 
-          whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(16,185,129,0.2)' }}
-          transition={{ type: 'spring', stiffness: 300 }}
-          onClick={() => nav('/caja-chica')}
-          style={{
-            background: 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(4,120,87,0.15) 100%)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid rgba(16,185,129,0.3)',
-            borderRadius: 20,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            overflow: 'hidden',
-            cursor: 'pointer'
-          }}
-        >
-          <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.1, filter: 'grayscale(1)' }}>💵</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
-          Caja Chica
-        </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: '#fff', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-          <ResponsiveMoney value={saldoCaja} />
-        </div>
-        <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
-          <Sparkline data={[50, 60, 55, 70, 80, 75, 90]} width={240} height={40} color="#fff" />
-        </div>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-            Efectivo real en mano
-          </div>
-        </motion.div>
-      )}
-
       {/* 4. Urgencias / Vencido */}
       <motion.div 
-        whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(239,68,68,0.2)' }}
+        whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(239,68,68,0.25)' }}
         transition={{ type: 'spring', stiffness: 300 }}
         onClick={() => vencidos > 0 && nav('/cobranza')}
         style={{
-          background: vencidos > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(185,28,28,0.15) 100%)' : 'var(--glass-bg)',
+          background: vencidos > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(220,38,38,0.18) 100%)' : 'var(--glass-bg)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
-          border: `1px solid ${vencidos > 0 ? 'rgba(239,68,68,0.3)' : 'var(--glass-border)'}`,
+          border: `1px solid ${vencidos > 0 ? 'rgba(239,68,68,0.35)' : 'var(--glass-border)'}`,
           borderRadius: 20,
           padding: 24,
           display: 'flex',
@@ -144,15 +152,21 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           cursor: vencidos > 0 ? 'pointer' : 'default'
         }}
       >
-        <div style={{ position: 'absolute', top: -20, right: -20, fontSize: 80, opacity: 0.1, filter: vencidos === 0 ? 'grayscale(1)' : 'none' }}>⚠️</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: vencidos > 0 ? '#b91c1c' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <IconAlertTriangle size={80} style={{ position: 'absolute', top: -12, right: -12, opacity: vencidos === 0 ? 0.06 : 0.12, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)' }} />
+        <div style={{ fontSize: 12, fontWeight: 800, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Urgencias (Vencido)
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? '#7f1d1d' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px' }}>
+        <div style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.vencido || 0} />
         </div>
-        <div style={{ fontSize: 13, color: vencidos > 0 ? '#b91c1c' : 'var(--ink-soft)', fontWeight: 600 }}>
-          {vencidos} factura{vencidos === 1 ? '' : 's'} fuera de fecha
+        <div style={{ fontSize: 13, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: 700, zIndex: 1 }}>
+          {/* FIX (v8.9.1): "fuera de fecha" a secas se confundía con el aviso
+              de OverdueBanner ("N se vencieron recientemente"), que cuenta
+              algo distinto (solo lo que cruzó a vencido en el chequeo
+              automático de las últimas horas). Este número de aquí es el
+              acumulado total a hoy -- se aclara explícitamente para que no
+              parezcan el mismo dato cuando no coinciden. */}
+          {vencidos} factura{vencidos === 1 ? '' : 's'} vencida{vencidos === 1 ? '' : 's'} en total (acumulado a hoy)
         </div>
       </motion.div>
       

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
   value: number;
@@ -6,47 +6,70 @@ interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
   currency?: boolean;
 }
 
-export function CurrencyInput({ value, onChange, currency = true, ...props }: CurrencyInputProps) {
+const FORMATTER_CURRENCY = new Intl.NumberFormat('es-MX', {
+  style: 'currency',
+  currency: 'MXN',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const FORMATTER_DECIMAL = new Intl.NumberFormat('es-MX', {
+  style: 'decimal',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export function CurrencyInput({ value, onChange, currency = true, onFocus, onBlur, ...props }: CurrencyInputProps) {
   const [displayValue, setDisplayValue] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+
+  const formatter = useMemo(() => (currency ? FORMATTER_CURRENCY : FORMATTER_DECIMAL), [currency]);
+
+  const formatAndSet = useCallback((val: number) => {
+    if (!Number.isFinite(val)) {
+      setDisplayValue('');
+      return;
+    }
+    setDisplayValue(formatter.format(val));
+  }, [formatter]);
 
   useEffect(() => {
-    // Solo actualizar si no estamos enfocados para evitar saltos del cursor
-    if (document.activeElement?.id !== props.id) {
+    // Solo actualizar el valor formateado si el usuario NO está editando activamente
+    if (!isFocused) {
       formatAndSet(value);
     }
-  }, [value, props.id]);
+  }, [value, isFocused, formatAndSet]);
 
-  const formatAndSet = (val: number) => {
-    if (isNaN(val)) return setDisplayValue('');
-    const formatter = new Intl.NumberFormat('es-MX', {
-      style: currency ? 'currency' : 'decimal',
-      currency: 'MXN',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    setDisplayValue(formatter.format(val));
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(true);
+    // Al enfocar, mostramos el número en texto simple sin el signo de pesos para facilitar edición
+    setDisplayValue(value > 0 ? String(value) : '');
+    onFocus?.(e);
   };
 
-  const handleBlur = () => {
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(false);
     formatAndSet(value);
-  };
-
-  const handleFocus = () => {
-    // Al enfocar, quitamos el formato para facilitar la edicion
-    setDisplayValue(value.toString());
+    onBlur?.(e);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+    // Permitir solo dígitos y un único punto decimal
+    let rawValue = e.target.value.replace(/[^0-9.]/g, '');
+    const parts = rawValue.split('.');
+    if (parts.length > 2) {
+      rawValue = `${parts[0]}.${parts.slice(1).join('')}`;
+    }
     setDisplayValue(rawValue);
     const parsed = parseFloat(rawValue);
-    onChange(isNaN(parsed) ? 0 : parsed);
+    onChange(Number.isFinite(parsed) ? parsed : 0);
   };
 
   return (
     <input
       {...props}
       type="text"
+      inputMode="decimal"
       value={displayValue}
       onChange={handleChange}
       onBlur={handleBlur}

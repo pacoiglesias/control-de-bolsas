@@ -4,19 +4,13 @@ import { PATHS } from '../../lib/firebase';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
 import { safeDeleteDoc, logAction } from '../../lib/logger';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { findDuplicateOrderFolio } from '../../lib/duplicateGuards';
+import { toDate } from '../../lib/format';
 
 export function useOrderActions() {
   async function saveOrder({
     form, order, kilosNum, allOrders, dynamicConfig, baselineUpdatedAt, userEmail, toast, setBusy, onClose, liveSummary, materialProviderName
   }: any) {
-    // ANTES: exigia kilosNum > 0 SIEMPRE, incluso para editar un
-    // expediente que ya tiene facturas reales con kilos capturados a
-    // nivel factura -- el campo resumen "Kilos Pedidos (Total)" nunca se
-    // lleno en la migracion original, asi que CUALQUIER edicion a ese
-    // expediente (hasta corregir un numero de contrarecibo) quedaba
-    // bloqueada por un campo que no tenia nada que ver con lo que se
-    // estaba editando. Ahora tambien cuenta los kilos ya capturados en
-    // las facturas del expediente.
     const kilosDeFacturas = (form.invoices || []).reduce((acc: number, i: any) => acc + (i.kilos || 0), 0);
     if (kilosNum <= 0 && kilosDeFacturas <= 0) {
       toast('Los kilos totales del pedido deben ser mayores a cero.', 'bad');
@@ -32,24 +26,20 @@ export function useOrderActions() {
     }
     const folioTrim = form.folio.trim();
     if (folioTrim) {
-      const duplicado = allOrders.find((o: any) => o.id !== order.id && (o.folio ?? '').trim() === folioTrim);
+      const duplicado = findDuplicateOrderFolio(allOrders || [], folioTrim, order.id);
       if (duplicado) {
         const continuar = await confirmDialog(
-          `Ya existe otro expediente con el folio "${folioTrim}" (cliente: ${duplicado.client || '—'}). ` +
-          `¿Seguro que quieres guardar de todos modos?`,
+          `🚨 ATENCIÓN: Ya existe otro expediente registrado con el folio "${folioTrim}" (Cliente: ${duplicado.client || '—'}).\n\n¿Estás seguro de que deseas guardar con el mismo folio?`,
         );
         if (!continuar) return;
       }
     }
-    // El numero real de OC (distinto del folio interno) nunca deberia
-    // repetirse entre expedientes -- no tenia ninguna verificacion antes.
     const ocTrim = (form.oc || '').trim();
     if (ocTrim) {
-      const ocDuplicada = allOrders.find((o: any) => o.id !== order.id && (o.oc ?? '').trim() === ocTrim);
+      const ocDuplicada = findDuplicateOrderFolio(allOrders || [], ocTrim, order.id);
       if (ocDuplicada) {
         const continuar = await confirmDialog(
-          `Ya existe otro expediente con el número de OC "${ocTrim}" (cliente: ${ocDuplicada.client || '—'}). ` +
-          `¿Seguro que quieres guardar de todos modos?`,
+          `🚨 ATENCIÓN: Ya existe otro expediente registrado con el número de OC "${ocTrim}" (Cliente: ${ocDuplicada.client || '—'}).\n\n¿Estás seguro de que deseas guardar con el mismo número de OC?`,
         );
         if (!continuar) return;
       }
@@ -96,10 +86,12 @@ export function useOrderActions() {
         }
 
         const freshUpdatedAt = (snap.data()?.updatedAt as Timestamp | undefined) ?? null;
+        const tFresh = toDate(freshUpdatedAt)?.getTime();
+        const tBase = toDate(baselineUpdatedAt)?.getTime();
         if (
-          baselineUpdatedAt &&
-          freshUpdatedAt &&
-          freshUpdatedAt.toMillis() !== baselineUpdatedAt.toMillis()
+          tBase &&
+          tFresh &&
+          tFresh !== tBase
         ) {
           throw new Error(
             'Este expediente fue modificado por otra persona mientras lo editabas. ' +

@@ -34,7 +34,6 @@ export function promptDialog(opts: PromptOptions | string): Promise<string | nul
     if (!currentListener) {
       // Red de seguridad: si <PromptDialogHost/> no esta montado, no
       // colgamos la promesa -- caemos de vuelta al prompt nativo.
-      // eslint-disable-next-line no-alert
       resolve(window.prompt(typeof options.message === 'string' ? options.message : 'Ingresa un valor:', options.defaultValue));
       return;
     }
@@ -77,7 +76,7 @@ export function PromptDialogHost() {
   };
 
   return (
-    <Modal title={state.title ?? 'Ingresa un valor'} onClose={() => settle(null)} elevated>
+    <Modal title={state.title ?? 'Ingresa un valor'} onClose={() => settle(null)}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
