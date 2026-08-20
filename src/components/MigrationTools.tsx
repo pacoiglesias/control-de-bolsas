@@ -15,12 +15,12 @@ export default function MigrationTools() {
   const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
 
   async function executeMigration(dryRun: boolean) {
-    if (!dryRun && !(await confirmDialog({ message: '¿ESTÁS SEGURO? Esto escribirá en la base de datos real y eliminará el arreglo de facturas de los expedientes.', danger: true }))) {
+    if (!dryRun && !(await confirmDialog({ message: '¿Proceder con la sincronización en espejo hacia la colección invoices?', danger: false }))) {
       return;
     }
     setBusy(true);
     setLogs([]);
-    addLog(`Iniciando migración de facturas (${dryRun ? 'DRY RUN' : 'MODO ESCRITURA'})...`);
+    addLog(`Iniciando sincronización espejo de facturas (${dryRun ? 'DRY RUN' : 'MODO ESCRITURA'})...`);
     
     try {
       const ordersSnap = await getDocs(collection(db, PATHS.orders));
@@ -39,35 +39,27 @@ export default function MigrationTools() {
         const currentInvoices = orderData.invoices || [];
         
         if (currentInvoices.length > 0) {
-          addLog(`Expediente ${orderData.oc || orderDoc.id}: migrando ${currentInvoices.length} facturas.`);
+          addLog(`Expediente ${orderData.oc || orderDoc.id}: sincronizando ${currentInvoices.length} facturas.`);
           
           currentInvoices.forEach(inv => {
-            const invoiceRef = doc(collection(db, PATHS.invoices));
-            const newInvoice = {
+            const invoiceRef = doc(db, PATHS.invoices, inv.id || doc(collection(db, PATHS.invoices)).id);
+            const mirrorInvoice = {
               ...inv,
               orderId: orderDoc.id,
-              clientId: orderData.client || '', // Guardar copia para facil acceso
+              client: orderData.client || '',
+              department: orderData.department || '',
               oc: orderData.oc || '',
               createdAt: orderData.processedAt || new Date(),
               updatedAt: new Date(),
             };
             
             if (!dryRun) {
-              currentBatch.set(invoiceRef, newInvoice);
+              currentBatch.set(invoiceRef, mirrorInvoice, { merge: true });
               opCount++;
             }
             facturasMigradas++;
             montoTotalMigrado += (inv.financials?.invoiceTotal || 0);
           });
-          
-          if (!dryRun) {
-            // Eliminar el arreglo del expediente
-            currentBatch.update(orderDoc.ref, {
-              invoices: null,
-              invoiceStatuses: null
-            });
-            opCount++;
-          }
         }
         
         if (opCount > 400) {
@@ -90,32 +82,32 @@ export default function MigrationTools() {
       }
 
       addLog('===========================================');
-      addLog(`RESULTADO: ${facturasMigradas} facturas procesadas.`);
-      addLog(`MONTO TOTAL MOVILIZADO: ${money(montoTotalMigrado)}`);
+      addLog(`RESULTADO: ${facturasMigradas} facturas sincronizadas en espejo.`);
+      addLog(`MONTO TOTAL: ${money(montoTotalMigrado)}`);
       addLog('===========================================');
-      toast(dryRun ? 'Simulación completada con éxito' : 'Migración completada!', 'ok');
+      toast(dryRun ? 'Simulación completada con éxito' : 'Sincronización espejo completada!', 'ok');
 
     } catch (e: any) {
-      addLog(`ERROR FATAL: ${e.message}`);
-      toast('Error en la migración', 'bad');
+      addLog(`ERROR: ${e.message}`);
+      toast('Error en la sincronización', 'bad');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Card title="⚠️ Herramienta de Migración de Facturas (Peligro)">
+    <Card title="🔄 Sincronización Espejo de Facturas (Colección Invoices)">
       <div style={{ padding: 16 }}>
         <p className="hint" style={{ marginTop: 0 }}>
-          Este script saca las facturas que están anidadas dentro de la colección <code>orders</code> y las transfiere a la nueva colección <code>invoices</code>. Ejecuta siempre el Dry Run primero para cuadrar los totales.
+          Sincroniza las facturas embebidas en <code>purchaseOrders</code> hacia la colección indexada <code>invoices</code> de forma segura e idempotente (sin alterar los expedientes originales).
         </p>
         
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
           <button className="btn" onClick={() => executeMigration(true)} disabled={busy}>
-            🔍 Simular Migración (Dry Run)
+            🔍 Simular (Dry Run)
           </button>
-          <button className="btn btn-primary" onClick={() => executeMigration(false)} disabled={busy} style={{ backgroundColor: 'var(--bad-dark)' }}>
-            ⚠️ EJECUTAR MIGRACIÓN REAL
+          <button className="btn btn-primary" onClick={() => executeMigration(false)} disabled={busy}>
+            🚀 Sincronizar Espejo a Firestore
           </button>
         </div>
 

@@ -27,6 +27,19 @@ import { confirmDialog } from '../../lib/confirmDialog';
 import { promptDialog } from '../../lib/promptDialog';
 import { useCobranzaActions } from './useCobranzaActions';
 import { getCobranzaGlobalHtml, getCarteraVencidaHtml, getConsolidatedCrHtml } from './reports';
+import {
+  IconZap,
+  IconRefresh,
+  IconDownload,
+  IconAlertTriangle,
+  IconTrendingUp,
+  IconClipboardList,
+  IconClock,
+  IconCoins,
+  IconCheckCircle,
+  IconFileText,
+  IconScale,
+} from '../ui/icons';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -602,56 +615,56 @@ export default function Cobranza() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             className="btn btn-primary"
-            style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)', color: '#fff', fontWeight: 800, border: 'none', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)' }}
+            style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)', color: '#fff', fontWeight: 800, border: 'none', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
             onClick={() => setShowSincronizador(true)}
             title="Sincronizar base de datos con los 10 Contrarecibos Oficiales y Fac 6167"
           >
-            ⚡ Sincronizar 10 Contrarecibos
+            <IconZap size={16} /> Sincronizar 10 Contrarecibos
           </button>
           <button
             className="btn btn-primary"
-            style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: '#fff', fontWeight: 700, border: 'none', boxShadow: '0 2px 8px rgba(16,185,129,0.3)' }}
+            style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: '#fff', fontWeight: 700, border: 'none', boxShadow: '0 2px 8px rgba(16,185,129,0.3)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
             onClick={() => setShowAutoConciliador(true)}
           >
-            🤖 Auto-Conciliar Pagos / Depósitos
+            <IconRefresh size={16} /> Auto-Conciliar Pagos / Depósitos
           </button>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCarteraVencida}>
-              <span className="icon">📤</span> PDF (Cartera Vencida)
+            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={shareCarteraVencida}>
+              <IconDownload size={16} /> PDF (Cartera Vencida)
             </button>
-            <button className="btn" style={{ background: '#b91c1c', color: '#fff', borderColor: '#b91c1c', fontWeight: 600 }} onClick={printCarteraVencida}>
-              🚨 Cartera Vencida (Imprimir)
+            <button className="btn" style={{ background: '#b91c1c', color: '#fff', borderColor: '#b91c1c', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={printCarteraVencida}>
+              <IconAlertTriangle size={16} /> Cartera Vencida (Imprimir)
             </button>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCobranzaGlobalReport}>
-              <span className="icon">📤</span> Compartir PDF
+            <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={shareCobranzaGlobalReport}>
+              <IconDownload size={16} /> Compartir PDF
             </button>
-            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printCobranzaGlobalReport}>
-              📈 Imprimir Todo (General)
+            <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={printCobranzaGlobalReport}>
+              <IconTrendingUp size={16} /> Imprimir Todo (General)
             </button>
           </div>
         </div>
       </div>
 
       <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
-        <button className={`tab ${activeTab === 'tablero' ? 'active' : ''}`} onClick={() => setActiveTab('tablero')}>
-          📋 Tablero (Kanban)
+        <button className={`tab ${activeTab === 'tablero' ? 'active' : ''}`} onClick={() => setActiveTab('tablero')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconClipboardList size={16} /> Tablero (Kanban)
         </button>
-        <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')}>
-          ⏳ Pendientes de Cobro ({data.open.length})
+        <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconClock size={16} /> Pendientes de Cobro ({data.open.length})
         </button>
-        <button className={`tab ${activeTab === 'pagadas' ? 'active' : ''}`} onClick={() => setActiveTab('pagadas')}>
-          🏃‍♂️ Por Recoger Efectivo ({data.paid.length})
+        <button className={`tab ${activeTab === 'pagadas' ? 'active' : ''}`} onClick={() => setActiveTab('pagadas')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconCoins size={16} /> Por Recoger Efectivo ({data.paid.length})
         </button>
-        <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')}>
-          🗄️ Historial: Recogidos ({data.collected.length})
+        <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconCheckCircle size={16} /> Historial: Recogidos ({data.collected.length})
         </button>
-        <button className={`tab ${activeTab === 'contabilidad' ? 'active' : ''}`} onClick={() => setActiveTab('contabilidad')}>
-          🧾 Liquidación a Contabilidad
+        <button className={`tab ${activeTab === 'contabilidad' ? 'active' : ''}`} onClick={() => setActiveTab('contabilidad')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconFileText size={16} /> Liquidación a Contabilidad
         </button>
-        <button className={`tab ${activeTab === 'estado_cuenta' ? 'active' : ''}`} onClick={() => setActiveTab('estado_cuenta')}>
-          🪞 Estado de Cuenta (Espejo)
+        <button className={`tab ${activeTab === 'estado_cuenta' ? 'active' : ''}`} onClick={() => setActiveTab('estado_cuenta')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconScale size={16} /> Estado de Cuenta (Espejo)
         </button>
       </div>
 

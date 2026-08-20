@@ -258,10 +258,29 @@ html, body {
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);border:none;background:transparent;color:var(--sidebar-ink);opacity:0.85;text-decoration:none;font-size:13.5px;font-weight:500;position:relative;transition:all 0.18s cubic-bezier(0.4, 0, 0.2, 1);flex-shrink:0}
 .nav-item:hover{background:var(--sidebar-hover);color:#fff;opacity:1}
 .nav-item.active{background:var(--sidebar-active);color:#fff;opacity:1;box-shadow:inset 3px 0 0 0 var(--accent);font-weight:600}
-.nav-num{font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);width:20px;flex:none;transition:color 0.2s ease}
-.nav-item.active .nav-num{color:var(--accent)}
-.nav-badge{margin-left:auto;background:var(--bad);color:#fff;font-size:11px;font-family:'Inter', sans-serif;font-weight:700;padding:2px 8px;border-radius:20px;box-shadow:0 0 0 1px var(--sidebar)}
+.nav-num{display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:var(--ink-faint);width:20px;height:20px;flex:none;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1)}
+.nav-item:hover .nav-num{color:#fff;transform:scale(1.08)}
+.nav-item.active .nav-num{color:var(--accent);transform:scale(1.08)}
+.nav-badge{margin-left:auto;background:var(--bad);color:#fff;font-size:11px;font-family:'Inter', sans-serif;font-weight:700;padding:2px 8px;border-radius:20px;box-shadow:0 0 0 1px var(--sidebar);letter-spacing:0.02em}
 .nav-badge.soft{background:var(--warn)}
+
+.live-pulse-dot {
+  position: relative;
+  display: inline-block;
+}
+.live-pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.6;
+  animation: liveDotPulse 2s infinite ease-out;
+}
+@keyframes liveDotPulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
 .sidebar-foot{border-top:1px solid var(--sidebar-line);padding-top:14px;margin-top:14px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .sidebar-foot button{background:none;border:1px solid var(--sidebar-line);color:var(--sidebar-ink);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;font-weight:500;text-align:left;transition:all 0.2s ease;opacity:0.85}
 .sidebar-foot button:hover{border-color:var(--accent);color:#fff;background:rgba(255,255,255,0.05);opacity:1}

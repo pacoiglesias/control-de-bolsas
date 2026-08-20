@@ -2110,3 +2110,33 @@ Riesgo: 🟢 Bajo — Mejoras arquitectónicas con compatibilidad total hacia at
 Commit: `feat(v8.8.2): offline-first sync hook, modernized firestore rules, dashboard modals host, and legacy scripts cleanup`
 Estado: ✅ Verificado — 72/72 pruebas unitarias aprobadas, `tsc --noEmit` 0 errores, `eslint` 0 errores, build de producción y Cloud Functions al 100%.
 OKRs afectados: OKR 1 (Precisión Determinista), OKR 2 (Seguridad & Reglas), OKR 3 (Arquitectura & Rendimiento), OKR 4 (Mantenibilidad & DevOps).
+
+[2026-08-20]
+Archivo: `src/hooks/useDashboardStatsV2.ts`
+Problema: reportado en vivo por el usuario — el Dashboard mostraba "⚖️ Saldo con Andrés: -$1,289,709.62" mientras que Compras → Andrés, para el mismo dato, mostraba "+$40,800.00 (Saldo a favor)". Diferencia de $1,330,509.62 entre dos pantallas de la misma app en el mismo momento. Causa raíz: `useDashboardStatsV2.ts` arma su propia copia local y reducida de la configuración financiera (`cfg`) campo por campo a partir del `config` real, y al construirla se omitió `historicalDebtAndres` (el ajuste de deuda histórica calibrado en Ajustes, actualmente $1,227,839.35). Como `cfg.historicalDebtAndres` era siempre `undefined`, el cálculo caía en un respaldo fijo hardcodeado de -$102,670.27 (la calibración original, de hace semanas), mientras que `useAndresStats.ts` (usado por `/compras`) sí lee `config?.historicalDebtAndres` directo — la misma fórmula (`totalPagado − totalPurchasesCost + deudaHistorica`), pero con dos "fuentes de verdad" distintas para el mismo insumo.
+Impacto: Alto — número financiero visible en el Dashboard, incorrecto por $1.33M, con potencial de causar decisiones de negocio erróneas (ej. pensar que se debe mucho más de lo real a Andrés).
+Solución: se agregó `historicalDebtAndres: config?.historicalDebtAndres || 0` al objeto `cfg` local (mismo fallback `|| 0` que ya usa `useAndresStats.ts`, no el `-102670.27` hardcodeado anterior), y se simplificó la línea de cálculo para leer directo de `cfg.historicalDebtAndres`. Ambas pantallas ahora leen el mismo campo de la misma forma.
+Riesgo: 🟢 Bajo tras la corrección — un solo campo agregado, mismo patrón de "una sola fuente de verdad" ya aplicado en la Iteración 10 (2026-08-03) para el mismo hook, cuando se encontró el bug gemelo en la tabla de movimientos de Compras.
+Commit: `fix(dashboard): leer historicalDebtAndres real en vez de un respaldo fijo desactualizado, para que Saldo con Andrés coincida entre Dashboard y Compras`
+Estado: ✅ Verificado — 72/72 pruebas unitarias, `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, confirmado en vivo con Chrome que ambos números coincidían tras el deploy.
+Lección para el futuro: este es el mismo patrón de bug que la Iteración 10 — un cálculo financiero reimplementado en un segundo lugar en vez de reutilizar el hook existente. Antes de escribir una fórmula financiera nueva, buscar primero si ya existe (`useAndresStats.ts`, `finance.ts`, `finance.core.ts`) y reutilizarla o importarla, nunca copiarla campo por campo.
+OKRs afectados: OKR 1 (Precisión Determinista), OKR 4 (Mantenibilidad — fuente única de verdad).
+
+---
+
+[2026-08-20]
+Archivos: `storage.rules`, `functions/src/index.ts`, `src/pages/Dashboard.tsx`, `src/pages/CajaChica.tsx`, `src/components/MigrationTools.tsx`, `src/lib/finance.ts`
+Problema: Auditoría integral del sistema identificó 6 áreas de mejora:
+1. `storage.rules`: Contenía `paco@cobertores.com` en `isAllowedOwnerEmail()` (removido de Firestore en v8.9.2 para permitir revocación limpia) y no validaba `email_verified == true` al consultar el documento de admin en Firestore ni soportaba Custom Claims.
+2. `functions/src/index.ts`: Al procesar XML de tipo Factura (`tipo === "I" || tipo === "E"`), el arreglo desnormalizado `invoiceStatuses` se guardaba hardcodeado como `["facturado"]` en lugar de sincronizarse con el estatus real de la factura creada (`creditCycle.status: "manual_review"`).
+3. `src/pages/Dashboard.tsx`: El efecto de auto-calibración de deuda histórica incluía la condición `config.historicalDebtAndres === 0`, sobrescribiendo automáticamente a `-102670.27` si un admin configuraba deliberadamente el saldo en $0.00.
+4. `src/pages/CajaChica.tsx`: Los filtros y etiquetas de proveedor usaban `.toLowerCase()` simple, fallando al comparar nombres con y sin acento ("Andrés" vs "Andres").
+5. `src/components/MigrationTools.tsx`: La herramienta borraba `invoices` e `invoiceStatuses` en los expedientes (`invoices: null`), lo que causaba corrupción crítica dado que la arquitectura del sistema utiliza el modelo embebido con dual-write en espejo.
+6. `src/lib/finance.ts`: Cláusulas redundantes en `inferDepartment`.
+Impacto: Vulnerabilidades potenciales en reglas de Storage, riesgo de desincronización de consultas por invoiceStatuses en XML, imposibilidad de calibrar deuda histórica a cero, inconsistencias visuales en Caja Chica y riesgo crítico de pérdida de datos en la herramienta de migración.
+Solución: Reglas de Storage alineadas con Firestore (Custom Claims, verificación obligatoria, sólo correos bootstrap dueños); `invoiceStatuses` sincronizado con `newInvoice.creditCycle.status` en el parser XML; auto-calibración corregida para permitir $0.00; comparaciones en Caja Chica unificadas con `normalizarTexto()`; `MigrationTools.tsx` convertida a sincronización espejo idempotente y segura sin borrado destructivo; optimización de `inferDepartment`.
+Riesgo: 🟢 Bajo tras verificación exhaustiva.
+Commit: `refactor(audit): storage rules hardening, XML invoiceStatuses sync, safe migration mirror, and text normalization`
+Estado: ✅ Verificado — 72/72 pruebas unitarias aprobadas, `tsc` limpio en raíz y functions, `eslint` 0 errores, `npm run build` exitoso al 100%.
+OKRs afectados: OKR 1 (Precisión Determinista), OKR 2 (Seguridad & Reglas), OKR 3 (Resiliencia y Null-Safety), OKR 5 (Consistencia de Denormalización invoiceStatuses).
+

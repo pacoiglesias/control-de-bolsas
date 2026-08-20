@@ -13,6 +13,11 @@ import { QuickCrModal } from '../components/QuickCrModal';
 import { KilosProgressBar } from '../components/Orders/KilosProgressBar';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary, extractCr } from '../lib/finance';
+import {
+  IconZap,
+  IconClipboardList,
+  IconFileText,
+} from '../components/ui/icons';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
 const FILTERS: { key: 'all' | 'sin_cr' | OrderStatus; label: string }[] = [
@@ -352,24 +357,24 @@ export default function Orders() {
           <div style={{ display: 'flex', gap: 4, background: 'var(--bg-body)', padding: 4, borderRadius: 8, marginRight: 12 }}>
             <button 
               className={`btn-small ${viewMode === 'radar' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'radar' ? '#d97706' : 'transparent', color: viewMode === 'radar' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 700 }}
+              style={{ background: viewMode === 'radar' ? '#d97706' : 'transparent', color: viewMode === 'radar' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               onClick={() => setViewMode('radar')}
             >
-              ⚡ Acciones Hoy
+              <IconZap size={14} /> Acciones Hoy
             </button>
             <button 
               className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'kanban' ? 'var(--brand)' : 'transparent', color: viewMode === 'kanban' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              style={{ background: viewMode === 'kanban' ? 'var(--brand)' : 'transparent', color: viewMode === 'kanban' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               onClick={() => setViewMode('kanban')}
             >
-              ◫ Tablero
+              <IconClipboardList size={14} /> Tablero
             </button>
             <button 
               className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
+              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               onClick={() => setViewMode('list')}
             >
-              ☰ Lista
+              <IconFileText size={14} /> Lista
             </button>
           </div>
           <input

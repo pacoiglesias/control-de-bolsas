@@ -477,7 +477,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
           totalKilograms: totalKilos,
           creditCycle: { status: "manual_review" },
           invoices: [newInvoice],
-          invoiceStatuses: ["facturado"],
+          invoiceStatuses: [newInvoice.creditCycle.status || "manual_review"],
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
           processedAt: FieldValue.serverTimestamp(),

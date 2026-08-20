@@ -19,6 +19,13 @@ import { safeDeleteDoc } from '../lib/logger';
 import { motion } from 'framer-motion';
 import { useUndo } from '../context/UndoContext';
 import { confirmDialog } from '../lib/confirmDialog';
+import {
+  IconPlus,
+  IconDownload,
+  IconFactory,
+  IconUsers,
+  IconTrendingUp,
+} from '../components/ui/icons';
 
 export default function CajaChica() {
   const { role } = useAuth();
@@ -50,7 +57,7 @@ export default function CajaChica() {
 
   // Filtrado de movimientos
   const filteredExpenses = expenses.filter((e) => {
-    const isAndres = e.provider && e.provider.toLowerCase() === provName.toLowerCase();
+    const isAndres = e.provider && normalizarTexto(e.provider) === normalizarTexto(provName);
     const c = (e.concept || '').toLowerCase();
     const isSocio = e.type === 'egreso' && (c.includes('socio') || c.includes('reparto') || c.includes('utilidad') || c.includes('paco') || c.includes('ganancia') || c.includes('retiro'));
 
@@ -417,7 +424,7 @@ export default function CajaChica() {
             </button>
             <button
               className="btn no-print"
-              style={{ background: '#0284c7', color: 'white', borderColor: '#0284c7', fontWeight: 700 }}
+              style={{ background: '#0284c7', color: 'white', borderColor: '#0284c7', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               onClick={() => setSelected({
                 id: doc(collection(db, PATHS.expenses)).id,
                 date: Timestamp.fromDate(new Date()),
@@ -428,11 +435,11 @@ export default function CajaChica() {
                 createdAt: null,
               } as Expense)}
             >
-              🏭 Pagar a {provName}
+              <IconFactory size={16} /> Pagar a {provName}
             </button>
             <button
               className="btn no-print"
-              style={{ background: '#7c3aed', color: 'white', borderColor: '#7c3aed', fontWeight: 700 }}
+              style={{ background: '#7c3aed', color: 'white', borderColor: '#7c3aed', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               onClick={() => setSelected({
                 id: doc(collection(db, PATHS.expenses)).id,
                 date: Timestamp.fromDate(new Date()),
@@ -442,11 +449,11 @@ export default function CajaChica() {
                 createdAt: null,
               } as Expense)}
             >
-              🤝 Reparto de Ganancias
+              <IconUsers size={16} /> Reparto de Ganancias
             </button>
             <button
               className="btn no-print"
-              style={{ background: 'var(--paper-sunk)', color: 'var(--ink)', borderColor: 'var(--line)', fontWeight: 600 }}
+              style={{ background: 'var(--paper-sunk)', color: 'var(--ink)', borderColor: 'var(--line)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               onClick={() => setSelected({
                 id: doc(collection(db, PATHS.expenses)).id,
                 date: Timestamp.fromDate(new Date()),
@@ -456,17 +463,19 @@ export default function CajaChica() {
                 createdAt: null,
               } as Expense)}
             >
-              ➖ Otro Gasto
+              <IconPlus size={16} /> Otro Gasto
             </button>
 
             <span className="spacer" />
-            <button className="btn no-print" onClick={exportCajaChicaCsv}>📥 CSV</button>
+            <button className="btn no-print" onClick={exportCajaChicaCsv} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <IconDownload size={16} /> CSV
+            </button>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareCajaChicaReport}>
-                <span className="icon">📤</span> PDF
+              <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={shareCajaChicaReport}>
+                <IconDownload size={16} /> PDF
               </button>
-              <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }} onClick={printCajaChicaReport}>
-                📈 Imprimir
+              <button className="btn" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={printCajaChicaReport}>
+                <IconTrendingUp size={16} /> Imprimir
               </button>
             </div>
           </div>
@@ -480,10 +489,10 @@ export default function CajaChica() {
             {(
               [
                 ['all', 'Todos'],
-                ['ingreso', '📥 Cobros de Contadores'],
-                ['andres', `🏭 Pagos a ${provName}`],
-                ['socios', '🤝 Reparto a Socios'],
-                ['otros', '💸 Otros Egresos'],
+                ['ingreso', 'Cobros de Contadores'],
+                ['andres', `Pagos a ${provName}`],
+                ['socios', 'Reparto a Socios'],
+                ['otros', 'Otros Egresos'],
               ] as const
             ).map(([f, label]) => (
               <button
@@ -498,6 +507,7 @@ export default function CajaChica() {
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: 'pointer',
+                  transition: 'all 0.18s ease',
                 }}
               >
                 {label}
@@ -573,7 +583,7 @@ export default function CajaChica() {
                     <div style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--ink)', marginBottom: 2 }}>{e.concept}</div>
                     <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
                       <span className="mono" style={{ fontWeight: 600 }}>{fmtDayAndDate(e.date)}</span>
-                      {e.provider && e.provider.toLowerCase() === provName.toLowerCase() && (
+                      {e.provider && normalizarTexto(e.provider) === normalizarTexto(provName) && (
                         <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
                           ● Abono a Proveedor
                         </span>

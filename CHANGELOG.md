@@ -1,5 +1,25 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.5] - 20 Agosto 2026 (Auditoría Integral: Reglas de Storage, Ingesta XML, Saldo $0.00 y Migración Segura)
+
+### Mejorado (Seguridad y Reglas)
+- **🔒 Storage Rules endurecidas y alineadas con Firestore:** Se exige verificación de correo `email_verified == true` en todas las operaciones autenticadas, soporte prioritario para Custom Claims (`role == 'admin'` / `role == 'manager'`) y se eliminó la credencial irrevocable para permitir revocación limpia de accesos institucionales.
+
+### Corregido (Integridad de Datos y Backend)
+- **⚙️ Sincronización de `invoiceStatuses` en Ingesta de XML:** La Cloud Function `processStorageFile` ahora deriva el estatus en `invoiceStatuses` directamente de `newInvoice.creditCycle.status` (`"manual_review"`) en lugar de fijarlo en `"facturado"`.
+- **⚖️ Calibración deliberada de deuda histórica a $0.00:** El efecto de auto-calibración en `Dashboard.tsx` ya no sobrescribe `config.historicalDebtAndres` cuando el usuario lo ajusta legítimamente a `$0.00`.
+- **🔤 Filtros de proveedor en Caja Chica:** Unificación con `normalizarTexto()` para garantizar que nombres con o sin acento ("Andrés" vs "Andres") se agrupen y filtren idénticamente.
+- **🛡️ Herramienta de Migración segura e idempotente:** `MigrationTools.tsx` ahora sincroniza facturas en espejo hacia `invoices` usando el ID de factura sin eliminar ni alterar los arreglos originales de `purchaseOrders`.
+
+## [v8.9.4] - 20 Agosto 2026 (CRÍTICO: "Saldo con Andrés" del Dashboard decía -$1,289,709.62; el número real es +$40,800.00)
+
+### Corregido (CRÍTICO — dato financiero, reportado en vivo por el usuario)
+- **⚖️ El Dashboard y Compras → Andrés mostraban dos números distintos para el mismo saldo, con una diferencia de $1,330,509.62:** el Dashboard (`useDashboardStatsV2.ts`) arma su propia copia reducida de la configuración financiera (`cfg`) campo por campo a partir de la configuración real, pero al construir esa copia se le olvidó incluir `historicalDebtAndres` (el ajuste de deuda histórica con Andrés que se calibra desde Configuración). Como resultado, el cálculo del Dashboard siempre usaba un valor de respaldo fijo y viejo (**-$102,670.27**, la calibración original de hace semanas) en vez de leer el valor real y vigente que ya está configurado (**$1,227,839.35**) — el mismo que sí lee correctamente el módulo Compras → Andrés (`useAndresStats.ts`, usado por el "⚖️ ESTADO DE CUENTA" y el Libro Mayor). Dos fuentes de verdad distintas para el mismo dato, una de ellas desactualizada por un campo faltante.
+  - Encontrado revisando en vivo el sitio de producción después de que el usuario reportó el número como "irreal".
+  - Corregido para que el Dashboard lea exactamente el mismo campo, de la misma forma (`config?.historicalDebtAndres || 0`), que ya usa Compras → Andrés — ambas pantallas ahora muestran siempre el mismo número.
+  - **Importante:** después de este despliegue, entra al Dashboard y confirma que "⚖️ Saldo con Andrés" ya coincide con "⚖️ ESTADO DE CUENTA" en Compras → Andrés.
+- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, 72/72 pruebas unitarias.
+
 ## [v8.9.3] - 20 Agosto 2026 (Mejoras visuales: íconos reales, barra de kilos más clara, tarjeta principal del Dashboard, Portal Maquilador en celular)
 
 ### Mejorado (visual)

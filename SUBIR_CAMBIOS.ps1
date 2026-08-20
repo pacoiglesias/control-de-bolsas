@@ -2,6 +2,16 @@
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
+# FIX: sin esto, los acentos (CRÍTICO, Andrés, etc.) se leen y se muestran
+# mal (salen como "CRÃTICO", "AndrÃ©s") porque PowerShell 5.1 asume la
+# codificacion ANSI del sistema para archivos sin BOM, y CHANGELOG.md esta
+# en UTF-8. Forzamos consola UTF-8 aqui; la lectura de archivos de texto
+# mas abajo tambien se hace con -Encoding UTF8 explicito.
+try {
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {}
+
 function Fail($msg) {
   Write-Host ""
   Write-Host "  [X] $msg" -ForegroundColor Red
@@ -34,14 +44,14 @@ if ([string]::IsNullOrWhiteSpace($statusPorcelain)) {
 $version = $null
 if (Test-Path "package.json") {
   try {
-    $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+    $pkg = Get-Content "package.json" -Raw -Encoding UTF8 | ConvertFrom-Json
     $version = $pkg.version
   } catch {}
 }
 
 $resumen = $null
 if (Test-Path "CHANGELOG.md") {
-  $changelogLines = Get-Content "CHANGELOG.md"
+  $changelogLines = Get-Content "CHANGELOG.md" -Encoding UTF8
   $topLine = $changelogLines | Where-Object { $_ -match '^\s*##\s*\[v?[\d\.]+\]' } | Select-Object -First 1
   if ($topLine) {
     # Formato esperado: ## [v8.9.1] - 20 Agosto 2026 (Descripcion corta aqui)
@@ -53,6 +63,15 @@ if (Test-Path "CHANGELOG.md") {
     }
   }
 }
+
+# FIX: el resumen sacado del CHANGELOG a veces trae comillas dobles dentro
+# (ej. el texto habla de un valor entre comillas, como "Saldo con Andrés").
+# Esas comillas dobles, al pasarlas como argumento -m "..." a un programa
+# externo (git.exe) desde PowerShell, rompen el parseo de la linea de
+# comandos de Windows a la mitad -- git terminaba recibiendo el mensaje
+# cortado en pedazos sueltos ("pathspec 'con' did not match..."). Las
+# cambiamos por comillas simples para que el commit nunca truene por esto.
+if ($resumen) { $resumen = $resumen -replace '"', "'" }
 
 $fecha = Get-Date -Format "yyyy-MM-dd HH:mm"
 if ($version -and $resumen) {
@@ -79,7 +98,10 @@ $confirmar = Read-Host "  Subir estos cambios con ese nombre? (s/n, o escribe tu
 if ([string]::IsNullOrWhiteSpace($confirmar)) { Fail "Cancelado." }
 if ($confirmar -eq 'n' -or $confirmar -eq 'N') { Fail "Cancelado por el usuario." }
 if ($confirmar -ne 's' -and $confirmar -ne 'S') {
-  # El usuario escribio su propio nombre en vez de s/n
+  # El usuario escribio su propio nombre en vez de s/n. Tambien le quitamos
+  # comillas dobles por la misma razon de arriba -- si el escribe algo como
+  # Arregle el bug de "Saldo con Andres", eso tampoco debe tronar el commit.
+  $confirmar = $confirmar -replace '"', "'"
   $tituloCorto = $confirmar
   $mensaje = $confirmar
 }
@@ -91,8 +113,24 @@ git add -A
 if ($LASTEXITCODE -ne 0) { Fail "git add fallo." }
 
 Write-Host "  --- Creando commit ---" -ForegroundColor Yellow
-git commit -m "$tituloCorto" -m "$mensaje" | Out-Null
-if ($LASTEXITCODE -ne 0) { Fail "git commit fallo (revisa el mensaje de arriba)." }
+# FIX: en vez de pasar el mensaje como argumento -m "..." (fragil: cualquier
+# comilla, acento mal codificado o caracter especial puede romper el parseo
+# de la linea de comandos de Windows al llamar a git.exe desde PowerShell),
+# lo escribimos a un archivo temporal en UTF-8 y usamos "git commit -F
+# archivo". Esto es inmune a comillas, signos de pesos, punto y coma, etc.
+$archivoMensaje = Join-Path $env:TEMP ("control_bolsas_commit_" + [guid]::NewGuid().ToString("N") + ".txt")
+if ($tituloCorto -eq $mensaje) {
+  $cuerpoCommit = $tituloCorto
+} else {
+  $cuerpoCommit = "$tituloCorto`r`n`r`n$mensaje"
+}
+[System.IO.File]::WriteAllText($archivoMensaje, $cuerpoCommit, (New-Object System.Text.UTF8Encoding($false)))
+try {
+  git commit -F "$archivoMensaje" | Out-Null
+  if ($LASTEXITCODE -ne 0) { Fail "git commit fallo (revisa el mensaje de arriba)." }
+} finally {
+  Remove-Item -Path $archivoMensaje -ErrorAction SilentlyContinue
+}
 
 $rama = git rev-parse --abbrev-ref HEAD
 

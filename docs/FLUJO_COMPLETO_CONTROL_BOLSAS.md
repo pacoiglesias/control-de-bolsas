@@ -1,5 +1,7 @@
 # Flujo Completo — Control Bolsas ERP
-### Revisión exhaustiva contra el negocio real (Actualizado a v8.5.0 Enterprise)
+### Revisión exhaustiva contra el negocio real (Actualizado a v8.9.4)
+
+> El flujo operativo y las fórmulas descritas abajo siguen vigentes tal cual desde v8.5.0. Los cambios posteriores fueron de seguridad, consistencia visual y corrección de un cálculo duplicado ("Saldo con Andrés") — ver `CHANGELOG.md` para el detalle versión por versión.
 
 Este documento describe, paso por paso, el flujo operativo y financiero exacto del negocio, detallando cómo el ERP lo modela de principio a fin, incluyendo las herramientas de automatización, generación de reportes PDF oficiales y el Cockpit Modular del Dashboard.
 
@@ -94,7 +96,7 @@ OC Providencia ➔ Pedido Andrés ($42/kg) ➔ Entrega en Báscula ➔ Factura S
 
 ---
 
-## ✅ Conclusión y Auditoría del Sistema (v8.5.0 Enterprise)
+## ✅ Conclusión y Auditoría del Sistema (v8.9.4)
 
 El sistema garantiza trazabilidad matemática total, inmutabilidad de precios históricos, exportaciones a Excel/JSON y generación de documentos PDF ejecutivos y fiscales con un solo clic.
 

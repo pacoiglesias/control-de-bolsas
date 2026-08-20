@@ -16,11 +16,28 @@ import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import {
+  IconLayoutDashboard,
+  IconFolder,
+  IconTruck,
+  IconZap,
+  IconShoppingBag,
+  IconCoins,
+  IconShoppingCart,
+  IconWallet,
+  IconScale,
+  IconChartBar,
+  IconFactory,
+  IconSettings,
+  IconUsers,
+  IconEye,
+  IconEyeOff,
+} from './ui/icons';
 
 type NavItem = {
   type?: 'link' | 'group';
   to?: string;
-  icon?: string;
+  icon?: React.ReactNode;
   label: string;
   end?: boolean;
   roles: string[];
@@ -50,25 +67,25 @@ export default function Layout() {
   const providerLabel = settings.providerName || 'Andrés';
 
   const navItems = useMemo<NavItem[]>(() => [
-    { type: 'link', to: '/', icon: '📊', label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/', icon: <IconLayoutDashboard size={18} />, label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
     
     { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/oc', icon: '🚚', label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/ordenes', icon: <IconFolder size={18} />, label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', icon: <IconTruck size={18} />, label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: <IconZap size={18} />, label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/catalogo', icon: <IconShoppingBag size={18} />, label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
 
     { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: '💵', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: '🛒', label: `Compras ${providerLabel}`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
+    { type: 'link', to: '/cobranza', icon: <IconCoins size={18} />, label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: <IconShoppingCart size={18} />, label: `Compras ${providerLabel}`, roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: <IconWallet size={18} />, label: 'Efectivo en Caja', roles: ['admin'] },
 
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
-    { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
-    { type: 'link', to: '/mining', icon: '📈', label: 'Métricas & Data Mining', roles: ['admin'] },
-    { type: 'link', to: '/portal-maquilador', icon: '⚖️', label: 'Portal Proveedor / Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
-    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
+    { type: 'link', to: '/audit', icon: <IconScale size={18} />, label: 'Auditoría & Sábana', roles: ['admin'] },
+    { type: 'link', to: '/mining', icon: <IconChartBar size={18} />, label: 'Métricas & Data Mining', roles: ['admin'] },
+    { type: 'link', to: '/portal-maquilador', icon: <IconFactory size={18} />, label: 'Portal Proveedor / Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/centro-control', icon: <IconSettings size={18} />, label: 'Centro de Control', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', icon: <IconUsers size={18} />, label: 'Usuarios y Permisos', roles: ['admin'] },
   ], [clientLabel, providerLabel]);
 
   const handleDownloadLocalBackup = () => {
@@ -181,11 +198,14 @@ export default function Layout() {
               color: isPrivate ? '#f59e0b' : 'inherit',
               border: isPrivate ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent',
               borderRadius: 8,
-              fontSize: 16,
+              padding: 6,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'all 0.2s ease',
             }}
           >
-            {isPrivate ? '🙈' : '👁️'}
+            {isPrivate ? <IconEyeOff size={18} /> : <IconEye size={18} />}
           </button>
           
           <NotificationsCenter />

@@ -1,7 +1,9 @@
 # 📘 MANUAL TÉCNICO, ARQUITECTURA Y FLUJOS DEL SISTEMA
-## ERP Control Universal · v8.7.0 Luxury Cockpit, Haptic Engine & Universal Customization Edition
+## ERP Control Universal · v8.9.4
 
-Este documento describe la arquitectura técnica integral, los flujos operativos del negocio, las fórmulas matemáticas deterministas, el catálogo de funciones de software, la política de inmutabilidad de precios históricos, la parametrización universal (multi-empresa / multi-taller) y la suite de experiencia de lujo (Spotlight, Quick-Peek, Floating Hub y Motor Háptico).
+Este documento describe la arquitectura técnica integral, los flujos operativos del negocio, las fórmulas matemáticas deterministas, el catálogo de funciones de software, la política de inmutabilidad de precios históricos, la parametrización universal (multi-empresa / multi-taller) y la suite de experiencia (Spotlight, Quick-Peek, Floating Hub y Motor Háptico).
+
+> **Actualizado a v8.9.4.** Desde la v8.7.0 (título original de este manual) se agregaron, entre otras cosas: íconos reales en vez de emojis en Dashboard y Portal Maquilador, confirmación obligatoria al saltar varios pasos en el Kanban, bloqueo del PIN del Portal Maquilador tras 5 intentos fallidos, cierre de 4 huecos de seguridad (ver `SECURITY.md`), y la corrección del cálculo de "Saldo con Andrés" para que todas las pantallas lean el mismo dato (ver fórmula 5 abajo y `AUDIT_NOTEBOOK.md`). El detalle versión por versión vive en `CHANGELOG.md`.
 
 ---
 
@@ -66,6 +68,8 @@ $$\text{Deuda de Material} = \sum (\text{Kilos Recibidos en Báscula} \times \te
 $$\text{Total Pagado} = \sum (\text{Egresos a Proveedor}) - \sum (\text{Ingresos de Proveedor})$$
 $$\text{Saldo Proveedor} = \text{Total Pagado} - \text{Deuda de Material} + \text{Ajuste Histórico}$$
 
+> **Fuente única de verdad:** esta fórmula vive en `src/hooks/useAndresStats.ts` (usado por `/compras`), leyendo `config.historicalDebtAndres` directamente de Ajustes. Cualquier otra pantalla que muestre "Saldo con Andrés" debe leer del mismo campo — una copia local de la configuración que se olvide de incluirlo produce un número distinto y equivocado. Bug real de este tipo encontrado y corregido en v8.9.4 (el Dashboard mostraba un saldo $1,330,509.62 distinto al de Compras).
+
 ---
 
 ## 🛠️ 3. Catálogo de Módulos y Bibliotecas del Sistema
@@ -112,7 +116,7 @@ $$\text{Saldo Proveedor} = \text{Total Pagado} - \text{Deuda de Material} + \tex
 ---
 
 ## 🔒 5. Seguridad, Auditoría y Respaldo de Datos
-* **Reglas de Seguridad Firestore (`firestore.rules`):** Control estricto de roles (`admin`, `operator`, `viewer`) y bloqueo de borrado no autorizado.
+* **Reglas de Seguridad Firestore (`firestore.rules`):** Control estricto de roles (`admin`, `manager`, `viewer`) y bloqueo de borrado no autorizado. Ninguna regla acepta una sesión autenticada cualquiera (`request.auth != null` a secas) para datos sensibles — ver `SECURITY.md` para el detalle de los 4 huecos cerrados en la auditoría v8.9.2.
 * **Bitácora en Vivo (`system_logs` / `LiveLogsModal`):** Registro de cada borrado, creación de facturas y pagos con usuario y timestamp.
 * **Respaldos Automáticos:**
   * Respaldos en la nube Firestore con historial de snapshots.

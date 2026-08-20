@@ -13,6 +13,16 @@ import { ComprasKanban } from '../components/Compras/ComprasKanban';
 import { exportToCsv, getPrintHeaderHtml, fmtDate, nombreClienteVisible } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
 import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
+import {
+  IconScale,
+  IconPlus,
+  IconFileText,
+  IconDownload,
+  IconPackage,
+  IconCheckCircle,
+  IconClock,
+  IconClipboardList,
+} from '../components/ui/icons';
 import type { Purchase, PurchaseOrder } from '../lib/types';
 
 export default function Compras() {
@@ -43,10 +53,6 @@ export default function Compras() {
   const [view, setView] = useState<'lista' | 'tablero'>('lista');
   const [params, setParams] = useSearchParams();
 
-  // Vinculo cruzado Andres <-> Providencia (2026-08-11): permite abrir la
-  // compra ligada a un expediente especifico desde fuera de esta pantalla
-  // (el boton "Ver compra en Andrés" del expediente en Órdenes) sin tener
-  // que buscarla a mano en la lista.
   useEffect(() => {
     const abrirId = params.get('abrir');
     if (!abrirId || provPurchases.length === 0) return;
@@ -70,13 +76,6 @@ export default function Compras() {
     </div>
   );
 
-  // Ledger calc for printing & rendering
-  // ANTES: `const deudaHistorica = 0` fijo aqui, ignorando el ajuste
-  // historico real configurado (-$123,175.56). El saldo principal (arriba)
-  // SI lo usaba via useAndresStats(), pero esta tabla de movimientos
-  // arrancaba su acumulado en $0 — cada renglon quedaba desfasado por el
-  // monto completo del ajuste historico, sin coincidir con el numero
-  // principal de la pantalla.
   let currentBalance = deudaHistorica;
   const ledgerWithBalance = ledger.map(e => {
     currentBalance += (e.cargo - e.abono);
@@ -98,35 +97,32 @@ export default function Compras() {
 
   function printComprasReport() {
     const html = `
-      <!DOCTYPE html>
       <html>
         <head>
-          <meta charset="UTF-8">
           <title>Estado de Cuenta - ${provName}</title>
           <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; font-size: 13px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 32px; font-size: 12px; border: 1px solid #ccc; }
-            th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ccc; }
-            th { background: #eee; font-weight: bold; }
-            .num { text-align: right; font-family: monospace; }
+            body { font-family: sans-serif; padding: 20px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+            th { background: #f4f4f4; }
+            .num { text-align: right; }
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(settings, "Estado de Cuenta Proveedor")}
-          <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-            <div>Total Pagado: $${totalPagado.toFixed(2)}</div>
-            <div>Total Entregado: $${totalPurchasesCost.toFixed(2)}</div>
-            <div><strong>Saldo Actual: ${saldoProveedor < 0 ? '-' : '+'}$${Math.abs(saldoProveedor).toFixed(2)}</strong></div>
-          </div>
+          ${getPrintHeaderHtml(settings, `Estado de Cuenta con Proveedor: ${provName}`)}
+          <p>Saldo Actual: <strong>$${saldoProveedor.toFixed(2)}</strong></p>
           <table>
-            <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Cargo</th><th class="num">Abono</th><th class="num">Balance</th></tr></thead>
+            <thead>
+              <tr><th>Fecha</th><th>Concepto</th><th>Origen</th><th class="num">Cargo (Deuda)</th><th class="num">Abono (Pago)</th><th class="num">Saldo Acumulado</th></tr>
+            </thead>
             <tbody>
               ${ledgerWithBalance.map(e => `
                 <tr>
-                  <td>${fmtDate(e.date) || '-'}</td>
-                  <td>${e.concept || '-'}</td>
-                  <td class="num">${e.cargo ? e.cargo.toFixed(2) : '-'}</td>
-                  <td class="num">${e.abono ? e.abono.toFixed(2) : '-'}</td>
+                  <td>${fmtDate(e.date)}</td>
+                  <td>${e.concept}</td>
+                  <td>${e.source === 'purchase' ? 'Material' : 'Pago'}</td>
+                  <td class="num">${e.cargo ? `$${e.cargo.toFixed(2)}` : '—'}</td>
+                  <td class="num">${e.abono ? `$${e.abono.toFixed(2)}` : '—'}</td>
                   <td class="num">${e.balance.toFixed(2)}</td>
                 </tr>
               `).join('')}
@@ -151,8 +147,12 @@ export default function Compras() {
           <p>Control de anticipos, entregas en báscula, costo de compra y estado de cuenta con el proveedor ({provName}).</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>
-          <button className="btn" onClick={() => setSelected({} as Purchase)}>➕ Nuevo Anticipo / OC</button>
+          <button className="btn" onClick={() => setAjusteModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <IconScale size={16} /> Ajuste Manual
+          </button>
+          <button className="btn btn-primary" onClick={() => setSelected({} as Purchase)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <IconPlus size={16} /> Nuevo Anticipo / OC
+          </button>
         </div>
       </div>
 
@@ -165,8 +165,12 @@ export default function Compras() {
       />
 
       <div className="tabs" style={{ marginBottom: 24, display: 'flex', gap: 8, borderBottom: '1px solid var(--line-soft)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'estado' ? 'btn-primary' : ''}`} onClick={() => setTab('estado')}>⚖️ Libro Mayor y Pagos</button>
-        <button className={`btn ${tab === 'ordenes' ? 'btn-primary' : ''}`} onClick={() => setTab('ordenes')}>📦 Órdenes de Compra</button>
+        <button className={`btn ${tab === 'estado' ? 'btn-primary' : ''}`} onClick={() => setTab('estado')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconScale size={16} /> Libro Mayor y Pagos
+        </button>
+        <button className={`btn ${tab === 'ordenes' ? 'btn-primary' : ''}`} onClick={() => setTab('ordenes')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconPackage size={16} /> Órdenes de Compra
+        </button>
       </div>
 
       {tab === 'estado' && (
@@ -208,12 +212,16 @@ export default function Compras() {
                   toast('✅ Estado de cuenta y entregas PDF generado', 'ok');
                 }}
                 title="Generar Estado de Cuenta Oficial con Detalle de Entregas en PDF"
-                style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700 }}
+                style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                📄 PDF Auditado
+                <IconFileText size={16} /> PDF Auditado
               </button>
-              <button className="btn btn-icon" onClick={exportComprasCsv} title="Descargar CSV">📊 CSV</button>
-              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte">🖨️ Imprimir</button>
+              <button className="btn btn-icon" onClick={exportComprasCsv} title="Descargar CSV" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <IconDownload size={16} /> CSV
+              </button>
+              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <IconDownload size={16} /> Imprimir
+              </button>
             </div>
           }
         >
@@ -234,14 +242,16 @@ export default function Compras() {
                 <button 
                   className={`chip ${filter === 'activas' ? 'active' : ''}`}
                   onClick={() => setFilter('activas')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  🔴 Pendientes
+                  <IconClock size={14} color="var(--bad)" /> Pendientes
                 </button>
                 <button 
                   className={`chip ${filter === 'completadas' ? 'active' : ''}`}
                   onClick={() => setFilter('completadas')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  ✅ Completadas
+                  <IconCheckCircle size={14} color="var(--ok)" /> Completadas
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -252,14 +262,17 @@ export default function Compras() {
                   onChange={e => setSearch(e.target.value)} 
                   style={{ maxWidth: 300 }}
                 />
-                <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
-                <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
+                <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <IconFileText size={16} /> Lista
+                </button>
+                <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <IconClipboardList size={16} /> Tablero
+                </button>
               </div>
             </div>
           {view === 'tablero' ? (
             <ComprasKanban purchases={provPurchases} orderById={orderById} onSelect={setSelected} />
           ) : provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (() => {
-            // ANTES: `search` y `filter` existian como controles visuales
             // pero nunca se aplicaban a la lista — cambiarlos no hacia
             // absolutamente nada. Se corrigen aqui, al mismo tiempo que se
             // convierte la tabla en tarjetas.

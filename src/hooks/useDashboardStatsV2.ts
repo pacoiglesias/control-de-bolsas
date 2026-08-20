@@ -14,6 +14,18 @@ export function useDashboardStats(
   deptFilter?: string
 ) {
   return useMemo(() => {
+    // FIX (encontrado en vivo: "Saldo con Andrés" del Dashboard decía
+    // -$1,289,709.62 mientras que Compras -> Andrés, para el MISMO dato,
+    // decía +$40,800.00 -- una diferencia de $1,330,509.62 dentro de la
+    // misma sesión de la misma app). Causa: este objeto "cfg" local se
+    // arma copiando campo por campo desde el config real, y se le olvidó
+    // copiar "historicalDebtAndres" -- así que el cálculo de más abajo
+    // siempre caía en un respaldo fijo (-$102,670.27, la calibración
+    // vieja) sin importar que Configuración ya tuviera un valor real y
+    // más reciente ($1,227,839.35). Compras/useAndresStats.ts SÍ lee el
+    // valor real (config?.historicalDebtAndres || 0) -- ahora este hook
+    // hace exactamente lo mismo, para que ambas pantallas muestren el
+    // mismo número siempre.
     const cfg: FinancialConfig = {
       salePricePerKg: config?.salePricePerKg || 43,
       costPricePerKg: config?.costPricePerKg || 42,
@@ -22,6 +34,7 @@ export function useDashboardStats(
       ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
       creditDays: config?.creditDays || 30,
       companyName: config?.companyName || 'Bolsas Elemental / Providencia',
+      historicalDebtAndres: config?.historicalDebtAndres || 0,
     };
 
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
@@ -220,7 +233,7 @@ export function useDashboardStats(
       if (!p || normalizarTexto(p.provider) !== 'andres') return;
       totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
-    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : -102670.27;
+    const deudaHistorica = cfg.historicalDebtAndres || 0;
     const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica;
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));

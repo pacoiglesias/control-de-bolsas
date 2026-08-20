@@ -203,9 +203,9 @@ return () => unsub();
     fetchHealth();
   }, [role]);
 
-  // Auto-calibración automática del saldo histórico con Andrés al valor oficial de corte (-102,670.27)
+  // Auto-calibración preventiva del saldo histórico con Andrés si aún conserva el valor previo obsoleto o undefined
   useEffect(() => {
-    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === undefined || config.historicalDebtAndres === 0)) {
+    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === undefined)) {
       setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true }).catch((err: any) => {
         console.warn('Auto-calibración config/financials:', err);
       });

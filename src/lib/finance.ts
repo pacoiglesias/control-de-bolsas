@@ -89,13 +89,13 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
 
   // 5. Contrarecibo a nivel de orden
   const orderCr = (order?.collection?.contrareciboNumber || order?.contrarecibo || '').trim().toUpperCase();
-  if (orderCr.startsWith('TH-') || orderCr === 'TH' || orderCr.startsWith('TH')) return 'TH';
-  if (orderCr.startsWith('GT-') || orderCr === 'GT' || orderCr.startsWith('GT')) return 'GT';
+  if (orderCr.startsWith('TH')) return 'TH';
+  if (orderCr.startsWith('GT')) return 'GT';
 
   // 6. Folio u OC de la orden
   const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
-  if (orderFolio.startsWith('TH-') || orderFolio === 'TH' || orderFolio.startsWith('TH')) return 'TH';
-  if (orderFolio.startsWith('GT-') || orderFolio === 'GT' || orderFolio.startsWith('GT')) return 'GT';
+  if (orderFolio.startsWith('TH')) return 'TH';
+  if (orderFolio.startsWith('GT')) return 'GT';
 
   // 7. Identificador del documento
   const orderId = (order?.id || '').trim().toLowerCase();

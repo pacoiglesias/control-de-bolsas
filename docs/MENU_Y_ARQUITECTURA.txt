@@ -1,6 +1,8 @@
-# Reporte Técnico: Arquitectura y Menús del Sistema (v6.36.0)
+# Reporte Técnico: Arquitectura y Menús del Sistema (v8.9.4)
 
 Este documento detalla la estructura actual del sistema Control Bolsas ERP, mapeando cada ruta, menú y submódulo disponible.
+
+> Nota: este documento describe la estructura general de navegación, que se mantiene estable desde v6.36.0. Para lo que cambió recientemente en cada pantalla (íconos, colores de estatus, seguridad del PIN, etc.) consulta `CHANGELOG.md`.
 
 ## 🧭 Estructura de Navegación Principal
 
@@ -74,17 +76,17 @@ Ajustes globales del motor financiero.
     *   Porcentaje de comisión contable
     *   Base de cálculo (Subtotal vs Total)
 *   **Gestión de Accesos (Usuarios):**
-    *   Invitación de nuevos administradores o visores.
-    *   Control de roles (`admin`, `viewer`).
+    *   Invitación de nuevos administradores, gestores o visores.
+    *   Control de roles (`admin`, `manager`, `viewer`) — cambiar el rol de un usuario pide confirmación explícita, igual que "Revocar Acceso".
 
 ---
 
 ## 🔒 Rutas Especiales / Ocultas
 
 ### Portal Maquilador (`/portal-maquilador`)
-*   **Propósito:** Interfaz externa para el fabricante (Andrés).
-*   **Autenticación:** Requiere un PIN de acceso configurable.
-*   **Funcionalidad:** Permite reportar kilos producidos y entregados sin dar acceso al resto del ERP financiero. Las notificaciones viajan al Dashboard Maestro.
+*   **Propósito:** Interfaz externa para el fabricante (Andrés), pensada para celular en el taller.
+*   **Autenticación:** PIN de acceso configurable, validado en el servidor con bloqueo de 15 minutos tras 5 intentos fallidos seguidos (protección contra fuerza bruta).
+*   **Funcionalidad:** Permite reportar kilos producidos y entregados, con cola de sincronización offline, sin dar acceso al resto del ERP financiero. Las notificaciones viajan al Dashboard Maestro y cada entrega queda registrada en la Bitácora.
 
 ### Mantenimiento y Logs
 *   **Monitor Live (`LiveLogsModal` en Dashboard):** Feed estilo Matrix que muestra acciones de los usuarios en tiempo real.
@@ -97,5 +99,5 @@ Ajustes globales del motor financiero.
 
 1.  **Tecnología Base:** React 18, Vite, TypeScript, React Router.
 2.  **Base de Datos:** Firebase Firestore con suscripciones en tiempo real (`onSnapshot`) centralizadas en un patrón *Context API* para minimizar lecturas de red.
-3.  **Seguridad:** Backend protegido con `Cloud Functions` y `Security Rules` (Firestore/Storage) que validan el email verificado (`email_verified == true`) y el rol de usuario.
+3.  **Seguridad:** Backend protegido con `Cloud Functions` y `Security Rules` (Firestore/Storage) que validan el email verificado (`email_verified == true`) y el rol de usuario. Ninguna regla confía en una sesión autenticada cualquiera para datos sensibles: ver `SECURITY.md`.
 4.  **UI Framework:** Sistema CSS personalizado (Glassmorphism) + Framer Motion (Micro-animaciones). Ninguna dependencia externa pesada de componentes de UI.

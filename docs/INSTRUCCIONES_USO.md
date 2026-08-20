@@ -1,4 +1,6 @@
-# Manual de Uso Maestro: ERP Control Universal (v8.7.0)
+# Manual de Uso Maestro: ERP Control Universal (v8.9.4)
+
+> **Actualizado a v8.9.4.** Desde v8.7.0 (novedades listadas abajo) se agregaron: íconos reales en vez de emojis (Dashboard y Portal Maquilador), confirmación al saltar varios pasos en el Kanban de expedientes, bloqueo del PIN del Portal Maquilador tras 5 intentos fallidos, y la corrección de que "Saldo con Andrés" ahora muestra el mismo número en el Dashboard y en Compras. Detalle completo en `CHANGELOG.md`.
 
 > **Novedades Clave de la Versión v8.7.0**
 > - **⚡ Spotlight Universal (`Ctrl + K` / `⌘ + K`):** Buscador inteligente con navegación por flechas `↑` `↓` y `Enter` para buscar órdenes, contrarecibos, compras o ejecutar acciones directas.
