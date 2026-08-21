@@ -41,7 +41,6 @@ describe('Motor Háptico y Parametrización Universal', () => {
       deptNameGT: 'Planta Confección',
       managerTH: 'Ing. Roberto Ramos',
       managerGT: 'Lic. Mónica Soto',
-      cajaChicaBalance: 50000,
     };
 
     expect(customEnterpriseSettings.providerName).toBe('Taller Don José');

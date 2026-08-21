@@ -4,8 +4,10 @@ import { money, fmtDate, getPrintHeaderHtml, shareHtmlAsPdf, toDate } from '../.
 import { round2, extractCr } from '../../lib/finance';
 import type { PurchaseOrder, Expense, FinancialConfig, Purchase } from '../../lib/types';
 import { useSystemSettings, type SystemSettings } from '../../hooks/useSystemSettings';
-import * as XLSX from 'xlsx';
 import { useToast } from '../../context/ToastContext';
+// FIX (auditoría v8.9.5, rendimiento): "xlsx" (~429 kB) se importa bajo
+// demanda dentro de handleExportExcel, no aquí arriba -- así no se descarga
+// al abrir este modal si el usuario nunca pide el Excel.
 
 interface BalanzaComprobacionModalProps {
   onClose: () => void;
@@ -228,7 +230,8 @@ export function BalanzaComprobacionModal({
     await shareHtmlAsPdf(html, `Balanza_Comprobacion_${fmtDate(new Date())}.pdf`);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const data = [
       { Rubro: `1. Contrarecibos Vigentes ${clientName}`, Sistema: carteraSistema.totalCrs, Realidad: realCrs, Diferencia: diffCrs, Estatus: diffCrs === 0 ? 'CUADRADO' : 'DESCUADRE' },

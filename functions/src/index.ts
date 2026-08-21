@@ -18,6 +18,7 @@ import {
   configEfectiva,
   round2,
   normalizarTexto,
+  computeAndresBalance,
   type FinanceConfigCore,
 } from "./shared/finance.core";
 import { parseDocumentData } from "./ai/extractor";
@@ -169,16 +170,19 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, 
       .map(d => ({ id: d.id, ...d.data() }))
       .filter((e: any) => e.provider && normalizarTexto(e.provider) === 'andres');
 
-    const totalReceivedKilos = provPurchases.reduce((acc, p: any) => acc + (p.receivedKilos ?? 0), 0);
-    const totalPurchasesCost = provPurchases.reduce((acc, p: any) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)), 0);
-    
-    const totalPagado = provExpenses.reduce((acc, e: any) => {
-      if (e.type === 'egreso') return acc + (e.amount || 0);
-      if (e.type === 'ingreso') return acc - (e.amount || 0);
-      return acc;
-    }, 0);
-    
-    const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
+    // FIX (auditoría v8.9.5): esta misma fórmula (kilos/costo/pagado/saldo)
+    // vivía copiada aquí, en src/hooks/useAndresStats.ts y en
+    // src/hooks/useDashboardStatsV2.ts -- la misma clase de bug que causó
+    // el incidente real del "Saldo con Andrés" ($1.3M de diferencia entre
+    // el Dashboard y esta misma pantalla, para el mismo dato). Ahora las
+    // tres llaman a computeAndresBalance(), la fuente única de verdad.
+    const andresBalance = computeAndresBalance(
+      provPurchases as any[],
+      provExpenses as any[],
+      { costPricePerKg, historicalDebtAndres },
+      "andres",
+    );
+    const { totalReceivedKilos, totalPurchasesCost, totalPagado, saldoProveedor } = andresBalance;
 
     const ledger: any[] = [
       ...provPurchases.map((p: any) => ({
@@ -855,7 +859,13 @@ export const updateCajaChicaBalance = onDocumentWritten(
     const delta = amountAfter - amountBefore;
 
     if (delta !== 0) {
-      const ref = getFirestore().doc('system_settings/global');
+      // FIX (auditoría v8.9.5): antes escribía en 'system_settings/global',
+      // el mismo documento que Login lee con `allow read: if true` (sin
+      // sesión) para el logo/nombre de la empresa -- eso dejaba el saldo
+      // real de Caja Chica legible por cualquiera. Ahora vive en un
+      // documento privado, mismo patrón que ya usa el PIN del Portal
+      // Maquilador (`system_settings_private/maquila`).
+      const ref = getFirestore().doc('system_settings_private/finanzas');
       await ref.set({
         cajaChicaBalance: FieldValue.increment(delta)
       }, { merge: true });

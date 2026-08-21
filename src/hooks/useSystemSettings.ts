@@ -2,6 +2,19 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+// FIX (auditoría v8.9.5): "cajaChicaBalance" vivía aquí, adentro del mismo
+// documento que Login necesita leer SIN sesión iniciada (para mostrar el
+// logo y nombre de la empresa antes de autenticarse) -- `firestore.rules`
+// tiene `system_settings/global` con `allow read: if true` a propósito para
+// eso. El problema: el saldo real de efectivo en caja viajaba en ese mismo
+// documento público, así que cualquiera sin cuenta podía leer cuánto
+// efectivo hay en caja ahora mismo, en `onSnapshot` de esta misma función.
+// Se movió al mismo patrón privado que ya usa el PIN del Portal Maquilador
+// (`system_settings_private/maquila`, ver `getMaquilaPin` abajo): ahora
+// vive en `system_settings_private/finanzas`, protegido por
+// `isSuperAdmin()`. No se encontró ninguna pantalla que hoy lea este campo
+// desde aquí (el saldo que se ve en Caja Chica se calcula en vivo sumando
+// `expenses`), así que se quitó del tipo público en vez de dejarlo muerto.
 export interface SystemSettings {
   companyName: string;
   companyLogoUrl: string;
@@ -10,7 +23,6 @@ export interface SystemSettings {
   clientName?: string;
   clientShortName?: string;
   departments: string[];
-  cajaChicaBalance: number;
   deptCodeTH?: string;
   deptCodeGT?: string;
   managerTH?: string;
@@ -27,7 +39,6 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   clientName: 'Grupo Textil Providencia SA de CV',
   clientShortName: 'Providencia',
   departments: ['TH', 'GT'],
-  cajaChicaBalance: 0,
   deptCodeTH: 'TH',
   deptCodeGT: 'GT',
   managerTH: 'Lic. Nava',

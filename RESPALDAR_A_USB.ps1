@@ -8,13 +8,6 @@ param (
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-Write-Host ""
-Write-Host "==============================================================================" -ForegroundColor Cyan
-Write-Host "         RESPALDAR SISTEMA COMPLETO A USB / DISCO EXTERNO" -ForegroundColor Cyan
-Write-Host "                 ERP Control de Bolsas - v8.9.5" -ForegroundColor Yellow
-Write-Host "==============================================================================" -ForegroundColor Cyan
-Write-Host ""
-
 $SourceDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 
 if (!(Test-Path (Join-Path $SourceDir "firebase.json"))) {
@@ -22,6 +15,27 @@ if (!(Test-Path (Join-Path $SourceDir "firebase.json"))) {
     pause
     exit 1
 }
+
+# FIX: la version ya NO se escribe a mano aqui -- se leia de un texto fijo
+# ("v8.9.5") que se queda desactualizado cada vez que el proyecto sube de
+# version (el mismo tipo de error que ya paso varias veces en la
+# documentacion de docs\). Se lee en vivo de package.json, igual que ya
+# hace SUBIR_CAMBIOS.ps1 para el nombre del commit.
+$VersionProyecto = "0.0.0"
+try {
+    $pkgPath = Join-Path $SourceDir "package.json"
+    if (Test-Path $pkgPath) {
+        $pkg = Get-Content $pkgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($pkg.version) { $VersionProyecto = $pkg.version }
+    }
+} catch {}
+
+Write-Host ""
+Write-Host "==============================================================================" -ForegroundColor Cyan
+Write-Host "         RESPALDAR SISTEMA COMPLETO A USB / DISCO EXTERNO" -ForegroundColor Cyan
+Write-Host "                 ERP Control de Bolsas - v$VersionProyecto" -ForegroundColor Yellow
+Write-Host "==============================================================================" -ForegroundColor Cyan
+Write-Host ""
 
 # 1. Detectar Unidades Disponibles
 Write-Host "[1/5] Buscando memorias USB y unidades de almacenamiento externas..." -ForegroundColor Cyan
@@ -106,8 +120,8 @@ if (-not $selectedDrive -or !(Test-Path $selectedDrive)) {
 $Timestamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
 $TimestampShort = Get-Date -Format "yyyyMMdd_HHmmss"
 $UsbRootDir = Join-Path $selectedDrive "RESPALDOS_CONTROL_BOLSAS"
-$BackupFolder = Join-Path $UsbRootDir "ControlBolsas_v8.9.5_$Timestamp"
-$ZipFile = Join-Path $UsbRootDir "Respaldo_Completo_v8.9.5_$TimestampShort.zip"
+$BackupFolder = Join-Path $UsbRootDir "ControlBolsas_v${VersionProyecto}_$Timestamp"
+$ZipFile = Join-Path $UsbRootDir "Respaldo_Completo_v${VersionProyecto}_$TimestampShort.zip"
 
 if (!(Test-Path $UsbRootDir)) {
     New-Item -ItemType Directory -Path $UsbRootDir -Force | Out-Null
@@ -119,9 +133,19 @@ Write-Host "  -> Carpeta abierta: $BackupFolder" -ForegroundColor White
 Write-Host "  -> Archivo ZIP:     $ZipFile" -ForegroundColor White
 Write-Host ""
 
-# 3. Copia Limpia del Código Fuente (Excluyendo basura y dependencias pesadas)
+# 3. Copia Limpia del Código Fuente (Excluyendo SOLO lo que se regenera solo)
+# FIX: "no dejar nada atras" -- este es el respaldo de emergencia si la PC
+# fallara, asi que ya NO se excluyen ".git" (el historial completo de
+# versiones -- sin esto el respaldo no sirve para recuperar commits viejos)
+# ni "_ARCHIVO_OBSOLETO" (archivos reales del proyecto, solo apartados, no
+# borrados -- ver la regla de "nunca borres nada sin consentimiento").
+# Lo unico que se sigue excluyendo es lo que se reconstruye solo con
+# "npm install" / "npm run build" (pesado y sin valor guardarlo tal cual) y
+# las carpetas que ya son respaldos-de-respaldos (evita duplicar historial
+# viejo dentro del respaldo nuevo).
 Write-Host "[3/5] Copiando archivos esenciales del sistema (robocopy optimizado)..." -ForegroundColor Cyan
-Write-Host "      Excluyendo node_modules, dist, .git, temporales y cachés pesadas..." -ForegroundColor DarkGray
+Write-Host "      Incluye TODO el proyecto y el historial de git." -ForegroundColor DarkGray
+Write-Host "      Excluye solo lo regenerable: node_modules, dist, .firebase, cachés..." -ForegroundColor DarkGray
 
 $robocopyParams = @(
     "$SourceDir",
@@ -130,8 +154,8 @@ $robocopyParams = @(
     "/R:1",
     "/W:1",
     "/NP",
-    "/XD", "node_modules", "dist", ".git", ".firebase", "functions\node_modules", "functions\lib", "_respaldo_*", "Respaldos", "_ARCHIVO_OBSOLETO", "scratch", ".system_generated",
-    "/XF", "*.log", "*.zip", "*.tsbuildinfo", "vite.config.ts.timestamp-*.mjs", "ziYlGp8z"
+    "/XD", "node_modules", "dist", ".firebase", "functions\node_modules", "functions\lib", "_respaldo_*", "Respaldos", "scratch", ".system_generated",
+    "/XF", "*.log", "*.tsbuildinfo", "vite.config.ts.timestamp-*.mjs", "ziYlGp8z"
 )
 
 & robocopy @robocopyParams | Out-Null
@@ -206,15 +230,22 @@ Set-Content -Path (Join-Path $BackupFolder "1_INICIAR_EN_ESTA_PC.bat") -Value $R
 
 $ReadmeContent = @"
 ==============================================================================
-RESPALDO OFICIAL DE CONTROL DE BOLSAS ERP - v8.9.5
+RESPALDO OFICIAL DE CONTROL DE BOLSAS ERP - v$VersionProyecto
 Fecha de Creación: $(Get-Date -Format "dd/MM/yyyy HH:mm:ss")
 ==============================================================================
 
-CONTENIDO DE ESTE RESPALDO:
+CONTENIDO DE ESTE RESPALDO (completo -- no se dejó nada fuera a propósito):
 1. Código fuente completo y funcional (React + TypeScript + Vite + Firebase).
-2. Reglas de seguridad auditadas (firestore.rules, storage.rules).
-3. Cloud Functions para sincronización XML e ingesta contable.
-4. Documentación técnica y bitácoras de auditoría (AUDIT_NOTEBOOK.md, CHANGELOG.md).
+2. Historial completo de Git (carpeta .git -- puedes recuperar cualquier
+   commit viejo desde aquí aunque pierdas acceso a GitHub).
+3. Reglas de seguridad auditadas (firestore.rules, storage.rules).
+4. Cloud Functions para sincronización XML e ingesta contable.
+5. Documentación técnica y bitácoras de auditoría (AUDIT_NOTEBOOK.md, CHANGELOG.md).
+6. Archivos ya archivados (carpeta _ARCHIVO_OBSOLETO) -- por si acaso.
+
+LO ÚNICO QUE NO SE COPIÓ (a propósito, porque se reconstruye solo):
+- node_modules, dist, .firebase, functions\node_modules, functions\lib
+- Esas carpetas las regenera "npm install" / "npm run build" solas.
 
 COMO USAR ESTE RESPALDO EN OTRA COMPUTADORA:
 1. Copia toda esta carpeta a tu disco C: (por ejemplo C:\pacoputo o C:\ControlBolsas).

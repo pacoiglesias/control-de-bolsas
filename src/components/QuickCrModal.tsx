@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { logAction } from '../lib/logger';
@@ -43,33 +43,46 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
       const rawDate = dueDate ? fromInputDate(dueDate) : null;
       const parsedDueDate = rawDate ? Timestamp.fromDate(rawDate) : null;
 
-      // Actualizar en el expediente raíz y en cada factura existente sin CR
-      const updatedInvoices = (order.invoices || []).map((inv) => {
-        if (!inv.collection?.contrareciboNumber) {
-          return {
-            ...inv,
-            collection: {
-              ...inv.collection,
-              contrareciboNumber: cleanCr,
-              contrareciboDate: Timestamp.now(),
-            },
-            creditCycle: {
-              ...inv.creditCycle,
-              status: inv.creditCycle?.status === 'pedido' || inv.creditCycle?.status === 'facturado' ? 'pending' : inv.creditCycle?.status,
-              dueDate: parsedDueDate || inv.creditCycle?.dueDate,
-            }
-          };
-        }
-        return inv;
-      });
+      // FIX (auditoría v8.9.5): antes esto mapeaba sobre `order.invoices`
+      // (la copia capturada al abrir el modal, potencialmente desactualizada)
+      // y escribía con updateDoc sin transacción -- un cambio concurrente a
+      // cualquier otra factura de este mismo expediente se perdía al
+      // sobrescribir el arreglo completo. Mismo patrón ya usado en
+      // QuickCollectionModal/QuickPayModal/QuickInvoiceModal: se relee el
+      // expediente real dentro de una transacción justo antes de escribir.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(orderRef);
+        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+        const liveData = snap.data() as PurchaseOrder;
 
-      await updateDoc(orderRef, {
-        'collection.contrareciboNumber': cleanCr,
-        'collection.contrareciboDate': Timestamp.now(),
-        'creditCycle.status': order.creditCycle?.status === 'pedido' || order.creditCycle?.status === 'facturado' ? 'pending' : order.creditCycle?.status,
-        ...(parsedDueDate ? { 'creditCycle.dueDate': parsedDueDate } : {}),
-        invoices: updatedInvoices,
-        updatedAt: Timestamp.now(),
+        // Actualizar en el expediente raíz y en cada factura existente sin CR
+        const updatedInvoices = (liveData.invoices || []).map((inv) => {
+          if (!inv.collection?.contrareciboNumber) {
+            return {
+              ...inv,
+              collection: {
+                ...inv.collection,
+                contrareciboNumber: cleanCr,
+                contrareciboDate: Timestamp.now(),
+              },
+              creditCycle: {
+                ...inv.creditCycle,
+                status: inv.creditCycle?.status === 'pedido' || inv.creditCycle?.status === 'facturado' ? 'pending' : inv.creditCycle?.status,
+                dueDate: parsedDueDate || inv.creditCycle?.dueDate,
+              }
+            };
+          }
+          return inv;
+        });
+
+        tx.update(orderRef, {
+          'collection.contrareciboNumber': cleanCr,
+          'collection.contrareciboDate': Timestamp.now(),
+          'creditCycle.status': liveData.creditCycle?.status === 'pedido' || liveData.creditCycle?.status === 'facturado' ? 'pending' : liveData.creditCycle?.status,
+          ...(parsedDueDate ? { 'creditCycle.dueDate': parsedDueDate } : {}),
+          invoices: updatedInvoices,
+          updatedAt: Timestamp.now(),
+        });
       });
 
       logAction(user?.email, 'UPDATE_ORDER', {

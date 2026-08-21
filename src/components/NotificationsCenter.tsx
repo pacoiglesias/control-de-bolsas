@@ -1,71 +1,23 @@
 import React, { useState } from 'react';
-import { useOrders } from '../hooks/useOrders';
-import { getOrderSummary } from '../lib/finance';
-import { toDate, money } from '../lib/format';
+import { useProactiveAlertsData } from '../hooks/useProactiveAlertsData';
 import { useNavigate } from 'react-router-dom';
 
 export function NotificationsCenter() {
-  const { orders } = useOrders();
   const nav = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [hasPermission, setHasPermission] = useState(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission === 'granted' : false
   );
 
-  // Calcular alertas activas
-  const alerts = React.useMemo(() => {
-    const list: { id: string; title: string; desc: string; type: 'bad' | 'warn' | 'info'; action: () => void }[] = [];
-
-    orders.forEach((o) => {
-      const summary = getOrderSummary(o);
-      const oc = o.folio || o.oc || 'S/F';
-
-      // 1. Contrarecibos vencidos
-      (o.invoices || []).forEach((inv) => {
-        if (inv.creditCycle.status === 'overdue') {
-          list.push({
-            id: `venc_${inv.id}`,
-            title: `Contrarecibo Vencido - ${oc}`,
-            desc: `Factura #${inv.folio} (${money(inv.financials?.invoiceTotal)}) con fecha vencida.`,
-            type: 'bad',
-            action: () => nav('/cobranza'),
-          });
-        }
-
-        // 2. Facturas sin CR emitidas hace más de 3 días
-        const cr = (inv.collection?.contrareciboNumber || '').trim();
-        if (!cr && inv.creditCycle.status !== 'collected') {
-          const dIssue = toDate(inv.creditCycle.issueDate);
-          if (dIssue) {
-            const dias = Math.round((Date.now() - dIssue.getTime()) / (1000 * 60 * 60 * 24));
-            if (dias >= 3) {
-              list.push({
-                id: `sincr_${inv.id}`,
-                title: `Sin Contrarecibo (${dias} días) - ${oc}`,
-                desc: `Factura #${inv.folio} esperando número de CR de Providencia.`,
-                type: 'warn',
-                action: () => nav('/cobranza'),
-              });
-            }
-          }
-        }
-      });
-
-      // 3. Kilos entregados por Andrés pendientes de facturar
-      if (summary.kilosDelivered > summary.kilosInvoiced + 0.01) {
-        const porFacturar = Math.round(summary.kilosDelivered - summary.kilosInvoiced);
-        list.push({
-          id: `deliv_${o.id}`,
-          title: `Entregas por Facturar - ${oc}`,
-          desc: `${porFacturar.toLocaleString('es-MX')} kg entregados por Andrés listos para emitir CFDI.`,
-          type: 'info',
-          action: () => nav('/ordenes'),
-        });
-      }
-    });
-
-    return list;
-  }, [orders, nav]);
+  // FIX (v8.9.5): el calculo de alertas se movio a un hook compartido
+  // (useProactiveAlertsData) para que el menu lateral pueda usar exactamente
+  // los mismos numeros sin duplicar la logica -- ver el comentario en ese
+  // archivo.
+  const alertsData = useProactiveAlertsData();
+  const alerts = React.useMemo(
+    () => alertsData.map((a) => ({ ...a, action: () => nav(a.route) })),
+    [alertsData, nav]
+  );
 
   const requestPushPermission = async () => {
     if ('Notification' in window) {

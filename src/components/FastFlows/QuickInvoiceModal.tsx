@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, Timestamp, runTransaction } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { useOrders } from '../../hooks/useOrders';
@@ -236,29 +236,42 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
         }
       };
 
-      // Mark deliveries as invoiced
-      let remainingToInvoice = kilosToInvoice;
-      const updatedDeliveries = (selectedOrder.deliveries || []).map(d => {
-        const dKilos = (d.items && d.items.length > 0)
-          ? d.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0)
-          : Number(d.kilos || 0);
+      // FIX (auditoría v8.9.5): antes esto marcaba `deliveries`/`invoices`
+      // partiendo de `selectedOrder` -- una copia capturada al abrir el
+      // modal, potencialmente desactualizada -- y escribía con updateDoc sin
+      // transacción. Un cambio concurrente al mismo expediente (otra entrega
+      // registrada, otra factura emitida desde otra pestaña/usuario) entre
+      // que se abrió el modal y que se guardó esta factura se perdía al
+      // sobrescribir el arreglo completo con la copia vieja. Mismo patrón ya
+      // usado en QuickCollectionModal/QuickPayModal: se relee el expediente
+      // real dentro de una transacción justo antes de escribir.
+      const orderRef = doc(db, PATHS.orders, selectedOrder.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(orderRef);
+        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+        const liveData = snap.data() as PurchaseOrder;
 
-        if (!d.invoiced && dKilos > 0 && remainingToInvoice > 0) {
-          const inv = Math.min(dKilos, remainingToInvoice);
-          remainingToInvoice -= inv;
-          return { ...d, invoiced: true, invoiceId: newInvoiceId };
-        }
-        return d;
+        let remainingToInvoice = kilosToInvoice;
+        const updatedDeliveries = (liveData.deliveries || []).map(d => {
+          const dKilos = (d.items && d.items.length > 0)
+            ? d.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0)
+            : Number(d.kilos || 0);
+
+          if (!d.invoiced && dKilos > 0 && remainingToInvoice > 0) {
+            const inv = Math.min(dKilos, remainingToInvoice);
+            remainingToInvoice -= inv;
+            return { ...d, invoiced: true, invoiceId: newInvoiceId };
+          }
+          return d;
+        });
+
+        const updatedInvoices = [...(liveData.invoices || []), newInvoice];
+
+        tx.update(orderRef, {
+          deliveries: updatedDeliveries,
+          ...camposInvoices(updatedInvoices),
+        });
       });
-
-      const updatedInvoices = [...(selectedOrder.invoices || []), newInvoice];
-      
-      const payload = {
-        deliveries: updatedDeliveries,
-        ...camposInvoices(updatedInvoices)
-      };
-
-      await updateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);
 
       toast('✅ Factura emitida con conceptos desglosados y vinculada exitosamente', 'ok');
       onClose();

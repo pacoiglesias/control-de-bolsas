@@ -1,15 +1,55 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v8.9.5] - 20 Agosto 2026 (Auditoría Integral: Reglas de Storage, Ingesta XML, Saldo $0.00 y Migración Segura)
+## [v8.9.6] - 21 Agosto 2026 (Auditoría de seguridad/integridad de datos: los 3 niveles aprobados)
 
-### Mejorado (Seguridad y Reglas)
-- **🔒 Storage Rules endurecidas y alineadas con Firestore:** Se exige verificación de correo `email_verified == true` en todas las operaciones autenticadas, soporte prioritario para Custom Claims (`role == 'admin'` / `role == 'manager'`) y se eliminó la credencial irrevocable para permitir revocación limpia de accesos institucionales.
+Esta versión implementa los 3 niveles que se aprobaron de `AUDITORIA_v8.9.5_RECOMENDACIONES.md`: los 2 hallazgos críticos, integridad de datos, y rendimiento/pruebas.
 
-### Corregido (Integridad de Datos y Backend)
-- **⚙️ Sincronización de `invoiceStatuses` en Ingesta de XML:** La Cloud Function `processStorageFile` ahora deriva el estatus en `invoiceStatuses` directamente de `newInvoice.creditCycle.status` (`"manual_review"`) en lugar de fijarlo en `"facturado"`.
-- **⚖️ Calibración deliberada de deuda histórica a $0.00:** El efecto de auto-calibración en `Dashboard.tsx` ya no sobrescribe `config.historicalDebtAndres` cuando el usuario lo ajusta legítimamente a `$0.00`.
-- **🔤 Filtros de proveedor en Caja Chica:** Unificación con `normalizarTexto()` para garantizar que nombres con o sin acento ("Andrés" vs "Andres") se agrupen y filtren idénticamente.
-- **🛡️ Herramienta de Migración segura e idempotente:** `MigrationTools.tsx` ahora sincroniza facturas en espejo hacia `invoices` usando el ID de factura sin eliminar ni alterar los arreglos originales de `purchaseOrders`.
+### Corregido (CRÍTICO — seguridad y borrado de datos)
+- **🗑️ `AuditSync.tsx` podía borrar expedientes de forma permanente sin verificar el rol del usuario, contra la regla de "nunca borres nada sin mi consentimiento":** tanto "🧹 Purgar Duplicados" (`handleAutoPurgeDuplicates`) como el botón 🗑️ de archivar por fila (`handleArchiveOrder`) usaban `deleteDoc` directo, visibles y accionables para cualquier sesión con acceso a la pantalla, sin checar `role`. Ahora ambos usan el mismo patrón de soft-delete que ya existe en `Papelera.tsx` (`isDeleted: true, deletedAt, deletedBy` — recuperable, nunca un borrado real), quedan visibles solo para `role === 'admin'`, y cada acción queda registrada en el log de auditoría (`logAction`).
+- **🔓 El saldo real de Caja Chica (`cajaChicaBalance`) vivía dentro de `system_settings/global`, el documento público que Login necesita leer sin sesión iniciada (para el logo/nombre antes de autenticarse):** cualquiera sin cuenta podía leer cuánto efectivo hay en caja ahora mismo. Se movió a `system_settings_private/finanzas`, mismo patrón ya usado para el PIN del Portal Maquilador — solo el backend (Admin SDK) y un super admin real pueden leerlo. No se encontró ninguna pantalla que hoy lea el campo desde la ubicación vieja (el saldo que se ve en Caja Chica se calcula en vivo sumando `expenses`).
+
+### Corregido (integridad de datos — mismo tipo de bug que causó el "Saldo con Andrés" de v8.9.4)
+- **⚖️ La fórmula del "Saldo con Andrés" vivía copiada TRES veces** (`src/hooks/useAndresStats.ts`, `src/hooks/useDashboardStatsV2.ts`, y el handler de ledger del Portal Maquilador en `functions/src/index.ts`) — exactamente la causa del incidente de v8.9.4 ($1.3M de diferencia entre dos pantallas para el mismo dato), solo que ahí era un olvido de un campo y aquí ya eran tres copias completas del cálculo. Se extrajo a `computeAndresBalance()` en `functions/src/shared/finance.core.ts` (la misma "fuente única de verdad" que ya usan las fórmulas de venta/costo/comisión) y las tres ahora la llaman. Se agregaron 8 pruebas unitarias nuevas (`andresBalance.test.ts`) fijando los valores esperados a mano, para que una futura cuarta copia accidental de la fórmula se detecte sola.
+- **🧟 Dos hooks con el mismo nombre exacto (`useDashboardStats`)** vivían en `src/hooks/useDashboardStats.ts` (sin usar por ningún archivo del sistema — `tsconfig.json` ya lo traía excluido del typecheck desde antes, señal de que ya se sabía que daba problemas) y `src/hooks/useDashboardStatsV2.ts` (el que sí usa `Dashboard.tsx`). Es el mismo patrón de riesgo que causó el bug del Saldo con Andrés: dos copias que compilan y se llaman igual, donde un cambio futuro a una fácilmente se aplicaría solo a una de las dos sin que nadie lo note. Se archivó (no se borró) a `_ARCHIVO_OBSOLETO/src/hooks/useDashboardStats.ts`, con una nota explicando por qué y a dónde copiar el código si algún día hace falta recuperarlo.
+- **🧮 `functions/src/stats.ts`** (el trigger que mantiene `stats/dashboard` al día) usaba `kilos * 42` y `total * 0.08` como valores de respaldo fijos en 6 lugares distintos, sin relación con lo que el usuario tenga configurado hoy en Configuración → `config/financials`. Ahora `extractStats()` recibe la configuración real (leída una vez por los dos llamadores, `syncDashboardStats` y `recalcDashboardStats`) y solo cae en los valores fijos como red de seguridad si por algún motivo la config no llega.
+- **💾 `QuickInvoiceModal.tsx` (Facturación Rápida) y `QuickCrModal.tsx` (Asignar CR) escribían con `updateDoc` sobre una copia del expediente capturada al abrir el modal, sin transacción:** un cambio concurrente al mismo expediente (otra entrega registrada, otra factura emitida desde otra sesión) entre que se abría el modal y se guardaba se perdía al sobrescribir el arreglo completo. Ahora ambos usan `runTransaction`, releyendo el expediente real justo antes de escribir — mismo patrón que ya tenían `QuickCollectionModal.tsx` y `QuickPayModal.tsx`.
+- **🔢 La comisión del contador en `AuditSync.tsx`** (pantalla de Auditoría de Cartera) usaba un `0.08` fijo en vez de leer `config.commissionRate` — si el usuario cambia la comisión en Configuración, esta pantalla se hubiera quedado calculando con el valor viejo mientras el resto del sistema ya usa el nuevo.
+- **🔐 `products` y `price_lists` en `firestore.rules`** tenían `allow write: if isManagerOrAdmin()` sin separar — en reglas de Firestore, "write" sin separar cubre create+update+delete, así que cualquier manager podía borrar el catálogo completo o la lista de precios en una sola llamada. Ahora, igual que sus hermanos financieros (`purchaseOrders`, `invoices`, `ledger`), el borrado exige el nivel más alto (`isSuperAdmin()`).
+
+### Mejorado (rendimiento — bundle inicial más liviano)
+- **📦 `xlsx` (~429 kB) se importaba de forma estática en 4 pantallas** (`AuditSync.tsx`, `BalanzaComprobacionModal.tsx`, `CorteMensualModal.tsx`, `CorteSemanalModal.tsx`) — se descargaba al abrir esas pantallas aunque el usuario nunca subiera ni exportara un Excel. Ahora se carga bajo demanda con `import()` dinámico justo donde se usa, mismo patrón que ya tenían `importExcel.ts` y `export.ts`. `html2pdf.js` (~982 kB) ya estaba bien — se revisó y las 8 pantallas/archivos que lo usan ya lo cargaban dinámico.
+- **🚀 Confirmado en el build de producción:** ni `xlsx-*.js` ni `html2pdf-*.js` aparecen referenciados en `dist/index.html` — ningún visitante los descarga a menos que use esa función específica.
+
+### Pruebas
+- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, **80/80 pruebas unitarias** (72 previas + 8 nuevas de `computeAndresBalance`), `npm run build` completo sin errores.
+
+### Pendiente (documentado, no incluido en este parche — hallazgos de severidad Baja/Media que quedaron fuera de las 3 categorías aprobadas)
+- `recalcDashboardStats` sigue teniendo comportamiento de "escritura oculta" (recrea los 10 CRs oficiales + Factura 6167 si faltan) dentro de una función pensada solo para recalcular contadores.
+- El indicador "100% Cuadrado" en `AuditSync.tsx` no verifica de verdad que los montos cuadren.
+- `QuickInvoiceModal.tsx` — la vista previa de margen bruto no descuenta la comisión del contador.
+
+## [v8.9.5] - 20 Agosto 2026 (Menú lateral con íconos reales, nombres más claros, alertas proactivas con aviso sonoro)
+
+### Mejorado (visual — continuación del barrido de v8.9.3)
+- **🎨 El menú lateral (`Layout.tsx`) seguía usando emojis crudos** (📊📂🚚⚡🛍️💵🛒⚖️📈⚙️👥) mientras Dashboard y Portal Maquilador ya se veían con íconos reales desde v8.9.3 — quedó documentado como pendiente en ese entonces. Ahora usa el mismo set de íconos SVG de trazo (`src/components/ui/icons.tsx`, 10 íconos nuevos agregados: `IconGrid`, `IconTruck`, `IconZap`, `IconShoppingBag`, `IconBanknote`, `IconShoppingCart`, `IconSearch`, `IconScale`, `IconSliders`, `IconUsers`), sin agregar ninguna librería nueva — mismo criterio que v8.9.3.
+- **De paso se corrigieron 2 íconos que estaban repetidos por accidente:** 💵 aparecía tanto en "Cobranza" como en "Efectivo en Caja", y ⚖️ tanto en "Auditoría" como en "Portal Proveedor / Báscula" — cada uno ahora tiene su propio ícono distinto.
+
+### Mejorado (nombres — más profesional)
+- **"Métricas & Data Mining" → "Métricas y Reportes"**: "Data Mining" es jerga técnica de programador, no lenguaje de negocio.
+- **"Portal Proveedor / Báscula" → "Portal del Proveedor (Báscula)"**: se quita la diagonal, se lee más limpio.
+- Los encabezados de grupo cambian el símbolo "&" por "y" (OPERACIÓN Y VENTAS, FINANZAS Y CAJA, CONTROL Y AUDITORÍA) — más natural en español.
+
+### Nuevo (proactivo + sonido)
+- **🔔 El cálculo de alertas proactivas (contrarecibos vencidos, facturas sin CR después de 3 días, entregas de Andrés pendientes de facturar) vivía solo dentro de la campanita de notificaciones.** Se movió a un hook compartido (`useProactiveAlertsData.ts`) para que el resto del sistema pueda usar exactamente el mismo número sin duplicar la lógica — mismo espíritu de "una sola fuente de verdad" que corrigió el bug del Saldo con Andrés en v8.9.4.
+- **🔊 Nuevo aviso sonoro proactivo:** si aparece una alerta nueva mientras tienes la app abierta (ej. un contrarecibo se acaba de vencer, Andrés reporta una entrega nueva), el sistema suena una notificación suave una sola vez. No suena en la primera carga de la página ni cuando una alerta se resuelve — solo cuando el número de pendientes sube.
+- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias, `npm run build` completo sin errores.
+
+### Corregido (encontrado por el propio instalador, antes de llegar a producción)
+- **El primer intento de instalar este parche falló su propio typecheck:** Cobranza, Caja Chica, Compras y Expedientes ya traían en el proyecto real (fuera de este parche) botones convertidos de emoji a ícono -- el barrido más grande que quedó pendiente en v8.9.3/v8.9.4 -- pero a `icons.tsx` le faltaban 6 íconos que esas pantallas ya usaban (`IconDownload`, `IconClock`, `IconCoins`, `IconCheckCircle`, `IconFileText`, `IconPlus`), y 2 de esas pantallas (Compras) los usaban con una prop `color` que el set de íconos tampoco soportaba todavía. El instalador lo detectó solo, en el paso de verificación, antes de tocar producción -- se completaron los 6 íconos faltantes y se agregó soporte a `color` en todo el set.
+- **🚀 Re-verificado con los archivos reales del proyecto** (no una copia de trabajo desactualizada): `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas, `npm run build` completo sin errores.
+
+### Pendiente (documentado, no incluido en este parche)
+- Todo lo ya documentado como pendiente en v8.9.3 y v8.9.2 (bug de comisión del 8%, escrituras sin transacción en AuditSync/Facturar Rápido/Asignar CR, borrado permanente + falta de verificación de rol en AuditSync, unificación completa de `STATUS_LABEL`/`STATUS_TONE`, reemplazo de emojis en las pantallas restantes que aún no se hayan convertido).
 
 ## [v8.9.4] - 20 Agosto 2026 (CRÍTICO: "Saldo con Andrés" del Dashboard decía -$1,289,709.62; el número real es +$40,800.00)
 

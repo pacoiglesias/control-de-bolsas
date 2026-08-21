@@ -131,14 +131,24 @@ service cloud.firestore {
     // partidas de un expediente. Sin esta regla, la coleccion caia en el
     // match /{document=**} final: la pantalla Catalogo no cargaba nunca y el
     // guardado de cualquier expediente con partidas terminaba en error.
+    // FIX (auditoría v8.9.5): "write" sin separar cubre create+update+delete
+    // en reglas de Firestore -- cualquier manager podia borrar el catalogo
+    // completo o la lista de precios en una sola llamada. Los documentos
+    // financieros hermanos (purchaseOrders/invoices/ledger, arriba) ya
+    // separan el borrado para exigir el nivel mas alto, con un comentario
+    // que cuenta un incidente real de borrado accidental -- catalogo y
+    // precios alimentan la misma configuracion financiera y no tenian esa
+    // misma proteccion.
     match /products/{productId} {
       allow read: if isAuthenticatedUser();
-      allow write: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     match /price_lists/{listId} {
       allow read: if isAuthenticatedUser();
-      allow write: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // Copias completas del estado del respaldo HTML.
@@ -203,6 +213,17 @@ service cloud.firestore {
     // Functions, que usa el Admin SDK y no pasa por estas reglas) necesita
     // leerlo de verdad.
     match /system_settings_private/maquila {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // FIX (auditoría v8.9.5): el saldo real de Caja Chica (cajaChicaBalance)
+    // vivía dentro de system_settings/global, el documento público de
+    // arriba -- cualquiera sin sesión podía leer cuánto efectivo hay en
+    // caja ahora mismo. Se movió aquí, mismo patrón que el PIN del Portal
+    // Maquilador: solo el backend (Cloud Functions, Admin SDK) y un super
+    // admin real pueden leerlo.
+    match /system_settings_private/finanzas {
       allow read: if isSuperAdmin();
       allow write: if isSuperAdmin();
     }

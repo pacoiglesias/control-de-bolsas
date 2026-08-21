@@ -4,7 +4,7 @@ import { usePurchases } from './usePurchases';
 import { useExpenses } from './useExpenses';
 import { useOrders } from './useOrders';
 import { useConfig } from './useConfig';
-import { round2, normalizarTexto } from '../lib/finance';
+import { round2, normalizarTexto, computeAndresBalance } from '../lib/finance';
 import { toDate } from '../lib/format';
 export type LedgerEntry = {
   id: string;
@@ -39,17 +39,21 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   const deudaHistorica = config?.historicalDebtAndres || 0;
 
   const stats = useMemo(() => {
-    // Totales
-    const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
-    const totalPurchasesCost = round2(provPurchases.reduce((acc, p) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), 0));
-    
-    const totalPagado = provExpenses.reduce((acc, e) => {
-      if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos
-      if (e.type === 'ingreso') return acc - e.amount; // Devoluciones
-      return acc;
-    }, 0);
-    
-    const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
+    // FIX (auditoría v8.9.5): esta misma fórmula (kilos/costo/pagado/saldo)
+    // vivía copiada aquí, en useDashboardStatsV2.ts y en el handler de
+    // ledger del Portal Maquilador (functions/src/index.ts) -- la misma
+    // clase de bug que causó el incidente real del "Saldo con Andrés"
+    // ($1.3M de diferencia entre Dashboard y esta misma pantalla, para el
+    // mismo dato). Ahora las tres llaman a computeAndresBalance(), la
+    // fuente única de verdad (ver finance.core.ts).
+    const balance = computeAndresBalance(
+      provPurchases,
+      provExpenses,
+      { costPricePerKg: currentCostPerKg, historicalDebtAndres: deudaHistorica },
+      selectedProvider,
+    );
+    const { totalReceivedKilos, totalPagado, saldoProveedor } = balance;
+    const totalPurchasesCost = round2(balance.totalPurchasesCost);
 
     // Libro Mayor (Ledger)
     const ledger: LedgerEntry[] = [
@@ -94,7 +98,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       saldoProveedor,
       ledger
     };
-  }, [provPurchases, provExpenses, currentCostPerKg, deudaHistorica, orderById]);
+  }, [provPurchases, provExpenses, currentCostPerKg, deudaHistorica, orderById, selectedProvider]);
 
   // Alertas Proactivas
   const hoy = Date.now();

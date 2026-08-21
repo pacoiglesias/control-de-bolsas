@@ -17,6 +17,5 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client"]
   },
-  "include": ["src"],
-  "exclude": ["src/hooks/useDashboardStats.ts"]
+  "include": ["src"]
 }

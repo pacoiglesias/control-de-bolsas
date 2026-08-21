@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
@@ -16,28 +16,28 @@ import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useProactiveAlertsData } from '../hooks/useProactiveAlertsData';
 import {
-  IconLayoutDashboard,
-  IconFolder,
+  IconGrid,
+  IconClipboardList,
   IconTruck,
   IconZap,
   IconShoppingBag,
-  IconCoins,
+  IconBanknote,
   IconShoppingCart,
   IconWallet,
+  IconSearch,
+  IconTrendingUp,
   IconScale,
-  IconChartBar,
-  IconFactory,
-  IconSettings,
+  IconSliders,
   IconUsers,
-  IconEye,
-  IconEyeOff,
+  type IconProps,
 } from './ui/icons';
 
 type NavItem = {
   type?: 'link' | 'group';
   to?: string;
-  icon?: React.ReactNode;
+  Icon?: (props: IconProps) => JSX.Element;
   label: string;
   end?: boolean;
   roles: string[];
@@ -66,26 +66,34 @@ export default function Layout() {
   const clientLabel = settings.clientShortName || 'Providencia';
   const providerLabel = settings.providerName || 'Andrés';
 
+  // FIX (v8.9.5): mejora visual + de nombres pedida explicitamente --
+  // (1) los iconos ya no son emojis crudos, usan el mismo set de SVG de
+  //     trazo que ya vestia Dashboard y Portal Maquilador desde v8.9.3, y
+  //     de paso se corrigen los 2 iconos que estaban repetidos por
+  //     accidente (💵 en dos entradas, ⚖️ en otras dos).
+  // (2) "Data Mining" -> "Reportes" (sonaba a jerga de programador, no a
+  //     lenguaje de negocio) y los encabezados de grupo cambian "&" por
+  //     "y" (mas natural en español que un simbolo).
   const navItems = useMemo<NavItem[]>(() => [
-    { type: 'link', to: '/', icon: <IconLayoutDashboard size={18} />, label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
-    
-    { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/ordenes', icon: <IconFolder size={18} />, label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/oc', icon: <IconTruck size={18} />, label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: <IconZap size={18} />, label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/catalogo', icon: <IconShoppingBag size={18} />, label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/', Icon: IconGrid, label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
 
-    { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: <IconCoins size={18} />, label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: <IconShoppingCart size={18} />, label: `Compras ${providerLabel}`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: <IconWallet size={18} />, label: 'Efectivo en Caja', roles: ['admin'] },
+    { type: 'group', label: 'OPERACIÓN Y VENTAS', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/ordenes', Icon: IconClipboardList, label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', Icon: IconTruck, label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', Icon: IconZap, label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/catalogo', Icon: IconShoppingBag, label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
-    { type: 'link', to: '/audit', icon: <IconScale size={18} />, label: 'Auditoría & Sábana', roles: ['admin'] },
-    { type: 'link', to: '/mining', icon: <IconChartBar size={18} />, label: 'Métricas & Data Mining', roles: ['admin'] },
-    { type: 'link', to: '/portal-maquilador', icon: <IconFactory size={18} />, label: 'Portal Proveedor / Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/centro-control', icon: <IconSettings size={18} />, label: 'Centro de Control', roles: ['admin'] },
-    { type: 'link', to: '/usuarios', icon: <IconUsers size={18} />, label: 'Usuarios y Permisos', roles: ['admin'] },
+    { type: 'group', label: 'FINANZAS Y CAJA', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/cobranza', Icon: IconBanknote, label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', Icon: IconShoppingCart, label: `Compras ${providerLabel}`, roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', Icon: IconWallet, label: 'Efectivo en Caja', roles: ['admin'] },
+
+    { type: 'group', label: 'CONTROL Y AUDITORÍA', roles: ['admin'] },
+    { type: 'link', to: '/audit', Icon: IconSearch, label: 'Auditoría y Sábana', roles: ['admin'] },
+    { type: 'link', to: '/mining', Icon: IconTrendingUp, label: 'Métricas y Reportes', roles: ['admin'] },
+    { type: 'link', to: '/portal-maquilador', Icon: IconScale, label: 'Portal del Proveedor (Báscula)', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/centro-control', Icon: IconSliders, label: 'Centro de Control', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', Icon: IconUsers, label: 'Usuarios y Permisos', roles: ['admin'] },
   ], [clientLabel, providerLabel]);
 
   const handleDownloadLocalBackup = () => {
@@ -126,6 +134,25 @@ export default function Layout() {
       sound.playError();
     }
   }, [isOnline]);
+
+  // FIX (v8.9.5): mejora "auditiva proactiva" pedida explicitamente -- ya
+  // existian sonidos para exito/error de acciones puntuales, pero nada
+  // avisaba cuando aparecia una alerta NUEVA mientras la app seguia abierta
+  // (ej. un contrarecibo que se vence justo ahora, o Andres entrega mas
+  // kilos). Este efecto compara cuantas alertas proactivas hay contra la
+  // ultima vez que se reviso y solo suena si el numero SUBIO -- nunca en la
+  // primera carga (para no saludar con un sonido cada vez que abres la
+  // app), y nunca cuando el numero baja (eso es una alerta que ya se
+  // resolvio, no hace falta avisar de eso).
+  const alertsData = useProactiveAlertsData();
+  const alertCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const previo = alertCountRef.current;
+    if (previo !== null && alertsData.length > previo) {
+      sound.playNotify();
+    }
+    alertCountRef.current = alertsData.length;
+  }, [alertsData.length]);
 
   // Los badges leen el mismo estatus derivado que la tabla de Ordenes. Antes
   // usaban el campo viejo de la raiz y podian quedarse en cero teniendo
@@ -198,14 +225,11 @@ export default function Layout() {
               color: isPrivate ? '#f59e0b' : 'inherit',
               border: isPrivate ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent',
               borderRadius: 8,
-              padding: 6,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              fontSize: 16,
               transition: 'all 0.2s ease',
             }}
           >
-            {isPrivate ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+            {isPrivate ? '🙈' : '👁️'}
           </button>
           
           <NotificationsCenter />
@@ -238,6 +262,7 @@ export default function Layout() {
                   </div>
                 );
               }
+              const ItemIcon = it.Icon;
               return (
                 <NavLink
                   key={it.to}
@@ -246,7 +271,9 @@ export default function Layout() {
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                   onClick={() => sound.playSwoosh()}
                 >
-                  <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
+                  <span className="nav-num" style={{ display: 'inline-flex' }}>
+                    {ItemIcon ? <ItemIcon size={18} /> : null}
+                  </span>
                   <span>{it.label}</span>
                   {it.to === '/cobranza' && overdue > 0 ? (
                     <span className="nav-badge">{overdue}</span>

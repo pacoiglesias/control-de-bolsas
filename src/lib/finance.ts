@@ -19,12 +19,17 @@ export {
   configEfectiva,
   round2,
   normalizarTexto,
+  computeAndresBalance,
 } from '../../functions/src/shared/finance.core';
 export type {
   FinanceConfigCore,
   FinanceResultCore,
   DynamicFinancialsInput,
   DynamicFinancialsResult,
+  AndresBalanceConfig,
+  AndresPurchaseLike,
+  AndresExpenseLike,
+  AndresBalanceResult,
 } from '../../functions/src/shared/finance.core';
 
 export function extractCr(inv: any, o?: any): string {

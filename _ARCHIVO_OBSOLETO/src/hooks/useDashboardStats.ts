@@ -1,3 +1,31 @@
+// ARCHIVADO (auditoría v8.9.5) -- este archivo YA NO se usa ni se compila.
+//
+// Movido aquí desde src/hooks/useDashboardStats.ts sin borrarlo (regla del
+// proyecto: nunca eliminar sin consentimiento), después de confirmar que
+// ningún archivo del sistema lo importa: Dashboard.tsx usa el hook con el
+// mismo nombre `useDashboardStats`, pero desde src/hooks/useDashboardStatsV2.ts
+// -- ese es el que está vivo y en uso real.
+//
+// tsconfig.json ya traía un "exclude" apuntando aquí desde antes de esta
+// auditoría (evidencia de que alguien ya sabía que este archivo daba
+// problemas y lo sacó del typecheck sin quitarlo del proyecto). Se quitó
+// ese exclude porque ya no hace falta: el archivo vive fuera de src/, así
+// que ni siquiera entra al build.
+//
+// Riesgo real que esto evitaba: dos hooks con el MISMO NOMBRE
+// (`useDashboardStats`) en dos archivos distintos (este y useDashboardStatsV2.ts)
+// es exactamente el patrón que causó el incidente real del "Saldo con
+// Andrés" ($1.3M de diferencia entre dos pantallas para el mismo dato) --
+// cualquier cambio futuro a la fórmula corría el riesgo de aplicarse solo a
+// una de las dos copias sin que nadie lo notara, porque ambas compilaban y
+// ambas se llamaban igual. Si algún día hace falta recuperar código de
+// aquí, cópialo a mano a useDashboardStatsV2.ts -- no lo vuelvas a poner en
+// src/hooks/ con este mismo nombre.
+//
+// NOTA: las rutas de import de abajo (../lib/finance, ../lib/types) ya NO
+// resuelven desde esta nueva ubicación -- se dejaron intactas a propósito
+// porque este archivo es solo referencia histórica, no código que corre.
+
 import { useMemo } from 'react';
 import { round2, computeCommissionFromInvoiceTotal, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto } from '../lib/finance';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';

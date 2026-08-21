@@ -4,8 +4,10 @@ import { money, fmtDate, fmtDayAndDate, getPrintHeaderHtml, shareHtmlAsPdf, esca
 import { round2 } from '../../lib/finance';
 import type { PurchaseOrder, Expense, FinancialConfig, Purchase } from '../../lib/types';
 import type { SystemSettings } from '../../hooks/useSystemSettings';
-import * as XLSX from 'xlsx';
 import { useToast } from '../../context/ToastContext';
+// FIX (auditoría v8.9.5, rendimiento): "xlsx" (~429 kB) se importa bajo
+// demanda dentro de handleExportExcel, no aquí arriba -- así no se descarga
+// al abrir este modal si el usuario nunca pide el Excel.
 
 interface CorteSemanalModalProps {
   onClose: () => void;
@@ -323,7 +325,8 @@ export function CorteSemanalModal({
     await shareHtmlAsPdf(html, `CorteSemanal_${fmtDate(startOfWeek)}.pdf`);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     // Hoja Cobros

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { round2, computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, computeAndresBalance } from '../lib/finance';
 import { toDate } from '../lib/format';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
 
@@ -201,16 +201,24 @@ export function useDashboardStats(
       periodText = `Datos del mes de ${date.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`;
     }
 
-    let totalReceivedKilos = 0;
-    (purchases || []).forEach(p => {
-      if (!p || normalizarTexto(p.provider) !== 'andres') return;
-      totalReceivedKilos += Number(p.receivedKilos) || 0;
-    });
+    // FIX (auditoría v8.9.5): esta misma fórmula (kilos/costo/pagado/saldo)
+    // vivía copiada aquí, en useAndresStats.ts y en el handler de ledger del
+    // Portal Maquilador (functions/src/index.ts) -- la misma clase de bug
+    // que causó el incidente real del "Saldo con Andrés" ($1.3M de
+    // diferencia entre este Dashboard y Compras -> Andrés, para el mismo
+    // dato). Ahora las tres llaman a computeAndresBalance(), la fuente
+    // única de verdad (ver finance.core.ts).
+    const andresBalance = computeAndresBalance(
+      purchases,
+      expenses,
+      { costPricePerKg: cfg.costPricePerKg, historicalDebtAndres: cfg.historicalDebtAndres },
+      'andres',
+    );
+    const totalReceivedKilos = andresBalance.totalReceivedKilos;
     const inventarioVivo = totalReceivedKilos - totalKilosInvoiced;
 
     let localSaldoCaja = 0;
     let opex = 0;
-    let totalPagadoAndres = 0;
     (expenses || []).forEach(e => {
       if (!e) return;
       if (e.type === 'ingreso') {
@@ -221,20 +229,9 @@ export function useDashboardStats(
           opex += Number(e.amount) || 0;
         }
       }
-      
-      if (normalizarTexto(e.provider) === 'andres') {
-        if (e.type === 'egreso') totalPagadoAndres += Number(e.amount) || 0;
-        else totalPagadoAndres -= Number(e.amount) || 0;
-      }
     });
 
-    let totalPurchasesCost = 0;
-    (purchases || []).forEach(p => {
-      if (!p || normalizarTexto(p.provider) !== 'andres') return;
-      totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
-    });
-    const deudaHistorica = cfg.historicalDebtAndres || 0;
-    const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica;
+    const deudaAndres = andresBalance.saldoProveedor;
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
     const proyeccionFlujo = localSaldoCaja + transito + deudaAndres;

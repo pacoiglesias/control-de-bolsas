@@ -4,8 +4,10 @@ import { money, fmtDate, getPrintHeaderHtml, shareHtmlAsPdf, escapeHtml, toDate 
 import { round2 } from '../../lib/finance';
 import type { PurchaseOrder, Expense, FinancialConfig } from '../../lib/types';
 import type { SystemSettings } from '../../hooks/useSystemSettings';
-import * as XLSX from 'xlsx';
 import { useToast } from '../../context/ToastContext';
+// FIX (auditoría v8.9.5, rendimiento): "xlsx" (~429 kB) se importa bajo
+// demanda dentro de handleExportExcel, no aquí arriba -- así no se descarga
+// al abrir este modal si el usuario nunca pide el Excel.
 
 interface CorteMensualModalProps {
   onClose: () => void;
@@ -274,7 +276,8 @@ export function CorteMensualModal({
     await shareHtmlAsPdf(html, `Corte_Mensual_${selectedMonth}.pdf`);
   }
 
-  function handleExportExcel() {
+  async function handleExportExcel() {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     // 1. Resumen
