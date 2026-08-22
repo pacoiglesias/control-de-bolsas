@@ -236,7 +236,7 @@ export function DashboardHeaderToolbar({
                     setShowExportMenu(false);
                     toast('Generando sábana Excel con los datos actuales...', 'info');
                     try {
-                      await exportToExcel(config);
+                      await exportToExcel();
                       toast('Sábana Excel descargada con éxito', 'ok');
                     } catch (e) {
                       toast(`Error al exportar: ${(e as Error).message}`, 'bad');

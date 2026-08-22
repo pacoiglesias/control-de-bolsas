@@ -216,7 +216,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       if (extracted.folio) newOrder.folio = extracted.folio;
       if (extracted.kilosTotales) newOrder.totalKilograms = extracted.kilosTotales;
       if (Array.isArray(extracted.conceptos) && extracted.conceptos.length > 0) {
-        newOrder.items = extracted.conceptos.map((c, i) => ({
+        newOrder.items = extracted.conceptos.map((c: any, i: number) => ({
           id: `ai-${i}`,
           quantity: c.cantidad || 0,
           unit: "kg",

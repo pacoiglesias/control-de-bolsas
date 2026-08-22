@@ -2,7 +2,9 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { round2 } from "./shared/finance.core";
+import { round2, type FinanceConfigCore } from "./shared/finance.core";
+
+type StatsConfig = Partial<Pick<FinanceConfigCore, 'costPricePerKg' | 'commissionRate' | 'salePricePerKg' | 'ivaRate'>>;
 
 const COL_ORDERS = "purchaseOrders";
 const STATS_DOC = "stats/dashboard";
@@ -48,13 +50,28 @@ function estaVencidaEnVivo(
   return !!due && due.getTime() < ahora;
 }
 
-export function extractStats(data: any): Record<string, any> {
+export function extractStats(data: any, cfg?: StatsConfig): Record<string, any> {
   let kilos = 0, vendido = 0, neto = 0, porCobrar = 0, porCobrarSinCR = 0, porCobrarConCR = 0, vencido = 0, cobrado = 0, netoCobrado = 0, porRecibir = 0;
   let margen = 0, gananciaRealizada = 0;
   let paymentDaysSum = 0, paymentDaysCount = 0;
   const meses: Record<string, { venta: number; cobrado: number; ganancia: number; margen: number; gananciaRealizada: number }> = {};
   const ahora = Date.now();
-  
+
+  // FIX (auditoría v8.9.5): estos cuatro "respaldos" (costo/kg, tasa de
+  // comisión, precio de venta/kg, tasa de IVA) antes estaban escritos como
+  // literales sueltos (42, 0.08, 43, 0.16) repetidos varias veces en esta
+  // misma función -- el mismo tipo de bug que causó el desfase real del
+  // "Saldo con Andrés" (dos formulas distintas para el mismo dato). Ahora
+  // los llamadores (syncDashboardStats y recalcDashboardStats, abajo) leen
+  // config/financials UNA vez y lo pasan aquí como `cfg`; estos valores fijos
+  // solo se usan si `cfg` no llega (nunca debería pasar en producción, es
+  // red de seguridad) y siguen siendo los mismos que ya usaba el sistema,
+  // para no cambiar comportamiento en el caso sin config.
+  const costPricePerKg = cfg?.costPricePerKg ?? 42;
+  const commissionRate = cfg?.commissionRate ?? 0.08;
+  const salePricePerKgFallback = cfg?.salePricePerKg ?? 43;
+  const ivaRateFallback = cfg?.ivaRate ?? 0.16;
+
   if (!data || data.isDeleted) return { kilos, vendido, neto, porCobrar, porCobrarSinCR, porCobrarConCR, vencido, cobrado, netoCobrado, porRecibir, margen, gananciaRealizada, paymentDaysSum, paymentDaysCount, meses, isPending: 0, isOverdue: 0, isManual: 0, isPedido: 0 };
 
   const invoices = Array.isArray(data.invoices) ? data.invoices : [];
@@ -127,20 +144,21 @@ export function extractStats(data: any): Record<string, any> {
       let invMargin = Number(inv.financials?.tradeMargin);
       if (isNaN(invMargin) || invMargin === 0) {
         const saleT = Number(inv.financials?.saleTotal || (invTotal / 1.16));
-        const costT = Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * 42)); // fallback a $42
+        const costT = Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * costPricePerKg)); // fallback = config/financials.costPricePerKg (ver cfg arriba)
         invMargin = round2(saleT - costT);
       }
       // inv.financials.commission es un valor guardado (snapshot); para
       // facturas importadas por XML ese campo puede no haberse llenado
       // nunca, dejando la comision en $0 aunque la comision real siga
-      // aplicando. Respaldo con la tasa estandar del sistema (8%, ver
-      // FinancialConfig.commissionRate en src/lib/types.ts y el mismo
+      // aplicando. Respaldo con la tasa real configurada en config/financials
+      // (ver FinancialConfig.commissionRate en src/lib/types.ts y el mismo
       // fallback en src/lib/finance.ts computeCommissionFromInvoiceTotal).
-      // FIX: aqui decia 0.069 (6.9%), un valor que no corresponde a ninguna
-      // tasa configurada en el sistema -- desalineaba "Ganancia Realizada"
-      // y "Por Recibir" del Dashboard contra la vista en vivo (que usa 8%)
-      // para exactamente las facturas XML que este respaldo cubre.
-      const invCommission = Number(inv.financials?.commission || (invTotal * 0.08));
+      // FIX (auditoría v8.9.5): antes esto era un literal 0.08 fijo aquí
+      // adentro, sin relación con la tasa real que el usuario configuró --
+      // si algún día se cambia la comisión en Configuración, este respaldo
+      // se hubiera quedado desalineado igual que pasó antes con 0.069 vs
+      // 8%. Ahora usa `commissionRate`, que viene de config/financials.
+      const invCommission = Number(inv.financials?.commission || (invTotal * commissionRate));
       
       margen += invMargin;
       
@@ -153,7 +171,7 @@ export function extractStats(data: any): Record<string, any> {
          // o netCashFlow (con IVA). Como Dashboard usa "margenTotal", seguimos sumando invMargin.
          // Sin embargo, para gananciaRealizada, el flujo neto real incluye el IVA cobrado.
          // Calcularemos la proporcion del netCashFlow.
-         const invNetCash = Number(inv.financials?.netCashFlow) || (invTotal - Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * 42)) - invCommission);
+         const invNetCash = Number(inv.financials?.netCashFlow) || (invTotal - Number(inv.financials?.costTotal || (Number(inv.kilos || 0) * costPricePerKg)) - invCommission);
          invRealized = (paidAmt / invTotal) * invNetCash;
       }
       gananciaRealizada += invRealized;
@@ -167,8 +185,9 @@ export function extractStats(data: any): Record<string, any> {
         if (s === 'paid') {
           cobrado += paidAmt > 0 ? paidAmt : invTotal;
           netoCobrado += invNet;
-          // FIX: mismo ajuste que arriba, 6.9% -> 8% (tasa estandar real).
-          const commission = Number(inv.financials?.commission || (invTotal * 0.08));
+          // FIX (auditoría v8.9.5): mismo respaldo que invCommission arriba,
+          // ahora usa la tasa real de config/financials en vez del literal fijo.
+          const commission = Number(inv.financials?.commission || (invTotal * commissionRate));
           porRecibir += (invTotal - commission);
         }
         
@@ -253,11 +272,14 @@ export function extractStats(data: any): Record<string, any> {
   }
   
   // Utilizar el precio de venta configurado en el expediente (snapshot/custom), no un valor fijo.
-  // 2026-08-10: el respaldo bajó de 47 a 43 (confirmado por el usuario).
-  const customPrice = data.financials?.salePricePerKg || 43;
-  // Nota: Si el IVA es distinto de 16%, debería leerse de data.financials.ivaRate, pero 
-  // para mantener la estructura actual de los KPIs que asume 16% agregamos fallback a 1.16
-  const ivaRate = data.financials?.ivaRate ?? 0.16;
+  // FIX (auditoría v8.9.5): el respaldo (cuando el expediente no trae su
+  // propio precio) ahora es `salePricePerKgFallback`, que viene de
+  // config/financials via el parametro `cfg` (ver arriba) en vez de un
+  // literal 43 suelto aquí adentro.
+  const customPrice = data.financials?.salePricePerKg || salePricePerKgFallback;
+  // Igual que arriba: el respaldo de IVA ahora viene de config/financials
+  // (`cfg.ivaRate`) en vez de un literal 0.16 fijo.
+  const ivaRate = data.financials?.ivaRate ?? ivaRateFallback;
   const montoPendienteFacturar = round2(kilosPendientesFacturar * customPrice * (1 + ivaRate));
 
   return {
@@ -353,12 +375,21 @@ export const syncDashboardStats = onDocumentWritten(
   async (event) => {
     const dataBefore = event.data?.before?.data();
     const dataAfter = event.data?.after?.data();
-    
+
     const deptBefore = dataBefore?.department || 'UNKNOWN';
     const deptAfter = dataAfter?.department || 'UNKNOWN';
 
-    const before = extractStats(dataBefore);
-    const after = extractStats(dataAfter);
+    // FIX (auditoría v8.9.5): antes extractStats() usaba literales fijos
+    // (42, 0.08, 43, 0.16) como respaldo cuando un expediente no traía su
+    // propio costo/comisión/precio -- sin relación con lo que el usuario
+    // haya configurado en Configuración (config/financials). Se lee aquí
+    // UNA vez por escritura, mismo patrón que ya usa el handler de ledger
+    // de maquila en index.ts (`db.collection('config').doc('financials')`).
+    const configSnap = await getFirestore().collection('config').doc('financials').get();
+    const cfg = configSnap.data() as StatsConfig | undefined;
+
+    const before = extractStats(dataBefore, cfg);
+    const after = extractStats(dataAfter, cfg);
 
     // 1. Update Global
     await applyStatsDelta(STATS_DOC, before, after);
@@ -418,6 +449,13 @@ export const recalcDashboardStats = onCall(
     if (!adminSnap.exists || adminSnap.data()?.role !== "admin") {
       throw new HttpsError("permission-denied", "Solo un administrador puede recalcular las estadísticas.");
     }
+
+    // FIX (auditoría v8.9.5): mismo motivo que en syncDashboardStats arriba
+    // -- extractStats() ya no trae literales fijos como respaldo, los recibe
+    // de aquí. Se lee UNA sola vez para todo el recálculo completo (no por
+    // expediente) porque config/financials no cambia durante la corrida.
+    const configSnap = await db.collection('config').doc('financials').get();
+    const cfg = configSnap.data() as StatsConfig | undefined;
 
     const initStats = () => ({
       kpis: {
@@ -622,7 +660,7 @@ export const recalcDashboardStats = onCall(
       for (const doc of snap.docs) {
         const data = doc.data();
         if (data.isDeleted) continue;
-        const s = extractStats(data);
+        const s = extractStats(data, cfg);
         
         applyData(globalStats, s);
         

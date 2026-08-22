@@ -221,3 +221,86 @@ export function computeDynamicFinancials(input: DynamicFinancialsInput): Dynamic
   };
 }
 
+/**
+ * "SALDO CON ANDRÉS" -- FÓRMULA CANÓNICA (auditoría v8.9.5)
+ * =============================================================
+ *
+ * INCIDENTE REAL que motivó extraer esto aquí: el Dashboard mostraba
+ * "Saldo con Andrés" = -$1,289,709.62 mientras que la pantalla Compras ->
+ * Andrés, para el MISMO dato, mostraba +$40,800.00 -- una diferencia de
+ * $1,330,509.62 dentro de la misma sesión de la misma app. Causa raíz: esta
+ * misma fórmula vivía copiada TRES veces (src/hooks/useAndresStats.ts,
+ * src/hooks/useDashboardStatsV2.ts, y functions/src/index.ts en el handler
+ * de ledger del Portal Maquilador) y una de las tres copias se olvidó de
+ * leer `historicalDebtAndres` del config real, cayendo en un respaldo fijo
+ * viejo. Las tres ahora llaman a esta única función.
+ *
+ * REGLA DE NEGOCIO:
+ *   total_pagado   = suma de gastos al proveedor: egreso suma, ingreso resta
+ *   costo_compras  = suma de (kilos_recibidos x precio_kg_de_la_compra, o el
+ *                     precio de costo configurado si la compra no trae uno
+ *                     propio)
+ *   saldo          = total_pagado - costo_compras + deuda_historica
+ *
+ * Un saldo positivo significa que Bolsas Elemental le pagó de más a Andrés
+ * (a su favor); negativo significa que todavía se le debe.
+ */
+export interface AndresBalanceConfig {
+  costPricePerKg: number;
+  historicalDebtAndres?: number;
+}
+
+export interface AndresPurchaseLike {
+  provider?: string | null;
+  receivedKilos?: number | null;
+  pricePerKg?: number | null;
+}
+
+export interface AndresExpenseLike {
+  provider?: string | null;
+  type?: string | null;
+  amount?: number | null;
+}
+
+export interface AndresBalanceResult {
+  totalReceivedKilos: number;
+  totalPurchasesCost: number;
+  totalPagado: number;
+  historicalDebtAndres: number;
+  saldoProveedor: number;
+}
+
+export function computeAndresBalance(
+  purchases: AndresPurchaseLike[] | null | undefined,
+  expenses: AndresExpenseLike[] | null | undefined,
+  cfg: AndresBalanceConfig,
+  providerFilter: string = 'Andres',
+): AndresBalanceResult {
+  const target = normalizarTexto(providerFilter);
+
+  const provPurchases = (purchases || []).filter(
+    (p): p is AndresPurchaseLike => !!p && normalizarTexto(p.provider) === target,
+  );
+  const provExpenses = (expenses || []).filter(
+    (e): e is AndresExpenseLike => !!e && normalizarTexto(e.provider) === target,
+  );
+
+  const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (Number(p.receivedKilos) || 0), 0);
+
+  const totalPurchasesCost = provPurchases.reduce(
+    (acc, p) => acc + (Number(p.receivedKilos) || 0) * (Number(p.pricePerKg) || cfg.costPricePerKg),
+    0,
+  );
+
+  const totalPagado = provExpenses.reduce((acc, e) => {
+    if (e.type === 'egreso') return acc + (Number(e.amount) || 0);
+    if (e.type === 'ingreso') return acc - (Number(e.amount) || 0);
+    return acc;
+  }, 0);
+
+  const historicalDebtAndres = cfg.historicalDebtAndres || 0;
+  const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
+
+  return { totalReceivedKilos, totalPurchasesCost, totalPagado, historicalDebtAndres, saldoProveedor };
+}
+
