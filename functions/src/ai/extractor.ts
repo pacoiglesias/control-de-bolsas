@@ -104,7 +104,7 @@ export async function extractDocumentData(base64: string, mimeType: string, apiK
  * Lector Inteligente Universal Callable
  */
 export const parseDocumentData = onCall(
-  { secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 60, region: "us-central1" },
+  { secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 60 },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {

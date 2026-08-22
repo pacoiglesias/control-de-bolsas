@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.14 Web Push PWA (FCM) & IndexedDB Offline Resilience Suite',
+    date: '22 de Agosto de 2026',
+    time: '11:58 PM',
+    summary: 'Notificaciones Web Push PWA en tiempo real (Firebase Cloud Messaging) y Cola de sincronización offline persistente con IndexedDB para el Portal Maquilador.',
+    highlights: [
+      'Notificaciones Web Push PWA (Firebase Cloud Messaging): Despliegue de Service Worker dedicado en segundo plano y registro de tokens de administradores en Firestore para recibir alertas inmediatas de entregas del taller y facturas por vencer.',
+      'Cola Offline Persistente con IndexedDB: Reemplazo integral de localStorage por base de datos IndexedDB estructurada para registrar entregas en zonas sin cobertura celular, con reintentos automáticos y visualizador de cola.',
+      'Resolución de Error CORS en Cloud Functions: Re-exportación unificada de registrarEntregaMaquila y las 13 Cloud Functions en index.ts con invocador público y cabeceras CORS preflight completas.',
+      'Instalación de Dependencia @sendgrid/mail: Inclusión en package.json de Cloud Functions para garantizar el arranque sin excepciones en contenedores Cloud Run de Google Cloud.',
+      'Sincronización Total de Versión (v8.9.14): Actualización atómica en package.json, Cloud Functions y el visor de versiones en tiempo real de la barra lateral.',
+    ],
+  },
+  {
     version: 'v8.6.1 Providencia Executive Cockpit & Departmental Intelligence Suite',
     date: '18 de Agosto de 2026',
     time: '01:30 AM',

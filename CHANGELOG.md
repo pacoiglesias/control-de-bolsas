@@ -1,5 +1,13 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.14] - 22 Agosto 2026 (Web Push PWA con Firebase Cloud Messaging y Resiliencia Offline IndexedDB)
+
+- **Notificaciones Web Push PWA (FCM):** Integración de Service Worker dedicado en segundo plano (`firebase-messaging-sw.js`) y gestor `useFCMNotifications` para alertar en tiempo real sobre entregas en el taller y facturas por vencer.
+- **Cola Offline Persistente con IndexedDB:** Reemplazo de localStorage por base de datos IndexedDB tipada (`offlineMaquilaDb.ts`) en el Portal Maquilador con reintentos automáticos, soporte para falta de cobertura y modal visual de sincronización.
+- **Resolución de Error CORS en Cloud Functions:** Re-exportación completa de las 13 funciones Cloud en `functions/src/index.ts` con cabeceras CORS preflight completas para el dominio `https://bolsas.cobertores.com`.
+- **Dependencia @sendgrid/mail instalada en Cloud Functions:** Se agregó a `functions/package.json` para evitar fallos de inicialización de contenedores en Google Cloud Run.
+- **Sincronización Total de Versión:** Actualizado package.json y barra lateral a `v8.9.14`.
+
 ## [v8.9.2] - 20 Agosto 2026 (Auditoría completa: seguridad, un borrado automático oculto, y consistencia del Kanban)
 
 Esta versión sale de una auditoría a fondo de todo el sistema (6 revisiones en paralelo: integridad de datos, seguridad de reglas, cálculos financieros, UX/flujo, rendimiento, y Cloud Functions). Se implementó lo más urgente: seguridad, un bug de borrado de datos que se encontró verificándolo directamente, y la inconsistencia del Kanban. El resto de los hallazgos (bug de comisión del 8%, más escrituras sin transacción en AuditSync/QuickInvoiceModal/QuickCrModal, unificación completa de colores de estatus en las 57 pantallas que los usan) queda documentado como pendiente para el siguiente parche.

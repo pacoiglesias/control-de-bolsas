@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
 import { FieldValue, FieldPath, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { randomUUID } from "crypto";
 import { normalizarTexto, computeAndresBalance } from "../shared/finance.core";
@@ -419,6 +420,29 @@ export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true, m
     },
     timestamp: now,
   });
+
+  // Notificación Web Push PWA (FCM) a operadores/administradores
+  try {
+    const tokensSnap = await db.collection('fcm_tokens').limit(50).get();
+    const tokens = tokensSnap.docs.map(d => d.data()?.token).filter(Boolean);
+    if (tokens.length > 0) {
+      const { getMessaging } = await import('firebase-admin/messaging');
+      await getMessaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: `📦 Entrega Maquila: ${kilosNum.toLocaleString('es-MX')} kg`,
+          body: `Andrés registró ${kilosNum} kg para OC-${folio || 'S/F'} (${docType || 'remisión'} ${docFolio || ''})`,
+        },
+        data: {
+          orderId: String(orderId),
+          folio: String(folio || ''),
+          url: `/orders?id=${orderId}`,
+        },
+      });
+    }
+  } catch (fcmErr) {
+    logger.warn('Error enviando notificación Push FCM:', fcmErr);
+  }
 
   return { id: deliveryId };
 });

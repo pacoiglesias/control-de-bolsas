@@ -13,9 +13,17 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 // con este archivo para no duplicar `glass`/`kpiCard`/las llaves de
 // localStorage.
 import { PinScreen } from './MaquiladorPortalPinScreen';
-import { glass, kpiCard, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY, STORAGE_OFFLINE_QUEUE_KEY } from './MaquiladorPortal.shared';
+import { glass, kpiCard, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY } from './MaquiladorPortal.shared';
 import { getStatementHtml, getDeliveryTicketHtml } from './MaquiladorPortalReports';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import {
+  enqueueOfflineDelivery,
+  getPendingOfflineDeliveries,
+  removeOfflineDelivery,
+  updateOfflineDeliveryRetry,
+  migrateLegacyLocalStorageQueue,
+  type OfflineDeliveryItem,
+} from '../lib/offlineMaquilaDb';
 
 /* ─── Portal Principal Maquilador ─────────────────────────────────────────── */
 export default function MaquiladorPortal() {
@@ -41,6 +49,11 @@ export default function MaquiladorPortal() {
   const [deptFilter, setDeptFilter] = useState<'ALL' | 'TH' | 'GT'>('ALL');
   const [lastDeliveredNotice, setLastDeliveredNotice] = useState<any>(null);
 
+  // Cola offline persistente con IndexedDB
+  const [offlineQueue, setOfflineQueue] = useState<OfflineDeliveryItem[]>([]);
+  const [isSyncingQueue, setIsSyncingQueue] = useState(false);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+
   // Calculadora de bultos
   const [showBundleCalc, setShowBundleCalc] = useState(false);
   const [bundleCount, setBundleCount] = useState('');
@@ -49,53 +62,67 @@ export default function MaquiladorPortal() {
   // Estado de Red / Modo Taller
   const { isOnline } = useNetworkStatus();
 
-  // Sincronizador de entregas encoladas offline
-  //
-  // FIX (protección + bitácora): antes esto escribia directo a Firestore con
-  // addDoc(). La regla que lo permitia era "request.auth != null" -- pero
-  // cualquiera puede llamar signInAnonymously() desde la consola del
-  // navegador (la config publica de Firebase no es secreta) SIN conocer el
-  // PIN real, e inyectar entregas falsas. Ahora pasa por la Cloud Function
-  // registrarEntregaMaquila, que valida el PIN en el servidor (igual que ya
-  // hace getActiveMaquilaOrders) antes de escribir, y ademas deja un
-  // registro en la bitácora (system_logs) de cada entrega -- eso es lo que
-  // permite despues ver "qué se movió" desde el Portal Maquilador.
   const registrarEntregaFn = useMemo(() => httpsCallable(functions, 'registrarEntregaMaquila'), []);
 
-  const syncOfflineQueue = React.useCallback(async () => {
-    const queueStr = localStorage.getItem(STORAGE_OFFLINE_QUEUE_KEY);
-    if (!queueStr) return;
-    if (!pin) return; // sin PIN en memoria no hay forma de autenticar el envío
+  const refreshOfflineQueue = React.useCallback(async () => {
     try {
-      const queue = JSON.parse(queueStr);
-      if (!Array.isArray(queue) || queue.length === 0) return;
-      toast(`Sincronizando ${queue.length} entrega(s) guardada(s) offline...`, 'info');
-
-      for (const item of queue) {
-        await registrarEntregaFn({
-          pin,
-          orderId: item.orderId,
-          folio: item.folio,
-          productDescription: item.productDescription,
-          kilos: item.kilos,
-          docType: item.docType || 'remision',
-          docFolio: item.docFolio || null,
-          notes: item.notes || null,
-          status: item.status,
-        });
-      }
-      localStorage.removeItem(STORAGE_OFFLINE_QUEUE_KEY);
-      toast(`✅ ${queue.length} entrega(s) sincronizada(s) con éxito en la nube`, 'ok');
+      const items = await getPendingOfflineDeliveries();
+      setOfflineQueue(items);
     } catch (e) {
-      console.warn('Error sincronizando entregas offline', e);
+      console.warn('Error leyendo cola offline', e);
     }
-  }, [toast, pin, registrarEntregaFn]);
+  }, []);
 
   useEffect(() => {
-    if (isOnline) {
+    void migrateLegacyLocalStorageQueue().then(refreshOfflineQueue);
+  }, [refreshOfflineQueue]);
+
+  const syncOfflineQueue = React.useCallback(async () => {
+    if (!pin || isSyncingQueue) return;
+    try {
+      const queue = await getPendingOfflineDeliveries();
+      if (queue.length === 0) return;
+      setIsSyncingQueue(true);
+      toast(`Sincronizando ${queue.length} entrega(s) guardada(s) offline...`, 'info');
+
+      let syncedCount = 0;
+      for (const item of queue) {
+        try {
+          await registrarEntregaFn({
+            pin,
+            orderId: item.orderId,
+            folio: item.folio,
+            productDescription: item.productDescription,
+            kilos: item.kilos,
+            docType: item.docType || 'remision',
+            docFolio: item.docFolio || null,
+            notes: item.notes || null,
+            status: item.status,
+          });
+          await removeOfflineDelivery(item.id);
+          syncedCount++;
+        } catch (itemErr: any) {
+          console.warn(`Error sincronizando entrega ${item.id}:`, itemErr);
+          await updateOfflineDeliveryRetry(item.id, itemErr.message || 'Error de red');
+        }
+      }
+
+      await refreshOfflineQueue();
+      if (syncedCount > 0) {
+        toast(`✅ ${syncedCount} entrega(s) sincronizada(s) con éxito en la nube`, 'ok');
+      }
+    } catch (e) {
+      console.warn('Error sincronizando entregas offline', e);
+    } finally {
+      setIsSyncingQueue(false);
+    }
+  }, [pin, isSyncingQueue, registrarEntregaFn, toast, refreshOfflineQueue]);
+
+  useEffect(() => {
+    if (isOnline && pin) {
       void syncOfflineQueue();
     }
-  }, [isOnline, syncOfflineQueue]);
+  }, [isOnline, pin, syncOfflineQueue]);
 
   // Cargar historial guardado
   const [historial, setHistorial] = useState<any[]>(() => {
@@ -169,58 +196,69 @@ export default function MaquiladorPortal() {
 
     setSaving(true);
 
-    // Si no hay conexión a internet, guardar en cola offline localmente
+    // Si no hay conexión a internet, guardar en cola offline estructurada en IndexedDB
     if (!navigator.onLine) {
-      const offlineItem = {
-        id: `offline-${Date.now()}`,
-        orderId: selectedOrder.orderId,
-        folio: selectedOrder.folio,
-        productDescription: selectedOrder.productDescription,
-        kilos: numKilos,
-        docType,
-        docFolio: docFolio.trim() || null,
-        notes: deliveryNotes.trim() || null,
-        status: requiresApproval ? 'pending_approval' : 'pending',
-        date: new Date().toISOString(),
-      };
+      try {
+        const savedOffline = await enqueueOfflineDelivery({
+          orderId: selectedOrder.orderId,
+          folio: selectedOrder.folio,
+          productDescription: selectedOrder.productDescription,
+          kilos: numKilos,
+          docType,
+          docFolio: docFolio.trim() || null,
+          notes: deliveryNotes.trim() || null,
+          status: requiresApproval ? 'pending_approval' : 'pending',
+        });
 
-      const existingQueue = JSON.parse(localStorage.getItem(STORAGE_OFFLINE_QUEUE_KEY) || '[]');
-      existingQueue.push(offlineItem);
-      localStorage.setItem(STORAGE_OFFLINE_QUEUE_KEY, JSON.stringify(existingQueue));
+        await refreshOfflineQueue();
 
-      const updatedHistory = [offlineItem, ...historial].slice(0, 30);
-      setHistorial(updatedHistory);
-      localStorage.setItem(STORAGE_DELIVERIES_KEY, JSON.stringify(updatedHistory));
+        const offlineHistoryEntry = {
+          id: savedOffline.id,
+          folio: selectedOrder.folio,
+          productDescription: selectedOrder.productDescription,
+          kilos: numKilos,
+          docType,
+          docFolio: docFolio.trim(),
+          notes: deliveryNotes.trim(),
+          date: new Date().toISOString(),
+          status: requiresApproval ? 'pending_approval' : 'pending',
+          isOfflinePending: true,
+        };
 
-      setLastDeliveredNotice({
-        folio: selectedOrder.folio,
-        product: selectedOrder.productDescription,
-        kilos: numKilos,
-        docType,
-        docFolio: docFolio.trim(),
-        notes: deliveryNotes.trim(),
-      });
+        const updatedHistory = [offlineHistoryEntry, ...historial].slice(0, 30);
+        setHistorial(updatedHistory);
+        localStorage.setItem(STORAGE_DELIVERIES_KEY, JSON.stringify(updatedHistory));
 
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#a78bfa', '#34d399', '#facc15'],
-      });
+        setLastDeliveredNotice({
+          folio: selectedOrder.folio,
+          product: selectedOrder.productDescription,
+          kilos: numKilos,
+          docType,
+          docFolio: docFolio.trim(),
+          notes: deliveryNotes.trim(),
+        });
 
-      toast(`💾 Guardado localmente (Sin Internet). Se sincronizará en automático al detectar red.`, 'ok');
-      setKilos('');
-      setDocFolio('');
-      setDeliveryNotes('');
-      setOrderId('');
-      setSaving(false);
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#a78bfa', '#34d399', '#facc15'],
+        });
+
+        toast(`💾 Guardado localmente en IndexedDB (Sin Conexión). Se sincronizará automáticamente al detectar red.`, 'ok');
+        setKilos('');
+        setDocFolio('');
+        setDeliveryNotes('');
+        setOrderId('');
+      } catch (err: any) {
+        toast(`Error al guardar offline: ${err.message}`, 'bad');
+      } finally {
+        setSaving(false);
+      }
       return;
     }
 
     try {
-      // FIX: mismo cambio que syncOfflineQueue -- pasa por la Cloud Function
-      // (valida PIN en el servidor + deja bitácora) en vez de escribir
-      // directo a Firestore desde el cliente.
       const res = await registrarEntregaFn({
         pin,
         orderId: selectedOrder.orderId,
@@ -232,7 +270,7 @@ export default function MaquiladorPortal() {
         notes: deliveryNotes.trim() || null,
         status: requiresApproval ? 'pending_approval' : 'pending',
       });
-      const deliveryId = (res.data as any)?.id;
+      const deliveryId = (res.data as any)?.id || `del_${Date.now()}`;
 
       // Disparar Confetti
       confetti({
@@ -278,7 +316,27 @@ export default function MaquiladorPortal() {
       setOrderId('');
       recargar();
     } catch (err: any) {
-      toast('Error al guardar entrega: ' + err.message, 'bad');
+      console.warn('Fallo registro online, encolando en IndexedDB como resiliencia:', err);
+      try {
+        await enqueueOfflineDelivery({
+          orderId: selectedOrder.orderId,
+          folio: selectedOrder.folio,
+          productDescription: selectedOrder.productDescription,
+          kilos: numKilos,
+          docType,
+          docFolio: docFolio.trim() || null,
+          notes: deliveryNotes.trim() || null,
+          status: requiresApproval ? 'pending_approval' : 'pending',
+        });
+        await refreshOfflineQueue();
+        toast('⚠️ Error de red temporal: la entrega quedó asegurada en la cola offline de tu dispositivo y se enviará sola.', 'info');
+        setKilos('');
+        setDocFolio('');
+        setDeliveryNotes('');
+        setOrderId('');
+      } catch {
+        toast('Error al guardar entrega: ' + err.message, 'bad');
+      }
     } finally {
       setSaving(false);
     }
@@ -436,6 +494,30 @@ export default function MaquiladorPortal() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            {offlineQueue.length > 0 && (
+              <button
+                onClick={() => setShowOfflineModal(true)}
+                title="Ver y gestionar entregas guardadas offline"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(217, 119, 6, 0.35) 100%)',
+                  border: '1px solid #f59e0b',
+                  borderRadius: 12,
+                  padding: '8px 12px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 0 15px rgba(245, 158, 11, 0.25)',
+                }}
+              >
+                <span>📦</span>
+                <span>{offlineQueue.length}</span>
+                <span style={{ fontSize: 11, opacity: 0.85 }}>Offline</span>
+              </button>
+            )}
             <button
               onClick={recargar}
               title="Actualizar Órdenes"
@@ -1486,6 +1568,147 @@ export default function MaquiladorPortal() {
             )}
           </div>
         )}
+
+        {/* Modal de Cola Offline Persistente */}
+        <AnimatePresence>
+          {showOfflineModal && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.75)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+              }}
+              onClick={() => setShowOfflineModal(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  ...glass,
+                  maxWidth: 520,
+                  width: '100%',
+                  maxHeight: '85vh',
+                  overflowY: 'auto',
+                  padding: 24,
+                  borderRadius: 20,
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 24 }}>📦</span>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 900 }}>Entregas Guardadas Offline</div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                        Persistidas de forma segura en tu dispositivo (IndexedDB)
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowOfflineModal(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255,255,255,0.6)',
+                      fontSize: 20,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                  <button
+                    onClick={() => void syncOfflineQueue()}
+                    disabled={isSyncingQueue || !isOnline}
+                    style={{
+                      flex: 1,
+                      padding: '12px 16px',
+                      background: isOnline ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(255,255,255,0.1)',
+                      color: isOnline ? '#fff' : 'rgba(255,255,255,0.4)',
+                      border: 'none',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      cursor: isOnline && !isSyncingQueue ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <span>{isSyncingQueue ? '⏳' : '🔄'}</span>
+                    <span>{isSyncingQueue ? 'Sincronizando...' : isOnline ? 'Sincronizar a la Nube Ahora' : 'Sin Conexión a Internet'}</span>
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {offlineQueue.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 14,
+                        padding: '12px 16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 14 }}>OC {item.folio}</div>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                          {item.productDescription}
+                        </div>
+                        {item.docFolio && (
+                          <div style={{ fontSize: 11, color: '#38bdf8', marginTop: 2 }}>
+                            Folio {item.docType}: {item.docFolio}
+                          </div>
+                        )}
+                        {item.lastError && (
+                          <div style={{ fontSize: 10, color: '#f87171', marginTop: 3 }}>
+                            ⚠️ {item.lastError} (Reintentos: {item.retryCount || 0})
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                          Guardado: {new Date(item.createdAt).toLocaleTimeString('es-MX')}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#fbbf24' }}>
+                          {item.kilos.toLocaleString('es-MX')} kg
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            background: 'rgba(245, 158, 11, 0.2)',
+                            color: '#fbbf24',
+                            marginTop: 4,
+                            display: 'inline-block',
+                          }}
+                        >
+                          En cola local
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
