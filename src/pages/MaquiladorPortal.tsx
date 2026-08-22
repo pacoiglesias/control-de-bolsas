@@ -62,7 +62,7 @@ export default function MaquiladorPortal() {
   // Estado de Red / Modo Taller
   const { isOnline } = useNetworkStatus();
 
-  const registrarEntregaFn = useMemo(() => httpsCallable(functions, 'registrarEntregaMaquila'), []);
+  const maquilaServiceFn = useMemo(() => httpsCallable(functions, 'getActiveMaquilaOrders'), []);
 
   const refreshOfflineQueue = React.useCallback(async () => {
     try {
@@ -88,7 +88,8 @@ export default function MaquiladorPortal() {
       let syncedCount = 0;
       for (const item of queue) {
         try {
-          await registrarEntregaFn({
+          await maquilaServiceFn({
+            action: 'registrarEntrega',
             pin,
             orderId: item.orderId,
             folio: item.folio,
@@ -116,7 +117,7 @@ export default function MaquiladorPortal() {
     } finally {
       setIsSyncingQueue(false);
     }
-  }, [pin, isSyncingQueue, registrarEntregaFn, toast, refreshOfflineQueue]);
+  }, [pin, isSyncingQueue, maquilaServiceFn, toast, refreshOfflineQueue]);
 
   useEffect(() => {
     if (isOnline && pin) {
@@ -259,7 +260,8 @@ export default function MaquiladorPortal() {
     }
 
     try {
-      const res = await registrarEntregaFn({
+      const res = await maquilaServiceFn({
+        action: 'registrarEntrega',
         pin,
         orderId: selectedOrder.orderId,
         folio: selectedOrder.folio,

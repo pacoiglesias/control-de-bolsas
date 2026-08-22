@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.15 Arquitectura Unificada de Servicios de Maquila & CORS Gateway',
+    date: '23 de Agosto de 2026',
+    time: '12:16 AM',
+    summary: 'Unificación de servicios del Portal Maquilador en el gateway Cloud Run optimizado (getActiveMaquilaOrders), eliminando cualquier bloqueo de CORS y garantizando registro instantáneo de entregas online y offline.',
+    highlights: [
+      'Gateway Unificado de Maquila: Integración directa de la acción registrarEntrega dentro de getActiveMaquilaOrders con permisos públicos e invoker de Cloud Run verificados, eliminando errores de preflight OPTIONS 403.',
+      'Resiliencia Bidireccional: Comunicación fluida entre el Portal Maquilador y Firestore en una sola transacción atómica que descuenta kilos pendientes en tiempo real sin requerir importación manual.',
+      'Sincronización Transparente: La cola persistente de IndexedDB y el botón de registro utilizan el canal unificado con respuesta inmediata de entrega y notificación Web Push a los administradores.',
+    ],
+  },
+  {
     version: 'v8.9.14 Web Push PWA (FCM) & IndexedDB Offline Resilience Suite',
     date: '22 de Agosto de 2026',
     time: '11:58 PM',

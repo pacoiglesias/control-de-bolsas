@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.15] - 23 Agosto 2026 (Gateway Unificado de Servicios de Maquila & Eliminación de Bloqueos CORS)
+
+- **Gateway Unificado de Maquila:** Integración de la acción `registrarEntrega` dentro del servicio verificado `getActiveMaquilaOrders` con permisos públicos en Cloud Run y cabeceras CORS preflight completas, eliminando cualquier bloqueo HTTP 403 al registrar entregas desde `https://bolsas.cobertores.com`.
+- **Registro Directo Atómico:** Las confirmaciones de entregas de Andrés se aplican inmediatamente sobre `purchaseOrders/{orderId}.deliveries[]` en Firestore, recalculando en tiempo real los kilos pendientes de la OC y enviando notificaciones Web Push.
+- **Cola Offline IndexedDB Sincronizada:** Sincronización transparente de entregas almacenadas en el modo taller sin cobertura hacia el gateway unificado.
+
 ## [v8.9.14] - 22 Agosto 2026 (Web Push PWA con Firebase Cloud Messaging y Resiliencia Offline IndexedDB)
 
 - **Notificaciones Web Push PWA (FCM):** Integración de Service Worker dedicado en segundo plano (`firebase-messaging-sw.js`) y gestor `useFCMNotifications` para alertar en tiempo real sobre entregas en el taller y facturas por vencer.

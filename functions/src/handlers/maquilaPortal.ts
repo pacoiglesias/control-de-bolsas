@@ -97,6 +97,10 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
   if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
   await validarPinMaquila(db, pin);
 
+  if (action === 'registrarEntrega') {
+    return await procesarRegistroEntregaMaquila(db, request.data);
+  }
+
   if (action === 'ledger') {
     const configSnap = await db.collection('config').doc('financials').get();
     const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
@@ -310,9 +314,8 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
 // para poder ver despues qué se registró desde el portal, cuándo y para
 // qué expediente. firestore.rules ya no permite crear maquilaDeliveries
 // desde el cliente en absoluto (ver v8.8.9): todo pasa por aquí.
-export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true, memory: "256MiB", timeoutSeconds: 30 }, async (request) => {
-  const { pin, orderId, folio, productDescription, kilos, docType, docFolio, notes } = request.data || {};
-  const db = getFirestore();
+export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Firestore, data: any) {
+  const { pin, orderId, folio, productDescription, kilos, docType, docFolio, notes } = data || {};
 
   if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
   await validarPinMaquila(db, pin);
@@ -353,8 +356,8 @@ export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true, m
     if (!snap.exists) {
       throw new HttpsError('not-found', 'El expediente ya no existe. Actualiza tu lista de órdenes e intenta de nuevo.');
     }
-    const data = snap.data() || {};
-    const items: Array<{ id: string }> = Array.isArray(data.items) ? data.items : [];
+    const orderData = snap.data() || {};
+    const items: Array<{ id: string }> = Array.isArray(orderData.items) ? orderData.items : [];
 
     // Si la OC tiene un solo producto, no hay ambigüedad: se registra el
     // desglose por ítem (igual que hace TabEntregas), evitando el
@@ -376,7 +379,7 @@ export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true, m
       newDelivery.items = [{ itemId: items[0].id, quantity: kilosNum }];
     }
 
-    const currentDeliveries: unknown[] = Array.isArray(data.deliveries) ? data.deliveries : [];
+    const currentDeliveries: unknown[] = Array.isArray(orderData.deliveries) ? orderData.deliveries : [];
     t.update(orderRef, {
       deliveries: [...currentDeliveries, newDelivery],
       updatedAt: FieldValue.serverTimestamp(),
@@ -445,6 +448,11 @@ export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true, m
   }
 
   return { id: deliveryId };
+}
+
+export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true, memory: "256MiB", timeoutSeconds: 30 }, async (request) => {
+  const db = getFirestore();
+  return await procesarRegistroEntregaMaquila(db, request.data);
 });
 
 // NUEVO (auditoría v8.9.10, respuesta a la pregunta de si "contrarecibo
