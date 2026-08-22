@@ -1,5 +1,11 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.17] - 23 Agosto 2026 (Suite de Navegación Intuitiva & Productividad Acelerada)
+
+- **Command Palette Global (`Ctrl + K` / `Cmd + K`):** Modal flotante indexado para buscar instantáneamente folios de orden, números de contrarecibo, clientes, productos y ejecutar comandos rápidos desde cualquier parte de la aplicación.
+- **Menú Contextual de Acciones Rápidas (`OrderContextMenu.tsx`):** Menú accesible con clic derecho o interacción táctil para copiar folios/CR, enviar resúmenes por correo electrónico o WhatsApp, abrir expedientes y facturar en un solo clic.
+- **Vistas & Filtros Guardables (`SavedViewsBar.tsx`):** Barra interactiva para crear, persistir en `localStorage` y alternar vistas operativas personalizadas.
+
 ## [v8.9.16] - 23 Agosto 2026 (Suite de Mejoras Gráficas & Visuales Premium)
 
 - **Gráfico Interactivo de Flujo & Producción (`FinancialTrendChart.tsx`):** Gráfico interactivo responsive integrado en el Dashboard con períodos dinámicos (30 días, 90 días, 1 año) comparando el volumen de kilos entregados vs. facturación neta y utilidad calculada en tiempo real.

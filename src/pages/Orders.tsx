@@ -13,6 +13,8 @@ import { QuickCrModal } from '../components/QuickCrModal';
 import { KilosProgressBar } from '../components/Orders/KilosProgressBar';
 import { OrderStepper } from '../components/Orders/OrderStepper';
 import { PulsingBadge } from '../components/ui/PulsingBadge';
+import { OrderContextMenu } from '../components/Orders/OrderContextMenu';
+import { SavedViewsBar } from '../components/Orders/SavedViewsBar';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary, extractCr } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
@@ -36,6 +38,7 @@ export default function Orders() {
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('kanban');
   
@@ -338,6 +341,12 @@ export default function Orders() {
         title="Listado"
         hint={`${rows.length} de ${orders.length}`}
       >
+        <SavedViewsBar
+          currentFilter={filter}
+          onSelectFilter={(f) => setParams(f === 'all' ? {} : { filtro: f })}
+          style={{ margin: '8px 16px 0 16px' }}
+        />
+
         <div className="card-head no-print">
           <div className="chip-row">
             {FILTERS.map((f) => (
@@ -422,7 +431,11 @@ export default function Orders() {
           </Empty>
         ) : viewMode === 'kanban' ? (
           <div style={{ padding: '20px 16px' }}>
-            <KanbanBoard items={rows} onSelect={setSelected} />
+            <KanbanBoard
+              items={rows}
+              onSelect={setSelected}
+              onContextMenu={(order, e) => setContextMenu({ order, x: e.clientX, y: e.clientY })}
+            />
           </div>
         ) : (
           <div className="table-scroll">
@@ -453,6 +466,10 @@ export default function Orders() {
                       key={o.id}
                       className={st === 'overdue' ? 'row-bad' : st === 'manual_review' ? 'row-warn' : st === 'paid' ? 'row-done' : ''}
                       onClick={() => { setInitialModalTab('resumen'); setSelected(o); }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setContextMenu({ order: o, x: e.clientX, y: e.clientY });
+                      }}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); { setInitialModalTab('resumen'); setSelected(o); } } }}
                       role="button"
                       tabIndex={0}
@@ -640,6 +657,20 @@ export default function Orders() {
         <QuickCrModal
           order={orders.find((o) => o.id === quickCrOrder.id) ?? quickCrOrder}
           onClose={() => setQuickCrOrder(null)}
+        />
+      )}
+
+      {contextMenu && (
+        <OrderContextMenu
+          order={orders.find((o) => o.id === contextMenu.order.id) ?? contextMenu.order}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onOpenOrder={(o) => {
+            setInitialModalTab('resumen');
+            setSelected(o);
+          }}
+          onQuickInvoice={(o) => setQuickCrOrder(o)}
         />
       )}
     </>

@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.17 Suite de Navegación Intuitiva & Productividad Acelerada',
+    date: '23 de Agosto de 2026',
+    time: '12:45 AM',
+    summary: 'Implementación integral de herramientas de ultra-velocidad operativa: Command Palette Global (Ctrl + K), Menú contextual flotante con clic derecho y Sistema de Vistas & Filtros Guardables.',
+    highlights: [
+      'Buscador Global Command Palette (Ctrl + K): Modal flotante universal con indexación ultrarrápida de Órdenes de Compra, Folios, Contrarecibos, Clientes, Catálogo de Productos y Comandos directos.',
+      'Menú Contextual de Clic Derecho (OrderContextMenu): Acciones instantáneas en 1 clic (Copiar Folio, Copiar Contrarecibo, Enviar por Email/WhatsApp, Abrir Expediente y Cobro Rápido) tanto en el Kanban como en la tabla de órdenes.',
+      'Vistas & Filtros Guardables (SavedViewsBar): Guardado de combinaciones favoritas de filtros con persistencia en localStorage para cambiar de contexto operativo en un instante.',
+    ],
+  },
+  {
     version: 'v8.9.16 Suite de Mejoras Gráficas & Visuales Premium',
     date: '23 de Agosto de 2026',
     time: '12:35 AM',

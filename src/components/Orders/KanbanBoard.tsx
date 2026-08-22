@@ -38,7 +38,15 @@ const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: strin
   { id: 'collected', label: '✅ Cobrado y Recolectado', color: 'var(--kanban-collected)', bg: 'var(--kanban-collected-bg)' },
 ];
 
-export default function KanbanBoard({ items, onSelect }: { items: OrderWithSummary[], onSelect: (o: PurchaseOrder) => void }) {
+export default function KanbanBoard({
+  items,
+  onSelect,
+  onContextMenu,
+}: {
+  items: OrderWithSummary[];
+  onSelect: (o: PurchaseOrder) => void;
+  onContextMenu?: (o: PurchaseOrder, e: React.MouseEvent) => void;
+}) {
   const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<OrderStatus | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -251,6 +259,10 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
                       onClick={() => {
                         sound.playSwoosh();
                         onSelect(item.o);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        onContextMenu?.(item.o, e);
                       }}
                       key={item.o.id}
                       style={{

@@ -16,6 +16,7 @@ import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -43,8 +44,27 @@ export default function Layout() {
   const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    const handleOpenCommand = () => setSearchOpen(true);
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('open-command-menu', handleOpenCommand);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('open-command-menu', handleOpenCommand);
+    };
+  }, []);
 
   const clientLabel = settings.clientShortName || 'Providencia';
   const providerLabel = settings.providerName || 'Andrés';
@@ -281,6 +301,8 @@ export default function Layout() {
           </footer>
         </main>
       </div>
+
+      <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

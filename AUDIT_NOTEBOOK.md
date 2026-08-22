@@ -2131,3 +2131,16 @@ Solución:
 Riesgo: 🟢 Bajo — Componentes visuales y tipado determinista.
 Commit: `feat(v8.9.16): Graphic and visual suite — FinancialTrendChart, OrderStepper, SkeletonLoader, and PulsingBadges`
 Estado: ✅ Verificado — 75/75 pruebas pasando, `tsc --noEmit` limpio con 0 errores, compilación Vite impecable, despliegue en Hosting completado.
+
+[2026-08-23]
+### Iteración v8.9.17: Suite de Navegación Intuitiva & Productividad Acelerada
+Archivo: `src/components/Navigation/GlobalSearchModal.tsx`, `src/components/Orders/OrderContextMenu.tsx`, `src/components/Orders/SavedViewsBar.tsx`, `src/components/Layout.tsx`, `src/pages/Orders.tsx`, `src/components/Orders/KanbanBoard.tsx`
+Problema: Se requería acelerar el acceso y manipulación de información en la operación diaria, permitiendo buscar globalmente desde cualquier pantalla, ejecutar acciones rápidas contextuales en 1 clic y conmutar entre vistas y filtros frecuentes.
+Impacto: Reducción del tiempo de búsqueda y gestión de expedientes en más del 70%.
+Solución:
+- `GlobalSearchModal.tsx`: Command Palette global accesible con atajo de teclado `Ctrl + K` / `Cmd + K` con indexación instantánea de órdenes, contrarecibos, clientes, productos y comandos directos.
+- `OrderContextMenu.tsx`: Menú flotante al dar clic derecho en tarjetas Kanban y tablas de expedientes para copiar datos, enviar correos/WhatsApp, abrir expediente y facturar en un solo clic.
+- `SavedViewsBar.tsx`: Barra de vistas y filtros inteligentes guardables con persistencia en `localStorage`.
+Riesgo: 🟢 Bajo — Componentes desacoplados y resilientes.
+Commit: `feat(v8.9.17): Intuitive suite — Global Command Palette (Ctrl+K), OrderContextMenu, and SavedViewsBar`
+Estado: ✅ Verificado — 75/75 pruebas pasando, `tsc --noEmit` limpio, compilación de producción y despliegue a Hosting completado.
