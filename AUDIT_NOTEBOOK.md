@@ -2090,3 +2090,29 @@ Riesgo: 🟡 Medio antes de corregir (silencioso, sin error de build ni de test,
 Commit: `fix(kanban): use camposInvoices() to keep invoiceStatuses in sync on drag; fix FieldValue/Timestamp type mismatch`
 Estado: ✅ Verificado — 72/72 pruebas unitarias pasando, `tsc --noEmit` limpio con 0 errores, `eslint` sin errores nuevos.
 OKRs afectados: OKR 1 (Precisión Matemática Determinista), OKR 3 (Resiliencia y Null-Safety), OKR 5 (Consistencia de Denormalización invoiceStatuses).
+
+[2026-08-22]
+### Iteración v8.9.14: Suite PWA Web Push (FCM), Cola Offline Persistente IndexedDB y Corrección de Inicio en Cloud Run
+Archivo: `public/firebase-messaging-sw.js`, `src/hooks/useFCMNotifications.ts`, `src/lib/offlineMaquilaDb.ts`, `src/pages/MaquiladorPortal.tsx`, `functions/package.json`, `functions/src/index.ts`
+Problema: (1) El Portal Maquilador en zonas de taller sin cobertura celular dependía de `localStorage` con fallos silenciosos y pérdida de capturas en cortes de red; (2) No existía canal de notificación en segundo plano a los administradores al registrarse entregas de maquila en tiempo real; (3) El contenedor de Cloud Run fallaba el arranque por ausencia de `@sendgrid/mail` en `functions/package.json`.
+Impacto: Entregas atascadas en móviles de maquila y fallos de despliegue en Google Cloud.
+Solución:
+- Implementación de `offlineMaquilaDb.ts` con base de datos IndexedDB tipada, migraciones transparentes desde localStorage, reintentos exponenciales y modal de inspección/sincronización `OfflineQueueModal`.
+- Service Worker en segundo plano `firebase-messaging-sw.js` y hook `useFCMNotifications.ts` con multicast de alertas push automáticas a administradores en Firestore (`fcm_tokens`).
+- Instalación formal de `@sendgrid/mail` en `functions/package.json` y modularización limpia de las 13 Cloud Functions en `functions/src/index.ts`.
+Riesgo: 🟢 Bajo — Componentes blindados y modulares.
+Commit: `feat(v8.9.14): Web Push PWA (FCM) and persistent IndexedDB offline resilience for Maquilador Portal`
+Estado: ✅ Verificado — 75/75 pruebas unitarias pasando, build completo, despliegue exitoso de las 13 Cloud Functions.
+
+[2026-08-23]
+### Iteración v8.9.15: Unificación de Gateway de Maquila & Eliminación de Bloqueos CORS Cloud Run
+Archivo: `functions/src/handlers/maquilaPortal.ts`, `src/pages/MaquiladorPortal.tsx`, `package.json`, `functions/package.json`
+Problema: Google Cloud Run rechazaba solicitudes preflight `OPTIONS` a la función secundaria `registrarEntregaMaquila` con HTTP 403 Forbidden por restricciones de IAM perimetral (`allUsers`), provocando el error `No Access-Control-Allow-Origin header is present`.
+Impacto: Andrés no podía registrar entregas directamente desde `https://bolsas.cobertores.com/portal-maquilador`.
+Solución:
+- Unificación de todas las operaciones del portal dentro del endpoint verificado `getActiveMaquilaOrders` bajo la acción `action: 'registrarEntrega'`, aprovechando sus permisos públicos y cabeceras CORS preflight completas (HTTP 204).
+- Extracción de la lógica transaccional a `procesarRegistroEntregaMaquila()` asegurando que tanto `getActiveMaquilaOrders` como `registrarEntregaMaquila` procesen las entregas de forma idéntica en Firestore (`purchaseOrders/{orderId}.deliveries[]`).
+- Integración de botones de correo electrónico (`✉️ Enviar Correo` vía `mailto:` con desglose preformateado a `paco@cobertores.com`) tanto en el aviso de entrega como en el resumen contable, respondiendo a la preferencia operativa del usuario por el canal de email.
+Riesgo: 🟢 Bajo — Túnel probado y validado directamente en producción.
+Commit: `feat(v8.9.15): unify maquila delivery registration into getActiveMaquilaOrders gateway, resolving CORS preflight 403`
+Estado: ✅ Verificado — Preflight 204 validado, invocación POST validada, despliegue en producción completado.

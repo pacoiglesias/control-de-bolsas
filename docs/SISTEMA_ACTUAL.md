@@ -1,17 +1,22 @@
-# Radiografía del Sistema: Control Bolsas ERP (v6.23.0)
+# Radiografía del Sistema: Control Bolsas ERP (v8.9.15)
 
-Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio.
+Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio sin perder avances previos.
 
 ## Arquitectura Base
-*   **Frontend:** React (Vite) + TypeScript. Aplicación web progresiva (PWA) instalable.
-*   **Capacidad Offline (v6.23.0):** El módulo `src/lib/export.ts` inyecta toda la base de datos de Firestore dentro de un archivo local `control-bolsas-offline.html` (o `Respaldo_ERP.xlsx`), permitiendo llevar el sistema en USB y funcionar 100% sin conexión (Standalone Mode).
-*   **Backend:** Firebase (Firestore para base de datos, Storage para PDFs/XMLs, Authentication para usuarios, Hosting para la web).
-*   **Administración Local:** Orquestación y despliegue a través de `CONTROL_MAESTRO.bat` para evitar errores humanos.
-*   **Cloud Functions (Node.js):** 
-    *   `parseUploadedPDF`: Lee los archivos subidos al Storage, envía el PDF a **Google Gemini 2.0 Flash** y determina si es una Orden de Compra o una Factura. 
-        * Si es OC: Extrae folio, kilos, cliente y detalle de artículos. Crea el expediente en Firestore.
-        * Si es Factura: Extrae la referencia de la OC, UUID y monto, busca el expediente de esa OC, y anexa la factura validando duplicados.
-    *   `checkOverdueInvoices`: Tarea programada (`onSchedule`) que corre todos los días a medianoche para revisar las facturas y marcar las que vencieron como `overdue`.
+*   **Frontend:** React 18 + Vite + TypeScript. Aplicación web progresiva (PWA) instalable en escritorio y móviles con Service Worker dedicado (`firebase-messaging-sw.js` y `workbox`).
+*   **Capacidad Offline & Resiliencia (v8.9.15):** 
+    *   `src/lib/offlineMaquilaDb.ts`: Almacenamiento transaccional en IndexedDB (`ControlBolsasOffline`) con reintentos automáticos para el Portal Maquilador en zonas sin cobertura celular.
+    *   `src/lib/export.ts`: Respaldo en vivo y exportación a Excel / HTML Standalone.
+*   **Backend:** Firebase (Cloud Firestore con transacciones atómicas, Cloud Storage para PDFs/XMLs, Firebase Authentication con RBAC estricto, Firebase Hosting).
+*   **Notificaciones PWA (FCM) & Email (SendGrid):** Notificaciones Push en tiempo real vía Firebase Cloud Messaging (`useFCMNotifications.ts`) y recordatorios programados diarios por SendGrid (`@sendgrid/mail`).
+*   **Gateway Unificado de Maquila:** `getActiveMaquilaOrders` procesa autenticación por PIN, libro mayor contable y registro de entregas directamente en Firestore (`purchaseOrders/{orderId}.deliveries[]`), con soporte CORS 204 y eliminación de bloqueos HTTP 403.
+*   **Administración Local:** Scripts automatizados `1_INICIAR_EN_ESTA_PC.bat` y `RESPALDAR_A_USB.ps1` hacia unidad externa `D:\`.
+*   **Cloud Functions (13 Funciones en Node.js 22 / us-east1):** 
+    *   `parseUploadedPDF` / `parseDocumentData`: Extracción inteligente multimodal con **Google Gemini 2.0 Flash** para OCs y Facturas PDF/XML.
+    *   `getActiveMaquilaOrders` / `registrarEntregaMaquila`: Portal interactivo de proveedores y confirmación de entregas.
+    *   `enviarRecordatoriosVencimiento` / `checkOverdueInvoices`: Barridos diarios de cobranza y despacho de correos SendGrid a las 8:00 AM.
+    *   `recalcDashboardStats` / `syncDashboardStats`: Reconstrucción determinista de indicadores sin tocar expedientes.
+    *   `updateCajaChicaBalance` / `sanitizePurchaseOrder` / `reprocessOrder` / `scheduledMidnightBackup`.
 
 ## Modelo de Base de Datos (Firestore)
 

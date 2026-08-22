@@ -672,6 +672,29 @@ export default function MaquiladorPortal() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => {
+                    const subject = encodeURIComponent(`Entrega Maquila ${lastDeliveredNotice.kilos} kg - OC ${lastDeliveredNotice.folio}`);
+                    const body = encodeURIComponent(`Hola Paco,\n\nTe confirmo que acabo de registrar una entrega de ${lastDeliveredNotice.kilos} kg para la OC ${lastDeliveredNotice.folio} (${lastDeliveredNotice.product}) en el sistema.\n${lastDeliveredNotice.notes ? `Nota: ${lastDeliveredNotice.notes}\n` : ''}\nQuedo al pendiente.\nSaludos, ${provName}.`);
+                    window.open(`mailto:paco@cobertores.com?subject=${subject}&body=${body}`, '_blank');
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '8px 14px',
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)',
+                  }}
+                >
+                  <span>✉️</span> Enviar Correo
+                </button>
+                <button
+                  onClick={() => {
                     const text = `Hola Paco, te confirmo que acabo de registrar una entrega de *${lastDeliveredNotice.kilos} kg* para la *OC ${lastDeliveredNotice.folio}* (${lastDeliveredNotice.product}) en el sistema.${lastDeliveredNotice.notes ? `\nNota: ${lastDeliveredNotice.notes}` : ''}\nQuedo al pendiente. Saludos, ${provName}.`;
                     openWhatsAppMessage(text);
                   }}
@@ -690,7 +713,7 @@ export default function MaquiladorPortal() {
                     boxShadow: '0 4px 12px rgba(34, 197, 94, 0.4)',
                   }}
                 >
-                  <span>📲</span> Avisar a Paco
+                  <span>📲</span> WhatsApp
                 </button>
                 <button
                   onClick={() => setLastDeliveredNotice(null)}
@@ -1348,6 +1371,32 @@ export default function MaquiladorPortal() {
                   <button
                     onClick={() => {
                       const saldoText = statement.saldoProveedor < 0
+                        ? `Saldo a mi favor de +${money(Math.abs(statement.saldoProveedor))}`
+                        : `Anticipo pendiente de -${money(Math.abs(statement.saldoProveedor))}`;
+                      const subject = encodeURIComponent(`Resumen de Estado de Cuenta - ${provName}`);
+                      const body = encodeURIComponent(`Hola Paco,\n\nTe comparto mi resumen de estado de cuenta:\n• Total Fabricado: ${money(statement.totalPurchasesCost)} (${statement.totalReceivedKilos?.toLocaleString?.('es-MX') || 0} kg)\n• Total Pagado: ${money(statement.totalPagado)}\n• Balance Actual: ${saldoText}\n\nQuedo atento a tus comentarios.\nSaludos cordiales,\n${provName}.`);
+                      window.open(`mailto:paco@cobertores.com?subject=${subject}&body=${body}`, '_blank');
+                    }}
+                    style={{
+                      background: 'rgba(59, 130, 246, 0.2)',
+                      border: '1px solid #3b82f6',
+                      borderRadius: 12,
+                      padding: '12px 16px',
+                      color: '#93c5fd',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>✉️</span> Enviar Correo
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const saldoText = statement.saldoProveedor < 0
                         ? `Saldo a mi favor de *+${money(Math.abs(statement.saldoProveedor))}*`
                         : `Anticipo pendiente de *-${money(Math.abs(statement.saldoProveedor))}*`;
                       const text = `Hola Paco, te comparto mi resumen de cuenta:\n• Total Fabricado: *${money(statement.totalPurchasesCost)}*\n• Total Pagado: *${money(statement.totalPagado)}*\n• Balance Actual: ${saldoText}\n\nQuedo atento. Saludos, ${provName}.`;
@@ -1367,7 +1416,7 @@ export default function MaquiladorPortal() {
                       gap: 6,
                     }}
                   >
-                    <span>📲</span> Enviar WhatsApp
+                    <span>📲</span> WhatsApp
                   </button>
                 </div>
 
