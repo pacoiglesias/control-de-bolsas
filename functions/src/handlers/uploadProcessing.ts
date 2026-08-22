@@ -256,7 +256,7 @@ async function processStorageFile(filePath: string, bucketName?: string) {
     throw error;
   }
 }
-export const parseUploadedPDF = onObjectFinalized({ secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 120 }, async (event) => {
+export const parseUploadedPDF = onObjectFinalized({ bucket: "control-de-bolsas-89c88.firebasestorage.app", secrets: [geminiApiKey], memory: "512MiB", timeoutSeconds: 120 }, async (event) => {
     const filePath = event.data.name;
     const contentType = event.data.contentType ?? "";
 

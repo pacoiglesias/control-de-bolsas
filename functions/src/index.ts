@@ -1,46 +1,38 @@
 import { setGlobalOptions } from "firebase-functions/v2";
-import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getStorage } from "firebase-admin/storage";
 import {
   FieldValue,
   Timestamp,
   getFirestore,
   type QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
-import { XMLParser } from "fast-xml-parser";
-import { createHash } from "crypto";
 import {
   computeFinancials,
   configEfectiva,
   round2,
-  normalizarTexto,
-  computeAndresBalance,
   type FinanceConfigCore,
 } from "./shared/finance.core";
-import { parseDocumentData } from "./ai/extractor";
-
-export { parseDocumentData };
+export { parseDocumentData } from "./ai/extractor";
+export {
+  getActiveMaquilaOrders,
+  registrarEntregaMaquila,
+  importarEntregaMaquilaPendiente,
+} from "./handlers/maquilaPortal";
+export {
+  enviarRecordatoriosVencimiento,
+} from "./handlers/notifications";
+export {
+  parseUploadedPDF,
+  reprocessOrder,
+} from "./handlers/uploadProcessing";
 
 initializeApp();
 
 // Configuración global apuntando a us-east1 para que coincida con tu Storage
 setGlobalOptions({ region: "us-east1", maxInstances: 10 });
 
-const UPLOAD_PREFIX = "uploads/";
-
-/**
- * Tamano maximo real que procesa la IA. Este es el limite que manda:
- * el PDF viaja a Gemini en base64 dentro del prompt.
- * Debe coincidir con MAX_UPLOAD_MB en src/pages/Upload.tsx y con el limite
- * de storage.rules. Antes habia cuatro cifras distintas (20 en la interfaz,
- * 20 en las reglas, 5 aqui, 25 en SECURITY.md) y los archivos entre 5 y 20 MB
- * se descartaban en silencio: toast verde y nunca aparecia el expediente.
- */
-const MAX_UPLOAD_MB = 5;
 const COL_ORDERS = "purchaseOrders";
 
 const DEFAULTS = {
@@ -69,501 +61,14 @@ async function readConfig(): Promise<FinanceConfigCore> {
     commissionBase: (c.commissionBase ?? DEFAULTS.commissionBase) as "subtotal" | "total",
   };
 }
-
-const MAQUILA_PIN_REF_PATH = 'system_settings_private/maquila';
-const MAQUILA_PIN_MAX_INTENTOS = 5;
-const MAQUILA_PIN_BLOQUEO_MINUTOS = 15;
-
-/**
- * FIX (v8.9.2): el PIN del Portal Maquilador son 4 digitos (10,000
- * combinaciones) y esta funcion es publica -- sin limite de intentos,
- * cualquiera podia programar un script que probara las 10,000 combinaciones
- * en minutos y quedarse dentro (ver el estado de cuenta real de Andres, o
- * registrar entregas falsas). Ahora, despues de 5 intentos fallidos
- * seguidos, se bloquea 15 minutos -- se lee y escribe en una transaccion
- * para que dos intentos simultaneos no se "brinquen" el contador.
- *
- * Tambien se quita el valor por defecto '2468': si el documento del PIN no
- * existe o no tiene el campo 'pin', ahora la funcion falla cerrada (nadie
- * entra) en vez de fallar abierta hacia un PIN conocido y publicado en el
- * historial de este mismo repositorio.
- */
-async function validarPinMaquila(db: FirebaseFirestore.Firestore, pinIntentado: string): Promise<void> {
-  const ref = db.doc(MAQUILA_PIN_REF_PATH);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const data = snap.data() || {};
-    const realPin = data.pin;
-    if (!realPin) {
-      throw new HttpsError('failed-precondition', 'El PIN del portal no esta configurado. Contacta al administrador.');
-    }
-
-    const ahora = Date.now();
-    const bloqueadoHastaMs = data.pinLockedUntil ? (data.pinLockedUntil as FirebaseFirestore.Timestamp).toMillis() : 0;
-    if (bloqueadoHastaMs > ahora) {
-      const minutosRestantes = Math.ceil((bloqueadoHastaMs - ahora) / 60000);
-      throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes} minuto(s).`);
-    }
-
-    if (pinIntentado === realPin) {
-      // Exito: se limpia el contador para no arrastrar intentos viejos.
-      if (data.pinFailedAttempts || data.pinLockedUntil) {
-        tx.update(ref, { pinFailedAttempts: FieldValue.delete(), pinLockedUntil: FieldValue.delete() });
-      }
-      return;
-    }
-
-    const intentosPrevios = bloqueadoHastaMs > 0 ? 0 : (data.pinFailedAttempts || 0);
-    const intentos = intentosPrevios + 1;
-    if (intentos >= MAQUILA_PIN_MAX_INTENTOS) {
-      const bloqueadoHasta = Timestamp.fromMillis(ahora + MAQUILA_PIN_BLOQUEO_MINUTOS * 60000);
-      tx.update(ref, { pinFailedAttempts: 0, pinLockedUntil: bloqueadoHasta });
-      throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${MAQUILA_PIN_BLOQUEO_MINUTOS} minuto(s).`);
-    }
-    tx.update(ref, { pinFailedAttempts: intentos });
-    throw new HttpsError('permission-denied', 'PIN incorrecto');
-  });
-}
-
-// Force deploy to fix CORS/IAM policy
-export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true }, async (request) => {
-
-  const { action, pin } = request.data || {};
-  const db = getFirestore();
-
-  // El PIN se exige para CUALQUIER accion de esta funcion, no solo
-  // "ledger". Antes el camino por defecto (listar/registrar entregas) no
-  // pedia PIN en absoluto en el servidor — el "candado" solo vivia en el
-  // navegador, y cualquiera con la URL de la funcion podia llamarla
-  // directo sin PIN. Ademas, el PIN real ahora se lee de un documento que
-  // Firestore nunca deja leer al cliente (system_settings_private), no del
-  // documento publico donde vivia antes.
-  if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
-  await validarPinMaquila(db, pin);
-
-  if (action === 'ledger') {
-    const configSnap = await db.collection('config').doc('financials').get();
-    const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
-    const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
-
-    const purchasesSnap = await db.collection('purchases').get();
-    // FIX: comparaba con .toLowerCase() simple, que nunca hace match contra
-    // "Andrés" (con acento) -- el nombre real que escriben OrderModals.tsx y
-    // PagarAndresModal.tsx. Por eso el Estado de Cuenta del Portal Maquilador
-    // mostraba $0.00 / 0 kg entregados aunque si hubiera compras reales.
-    // normalizarTexto() ya resuelve esto en el frontend; ahora es compartida.
-    const provPurchases = purchasesSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter((p: any) => p.provider && normalizarTexto(p.provider) === 'andres');
-
-    const orderIds = provPurchases.map(p => p.id);
-    const orderById = new Map();
-    if (orderIds.length > 0) {
-      const ordersSnap = await db.collection('purchaseOrders').get();
-      ordersSnap.docs.forEach(d => {
-        orderById.set(d.id, d.data());
-      });
-    }
-
-    const expensesSnap = await db.collection('expenses').get();
-    const provExpenses = expensesSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter((e: any) => e.provider && normalizarTexto(e.provider) === 'andres');
-
-    // FIX (auditoría v8.9.5): esta misma fórmula (kilos/costo/pagado/saldo)
-    // vivía copiada aquí, en src/hooks/useAndresStats.ts y en
-    // src/hooks/useDashboardStatsV2.ts -- la misma clase de bug que causó
-    // el incidente real del "Saldo con Andrés" ($1.3M de diferencia entre
-    // el Dashboard y esta misma pantalla, para el mismo dato). Ahora las
-    // tres llaman a computeAndresBalance(), la fuente única de verdad.
-    const andresBalance = computeAndresBalance(
-      provPurchases as any[],
-      provExpenses as any[],
-      { costPricePerKg, historicalDebtAndres },
-      "andres",
-    );
-    const { totalReceivedKilos, totalPurchasesCost, totalPagado, saldoProveedor } = andresBalance;
-
-    const ledger: any[] = [
-      ...provPurchases.map((p: any) => ({
-        id: p.id,
-        date: p.date, 
-        concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
-        cargo: ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
-        abono: 0,
-        balance: 0,
-        source: 'purchase'
-      })).filter((x: any) => x.cargo > 0),
-      ...provExpenses.map((e: any) => ({
-        id: e.id,
-        date: e.date,
-        concept: e.concept || '',
-        cargo: e.type === 'ingreso' ? (e.amount || 0) : 0, 
-        abono: e.type === 'egreso' ? (e.amount || 0) : 0, 
-        balance: 0,
-        source: 'expense'
-      }))
-    ];
-
-    const getMillis = (dateObj: any) => {
-      if (!dateObj) return 0;
-      if (dateObj.toMillis) return dateObj.toMillis();
-      if (dateObj._seconds) return dateObj._seconds * 1000;
-      return 0;
-    };
-
-    ledger.sort((a, b) => getMillis(a.date) - getMillis(b.date));
-
-    let running = -historicalDebtAndres;
-    for (const row of ledger) {
-      running += row.cargo;
-      running -= row.abono;
-      row.balance = running;
-      
-      row.dateMillis = getMillis(row.date);
-      delete row.date;
-    }
-    ledger.reverse();
-
-    return {
-      totalReceivedKilos,
-      totalPurchasesCost,
-      totalPagado,
-      saldoProveedor,
-      ledger
-    };
-  }
-
-  // Original getActiveMaquilaOrders logic
-  const snapshot = await db.collection(COL_ORDERS).get();
-
-  const activeOrders: any[] = [];
-  snapshot.docs.forEach((doc) => {
-    const data = doc.data();
-    if (data.isArchived) return;
-    const status = data.creditCycle?.status || "pedido";
-    if (status === "pedido" || status === "pending" || status === "overdue") {
-      const deliveries = data.deliveries || [];
-      const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + (d.kilos || 0), 0);
-      const totalKilos = data.totalKilograms || 0;
-      const pendingKilos = totalKilos - totalDelivered;
-
-      if (pendingKilos > 0) {
-        activeOrders.push({
-          orderId: doc.id,
-          folio: data.folio || "Sin Folio",
-          productDescription: data.productDescription || "Producto",
-          totalKilos,
-          pendingKilos,
-        });
-      }
-    }
-  });
-
-  return activeOrders;
-});
-
-// FIX (protección + bitácora, a raíz de una revisión del Portal Maquilador):
-// antes el portal escribia entregas directo a Firestore desde el cliente
-// (addDoc a maquilaDeliveries), permitido por la regla "request.auth !=
-// null". El problema: cualquiera puede llamar signInAnonymously() desde la
-// consola del navegador -- la configuracion publica de Firebase (apiKey,
-// projectId, etc.) no es secreta, viaja en cualquier build del sitio -- y
-// con eso escribir entregas falsas SIN conocer el PIN real. La lectura ya
-// estaba protegida (getActiveMaquilaOrders valida el PIN en el servidor);
-// la escritura no lo estaba.
-//
-// Esta funcion mueve la escritura al servidor: valida el PIN igual que
-// getActiveMaquilaOrders, y solo entonces crea la entrega con el Admin SDK
-// (que no pasa por las reglas de Firestore). Ademas deja un registro en
-// system_logs -- la bitácora que ya usa el resto del sistema (Logs.tsx) --
-// para poder ver despues qué se registró desde el portal, cuándo y para
-// qué expediente. firestore.rules ya no permite crear maquilaDeliveries
-// desde el cliente en absoluto (ver v8.8.9): todo pasa por aquí.
-export const registrarEntregaMaquila = onCall({ invoker: "public", cors: true }, async (request) => {
-  const { pin, orderId, folio, productDescription, kilos, docType, docFolio, notes, status } = request.data || {};
-  const db = getFirestore();
-
-  if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
-  await validarPinMaquila(db, pin);
-
-  const kilosNum = Number(kilos);
-  if (!orderId || !Number.isFinite(kilosNum) || kilosNum <= 0) {
-    throw new HttpsError('invalid-argument', 'Datos de entrega incompletos o inválidos');
-  }
-
-  const now = FieldValue.serverTimestamp();
-  const deliveryRef = db.collection('maquilaDeliveries').doc();
-  await deliveryRef.set({
-    date: now,
-    orderId,
-    folio: folio || '',
-    productDescription: productDescription || '',
-    kilos: kilosNum,
-    docType: docType || 'remision',
-    docFolio: docFolio || null,
-    notes: notes || null,
-    status: status || 'pending',
-    createdAt: now,
-  });
-
-  // Bitácora: el portal se accede solo con PIN (sin cuenta/correo por
-  // persona), asi que "user" identifica el origen, no a un individuo.
-  await db.collection('system_logs').add({
-    user: 'portal-maquilador',
-    action: 'Entrega Registrada (Portal Maquilador)',
-    details: {
-      deliveryId: deliveryRef.id,
-      orderId,
-      folio: folio || '',
-      kilos: kilosNum,
-      docType: docType || 'remision',
-      docFolio: docFolio || null,
-    },
-    timestamp: now,
-  });
-
-  return { id: deliveryRef.id };
-});
-
-/** Cache corto de config/financials: el sanitizador se dispara en cascada
- *  (hasta 400 veces en el lote nocturno) y no tiene sentido releer el mismo
- *  documento en cada invocacion. */
-let cacheConfig: { valor: FinanceConfigCore; expira: number } | null = null;
-let pendingConfigPromise: Promise<FinanceConfigCore> | null = null;
-
+let configCache: { value: FinanceConfigCore; exp: number } | null = null;
 async function readConfigCacheada(): Promise<FinanceConfigCore> {
-  if (cacheConfig && Date.now() < cacheConfig.expira) return cacheConfig.valor;
-  if (pendingConfigPromise) return pendingConfigPromise;
-  
-  pendingConfigPromise = readConfig().then(valor => {
-    cacheConfig = { valor, expira: Date.now() + 60_000 };
-    pendingConfigPromise = null;
-    return valor;
-  }).catch(err => {
-    pendingConfigPromise = null;
-    throw err;
-  });
-  
-  return pendingConfigPromise;
+  const ahora = Date.now();
+  if (configCache && configCache.exp > ahora) return configCache.value;
+  const cfg = await readConfig();
+  configCache = { value: cfg, exp: ahora + 60000 };
+  return cfg;
 }
-
-/** Un ID estable por archivo: reintentos y reprocesos no duplican órdenes. */
-const docIdFor = (filePath: string) =>
-  createHash("sha1").update(filePath).digest("hex").slice(0, 20);
-
-async function processStorageFile(filePath: string, bucketName?: string) {
-  const db = getFirestore();
-  const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
-  
-  const isXML = filePath.toLowerCase().endsWith(".xml");
-  
-  try {
-    const bucket = bucketName ? getStorage().bucket(bucketName) : getStorage().bucket();
-    const [fileBuffer] = await bucket.file(filePath).download();
-
-    // Módulo XML: Procesamiento directo sin IA
-    if (isXML) {
-      const xmlStr = fileBuffer.toString("utf-8");
-      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
-      const parsed = parser.parse(xmlStr);
-      
-      const comprobante = parsed["cfdi:Comprobante"];
-      if (!comprobante) throw new Error("No es un CFDI válido (falta cfdi:Comprobante)");
-      
-      const tipo = comprobante.TipoDeComprobante;
-      
-      if (tipo === "P") {
-        // Es Complemento de Pago
-        const complemento = comprobante["cfdi:Complemento"];
-        const pagos = complemento ? (complemento["pago20:Pagos"] || complemento["pago10:Pagos"]) : null;
-        let pago = pagos ? (pagos["pago20:Pago"] || pagos["pago10:Pago"]) : null;
-        
-        if (!pago) throw new Error("Complemento de Pago sin nodo de Pago");
-        if (!Array.isArray(pago)) pago = [pago]; // Puede haber multiples nodos de pago
-        
-        const uuids: string[] = [];
-        for (const p of pago) {
-          let doctosRelacionados = p["pago20:DoctoRelacionado"] || p["pago10:DoctoRelacionado"] || [];
-          if (!Array.isArray(doctosRelacionados)) doctosRelacionados = [doctosRelacionados];
-          
-          for (const d of doctosRelacionados) {
-            if (d.IdDocumento) uuids.push(d.IdDocumento.toUpperCase());
-          }
-        }
-        
-        if (uuids.length > 0) {
-          logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
-          
-          let encontradas = 0;
-          const chunkSize = 30; // Firestore limit for array-contains-any
-          
-          for (let i = 0; i < uuids.length; i += chunkSize) {
-            const chunk = uuids.slice(i, i + chunkSize);
-            const ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', chunk).get();
-            
-            for (const doc of ordersSnapshot.docs) {
-              const oData = doc.data();
-              const invoices = oData.invoices || [];
-              let modified = false;
-              
-              for (const inv of invoices) {
-                if (inv.uuid && chunk.includes(inv.uuid.toUpperCase())) {
-                  if (!inv.collection) inv.collection = {};
-                  inv.collection.complementStatus = 'issued';
-                  modified = true;
-                  encontradas++;
-                }
-              }
-              
-              if (modified) {
-                await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
-              }
-            }
-          }
-          logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
-        }
-      } else if (tipo === "I" || tipo === "E") {
-        logger.info(`Procesando XML Factura - Folio: ${comprobante.Folio}`);
-        const [metadata] = await bucket.file(filePath).getMetadata();
-        const fileHash = metadata?.metadata?.fileHash;
-
-        const receptor = comprobante["cfdi:Receptor"];
-        const conceptos = comprobante["cfdi:Conceptos"];
-        const complementoNode = comprobante["cfdi:Complemento"];
-        let uuid = "";
-        if (complementoNode) {
-          const tfd = complementoNode["tfd:TimbreFiscalDigital"];
-          if (tfd) uuid = tfd.UUID || "";
-        }
-
-        const clientName = receptor?.Nombre || "CLIENTE DESCONOCIDO";
-        const folio = (comprobante.Serie || "") + (comprobante.Folio || "");
-        
-        let totalKilos = 0;
-        let cfs = conceptos ? (conceptos["cfdi:Concepto"] || []) : [];
-        if (!Array.isArray(cfs)) cfs = [cfs];
-        
-        for (const c of cfs) {
-           const qty = Number(c.Cantidad) || 0;
-           totalKilos += qty;
-        }
-
-        const subtotal = Number(comprobante.SubTotal) || 0;
-        const total = Number(comprobante.Total) || 0;
-        // La fecha viene como string, ej. "2026-07-27T10:13:06"
-        const fecha = comprobante.Fecha ? new Date(comprobante.Fecha) : new Date();
-
-        const invoiceId = db.collection(COL_ORDERS).doc().id;
-        
-        const newInvoice = {
-           id: invoiceId,
-           uuid,
-           folio,
-           kilos: totalKilos,
-           creditCycle: {
-              issueDate: Timestamp.fromDate(fecha),
-              status: "manual_review"
-           },
-           financials: {
-              invoiceTotal: total,
-              saleTotal: subtotal,
-           }
-        };
-
-        const newOrder = {
-          id: docIdFor(filePath),
-          fileName: filePath,
-          fileHash: fileHash ?? "",
-          client: clientName,
-          folio: folio,
-          department: (comprobante.Serie || "").trim(),
-          totalKilograms: totalKilos,
-          creditCycle: { status: "manual_review" },
-          invoices: [newInvoice],
-          invoiceStatuses: [newInvoice.creditCycle.status || "manual_review"],
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-          processedAt: FieldValue.serverTimestamp(),
-        };
-
-        await ref.set(newOrder, { merge: true });
-        logger.info(`Expediente creado automáticamente desde XML Ingreso: ${folio} (${clientName})`);
-      } else {
-        logger.info(`XML ignorado por ahora. Tipo de comprobante: ${tipo}`);
-      }
-      return;
-    }
-    
-    // Módulo PDF: Creación de expediente en blanco sin IA
-    const [metadata] = await bucket.file(filePath).getMetadata();
-    const fileHash = metadata?.metadata?.fileHash;
-
-    const newOrder = {
-      id: docIdFor(filePath),
-      fileName: filePath,
-      fileHash: fileHash ?? "",
-      creditCycle: { status: "manual_review" },
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      processedAt: FieldValue.serverTimestamp(),
-    };
-
-    logger.info(`Creado expediente vacío en revisión manual para PDF: ${filePath}`);
-    await ref.set(newOrder, { merge: true });
-    
-  } catch (error) {
-    // Antes era un `catch (error) { throw error; }` que no aportaba nada.
-    // Ahora al menos deja en Cloud Logging QUE archivo fallo: el reintento
-    // de onObjectFinalized vuelve a lanzar esto y sin el nombre del archivo
-    // no habia forma de saber cual de todos reviento.
-    logger.error(`Fallo al procesar ${filePath}`, error);
-    throw error;
-  }
-}
-export const parseUploadedPDF = onObjectFinalized(async (event) => {
-    const filePath = event.data.name;
-    const contentType = event.data.contentType ?? "";
-
-    if (!filePath?.startsWith(UPLOAD_PREFIX)) return;
-    
-    const isPDF = contentType.startsWith("application/pdf");
-    const isXML = contentType.startsWith("application/xml") || contentType.startsWith("text/xml") || filePath.toLowerCase().endsWith(".xml");
-
-    if (!isPDF && !isXML) {
-      logger.info(`Ignorado (no es PDF ni XML): ${filePath}`);
-      return;
-    }
-
-    const db = getFirestore();
-    const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
-
-    const size = Number(event.data.size) || 0;
-    if (size > MAX_UPLOAD_MB * 1024 * 1024) {
-      // Deja constancia visible en la interfaz. Un logger.warn en Cloud no lo
-      // ve nunca quien subio el archivo.
-      const mb = (size / 1024 / 1024).toFixed(1);
-      logger.warn(`Ignorado (${mb} MB > ${MAX_UPLOAD_MB} MB): ${filePath}`);
-      await ref.set({
-        fileName: filePath,
-        creditCycle: { status: "manual_review" },
-        aiError: `El archivo pesa ${mb} MB y el maximo que se puede leer es ` +
-          `${MAX_UPLOAD_MB} MB. Comprimelo o divide el PDF y vuelve a subirlo.`,
-        processedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      return;
-    }
-
-    // Si ya se procesó este archivo, no lo volvemos a cobrar a la cuota de IA.
-    const existing = await ref.get();
-    if (existing.exists && existing.data()?.creditCycle?.status !== "manual_review") {
-      logger.info(`Ya procesado, se omite: ${filePath}`);
-      return;
-    }
-
-    await processStorageFile(filePath, event.data.bucket);
-  },
-);
 
 export const checkOverdueInvoices = onSchedule(
   { schedule: "every day 00:00", timeZone: "America/Mexico_City" },
@@ -721,41 +226,6 @@ export const checkOverdueInvoices = onSchedule(
 );
 
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-
-/** Reprocesa a mano un PDF que quedó en revisión manual, desde la interfaz. */
-// Mismos recursos que parseUploadedPDF: ejecuta exactamente el mismo trabajo.
-export const reprocessOrder = onCall(
-  { memory: "256MiB", timeoutSeconds: 60 },
-  async (req) => {
-    const uid = req.auth?.uid;
-    if (!uid) throw new HttpsError("unauthenticated", "Inicia sesión.");
-    if (!req.auth?.token?.email_verified) throw new HttpsError("permission-denied", "Tu correo debe estar verificado.");
-  
-    const db = getFirestore();
-    const admin = await db.collection("admins").doc(uid).get();
-    if (!admin.exists) throw new HttpsError("permission-denied", "Cuenta no autorizada.");
-    const rol = admin.data()?.role;
-    if (rol !== "admin" && rol !== "manager") {
-      throw new HttpsError("permission-denied", "Tu rol no permite reprocesar ordenes.");
-    }
-
-    const orderId = String(req.data?.orderId ?? "");
-    if (!orderId) throw new HttpsError("invalid-argument", "Falta orderId.");
-
-    const snap = await db.collection(COL_ORDERS).doc(orderId).get();
-    if (!snap.exists) throw new HttpsError("not-found", "La orden no existe.");
-
-    const fileName = snap.data()?.fileName;
-    if (!fileName) throw new HttpsError("failed-precondition", "La orden no tiene archivo asociado.");
-
-    try {
-      await processStorageFile(fileName);
-      return { ok: true };
-    } catch (err: any) {
-      throw new HttpsError("internal", "Error al reprocesar: " + err.message);
-    }
-  },
-);
 
 /**
  * Trigger de saneamiento y recalculo server-side.
