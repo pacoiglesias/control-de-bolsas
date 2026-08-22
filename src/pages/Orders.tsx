@@ -11,6 +11,8 @@ import KanbanBoard from '../components/Orders/KanbanBoard';
 import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { QuickCrModal } from '../components/QuickCrModal';
 import { KilosProgressBar } from '../components/Orders/KilosProgressBar';
+import { OrderStepper } from '../components/Orders/OrderStepper';
+import { PulsingBadge } from '../components/ui/PulsingBadge';
 import { kilos, money, nombreClienteVisible } from '../lib/format';
 import { getOrderSummary, extractCr } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
@@ -552,12 +554,13 @@ export default function Orders() {
                       </td>
                       <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider ?? '—'}</td>
-                      <td className="num mono" style={{ minWidth: 140 }}>
+                      <td className="num mono" style={{ minWidth: 160 }}>
                         <KilosProgressBar
                           compact
                           deliveredKg={summary.kilosDelivered}
                           totalKg={o.totalKilograms || (o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || summary.kilosDelivered}
                         />
+                        <OrderStepper order={o} compact style={{ marginTop: 4 }} />
                       </td>
                       <td className="num mono">
                         {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
@@ -582,7 +585,11 @@ export default function Orders() {
                       <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                          <StatusBadge status={st} />
+                          {st === 'overdue' ? (
+                            <PulsingBadge label="🚨 Vencida" tone="red" pulse />
+                          ) : (
+                            <StatusBadge status={st} />
+                          )}
                           {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
                             <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>
                               {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate} días` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)} días`}

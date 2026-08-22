@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.16 Suite de Mejoras Gráficas & Visuales Premium',
+    date: '23 de Agosto de 2026',
+    time: '12:35 AM',
+    summary: 'Implementación integral de las 5 mejoras gráficas y visuales: Gráfico interactivo de flujo y producción (FinancialTrendChart), Línea de tiempo de órdenes (OrderStepper), Skeletons animados de carga (SkeletonLoader) y Badges pulsantes de semáforo.',
+    highlights: [
+      'Gráfico Interactivo de Tendencias: Visualización temporal responsive de kilos entregados, facturación y utilidad con filtros de 30 días, 90 días y 1 año, con tooltips interactivos.',
+      'Línea de Tiempo del Pedido (OrderStepper): Indicador visual por etapas (OC, Maquila, Entrega, Contrarecibo, Cobro) integrado en Kanban y tablas de expedientes.',
+      'Skeletons Shimmer Animados: Reemplazo de spinners planos por animaciones de esqueleto que replican la estructura real de la interfaz mientras carga Firestore.',
+      'Semáforos con Badges Pulsantes: Micro-animaciones de resplandor ambiental para facturas por vencer, entregas pendientes y cobros realizados.',
+    ],
+  },
+  {
     version: 'v8.9.15 Arquitectura Unificada de Servicios de Maquila & CORS Gateway',
     date: '23 de Agosto de 2026',
     time: '12:16 AM',

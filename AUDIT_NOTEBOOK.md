@@ -2116,3 +2116,18 @@ Solución:
 Riesgo: 🟢 Bajo — Túnel probado y validado directamente en producción.
 Commit: `feat(v8.9.15): unify maquila delivery registration into getActiveMaquilaOrders gateway, resolving CORS preflight 403`
 Estado: ✅ Verificado — Preflight 204 validado, invocación POST validada, despliegue en producción completado.
+
+[2026-08-23]
+### Iteración v8.9.16: Suite de Mejoras Gráficas & Visuales Premium
+Archivo: `src/components/Dashboard/FinancialTrendChart.tsx`, `src/components/Orders/OrderStepper.tsx`, `src/components/ui/SkeletonLoader.tsx`, `src/components/ui/PulsingBadge.tsx`, `src/index.css`, `src/pages/Dashboard.tsx`, `src/components/Orders/KanbanBoard.tsx`, `src/pages/Orders.tsx`, `src/pages/MaquiladorPortal.tsx`
+Problema: Se requería modernizar la experiencia visual y gráfica de la plataforma con indicadores en tiempo real, líneas de tiempo claras de avance de pedidos, gráficos interactivos de flujo financiero y estados de carga fluidos para evitar parpadeos.
+Impacto: Elevación dramática de la intuición operativa, visualización instantánea del estado de los pedidos y apariencia ejecutiva de última generación.
+Solución:
+- `FinancialTrendChart.tsx`: Gráfico interactivo responsive en el Dashboard con períodos dinámicos (30 días, 90 días, 1 año) comparando kilos entregados vs. facturación y margen neto.
+- `OrderStepper.tsx`: Indicador visual interactivo horizontal del ciclo de vida del pedido (`OC ➔ Maquila ➔ Entrega ➔ Contrarecibo ➔ Cobro`) integrado en tarjetas del Kanban y tablas de expedientes.
+- `SkeletonLoader.tsx`: Componentes reutilizables con efecto de resplandor `skeleton-shimmer` para tarjetas, tablas y formularios durante la carga de datos.
+- `PulsingBadge.tsx`: Badges semáforo con micro-animaciones pulsantes para facturas vencidas, entregas pendientes y alertas críticas.
+- `index.css`: Tokens de diseño y animaciones `@keyframes shimmer`, `@keyframes pulse-ring` con soporte glassmorphism profundo.
+Riesgo: 🟢 Bajo — Componentes visuales y tipado determinista.
+Commit: `feat(v8.9.16): Graphic and visual suite — FinancialTrendChart, OrderStepper, SkeletonLoader, and PulsingBadges`
+Estado: ✅ Verificado — 75/75 pruebas pasando, `tsc --noEmit` limpio con 0 errores, compilación Vite impecable, despliegue en Hosting completado.

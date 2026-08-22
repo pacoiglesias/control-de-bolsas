@@ -38,6 +38,7 @@ import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefing
 import { getOrderSummary, filterOrderByDepartment, inferDepartment } from '../lib/finance';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { PorRecibirPanel } from '../components/Dashboard/PorRecibirPanel';
+import { FinancialTrendChart } from '../components/Dashboard/FinancialTrendChart';
 import { getRentabilidadHtml } from './DashboardReports';
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 
@@ -1152,6 +1153,9 @@ return () => unsub();
                 saldoCaja={saldoCaja}
               />
             )}
+
+            {/* E. Gráfico Visual Interactivo de Flujo y Tendencia de Kilos */}
+            <FinancialTrendChart orders={seguimientoOrders} />
           </div>
         )}
 

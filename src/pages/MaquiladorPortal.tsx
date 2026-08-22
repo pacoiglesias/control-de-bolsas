@@ -24,6 +24,8 @@ import {
   migrateLegacyLocalStorageQueue,
   type OfflineDeliveryItem,
 } from '../lib/offlineMaquilaDb';
+import { CardSkeleton } from '../components/ui/SkeletonLoader';
+import { PulsingBadge } from '../components/ui/PulsingBadge';
 
 /* ─── Portal Principal Maquilador ─────────────────────────────────────────── */
 export default function MaquiladorPortal() {
@@ -34,6 +36,7 @@ export default function MaquiladorPortal() {
   const [pin, setPin] = useState('');
   const [auth, setAuth] = useState(false);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [kilos, setKilos] = useState('');
   const [docType, setDocType] = useState<'remision' | 'factura'>('remision');
@@ -155,6 +158,7 @@ export default function MaquiladorPortal() {
   };
 
   const recargar = async () => {
+    setLoadingOrders(true);
     try {
       const fn = httpsCallable(functions, 'getActiveMaquilaOrders');
       const res = await fn({ pin });
@@ -162,6 +166,8 @@ export default function MaquiladorPortal() {
       toast('Órdenes actualizadas', 'ok');
     } catch {
       toast('Error al actualizar órdenes', 'bad');
+    } finally {
+      setLoadingOrders(false);
     }
   };
 
@@ -794,66 +800,72 @@ export default function MaquiladorPortal() {
                 Órdenes de Compra Activas ({filteredOrders.length})
               </div>
 
-              {filteredOrders.length === 0 && (
+              {loadingOrders ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <CardSkeleton rows={2} />
+                  <CardSkeleton rows={2} />
+                </div>
+              ) : filteredOrders.length === 0 ? (
                 <div style={{ ...glass, padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
                   <div>No hay órdenes pendientes con este filtro.</div>
                 </div>
-              )}
+              ) : (
+                filteredOrders.map((o) => {
+                  const sel = orderId === o.orderId;
+                  const pct = Math.min(100, Math.round(((o.totalKilos - o.pendingKilos) / Math.max(o.totalKilos, 1)) * 100));
 
-              {filteredOrders.map((o) => {
-                const sel = orderId === o.orderId;
-                const pct = Math.min(100, Math.round(((o.totalKilos - o.pendingKilos) / Math.max(o.totalKilos, 1)) * 100));
-
-                return (
-                  <motion.button
-                    key={o.orderId}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setOrderId(sel ? '' : o.orderId);
-                      setKilos('');
-                    }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      marginBottom: 12,
-                      padding: '18px 20px',
-                      borderRadius: 18,
-                      background: sel
-                        ? 'linear-gradient(135deg, rgba(167,139,250,0.3) 0%, rgba(124,58,237,0.2) 100%)'
-                        : 'rgba(255,255,255,0.05)',
-                      border: sel ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)',
-                      color: '#fff',
-                      transition: 'all 0.2s ease',
-                      boxShadow: sel ? '0 8px 24px rgba(167,139,250,0.2)' : 'none',
-                    }}
-                  >
-                    <div
+                  return (
+                    <motion.button
+                      key={o.orderId}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setOrderId(sel ? '' : o.orderId);
+                        setKilos('');
+                      }}
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: 10,
+                        width: '100%',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        marginBottom: 12,
+                        padding: '18px 20px',
+                        borderRadius: 18,
+                        background: sel
+                          ? 'linear-gradient(135deg, rgba(167,139,250,0.3) 0%, rgba(124,58,237,0.2) 100%)'
+                          : 'rgba(255,255,255,0.05)',
+                        border: sel ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)',
+                        color: '#fff',
+                        transition: 'all 0.2s ease',
+                        boxShadow: sel ? '0 8px 24px rgba(167,139,250,0.2)' : 'none',
                       }}
                     >
-                      <div>
-                        <div style={{ fontWeight: 900, fontSize: 17, color: sel ? '#e9d5ff' : '#fff' }}>
-                          OC {o.folio}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          marginBottom: 10,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 900, fontSize: 17, color: sel ? '#e9d5ff' : '#fff' }}>
+                            OC {o.folio}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                            {o.productDescription}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                          {o.productDescription}
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          <PulsingBadge
+                            label={`${o.pendingKilos.toLocaleString('es-MX')} kg`}
+                            tone={o.pendingKilos > 0 ? 'amber' : 'green'}
+                            pulse={o.pendingKilos > 0}
+                          />
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                            de {o.totalKilos.toLocaleString('es-MX')} kg pedidos
+                          </div>
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 15, color: '#fbbf24', fontWeight: 800 }}>
-                          {o.pendingKilos.toLocaleString('es-MX')} kg
-                        </div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-                          de {o.totalKilos.toLocaleString('es-MX')} kg pedidos
-                        </div>
-                      </div>
-                    </div>
 
                     {/* Barra de progreso */}
                     <div style={{ height: 6, borderRadius: 99, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
@@ -881,7 +893,7 @@ export default function MaquiladorPortal() {
                     </div>
                   </motion.button>
                 );
-              })}
+              }))}
             </div>
 
             {/* Formulario Interactivo de Registro de Kilos */}

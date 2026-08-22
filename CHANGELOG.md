@@ -1,5 +1,13 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.16] - 23 Agosto 2026 (Suite de Mejoras Gráficas & Visuales Premium)
+
+- **Gráfico Interactivo de Flujo & Producción (`FinancialTrendChart.tsx`):** Gráfico interactivo responsive integrado en el Dashboard con períodos dinámicos (30 días, 90 días, 1 año) comparando el volumen de kilos entregados vs. facturación neta y utilidad calculada en tiempo real.
+- **Línea de Tiempo del Pedido (`OrderStepper.tsx`):** Indicador visual interactivo horizontal del ciclo de vida de la orden (`[1. OC Creada] ➔ [2. Maquila] ➔ [3. Entrega Físicas %] ➔ [4. Contrarecibo] ➔ [5. Cobro]`) integrado en el Kanban y en la tabla de órdenes.
+- **Skeletons Shimmer Animados (`SkeletonLoader.tsx`):** Animaciones de esqueleto que replican la estructura real de la interfaz mientras carga Firestore, eliminando parpadeos y spinners planos.
+- **Semáforos Dinámicos Pulsantes (`PulsingBadge.tsx`):** Badges con micro-animaciones pulsantes para facturas vencidas, órdenes pendientes de entrega y alertas críticas.
+- **Tokens de Estilo y Glassmorphism (`index.css`):** Definición de `@keyframes shimmer`, `@keyframes pulse-ring` y elevación moderna de tarjetas.
+
 ## [v8.9.15] - 23 Agosto 2026 (Gateway Unificado de Servicios de Maquila & Eliminación de Bloqueos CORS)
 
 - **Gateway Unificado de Maquila:** Integración de la acción `registrarEntrega` dentro del servicio verificado `getActiveMaquilaOrders` con permisos públicos en Cloud Run y cabeceras CORS preflight completas, eliminando cualquier bloqueo HTTP 403 al registrar entregas desde `https://bolsas.cobertores.com`.
