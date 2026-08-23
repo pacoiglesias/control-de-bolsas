@@ -82,9 +82,10 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
       <div style="background: #f1f5f9; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; border-left: 4px solid #2563eb;">
         <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 6px;">DATOS DEL CLIENTE (RECEPTOR):</div>
         <div style="font-size: 13px; font-weight: 800; color: #0f172a;">${order.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV'}</div>
+        <div style="font-size: 11px; color: #475569; margin-top: 2px;">HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO</div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; font-size: 11px; color: #334155;">
-          <div><strong>RFC:</strong> GTP9211049B6</div>
-          <div><strong>Uso de CFDI:</strong> G03 - Gastos en general</div>
+          <div><strong>RFC:</strong> GTP930115PU1</div>
+          <div><strong>Uso de CFDI:</strong> G01 - Adquisición de mercancías</div>
           <div><strong>Método de Pago:</strong> PPD - Pago en parcialidades o diferido</div>
           <div><strong>Forma de Pago:</strong> 99 - Por definir</div>
         </div>
