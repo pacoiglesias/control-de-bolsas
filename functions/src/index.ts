@@ -39,7 +39,7 @@ const DEFAULTS = {
   // 2026-08-10: bajó de 47 a 43 (confirmado por el usuario). Debe
   // coincidir con DEFAULT_CONFIG.salePricePerKg en src/lib/types.ts.
   salePricePerKg: 43,
-  costPricePerKg: 42,
+  costPricePerKg: 38,
   commissionRate: 0.08,
   creditDays: 30,
   ivaRate: 0.16,

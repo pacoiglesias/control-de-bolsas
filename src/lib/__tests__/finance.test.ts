@@ -36,11 +36,11 @@ describe('computeFinancials', () => {
     const f = computeFinancials(100, cfg);
     expect(f.saleTotal).toBe(4300);
     expect(f.invoiceTotal).toBe(4988);
-    expect(f.costTotal).toBe(4200);
+    expect(f.costTotal).toBe(3800);
     // 8% del subtotal: 4300 x 0.08 = 344.00
     expect(f.commission).toBe(344);
-    // 4300 - 4200 - 344 = -244
-    expect(f.netCashFlow).toBe(-244);
+    // 4300 - 3800 - 344 = +156
+    expect(f.netCashFlow).toBe(156);
   });
 
   it('reproduce al centavo un cobro real del contador', () => {
@@ -203,10 +203,10 @@ describe('Dashboard Extractions', () => {
   });
 
   it('calculateLiveMargenTotal sum correctly', () => {
-    // 100 kilos * 47 sale = 4700. cost = 42. comm = 376. 4700 - 4200 - 376 = 124 margin per invoice
+    // 100 kilos * 43 sale = 4300. cost = 3800. comm = 344. 4300 - 3800 - 344 = 156 margin per invoice (x2 = 312)
     const o = orden({ invoices: [factura('pending'), factura('paid')] });
-    const margin = calculateLiveMargenTotal([o], 42);
-    expect(margin).toBe(-488);
+    const margin = calculateLiveMargenTotal([o], 38);
+    expect(margin).toBe(312);
   });
 });
 
@@ -237,7 +237,7 @@ describe('computeAndresRequirement & getSuggestedNextAction', () => {
     });
     const req = computeAndresRequirement(o, cfg);
     expect(req.kilos).toBe(1000);
-    expect(req.costTotal).toBe(42000);
+    expect(req.costTotal).toBe(38000);
     expect(req.saleTotal).toBe(43000);
     expect(req.invoiceTotal).toBe(49880);
     expect(req.whatsappMessage).toContain('Andrés');
@@ -267,19 +267,19 @@ describe('Casos Numéricos Extremos y Blindaje Financiero (OKR 1)', () => {
   it('maneja cantidades mínimas (0.01 kg) sin pérdidas de redondeo', () => {
     const f = computeFinancials(0.01, cfg);
     expect(f.saleTotal).toBe(0.43);
-    expect(f.costTotal).toBe(0.42);
+    expect(f.costTotal).toBe(0.38);
     expect(f.invoiceTotal).toBe(0.5); // 0.43 * 1.16 = 0.4988 -> 0.50
     expect(f.commission).toBe(0.03); // 0.43 * 0.08 = 0.0344 -> 0.03
-    expect(f.netCashFlow).toBe(-0.02); // 0.43 - 0.42 - 0.03 = -0.02
+    expect(f.netCashFlow).toBe(0.02); // 0.43 - 0.38 - 0.03 = +0.02
   });
 
   it('maneja órdenes masivas de 500,000 kg con exactitud aritmética', () => {
     const f = computeFinancials(500000, cfg);
     expect(f.saleTotal).toBe(21500000);
-    expect(f.costTotal).toBe(21000000);
+    expect(f.costTotal).toBe(19000000);
     expect(f.invoiceTotal).toBe(24940000);
     expect(f.commission).toBe(1720000); // 21,500,000 * 0.08
-    expect(f.netCashFlow).toBe(-1220000); // 21.5M - 21M - 1.72M
+    expect(f.netCashFlow).toBe(780000); // 21.5M - 19M - 1.72M = +780,000
   });
 
   it('reparto 50/50 entre socios no produce centavos fantasma', () => {

@@ -39,3 +39,10 @@ Este archivo configura las reglas de operación, compilación, pruebas y desplie
 *   **Topes de Entrega:** Andrés **NUNCA** puede entregar kilos de más de lo indicado en la Orden de Compra (OC). Siempre entrega lo que indica la OC o menos kilos (entregas parciales).
 *   **Facturación a Providencia:** A Providencia no se le pueden facturar kilos de más de una OC emitida.
 *   **Cero Mermas:** No hay mermas de parte de Andrés. Todo kilo entregado y recibido ampara exactamente su valor de costo sin deducción de merma.
+
+### 5. Parámetros de Precios y Márgenes Actuales
+*   **Costo de Compra a Andrés:** **$38.00 / kg** (actualizado desde $42.00/kg).
+*   **Precio de Venta a Providencia:** **$43.00 / kg** (+ 16% IVA = $49.88 con IVA).
+*   **Margen Bruto de Operación:** **$5.00 / kg**.
+*   **Comisión del Contador:** 8% sobre subtotal de facturación.
+

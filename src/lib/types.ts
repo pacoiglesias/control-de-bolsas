@@ -40,7 +40,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    *  los que ya tienen un precio propio en financials.salePricePerKg no
    *  cambian con este ajuste. */
   salePricePerKg: 43,
-  costPricePerKg: 42,
+  costPricePerKg: 38,
   /** Honorario del contador por la gestión de cobro: 8% del SUBTOTAL. */
   commissionRate: 0.08,
   creditDays: 30,

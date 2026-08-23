@@ -103,7 +103,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
 
   if (action === 'ledger') {
     const configSnap = await db.collection('config').doc('financials').get();
-    const costPricePerKg = configSnap.data()?.costPricePerKg || 42;
+    const costPricePerKg = configSnap.data()?.costPricePerKg || 38;
     const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
 
     const purchasesSnap = await db.collection('purchases').get();
