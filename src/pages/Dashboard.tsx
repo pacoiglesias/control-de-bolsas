@@ -1418,13 +1418,13 @@ return () => unsub();
                 BD: <strong>{health.dbStatus}</strong> · Respaldo: {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  {backupBusy ? 'Guardando…' : '☁ Respaldar'}
+                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 11, padding: '4px 9px', fontWeight: 700 }}>
+                  {backupBusy ? 'Guardando…' : '☁ Crear Respaldo'}
                 </button>
-                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  📋 5 Máx
+                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 11, padding: '4px 9px', fontWeight: 600, background: 'var(--paper-sunk)', border: '1px solid var(--line)' }}>
+                  📁 Ver & Subir Respaldos
                 </button>
-                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
+                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 11, padding: '4px 9px', fontWeight: 600 }}>
                   {recalcBusy ? '⏳ Recalculando…' : '🔄 Recalcular'}
                 </button>
               </div>
