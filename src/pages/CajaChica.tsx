@@ -95,15 +95,26 @@ export default function CajaChica() {
   let totalBrutoCobrado = 0;
   let totalComisionContador = 0;
   let dineroEnTransito = 0;
+  const facturasEnTransito: { order: any; invoice: any; totalFactura: number; comision: number; neto: number; cr: string; folio: string }[] = [];
 
   (orders || []).forEach((o) => {
     (o?.invoices || []).forEach((inv) => {
       if (inv?.creditCycle?.status === 'paid') {
         const totalFactura = inv.financials?.invoiceTotal ?? ((inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16)));
         const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
+        const neto = round2(totalFactura - comision);
         totalBrutoCobrado = round2(totalBrutoCobrado + totalFactura);
         totalComisionContador = round2(totalComisionContador + comision);
-        dineroEnTransito = round2(dineroEnTransito + (totalFactura - comision));
+        dineroEnTransito = round2(dineroEnTransito + neto);
+        facturasEnTransito.push({
+          order: o,
+          invoice: inv,
+          totalFactura,
+          comision,
+          neto,
+          cr: (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim(),
+          folio: inv.folio || o.folio || '(sin folio)',
+        });
       }
     });
   });
@@ -369,6 +380,75 @@ export default function CajaChica() {
           </div>
         </Card>
       </motion.div>
+
+      {/* 🚚 SECCIÓN DE DINERO EN TRÁNSITO CON CONTADORES */}
+      {facturasEnTransito.length > 0 && (
+        <Card
+          title={`🚚 DINERO EN TRÁNSITO — ${facturasEnTransito.length} FACTURA(S) POR RECIBIR`}
+          hint={`Total Neto por Ingresar: ${money(dineroEnTransito)}`}
+          actions={
+            <button
+              className="btn btn-primary"
+              style={{ background: '#d97706', color: '#fff', borderColor: '#d97706', fontWeight: 700 }}
+              onClick={() => setSelected({
+                id: doc(collection(db, PATHS.expenses)).id,
+                date: Timestamp.fromDate(new Date()),
+                concept: `Efectivo Recibido de Contadores (${facturasEnTransito.length} facturas Providencia)`,
+                amount: dineroEnTransito,
+                type: 'ingreso',
+                createdAt: null,
+              } as Expense)}
+            >
+              ⚡ Recibir Todo ({money(dineroEnTransito)})
+            </button>
+          }
+        >
+          <div className="table-scroll" style={{ marginTop: 8 }}>
+            <table className="data-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Factura / Folio</th>
+                  <th>Contrarecibo</th>
+                  <th>Cliente</th>
+                  <th className="num">Total Factura (c/IVA)</th>
+                  <th className="num">Comisión Contador (8%)</th>
+                  <th className="num">Neto a Recibir</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {facturasEnTransito.map(({ order, invoice, totalFactura, comision, neto, cr, folio }) => (
+                  <tr key={invoice.id}>
+                    <td><strong>Factura #{folio}</strong></td>
+                    <td><span className="badge">{cr || 'Sin CR'}</span></td>
+                    <td>{order.client || 'Providencia'}</td>
+                    <td className="num">{money(totalFactura)}</td>
+                    <td className="num" style={{ color: '#b91c1c' }}>-{money(comision)}</td>
+                    <td className="num" style={{ color: '#047857', fontWeight: 800, fontSize: 14 }}>{money(neto)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn-small btn-primary"
+                        style={{ fontSize: 11, padding: '4px 10px', background: '#059669', color: '#fff', border: 'none', fontWeight: 700 }}
+                        onClick={() => setSelected({
+                          id: doc(collection(db, PATHS.expenses)).id,
+                          date: Timestamp.fromDate(new Date()),
+                          concept: `Cobro Factura #${folio} (${cr ? `CR ${cr}` : 'Providencia'})`,
+                          amount: neto,
+                          type: 'ingreso',
+                          createdAt: null,
+                        } as Expense)}
+                      >
+                        📥 Recibir {money(neto)}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {(() => {
         const conDiferencia = expenses.filter((e: any) => typeof e.diferencia === 'number' && Math.abs(e.diferencia) > 0.01);

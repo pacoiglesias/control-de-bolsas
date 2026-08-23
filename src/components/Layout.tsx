@@ -79,10 +79,10 @@ export default function Layout() {
     { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
     { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'FINANZAS & CAJA', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: '💵', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
+    { type: 'group', label: 'FINANZAS & TESORERÍA', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/cobranza', icon: '📈', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
     { type: 'link', to: '/compras', icon: '🛒', label: `Compras ${providerLabel}`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo & Dinero en Tránsito', roles: ['admin'] },
 
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
     { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
