@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { toDate } from '../lib/format';
 import type { Purchase } from '../lib/types';
@@ -21,9 +21,10 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
     // Mismo patron peligroso que en OrdersContext: orderBy excluye en
     // silencio cualquier compra sin el campo `date`. Se ordena del lado
     // del cliente en su lugar.
+    // SPRINT 2 FIX: Se eliminó limit(300). Si el histórico de compras
+    // supera ese umbral, el saldo con Andrés se truncaba silenciosamente.
     const q = query(
-      collection(db, PATHS.purchases),
-      limit(300)
+      collection(db, PATHS.purchases)
     );
     const unsub = onSnapshot(
       q,

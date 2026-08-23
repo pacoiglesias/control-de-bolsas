@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { toDate } from '../lib/format';
 import type { Expense } from '../lib/types';
@@ -21,9 +21,11 @@ export const ExpensesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Mismo patron peligroso: orderBy excluye en silencio cualquier
     // movimiento de caja sin el campo `date`. Critico aqui — un movimiento
     // invisible significa un saldo de CAJA incorrecto sin ningun aviso.
+    // SPRINT 2 FIX: Se eliminó limit(500). Si la colección supera ese umbral
+    // el saldo de caja se truncaba en silencio. Firestore carga todo en un
+    // snapshot sin limit; el sort ya se hace en cliente.
     const q = query(
-      collection(db, PATHS.expenses),
-      limit(500)
+      collection(db, PATHS.expenses)
     );
     const unsub = onSnapshot(
       q,

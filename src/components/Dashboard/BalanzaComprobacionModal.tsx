@@ -391,7 +391,9 @@ export function BalanzaComprobacionModal({
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--ink)', marginTop: 4 }}>
             {(diffCrs === 0 && diffRevision === 0)
-              ? `Tus 10 Contrarecibos ($1,019,956.34) y tu Factura 6167 ($81,780.00) concilian con exactitud de centavo con la deuda de Providencia ($1,101,736.34).`
+              ? (carteraSistema.totalSinCr > 0
+                ? `Tus ${carteraSistema.countCrs} Contrarecibos (${money(carteraSistema.totalCrs)}) y tu Factura en revisión (${money(carteraSistema.totalSinCr)}) concilian con exactitud de centavo con la deuda de Providencia (${money(carteraSistema.totalCartera)}).`
+                : `Tus ${carteraSistema.countCrs} Contrarecibos (${money(carteraSistema.totalCrs)}) concilian con exactitud de centavo con la deuda de Providencia (${money(carteraSistema.totalCartera)}).`)
               : `Revisa si hay algún contrarecibo capturado con número o importe erróneo en la pantalla de Auditoría Maestra.`}
           </div>
         </div>

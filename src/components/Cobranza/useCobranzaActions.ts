@@ -282,6 +282,107 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
     }
   }
 
+  async function fastCollectContrareciboBlock(crNumber: string, defaultTransferRef?: string) {
+    if (!crNumber) return;
+
+    const invoices = [...data.open, ...data.paid].filter(({ o, inv }: any) =>
+      (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber) === crNumber
+    );
+
+    if (invoices.length === 0) {
+      toast(`No se encontraron facturas activas para el Contrarecibo ${crNumber}`, 'bad');
+      return;
+    }
+
+    const totalFacturas = invoices.reduce((acc, { inv }) => acc + (inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0), 0);
+    const totalComision = invoices.reduce((acc, { inv }) => acc + (inv.financials?.commission ?? 0), 0);
+    const netoEstimado = totalFacturas - totalComision;
+
+    const transferRef = ((await promptDialog({
+      message: `⚡ Cobro Rápido con Transferencia del Contrarecibo ${crNumber}\n` +
+        `Total Facturas: $${totalFacturas.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n` +
+        `Comisión Contador (8%): -$${totalComision.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n` +
+        `Ingreso Neto a CAJA: $${netoEstimado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n` +
+        `Ingresa la Referencia de Transferencia (ej. TR_3640):`,
+      defaultValue: defaultTransferRef || 'TR_'
+    })) || '').trim();
+
+    if (!transferRef) return;
+
+    const objetivo: Record<string, string[]> = {};
+    for (const { o, inv } of invoices) {
+      (objetivo[o.id] ??= []).push(inv.id);
+    }
+
+    let netCobradoReal = 0;
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const refs = Object.keys(objetivo).map((id) => ({
+          id,
+          ref: doc(db, PATHS.orders, id),
+        }));
+        const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+        netCobradoReal = 0;
+
+        refs.forEach(({ id, ref }, k) => {
+          const snap = snaps[k];
+          if (!snap.exists()) return;
+          let currentInvoices: Invoice[] = snap.data().invoices ?? [];
+          for (const invoiceId of objetivo[id]) {
+            const inv = currentInvoices.find((x) => x.id === invoiceId);
+            if (inv) {
+              const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+              const comision = inv.financials?.commission ?? 0;
+              netCobradoReal += (invTotal - comision);
+            }
+            const nuevas = aplicarPorId(currentInvoices, invoiceId, (x) => ({
+              ...x,
+              creditCycle: { ...x.creditCycle, status: 'collected' },
+              collection: {
+                ...x.collection,
+                paidAmount: x.financials?.invoiceTotal ?? x.financials?.saleTotal ?? 0,
+                paidAt: Timestamp.now(),
+                collectedAt: Timestamp.now(),
+                paymentDocument: transferRef,
+                transferRef: transferRef,
+              },
+            }));
+            if (nuevas) {
+              currentInvoices = nuevas;
+              const invModificada = nuevas.find((x) => x.id === invoiceId);
+              if (invModificada) {
+                tx.set(doc(db, PATHS.invoices, invoiceId), {
+                  ...invModificada,
+                  orderId: id,
+                  client: snap.data().client ?? '',
+                  department: snap.data().department ?? '',
+                }, { merge: true });
+              }
+            }
+          }
+          tx.update(ref, camposInvoices(currentInvoices));
+        });
+
+        netCobradoReal = round2(netCobradoReal);
+
+        tx.set(doc(collection(db, PATHS.expenses)), {
+          date: Timestamp.now(),
+          concept: `Cobro ${transferRef} (Contrarecibo ${crNumber})`,
+          type: 'ingreso',
+          amount: netCobradoReal,
+          createdAt: Timestamp.now(),
+        });
+      });
+
+      sound.playChaChing();
+      confetti({ particleCount: 250, spread: 120, origin: { y: 0.5 } });
+      toast(`⚡ Cobro y recolección de ${crNumber} (${transferRef}) completados. $${netCobradoReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} ingresados a CAJA.`, 'ok');
+    } catch (e) {
+      toast(`Error en cobro rápido: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   async function collectContrareciboBlock(crNumber: string, netCobrado: number) {
     if (!crNumber) return;
     if (!(await confirmDialog(`¿Recibiste el EFECTIVO/TRANSFERENCIA del Contrarecibo ${crNumber}? Se registrará un Ingreso por $${netCobrado.toLocaleString('es-MX', {minimumFractionDigits:2})} en CAJA.`))) return;
@@ -526,6 +627,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
     toggleComplementStatus,
     payInvoiceExact,
     payContrareciboBlock,
+    fastCollectContrareciboBlock,
     undoContrareciboBlock,
     collectContrareciboBlock,
     revertCollectedContrareciboBlock,

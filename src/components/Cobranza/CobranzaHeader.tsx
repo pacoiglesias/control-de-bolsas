@@ -30,9 +30,9 @@ export default function CobranzaHeader({
           className="btn btn-primary"
           style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)', color: '#fff', fontWeight: 800, border: 'none', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           onClick={onOpenSincronizador}
-          title="Sincronizar base de datos con los 10 Contrarecibos Oficiales y Fac 6167"
+          title="Sincronizar base de datos con los Contrarecibos Oficiales"
         >
-          <IconZap size={16} /> Sincronizar 10 Contrarecibos
+          <IconZap size={16} /> Sincronizar Contrarecibos
         </button>
         <button
           className="btn btn-primary"

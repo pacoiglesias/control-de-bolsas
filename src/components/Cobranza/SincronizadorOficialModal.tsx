@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Modal } from '../ui';
 import { money, fmtDate } from '../../lib/format';
-import { doc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
+import { round2 } from '../../lib/finance';
 import { db, PATHS, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { camposInvoices } from '../../lib/invoiceOps';
@@ -22,27 +23,23 @@ export interface OfficialCrRecord {
 }
 
 export const OFFICIAL_CRS: OfficialCrRecord[] = [
-  { no: 1, cr: 'TH-912', issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, status: 'GENERADO', department: 'TH' },
-  { no: 2, cr: 'TH-879', issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, status: 'GENERADO', department: 'TH' },
-  { no: 3, cr: 'TH-836', issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, status: 'GENERADO', department: 'TH' },
-  { no: 4, cr: 'GT-742', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, status: 'GENERADO', department: 'GT' },
-  { no: 5, cr: 'TH-804', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, status: 'GENERADO', department: 'TH' },
-  { no: 6, cr: 'GT-713', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, status: 'GENERADO', department: 'GT' },
-  { no: 7, cr: 'TH-768', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, status: 'GENERADO', department: 'TH' },
+  { no: 1, cr: 'TH-946', issueDate: '2026-08-17', dueDate: '2026-09-16', total: 81780.00, status: 'GENERADO', department: 'TH' },
+  { no: 2, cr: 'TH-912', issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, status: 'GENERADO', department: 'TH' },
+  { no: 3, cr: 'TH-879', issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, status: 'GENERADO', department: 'TH' },
+  { no: 4, cr: 'TH-836', issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, status: 'GENERADO', department: 'TH' },
+  { no: 5, cr: 'GT-742', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, status: 'GENERADO', department: 'GT' },
+  { no: 6, cr: 'TH-804', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, status: 'GENERADO', department: 'TH' },
+  { no: 7, cr: 'GT-713', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, status: 'GENERADO', department: 'GT' },
   { no: 8, cr: 'GT-651', issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, status: 'GENERADO', department: 'GT' },
-  { no: 9, cr: 'GT-624', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00, status: 'GENERADO', department: 'GT' },
-  { no: 10, cr: 'GT-597', issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, status: 'GENERADO', department: 'GT' },
+  { no: 9, cr: 'TH-768', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, status: 'EN PROCESO DE PAGO', department: 'TH' },
+  { no: 10, cr: 'GT-624', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00, status: 'EN PROCESO DE PAGO', department: 'GT' },
+  { no: 11, cr: 'GT-597', issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, status: 'EN PROCESO DE PAGO', department: 'GT' },
 ];
 
-export const OFFICIAL_IN_REVIEW = {
-  rfc: 'GTP930115PU1',
-  client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-  oc: '120267114014',
-  folio: '6167',
-  issueDate: '2026-08-10',
-  total: 81780.00,
-  statusText: 'En Revisión (Pendiente de Contrarecibo)',
-};
+export const OFFICIAL_IN_REVIEW = [
+  { folio: '6198', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 98054.60, department: 'TH', dateStr: '2026-08-20' },
+  { folio: '6193', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 49880.00, department: 'GT', dateStr: '2026-08-19' }
+];
 
 export function SincronizadorOficialModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
   const toast = useToast();
@@ -52,6 +49,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
   const [purgeOldOrders, setPurgeOldOrders] = useState(true);
 
   const totalCrsAmount = OFFICIAL_CRS.reduce((a, b) => a + b.total, 0);
+  const totalInReviewAmount = Array.isArray(OFFICIAL_IN_REVIEW) ? OFFICIAL_IN_REVIEW.reduce((a, b) => a + b.total, 0) : 0;
 
   const handleSyncAll = async () => {
     setBusy(true);
@@ -74,8 +72,11 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           const oCr = (o.collection?.contrareciboNumber || o.folio || o.oc || '').toUpperCase().trim();
           const hasMatchingCr = (o.invoices || []).some(i => officialCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim())) || officialCrSet.has(oCr);
           const is6167 = (o.folio === '6167' || o.oc === '120267114014' || (o.invoices || []).some(i => i.folio === '6167'));
+          const isInReview = Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.some(item => 
+            o.oc === item.oc || o.folio === item.oc || o.folio === item.folio || (o.invoices || []).some(i => i.folio === item.folio)
+          );
 
-          if (!hasMatchingCr && !is6167) {
+          if (!hasMatchingCr && !is6167 && !isInReview) {
             try {
               await updateDoc(doc(db, PATHS.orders, o.id), { isDeleted: true, updatedAt: serverTimestamp() });
               addLog(`🗑️ Archivado expediente obsoleto: ${o.folio || o.oc || o.id}`);
@@ -91,10 +92,11 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
 
-        // Buscar si ya existe una orden con este CR o monto aproximado
+        // Buscar si ya existe una orden con este CR o monto aproximado, o folio/OC heredada para TH-946 (Factura 6167)
         const matchingOrder = orders.find(o => 
           (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
-          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr)
+          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr) ||
+          (item.cr === 'TH-946' && (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(i => i.folio === '6167')))
         );
 
         if (matchingOrder) {
@@ -204,63 +206,124 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         }
       }
 
-      // 2. Sincronizar Factura 6167 en Revisión (OC 120267114014)
-      const oc6167Id = 'oc-120267114014';
-      const issue6167Ts = Timestamp.fromDate(new Date('2026-08-10T10:48:40'));
-      const kilos6167 = Math.round(OFFICIAL_IN_REVIEW.total / (43 * 1.16));
+      // 2. Sincronizar Facturas en Revisión si existieran
+      if (Array.isArray(OFFICIAL_IN_REVIEW)) {
+        for (const item of OFFICIAL_IN_REVIEW) {
+          const orderId = `oc-${item.oc}`;
+          const issueDate = new Date(`${item.dateStr}T12:00:00`);
+          const dueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+          
+          // Kilos facturados
+          const kilosFacturados = Math.round(item.total / (43 * 1.16));
+          
+          // Kilos entregados totales en esta orden (incluye el no facturado de 1,500 kg si es la OC 120267114114)
+          const kilosAdicionalesNoFacturados = item.oc === '120267114114' ? 1500 : 0;
+          const kilosEntregadosTotales = kilosFacturados + kilosAdicionalesNoFacturados;
 
-      const order6167Doc: any = {
-        id: oc6167Id,
-        folio: OFFICIAL_IN_REVIEW.folio,
-        oc: OFFICIAL_IN_REVIEW.oc,
-        client: OFFICIAL_IN_REVIEW.client,
-        totalKilograms: kilos6167,
-        invoices: [
-          {
-            id: `inv-${OFFICIAL_IN_REVIEW.folio}`,
-            orderId: oc6167Id,
-            folio: OFFICIAL_IN_REVIEW.folio,
-            kilos: kilos6167,
+          // Crear deliveries
+          const deliveriesList: any[] = [
+            {
+              id: `del-billed-${item.folio}`,
+              date: Timestamp.fromDate(issueDate),
+              kilos: kilosFacturados,
+              invoiced: true,
+              invoiceId: `inv-${item.folio}`,
+              docType: 'factura' as const,
+              docFolio: item.folio,
+            }
+          ];
+
+          if (kilosAdicionalesNoFacturados > 0) {
+            deliveriesList.push({
+              id: `del-pending-${orderId}`,
+              date: Timestamp.fromDate(issueDate),
+              kilos: kilosAdicionalesNoFacturados,
+              invoiced: false,
+              invoiceId: '',
+              docType: 'remision' as const,
+              docFolio: 'PENDIENTE',
+              notes: 'Entregado pero no facturado',
+            });
+          }
+
+          const orderDoc: any = {
+            id: orderId,
+            folio: item.folio,
+            oc: item.oc,
+            client: item.client,
+            department: item.department,
+            totalKilograms: kilosEntregadosTotales,
+            invoices: [
+              {
+                id: `inv-${item.folio}`,
+                orderId: orderId,
+                folio: item.folio,
+                kilos: kilosFacturados,
+                creditCycle: {
+                  status: 'facturado',
+                  issueDate: Timestamp.fromDate(issueDate),
+                  dueDate: Timestamp.fromDate(dueDate),
+                },
+                collection: {
+                  contrareciboNumber: '', // Sin CR, en revisión
+                  paidAmount: 0,
+                  notes: `Factura ${item.folio} en revisión en Cuentas por Pagar Providencia`,
+                },
+                financials: {
+                  invoiceTotal: item.total,
+                  saleTotal: item.total / 1.16,
+                  ivaTotal: item.total - (item.total / 1.16),
+                },
+              }
+            ],
+            invoiceStatuses: ['facturado'],
+            collection: {
+              contrareciboNumber: '',
+              paidAmount: 0,
+            },
             creditCycle: {
               status: 'facturado',
-              issueDate: issue6167Ts,
-              dueDate: Timestamp.fromDate(new Date('2026-09-09T10:48:40')),
+              issueDate: Timestamp.fromDate(issueDate),
             },
-            collection: {
-              contrareciboNumber: '', // Sin CR, en revisión
-              paidAmount: 0,
-              notes: 'Factura 6167 en revisión en Cuentas por Pagar Providencia',
-            },
-            financials: {
-              invoiceTotal: OFFICIAL_IN_REVIEW.total,
-              saleTotal: OFFICIAL_IN_REVIEW.total / 1.16,
-              ivaTotal: OFFICIAL_IN_REVIEW.total - (OFFICIAL_IN_REVIEW.total / 1.16),
-            },
-          }
-        ],
-        invoiceStatuses: ['facturado'],
-        collection: {
-          contrareciboNumber: '',
-          paidAmount: 0,
-        },
-        creditCycle: {
-          status: 'facturado',
-          issueDate: issue6167Ts,
-        },
-        status: 'facturado',
-        createdAt: issue6167Ts,
-        updatedAt: serverTimestamp(),
-      };
+            status: 'facturado',
+            deliveries: deliveriesList,
+            createdAt: Timestamp.fromDate(issueDate),
+            updatedAt: serverTimestamp(),
+          };
 
-      await setDoc(doc(db, PATHS.orders, oc6167Id), order6167Doc, { merge: true });
-      addLog(`📝 Factura #${OFFICIAL_IN_REVIEW.folio} (OC ${OFFICIAL_IN_REVIEW.oc}): Registrada como "En Revisión (Pendiente de Contrarecibo)" por ${money(OFFICIAL_IN_REVIEW.total)}.`);
+          await setDoc(doc(db, PATHS.orders, orderId), orderDoc, { merge: true });
+          addLog(`📝 Factura #${item.folio} (OC ${item.oc}): Registrada en revisión por ${money(item.total)}.`);
 
-      // 2.1 Actualizar saldo histórico con Andrés a la cifra oficial del corte
+          // Registrar compra en la colección de Compras con Andrés
+          const purchaseDoc = {
+            id: orderId,
+            date: Timestamp.fromDate(issueDate),
+            provider: 'Andres',
+            expectedKilos: kilosEntregadosTotales,
+            receivedKilos: kilosEntregadosTotales,
+            pricePerKg: 43,
+            totalAmount: round2(kilosEntregadosTotales * 43),
+            paidAmount: 0,
+            status: 'entregado',
+            notes: item.oc === '120267114114' ? 'Incluye 1,500 kg entregados no facturados' : 'Entregado completo',
+            createdAt: serverTimestamp(),
+          };
+          await setDoc(doc(db, PATHS.purchases, orderId), purchaseDoc, { merge: true });
+        }
+      }
+
+      // 2.1 Actualizar saldo histórico con Andrés solo si no está configurado
       try {
-        await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true });
-        addLog(`⚖️ Saldo histórico con Andrés calibrado a la cifra oficial de corte: -$102,670.27.`);
+        const docRef = doc(db, PATHS.config, 'financials');
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists() || docSnap.data()?.historicalDebtAndres === undefined) {
+          await setDoc(docRef, { historicalDebtAndres: 82628.94 }, { merge: true });
+          addLog(`⚖️ Saldo histórico inicial con Andrés establecido a: $82,628.94.`);
+        } else {
+          addLog(`⚖️ Saldo histórico con Andrés preservado (ya configurado por el usuario: ${money(docSnap.data().historicalDebtAndres)}).`);
+        }
       } catch (err) {
-        console.warn('Error al actualizar financials config', err);
+        console.warn('Error al verificar/actualizar financials config', err);
       }
 
       // 3. Invocar recálculo en la nube
@@ -276,7 +339,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
       await logAction('Administrador', 'Sincronización de Contrarecibos Oficiales', {
         totalCrs: OFFICIAL_CRS.length,
         montoTotalCrs: totalCrsAmount,
-        facturaEnRevision: OFFICIAL_IN_REVIEW.folio,
+        facturaEnRevision: OFFICIAL_IN_REVIEW ? (OFFICIAL_IN_REVIEW as any).folio : '',
         purgadosAntiguos: purgeOldOrders,
       });
 
@@ -288,7 +351,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
       });
 
       sound.playChaChing();
-      toast('🎉 Base de datos sincronizada con éxito con los 10 Contrarecibos y Factura 6167.', 'ok');
+      toast(`🎉 Base de datos sincronizada con éxito con los ${OFFICIAL_CRS.length} Contrarecibos.`, 'ok');
       setCompleted(true);
     } catch (e: any) {
       addLog(`❌ Error durante sincronización: ${e.message}`);
@@ -302,7 +365,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
     <Modal title="⚡ Sincronizador Oficial de Contrarecibos Providencia" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
-          Este módulo actualizará tu base de datos en Firestore con los <strong>10 Contrarecibos vigentes</strong> y la <strong>Factura 6167 en revisión</strong> proporcionados directamente de Providencia.
+          Este módulo actualizará tu base de datos en Firestore con los <strong>{OFFICIAL_CRS.length} Contrarecibos vigentes</strong> de Providencia.
         </p>
 
         {/* Checkbox para limpiar expedientes antiguos de prueba */}
@@ -318,7 +381,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
               🧹 Limpiar expedientes obsoletos / de prueba antiguos
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
-              Archiva expedientes huérfanos para que el Dashboard y el recálculo se hagan <strong>estrictamente sobre tus 11 expedientes reales</strong> (10 CRs + Fac 6167).
+              Archiva expedientes huérfanos para que el Dashboard y el recálculo se hagan <strong>estrictamente sobre tus {OFFICIAL_CRS.length + (Array.isArray(OFFICIAL_IN_REVIEW) ? OFFICIAL_IN_REVIEW.length : 0)} expedientes reales</strong>.
             </div>
           </div>
         </label>
@@ -327,7 +390,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div style={{ background: 'var(--paper-sunk)', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-              10 Contrarecibos Emitidos
+              {OFFICIAL_CRS.length} Contrarecibos Emitidos
             </div>
             <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', marginTop: 4 }}>
               {money(totalCrsAmount)}
@@ -337,17 +400,19 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             </div>
           </div>
 
-          <div style={{ background: 'var(--paper-sunk)', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-              1 Factura en Revisión
+          {Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.length > 0 && (
+            <div style={{ background: 'var(--paper-sunk)', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
+                {OFFICIAL_IN_REVIEW.length} Facturas en Revisión
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: '#d97706', marginTop: 4 }}>
+                {money(totalInReviewAmount)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
+                Pendientes de contrarecibo
+              </div>
             </div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#d97706', marginTop: 4 }}>
-              {money(OFFICIAL_IN_REVIEW.total)}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-              Fac #{OFFICIAL_IN_REVIEW.folio} (OC {OFFICIAL_IN_REVIEW.oc})
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Tabla Previa de Datos a Sincronizar */}
@@ -372,13 +437,15 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                   <td style={{ textAlign: 'center' }}><span className="badge b-ok">{c.status}</span></td>
                 </tr>
               ))}
-              <tr style={{ background: 'rgba(245, 158, 11, 0.08)' }}>
-                <td className="mono" style={{ fontWeight: 800, color: '#b45309' }}>FAC #{OFFICIAL_IN_REVIEW.folio}</td>
-                <td className="mono">{fmtDate(new Date(OFFICIAL_IN_REVIEW.issueDate))}</td>
-                <td className="mono">—</td>
-                <td className="num mono" style={{ fontWeight: 700, color: '#b45309' }}>{money(OFFICIAL_IN_REVIEW.total)}</td>
-                <td style={{ textAlign: 'center' }}><span className="badge b-warn">En Revisión</span></td>
-              </tr>
+              {Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.map((item) => (
+                <tr key={item.folio} style={{ background: 'rgba(245, 158, 11, 0.08)' }}>
+                  <td className="mono" style={{ fontWeight: 800, color: '#b45309' }}>FAC #${item.folio}</td>
+                  <td className="mono">{fmtDate(new Date(`${item.dateStr}T12:00:00`))}</td>
+                  <td className="mono">—</td>
+                  <td className="num mono" style={{ fontWeight: 700, color: '#b45309' }}>{money(item.total)}</td>
+                  <td style={{ textAlign: 'center' }}><span className="badge b-warn">En Revisión</span></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

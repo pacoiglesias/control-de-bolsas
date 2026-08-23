@@ -3,19 +3,21 @@ import { OFFICIAL_CRS, OFFICIAL_IN_REVIEW } from '../../components/Cobranza/Sinc
 import { round2, computeCommissionFromInvoiceTotal } from '../finance';
 
 describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
-  it('debe sumar exactamente $1,019,956.34 en los 10 Contrarecibos Oficiales', () => {
+  it('debe sumar exactamente $1,101,736.34 en los 11 Contrarecibos Oficiales', () => {
     const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
-    expect(totalCrs).toBe(1019956.34);
-    expect(OFFICIAL_CRS.length).toBe(10);
+    expect(totalCrs).toBe(1101736.34);
+    expect(OFFICIAL_CRS.length).toBe(11);
   });
 
-  it('debe calcular la deuda total de Providencia con Factura 6167 exactamente en $1,101,736.34', () => {
+  it('debe calcular la deuda total de Providencia exactamente en $1,249,670.94', () => {
     const totalCrs = OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0);
-    const factura6167 = OFFICIAL_IN_REVIEW.total;
-    const deudaTotal = round2(totalCrs + factura6167);
+    const totalRevision = Array.isArray(OFFICIAL_IN_REVIEW)
+      ? OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0)
+      : 0;
+    const deudaTotal = round2(totalCrs + totalRevision);
 
-    expect(factura6167).toBe(81780.00);
-    expect(deudaTotal).toBe(1101736.34);
+    expect(totalRevision).toBe(147934.60);
+    expect(deudaTotal).toBe(1249670.94);
   });
 
   it('debe calcular la comisión contable (8% sobre subtotal) con precisión milimétrica', () => {
@@ -44,12 +46,6 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
         isDeleted: false,
         invoices: [{ folio: c.cr, financials: { invoiceTotal: c.total }, creditCycle: { status: 'pending' } }],
       })),
-      {
-        id: 'oc-120267114014',
-        folio: '6167',
-        isDeleted: false,
-        invoices: [{ folio: '6167', financials: { invoiceTotal: 81780.00 }, creditCycle: { status: 'facturado' } }],
-      },
       // 17 expedientes de prueba obsoletos simulados
       ...Array.from({ length: 17 }).map((_, i) => ({
         id: `test-orphan-${i}`,

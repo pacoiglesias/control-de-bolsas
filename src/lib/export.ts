@@ -122,9 +122,12 @@ export async function exportToExcel() {
   const totalComisionContable = carteraRows.reduce((s, r) => s + r.HonorarioContador_8Pct, 0);
   const totalNetoEsperado = totalDeudaProvidencia - totalComisionContable;
 
+  const countCrs = carteraRows.filter(r => r.Contrarecibo !== 'PENDIENTE').length;
+  const countRevision = carteraRows.filter(r => r.Contrarecibo === 'PENDIENTE').length;
+
   const resumenRows = [
-    { Rubro: '1. Contrarecibos Vigentes Emitidos (10 CRs)', Importe: totalCarteraCrs, Detalle: 'Cartera amparada con Contrarecibo oficial' },
-    { Rubro: '2. Facturas en Revisión (Fac #6167)', Importe: totalCarteraRevision, Detalle: 'OC 120267114014 en revisión para contrarecibo' },
+    { Rubro: `1. Contrarecibos Vigentes Emitidos (${countCrs} CRs)`, Importe: totalCarteraCrs, Detalle: 'Cartera amparada con Contrarecibo oficial' },
+    { Rubro: countRevision > 0 ? `2. Facturas en Revisión (${countRevision} docs)` : '2. Facturas en Revisión', Importe: totalCarteraRevision, Detalle: 'Facturas pendientes de contrarecibo' },
     { Rubro: '🏢 TOTAL DEUDA ACTIVA DE PROVIDENCIA', Importe: totalDeudaProvidencia, Detalle: 'Suma exacta al centavo de toda la cartera' },
     { Rubro: '🏛️ Honorario Despacho Contable (8.0%)', Importe: -totalComisionContable, Detalle: 'Comisión del despacho sobre base gravable' },
     { Rubro: '💰 DINERO NETO REAL A INGRESAR A CAJA', Importe: totalNetoEsperado, Detalle: 'Efectivo líquido final disponible' },

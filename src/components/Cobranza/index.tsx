@@ -372,6 +372,7 @@ export default function Cobranza() {
     toggleComplementStatus,
     payInvoiceExact,
     payContrareciboBlock,
+    fastCollectContrareciboBlock,
     undoContrareciboBlock,
     collectContrareciboBlock,
     revertCollectedContrareciboBlock,
@@ -584,7 +585,7 @@ export default function Cobranza() {
   const ctx = {
     data, settings, money, activeTab, setActiveTab, shareCarteraVencida, printCarteraVencida, exportCobranzaCsv,
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
-    payContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
+    payContrareciboBlock, fastCollectContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
     liquidateAccountantBlock, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, printConsolidatedCr, shareConsolidatedCr,
     filterType, setFilterType, setSelected, abrirConFoco, moveInvoice
   };
@@ -604,9 +605,9 @@ export default function Cobranza() {
             className="btn btn-primary"
             style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)', color: '#fff', fontWeight: 800, border: 'none', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)' }}
             onClick={() => setShowSincronizador(true)}
-            title="Sincronizar base de datos con los 10 Contrarecibos Oficiales y Fac 6167"
+            title="Sincronizar base de datos con los Contrarecibos Oficiales"
           >
-            ⚡ Sincronizar 10 Contrarecibos
+            ⚡ Sincronizar Contrarecibos
           </button>
           <button
             className="btn btn-primary"

@@ -22,6 +22,7 @@ export function useDashboardStats(
       ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
       creditDays: config?.creditDays || 30,
       companyName: config?.companyName || 'Bolsas Elemental / Providencia',
+      historicalDebtAndres: config?.historicalDebtAndres,
     };
 
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
@@ -209,10 +210,15 @@ export function useDashboardStats(
         }
       }
       
-      if (normalizarTexto(e.provider) === 'andres') {
+      // SPRINT 1 FIX: usar isAndresPayment (campo explícito) cuando existe;
+      // si no, caer al match de texto. Así los pagos nuevos son robustos y
+      // los históricos siguen siendo detectados.
+      const esAndres = e.isAndresPayment === true || normalizarTexto(e.provider) === 'andres';
+      if (esAndres) {
         if (e.type === 'egreso') totalPagadoAndres += Number(e.amount) || 0;
         else totalPagadoAndres -= Number(e.amount) || 0;
       }
+
     });
 
     let totalPurchasesCost = 0;
@@ -220,7 +226,7 @@ export function useDashboardStats(
       if (!p || normalizarTexto(p.provider) !== 'andres') return;
       totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
-    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : -102670.27;
+    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 82628.94;
     const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica;
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
@@ -269,6 +275,8 @@ export function useDashboardStats(
       inventarioVivo: round2(inventarioVivo),
       localSaldoCaja: round2(localSaldoCaja),
       deudaAndres: round2(deudaAndres),
+      totalPagadoAndres: round2(totalPagadoAndres),
+      totalPurchasesCost: round2(totalPurchasesCost),
       proyeccionFlujo: round2(proyeccionFlujo),
       opex: round2(opex),
       utilidadNeta: round2(utilidadNeta)

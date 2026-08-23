@@ -15,6 +15,8 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { Skeleton } from '../components/ui';
 import { confirmDialog } from '../lib/confirmDialog';
+import { promptDialog } from '../lib/promptDialog';
+import { triggerHaptic } from '../lib/hapticEngine';
 import { createCloudBackup, listCloudBackups, restoreCloudBackup, downloadBackupJsonFile, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
@@ -41,7 +43,7 @@ import { PorRecibirPanel } from '../components/Dashboard/PorRecibirPanel';
 import { FinancialTrendChart } from '../components/Dashboard/FinancialTrendChart';
 import { getRentabilidadHtml } from './DashboardReports';
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
-
+import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
 
 
 
@@ -90,6 +92,7 @@ export default function Dashboard() {
   const [viewMode, setViewMode] = useState<'executive' | 'orders' | 'collection' | 'production' | 'pnl' | 'all'>('executive');
   const [showReportsMenu, setShowReportsMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showQuickEdit, setShowQuickEdit] = useState(false);
 
   // Cerrar menús al hacer clic fuera o presionar Escape
   useEffect(() => {
@@ -204,10 +207,10 @@ return () => unsub();
     fetchHealth();
   }, [role]);
 
-  // Auto-calibración automática del saldo histórico con Andrés al valor oficial de corte (-102,670.27)
+  // Auto-calibración automática del saldo histórico con Andrés al valor oficial de corte (82,628.94)
   useEffect(() => {
-    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === undefined || config.historicalDebtAndres === 0)) {
-      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true }).catch((err: any) => {
+    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === -102670.27 || config.historicalDebtAndres === undefined || config.historicalDebtAndres === 0)) {
+      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: 82628.94 }, { merge: true }).catch((err: any) => {
         console.warn('Auto-calibración config/financials:', err);
       });
     }
@@ -320,6 +323,33 @@ return () => unsub();
   }, [globalOrders, config]);
 
   const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
+
+  async function handleCalibrateSaldo() {
+    const inputStr = await promptDialog({
+      title: '🔧 Calibrar Saldo con Andrés',
+      message: `¿Cuál es el saldo real actual con Andrés en tus registros?\n\n` +
+               `- Ingresa un valor POSITIVO (ej. 227628.94) si Andrés tiene saldo a favor por anticipos.\n` +
+               `- Ingresa un valor NEGATIVO si la empresa le debe a Andrés.\n\n` +
+               `Saldo calculado actual en sistema: ${money(k.deudaAndres)}`,
+      defaultValue: '',
+      placeholder: 'Ej. 40800.00'
+    });
+    if (inputStr === null) return;
+    const realBalance = parseFloat(inputStr.replace(/[^0-9.-]/g, ''));
+    if (isNaN(realBalance)) {
+      toast('❌ Por favor ingresa un número válido.', 'bad');
+      return;
+    }
+
+    try {
+      const diff = realBalance - (k.totalPagadoAndres - k.totalPurchasesCost);
+      await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: diff }, { merge: true });
+      triggerHaptic('success');
+      toast(`✅ Saldo calibrado con éxito. Nueva deuda histórica ajustada a ${money(diff)}.`, 'ok');
+    } catch (e) {
+      toast(`❌ Error al calibrar: ${(e as Error).message}`, 'bad');
+    }
+  }
 
   // El contador de "Vencido" del agregado del servidor cuenta EXPEDIENTES,
   // no contrarecibos — correcto casi siempre (un expediente = una factura),
@@ -496,7 +526,18 @@ return () => unsub();
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 14 }}>⚖️</span>
             <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con {settings.providerName || 'Andrés'}</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }}>
+                Saldo con {settings.providerName || 'Andrés'}
+                {role === 'admin' && (
+                  <button 
+                    onClick={() => void handleCalibrateSaldo()} 
+                    title="Calibrar Saldo" 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center', opacity: 0.8, color: 'var(--primary)', fontSize: 11 }}
+                  >
+                    ✏️
+                  </button>
+                )}
+              </div>
               <div style={{ fontSize: 14, fontWeight: 900, color: k.deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
                 {money(k.deudaAndres)}
               </div>
@@ -649,7 +690,7 @@ return () => unsub();
                     style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', padding: '8px 12px', borderRadius: 8 }}
                     onClick={() => { setShowReportsMenu(false); setShowSincronizador(true); }}
                   >
-                    ⚡ Sincronizar 10 Contrarecibos
+                    ⚡ Sincronizar Contrarecibos
                   </button>
                 </div>
               )}
@@ -1211,7 +1252,7 @@ return () => unsub();
                 onOpenQuickInvoice={() => setShowQuickInvoice(true)}
                 onOpenQuickCollection={() => setShowQuickCollection(true)}
               />
-              <SmartAlerts orders={activeOrders} />
+              <SmartAlerts orders={activeOrders} deudaAndres={k.deudaAndres} />
               <CashflowProjection orders={activeOrders} />
             </div>
           </div>
@@ -1454,6 +1495,38 @@ return () => unsub();
         pendingInvoicesCount={pendingInvoicesCount}
         pendingCollectionsCount={pendingCollectionsCount}
       />
+
+      {/* ─── PANEL DE EDICIÓN RÁPIDA (SOLO ADMIN) ─────────────────── */}
+      {role === 'admin' && (
+        <>
+          {/* Botón flotante de acceso rápido */}
+          <button
+            onClick={() => setShowQuickEdit(true)}
+            title="Edición Rápida del Sistema"
+            style={{
+              position: 'fixed', bottom: 88, right: 20, zIndex: 900,
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: '#fff', border: 'none', borderRadius: '50%',
+              width: 52, height: 52, fontSize: 22,
+              cursor: 'pointer', boxShadow: '0 8px 24px rgba(99,102,241,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            ⚡
+          </button>
+          <AdminQuickEditPanel
+            open={showQuickEdit}
+            onClose={() => setShowQuickEdit(false)}
+            config={config as any}
+            saldoAndres={k.deudaAndres ?? 0}
+            totalPagadoAndres={k.totalPagadoAndres ?? 0}
+            totalPurchasesCost={k.totalPurchasesCost ?? 0}
+          />
+        </>
+      )}
     </div>
   );
 }

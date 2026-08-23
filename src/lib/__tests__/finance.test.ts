@@ -328,17 +328,17 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(orderMatchesDepartment({ client: 'Grupo Textil Providencia - GT' } as any, 'GT')).toBe(true);
   });
 
-  it('Los 10 contrarecibos oficiales suman exactamente $1,019,956.34 ($584,400.42 TH + $435,555.92 GT)', () => {
-    const thCrs = [79826.00, 136300.00, 106720.17, 136300.00, 125254.25];
+  it('Los 11 contrarecibos oficiales suman exactamente $1,101,736.34 ($666,180.42 TH + $435,555.92 GT)', () => {
+    const thCrs = [81780.00, 79826.00, 136300.00, 106720.17, 136300.00, 125254.25];
     const gtCrs = [54520.00, 69001.60, 106477.56, 98136.00, 107420.76];
 
     const sumTh = round2(thCrs.reduce((a, b) => a + b, 0));
     const sumGt = round2(gtCrs.reduce((a, b) => a + b, 0));
     const grandTotal = round2(sumTh + sumGt);
 
-    expect(sumTh).toBe(584400.42);
+    expect(sumTh).toBe(666180.42);
     expect(sumGt).toBe(435555.92);
-    expect(grandTotal).toBe(1019956.34);
+    expect(grandTotal).toBe(1101736.34);
   });
 
   it('filterOrderByDepartment separa estrictamente las facturas de TH y GT dentro de una orden compuesta', async () => {
@@ -385,8 +385,8 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(allFiltered?.invoices).toHaveLength(4);
   });
 
-  it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a -102670.27', () => {
-    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
+  it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a 82628.94', () => {
+    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(82628.94);
   });
 
   it('un contrarecibo puede contener varias facturas (1 CR -> N Facturas), pero nunca mezcla facturas de TH y GT', async () => {

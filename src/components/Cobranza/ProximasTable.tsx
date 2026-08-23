@@ -4,7 +4,7 @@ import { fmtDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { promptDialog } from '../../lib/promptDialog';
 
 export default function ProximasTable() {
-  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, toast, filterType, setFilterType, setSelected } = useCobranza();
+  const { data, money, search, setSearch, filteredLista, payContrareciboBlock, fastCollectContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, toast, filterType, setFilterType, setSelected } = useCobranza();
   return (
     <Card 
         title="Qué cobrar primero" 
@@ -209,8 +209,11 @@ export default function ProximasTable() {
                             <span style={{ color: 'var(--ink)' }}>{client}</span>
                             <span className="badge" style={{ background: 'var(--accent)', color: '#fff' }}>{items.length} factura(s)</span>
                           </div>
-                          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                             <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ok)' }}>{money(totalSaldo)}</span>
+                            <button className="btn-small btn-primary" title="Cobro directo y registro de ingreso neto en Caja Chica" onClick={(e) => { e.preventDefault(); (fastCollectContrareciboBlock || payContrareciboBlock)(cr); }}>
+                              ⚡ Cobro Rápido (TR)
+                            </button>
                             <button className="btn-small btn-ok" onClick={(e) => { e.preventDefault(); payContrareciboBlock(cr); }}>💰 Pagar Lote</button>
                           </div>
                         </summary>

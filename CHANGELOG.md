@@ -1,6 +1,41 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.19] - 24 Agosto 2026 (Modo Offline, Excel Bidireccional & Suite de Cobranza Ágil)
+
+### 📲 Nuevo — Modo Offline & Motor de Sincronización con Excel (.xlsx)
+- **Exportador Multi-Pestaña de Trabajo Offline (`offlineExcelSync.ts`):** Genera un libro estructurado con `1_EXPEDIENTES_FACTURAS`, `2_ENTREGAS_ANDRES`, `3_CAJA_CHICA_PAGOS` y `4_INSTRUCCIONES` para trabajar sin internet en Microsoft Excel o Google Sheets.
+- **Detector Inteligente de Diffs y Reconciliación (`OfflineExcelSyncModal.tsx`):** Al re-importar el archivo Excel, el sistema analiza celda por celda los cambios, clasifica en 🟢 nuevos registros y 🟡 modificaciones, y valida el candado inviolable de kilos de Andrés contra la OC (cero mermas).
+- **Indicador de Conexión en Vivo (`OfflineIndicator.tsx`):** Chip interactivo en la barra superior del ERP que detecta el estado de red (`En Línea` / `Modo Offline`) con acceso inmediato en 1 clic a exportar o sincronizar el libro de trabajo.
+
+### ⚡ Nuevo — Suite de Cobranza Ágil y Pegado Mágico del Portal
+- **Botón «⚡ Cobro Rápido (TR)» (`ProximasTable.tsx`):** En la cabecera de cada contrarecibo, permite cobrar en 1 solo clic con referencia bancaria (`TR_xxxx`), calcula la comisión del contador (8%) y genera el asiento del ingreso neto en Caja Chica (`expenses`) de forma atómica.
+- **Pegado Mágico Ctrl+V del Portal (`portalSync.ts`):** Reconocimiento instantáneo de las 3 tablas oficiales de Providencia: Contrarecibos (`GENERADO` / `EN PROCESO DE PAGO` por $1,101,736.34), Facturas en Revisión y Pagos Cobrados con folio `TR_xxxx`.
+- **Ficha Financiera Transparente de Andrés (`PagarAndresModal.tsx`):** Desglose conectado a `useAndresStats` con cálculo de efectivo restante en Caja Chica, recibo oficial imprimible en PDF y mensaje de WhatsApp en 1 toque.
+- **Candado Inviolable en Entrega de Kilos (`OrderModals.tsx`):** Validación estricta que bloquea cualquier registro de entrega de Andrés que sobrepase los kilos pedidos de la OC.
+
+---
+
+## [v8.9.18] - 23 Agosto 2026 (Panel de Edición Rápida Universal + Multi-Sprint de Calidad)
+
+### ✨ Nuevo — AdminQuickEditPanel (Sprint 1)
+- **⚡ Panel de Edición Rápida del Sistema (`AdminQuickEditPanel.tsx`):** Panel lateral deslizable (solo admin) accesible desde el botón flotante ⚡ en el Dashboard. Permite editar en línea, sin salir de la pantalla, cualquier parámetro crítico del ERP: Precio de Venta/kg, Costo de Compra/kg, Comisión del Contador, Tasa de IVA, Días de Crédito y Saldo con Andrés (calibración automática). Cada campo tiene su propio editor inline con confirmación por Enter o ✓ Guardar, todos con guardado atómico a `config/financials` en Firestore.
+- **Calibración de Saldo con Andrés extendida al Dashboard:** El botón ✏️ existente en `Compras.tsx` y el nuevo `AdminQuickEditPanel` ofrecen dos rutas para calibrar el saldo histórico de forma intuitiva.
+
+### 🐛 Corregido — Límites de Consulta Silenciosos (Sprint 2)
+- **`ExpensesContext.tsx`:** Eliminado `limit(500)`. Si la colección de caja chica superaba 500 movimientos, el saldo se truncaba silenciosamente produciendo un efectivo incorrecto. Ahora se cargan todos los documentos y el sort se realiza en cliente.
+- **`PurchasesContext.tsx`:** Eliminado `limit(300)`. Compras antiguas eran ignoradas, produciendo un saldo con Andrés incorrecto. Ahora el contexto carga el histórico completo.
+
+### 🔍 Nuevo — Detección de Folios Duplicados (Sprint 3)
+- **`SmartAlerts.tsx`:** Nueva alerta 🔁 que detecta cuando un folio de factura aparece en más de un expediente. Señal proactiva de doble captura o error de copia/pega. Redirige directamente a la vista de Órdenes para corrección inmediata.
+
+### 📊 Nuevo — Observabilidad y Alertas Proactivas (Sprint 4)
+- **Alerta ⚖️ de Saldo Anómalo con Andrés:** `SmartAlerts` recibe `deudaAndres` desde el Dashboard. Si el saldo supera ±$500,000 (señal de calibración mal configurada), aparece una alerta con botón directo al panel ⚡ Edición Rápida.
+- **`useDashboardStatsV2.ts` (Bug Fix sesión anterior):** Corregido el mapeo de `historicalDebtAndres` que se omitía al construir el objeto `cfg` interno, causando que el Dashboard ignorara el valor calibrado en Firestore y mostrara siempre el fallback hardcodeado, generando el saldo erróneo de −$1,104,410.41.
+
+---
+
 ## [v8.9.17] - 23 Agosto 2026 (Suite de Navegación Intuitiva & Productividad Acelerada)
+
 
 - **Command Palette Global (`Ctrl + K` / `Cmd + K`):** Modal flotante indexado para buscar instantáneamente folios de orden, números de contrarecibo, clientes, productos y ejecutar comandos rápidos desde cualquier parte de la aplicación.
 - **Menú Contextual de Acciones Rápidas (`OrderContextMenu.tsx`):** Menú accesible con clic derecho o interacción táctil para copiar folios/CR, enviar resúmenes por correo electrónico o WhatsApp, abrir expedientes y facturar en un solo clic.

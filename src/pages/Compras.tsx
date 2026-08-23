@@ -14,6 +14,11 @@ import { exportToCsv, getPrintHeaderHtml, fmtDate, nombreClienteVisible } from '
 import { Skeleton, Empty, Card } from '../components/ui';
 import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
 import type { Purchase, PurchaseOrder } from '../lib/types';
+import { money } from '../lib/format';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { promptDialog } from '../lib/promptDialog';
 
 export default function Compras() {
   const { role } = useAuth();
@@ -143,6 +148,33 @@ export default function Compras() {
     if (win) { win.document.write(html); win.document.close(); }
   }
 
+  async function handleCalibrateSaldo() {
+    const inputStr = await promptDialog({
+      title: '🔧 Calibrar Saldo con Andrés',
+      message: `¿Cuál es el saldo real actual con Andrés en tus registros?\n\n` +
+               `- Ingresa un valor POSITIVO (ej. 227628.94) si Andrés tiene saldo a favor por anticipos.\n` +
+               `- Ingresa un valor NEGATIVO si la empresa le debe a Andrés.\n\n` +
+               `Saldo calculado actual en sistema: ${money(saldoProveedor)}`,
+      defaultValue: '',
+      placeholder: 'Ej. 40800.00'
+    });
+    if (inputStr === null) return;
+    const realBalance = parseFloat(inputStr.replace(/[^0-9.-]/g, ''));
+    if (isNaN(realBalance)) {
+      toast('❌ Por favor ingresa un número válido.', 'bad');
+      return;
+    }
+
+    try {
+      const diff = realBalance - (totalPagado - totalPurchasesCost);
+      await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: diff }, { merge: true });
+      triggerHaptic('success');
+      toast(`✅ Saldo calibrado con éxito. Nueva deuda histórica ajustada a ${money(diff)}.`, 'ok');
+    } catch (e) {
+      toast(`❌ Error al calibrar: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   return (
     <>
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
@@ -151,6 +183,7 @@ export default function Compras() {
           <p>Control de anticipos, entregas en báscula, costo de compra y estado de cuenta con el proveedor ({provName}).</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn" onClick={() => void handleCalibrateSaldo()} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700 }}>🔧 Calibrar Saldo</button>
           <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>
           <button className="btn" onClick={() => setSelected({} as Purchase)}>➕ Nuevo Anticipo / OC</button>
         </div>

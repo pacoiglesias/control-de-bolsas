@@ -16,10 +16,63 @@ export interface SeedItem {
   notes?: string;
   origin: string;
   items?: any[];
+  totalKilograms?: number;
 }
 
 export const INITIAL_SEED_DATA: SeedItem[] = [
-  // 11 Contrarecibos
+  // 11 Contrarecibos por Cobrar Activos al corte (8 Generados + 3 En Proceso de Pago)
+  {
+    id: 'seed-TH-946',
+    folio: 'TH-946',
+    client: 'TH',
+    total: 81780.00,
+    issueDateStr: '2026-08-17',
+    dueDateStr: '2026-09-16',
+    status: 'pending',
+    contrarecibo: 'TH-946',
+    contrareciboDateStr: '2026-08-17',
+    notes: 'Contrarecibo 1/11 - GENERADO',
+    origin: 'base_inicial_contrarecibos'
+  },
+  {
+    id: 'seed-TH-912',
+    folio: 'TH-912',
+    client: 'TH',
+    total: 79826.00,
+    issueDateStr: '2026-08-10',
+    dueDateStr: '2026-09-09',
+    status: 'pending',
+    contrarecibo: 'TH-912',
+    contrareciboDateStr: '2026-08-10',
+    notes: 'Contrarecibo 2/11 - GENERADO',
+    origin: 'base_inicial_contrarecibos'
+  },
+  {
+    id: 'seed-TH-879',
+    folio: 'TH-879',
+    client: 'TH',
+    total: 136300.00,
+    issueDateStr: '2026-08-03',
+    dueDateStr: '2026-09-02',
+    status: 'pending',
+    contrarecibo: 'TH-879',
+    contrareciboDateStr: '2026-08-03',
+    notes: 'Contrarecibo 3/11 - GENERADO',
+    origin: 'base_inicial_contrarecibos'
+  },
+  {
+    id: 'seed-TH-836',
+    folio: 'TH-836',
+    client: 'TH',
+    total: 106720.17,
+    issueDateStr: '2026-07-27',
+    dueDateStr: '2026-08-26',
+    status: 'pending',
+    contrarecibo: 'TH-836',
+    contrareciboDateStr: '2026-07-27',
+    notes: 'Contrarecibo 4/11 - GENERADO',
+    origin: 'base_inicial_contrarecibos'
+  },
   {
     id: 'seed-GT-742',
     folio: 'GT-742',
@@ -30,7 +83,7 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     status: 'pending',
     contrarecibo: 'GT-742',
     contrareciboDateStr: '2026-07-20',
-    notes: 'Contrarecibo 1/11 - Generado',
+    notes: 'Contrarecibo 5/11 - GENERADO',
     origin: 'base_inicial_contrarecibos'
   },
   {
@@ -43,7 +96,7 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     status: 'pending',
     contrarecibo: 'TH-804',
     contrareciboDateStr: '2026-07-20',
-    notes: 'Contrarecibo 2/11 - Generado',
+    notes: 'Contrarecibo 6/11 - GENERADO',
     origin: 'base_inicial_contrarecibos'
   },
   {
@@ -56,33 +109,7 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     status: 'pending',
     contrarecibo: 'GT-713',
     contrareciboDateStr: '2026-07-13',
-    notes: 'Contrarecibo 3/11 - Generado',
-    origin: 'base_inicial_contrarecibos'
-  },
-  {
-    id: 'seed-TH-768',
-    folio: 'TH-768',
-    client: 'TH',
-    total: 125254.25,
-    issueDateStr: '2026-07-13',
-    dueDateStr: '2026-08-12',
-    status: 'pending',
-    contrarecibo: 'TH-768',
-    contrareciboDateStr: '2026-07-13',
-    notes: 'Contrarecibo 4/11 - Generado',
-    origin: 'base_inicial_contrarecibos'
-  },
-  {
-    id: 'seed-TH-739',
-    folio: 'TH-739',
-    client: 'TH',
-    total: 109040.00,
-    issueDateStr: '2026-07-06',
-    dueDateStr: '2026-08-05',
-    status: 'pending',
-    contrarecibo: 'TH-739',
-    contrareciboDateStr: '2026-07-06',
-    notes: 'Contrarecibo 5/11 - Generado',
+    notes: 'Contrarecibo 7/11 - GENERADO',
     origin: 'base_inicial_contrarecibos'
   },
   {
@@ -95,20 +122,20 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     status: 'pending',
     contrarecibo: 'GT-651',
     contrareciboDateStr: '2026-06-29',
-    notes: 'Contrarecibo 6/11 - Generado',
+    notes: 'Contrarecibo 8/11 - GENERADO',
     origin: 'base_inicial_contrarecibos'
   },
   {
-    id: 'seed-TH-713',
-    folio: 'TH-713',
+    id: 'seed-TH-768',
+    folio: 'TH-768',
     client: 'TH',
-    total: 108647.46,
-    issueDateStr: '2026-06-29',
-    dueDateStr: '2026-07-29',
+    total: 125254.25,
+    issueDateStr: '2026-07-13',
+    dueDateStr: '2026-08-12',
     status: 'pending',
-    contrarecibo: 'TH-713',
-    contrareciboDateStr: '2026-06-29',
-    notes: 'Contrarecibo 7/11 - Generado',
+    contrarecibo: 'TH-768',
+    contrareciboDateStr: '2026-07-13',
+    notes: 'Contrarecibo 9/11 - En Proceso de Pago',
     origin: 'base_inicial_contrarecibos'
   },
   {
@@ -118,23 +145,10 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     total: 98136.00,
     issueDateStr: '2026-06-22',
     dueDateStr: '2026-07-22',
-    status: 'overdue',
+    status: 'pending',
     contrarecibo: 'GT-624',
     contrareciboDateStr: '2026-06-22',
-    notes: 'Contrarecibo 8/11 - Generado (Vencido)',
-    origin: 'base_inicial_contrarecibos'
-  },
-  {
-    id: 'seed-TH-680',
-    folio: 'TH-680',
-    client: 'TH',
-    total: 80970.38,
-    issueDateStr: '2026-06-22',
-    dueDateStr: '2026-07-22',
-    status: 'overdue',
-    contrarecibo: 'TH-680',
-    contrareciboDateStr: '2026-06-22',
-    notes: 'Contrarecibo 9/11 - Generado (Vencido)',
+    notes: 'Contrarecibo 10/11 - En Proceso de Pago',
     origin: 'base_inicial_contrarecibos'
   },
   {
@@ -144,60 +158,13 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
     total: 107420.76,
     issueDateStr: '2026-06-15',
     dueDateStr: '2026-07-15',
-    status: 'overdue',
+    status: 'pending',
     contrarecibo: 'GT-597',
     contrareciboDateStr: '2026-06-15',
-    notes: 'Contrarecibo 10/11 - Generado (Vencido)',
-    origin: 'base_inicial_contrarecibos'
-  },
-  {
-    id: 'seed-GT-535',
-    folio: 'GT-535',
-    client: 'GT',
-    total: 196482.30,
-    issueDateStr: '2026-06-01',
-    dueDateStr: '2026-07-01',
-    status: 'overdue',
-    contrarecibo: 'GT-535',
-    contrareciboDateStr: '2026-06-01',
-    notes: 'Contrarecibo 11/11 - Generado (Vencido)',
+    notes: 'Contrarecibo 11/11 - En Proceso de Pago',
     origin: 'base_inicial_contrarecibos'
   },
 
-  // 3 Facturas Pendientes de Contrarecibo
-  {
-    id: 'seed-FAC-6098',
-    folio: '6098',
-    client: 'GTP930115PU1 (Grupo Textil Providencia)',
-    total: 27260.00,
-    issueDateStr: '2026-07-27',
-    dueDateStr: '2026-08-26',
-    status: 'pending',
-    notes: 'Pedido 120267113902 · CFDI 4.0 Ingreso (6098) · Pendiente de contrarecibo',
-    origin: 'facturas_pendientes_contrarecibo'
-  },
-  {
-    id: 'seed-FAC-6097',
-    folio: '6097',
-    client: 'GTP930115PU1 (Grupo Textil Providencia)',
-    total: 109040.00,
-    issueDateStr: '2026-07-27',
-    dueDateStr: '2026-08-26',
-    status: 'pending',
-    notes: 'Pedido 120267113870 · CFDI 4.0 Ingreso (6097) · Pendiente de contrarecibo',
-    origin: 'facturas_pendientes_contrarecibo'
-  },
-  {
-    id: 'seed-FAC-6084',
-    folio: '6084',
-    client: 'GTP930115PU1 (Grupo Textil Providencia)',
-    total: 106720.17,
-    issueDateStr: '2026-07-20',
-    dueDateStr: '2026-08-19',
-    status: 'pending',
-    notes: 'Pedido 120267113870 · CFDI 4.0 Ingreso (6084) · Pendiente de contrarecibo',
-    origin: 'facturas_pendientes_contrarecibo'
-  },
   {
     id: 'seed-FAC-120267114014',
     folio: '120267114014',
@@ -240,6 +207,32 @@ export const INITIAL_SEED_DATA: SeedItem[] = [
         amount: 46092.90
       }
     ]
+  },
+
+  // Dos entregas pendientes para Andrés sumando exactamente 5,734.19 kg
+  {
+    id: 'seed-FAC-ANDRES-PEND-1',
+    folio: 'ANDRES-PEND-1',
+    client: 'GTP930115PU1 (Grupo Textil Providencia)',
+    total: 0,
+    issueDateStr: '2026-08-23',
+    dueDateStr: '2026-09-22',
+    status: 'pedido',
+    totalKilograms: 2867.10,
+    notes: 'ENTREGA PENDIENTE 1/2 · Andrés tiene por entregar parte del adelanto.',
+    origin: 'base_inicial_ordenes'
+  },
+  {
+    id: 'seed-FAC-ANDRES-PEND-2',
+    folio: 'ANDRES-PEND-2',
+    client: 'GTP930115PU1 (Grupo Textil Providencia)',
+    total: 0,
+    issueDateStr: '2026-08-23',
+    dueDateStr: '2026-09-22',
+    status: 'pedido',
+    totalKilograms: 2867.09,
+    notes: 'ENTREGA PENDIENTE 2/2 · Andrés tiene por entregar parte del adelanto.',
+    origin: 'base_inicial_ordenes'
   }
 ];
 
@@ -256,7 +249,7 @@ export async function seedInitialDatabase() {
 
   INITIAL_SEED_DATA.forEach((item) => {
     const subtotal = item.total / (1 + cfg.ivaRate);
-    const kilos = Math.round(subtotal / cfg.salePricePerKg);
+    const kilos = item.totalKilograms ?? Math.round(subtotal / cfg.salePricePerKg);
 
     const issueDate = new Date(`${item.issueDateStr}T00:00:00`);
     const dueDate = new Date(`${item.dueDateStr}T00:00:00`);
@@ -269,14 +262,16 @@ export async function seedInitialDatabase() {
       dept = item.folio.substring(0, 2);
     }
 
+    const itemKilos = item.totalKilograms ?? kilos;
+
     batch.set(doc(db, PATHS.orders, item.id), {
       folio: item.folio,
       client: 'Grupo Textil Providencia',
       department: dept,
       provider: 'Andres',
-      totalKilograms: kilos,
+      totalKilograms: itemKilos,
       kilosEstimados: true,
-      financials: computeFinancials(kilos, cfg),
+      financials: computeFinancials(itemKilos, cfg),
       creditCycle: {
         status: item.status,
         issueDate: Timestamp.fromDate(issueDate),
@@ -292,8 +287,8 @@ export async function seedInitialDatabase() {
       invoices: item.status !== 'pedido' ? [{
         id: `inv-${item.id}`,
         folio: item.folio,
-        kilos: kilos,
-        financials: computeFinancials(kilos, cfg),
+        kilos: itemKilos,
+        financials: computeFinancials(itemKilos, cfg),
         creditCycle: {
           status: item.status,
           issueDate: Timestamp.fromDate(issueDate),

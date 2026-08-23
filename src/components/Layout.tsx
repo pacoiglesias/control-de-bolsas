@@ -17,6 +17,7 @@ import { DeliveryDueBanner } from './DeliveryDueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
+import { OfflineIndicator } from './ui/OfflineIndicator';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -182,11 +183,8 @@ export default function Layout() {
 
         <span className="spacer" />
         <OnlineUsers />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
-          <div className="live-status-pill" style={{ background: isOnline ? 'var(--ok-bg)' : 'var(--bad-bg)', color: isOnline ? 'var(--ok)' : 'var(--bad)', borderColor: isOnline ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)' }}>
-            <span className={isOnline ? 'live-pulse-dot' : ''} style={{ width: 7, height: 7, borderRadius: '50%', background: isOnline ? 'var(--ok)' : 'var(--bad)' }} />
-            <span>{isOnline ? 'En Vivo' : 'Sin Conexión'}</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, marginLeft: 8 }}>
+          <OfflineIndicator />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Botón de Modo Privado / Discreto */}

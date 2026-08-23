@@ -55,7 +55,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    * honorario que cobra el contador por gestionar la cobranza.
    */
   commissionBase: 'subtotal',
-  historicalDebtAndres: -102670.27,
+  historicalDebtAndres: 82628.94,
   // Tomados de una OC real del negocio; editables en Configuracion.
   satClaveProdServ: '24111500',
   satClaveUnidad: 'KGM',
@@ -87,11 +87,14 @@ export interface CreditCycle {
   status: OrderStatus;
 }
 
+export type ContrareciboPortalStatus = 'generado' | 'en_proceso_pago' | 'pagado' | 'sin_numero';
+
 /** Datos de cobranza. El backend no los escribe: los captura el administrador
  *  desde la interfaz conforme avanza el ciclo de cobro. */
 export interface CollectionInfo {
   contrareciboNumber?: string;
   contrareciboDate?: Timestamp | null;
+  contrareciboPortalStatus?: ContrareciboPortalStatus;
   paidAmount?: number;
   paidAt?: Timestamp | null;
   collectedAt?: Timestamp | null;  // Cuando el contador entregó el efectivo
@@ -237,7 +240,18 @@ export interface Expense {
   notes?: string;
   createdAt: Timestamp | null;
   provider?: string;
+  /**
+   * Marca explícita para pagos a Andrés. Evita depender de normalización de
+   * texto libre en `provider` (frágil a typos: "Andrés", "andres garcia",
+   * "Andres Lopez" todos quedan fuera del cómputo si no cuadran exacto).
+   * Backward compatible: el código existente con normalizarTexto() sigue
+   * funcionando mientras se migra gradualmente a este campo.
+   */
+  isAndresPayment?: boolean;
+  /** Categoría para separar OPEX de pagos a proveedor en el P&L */
+  category?: 'proveedor' | 'opex' | 'nomina' | 'servicios' | 'otro';
 }
+
 
 export type PurchaseStatus = 'pedido' | 'parcial' | 'entregado';
 

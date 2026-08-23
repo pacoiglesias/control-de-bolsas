@@ -79,15 +79,15 @@ export default function Settings() {
 
   async function handlePurgeTestOrders() {
     const ok = await confirmDialog(
-      '¿Deseas archivar los 10 expedientes de prueba en la Papelera?\n\n' +
-      'Esta acción conservará únicamente los 10 Contrarecibos Oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00), ' +
+      '¿Deseas archivar los expedientes de prueba en la Papelera?\n\n' +
+      'Esta acción conservará únicamente los 11 Contrarecibos Oficiales ($1,101,736.34), ' +
       'dejando la cartera cuadrada exactamente al corte oficial ($1,101,736.34).'
     );
     if (!ok) return;
 
     setBusy(true);
     try {
-      const OFFICIAL_CRS = ['TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'TH-768', 'GT-651', 'GT-624', 'GT-597'];
+      const OFFICIAL_CRS = ['TH-946', 'TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'GT-651', 'TH-768', 'GT-624', 'GT-597'];
       let purgedCount = 0;
       const batch = writeBatch(db);
 
@@ -96,9 +96,10 @@ export default function Settings() {
         const crNumber = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
         const hasOfficialCr = OFFICIAL_CRS.some(cr => crNumber.includes(cr)) ||
           (o.invoices || []).some(inv => OFFICIAL_CRS.some(cr => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(cr)));
-        const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(inv => inv.folio === '6167'));
+        const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(inv => inv.folio === '6167' || inv.folio === 'TH-946'));
+        const isPendingOrder = o.creditCycle?.status === 'pedido';
 
-        if (!hasOfficialCr && !isFactura6167) {
+        if (!hasOfficialCr && !isFactura6167 && !isPendingOrder) {
           batch.update(doc(db, PATHS.orders, o.id), {
             isDeleted: true,
             deletedAt: serverTimestamp(),
@@ -508,7 +509,9 @@ export default function Settings() {
               <CurrencyInput className="input boxed mono" value={form.historicalDebtAndres ?? 0}
                 onChange={(val) => setForm({ ...form, historicalDebtAndres: val })} />
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Valores positivos indican que le debes (pasivo). Si pones 102670.28, le debes eso a Andrés.
+                Valores positivos indican saldo a favor de Andrés (anticipos). Valores negativos indican que la empresa le debe (pasivo).
+                <br />
+                💡 Puedes calibrar este saldo de forma automática ingresando el saldo real actual en el <a href="/compras" style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'underline' }}>Módulo de Compras</a>.
               </div>
             </Field>
             
@@ -605,8 +608,8 @@ export default function Settings() {
       <Card title="🧹 Auditoría de Datos: Purga de Expedientes de Prueba">
         <div style={{ padding: 16 }}>
           <p className="hint" style={{ marginTop: 0, color: 'var(--ink)' }}>
-            Permite archivar de forma limpia en la <strong>Papelera</strong> los 10 expedientes de prueba creados en sesiones anteriores de desarrollo.
-            Conserva al 100% los <strong>10 Contrarecibos Oficiales</strong> ($1,019,956.34) y la <strong>Factura 6167</strong> ($81,780.00) = <strong>$1,101,736.34</strong>.
+            Permite archivar de forma limpia en la <strong>Papelera</strong> los expedientes de prueba creados en sesiones anteriores de desarrollo.
+            Conserva al 100% los <strong>11 Contrarecibos Oficiales</strong> = <strong>$1,101,736.34</strong>.
           </p>
           <button
             className="btn"
@@ -614,7 +617,7 @@ export default function Settings() {
             onClick={() => void handlePurgeTestOrders()}
             disabled={busy}
           >
-            🧹 Archivar 10 Expedientes de Prueba en Papelera
+            🧹 Archivar Expedientes de Prueba en Papelera
           </button>
         </div>
       </Card>

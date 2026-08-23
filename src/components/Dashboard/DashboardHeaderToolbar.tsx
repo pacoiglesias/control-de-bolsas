@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { money, monthLabel } from '../../lib/format';
 import { exportToExcel } from '../../lib/export';
 import { downloadBackupJsonFile } from '../../lib/cloudBackup';
+import { OfflineExcelSyncModal } from '../Offline/OfflineExcelSyncModal';
 import type { NavigateFunction } from 'react-router-dom';
 import type { PurchaseOrder } from '../../lib/types';
 
@@ -61,6 +63,8 @@ export function DashboardHeaderToolbar({
   shareRentabilidad: () => void;
   printRentabilidad: () => void;
 }) {
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 14 }}>
@@ -175,7 +179,7 @@ export function DashboardHeaderToolbar({
                   style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', padding: '8px 12px', borderRadius: 8 }}
                   onClick={() => { setShowReportsMenu(false); onOpenSincronizador(); }}
                 >
-                  ⚡ Sincronizar 10 Contrarecibos
+                  ⚡ Sincronizar Contrarecibos
                 </button>
               </div>
             )}
@@ -260,6 +264,17 @@ export function DashboardHeaderToolbar({
                   }}
                 >
                   💾 Respaldo Local (1 Clic)
+                </button>
+
+                <button
+                  className="btn"
+                  style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8, color: 'var(--accent)' }}
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    setShowOfflineModal(true);
+                  }}
+                >
+                  📲 Modo Offline & Sincronizar Excel
                 </button>
 
                 <button
@@ -423,6 +438,7 @@ export function DashboardHeaderToolbar({
           </select>
         </div>
       </div>
+      {showOfflineModal && <OfflineExcelSyncModal onClose={() => setShowOfflineModal(false)} />}
     </div>
   );
 }

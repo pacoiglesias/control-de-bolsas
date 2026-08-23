@@ -133,6 +133,10 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
 
   async function guardar() {
     if (kilosDeEsta <= 0) return toast('Captura al menos una cantidad mayor a cero.', 'bad');
+    const kilosRestantesPermitidos = Math.max(0, kilosPedidos - kilosEntregados);
+    if (kilosPedidos > 0 && kilosDeEsta > kilosRestantesPermitidos) {
+      return toast(`⚠️ Andrés no puede entregar más kilos de lo indicado en la OC (${kilosPedidos.toLocaleString('es-MX')} kg). Máximo permitido restante: ${kilosRestantesPermitidos.toLocaleString('es-MX')} kg.`, 'bad');
+    }
     setBusy(true);
     try {
       const ref = doc(db, PATHS.orders, order.id);

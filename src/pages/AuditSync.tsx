@@ -33,18 +33,20 @@ const ESTATUS_VALIDOS: { value: OrderStatus; label: string }[] = [
 ];
 
 const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: string }> = {
+  'TH-946': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
   'TH-912': { total: 79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
   'TH-879': { total: 136300.00, issueDate: '2026-08-03', dueDate: '2026-09-02' },
   'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
   'GT-742': { total: 54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
   'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
   'GT-713': { total: 69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
-  'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
   'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+  'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
   'GT-624': { total: 98136.00, issueDate: '2026-06-22', dueDate: '2026-07-22' },
   'GT-597': { total: 107420.76, issueDate: '2026-06-15', dueDate: '2026-07-15' },
-  '6167': { total: 81780.00, issueDate: '2026-08-10', dueDate: '' },
-  '120267114014': { total: 81780.00, issueDate: '2026-08-10', dueDate: '' },
+  // Mapeos heredados de Factura 6167 para compatibilidad de búsqueda
+  '6167': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
+  '120267114014': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
 };
 
 type ModeTab = 'grid' | 'paste' | 'batch' | 'excel';

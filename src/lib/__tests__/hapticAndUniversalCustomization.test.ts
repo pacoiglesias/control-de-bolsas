@@ -51,8 +51,8 @@ describe('Motor Háptico y Parametrización Universal', () => {
     expect(customEnterpriseSettings.managerGT).toBe('Lic. Mónica Soto');
   });
 
-  it('valida el criterio de preservación de los 10 CRs oficiales + Factura 6167', () => {
-    const OFFICIAL_CRS = ['TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'TH-768', 'GT-651', 'GT-624', 'GT-597'];
+  it('valida el criterio de preservación de los 11 CRs oficiales + Factura 6167', () => {
+    const OFFICIAL_CRS = ['TH-946', 'TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'GT-651', 'TH-768', 'GT-624', 'GT-597'];
 
     const testOrders = [
       { id: '1', collection: { contrareciboNumber: 'TH-912' }, folio: '6160' },
@@ -66,7 +66,7 @@ describe('Motor Háptico y Parametrización Universal', () => {
       const crNumber = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
       const hasOfficialCr = OFFICIAL_CRS.some(cr => crNumber.includes(cr)) ||
         (o.invoices || []).some((inv: any) => OFFICIAL_CRS.some(cr => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(cr)));
-      const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some((inv: any) => inv.folio === '6167'));
+      const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some((inv: any) => inv.folio === '6167' || inv.folio === 'TH-946'));
       return hasOfficialCr || isFactura6167;
     };
 
