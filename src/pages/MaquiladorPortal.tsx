@@ -412,8 +412,8 @@ export default function MaquiladorPortal() {
   const filteredOrders = useMemo(() => {
     return activeOrders.filter((o) => {
       if (deptFilter !== 'ALL') {
-        const fol = (o.folio || '').toUpperCase();
-        if (!fol.startsWith(deptFilter)) return false;
+        const d = (o.department || (o.client?.includes('GT') || (o.folio || '').startsWith('GT') ? 'GT' : 'TH')).toUpperCase();
+        if (d !== deptFilter) return false;
       }
       if (searchOc.trim()) {
         const q = searchOc.toLowerCase();
@@ -848,8 +848,23 @@ export default function MaquiladorPortal() {
                         }}
                       >
                         <div>
-                          <div style={{ fontWeight: 900, fontSize: 17, color: sel ? '#e9d5ff' : '#fff' }}>
-                            OC {o.folio}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 900, fontSize: 17, color: sel ? '#e9d5ff' : '#fff' }}>
+                              OC {o.folio}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                background: o.department === 'GT' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(167, 139, 250, 0.25)',
+                                color: o.department === 'GT' ? '#34d399' : '#c084fc',
+                                border: `1px solid ${o.department === 'GT' ? '#10b981' : '#a78bfa'}`,
+                              }}
+                            >
+                              🏢 {o.department || 'TH'}
+                            </span>
                           </div>
                           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
                             {o.productDescription}
