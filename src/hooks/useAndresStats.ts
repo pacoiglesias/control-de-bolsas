@@ -16,6 +16,8 @@ export type LedgerEntry = {
   source: 'purchase' | 'expense' | 'historical';
 };
 
+import { DEFAULT_CONFIG } from '../lib/types';
+
 export function useAndresStats(selectedProvider: string = 'Andres') {
   const { purchases, loading: loadingP, error: errorP } = usePurchases();
   const { expenses, loading: loadingE, error: errorE } = useExpenses();
@@ -35,7 +37,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     expenses.filter(e => normalizarTexto(e.provider) === normalizarTexto(selectedProvider)), 
   [expenses, selectedProvider]);
 
-  const currentCostPerKg = config?.costPricePerKg || 42;
+  const currentCostPerKg = config?.costPricePerKg ?? DEFAULT_CONFIG.costPricePerKg;
   const deudaHistorica = config?.historicalDebtAndres || 0;
 
   const stats = useMemo(() => {

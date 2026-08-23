@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { round2, computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
 import { toDate } from '../lib/format';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
+import { DEFAULT_CONFIG } from '../lib/types';
 
 export function useDashboardStats(
   statsDoc: any, 
@@ -15,8 +16,8 @@ export function useDashboardStats(
 ) {
   return useMemo(() => {
     const cfg: FinancialConfig = {
-      salePricePerKg: config?.salePricePerKg || 43,
-      costPricePerKg: config?.costPricePerKg || 42,
+      salePricePerKg: config?.salePricePerKg ?? DEFAULT_CONFIG.salePricePerKg,
+      costPricePerKg: config?.costPricePerKg ?? DEFAULT_CONFIG.costPricePerKg,
       commissionRate: typeof config?.commissionRate === 'number' ? config.commissionRate : 0.08,
       commissionBase: config?.commissionBase || 'subtotal',
       ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
