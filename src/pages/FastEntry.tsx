@@ -8,7 +8,8 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { getOrderSummary } from '../lib/finance';
 import { camposInvoices } from '../lib/invoiceOps';
-import { GenAIReader } from '../components/GenAIReader';
+import { SmartDocumentDropzone, ExtractedDocumentData } from '../components/Recepcion/SmartDocumentDropzone';
+import { DocumentAutoAssigner } from '../components/Recepcion/DocumentAutoAssigner';
 
 interface IncompleteInvoice {
   orderId: string;
@@ -27,6 +28,7 @@ export function FastEntry() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'logistics' | 'docs'>('logistics');
   const [logisticsEdits, setLogisticsEdits] = useState<Record<string, { kilos: string, date: string }>>({});
+  const [extractedDoc, setExtractedDoc] = useState<ExtractedDocumentData | null>(null);
 
 
   const activeOrders = useMemo(() => {
@@ -318,17 +320,37 @@ export function FastEntry() {
 
   return (
     <div className="page-container" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--ink)' }}>⚡ Captura Rápida</h1>
-          <p style={{ margin: 0, marginTop: 4, color: 'var(--ink-soft)' }}>Ingresa folios y contrarecibos velozmente con el teclado.</p>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--ink)' }}>📥 Recepción & Captura Mágica</h1>
+          <p style={{ margin: 0, marginTop: 4, color: 'var(--ink-soft)' }}>
+            Arrastra tu PDF/XML, presiona <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>Ctrl + V</kbd> para pegar datos o ingresa folios con el teclado.
+          </p>
         </div>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving || (activeTab === 'docs' ? Object.keys(edits).length === 0 : Object.keys(logisticsEdits).length === 0)} style={{ padding: '8px 24px', fontSize: 16 }}>
           {saving ? 'Guardando...' : 'Guardar Todo'}
         </button>
       </div>
 
-      <GenAIReader onDataExtracted={handleGenAIData} compact />
+      {/* Dropzone Universal & Pegado Mágico */}
+      <div style={{ marginBottom: 24 }}>
+        <SmartDocumentDropzone onDocumentProcessed={(doc) => {
+          setExtractedDoc(doc);
+          handleGenAIData({
+            folio: doc.folio,
+            kilosTotales: doc.kilos,
+            subtotal: doc.subtotal,
+            total: doc.total,
+          });
+        }} />
+
+        {extractedDoc && (
+          <DocumentAutoAssigner
+            data={extractedDoc}
+            onClear={() => setExtractedDoc(null)}
+          />
+        )}
+      </div>
       
       <div style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
         <button 

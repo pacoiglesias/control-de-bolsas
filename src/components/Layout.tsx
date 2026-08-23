@@ -76,7 +76,7 @@ export default function Layout() {
     { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/oc', icon: '🚚', label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida (OCR)', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: '📥', label: 'Recepción & Pegado Mágico', roles: ['admin', 'manager'] },
     { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
 
     { type: 'group', label: 'FINANZAS & TESORERÍA', roles: ['admin', 'manager'] },
