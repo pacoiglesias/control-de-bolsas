@@ -1,4 +1,23 @@
 
+### Iteración 19: Hub de Recepción & Pegado Mágico, Costo Andrés $38/kg, Control Departamental TH/GT y Certificación de Ciclo End-to-End (COMPLETADO)
+**Fecha:** 2026-08-24
+**Archivos:** `src/components/Recepcion/SmartDocumentDropzone.tsx`, `src/components/Recepcion/DocumentAutoAssigner.tsx`, `src/pages/FastEntry.tsx`, `src/components/Layout.tsx`, `src/lib/prefacturaGenerator.ts`, `src/lib/types.ts`, `src/hooks/useAndresStats.ts`, `src/hooks/useDashboardStatsV2.ts`, `functions/src/index.ts`, `functions/src/handlers/maquilaPortal.ts`, `GEMINI.md`, `src/lib/__tests__/finance.test.ts`
+**Problema & Necesidad:**
+1. Necesidad de una zona universal de recepción de documentos para arrastrar o simplemente presionar `Ctrl + V` con texto de portapapeles, XML del SAT o PDF, que clasifique y asigne automáticamente a la OC correspondiente sin captura manual.
+2. Actualización del esquema de precios de operación real del negocio: el costo de compra de Andrés se actualizó a **$38.00 / kg** (antes $42.00/kg) y la venta a Providencia en **$43.00 / kg** (+ 16% IVA), con comisión del contador al 8% ($3.44/kg) y margen neto de $1.56/kg.
+3. Control central de departamentos: la oficina asigna si una OC es de **TH** o **GT**, y el taller de Andrés la visualiza con su badge oficial pre-asignado sin poder modificarlo en báscula.
+4. Actualización del receptor fiscal oficial de Providencia (**GTP930115PU1**) en el generador de Prefactura.
+5. Certificación integral del ciclo de vida de 7 etapas (Escaneo -> Requerimiento Andrés -> Entrega Báscula -> Facturación -> Contrarecibo -> Cobro Banco -> Recepción de Efectivo en Caja).
+**Solución:**
+- Creado `SmartDocumentDropzone.tsx` con soporte drag-and-drop, captura global de `Ctrl + V` y parser XML CFDI 4.0/3.3 nativo con extracción de UUID del SAT.
+- Creado `DocumentAutoAssigner.tsx` con coincidencia exacta (100%), sugerencias inteligentes por kilos/monto y botones de 1 clic para asignar factura, contrarecibo o crear nueva OC.
+- Sincronizados `DEFAULT_CONFIG.costPricePerKg` a 38 en frontend (`types.ts`, `useAndresStats.ts`, `useDashboardStatsV2.ts`) y backend (`index.ts`, `maquilaPortal.ts`).
+- Actualizada suite matemática en `finance.test.ts` (95/95 tests pasando).
+- Integrado en menú principal bajo **`📥 Recepción & Pegado Mágico`**.
+**Estado:** ✅ Verificado — 95/95 pruebas unitarias pasando al 100%, compilación limpia y desplegado a producción en Firebase Hosting.
+
+---
+
 ### Iteración 18: Modo Offline, Excel Bidireccional, Cobro Ágil TR, Transición a Efectivo en Caja y Optimización Total (COMPLETADO)
 **Fecha:** 2026-08-24
 **Archivos:** `src/lib/offlineExcelSync.ts`, `src/components/Offline/OfflineExcelSyncModal.tsx`, `src/components/ui/OfflineIndicator.tsx`, `src/components/Cobranza/ProximasTable.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Compras/OrderModals.tsx`, `src/components/Compras/PagarAndresModal.tsx`, `src/components/Layout.tsx`, `src/components/Navigation/GlobalSearchModal.tsx`, `src/pages/CajaChica.tsx`, `src/lib/__tests__/offlineExcelSync.test.ts`

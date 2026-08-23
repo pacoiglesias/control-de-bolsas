@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.20 Hub de Recepción Mágica, Costo Andrés $38/kg & Control TH/GT',
+    date: '24 de Agosto de 2026',
+    time: '01:00 AM',
+    summary: 'Nuevo Hub de Recepción y Pegado Inteligente de Documentos (PDF, XML del SAT, texto y Ctrl+V) con asistente de asignación guiada, actualización al nuevo esquema de costo Andrés $38/kg y control centralizado de departamentos TH/GT.',
+    highlights: [
+      '📥 Hub de Recepción & Pegado Mágico: Zona universal para arrastrar o presionar Ctrl + V con archivos PDF, XML CFDI 4.0/3.3 del SAT o texto de portal, con extracción automática de folios, UUID, kilos e importes.',
+      '🤖 Asistente Guiado de 1 Clic (DocumentAutoAssigner): Detección automática de coincidencias al 100% contra OCs existentes y botones proactivos para asignar Factura, Contrarecibo o dar de alta nueva Orden de Compra.',
+      '💵 Costo de Compra de Andrés a $38.00 / kg: Sincronizado en todo el motor financiero del ERP, compras, conciliación y estado de cuenta del maquilador (margen neto de $1.56/kg tras comisión del 8%).',
+      '🏢 Control Departamental TH / GT: Asignación exclusiva desde la oficina y visualización con badges oficiales (TH / GT) en el Portal del Maquilador.',
+      '🧾 Datos Fiscales Oficiales de Providencia: Actualización del receptor oficial (RFC: GTP930115PU1) en el generador de Prefacturas de Venta.',
+    ],
+  },
+  {
     version: 'v8.9.19 Modo Offline, Excel Bidireccional, Cobro Ágil TR & Flujo de Efectivo',
     date: '24 de Agosto de 2026',
     time: '12:30 AM',

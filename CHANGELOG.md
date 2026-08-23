@@ -1,5 +1,21 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.20] - 24 Agosto 2026 (Hub de Recepción Mágica, Costo $38/kg & Control TH/GT)
+
+### 📥 Nuevo — Hub de Recepción & Pegado Mágico (`SmartDocumentDropzone.tsx` & `DocumentAutoAssigner.tsx`)
+- **Zona de Carga Universal & Captura de Portapapeles (`Ctrl + V`):** Permite arrastrar o presionar `Ctrl + V` para procesar archivos PDF, XML (CFDI 4.0/3.3 del SAT) o texto copiado de WhatsApp/portal de Providencia.
+- **Parser XML Fiscal con Extracción de UUID del SAT:** Lectura atómica de emisor, receptor, RFC `GTP930115PU1`, kilos facturados, subtotal, IVA y total al centavo sin redondeos.
+- **Asistente Guiado de 1 Clic:** Detección de coincidencia al 100% contra OCs existentes en Firestore con acciones directas para asignar Factura, Contrarecibo o crear nueva Orden de Compra.
+
+### 💵 Actualización — Esquema Financiero & Márgenes Reales
+- **Costo de Compra a Andrés Actualizado a $38.00 / kg:** Sincronizado en `DEFAULT_CONFIG`, fórmulas de compras, Cloud Functions y estado de cuenta del maquilador.
+- **Precio de Venta a Providencia a $43.00 / kg (+ 16% IVA):** Margen bruto de $5.00/kg y utilidad neta de $1.56/kg tras deducir la comisión del contador (8% sobre subtotal = $3.44/kg).
+
+### 🏢 Nuevo — Control Centralizado de Departamentos (TH / GT)
+- **Asignación en Oficina:** Los administradores asignan el departamento (`TH` o `GT`) desde el ERP y en el Portal Maquilador se visualiza con su badge oficial pre-establecido.
+
+---
+
 ## [v8.9.19] - 24 Agosto 2026 (Modo Offline, Excel Bidireccional & Suite de Cobranza Ágil)
 
 ### 📲 Nuevo — Modo Offline & Motor de Sincronización con Excel (.xlsx)
