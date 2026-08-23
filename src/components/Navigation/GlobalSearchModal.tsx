@@ -64,8 +64,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       {
         id: 'cmd-caja',
         category: 'Comandos Rápidos',
-        title: '💵 Caja Chica & Movimientos',
-        subtitle: 'Control de flujo en efectivo, anticipos y egresos',
+        title: '💵 Efectivo en Caja & Movimientos',
+        subtitle: 'Control de flujo de efectivo, abonos a Andrés y retiros',
         onSelect: () => {
           navigate('/caja-chica');
           onClose();

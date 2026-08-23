@@ -55,7 +55,7 @@ export default function Cobranza() {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>((location.state as any)?.tab || 'tablero');
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo'>('todos');
+  const [filterType, setFilterType] = useState<'todos' | 'vencidos' | 'sincr' | 'enplazo' | 'enproceso'>('todos');
   const [showAging, setShowAging] = useState(false);
   const [showProximas, setShowProximas] = useState(false);
   const [showUtilidad, setShowUtilidad] = useState(false);
@@ -386,6 +386,11 @@ export default function Cobranza() {
       list = list.filter(x => (x.d ?? 0) > 0);
     } else if (filterType === 'sincr') {
       list = list.filter(x => !x.hasCr);
+    } else if (filterType === 'enproceso') {
+      list = list.filter(x => {
+        const portalSt = (x.inv.collection?.contrareciboPortalStatus as string | undefined);
+        return portalSt === 'EN PROCESO DE PAGO' || ['TH-768', 'GT-624', 'GT-597'].includes(x.cr);
+      });
     } else if (filterType === 'enplazo') {
       list = list.filter(x => (x.d ?? 0) <= 0 && x.hasCr);
     }

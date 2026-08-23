@@ -189,7 +189,7 @@ export function PagarAndresModal({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>
-              💵 Saldo Disponible en Caja Chica:
+              💵 Efectivo Disponible en Caja:
             </span>
             <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: saldoCaja < 0 ? '#dc2626' : '#059669' }}>
               {money(saldoCaja)}

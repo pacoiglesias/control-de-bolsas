@@ -33,6 +33,10 @@ export default function ProximasTable() {
             const lista = data?.lista || [];
             const sinCrCount = lista.filter((x: any) => x && !x.hasCr).length;
             const vencidosCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) > 0).length;
+            const enProcesoCount = lista.filter((x: any) => {
+              const portalSt = x?.inv?.collection?.contrareciboPortalStatus;
+              return portalSt === 'EN PROCESO DE PAGO' || ['TH-768', 'GT-624', 'GT-597'].includes(x?.cr);
+            }).length;
             const enPlazoCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) <= 0).length;
             return (
               <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -50,6 +54,13 @@ export default function ProximasTable() {
                   style={{ padding: '4px 12px', fontSize: 12, background: filterType === 'vencidos' ? 'var(--warn)' : 'rgba(234,179,8,0.15)', color: filterType === 'vencidos' ? '#fff' : '#b45309', fontWeight: 600 }}
                 >
                   🚨 Vencidos ({vencidosCount})
+                </button>
+                <button
+                  className={`btn-small`}
+                  onClick={() => setFilterType('enproceso')}
+                  style={{ padding: '4px 12px', fontSize: 12, background: filterType === 'enproceso' ? '#d97706' : 'rgba(217, 119, 6, 0.15)', color: filterType === 'enproceso' ? '#fff' : '#b45309', fontWeight: 700 }}
+                >
+                  ⚡ En Proceso de Pago ({enProcesoCount})
                 </button>
                 <button
                   className={`btn-small`}
