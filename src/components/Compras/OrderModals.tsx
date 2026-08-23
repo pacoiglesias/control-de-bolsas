@@ -176,9 +176,26 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
     }
   }
 
+  const kilosRestantesPermitidos = Math.max(0, kilosPedidos - kilosEntregados);
+
   return (
-    <Modal title={`Registrar Entrega — ${order.folio || '(sin folio)'}`} onClose={onClose}>
-      <p className="hint">Entregado a la fecha: {kilosEntregados} kg de {kilosPedidos} kg pedidos</p>
+    <Modal title={`📦 Registrar Entrega en Báscula — ${order.folio || '(sin folio)'}`} onClose={onClose}>
+      <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>
+          <span>Avance de Entregas:</span>
+          <span>{kilosEntregados.toLocaleString('es-MX')} de {kilosPedidos.toLocaleString('es-MX')} kg</span>
+        </div>
+        <div style={{ width: '100%', height: 7, background: 'var(--bg-inset)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ width: `${kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0}%`, height: '100%', background: 'var(--accent)', borderRadius: 4 }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6 }}>
+          <span>🔒 Tope Inviolable: {kilosPedidos.toLocaleString('es-MX')} kg (Cero mermas)</span>
+          <span style={{ color: kilosRestantesPermitidos > 0 ? 'var(--accent)' : 'var(--ok)', fontWeight: 700 }}>
+            {kilosRestantesPermitidos > 0 ? `Restante permitido: ${kilosRestantesPermitidos.toLocaleString('es-MX')} kg` : '✓ OC Completa'}
+          </span>
+        </div>
+      </div>
+
       <Field label="Fecha de esta entrega">
         <input type="date" className="input boxed mono" defaultValue={toInputDate(nueva.date) || ''} onChange={e => setFecha(e.target.value)} />
       </Field>
@@ -186,15 +203,38 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
       {(order.items ?? []).length === 0 ? <Empty>Este expediente no tiene productos capturados.</Empty> : (
         <div className="table-scroll">
         <table className="data-table" style={{ width: '100%', marginTop: 12 }}>
-          <thead><tr><th>Producto</th><th className="num">Esta entrega (kg)</th></tr></thead>
+          <thead><tr><th>Producto</th><th className="num">Esta entrega (kg)</th><th>Acción Rápida</th></tr></thead>
           <tbody>
             {(order.items ?? []).map(it => {
               const qty = (nueva.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
               return (
                 <tr key={it.id}>
-                  <td>{it.description || it.code}</td>
+                  <td>
+                    <strong>{it.description || it.code}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Pedido: {it.quantity.toLocaleString('es-MX')} kg</div>
+                  </td>
                   <td className="num">
-                    <input className="input boxed mono" type="number" step="0.01" style={{ width: 100 }} defaultValue={qty || ''} placeholder="0" onBlur={e => setQty(it.id, Number(e.target.value))} />
+                    <input
+                      className="input boxed mono"
+                      type="number"
+                      step="0.01"
+                      style={{ width: 110, fontSize: 14, fontWeight: 700 }}
+                      value={qty || ''}
+                      placeholder="0"
+                      onChange={e => setQty(it.id, Number(e.target.value))}
+                    />
+                  </td>
+                  <td>
+                    {kilosRestantesPermitidos > 0 && (
+                      <button
+                        type="button"
+                        className="btn-small"
+                        style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', border: '1px solid #3b82f6', fontWeight: 700 }}
+                        onClick={() => setQty(it.id, kilosRestantesPermitidos)}
+                      >
+                        ⚡ Restante ({kilosRestantesPermitidos.toLocaleString('es-MX')} kg)
+                      </button>
+                    )}
                   </td>
                 </tr>
               )

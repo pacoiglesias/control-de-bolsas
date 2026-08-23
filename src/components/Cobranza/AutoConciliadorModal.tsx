@@ -83,12 +83,16 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
         }
       }
 
-      // 2. Extraer posibles referencias (ej. CR, folios TH-739, GT-651, TR_3583)
+      // 2. Extraer posibles referencias (ej. CR, folios TH-739, GT-651, TR_3583, 6198)
       const words = line.split(/[\s\t,;|]+/);
       let foundReference = '';
       words.forEach(w => {
         const clean = w.replace(/[$]/g, '').trim().toUpperCase();
-        if (clean.startsWith('TH-') || clean.startsWith('GT-') || clean.startsWith('TR_') || clean.startsWith('CR')) {
+        if (
+          clean.startsWith('TH-') || clean.startsWith('GT-') || clean.startsWith('TR_') || clean.startsWith('TR-') ||
+          clean.startsWith('CR-') || clean.startsWith('TH') || clean.startsWith('GT') ||
+          /^\d{4,5}$/.test(clean)
+        ) {
           foundReference = clean;
         }
       });
@@ -108,6 +112,15 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
           matchedInvoices = crEntry[1].map(x => ({ order: x.order, invoice: x.invoice }));
           matchType = 'exact_cr';
           matchScore = 100;
+        } else {
+          // Coincidencia por Folio de Factura individual
+          const folioMatch = openInvoices.find(x => x.folio === foundReference || (x.folio && foundReference.includes(x.folio)));
+          if (folioMatch) {
+            matchedInvoices = [{ order: folioMatch.order, invoice: folioMatch.invoice }];
+            matchedCr = folioMatch.cr || folioMatch.folio;
+            matchType = 'exact_folio';
+            matchScore = 95;
+          }
         }
       }
 
@@ -198,6 +211,7 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
                 paidAmount: t.paidAmount,
                 paidAt: Timestamp.now(),
                 paymentDocument: t.refDoc,
+                transferRef: t.refDoc.startsWith('TR') ? t.refDoc : inv.collection?.transferRef,
               },
             }));
             if (updated) {

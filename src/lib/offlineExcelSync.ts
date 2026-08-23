@@ -108,15 +108,29 @@ export async function exportOfflineWorkbook(
   const wb = XLSX.utils.book_new();
 
   const wsCartera = XLSX.utils.json_to_sheet(carteraRows);
+  wsCartera['!cols'] = [
+    { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 28 }, { wch: 14 },
+    { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 22 }, { wch: 18 },
+    { wch: 15 }, { wch: 24 }, { wch: 24 }
+  ];
   XLSX.utils.book_append_sheet(wb, wsCartera, '1_EXPEDIENTES_FACTURAS');
 
   const wsEntregas = XLSX.utils.json_to_sheet(entregasRows);
+  wsEntregas['!cols'] = [
+    { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 16 },
+    { wch: 15 }, { wch: 22 }, { wch: 20 }, { wch: 25 }
+  ];
   XLSX.utils.book_append_sheet(wb, wsEntregas, '2_ENTREGAS_ANDRES');
 
   const wsCaja = XLSX.utils.json_to_sheet(cajaRows);
+  wsCaja['!cols'] = [
+    { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 25 },
+    { wch: 32 }, { wch: 16 }, { wch: 25 }
+  ];
   XLSX.utils.book_append_sheet(wb, wsCaja, '3_CAJA_CHICA_PAGOS');
 
   const wsInst = XLSX.utils.json_to_sheet(instruccionesRows);
+  wsInst['!cols'] = [{ wch: 25 }, { wch: 80 }];
   XLSX.utils.book_append_sheet(wb, wsInst, '4_INSTRUCCIONES');
 
   const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
