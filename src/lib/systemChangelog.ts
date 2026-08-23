@@ -8,6 +8,32 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.19 Modo Offline, Excel Bidireccional, Cobro Ágil TR & Flujo de Efectivo',
+    date: '24 de Agosto de 2026',
+    time: '12:30 AM',
+    summary: 'Implementación integral de Modo Offline con libro de trabajo Excel multi-pestaña (.xlsx), conciliación automática con detector de diferencias (Diffs), cobro rápido de contrarecibos en 1 clic con asiento en Efectivo en Caja y candado inviolable de kilos de Andrés (cero mermas).',
+    highlights: [
+      '📲 Modo Offline & Excel Bidireccional: Exportación de libro con 4 hojas (1_EXPEDIENTES_FACTURAS, 2_ENTREGAS_ANDRES, 3_CAJA_CHICA_PAGOS, 4_INSTRUCCIONES) con auto-ajuste de columnas (!cols) y re-importación con detector inteligente de Diffs.',
+      '⚡ Cobro Rápido (TR) en 1 Clic: Botón en cabecera de cada contrarecibo que asocia la referencia bancaria TR_xxxx, deduce automáticamente el 8% de comisión del contador e ingresa el neto a Efectivo en Caja en un solo paso.',
+      '🔒 Candado Inviolable de Kilos de Andrés: Validación estricta que prohíbe entregar más kilos que los ordenados en la OC (cero mermas), con botón 1-clic ⚡ Restante (X kg) y barra de avance gráfico.',
+      '💵 Unificación a Efectivo en Caja: Nomenclatura del sistema actualizada de "Caja Chica" a "Efectivo en Caja" y "Flujo de Efectivo" para reflejar con exactitud la tesorería real del negocio.',
+      '⚡ Filtro Rápido «En Proceso de Pago»: Pestaña en Cobranza para aislar de inmediato los 3 contrarecibos en trámite bancario por $330,811.01 (TH-768, GT-624, GT-597).',
+      '🤖 Auto-Conciliador Inteligente: Reconocimiento ampliado de folios de 4 dígitos (6198, 6193) y transferencias bancarias en el pegado de texto.',
+    ],
+  },
+  {
+    version: 'v8.9.18 Panel de Edición Rápida Universal & Auditoría Continua',
+    date: '23 de Agosto de 2026',
+    time: '04:15 PM',
+    summary: 'Panel lateral deslizable para administradores con edición inline de precios, comisiones y saldos históricos con Andrés, corrección de límites silenciosos en consultas y detector de folios duplicados.',
+    highlights: [
+      '⚡ Panel de Edición Rápida (AdminQuickEditPanel): Modificación en línea de Precio de Venta/kg, Costo/kg, Comisión, IVA, Días de Crédito y Calibración de Saldo con Andrés sin salir de la pantalla.',
+      '🐛 Eliminación de Límites en Contextos: Carga completa de movimientos históricos de Efectivo y Compras sin truncamiento.',
+      '🔁 Detección Proactiva de Folios Duplicados: Alerta inteligente en el Dashboard ante facturas duplicadas en múltiples órdenes.',
+      '⚖️ Alerta de Saldo Anómalo con Andrés: Supervisión automática del balance contable contra límites de calibración.',
+    ],
+  },
+  {
     version: 'v8.9.17 Suite de Navegación Intuitiva & Productividad Acelerada',
     date: '23 de Agosto de 2026',
     time: '12:45 AM',

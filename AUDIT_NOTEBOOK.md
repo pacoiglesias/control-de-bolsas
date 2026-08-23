@@ -1,4 +1,24 @@
 
+### Iteración 18: Modo Offline, Excel Bidireccional, Cobro Ágil TR, Transición a Efectivo en Caja y Optimización Total (COMPLETADO)
+**Fecha:** 2026-08-24
+**Archivos:** `src/lib/offlineExcelSync.ts`, `src/components/Offline/OfflineExcelSyncModal.tsx`, `src/components/ui/OfflineIndicator.tsx`, `src/components/Cobranza/ProximasTable.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Compras/OrderModals.tsx`, `src/components/Compras/PagarAndresModal.tsx`, `src/components/Layout.tsx`, `src/components/Navigation/GlobalSearchModal.tsx`, `src/pages/CajaChica.tsx`, `src/lib/__tests__/offlineExcelSync.test.ts`
+**Problema & Necesidad:**
+1. Necesidad de operar fuera de línea (sin internet) mediante hojas de cálculo Excel (.xlsx), permitiendo editar contrarecibos, estatus, entregas de Andrés y nuevos pagos, y luego re-importar con reconciliación automática de diferencias (Diffs).
+2. Agilización del cobro de contrarecibos en Providencia con referencia de transferencia bancaria (`TR_xxxx`), calculando la comisión del 8% e ingresando el flujo neto al sistema en 1 solo paso.
+3. Candado inviolable de kilos de Andrés (cero mermas) que prohíbe entregar más kilos que los ordenados en la OC.
+4. Nomenclatura ambigua de "Caja Chica" que no reflejaba la realidad del negocio, cambiada a "Efectivo en Caja" y "Flujo de Efectivo".
+5. Nuevo filtro rápido `⚡ En Proceso de Pago` para consultar de inmediato los 3 contrarecibos listos para cobro ($330,811.01).
+**Solución:**
+- Desarrollado el motor `offlineExcelSync.ts` con 4 hojas (`1_EXPEDIENTES_FACTURAS`, `2_ENTREGAS_ANDRES`, `3_CAJA_CHICA_PAGOS`, `4_INSTRUCCIONES`) con formateo y auto-ajuste de columnas (`!cols`).
+- Creado `OfflineExcelSyncModal.tsx` y el chip en tiempo real `OfflineIndicator.tsx` en la barra superior.
+- Implementado el botón `⚡ Cobro Rápido (TR)` en la cabecera de los contrarecibos en `ProximasTable.tsx`.
+- En `OrderModals.tsx`, añadido botón 1-clic `⚡ Restante (X kg)` y barra de avance de entrega con candado estricto.
+- Renombrado de etiquetas a `Efectivo en Caja` en menús, Dashboard, Pagar Andrés y buscador global.
+- Añadido filtro `⚡ En Proceso de Pago` en Cobranza.
+**Estado:** ✅ Verificado — 95/95 pruebas unitarias pasando al 100%, `npm run build` con código 0 y desplegado a producción en Firebase Hosting.
+
+---
+
 ### Iteración 9: Auditoría Maestra reparada — renglones nuevos, sincronización y signo correcto (COMPLETADO)
 **Fecha:** 2026-08-03
 **Archivo:** `src/pages/AuditSync.tsx`, `src/lib/export.ts`
