@@ -13,7 +13,7 @@ import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
 import { openWhatsAppMessage } from '../lib/whatsappReminder';
 import type { TabName } from '../components/OrderModal/types';
-import type { PurchaseOrder } from '../lib/types';
+import type { PurchaseOrder, Invoice, Delivery } from '../lib/types';
 
 interface OcGroup {
   oc: string;
@@ -52,36 +52,85 @@ export default function OcTracking() {
   const [subFilter, setSubFilter] = useState<'todas' | 'por_entregar' | 'pendiente_factura' | 'en_cobranza'>('todas');
   const [search, setSearch] = useState('');
 
-  // Agrupación y cálculo financiero/operativo sin filtros destructivos
+  // Agrupación y cálculo financiero/operativo sin duplicados
   const allOcGroups = useMemo<OcGroup[]>(() => {
-    const list: OcGroup[] = [];
+    // Agrupar órdenes por su clave canónica de OC
+    const ocMap = new Map<string, PurchaseOrder[]>();
 
     for (const order of orders) {
-      const ocKey = (order.oc || order.folio || order.id).trim();
-      const summary = getOrderSummary(order);
+      if (!order || (order as any).isDeleted) continue;
+      const rawOc = (order.oc || order.folio || order.id).trim();
+      const ocKey = rawOc.toUpperCase();
       
-      const kilosPedidos = Number(order.totalKilograms ?? 0) || (order.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+      const existing = ocMap.get(ocKey) || [];
+      existing.push(order);
+      ocMap.set(ocKey, existing);
+    }
+
+    const list: OcGroup[] = [];
+
+    for (const [ocKey, groupOrders] of ocMap.entries()) {
+      // Tomar la orden más completa
+      const primaryOrder = groupOrders.reduce((best, curr) => {
+        const bestScore = (best.items?.length || 0) * 10 + (best.invoices?.length || 0) * 5 + (best.deliveries?.length || 0);
+        const currScore = (curr.items?.length || 0) * 10 + (curr.invoices?.length || 0) * 5 + (curr.deliveries?.length || 0);
+        return currScore > bestScore ? curr : best;
+      }, groupOrders[0]);
+
+      // Fusionar facturas y entregas sin duplicados
+      const allInvoicesRaw: Invoice[] = [];
+      const invoiceFolioSet = new Set<string>();
+      for (const ord of groupOrders) {
+        for (const inv of ord.invoices || []) {
+          const key = (inv.folio || inv.id || '').toUpperCase().trim();
+          if (key && !invoiceFolioSet.has(key)) {
+            invoiceFolioSet.add(key);
+            allInvoicesRaw.push(inv);
+          }
+        }
+      }
+
+      const allDeliveriesRaw: Delivery[] = [];
+      const deliveryIdSet = new Set<string>();
+      for (const ord of groupOrders) {
+        for (const del of ord.deliveries || []) {
+          const key = (del.id || `${del.kilos}-${del.date}`).trim();
+          if (key && !deliveryIdSet.has(key)) {
+            deliveryIdSet.add(key);
+            allDeliveriesRaw.push(del);
+          }
+        }
+      }
+
+      const mergedOrder: PurchaseOrder = {
+        ...primaryOrder,
+        invoices: allInvoicesRaw.length > 0 ? allInvoicesRaw : primaryOrder.invoices,
+        deliveries: allDeliveriesRaw.length > 0 ? allDeliveriesRaw : primaryOrder.deliveries,
+      };
+
+      const summary = getOrderSummary(mergedOrder);
+      const kilosPedidos = Number(mergedOrder.totalKilograms ?? 0) || (mergedOrder.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
       const kilosEntregados = Number(summary.kilosDelivered ?? 0);
       const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
       const kilosFacturados = Number(summary.kilosInvoiced ?? 0);
       const kilosPendientesFacturar = Math.max(0, kilosEntregados - kilosFacturados);
 
-      const invoices = (order.invoices ?? []).map(inv => {
+      const invoices = (mergedOrder.invoices ?? []).map(inv => {
         const st = inv.creditCycle?.status ?? 'pending';
         return {
           folio: inv.folio ?? '—',
           kilos: Number(inv.kilos) || 0,
           amount: inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0,
-          cr: extractCr(inv, order),
+          cr: extractCr(inv, mergedOrder),
           dueDate: toDate(inv.creditCycle?.dueDate),
           status: st,
           paid: st === 'paid' || st === 'collected',
-          order,
+          order: mergedOrder,
         };
       });
 
       const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
-      const isCollectedRoot = summary.status === 'collected' || summary.status === 'paid' || order.creditCycle?.status === 'collected' || order.creditCycle?.status === 'paid' || Boolean(order.isClosedShort);
+      const isCollectedRoot = summary.status === 'collected' || summary.status === 'paid' || mergedOrder.creditCycle?.status === 'collected' || mergedOrder.creditCycle?.status === 'paid' || Boolean(mergedOrder.isClosedShort);
       const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
       const allDelivered = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
       const isCompleted = isCollectedRoot || (allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01));
@@ -100,8 +149,8 @@ export default function OcTracking() {
       }
 
       list.push({
-        oc: ocKey,
-        order,
+        oc: primaryOrder.oc || primaryOrder.folio || ocKey,
+        order: mergedOrder,
         kilosPedidos: round2(kilosPedidos),
         kilosEntregados: round2(kilosEntregados),
         kilosFaltantes: round2(kilosFaltantes),

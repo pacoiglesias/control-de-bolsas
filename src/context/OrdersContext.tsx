@@ -55,15 +55,76 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         }
         initialLoad = false;
 
-        const docs = snap.docs
+        const rawDocs = snap.docs
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
-        docs.sort((a, b) => {
+
+        // 🛡️ DEDUPLICACIÓN CANÓNICA GLOBAL:
+        // Una Orden de Compra (OC), Folio o Contrarecibo NUNCA se repite.
+        // Si existen múltiples documentos con la misma clave de OC en Firestore,
+        // se fusionan inteligentemente conservando la información más completa.
+        const ocMap = new Map<string, PurchaseOrder[]>();
+
+        for (const doc of rawDocs) {
+          const canonicalKey = (doc.oc || doc.folio || doc.id).trim().toUpperCase();
+          const list = ocMap.get(canonicalKey) || [];
+          list.push(doc);
+          ocMap.set(canonicalKey, list);
+        }
+
+        const deduplicatedDocs: PurchaseOrder[] = [];
+
+        for (const [, group] of ocMap.entries()) {
+          if (group.length === 1) {
+            deduplicatedDocs.push(group[0]);
+            continue;
+          }
+
+          // Si hay más de un documento con la misma OC, tomar el más rico en datos
+          const best = group.reduce((prev, curr) => {
+            const prevScore = (prev.items?.length || 0) * 10 + (prev.invoices?.length || 0) * 5 + (prev.deliveries?.length || 0);
+            const currScore = (curr.items?.length || 0) * 10 + (curr.invoices?.length || 0) * 5 + (curr.deliveries?.length || 0);
+            return currScore > prevScore ? curr : prev;
+          }, group[0]);
+
+          // Fusionar facturas y entregas sin duplicados
+          const mergedInvoices: any[] = [];
+          const invSet = new Set<string>();
+          for (const item of group) {
+            for (const inv of item.invoices || []) {
+              const k = (inv.folio || inv.id || '').toUpperCase().trim();
+              if (k && !invSet.has(k)) {
+                invSet.add(k);
+                mergedInvoices.push(inv);
+              }
+            }
+          }
+
+          const mergedDeliveries: any[] = [];
+          const delSet = new Set<string>();
+          for (const item of group) {
+            for (const del of item.deliveries || []) {
+              const k = (del.id || `${del.kilos}-${del.date}`).trim();
+              if (k && !delSet.has(k)) {
+                delSet.add(k);
+                mergedDeliveries.push(del);
+              }
+            }
+          }
+
+          deduplicatedDocs.push({
+            ...best,
+            invoices: mergedInvoices.length > 0 ? mergedInvoices : best.invoices,
+            deliveries: mergedDeliveries.length > 0 ? mergedDeliveries : best.deliveries,
+          });
+        }
+
+        deduplicatedDocs.sort((a, b) => {
           const ta = toDate(a.processedAt)?.getTime() || toDate((a as any).createdAt)?.getTime() || 0;
           const tb = toDate(b.processedAt)?.getTime() || toDate((b as any).createdAt)?.getTime() || 0;
           return tb - ta;
         });
-        setOrders(docs);
+        setOrders(deduplicatedDocs);
         setError(null);
         setLoading(false);
       },

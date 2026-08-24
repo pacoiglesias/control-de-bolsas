@@ -44,9 +44,61 @@ export function ProvidenciaHubWidget() {
     });
   }, [orders]);
 
-  // 2. Procesar datos enriquecidos para cada orden
+  // 2. Procesar datos enriquecidos para cada orden (Deduplicadas por OC)
   const processedOrders = useMemo(() => {
-    return providenciaOrders.map(o => {
+    // Agrupar órdenes por su clave canónica de OC
+    const ocMap = new Map<string, PurchaseOrder[]>();
+
+    for (const order of providenciaOrders) {
+      if (!order || (order as any).isDeleted) continue;
+      const rawOc = (order.oc || order.folio || order.id).trim();
+      const ocKey = rawOc.toUpperCase();
+      
+      const existing = ocMap.get(ocKey) || [];
+      existing.push(order);
+      ocMap.set(ocKey, existing);
+    }
+
+    const list = [];
+
+    for (const [, groupOrders] of ocMap.entries()) {
+      const primaryOrder = groupOrders.reduce((best, curr) => {
+        const bestScore = (best.items?.length || 0) * 10 + (best.invoices?.length || 0) * 5 + (best.deliveries?.length || 0);
+        const currScore = (curr.items?.length || 0) * 10 + (curr.invoices?.length || 0) * 5 + (curr.deliveries?.length || 0);
+        return currScore > bestScore ? curr : best;
+      }, groupOrders[0]);
+
+      // Fusionar facturas y entregas sin duplicados
+      const allInvoicesRaw: any[] = [];
+      const invoiceFolioSet = new Set<string>();
+      for (const ord of groupOrders) {
+        for (const inv of ord.invoices || []) {
+          const key = (inv.folio || inv.id || '').toUpperCase().trim();
+          if (key && !invoiceFolioSet.has(key)) {
+            invoiceFolioSet.add(key);
+            allInvoicesRaw.push(inv);
+          }
+        }
+      }
+
+      const allDeliveriesRaw: any[] = [];
+      const deliveryIdSet = new Set<string>();
+      for (const ord of groupOrders) {
+        for (const del of ord.deliveries || []) {
+          const key = (del.id || `${del.kilos}-${del.date}`).trim();
+          if (key && !deliveryIdSet.has(key)) {
+            deliveryIdSet.add(key);
+            allDeliveriesRaw.push(del);
+          }
+        }
+      }
+
+      const o: PurchaseOrder = {
+        ...primaryOrder,
+        invoices: allInvoicesRaw.length > 0 ? allInvoicesRaw : primaryOrder.invoices,
+        deliveries: allDeliveriesRaw.length > 0 ? allDeliveriesRaw : primaryOrder.deliveries,
+      };
+
       const dept = inferDepartment(o) || (o.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
       const summary = getOrderSummary(o);
       const totalKg = Number(o.totalKilograms) || o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0;
@@ -59,7 +111,7 @@ export function ProvidenciaHubWidget() {
       const hasPendingCr = invoices.some(inv => !inv.collection?.contrareciboNumber && !o.collection?.contrareciboNumber);
       
       const pendingBalance = invoices.reduce((sum, inv) => {
-        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue') {
+        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'facturado') {
           return sum + (inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0);
         }
         return sum;
@@ -68,7 +120,7 @@ export function ProvidenciaHubWidget() {
       const isCompleted = remainingKg <= 0 && unInvoicedKg <= 0 && pendingBalance <= 0;
       const hasPendingDeliveryOrInvoicing = remainingKg > 0 || unInvoicedKg > 0;
 
-      return {
+      list.push({
         o,
         dept,
         totalKg,
@@ -82,8 +134,10 @@ export function ProvidenciaHubWidget() {
         pendingBalance,
         isCompleted,
         hasPendingDeliveryOrInvoicing,
-      };
-    });
+      });
+    }
+
+    return list;
   }, [providenciaOrders]);
 
   // 3. Segmentar por Planta y por Estado Operativo
