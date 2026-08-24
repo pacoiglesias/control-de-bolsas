@@ -28,14 +28,14 @@ export function EntregasKanban({
       const { kilosEntregados } = computeDeliveredTotals(o.deliveries ?? []);
       const invoices = o.invoices ?? [];
       const kilosFacturados = invoices.reduce((a, i) => a + (i.kilos || 0), 0);
-      const entregaCompleta = kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01;
+      const entregaCompleta = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
       const todasCobradas = invoices.length > 0 && invoices.every(i => {
         const st = i.creditCycle?.status;
         return st === 'paid' || st === 'collected';
       });
-      const isCollected = o.creditCycle?.status === 'collected' || (invoices.length > 0 && todasCobradas);
+      const isCollected = o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid' || Boolean(o.isClosedShort) || (invoices.length > 0 && todasCobradas);
 
-      if (isCollected && entregaCompleta) {
+      if (isCollected || (entregaCompleta && todasCobradas)) {
         cobrado.push(o);
       } else if (!entregaCompleta && kilosEntregados > 0.01) {
         enCamino.push(o);

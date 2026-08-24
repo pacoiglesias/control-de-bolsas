@@ -81,12 +81,13 @@ export default function OcTracking() {
       });
 
       const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
-      const isCollectedRoot = order.creditCycle?.status === 'collected' || order.creditCycle?.status === 'paid' || Boolean(order.isClosedShort);
+      const isCollectedRoot = summary.status === 'collected' || summary.status === 'paid' || order.creditCycle?.status === 'collected' || order.creditCycle?.status === 'paid' || Boolean(order.isClosedShort);
       const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
-      const allDelivered = kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01;
+      const allDelivered = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
+      const isCompleted = isCollectedRoot || (allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01));
 
-      let statusCategory: OcGroup['statusCategory'] = 'por_entregar';
-      if (isCollectedRoot || (allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01))) {
+      let statusCategory: OcGroup['statusCategory'] = 'completada';
+      if (isCompleted) {
         statusCategory = 'completada';
       } else if (kilosFaltantes > 0.01) {
         statusCategory = 'por_entregar';
@@ -95,7 +96,7 @@ export default function OcTracking() {
       } else if (invoices.length > 0 && !allInvoicesPaid) {
         statusCategory = 'en_cobranza';
       } else {
-        statusCategory = 'por_entregar';
+        statusCategory = 'completada';
       }
 
       list.push({
