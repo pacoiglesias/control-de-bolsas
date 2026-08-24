@@ -37,9 +37,6 @@ export const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; du
   'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
   'GT-624': { total: 98136.00, issueDate: '2026-06-22', dueDate: '2026-07-22' },
   'GT-597': { total: 107420.76, issueDate: '2026-06-15', dueDate: '2026-07-15' },
-  // Mapeos heredados de Factura 6167 para compatibilidad de búsqueda
-  '6167': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
-  '120267114014': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
 };
 
 export type ModeTab = 'grid' | 'paste' | 'batch' | 'excel';

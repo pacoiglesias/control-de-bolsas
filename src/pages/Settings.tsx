@@ -82,7 +82,7 @@ export default function Settings() {
     const ok = await confirmDialog(
       '¿Deseas archivar los expedientes de prueba en la Papelera?\n\n' +
       'Esta acción conservará únicamente los 11 Contrarecibos Oficiales ($1,101,736.34), ' +
-      'dejando la cartera cuadrada exactamente al corte oficial ($1,101,736.34).'
+      'dejando la cartera cuadrada exactamente al corte oficial de los 11 Contrarecibos ($1,101,736.34).'
     );
     if (!ok) return;
 

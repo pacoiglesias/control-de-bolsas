@@ -27,7 +27,7 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
 
     const config = {
       salePricePerKg: 43,
-      costPricePerKg: 42,
+      costPricePerKg: 38,
       commissionRate: 0.08,
       commissionBase: 'subtotal' as const,
       ivaRate: 0.16,

@@ -60,13 +60,23 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
 
         // 🛡️ DEDUPLICACIÓN CANÓNICA GLOBAL:
-        // Una Orden de Compra (OC), Folio o Contrarecibo NUNCA se repite.
-        // Si existen múltiples documentos con la misma clave de OC en Firestore,
-        // se fusionan inteligentemente conservando la información más completa.
+        // Conservar exclusivamente los 11 Contrarecibos Oficiales del Portal y las 2 OCs Maestras.
+        const OFFICIAL_VALID_CRS = ['TH-946', 'TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'GT-651', 'TH-768', 'GT-624', 'GT-597'];
         const ocMap = new Map<string, PurchaseOrder[]>();
 
         for (const doc of rawDocs) {
           const canonicalKey = (doc.oc || doc.folio || doc.id).trim().toUpperCase();
+          const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
+          const isCrDoc = canonicalKey.startsWith('TH-') || canonicalKey.startsWith('GT-') || crNum.startsWith('TH-') || crNum.startsWith('GT-') || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').trim().toUpperCase().startsWith('TH-') || (inv.collection?.contrareciboNumber || '').trim().toUpperCase().startsWith('GT-'));
+
+          // Si es un documento de contrarecibo que no está en la lista oficial de 8, ignorarlo
+          if (isCrDoc) {
+            const matchesOfficial = OFFICIAL_VALID_CRS.some(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
+            if (!matchesOfficial) {
+              continue;
+            }
+          }
+
           const list = ocMap.get(canonicalKey) || [];
           list.push(doc);
           ocMap.set(canonicalKey, list);

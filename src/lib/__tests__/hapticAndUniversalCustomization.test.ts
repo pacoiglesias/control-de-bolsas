@@ -51,7 +51,7 @@ describe('Motor Háptico y Parametrización Universal', () => {
     expect(customEnterpriseSettings.managerGT).toBe('Lic. Mónica Soto');
   });
 
-  it('valida el criterio de preservación de los 11 CRs oficiales + Factura 6167', () => {
+  it('valida el criterio de preservación de los 11 CRs oficiales + Facturas en Revisión', () => {
     const OFFICIAL_CRS = ['TH-946', 'TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'GT-651', 'TH-768', 'GT-624', 'GT-597'];
 
     const testOrders = [
