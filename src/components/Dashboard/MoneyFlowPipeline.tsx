@@ -63,9 +63,10 @@ export function MoneyFlowPipeline({
       const kilosEntregados = summary.kilosDelivered;
       const invoices = summary.invoices;
       const kilosFacturados = summary.kilosInvoiced;
+      const hasContrarecibo = (invoices || []).some(inv => !!extractCr(inv, o)) || !!extractCr(undefined, o);
 
-      // 1. Kilos que Andrés está fabricando
-      if (!o.isClosedShort && totalKilos > kilosEntregados) {
+      // 1. Kilos que Andrés está fabricando (SOLO si no tiene contrarecibo y realmente faltan kilos físicos)
+      if (!o.isClosedShort && !hasContrarecibo && totalKilos > kilosEntregados + 0.01) {
         const kgFab = (totalKilos - kilosEntregados);
         kilosFabricando += kgFab;
         montoFabricandoTotal += (kgFab * orderCostKg);
@@ -73,7 +74,7 @@ export function MoneyFlowPipeline({
       }
 
       // 2. Kilos entregados en báscula listos para facturar
-      if (kilosEntregados > kilosFacturados) {
+      if (kilosEntregados > kilosFacturados + 0.01) {
         const kgAlm = (kilosEntregados - kilosFacturados);
         kilosEntregadosSinFacturar += kgAlm;
         montoAlmacenTotal += (kgAlm * orderSaleKg * (1 + ivaRate));
