@@ -29,17 +29,23 @@ export function EntregasKanban({
       const invoices = o.invoices ?? [];
       const kilosFacturados = invoices.reduce((a, i) => a + (i.kilos || 0), 0);
       const entregaCompleta = kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01;
-      const facturaCompleta = kilosEntregados > 0 && kilosFacturados >= kilosEntregados - 0.01;
       const todasCobradas = invoices.length > 0 && invoices.every(i => {
         const st = i.creditCycle?.status;
         return st === 'paid' || st === 'collected';
       });
+      const isCollected = o.creditCycle?.status === 'collected' || (invoices.length > 0 && todasCobradas);
 
-      if (invoices.length > 0 && todasCobradas) cobrado.push(o);
-      else if (invoices.length > 0 && facturaCompleta) porCobrar.push(o);
-      else if (kilosEntregados > 0.01 && entregaCompleta) sinFacturar.push(o);
-      else if (kilosEntregados > 0.01) enCamino.push(o);
-      else if (kilosPedidos > 0) pedido.push(o);
+      if (isCollected && entregaCompleta) {
+        cobrado.push(o);
+      } else if (!entregaCompleta && kilosEntregados > 0.01) {
+        enCamino.push(o);
+      } else if (!entregaCompleta) {
+        pedido.push(o);
+      } else if (kilosEntregados > kilosFacturados + 0.01) {
+        sinFacturar.push(o);
+      } else {
+        porCobrar.push(o);
+      }
     }
     return { pedido, enCamino, sinFacturar, porCobrar, cobrado };
   }, [orders]);

@@ -11,6 +11,8 @@ import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVis
 import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/finance';
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
+import { openWhatsAppMessage } from '../lib/whatsappReminder';
+import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -42,8 +44,10 @@ export default function OcTracking() {
   const { settings } = useSystemSettings();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [selectedOrderTab, setSelectedOrderTab] = useState<TabName>('facturas');
   const [orderParaEntrega, setOrderParaEntrega] = useState<PurchaseOrder | null>(null);
   const [view, setView] = useState<'lista' | 'tablero'>('lista');
+  const [plantFilter, setPlantFilter] = useState<'ALL' | 'TH' | 'GT'>('ALL');
   const [scope, setScope] = useState<'activas' | 'cerradas' | 'todas'>('activas');
   const [subFilter, setSubFilter] = useState<'todas' | 'por_entregar' | 'pendiente_factura' | 'en_cobranza'>('todas');
   const [search, setSearch] = useState('');
@@ -115,9 +119,16 @@ export default function OcTracking() {
     });
   }, [orders]);
 
-  // Grupos filtrados por ámbito y búsqueda
+  // Grupos filtrados por planta, ámbito y búsqueda
   const { openGroups, closedGroups, filteredGroups } = useMemo(() => {
     let base = allOcGroups;
+
+    if (plantFilter !== 'ALL') {
+      base = base.filter(g => {
+        const d = inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+        return d === plantFilter;
+      });
+    }
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -149,7 +160,43 @@ export default function OcTracking() {
       closedGroups: closed,
       filteredGroups: current,
     };
-  }, [allOcGroups, scope, subFilter, search]);
+  }, [allOcGroups, plantFilter, scope, subFilter, search]);
+
+  function handleShareOcWhatsApp(group: OcGroup) {
+    const dept = inferDepartment(group.order) || (group.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+    const deptName = dept === 'TH' ? 'Textil Hogar (Nava)' : 'Grupo Textil (Evelia)';
+    const pct = group.kilosPedidos > 0 ? Math.round((group.kilosEntregados / group.kilosPedidos) * 100) : 0;
+    const items = group.order.items || [];
+    const deliveries = group.order.deliveries || [];
+    const { deliveredByItem } = computeDeliveredTotals(deliveries);
+
+    let text = `📦 *REPORTE DE ENTREGA — OC ${group.oc}*\n`;
+    text += `🏢 *Planta:* ${deptName} · Folio: ${group.order.folio || 'S/F'}\n`;
+    text += `📊 *Avance Global:* ${group.kilosEntregados.toLocaleString('es-MX')} / ${group.kilosPedidos.toLocaleString('es-MX')} kg (${pct}%)\n`;
+    text += `⏳ *Por Surtir:* ${group.kilosFaltantes.toLocaleString('es-MX')} kg\n\n`;
+
+    if (items.length > 0) {
+      text += `📋 *DESGLOSE DE PARTIDAS:*\n`;
+      items.forEach((it, idx) => {
+        const ped = Number(it.quantity) || 0;
+        const ent = deliveredByItem[it.id] ?? 0;
+        const falt = Math.max(0, ped - ent);
+        const st = ent >= ped && ped > 0 ? '✅ 100%' : ent > 0 ? `🟡 Parcial (${ent}/${ped} kg)` : '⏳ Pendiente';
+        text += `• #${idx + 1} ${it.description || it.code || 'Bolsa'}: ${ent}/${ped} kg (Faltan: ${falt} kg · ${st})\n`;
+      });
+      text += `\n`;
+    }
+
+    if (group.invoices.length > 0) {
+      text += `📑 *FACTURAS & CONTRARECIBOS:*\n`;
+      group.invoices.forEach(inv => {
+        text += `• Fac #${inv.folio}: ${inv.kilos} kg | CR: ${inv.cr || 'Sin CR'} | ${inv.status === 'collected' ? '✅ En Caja' : inv.status === 'paid' ? '🟡 Con Contador' : '⏳ Por Cobrar'}\n`;
+      });
+    }
+
+    openWhatsAppMessage(text);
+    toast(`📲 Abriendo WhatsApp con el estatus de la OC ${group.oc}`, 'ok');
+  }
 
   const toggle = (oc: string) => {
     setExpanded(prev => {
@@ -428,12 +475,57 @@ export default function OcTracking() {
         </div>
       </div>
 
-      {/* KPIs Reales */}
+      {/* Selector de Planta Providencia */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>🏢 PLANTA:</span>
+          <button
+            className={`btn-small ${plantFilter === 'ALL' ? 'btn-primary' : ''}`}
+            onClick={() => setPlantFilter('ALL')}
+            style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700 }}
+          >
+            🌟 Ambas Plantas ({allOcGroups.length})
+          </button>
+          <button
+            className={`btn-small ${plantFilter === 'TH' ? 'btn-primary' : ''}`}
+            onClick={() => setPlantFilter('TH')}
+            style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700, borderColor: '#3b82f6', color: plantFilter === 'TH' ? '#fff' : '#3b82f6' }}
+          >
+            🟦 Textil Hogar (TH · Nava) ({allOcGroups.filter(g => (inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT')) === 'TH').length})
+          </button>
+          <button
+            className={`btn-small ${plantFilter === 'GT' ? 'btn-primary' : ''}`}
+            onClick={() => setPlantFilter('GT')}
+            style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700, borderColor: '#8b5cf6', color: plantFilter === 'GT' ? '#fff' : '#8b5cf6' }}
+          >
+            🟪 Grupo Textil (GT · Evelia) ({allOcGroups.filter(g => (inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT')) === 'GT').length})
+          </button>
+        </div>
+
+        <input
+          type="text"
+          className="input boxed"
+          placeholder="🔍 Buscar OC, folio, cliente, SKU o CR..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: 280, fontSize: 12 }}
+        />
+      </div>
+
+      {/* KPIs Reales Interactivos */}
       <div className="kpi-grid" style={{ marginBottom: 20 }}>
-        <KpiCard label="Órdenes de Compra" value={String(allOcGroups.length)} />
-        <KpiCard label="Kilos Pedidos" value={`${kpis.totalPedidos.toLocaleString('es-MX')} kg`} />
-        <KpiCard label="Kilos Surtidos" value={`${kpis.totalEntregados.toLocaleString('es-MX')} kg (${kpis.pctSurtido}%)`} tone="ok" />
-        <KpiCard label="Total Facturado" value={money(kpis.totalFacturadoPesos)} tone="cash" />
+        <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('todas'); }}>
+          <KpiCard label="Órdenes Activas" value={`${openGroups.length} de ${allOcGroups.length}`} tone="cash" />
+        </div>
+        <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('por_entregar'); }}>
+          <KpiCard label="Kilos por Surtir" value={`${openGroups.reduce((a, g) => a + g.kilosFaltantes, 0).toLocaleString('es-MX')} kg`} tone="bad" />
+        </div>
+        <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('pendiente_factura'); }}>
+          <KpiCard label="Kilos por Facturar" value={`${kpis.totalPendienteFacturar.toLocaleString('es-MX')} kg`} tone="warn" />
+        </div>
+        <div style={{ cursor: 'pointer' }} onClick={() => setScope('todas')}>
+          <KpiCard label="Total Facturado" value={money(kpis.totalFacturadoPesos)} tone="ok" />
+        </div>
       </div>
 
       {/* Pestañas Principales de Segmentación */}
@@ -458,18 +550,9 @@ export default function OcTracking() {
             onClick={() => setScope('todas')}
             style={{ fontSize: 13, padding: '8px 16px', fontWeight: 800 }}
           >
-            🌟 Ambas Secciones ({allOcGroups.length})
+            🌟 Ambas Secciones ({openGroups.length + closedGroups.length})
           </button>
         </div>
-
-        <input
-          type="text"
-          className="input boxed"
-          placeholder="🔍 Buscar OC, folio, cliente o factura..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ maxWidth: 300, fontSize: 12 }}
-        />
       </div>
 
       {/* Subfiltros operativos para órdenes en proceso */}
@@ -626,7 +709,7 @@ export default function OcTracking() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, marginLeft: 10 }}>
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {group.statusCategory !== 'completada' && (
                       <button
                         className="btn"
@@ -635,15 +718,42 @@ export default function OcTracking() {
                           e.stopPropagation();
                           setOrderParaEntrega(group.order);
                         }}
+                        title="Registrar pesada en báscula"
                       >
-                        + Entrega Báscula
+                        + Báscula
                       </button>
                     )}
+                    {group.kilosPendientesFacturar > 0.01 && (
+                      <button
+                        className="btn"
+                        style={{ fontSize: 11.5, padding: '6px 10px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', border: '1px solid #d97706', fontWeight: 800 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOrderTab('facturas');
+                          setSelectedOrder(group.order);
+                        }}
+                        title="Facturar kilos entregados"
+                      >
+                        ⚡ Facturar
+                      </button>
+                    )}
+                    <button
+                      className="btn"
+                      style={{ fontSize: 11.5, padding: '6px 10px', background: '#25D366', color: '#fff', border: 'none', fontWeight: 700 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShareOcWhatsApp(group);
+                      }}
+                      title="Compartir estatus por WhatsApp"
+                    >
+                      📲 WhatsApp
+                    </button>
                     <button
                       className="btn btn-primary"
                       style={{ fontSize: 11.5, padding: '6px 10px' }}
                       onClick={(e) => {
                         e.stopPropagation();
+                        setSelectedOrderTab('resumen');
                         setSelectedOrder(group.order);
                       }}
                     >
@@ -784,7 +894,7 @@ export default function OcTracking() {
           order={orders.find(o => o.id === selectedOrder.id) ?? selectedOrder}
           config={config}
           onClose={() => setSelectedOrder(null)}
-          initialTab="facturas"
+          initialTab={selectedOrderTab}
         />
       )}
 
