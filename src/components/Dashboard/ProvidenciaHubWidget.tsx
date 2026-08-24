@@ -417,11 +417,6 @@ export function ProvidenciaHubWidget() {
                       </div>
                       <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 2 }}>
                         OC: {o.oc || o.folio || 'S/F'}
-                        {o.folio && o.oc && o.folio !== o.oc && (
-                          <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginLeft: 6 }}>
-                            (Folio {o.folio})
-                          </span>
-                        )}
                       </div>
                       <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.65)', marginTop: 2 }}>
                         {contactLabel} · Prefijo: <strong>{crPrefix}</strong>

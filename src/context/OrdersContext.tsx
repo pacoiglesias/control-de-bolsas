@@ -126,7 +126,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.items = thItems;
             best.client = 'TEXTIL HOGAR (TH - NAVA)';
             best.department = 'TH-ALMACEN-1';
-            best.folio = '71/14114';
+            best.folio = '120267114114';
             best.oc = '120267114114';
             best.deliveries = [
               {
@@ -203,7 +203,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.items = gtItems;
             best.client = 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)';
             best.department = 'P4-ALM';
-            best.folio = '43/9713';
+            best.folio = '12026439713';
             best.oc = '12026439713';
             best.deliveries = [
               {

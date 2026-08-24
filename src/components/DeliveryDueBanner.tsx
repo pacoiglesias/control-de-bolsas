@@ -149,15 +149,10 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
                 >
                   {p.dept} · {p.responsable}
                 </span>
-                <strong style={{ fontSize: 13, color: '#1e293b' }}>
-                  {p.folio}
+                <strong style={{ fontSize: 13, color: '#1e293b', fontFamily: 'monospace' }}>
+                  OC: {p.oc || p.folio}
                 </strong>
               </div>
-              {p.oc && (
-                <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>
-                  OC: {p.oc}
-                </span>
-              )}
             </div>
 
             {/* Fila intermedia: Kilos faltantes vs entregados */}
