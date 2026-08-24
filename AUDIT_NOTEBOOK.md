@@ -1,4 +1,22 @@
 
+### Iteración 20: Auditoría Integral, Desglose Logístico por Planta, Envío de Estado de Cuenta a Andrés por WhatsApp y Alertas de CR (COMPLETADO)
+**Fecha:** 2026-08-24
+**Archivos:** `src/components/DeliveryDueBanner.tsx`, `src/pages/Compras.tsx`, `src/lib/whatsappReminder.ts`, `src/components/Dashboard/FacturasSinCRPanel.tsx`, `src/components/Dashboard/BalanzaComprobacionModal.tsx`, `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/pages/Settings.tsx`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. Confusión en el aviso superior que llamaba "vencidas" a pedidos físicos con entregas parciales y kilos pendientes de surtir a Providencia.
+2. Necesidad de desglosar con precisión por cada Orden de Compra: departamento (`TH Nava` / `GT Evelia`), kilos faltantes vs entregados, avance gráfico y permitir registrar pesadas de báscula en 1 clic (`+ Entrega`) directamente desde el aviso.
+3. Envío rápido del Estado de Cuenta a Andrés por WhatsApp en 1 toque con resumen de entregas, costo ($38/kg), anticipos recibidos y saldo neto conciliado.
+4. Detección y alerta prioritaria en el Dashboard para facturas emitidas con más de 5 días hábiles en espera de contrarecibo de Providencia.
+5. Unificación canónica de la Balanza de Comprobación usando `computeAndresBalance` a $38.00/kg y blindaje de facturas en revisión (6198 y 6193) en la purga de Configuración.
+**Solución:**
+- Rediseñado `DeliveryDueBanner.tsx` con tarjetas interactivas, barra de progreso de surtido por OC y modal de captura rápida `RegistrarEntregaModal`.
+- Añadido `generateAndresWhatsAppSummary` en `whatsappReminder.ts` y botón `📲 Enviar WhatsApp` en la cabecera de `Compras.tsx`.
+- Creada alerta visual y badge urgente en `FacturasSinCRPanel.tsx` para facturas con `>= 5 días` sin contrarecibo.
+- Conectado `computeAndresBalance` en `BalanzaComprobacionModal.tsx` e integrada protección de `OFFICIAL_IN_REVIEW` en `Settings.tsx`.
+**Estado:** ✅ Verificado — 100/100 pruebas unitarias pasando al 100%, compilación limpia en 10s y validado en producción.
+
+---
+
 ### Iteración 19: Hub de Recepción & Pegado Mágico, Costo Andrés $38/kg, Control Departamental TH/GT y Certificación de Ciclo End-to-End (COMPLETADO)
 **Fecha:** 2026-08-24
 **Archivos:** `src/components/Recepcion/SmartDocumentDropzone.tsx`, `src/components/Recepcion/DocumentAutoAssigner.tsx`, `src/pages/FastEntry.tsx`, `src/components/Layout.tsx`, `src/lib/prefacturaGenerator.ts`, `src/lib/types.ts`, `src/hooks/useAndresStats.ts`, `src/hooks/useDashboardStatsV2.ts`, `functions/src/index.ts`, `functions/src/handlers/maquilaPortal.ts`, `GEMINI.md`, `src/lib/__tests__/finance.test.ts`

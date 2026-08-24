@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOrders } from '../../hooks/useOrders';
 import { money } from '../../lib/format';
+import { getOrderSummary } from '../../lib/finance';
 import { useNavigate } from 'react-router-dom';
 
 export function ProvidenciaHubWidget() {
@@ -26,15 +27,17 @@ export function ProvidenciaHubWidget() {
     (o.client || '').includes('EVELIA')
   );
 
-  // Cálculos TH
-  const thTotal = thOrder?.totalKilograms || 6500;
-  const thDelivered = (thOrder?.deliveries || []).reduce((acc, d) => acc + (d.kilos || 0), 0) || 3465.81;
+  // Cálculos TH dinámicos
+  const thSummary = thOrder ? getOrderSummary(thOrder) : null;
+  const thTotal = Number(thOrder?.totalKilograms) || 6500;
+  const thDelivered = thSummary && thSummary.kilosDelivered > 0 ? thSummary.kilosDelivered : 3465.81;
   const thRemaining = Math.max(0, thTotal - thDelivered);
   const thProgress = Math.min(100, Math.round((thDelivered / thTotal) * 100));
 
-  // Cálculos GT
-  const gtTotal = gtOrder?.totalKilograms || 3700;
-  const gtDelivered = (gtOrder?.deliveries || []).reduce((acc, d) => acc + (d.kilos || 0), 0) || 1000.00;
+  // Cálculos GT dinámicos
+  const gtSummary = gtOrder ? getOrderSummary(gtOrder) : null;
+  const gtTotal = Number(gtOrder?.totalKilograms) || 3700;
+  const gtDelivered = gtSummary && gtSummary.kilosDelivered > 0 ? gtSummary.kilosDelivered : 1000.00;
   const gtRemaining = Math.max(0, gtTotal - gtDelivered);
   const gtProgress = Math.min(100, Math.round((gtDelivered / gtTotal) * 100));
 

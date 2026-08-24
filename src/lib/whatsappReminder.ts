@@ -159,3 +159,33 @@ export function copyToClipboard(text: string): Promise<void> {
     }
   });
 }
+
+export function generateAndresWhatsAppSummary({
+  providerName = 'Andrés',
+  totalPagado,
+  totalPurchasesCost,
+  totalReceivedKilos,
+  saldoProveedor,
+  costPricePerKg = 38,
+}: {
+  providerName?: string;
+  totalPagado: number;
+  totalPurchasesCost: number;
+  totalReceivedKilos: number;
+  saldoProveedor: number;
+  costPricePerKg?: number;
+}): string {
+  const saldoSigno = saldoProveedor >= 0 ? `Saldo a favor de ${providerName} (Anticipos vigentes)` : `Saldo a favor de la Empresa (Deuda pendiente)`;
+  return `📊 *Estado de Cuenta — ${providerName}*
+📅 *Fecha:* ${fmtDate(new Date())}
+
+📦 *Kilos Entregados:* ${totalReceivedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (a $${costPricePerKg.toFixed(2)}/kg)
+💵 *Valor Total Entregas:* ${money(totalPurchasesCost)}
+💳 *Total Anticipos / Pagos Realizados:* ${money(totalPagado)}
+
+⚖️ *Saldo Conciliado:* ${saldoProveedor < 0 ? '-' : '+'}${money(Math.abs(saldoProveedor))}
+📌 *Estatus:* ${saldoSigno}
+
+_Control de Bolsas ERP — Estado de Cuenta Oficial._`;
+}
+

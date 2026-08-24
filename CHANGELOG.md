@@ -1,5 +1,24 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.22] - 24 Agosto 2026 (Auditoría Integral, Desglose Logístico por Planta, WhatsApp a Andrés & Alertas CR)
+
+### 📦 Nuevo — Banner Logístico Detallado por Orden de Compra y Planta (`DeliveryDueBanner.tsx`)
+- **Desglose Individual de Entregas:** Tarjetas interactivas por cada pedido activo que muestran los kilos faltantes, entregados, porcentaje de avance visual y badge institucional (`TH · Nava` / `GT · Evelia`).
+- **Botón de Captura Rápida en 1 Clic (`+ Entrega`):** Permite registrar pesadas de báscula de Andrés directamente desde la tarjeta del banner sin tener que buscar el expediente.
+- **Claridad Terminológica:** Eliminación de la palabra "vencidas" en pedidos físicos (reservada para contrarecibos de cobranza), reemplazándola por "entregas parciales en curso" y "kilos pendientes de surtir".
+
+### 📲 Nuevo — Envío de Estado de Cuenta a Andrés por WhatsApp (`Compras.tsx` & `whatsappReminder.ts`)
+- **Compilación de Balance en 1 Clic:** Generación instantánea del resumen oficial de entregas acumuladas, costo de material ($38.00/kg), anticipos realizados y saldo neto conciliado listo para enviar a Andrés por WhatsApp.
+
+### ⏳ Nuevo — Alerta Prioritaria para Facturas sin Contrarecibo > 5 Días (`FacturasSinCRPanel.tsx`)
+- **Detección Automática de Retrasos en Revisión:** Badge destacado y panel de alerta para facturas emitidas que superan los 5 días en espera de asignación de CR por parte de Providencia para facilitar el cobro inmediato.
+
+### ⚖️ Optimización — Conciliación de Balanza de Comprobación y Salvaguarda de Datos
+- **Fórmula Canónica en Balanza (`BalanzaComprobacionModal.tsx`):** Integración de `computeAndresBalance` asegurando coincidencia al centavo entre la Balanza y el módulo de Compras.
+- **Protección de Facturas en Revisión (`Settings.tsx`):** Blindaje explícito de las facturas 6198 y 6193 en la herramienta de purga de expedientes de prueba.
+
+---
+
 ## [v8.9.21] - 24 Agosto 2026 (Hub Operativo Providencia TH vs GT & Soporte de Complementos de Pago SAT)
 
 ### 🏭 Nuevo — Hub Operativo Providencia en Tiempo Real (`ProvidenciaHubWidget.tsx`)

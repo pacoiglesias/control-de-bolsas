@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.22 Auditoría Integral, Desglose Logístico por Planta, WhatsApp de Estado de Cuenta & Alertas de CR',
+    date: '24 de Agosto de 2026',
+    time: '09:30 PM',
+    summary: 'Auditoría exhaustiva de seguridad y cálculo financiero, desglose interactivo del banner logístico por OC y planta (TH Nava / GT Evelia), botón de captura rápida de entregas en 1 clic, envío de estado de cuenta a Andrés por WhatsApp y alertas para facturas con más de 5 días en espera de contrarecibo.',
+    highlights: [
+      '📦 Banner Logístico Interactivo: Desglose por Orden de Compra con tarjetas individuales, badges de departamento (TH / GT), kilos pendientes, avance gráfico y botón directo [+ Entrega] de báscula.',
+      '📲 Estado de Cuenta a Andrés por WhatsApp: Botón en 1 toque en Compras para compilar y enviar el resumen conciliado de kilos, costo ($38/kg), anticipos recibidos y saldo oficial por WhatsApp.',
+      '⏳ Alerta de Facturas sin Contrarecibo > 5 Días: Detección y badge urgente en el Dashboard para facturas emitidas con más de 5 días en espera de CR para acelerar el trámite con Providencia.',
+      '⚖️ Unificación Canónica en Balanza de Comprobación: Integración de computeAndresBalance a $38.00/kg con histórico conciliado en BalanzaComprobacionModal.',
+      '🛡️ Protección Reforzada en Purga de Datos: Blindaje de facturas oficiales en revisión (6198 y 6193) contra archivado involuntario en Configuración.',
+    ],
+  },
+  {
     version: 'v8.9.20 Hub de Recepción Mágica, Costo Andrés $38/kg & Control TH/GT',
     date: '24 de Agosto de 2026',
     time: '01:00 AM',

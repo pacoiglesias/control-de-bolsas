@@ -16,6 +16,7 @@ export {
   computeFinancials,
   computeDynamicFinancials,
   computeCommissionFromInvoiceTotal,
+  computeAndresBalance,
   configEfectiva,
   round2,
   normalizarTexto,

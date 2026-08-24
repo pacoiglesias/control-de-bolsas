@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Modal } from '../ui';
 import { money, fmtDate, getPrintHeaderHtml, shareHtmlAsPdf, toDate } from '../../lib/format';
-import { round2, extractCr } from '../../lib/finance';
+import { round2, extractCr, computeAndresBalance } from '../../lib/finance';
 import type { PurchaseOrder, Expense, FinancialConfig, Purchase } from '../../lib/types';
 import { useSystemSettings, type SystemSettings } from '../../hooks/useSystemSettings';
 import * as XLSX from 'xlsx';
@@ -77,41 +77,17 @@ export function BalanzaComprobacionModal({
     };
   }, [orders, config]);
 
-  // 2. CÁLCULO SISTEMA: Andrés Maquilador
+  // 2. CÁLCULO SISTEMA: Andrés Maquilador (Fórmula Canónica)
   const andresSistema = useMemo(() => {
-    let kilosEntregados = 0;
-    let costoMaquilaTotal = 0;
-
-    orders.filter((o: any) => !o.isDeleted).forEach((o) => {
-      (o.deliveries || []).forEach((d) => {
-        const k = d.kilos || 0;
-        kilosEntregados += k;
-        costoMaquilaTotal += k * (config.costPricePerKg || 42);
-      });
-    });
-
-    let totalPagadoAndres = 0;
-    (expenses || []).forEach((e) => {
-      const prov = (e.provider || '').toLowerCase().trim();
-      const conc = (e.concept || '').toLowerCase().trim();
-      if (prov === 'andres' || conc.includes('andres')) {
-        totalPagadoAndres += e.amount || 0;
-      }
-    });
-
-    (purchases || []).forEach((p) => {
-      totalPagadoAndres += p.paidAmount || 0;
-    });
-
-    const saldoVivoAndres = round2(totalPagadoAndres - costoMaquilaTotal);
-
+    const res = computeAndresBalance(purchases, expenses, config, provName);
     return {
-      kilosEntregados: round2(kilosEntregados),
-      costoMaquilaTotal: round2(costoMaquilaTotal),
-      totalPagadoAndres: round2(totalPagadoAndres),
-      saldoVivoAndres: round2(saldoVivoAndres),
+      kilosEntregados: round2(res.totalReceivedKilos),
+      costoMaquilaTotal: round2(res.totalPurchasesCost),
+      totalPagadoAndres: round2(res.totalPagado),
+      saldoVivoAndres: round2(res.saldoProveedor),
+      historicalDebtAndres: round2(res.historicalDebtAndres),
     };
-  }, [orders, expenses, purchases, config]);
+  }, [purchases, expenses, config, provName]);
 
   // 3. INPUTS DE COTEJO FÍSICO / REALIDAD (Pre-rellenados con lo que el usuario valida)
   const [realCrs, setRealCrs] = useState<number>(carteraSistema.totalCrs);

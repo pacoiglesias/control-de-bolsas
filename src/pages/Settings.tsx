@@ -19,6 +19,7 @@ import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
 import { confirmDialog } from '../lib/confirmDialog';
 import { triggerHaptic } from '../lib/hapticEngine';
+import { OFFICIAL_IN_REVIEW } from '../components/Cobranza/SincronizadorOficialModal';
 
 export default function Settings() {
   const { config, loading: loadingCfg, exists } = useConfig();
@@ -98,8 +99,11 @@ export default function Settings() {
           (o.invoices || []).some(inv => OFFICIAL_CRS.some(cr => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(cr)));
         const isFactura6167 = (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(inv => inv.folio === '6167' || inv.folio === 'TH-946'));
         const isPendingOrder = o.creditCycle?.status === 'pedido';
+        const isInReview = Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.some(item => 
+          o.oc === item.oc || o.folio === item.oc || o.folio === item.folio || (o.invoices || []).some(i => i.folio === item.folio)
+        );
 
-        if (!hasOfficialCr && !isFactura6167 && !isPendingOrder) {
+        if (!hasOfficialCr && !isFactura6167 && !isPendingOrder && !isInReview) {
           batch.update(doc(db, PATHS.orders, o.id), {
             isDeleted: true,
             deletedAt: serverTimestamp(),
