@@ -213,12 +213,30 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           const issueDate = new Date(`${item.dateStr}T12:00:00`);
           const dueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
           
-          // Kilos facturados
-          const kilosFacturados = Math.round(item.total / (43 * 1.16));
+          // Kilos de la Orden de Compra completa
+          const kilosPedidosOC = item.oc === '120267114114' ? 6500 : 3700;
+          
+          // Kilos facturados reales
+          const kilosFacturados = item.oc === '120267114114' ? 1965.81 : 1000.00;
           
           // Kilos entregados totales en esta orden (incluye el no facturado de 1,500 kg si es la OC 120267114114)
           const kilosAdicionalesNoFacturados = item.oc === '120267114114' ? 1500 : 0;
           const kilosEntregadosTotales = kilosFacturados + kilosAdicionalesNoFacturados;
+
+          // Partidas oficiales extraídas del PDF
+          const itemsList = item.oc === '120267114114' ? [
+            { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            { id: 'it-th-4', code: 'enbo000006-sc', description: 'BOLSA POLIETILENO 77 CM X 55 CM _Sin Color', quantity: 2000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
+            { id: 'it-th-5', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM', quantity: 500, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
+          ] : [
+            { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 700, unitPrice: 43.0, amount: 30100, unit: 'Kilos' },
+            { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+          ];
 
           // Crear deliveries
           const deliveriesList: any[] = [
@@ -248,11 +266,12 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
           const orderDoc: any = {
             id: orderId,
-            folio: item.folio,
+            folio: item.oc === '120267114114' ? '71/14114' : '43/9713',
             oc: item.oc,
             client: item.client,
             department: item.department,
-            totalKilograms: kilosEntregadosTotales,
+            totalKilograms: kilosPedidosOC,
+            items: itemsList,
             invoices: [
               {
                 id: `inv-${item.folio}`,
