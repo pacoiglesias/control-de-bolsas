@@ -365,6 +365,73 @@ export default function MaquiladorPortalEntregaTab({
             </motion.div>
           )}
 
+          {/* Desglose de Partidas del Pedido */}
+          {selectedOrder.items && selectedOrder.items.length > 0 && (
+            <div
+              style={{
+                background: 'rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: 12,
+                padding: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                📋 Partidas Contratadas ({selectedOrder.items.length} productos):
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {selectedOrder.items.map((it: any, idx: number) => {
+                  const qty = Number(it.quantity) || 0;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ flex: 1, paddingRight: 8 }}>
+                        <div style={{ fontWeight: 700, color: '#fff', fontSize: 11.5 }}>
+                          #{idx + 1} · {it.code || 'S/C'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.6)' }}>
+                          {it.description || 'Bolsa de Polietileno'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <strong style={{ color: '#38bdf8', fontSize: 12.5 }}>{qty.toLocaleString('es-MX')} kg</strong>
+                        <button
+                          type="button"
+                          onClick={() => setKilos(String(qty))}
+                          title="Cargar estos kilos en la báscula"
+                          style={{
+                            background: 'rgba(56, 189, 248, 0.2)',
+                            border: '1px solid rgba(56, 189, 248, 0.4)',
+                            borderRadius: 6,
+                            padding: '4px 8px',
+                            color: '#38bdf8',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Cargar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Presets Inteligentes de 1-Clic */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button

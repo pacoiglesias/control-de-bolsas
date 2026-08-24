@@ -292,6 +292,8 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
           client: data.client || (dept === 'GT' ? 'Grupo Textil Providencia - GT' : 'Grupo Textil Providencia - TH'),
           totalKilos,
           pendingKilos,
+          items: data.items || [],
+          deliveries: data.deliveries || [],
         });
       }
     }
