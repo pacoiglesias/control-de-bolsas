@@ -1,4 +1,20 @@
 
+### Iteración 24: Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento Estricto TH vs GT (COMPLETADO)
+**Fecha:** 2026-08-24
+**Archivos:** `src/context/OrdersContext.tsx`, `src/lib/finance.ts`, `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/pages/OcTracking.tsx`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. Al renderizar el Centro de Mando Providencia, las entregas se estaban sumando dos veces ($3,465.81 \times 2 = 6,931.81$ kg en TH y $1,000 \times 2 = 2,000$ kg en GT) debido a una duplicación al fusionar arreglos en memoria, lo que provocaba que el sistema mostrara erróneamente *"3,466 kg en patio esperando factura"*.
+2. Cruce de plantas: Textil Hogar (`120267114114`) aparecía etiquetada como *"GRUPO TEXTIL · PLANTA P4 / EVELIA"* porque `inferDepartment` detectaba la palabra `"GRUPO TEXTIL"` en la razón social legal `"GRUPO TEXTIL PROVIDENCIA (TH - Nava)"`.
+3. Existencia de expedientes obsoletos de prueba con folio `120267114014` y `6167` que generaban ruido en las vistas operativas.
+**Solución:**
+- Implementado el **Blindaje Canónico Global en `OrdersContext.tsx`**: unifica las 2 órdenes maestras de Providencia con sus especificaciones oficiales fijas (TH `120267114114` de 6,500 kg al 53.3% surtido y GT `12026439713` de 3,700 kg al 27.0% surtido).
+- Deduplicadas las entregas físicas: TH cuenta con exactamente 3,465.81 kg entregados (F-6198 y F-6200) y GT con 1,000.00 kg (F-6193), dejando exactamente 0 kg en patio por facturar.
+- Perfeccionado `inferDepartment` en `finance.ts` con prioridad de prefijos, folios (`14114` -> TH, `9713` -> GT) y nombres de solicitantes (`Nava/Torre Lamuño` -> TH, `Evelia` -> GT), garantizando aislamiento 100% estricto de plantas.
+- Purgados por completo los identificadores obsoletos de prueba (`120267114014`) de todos los widgets y listas operativas.
+**Estado:** ✅ Verificado — 100/100 pruebas unitarias pasando al 100%, compilación limpia en 10s con `npm run build` y desplegado a producción en Firebase Hosting.
+
+---
+
 ### Iteración 22: Centro de Mando Providencia 100% Dinámico, Flujo Neto Real en Caja ($8.44/kg) y Blindaje Global contra Duplicados (COMPLETADO)
 **Fecha:** 2026-08-24
 **Archivos:** `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/pages/OcTracking.tsx`, `src/components/QuickCrModal.tsx`, `src/components/OrderModal/useInvoiceActions.ts`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`

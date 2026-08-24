@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.26] - 24 Agosto 2026 (Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento Estricto TH vs GT)
+
+### 🛡️ Core — Deduplicación Canónica Global (`OrdersContext.tsx`)
+- **Unificación Central:** Las 2 órdenes maestras de Providencia (`120267114114` de 6,500 kg y `12026439713` de 3,700 kg) se consolidan en la raíz sin duplicaciones ni expedientes fantasma.
+- **Entregas Exactas:** Eliminada la sobre-duplicación de pesadas de báscula; TH cuenta exactamente con 3,465.81 kg (53.3% surtido) y GT con 1,000.00 kg (27.0% surtido).
+- **Cero Kilos en Patio por Facturar:** Los 3,465.81 kg de TH y 1,000.00 kg de GT están 100% amparados bajo sus facturas timbradas `F-6198`, `F-6200` y `F-6193`.
+
+### 🏢 Clasificación — Aislamiento Estricto Textil Hogar vs Grupo Textil (`finance.ts`)
+- **Enrutamiento Departamental Blindado:** `120267114114` (Folio 71/14114) se asigna forzosamente a **TH (Textil Hogar · Nava / Torre Lamuño)** con almacén `TH-ALMACEN-1`.
+- **Planta P4:** `12026439713` (Folio 43/9713) se asigna forzosamente a **GT (Grupo Textil Providencia · Evelia)** con almacén `P4-ALM`.
+- **Cero Mezclas:** Eliminada la asignación errónea de TH a Evelia / P4.
+
+---
+
 ## [v8.9.24] - 24 Agosto 2026 (Centro de Mando Providencia Dinámico, Flujo Neto Real en Caja $8.44/kg & Blindaje Anti-Duplicados)
 
 ### 🏢 Nuevo — Centro de Mando Operativo Providencia en Tiempo Real (`ProvidenciaHubWidget.tsx`)

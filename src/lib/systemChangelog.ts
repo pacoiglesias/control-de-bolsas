@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.26 Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento de Plantas TH / GT',
+    date: '24 de Agosto de 2026',
+    time: '11:15 PM',
+    summary: 'Calibración definitiva de las 2 únicas Órdenes de Compra abiertas de Providencia (TH 120267114114 de 6,500 kg al 53.3% y GT 12026439713 de 3,700 kg al 27.0%), eliminación total de folios de prueba obsoletos (120267114014) y resolución del enrutamiento estricto por planta.',
+    highlights: [
+      '🛡️ Deduplicación Canónica Global: OrdersContext unifica cualquier documento redundante garantizando cero OCs repetidas en todo el ERP.',
+      '🏢 Aislamiento Estricto TH vs GT: Textil Hogar (TH · Nava / Torre Lamuño) y Grupo Textil (GT · Evelia / P4) quedan 100% aislados sin cruce de plantas.',
+      '📦 Calibración Real de Kilos: TH cuenta exactamente 3,465.81 kg entregados (F-6198 y F-6200) con 3,034.19 kg faltantes, y GT cuenta 1,000.00 kg (F-6193) con 2,700.00 kg faltantes.',
+      '⚡ 0 kg en Patio por Facturar: Todo el volumen entregado en báscula está debidamente timbrado bajo las 3 facturas oficiales emitidas ($222,754.60).',
+    ],
+  },
+  {
     version: 'v8.9.25 Auditoría y Cuadre Oficial de las Facturas Emitidas (F-6198, F-6200, F-6193) & OCs de Providencia',
     date: '24 de Agosto de 2026',
     time: '11:00 PM',
