@@ -513,7 +513,7 @@ export default function OcTracking() {
       </div>
 
       {/* KPIs Reales Interactivos */}
-      <div className="kpi-grid" style={{ marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ marginBottom: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('todas'); }}>
           <KpiCard label="Órdenes Activas" value={`${openGroups.length} de ${allOcGroups.length}`} tone="cash" />
         </div>
@@ -524,7 +524,15 @@ export default function OcTracking() {
           <KpiCard label="Kilos por Facturar" value={`${kpis.totalPendienteFacturar.toLocaleString('es-MX')} kg`} tone="warn" />
         </div>
         <div style={{ cursor: 'pointer' }} onClick={() => setScope('todas')}>
-          <KpiCard label="Total Facturado" value={money(kpis.totalFacturadoPesos)} tone="ok" />
+          <KpiCard 
+            label="💵 Flujo Neto en Caja ($8.44/kg)" 
+            value={money(filteredGroups.reduce((a, g) => a + g.kilosEntregados * 8.44, 0))} 
+            sub={`Total Cartera: ${money(filteredGroups.reduce((a, g) => a + g.kilosPedidos * 8.44, 0))}`}
+            tone="ok" 
+          />
+        </div>
+        <div style={{ cursor: 'pointer' }} onClick={() => setScope('todas')}>
+          <KpiCard label="Total Facturado" value={money(kpis.totalFacturadoPesos)} tone="cash" />
         </div>
       </div>
 
@@ -701,10 +709,16 @@ export default function OcTracking() {
                     )}
                   </div>
 
-                  <div style={{ textAlign: 'right', minWidth: 140 }}>
+                  <div style={{ textAlign: 'right', minWidth: 150 }}>
                     <div style={{ fontSize: 11, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monto Facturado</div>
                     <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--ink)' }}>{money(group.totalVentaFacturada)}</div>
-                    <div style={{ fontSize: 11, color: statusColor, marginTop: 4, fontWeight: 700, background: 'var(--paper-sunk)', padding: '2px 8px', borderRadius: 10, display: 'inline-block' }}>
+                    <div style={{ fontSize: 11, color: '#059669', marginTop: 4, fontWeight: 800, background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: 6, display: 'inline-block' }}>
+                      💵 Flujo: {money(group.kilosEntregados * 8.44)}
+                      <span style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 600, marginLeft: 4 }}>
+                        / {money(group.kilosPedidos * 8.44)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: statusColor, marginTop: 4, fontWeight: 700, background: 'var(--paper-sunk)', padding: '2px 8px', borderRadius: 10, display: 'block' }}>
                       {statusLabel}
                     </div>
                   </div>

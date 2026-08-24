@@ -276,7 +276,7 @@ export function ProvidenciaHubWidget() {
         </div>
 
         {/* Barra de KPIs Resumen en Tiempo Real */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 20 }}>
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800 }}>📦 PEDIDO TOTAL</div>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginTop: 4 }}>
@@ -301,6 +301,15 @@ export function ProvidenciaHubWidget() {
             </div>
             <div style={{ fontSize: 18, fontWeight: 900, color: totals.unInvoicedKg > 0 ? '#93c5fd' : '#fff', marginTop: 4 }}>
               {totals.unInvoicedKg.toLocaleString('es-MX')} kg
+            </div>
+          </div>
+          <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 14, padding: '12px 14px' }}>
+            <div style={{ fontSize: 11, color: '#34d399', fontWeight: 800 }}>💵 FLUJO NETO EN CAJA ($8.44/kg)</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#10b981', marginTop: 4 }}>
+              {money(totals.deliveredKg * 8.44)}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+              Total OC: {money(totals.totalKg * 8.44)}
             </div>
           </div>
           <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 14, padding: '12px 14px' }}>
@@ -380,7 +389,7 @@ export function ProvidenciaHubWidget() {
                   </div>
 
                   {/* Métricas Clave de la Orden */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
                     <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: '8px 10px' }}>
                       <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>PEDIDO OC</div>
                       <div style={{ fontSize: 13, fontWeight: 900, color: '#fff', marginTop: 2 }}>{totalKg.toLocaleString('es-MX')} kg</div>
@@ -393,6 +402,40 @@ export function ProvidenciaHubWidget() {
                       <div style={{ fontSize: 10, color: '#fcd34d', fontWeight: 700 }}>FALTA SURTIR</div>
                       <div style={{ fontSize: 13, fontWeight: 900, color: '#fbbf24', marginTop: 2 }}>{remainingKg.toLocaleString('es-MX')} kg</div>
                     </div>
+                  </div>
+
+                  {/* Flujo Neto Real en Caja ($8.44/kg) */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: 10,
+                    padding: '8px 12px',
+                    marginBottom: 12,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: '#6ee7b7', textTransform: 'uppercase' }}>
+                        💵 Flujo Neto Real en Caja ($8.44/kg)
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: '#34d399', marginTop: 2 }}>
+                        {money(deliveredKg * 8.44)}
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginLeft: 6 }}>
+                          ganado de {money(totalKg * 8.44)}
+                        </span>
+                      </div>
+                    </div>
+                    {remainingKg > 0 && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 10, color: '#fcd34d', fontWeight: 700 }}>Por Ganar</div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24' }}>
+                          +{money(remainingKg * 8.44)}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Facturas y Contrarecibos Asociados */}
@@ -537,7 +580,7 @@ export function ProvidenciaHubWidget() {
           </div>
         )}
 
-        {/* Footer con Resumen de Rentabilidad Providencia */}
+        {/* Footer con Resumen de Rentabilidad y Flujo Neto Providencia */}
         <div style={{
           marginTop: 18,
           paddingTop: 14,
@@ -550,10 +593,13 @@ export function ProvidenciaHubWidget() {
         }}>
           <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
-              💰 Margen Bruto Entregas ($5/kg): <strong style={{ color: '#34d399' }}>{money(totals.deliveredKg * 5)}</strong>
+              💵 Flujo Neto Real Entregas ($8.44/kg): <strong style={{ color: '#34d399' }}>{money(totals.deliveredKg * 8.44)}</strong>
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
-              ⏳ Margen Proyectado Restante ($5/kg): <strong style={{ color: '#fbbf24' }}>{money(totals.remainingKg * 5)}</strong>
+              ⏳ Flujo Proyectado Restante: <strong style={{ color: '#fbbf24' }}>{money(totals.remainingKg * 8.44)}</strong>
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+              (Factura $49.88 - Andrés $38.00 - Contador 8% $3.44 = $8.44/kg)
             </div>
           </div>
 
