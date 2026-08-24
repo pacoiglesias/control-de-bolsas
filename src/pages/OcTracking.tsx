@@ -121,7 +121,7 @@ export default function OcTracking() {
   }, [orders]);
 
   // Grupos filtrados por planta, ámbito y búsqueda
-  const { openGroups, closedGroups, filteredGroups } = useMemo(() => {
+  const { plantGroups, openGroups, closedGroups, filteredGroups } = useMemo(() => {
     let base = allOcGroups;
 
     if (plantFilter !== 'ALL') {
@@ -130,6 +130,8 @@ export default function OcTracking() {
         return d === plantFilter;
       });
     }
+
+    const plantBase = base;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -157,11 +159,29 @@ export default function OcTracking() {
     }
 
     return {
+      plantGroups: plantBase,
       openGroups: open,
       closedGroups: closed,
       filteredGroups: current,
     };
   }, [allOcGroups, plantFilter, scope, subFilter, search]);
+
+  // KPIs Totales Reales (Sincronizados con la planta seleccionada)
+  const kpis = useMemo(() => {
+    const totalPedidos = plantGroups.reduce((acc, g) => acc + g.kilosPedidos, 0);
+    const totalEntregados = plantGroups.reduce((acc, g) => acc + g.kilosEntregados, 0);
+    const totalPendienteFacturar = plantGroups.reduce((acc, g) => acc + g.kilosPendientesFacturar, 0);
+    const totalFacturadoPesos = plantGroups.reduce((acc, g) => acc + g.totalVentaFacturada, 0);
+    const pctSurtido = totalPedidos > 0 ? Math.round((totalEntregados / totalPedidos) * 100) : 0;
+
+    return {
+      totalPedidos,
+      totalEntregados,
+      totalPendienteFacturar,
+      totalFacturadoPesos,
+      pctSurtido,
+    };
+  }, [plantGroups]);
 
   function handleShareOcWhatsApp(group: OcGroup) {
     const dept = inferDepartment(group.order) || (group.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
@@ -207,23 +227,6 @@ export default function OcTracking() {
       return next;
     });
   };
-
-  // KPIs Totales Reales
-  const kpis = useMemo(() => {
-    const totalPedidos = allOcGroups.reduce((acc, g) => acc + g.kilosPedidos, 0);
-    const totalEntregados = allOcGroups.reduce((acc, g) => acc + g.kilosEntregados, 0);
-    const totalPendienteFacturar = allOcGroups.reduce((acc, g) => acc + g.kilosPendientesFacturar, 0);
-    const totalFacturadoPesos = allOcGroups.reduce((acc, g) => acc + g.totalVentaFacturada, 0);
-    const pctSurtido = totalPedidos > 0 ? Math.round((totalEntregados / totalPedidos) * 100) : 0;
-
-    return {
-      totalPedidos,
-      totalEntregados,
-      totalPendienteFacturar,
-      totalFacturadoPesos,
-      pctSurtido,
-    };
-  }, [allOcGroups]);
 
   function getManifiestoHtml(pendingOrders: OcGroup[]) {
     const totalPedidosGlobal = pendingOrders.reduce((acc, g) => acc + g.kilosPedidos, 0);
@@ -600,7 +603,7 @@ export default function OcTracking() {
 
       {/* Vista de Tablero o Lista */}
       {view === 'tablero' ? (
-        <EntregasKanban orders={orders} onSelect={setSelectedOrder} />
+        <EntregasKanban orders={filteredGroups.map(g => g.order)} onSelect={setSelectedOrder} />
       ) : filteredGroups.length === 0 ? (
         <div className="empty">
           <span className="empty-icon">📦</span>
