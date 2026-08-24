@@ -1,5 +1,26 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.23] - 24 Agosto 2026 (Rediseño Proactivo de Seguimiento por OC, Báscula por Partida & Captura Ágil de Contrarecibos)
+
+### 🚚 Nuevo — Rediseño Proactivo de Seguimiento por OC (`OcTracking.tsx`)
+- **Segmentación por Pestañas:** Separación clara entre órdenes `🚚 En Proceso / Sin Cerrar`, `✅ Cerradas / Histórico` y vista combinada.
+- **Filtro de Planta en 1 Clic:** Botones de acceso rápido para aislar órdenes de `🟦 Textil Hogar (Nava)` y `🟪 Grupo Textil (Evelia)`.
+- **KPIs Interactivos con Auto-Filtrado:** Clic en cualquier tarjeta de resumen filtra automáticamente el listado de órdenes.
+- **Acciones Operativas Directas:** Botones `[+ Báscula]`, `[⚡ Facturar]` y reporte logístico formateado para WhatsApp.
+
+### 📦 Optimización — Registro en Báscula por Partida con Faltantes (`OrderModals.tsx` & `deliveries.ts`)
+- **Progreso por SKU:** Desglose individual de cada medida: Pedido (kg), Entregado (kg) y Falta (kg).
+- **Carga Rápida de Remanente (`⚡ Restante`):** Asigna con 1 clic los kilos exactos que faltan por surtir.
+- **Candado de Tope Inviolable:** Protección estricta contra sobre-entregas y cero mermas.
+
+### 📝 Nuevo — Asignación Ultra-Rápida de Contrarecibos y Fechas (`QuickCrModal.tsx` & `TableroKanban.tsx`)
+- **Botón Directo en Tarjeta:** Acceso inmediato `[📝 Asignar CR y Fecha]` en el tablero Kanban y tablas de cobranza.
+- **Auto-Prefijos Oficiales:** Detección de planta y botones `[🟦 TH-]` / `[🟪 GT-]` para captura ágil.
+- **Cálculo de Vencimiento a +30 Días:** Botón de 1 toque `[⚡ +30 Días (Providencia)]` y atajos a +15d, +45d, +60d.
+- **Banner Proactivo en Cobranza:** Alerta de facturas esperando contrarecibo con acceso a captura directa.
+
+---
+
 ## [v8.9.22] - 24 Agosto 2026 (Auditoría Integral, Desglose Logístico por Planta, WhatsApp a Andrés & Alertas CR)
 
 ### 📦 Nuevo — Banner Logístico Detallado por Orden de Compra y Planta (`DeliveryDueBanner.tsx`)

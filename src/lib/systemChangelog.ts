@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.23 Rediseño Proactivo de Seguimiento por OC, Báscula por Partida & Captura Ágil de Contrarecibos',
+    date: '24 de Agosto de 2026',
+    time: '10:00 PM',
+    summary: 'Rediseño completo de Seguimiento por OC (/oc) con segmentación activa vs histórica y filtro TH/GT en 1 clic, desglose de báscula por partida individual con cálculo de faltantes por SKU y botón de carga rápida de remanente, y asignación ultra-rápida de Contrarecibos con auto-prefijo y cálculo +30 días en Cobranza.',
+    highlights: [
+      '🚚 Seguimiento Proactivo por OC (/oc): Separación clara en pestañas «En Proceso / Sin Cerrar» vs «Cerradas / Histórico», selector de planta (TH Nava / GT Evelia), KPIs interactivos y botón directo de Báscula, Facturación y reporte WhatsApp.',
+      '📦 Báscula por Partida con Faltantes: Visualización precisa de Pedido, Entregado y Faltante por SKU con botón ⚡ Restante (kg) y bloqueo inviolable de sobre-entrega.',
+      '📝 Captura Instantánea de Contrarecibo (QuickCrModal): Botón directo en Tablero Kanban, Cajón de Facturas y Tablas de Cobranza con auto-prefijos [🟦 TH-] / [🟪 GT-] y cálculo instantáneo [⚡ +30 Días Providencia].',
+      '🏷️ Separación Departamental Estricta: Validación preventiva de prefijos según departamento de la orden.',
+      '⚡ Banner de Facturas sin CR en Cobranza: Acceso inmediato para tramitar contrarecibos pendientes desde la pestaña de cobranza.',
+    ],
+  },
+  {
     version: 'v8.9.22 Auditoría Integral, Desglose Logístico por Planta, WhatsApp de Estado de Cuenta & Alertas de CR',
     date: '24 de Agosto de 2026',
     time: '09:30 PM',

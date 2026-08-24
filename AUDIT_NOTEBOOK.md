@@ -1,4 +1,21 @@
 
+### Iteración 21: Rediseño Proactivo de Seguimiento por OC, Báscula por Partida y Asignación Ultra-Rápida de Contrarecibos (COMPLETADO)
+**Fecha:** 2026-08-24
+**Archivos:** `src/pages/OcTracking.tsx`, `src/components/OcTracking/EntregasKanban.tsx`, `src/components/Compras/OrderModals.tsx`, `src/components/QuickCrModal.tsx`, `src/components/Cobranza/TableroKanban.tsx`, `src/components/Cobranza/InvoiceDrawer.tsx`, `src/components/Cobranza/TabPendientes.tsx`, `src/components/Cobranza/ProximasTable.tsx`, `src/lib/deliveries.ts`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. En `/oc` (Seguimiento por OC), las órdenes activas (en proceso de entrega física) y las órdenes cerradas históricas estaban mezcladas, y no había filtros rápidos por planta ni acciones inmediatas.
+2. En báscula, la pesada no desglosaba con exactitud por cada subproducto: Pedido, Entregado, Faltante y botón de carga rápida de remanente (`⚡ Restante`).
+3. Las órdenes con entregas parciales y kilos pendientes de surtir saltaban erróneamente a cobranza en vez de permanecer en "Por Entregar" / "En Entregas".
+4. En Cobranza (`/cobranza`), capturar el número de contrarecibo y su fecha de vencimiento a 30 días requería múltiples clics y navegación compleja por expedientes.
+**Solución:**
+- Rediseñado completamente `OcTracking.tsx` con segmentación por pestañas: `🚚 En Proceso / Sin Cerrar`, `✅ Cerradas / Histórico` y `🌟 Ambas`, con selector de planta en 1 clic (`🟦 Textil Hogar - Nava` vs `🟪 Grupo Textil - Evelia`), KPIs interactivos con auto-filtrado, acciones rápidas `[+ Báscula]`, `[⚡ Facturar]` y generador de reporte logístico para WhatsApp.
+- Actualizado `OrderModals.tsx` y `deliveries.ts` con desglose partida por partida en báscula (`Pedido: X kg | Entregado: Y kg | Falta: Z kg`), botón `⚡ Restante (Z kg)` y validación estricta de tope.
+- Corregida la clasificación en `EntregasKanban.tsx` para retener las órdenes con entregas parciales incompletas en la columna física de entregas.
+- Rediseñado `QuickCrModal.tsx` con auto-detección y botones de prefijo `[🟦 TH-]` / `[🟪 GT-]`, cálculo instantáneo `[⚡ +30 Días (Providencia)]`, `[+15d]`, `[+45d]`, `[+60d]` e integrado con botón directo `[📝 Asignar CR y Fecha]` en el Tablero Kanban, `TabPendientes.tsx`, `ProximasTable.tsx` y `InvoiceDrawer.tsx`.
+**Estado:** ✅ Verificado — 100/100 pruebas unitarias pasando al 100%, compilación limpia y desplegado a producción en Firebase Hosting.
+
+---
+
 ### Iteración 20: Auditoría Integral, Desglose Logístico por Planta, Envío de Estado de Cuenta a Andrés por WhatsApp y Alertas de CR (COMPLETADO)
 **Fecha:** 2026-08-24
 **Archivos:** `src/components/DeliveryDueBanner.tsx`, `src/pages/Compras.tsx`, `src/lib/whatsappReminder.ts`, `src/components/Dashboard/FacturasSinCRPanel.tsx`, `src/components/Dashboard/BalanzaComprobacionModal.tsx`, `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/pages/Settings.tsx`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
