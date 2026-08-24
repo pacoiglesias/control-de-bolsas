@@ -7,10 +7,13 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { logAction } from '../../lib/logger';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
+import { useOrders } from '../../hooks/useOrders';
 
 export function useInvoiceActions() {
   const toast = useToast();
   const { user } = useAuth();
+  const { orders: allOrders } = useOrders();
 
   async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: FinanceConfigCore) {
     try {
@@ -61,6 +64,10 @@ export function useInvoiceActions() {
             const upperFolio = finalFolio.toUpperCase();
             if (currentInvoices.some(x => x.id !== updatedInvoice.id && x.folio?.toUpperCase() === upperFolio)) {
                 throw new Error(`El folio de factura ${finalFolio} ya está en este expediente.`);
+            }
+            const globalDup = findDuplicateInvoiceFolio(allOrders || [], finalFolio, updatedInvoice.id);
+            if (globalDup && globalDup.orderFolio !== (order.folio || order.oc)) {
+                throw new Error(`🚨 La factura #${finalFolio} ya está registrada en la OC #${globalDup.orderFolio} (${globalDup.client}).`);
             }
         }
 

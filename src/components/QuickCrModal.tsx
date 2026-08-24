@@ -6,6 +6,8 @@ import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { toInputDate, fromInputDate } from '../lib/format';
 import { inferDepartment } from '../lib/finance';
+import { useOrders } from '../hooks/useOrders';
+import { findDuplicateContrarecibo } from '../lib/duplicateGuards';
 import type { PurchaseOrder, Invoice } from '../lib/types';
 import { motion } from 'framer-motion';
 
@@ -17,6 +19,7 @@ interface QuickCrModalProps {
 
 export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
   const { user } = useAuth();
+  const { orders } = useOrders();
   const toast = useToast();
   
   // Detección de departamento / planta oficial
@@ -56,6 +59,13 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
   const [applyToAll, setApplyToAll] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // Detector de Contrarecibo duplicado en tiempo real
+  const duplicateMatch = useMemo(() => {
+    const clean = crNumber.trim();
+    if (!clean || clean === 'TH-' || clean === 'GT-') return null;
+    return findDuplicateContrarecibo(orders, clean, invoice?.id, order.id);
+  }, [orders, crNumber, invoice, order]);
+
   // Helper para asignar días relativos
   const setDaysFromBase = (days: number) => {
     const d = new Date(baseDate);
@@ -76,6 +86,10 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
 
     if (!cleanCr || cleanCr === 'TH-' || cleanCr === 'GT-') {
       return toast('Ingresa el número de Contrarecibo (ej. TH-946 o GT-597)', 'bad');
+    }
+
+    if (duplicateMatch) {
+      return toast(`🚨 El contrarecibo "${cleanCr}" ya fue usado en la Factura #${duplicateMatch.invoiceFolio} (OC #${duplicateMatch.orderFolio}). No se permiten duplicados.`, 'bad');
     }
 
     // Regla de Separación Estricta
@@ -231,7 +245,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
                 fontSize: 18,
                 fontWeight: 900,
                 borderRadius: 10,
-                border: '2px solid var(--accent)',
+                border: duplicateMatch ? '2px solid #ef4444' : '2px solid var(--accent)',
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
                 outline: 'none',
@@ -240,6 +254,27 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               }}
               autoFocus
             />
+
+            {duplicateMatch && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid #ef4444',
+                color: '#f87171',
+                fontSize: 12,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span>🚨</span>
+                <span>
+                  El contrarecibo <strong>"{duplicateMatch.matchedValue}"</strong> ya fue usado en la Factura #{duplicateMatch.invoiceFolio || 'S/F'} (OC #{duplicateMatch.orderFolio}).
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Campo de Fecha de Vencimiento y Atajos Rápidos */}
@@ -249,7 +284,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
                 Fecha Promesa de Pago:
               </label>
               <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
-                30 días estándar
+                Base emisión: {baseDate.toLocaleDateString('es-MX')}
               </span>
             </div>
 
@@ -260,24 +295,23 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                padding: '9px 12px',
-                borderRadius: 8,
+                padding: '10px 14px',
+                fontSize: 15,
+                fontWeight: 800,
+                borderRadius: 10,
                 border: '1px solid var(--line)',
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
-                fontSize: 14,
-                fontWeight: 700,
                 outline: 'none',
-                marginBottom: 8,
               }}
             />
 
-            {/* Atajos de cálculo de fecha */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {/* Botones de cálculo rápido */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn-small"
-                style={{ fontSize: 11, padding: '4px 8px', fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: '1px solid #3b82f6' }}
+                style={{ fontSize: 11, padding: '4px 10px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid #3b82f6', fontWeight: 800, borderRadius: 6 }}
                 onClick={() => setDaysFromBase(30)}
               >
                 ⚡ +30 Días (Providencia)
@@ -285,7 +319,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               <button
                 type="button"
                 className="btn-small"
-                style={{ fontSize: 11, padding: '4px 8px', background: 'var(--paper-sunk)' }}
+                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--paper-sunk)', color: 'var(--ink-soft)', border: '1px solid var(--line)', borderRadius: 6 }}
                 onClick={() => setDaysFromBase(15)}
               >
                 +15 Días
@@ -293,24 +327,17 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               <button
                 type="button"
                 className="btn-small"
-                style={{ fontSize: 11, padding: '4px 8px', background: 'var(--paper-sunk)' }}
+                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--paper-sunk)', color: 'var(--ink-soft)', border: '1px solid var(--line)', borderRadius: 6 }}
                 onClick={() => setDaysFromBase(45)}
               >
                 +45 Días
               </button>
-              <button
-                type="button"
-                className="btn-small"
-                style={{ fontSize: 11, padding: '4px 8px', background: 'var(--paper-sunk)' }}
-                onClick={() => setDaysFromBase(60)}
-              >
-                +60 Días
-              </button>
             </div>
           </div>
 
+          {/* Toggle para aplicar a todas las facturas de la orden */}
           {order.invoices && order.invoices.length > 1 && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink-soft)', cursor: 'pointer', marginTop: 4 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink)', cursor: 'pointer', background: 'var(--paper-sunk)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
               <input
                 type="checkbox"
                 checked={applyToAll}
@@ -339,17 +366,17 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
             </button>
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !!duplicateMatch}
               style={{
                 flex: 2,
                 padding: '11px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#2563eb',
+                background: duplicateMatch ? 'var(--line)' : '#2563eb',
                 color: '#fff',
                 fontWeight: 800,
                 fontSize: 14,
-                cursor: 'pointer',
+                cursor: duplicateMatch ? 'not-allowed' : 'pointer',
               }}
             >
               {busy ? 'Guardando...' : '💾 Guardar y Asignar CR'}
