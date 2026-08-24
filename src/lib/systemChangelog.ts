@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.24 Centro de Mando Providencia Dinámico, Flujo Neto Real en Caja ($8.44/kg) & Blindaje Anti-Duplicados',
+    date: '24 de Agosto de 2026',
+    time: '10:30 PM',
+    summary: 'Transformación del Centro de Mando Providencia a 100% dinámico y enfocado en órdenes abiertas por entregar o complementar, cálculo y visualización transparente del Flujo Neto Real de Efectivo en Caja ($8.44/kg) por orden y global, y blindaje integral contra duplicados en tiempo real.',
+    highlights: [
+      '🏢 Centro de Mando Providencia 100% Dinámico: Conectado a Firestore sin datos estáticos; pestaña por defecto «🔥 Por Entregar o Facturar», filtros por planta (Consolidado, TH Nava y GT Evelia), KPIs de Kilos en Pedido, Entregados, Faltantes, En Patio por Facturar y Saldo por Cobrar.',
+      '💵 Flujo Neto Real de Efectivo en Caja ($8.44/kg): Desglose transparente en Dashboard y Seguimiento por OC (/oc) del dinero real en bolsillo (Factura $49.88 con IVA - Andrés $38 - Contador 8% $3.44 = +$8.44/kg).',
+      '🛡️ Blindaje Global contra Duplicados: Detección y bloqueo en tiempo real contra números de Contrarecibo repetidos y folios de factura duplicados en todo Firestore.',
+      '⚡ Acciones Operativas en 1 Clic: Botones [+ Báscula], [📝 Asignar CR] y [📂 Expediente] con modales interactivos en todas las vistas ejecutivas.',
+    ],
+  },
+  {
     version: 'v8.9.23 Rediseño Proactivo de Seguimiento por OC, Báscula por Partida & Captura Ágil de Contrarecibos',
     date: '24 de Agosto de 2026',
     time: '10:00 PM',

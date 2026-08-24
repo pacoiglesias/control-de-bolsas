@@ -1,5 +1,24 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.24] - 24 Agosto 2026 (Centro de Mando Providencia Dinámico, Flujo Neto Real en Caja $8.44/kg & Blindaje Anti-Duplicados)
+
+### 🏢 Nuevo — Centro de Mando Operativo Providencia en Tiempo Real (`ProvidenciaHubWidget.tsx`)
+- **100% Dinámico:** Eliminados todos los datos de ejemplo/hardcodeados; sincronización en vivo con todas las OCs reales de Providencia.
+- **Filtro Nativo de Órdenes Abiertas:** Pestaña predeterminada `🔥 Por Entregar o Facturar` enfocada en órdenes que requieren báscula, complementación o contrarecibo.
+- **KPIs en Vivo:** Kilos Pedidos, Entregados en Báscula, Kilos Faltantes, **Kilos en Patio por Facturar** y Saldo por Cobrar.
+- **Acciones Rápidas en Tarjeta:** `[+ Báscula]`, `[📝 Asignar CR]` y `[📂 Expediente]` con modales interactivos.
+
+### 💵 Nuevo — Flujo Neto Real de Efectivo en Caja ($8.44/kg)
+- **Fórmula de Bolsillo:** Factura Providencia con IVA ($49.88) - Costo Andrés ($38.00) - Contador 8% s/subtotal ($3.44) = **+$8.44 / kg de flujo líquido**.
+- **Desglose por OC:** Tarjetas de Providencia y Seguimiento por OC (`/oc`) muestran la ganancia real acumulada por entregas y el total proyectado de la orden.
+- **KPI Acumulado Global:** Visualización en el Dashboard y en `/oc` del monto total que entra a caja por toda la cartera.
+
+### 🛡️ Nuevo — Blindaje Global contra Duplicados en Tiempo Real (`QuickCrModal.tsx` & `useInvoiceActions.ts`)
+- **Detector de Contrarecibos Duplicados:** Alerta visual inmediata y bloqueo de guardado si se ingresa un CR ya registrado en otra orden.
+- **Detector de Facturas Duplicadas:** Validación cruzada en todo Firestore para impedir timbrar o registrar un mismo folio de factura en más de una OC.
+
+---
+
 ## [v8.9.23] - 24 Agosto 2026 (Rediseño Proactivo de Seguimiento por OC, Báscula por Partida & Captura Ágil de Contrarecibos)
 
 ### 🚚 Nuevo — Rediseño Proactivo de Seguimiento por OC (`OcTracking.tsx`)

@@ -1,4 +1,19 @@
 
+### Iteración 22: Centro de Mando Providencia 100% Dinámico, Flujo Neto Real en Caja ($8.44/kg) y Blindaje Global contra Duplicados (COMPLETADO)
+**Fecha:** 2026-08-24
+**Archivos:** `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/pages/OcTracking.tsx`, `src/components/QuickCrModal.tsx`, `src/components/OrderModal/useInvoiceActions.ts`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. El widget "Operaciones Providencia en Tiempo Real" en el Dashboard contenía datos hardcodeados y solo mostraba 2 órdenes fijas de ejemplo, sin reflejar el estado operativo real ni las órdenes abiertas que requieren acción urgente.
+2. Necesidad de transparentar el **Flujo Neto Real de Efectivo en Caja ($8.44/kg)**: el usuario requería visualizar de inmediato la ganancia real que entra a su bolsillo tras cobrar la factura con IVA a Providencia ($49.88), pagar el costo a Andrés ($38.00) y descontar la comisión del contador (8% sobre subtotal = $3.44), tanto por cada orden individual como en el acumulado global.
+3. Blindaje contra duplicados en tiempo real: evitar que se asignen contrarecibos o folios de factura repetidos entre diferentes órdenes.
+**Solución:**
+- Rediseñado `ProvidenciaHubWidget.tsx` a un Centro de Mando 100% dinámico conectado a Firestore, con filtro por defecto en `🔥 Por Entregar o Facturar` (órdenes con entregas pendientes de báscula, kilos en patio o facturas esperando CR), selector por planta (`📊 Consolidado`, `🏢 TH · Nava`, `🏭 GT · Evelia`), KPIs de Kilos en Pedido, Entregados, Faltantes, Kilos en Patio por Facturar, Saldo por Cobrar y acciones rápidas `[+ Báscula]`, `[📝 Asignar CR]` y `[📂 Expediente]`.
+- Integrado el cálculo oficial de **Flujo Neto Real de Efectivo ($8.44/kg)** en cada tarjeta de OC de Providencia, en la barra superior de KPIs del Dashboard, y en la vista ejecutiva de Seguimiento por OC (`/oc`).
+- Blindado `QuickCrModal.tsx` y `useInvoiceActions.ts` con detección y bloqueo en tiempo real contra contrarecibos y folios de factura duplicados entre expedientes.
+**Estado:** ✅ Verificado — 100/100 pruebas unitarias pasando al 100%, compilación limpia con `tsc -b && vite build` y desplegado a producción en Firebase Hosting.
+
+---
+
 ### Iteración 21: Rediseño Proactivo de Seguimiento por OC, Báscula por Partida y Asignación Ultra-Rápida de Contrarecibos (COMPLETADO)
 **Fecha:** 2026-08-24
 **Archivos:** `src/pages/OcTracking.tsx`, `src/components/OcTracking/EntregasKanban.tsx`, `src/components/Compras/OrderModals.tsx`, `src/components/QuickCrModal.tsx`, `src/components/Cobranza/TableroKanban.tsx`, `src/components/Cobranza/InvoiceDrawer.tsx`, `src/components/Cobranza/TabPendientes.tsx`, `src/components/Cobranza/ProximasTable.tsx`, `src/lib/deliveries.ts`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
