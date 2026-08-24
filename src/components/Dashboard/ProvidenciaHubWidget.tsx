@@ -22,13 +22,27 @@ export function ProvidenciaHubWidget() {
   const [crOrder, setCrOrder] = useState<{ order: PurchaseOrder; inv?: any } | null>(null);
   const [viewOrder, setViewOrder] = useState<PurchaseOrder | null>(null);
 
-  // 1. Filtrar todas las órdenes reales pertenecientes a Providencia
+  // 1. Filtrar todas las órdenes de compra reales pertenecientes a Providencia
   const providenciaOrders = useMemo(() => {
     return orders.filter(o => {
+      if (!o || (o as any).isDeleted) return false;
+      const oc = (o.oc || o.folio || '').toUpperCase().trim();
+      const folio = (o.folio || '').toUpperCase().trim();
+
+      // Excluir expedientes obsoletos de prueba
+      if (oc === '120267114014' || folio === '120267114014' || folio === '6167') {
+        return false;
+      }
+
+      // Excluir expedientes cuyo folio principal es un Contrarecibo (viven en Cobranza)
+      if (folio.startsWith('TH-') || folio.startsWith('GT-') || oc.startsWith('TH-') || oc.startsWith('GT-')) {
+        return false;
+      }
+
       const c = (o.client || '').toUpperCase();
       const d = (o.department || '').toUpperCase();
-      const oc = (o.oc || o.folio || '').toUpperCase();
       return (
+        oc.startsWith('12026') ||
         c.includes('PROVIDENCIA') ||
         c.includes('TEXTIL HOGAR') ||
         c.includes('GRUPO TEXTIL') ||
@@ -36,10 +50,7 @@ export function ProvidenciaHubWidget() {
         c.includes('EVELIA') ||
         d.includes('TH') ||
         d.includes('P4') ||
-        d.includes('GT') ||
-        oc.startsWith('12026') ||
-        oc.startsWith('TH') ||
-        oc.startsWith('GT')
+        d.includes('GT')
       );
     });
   }, [orders]);

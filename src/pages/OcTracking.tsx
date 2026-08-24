@@ -60,7 +60,14 @@ export default function OcTracking() {
     for (const order of orders) {
       if (!order || (order as any).isDeleted) continue;
       const rawOc = (order.oc || order.folio || order.id).trim();
+      const rawFolio = (order.folio || '').trim().toUpperCase();
       const ocKey = rawOc.toUpperCase();
+
+      // Excluir expediente obsoleto de prueba 120267114014
+      if (ocKey === '120267114014' || rawFolio === '120267114014' || rawFolio === '6167') continue;
+
+      // Excluir expedientes cuyo identificador es exclusivamente un Contrarecibo (viven en Cobranza)
+      if (ocKey.startsWith('TH-') || ocKey.startsWith('GT-') || rawFolio.startsWith('TH-') || rawFolio.startsWith('GT-')) continue;
       
       const existing = ocMap.get(ocKey) || [];
       existing.push(order);
