@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible, toDate, fmtDate } from '../lib/format';
 import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/finance';
 import { computeDeliveredTotals } from '../lib/deliveries';
+import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -41,8 +42,10 @@ export default function OcTracking() {
   const { settings } = useSystemSettings();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [orderParaEntrega, setOrderParaEntrega] = useState<PurchaseOrder | null>(null);
   const [view, setView] = useState<'lista' | 'tablero'>('lista');
-  const [filterState, setFilterState] = useState<'todas' | 'por_entregar' | 'pendiente_factura' | 'en_cobranza' | 'completadas'>('todas');
+  const [scope, setScope] = useState<'activas' | 'cerradas' | 'todas'>('activas');
+  const [subFilter, setSubFilter] = useState<'todas' | 'por_entregar' | 'pendiente_factura' | 'en_cobranza'>('todas');
   const [search, setSearch] = useState('');
 
   // Agrupación y cálculo financiero/operativo sin filtros destructivos
@@ -74,15 +77,18 @@ export default function OcTracking() {
       });
 
       const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
-      const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid);
+      const isCollectedRoot = order.creditCycle?.status === 'collected' || order.creditCycle?.status === 'paid' || Boolean(order.isClosedShort);
+      const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
       const allDelivered = kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01;
 
       let statusCategory: OcGroup['statusCategory'] = 'por_entregar';
-      if (allDelivered && allInvoicesPaid) {
+      if (isCollectedRoot || (allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01))) {
         statusCategory = 'completada';
+      } else if (kilosFaltantes > 0.01) {
+        statusCategory = 'por_entregar';
       } else if (kilosPendientesFacturar > 0.01) {
         statusCategory = 'pendiente_factura';
-      } else if (invoices.length > 0) {
+      } else if (invoices.length > 0 && !allInvoicesPaid) {
         statusCategory = 'en_cobranza';
       } else {
         statusCategory = 'por_entregar';
@@ -109,23 +115,13 @@ export default function OcTracking() {
     });
   }, [orders]);
 
-  // Filtros de búsqueda y categoría
-  const filteredGroups = useMemo(() => {
-    let result = allOcGroups;
-
-    if (filterState === 'por_entregar') {
-      result = result.filter(g => g.statusCategory === 'por_entregar');
-    } else if (filterState === 'pendiente_factura') {
-      result = result.filter(g => g.statusCategory === 'pendiente_factura');
-    } else if (filterState === 'en_cobranza') {
-      result = result.filter(g => g.statusCategory === 'en_cobranza');
-    } else if (filterState === 'completadas') {
-      result = result.filter(g => g.statusCategory === 'completada');
-    }
+  // Grupos filtrados por ámbito y búsqueda
+  const { openGroups, closedGroups, filteredGroups } = useMemo(() => {
+    let base = allOcGroups;
 
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(g => 
+      base = base.filter(g => 
         g.oc.toLowerCase().includes(q) ||
         (g.order.client?.toLowerCase() || '').includes(q) ||
         (g.order.folio?.toLowerCase() || '').includes(q) ||
@@ -133,8 +129,27 @@ export default function OcTracking() {
       );
     }
 
-    return result;
-  }, [allOcGroups, filterState, search]);
+    const open = base.filter(g => g.statusCategory !== 'completada');
+    const closed = base.filter(g => g.statusCategory === 'completada');
+
+    let current: OcGroup[] = [];
+    if (scope === 'activas') {
+      current = open;
+      if (subFilter !== 'todas') {
+        current = current.filter(g => g.statusCategory === subFilter);
+      }
+    } else if (scope === 'cerradas') {
+      current = closed;
+    } else {
+      current = base;
+    }
+
+    return {
+      openGroups: open,
+      closedGroups: closed,
+      filteredGroups: current,
+    };
+  }, [allOcGroups, scope, subFilter, search]);
 
   const toggle = (oc: string) => {
     setExpanded(prev => {
@@ -421,43 +436,29 @@ export default function OcTracking() {
         <KpiCard label="Total Facturado" value={money(kpis.totalFacturadoPesos)} tone="cash" />
       </div>
 
-      {/* Barra de Filtros y Búsqueda */}
+      {/* Pestañas Principales de Segmentación */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button
-            className={`tab ${filterState === 'todas' ? 'active' : ''}`}
-            onClick={() => setFilterState('todas')}
-            style={{ fontSize: 12, padding: '6px 12px' }}
+            className={`tab ${scope === 'activas' ? 'active' : ''}`}
+            onClick={() => setScope('activas')}
+            style={{ fontSize: 13, padding: '8px 16px', fontWeight: 800 }}
           >
-            🌟 Todas ({allOcGroups.length})
+            🚚 En Proceso / Sin Cerrar ({openGroups.length})
           </button>
           <button
-            className={`tab ${filterState === 'por_entregar' ? 'active' : ''}`}
-            onClick={() => setFilterState('por_entregar')}
-            style={{ fontSize: 12, padding: '6px 12px' }}
+            className={`tab ${scope === 'cerradas' ? 'active' : ''}`}
+            onClick={() => setScope('cerradas')}
+            style={{ fontSize: 13, padding: '8px 16px', fontWeight: 800 }}
           >
-            🚚 Por Entregar ({allOcGroups.filter(g => g.statusCategory === 'por_entregar').length})
+            ✅ Cerradas / Histórico ({closedGroups.length})
           </button>
           <button
-            className={`tab ${filterState === 'pendiente_factura' ? 'active' : ''}`}
-            onClick={() => setFilterState('pendiente_factura')}
-            style={{ fontSize: 12, padding: '6px 12px' }}
+            className={`tab ${scope === 'todas' ? 'active' : ''}`}
+            onClick={() => setScope('todas')}
+            style={{ fontSize: 13, padding: '8px 16px', fontWeight: 800 }}
           >
-            📦 Por Facturar ({allOcGroups.filter(g => g.statusCategory === 'pendiente_factura').length})
-          </button>
-          <button
-            className={`tab ${filterState === 'en_cobranza' ? 'active' : ''}`}
-            onClick={() => setFilterState('en_cobranza')}
-            style={{ fontSize: 12, padding: '6px 12px' }}
-          >
-            ⏳ En Cobranza ({allOcGroups.filter(g => g.statusCategory === 'en_cobranza').length})
-          </button>
-          <button
-            className={`tab ${filterState === 'completadas' ? 'active' : ''}`}
-            onClick={() => setFilterState('completadas')}
-            style={{ fontSize: 12, padding: '6px 12px' }}
-          >
-            ✅ Completadas ({allOcGroups.filter(g => g.statusCategory === 'completada').length})
+            🌟 Ambas Secciones ({allOcGroups.length})
           </button>
         </div>
 
@@ -471,6 +472,40 @@ export default function OcTracking() {
         />
       </div>
 
+      {/* Subfiltros operativos para órdenes en proceso */}
+      {scope === 'activas' && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 10, width: 'fit-content' }}>
+          <button
+            className={`btn-small ${subFilter === 'todas' ? 'btn-primary' : ''}`}
+            onClick={() => setSubFilter('todas')}
+            style={{ fontSize: 11.5 }}
+          >
+            🌟 Todas las Activas ({openGroups.length})
+          </button>
+          <button
+            className={`btn-small ${subFilter === 'por_entregar' ? 'btn-primary' : ''}`}
+            onClick={() => setSubFilter('por_entregar')}
+            style={{ fontSize: 11.5 }}
+          >
+            🚚 Kilos por Entregar ({openGroups.filter(g => g.statusCategory === 'por_entregar').length})
+          </button>
+          <button
+            className={`btn-small ${subFilter === 'pendiente_factura' ? 'btn-primary' : ''}`}
+            onClick={() => setSubFilter('pendiente_factura')}
+            style={{ fontSize: 11.5 }}
+          >
+            📦 Listas para Facturar ({openGroups.filter(g => g.statusCategory === 'pendiente_factura').length})
+          </button>
+          <button
+            className={`btn-small ${subFilter === 'en_cobranza' ? 'btn-primary' : ''}`}
+            onClick={() => setSubFilter('en_cobranza')}
+            style={{ fontSize: 11.5 }}
+          >
+            ⏳ En Cobranza / Contrarecibo ({openGroups.filter(g => g.statusCategory === 'en_cobranza').length})
+          </button>
+        </div>
+      )}
+
       {/* Vista de Tablero o Lista */}
       {view === 'tablero' ? (
         <EntregasKanban orders={orders} onSelect={setSelectedOrder} />
@@ -481,19 +516,23 @@ export default function OcTracking() {
           No hay órdenes de compra que coincidan con los filtros seleccionados.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filteredGroups.map(group => {
             const isOpen = expanded.has(group.oc);
             const paidCount = group.invoices.filter(i => i.paid).length;
             const allPaid = group.invoices.length > 0 && paidCount === group.invoices.length;
             const nonePaid = paidCount === 0;
+            const dept = inferDepartment(group.order) || (group.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
 
             let statusColor = '#3b82f6';
             let statusLabel = '📝 En Producción / Por Entregar';
 
             if (group.statusCategory === 'completada') {
               statusColor = 'var(--ok)';
-              statusLabel = '✅ Entregada y Cobrada';
+              statusLabel = '✅ Entregada y Cobrada al 100%';
+            } else if (group.statusCategory === 'por_entregar') {
+              statusColor = '#d97706';
+              statusLabel = `🚚 Faltan ${group.kilosFaltantes.toLocaleString('es-MX')} kg por surtir`;
             } else if (group.statusCategory === 'pendiente_factura') {
               statusColor = 'var(--warn)';
               statusLabel = `📦 ${group.kilosPendientesFacturar.toLocaleString('es-MX')} kg listos para Facturar`;
@@ -502,12 +541,16 @@ export default function OcTracking() {
               statusLabel = allPaid ? '✅ Cobrada' : `🟡 En Cobranza (${paidCount}/${group.invoices.length} facturas pagadas)`;
             }
 
+            const items = group.order.items || [];
+            const deliveries = group.order.deliveries || [];
+            const { deliveredByItem } = computeDeliveredTotals(deliveries);
+
             return (
               <div
                 key={group.oc}
                 style={{
                   background: 'var(--glass-bg, #ffffff)',
-                  border: '1px solid var(--glass-border, var(--border))',
+                  border: group.statusCategory === 'completada' ? '1px solid var(--border)' : '1.5px solid var(--accent)',
                   borderRadius: 12,
                   overflow: 'hidden',
                   boxShadow: 'var(--glass-shadow, 0 1px 3px rgba(0,0,0,0.05))',
@@ -519,18 +562,22 @@ export default function OcTracking() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 16,
+                    gap: 14,
                     padding: '14px 18px',
                     cursor: 'pointer',
                     userSelect: 'none',
+                    background: group.statusCategory === 'completada' ? 'transparent' : 'rgba(59, 130, 246, 0.02)',
                   }}
                 >
                   <span style={{ fontSize: 16, color: 'var(--ink-soft)' }}>{isOpen ? '▼' : '▶'}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`badge ${dept === 'TH' ? 'badge-th' : 'badge-gt'}`} style={{ padding: '2px 8px', fontSize: 11, fontWeight: 800, background: dept === 'TH' ? '#3b82f6' : '#8b5cf6', color: '#fff' }}>
+                        {dept}
+                      </span>
                       <span>OC: {group.oc}</span>
                       <span style={{ color: 'var(--ink-soft)', fontWeight: 500, fontSize: 13 }}>
-                        {nombreClienteVisible(group.order.client)}
+                        · Folio: {group.order.folio || 'S/F'} · {nombreClienteVisible(group.order.client)}
                       </span>
                     </div>
 
@@ -545,8 +592,8 @@ export default function OcTracking() {
                         </strong>
                       </div>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: group.kilosFaltantes > 0 ? 'var(--warn)' : 'var(--ok)' }}>Por Surtir:</span>{' '}
-                        <strong style={{ color: group.kilosFaltantes > 0 ? 'var(--warn)' : 'var(--ok)' }}>
+                        <span style={{ color: group.kilosFaltantes > 0 ? 'var(--bad)' : 'var(--ok)' }}>Por Surtir:</span>{' '}
+                        <strong style={{ color: group.kilosFaltantes > 0 ? 'var(--bad)' : 'var(--ok)' }}>
                           {group.kilosFaltantes.toLocaleString('es-MX')} kg
                         </strong>
                       </div>
@@ -579,19 +626,33 @@ export default function OcTracking() {
                     </div>
                   </div>
 
-                  <button
-                    className="btn btn-primary"
-                    style={{ fontSize: 12, padding: '6px 12px', marginLeft: 12 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedOrder(group.order);
-                    }}
-                  >
-                    📂 Ver Expediente
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 10 }}>
+                    {group.statusCategory !== 'completada' && (
+                      <button
+                        className="btn"
+                        style={{ fontSize: 11.5, padding: '6px 10px', background: 'rgba(16, 185, 129, 0.12)', color: '#047857', border: '1px solid #10b981', fontWeight: 800 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOrderParaEntrega(group.order);
+                        }}
+                      >
+                        + Entrega Báscula
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-primary"
+                      style={{ fontSize: 11.5, padding: '6px 10px' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedOrder(group.order);
+                      }}
+                    >
+                      📂 Expediente
+                    </button>
+                  </div>
                 </div>
 
-                {/* Detalle de facturas expandibles */}
+                {/* Detalle expandible: Partidas y Facturas */}
                 <AnimatePresence>
                   {isOpen && (
                     <motion.div 
@@ -599,84 +660,116 @@ export default function OcTracking() {
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      style={{ borderTop: '1px solid var(--border)', overflow: 'hidden' }}
+                      style={{ borderTop: '1px solid var(--border)', overflow: 'hidden', padding: '14px 18px', background: 'var(--paper-sunk)' }}
                     >
-                      {group.invoices.length === 0 ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink-soft)' }}>
-                          📝 No hay facturas emitidas todavía para esta OC.<br/>
-                          <button
-                            className="btn btn-primary"
-                            style={{ marginTop: 8, fontSize: 12 }}
-                            onClick={() => setSelectedOrder(group.order)}
-                          >
-                            + Facturar en Expediente
-                          </button>
+                      {/* Tabla de Partidas */}
+                      {items.length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', marginBottom: 6 }}>
+                            📋 Partidas Contratadas ({items.length} productos):
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: 'var(--paper)', borderRadius: 8, overflow: 'hidden' }}>
+                            <thead>
+                              <tr style={{ background: 'var(--bg-inset)' }}>
+                                <th style={{ padding: '6px 12px', textAlign: 'left' }}>SKU</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'left' }}>Descripción / Medida</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Pedido (kg)</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Entregado (kg)</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Falta (kg)</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'center' }}>Estatus</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((it, idx) => {
+                                const pedKg = Number(it.quantity) || 0;
+                                const entKg = deliveredByItem[it.id] ?? 0;
+                                const faltKg = Math.max(0, pedKg - entKg);
+                                return (
+                                  <tr key={idx} style={{ borderTop: '1px solid var(--line-soft)' }}>
+                                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700 }}>#{idx + 1} · {it.code || 'S/C'}</td>
+                                    <td style={{ padding: '8px 12px' }}>{it.description || 'Bolsa de Polietileno'}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{pedKg.toLocaleString('es-MX')}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--ok)', fontWeight: 700 }}>{entKg.toLocaleString('es-MX')}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: faltKg > 0 ? 'var(--bad)' : 'var(--ok)', fontWeight: 700 }}>{faltKg.toLocaleString('es-MX')}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                      {entKg >= pedKg && pedKg > 0 ? (
+                                        <span className="badge" style={{ background: 'var(--ok)', color: '#fff', fontSize: 10 }}>✓ Surtida</span>
+                                      ) : entKg > 0 ? (
+                                        <span className="badge" style={{ background: 'var(--warn)', color: '#fff', fontSize: 10 }}>🟡 Parcial</span>
+                                      ) : (
+                                        <span className="badge" style={{ background: 'var(--bad)', color: '#fff', fontSize: 10 }}>⏳ Pendiente</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                          <thead>
-                            <tr style={{ background: 'var(--paper-sunk)' }}>
-                              <th style={{ padding: '8px 18px', textAlign: 'left' }}>Factura</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'right' }}>Kilos</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'right' }}>Monto con IVA</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'center' }}>Contrarecibo</th>
-                              <th style={{ padding: '8px 12px', textAlign: 'center' }}>Vencimiento</th>
-                              <th style={{ padding: '8px 18px', textAlign: 'center' }}>Estatus</th>
-                              <th style={{ padding: '8px 18px', textAlign: 'center' }}>Acción</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {group.invoices
-                              .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
-                              .map((inv, idx) => (
-                                <tr
-                                  key={idx}
-                                  style={{ borderTop: '1px solid var(--line-soft)', cursor: 'pointer' }}
-                                  onClick={() => setSelectedOrder(inv.order)}
-                                >
-                                  <td style={{ padding: '10px 18px', fontFamily: 'monospace', fontWeight: 700 }}>
-                                    #{inv.folio}
-                                  </td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--ink-soft)' }}>
-                                    {inv.kilos.toLocaleString('es-MX')} kg
-                                  </td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                                    {money(inv.amount)}
-                                  </td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 12 }}>
-                                    {inv.cr ? <strong>{inv.cr}</strong> : <span style={{ color: 'var(--warn)' }}>⏳ Sin CR</span>}
-                                  </td>
-                                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: 'var(--ink-soft)' }}>
-                                    {inv.dueDate
-                                      ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
-                                      : '—'}
-                                  </td>
-                                  <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                                    {inv.status === 'collected' ? (
-                                      <span className="badge" style={{ background: 'var(--ok)', color: '#fff' }}>✅ En Caja</span>
-                                    ) : inv.status === 'paid' ? (
-                                      <span className="badge" style={{ background: '#0284c7', color: '#fff' }}>🟡 Con Contador</span>
-                                    ) : (
-                                      <span className="badge" style={{ background: 'var(--warn)', color: '#fff' }}>🔴 Por Cobrar</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '10px 18px', textAlign: 'center' }}>
-                                    <button
-                                      className="btn"
-                                      style={{ fontSize: 11, padding: '3px 8px' }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedOrder(inv.order);
-                                      }}
-                                    >
-                                      ✏️ Ver
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
                       )}
+
+                      {/* Tabla de Facturas */}
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', marginBottom: 6 }}>
+                          📑 Facturas y Contrarecibos ({group.invoices.length}):
+                        </div>
+                        {group.invoices.length === 0 ? (
+                          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--ink-soft)', background: 'var(--paper)', borderRadius: 8 }}>
+                            📝 No hay facturas emitidas todavía para esta OC.
+                          </div>
+                        ) : (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: 'var(--paper)', borderRadius: 8, overflow: 'hidden' }}>
+                            <thead>
+                              <tr style={{ background: 'var(--bg-inset)' }}>
+                                <th style={{ padding: '6px 12px', textAlign: 'left' }}>Factura</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Kilos</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Monto con IVA</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'center' }}>Contrarecibo</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'center' }}>Vencimiento</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'center' }}>Estatus</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.invoices
+                                .sort((a, b) => parseInt(a.folio) - parseInt(b.folio))
+                                .map((inv, idx) => (
+                                  <tr
+                                    key={idx}
+                                    style={{ borderTop: '1px solid var(--line-soft)', cursor: 'pointer' }}
+                                    onClick={() => setSelectedOrder(inv.order)}
+                                  >
+                                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700 }}>
+                                      #{inv.folio}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--ink-soft)' }}>
+                                      {inv.kilos.toLocaleString('es-MX')} kg
+                                    </td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>
+                                      {money(inv.amount)}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'center', fontFamily: 'monospace', fontSize: 11 }}>
+                                      {inv.cr ? <strong>{inv.cr}</strong> : <span style={{ color: 'var(--warn)' }}>⏳ Sin CR</span>}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 11, color: 'var(--ink-soft)' }}>
+                                      {inv.dueDate
+                                        ? inv.dueDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+                                        : '—'}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                      {inv.status === 'collected' ? (
+                                        <span className="badge" style={{ background: 'var(--ok)', color: '#fff', fontSize: 10 }}>✅ En Caja</span>
+                                      ) : inv.status === 'paid' ? (
+                                        <span className="badge" style={{ background: '#0284c7', color: '#fff', fontSize: 10 }}>🟡 Con Contador</span>
+                                      ) : (
+                                        <span className="badge" style={{ background: 'var(--warn)', color: '#fff', fontSize: 10 }}>🔴 Por Cobrar</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -692,6 +785,14 @@ export default function OcTracking() {
           config={config}
           onClose={() => setSelectedOrder(null)}
           initialTab="facturas"
+        />
+      )}
+
+      {orderParaEntrega && (
+        <RegistrarEntregaModal
+          order={orders.find(o => o.id === orderParaEntrega.id) ?? orderParaEntrega}
+          costPricePerKg={config.costPricePerKg || 38}
+          onClose={() => setOrderParaEntrega(null)}
         />
       )}
     </div>
