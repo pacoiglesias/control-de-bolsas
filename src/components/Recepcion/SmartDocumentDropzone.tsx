@@ -6,13 +6,15 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../../lib/firebase';
 
 export interface ExtractedDocumentData {
-  type: 'xml_factura' | 'pdf_document' | 'text_pasted' | 'contrarecibo' | 'orden_compra';
+  type: 'xml_factura' | 'pdf_document' | 'text_pasted' | 'contrarecibo' | 'orden_compra' | 'complemento_pago';
   rawText?: string;
   fileName?: string;
   uuid?: string;
   folio?: string;
   ocFolio?: string;
   contrarecibo?: string;
+  complementoFolio?: string;
+  complementoUuid?: string;
   kilos?: number;
   subtotal?: number;
   iva?: number;
@@ -119,12 +121,34 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
         const ocMatch = text.match(/1202\d{6,8}/) || text.match(/OC[-\s]?(\d+)/i);
         const ocFolio = ocMatch ? ocMatch[0] : undefined;
 
+        // Si es un Complemento de Pago (REP)
+        if (parsed.complementoPago && parsed.complementoPago.doctosRelacionados.length > 0) {
+          const docRel = parsed.complementoPago.doctosRelacionados[0];
+          const docData: ExtractedDocumentData = {
+            type: 'complemento_pago',
+            fileName: file.name,
+            uuid: docRel.idDocumento || parsed.uuid,
+            folio: docRel.folio || undefined,
+            complementoFolio: parsed.folio || undefined,
+            complementoUuid: parsed.uuid,
+            total: parsed.complementoPago.montoTotal || parsed.total,
+            client: parsed.receptorNombre || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+            department: dept,
+            date: parsed.complementoPago.fechaPago ? parsed.complementoPago.fechaPago.split('T')[0] : parsed.fecha.split('T')[0],
+            confidence: 1.0,
+          };
+
+          toast(`✅ Complemento de Pago #${parsed.folio || ''} (Factura #${docRel.folio || ''}) detectado`, 'ok');
+          onDocumentProcessed(docData);
+          return;
+        }
+
         const docData: ExtractedDocumentData = {
           type: 'xml_factura',
           fileName: file.name,
           uuid: parsed.uuid,
-          folio: folio || undefined,
-          ocFolio,
+          folio: parsed.folio || folio || undefined,
+          ocFolio: parsed.ocNumber || ocFolio || undefined,
           kilos: totalKilos > 0 ? totalKilos : undefined,
           subtotal: parsed.subTotal,
           iva: parsed.total - parsed.subTotal,
@@ -229,17 +253,38 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
       if (clean.startsWith('<?xml') || clean.includes('<cfdi:Comprobante') || clean.includes('<Comprobante')) {
         const parsed = parseXmlInvoice(clean);
         const dept: 'TH' | 'GT' = (parsed.receptorNombre || '').toUpperCase().includes('GT') ? 'GT' : 'TH';
-        const totalKilos = parsed.conceptos.reduce((acc, c) => acc + (c.cantidad || 0), 0);
+        // Si es un Complemento de Pago pegado
+        if (parsed.complementoPago && parsed.complementoPago.doctosRelacionados.length > 0) {
+          const docRel = parsed.complementoPago.doctosRelacionados[0];
+          const docData: ExtractedDocumentData = {
+            type: 'complemento_pago',
+            rawText: clean.slice(0, 300),
+            uuid: docRel.idDocumento || parsed.uuid,
+            folio: docRel.folio || undefined,
+            complementoFolio: parsed.folio || undefined,
+            complementoUuid: parsed.uuid,
+            total: parsed.complementoPago.montoTotal || parsed.total,
+            client: parsed.receptorNombre || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+            department: dept,
+            date: parsed.complementoPago.fechaPago ? parsed.complementoPago.fechaPago.split('T')[0] : parsed.fecha.split('T')[0],
+            confidence: 1.0,
+          };
 
-        const folioMatch = clean.match(/Folio="([^"]+)"/i) || clean.match(/folio="([^"]+)"/i);
-        const ocMatch = clean.match(/1202\d{6,8}/) || clean.match(/OC[-\s]?(\d+)/i);
+          toast(`✅ Complemento de Pago #${parsed.folio || ''} (Factura #${docRel.folio || ''}) detectado`, 'ok');
+          onDocumentProcessed(docData);
+          setShowTextModal(false);
+          setPasteText('');
+          return;
+        }
+
+        const totalKilos = parsed.conceptos.reduce((acc, c) => acc + (c.cantidad || 0), 0);
 
         const docData: ExtractedDocumentData = {
           type: 'xml_factura',
           rawText: clean.slice(0, 300),
           uuid: parsed.uuid,
-          folio: folioMatch ? folioMatch[1] : undefined,
-          ocFolio: ocMatch ? ocMatch[0] : undefined,
+          folio: parsed.folio || undefined,
+          ocFolio: parsed.ocNumber || undefined,
           kilos: totalKilos > 0 ? totalKilos : undefined,
           subtotal: parsed.subTotal,
           iva: parsed.total - parsed.subTotal,

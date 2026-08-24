@@ -224,7 +224,17 @@ export function OrderModalProvider({
   }
 
   function handlePrintRemision() {
-    printRemision({ folio: form.folio, client: form.client, department: form.department, kilosNum, config, settings });
+    printRemision({
+      folio: form.folio,
+      oc: form.oc,
+      client: form.client,
+      department: form.department,
+      items: form.items,
+      deliveredByItem,
+      kilosNum,
+      config,
+      provName
+    });
   }
 
   function handlePrintPreFactura() {

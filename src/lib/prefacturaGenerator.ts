@@ -59,22 +59,23 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
   const html = `
     <div style="font-family: 'Helvetica Neue', Arial, sans-serif; padding: 24px 32px; color: #1e293b; background: #fff; max-width: 800px; margin: 0 auto; font-size: 12px; line-height: 1.4;">
       
-      <!-- ENCABEZADO FISCAL -->
+      <!-- ENCABEZADO FISCAL (EMISOR) -->
       <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 20px;">
         <div>
-          <div style="font-size: 22px; font-weight: 900; color: #1e3a8a; letter-spacing: -0.5px;">BOLSAS ELEMENTAL / PROVIDENCIA</div>
-          <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">FABRICACIÓN Y DISTRIBUCIÓN DE BOLSA DE POLIETILENO</div>
+          <div style="font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">ELEMENTAL DENIM</div>
+          <div style="font-size: 12px; font-weight: 800; color: #2563eb; margin-top: 2px;">RFC: EDE1902136T2</div>
           <div style="font-size: 11px; color: #334155; margin-top: 4px;">
-            <strong>Lugar de Expedición:</strong> C.P. 90700 · Papalotla, Tlaxcala<br/>
-            <strong>Régimen Fiscal:</strong> 612 - Personas Físicas con Actividades Empresariales y Profesionales
+            <strong>Régimen Fiscal:</strong> 601 - General de Ley Personas Morales<br/>
+            <strong>Domicilio Fiscal:</strong> Calzada Zavaleta 1108/1701, Santa Cruz Buenavista, CP 72150, Puebla, México<br/>
+            <strong>Tel:</strong> 2223712758
           </div>
         </div>
 
         <div style="text-align: right; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 16px; min-width: 220px;">
-          <div style="font-size: 11px; font-weight: 800; color: #2563eb; text-transform: uppercase;">PREFACTURA DE VENTA</div>
+          <div style="font-size: 11px; font-weight: 800; color: #2563eb; text-transform: uppercase;">PREFACTURA / CFDI 4.0</div>
           <div style="font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 2px;">FOLIO: ${invFolio}</div>
           <div style="font-size: 11px; color: #475569; margin-top: 4px;"><strong>Fecha:</strong> ${fechaEmision}</div>
-          <div style="font-size: 11px; color: #475569;"><strong>Orden de Compra (OC):</strong> ${ocFolio}</div>
+          <div style="font-size: 11px; color: #475569;"><strong>Condiciones:</strong> OC ${ocFolio}</div>
         </div>
       </div>
 
@@ -98,22 +99,28 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
             <th style="padding: 8px 10px; text-align: left; border-radius: 4px 0 0 0;">Clave SAT</th>
             <th style="padding: 8px 10px; text-align: left;">Cant. (Kg)</th>
             <th style="padding: 8px 10px; text-align: left;">Unidad</th>
-            <th style="padding: 8px 10px; text-align: left;">Descripción</th>
+            <th style="padding: 8px 10px; text-align: left;">Descripción / Código</th>
             <th style="padding: 8px 10px; text-align: right;">P. Unitario</th>
             <th style="padding: 8px 10px; text-align: right; border-radius: 0 4px 0 0;">Importe</th>
           </tr>
         </thead>
         <tbody>
-          ${items.map((it, idx) => `
+          ${items.map((it, idx) => {
+            const code = it.code || '24141500';
+            const desc = it.description || 'Bolsa de Polietileno';
+            return `
             <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-              <td style="padding: 8px 10px; color: #64748b;">24111500</td>
-              <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">${(it.quantity || totalKilos).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-              <td style="padding: 8px 10px; color: #475569;">KGM (Kilo)</td>
-              <td style="padding: 8px 10px; font-weight: 600; color: #1e293b;">${it.description}</td>
+              <td style="padding: 8px 10px; color: #64748b; font-family: monospace;">24141500</td>
+              <td style="padding: 8px 10px; font-weight: 700; color: #0f172a; font-family: monospace;">${(it.quantity || totalKilos).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+              <td style="padding: 8px 10px; color: #475569;">KGM</td>
+              <td style="padding: 8px 10px; font-weight: 600; color: #1e293b;">
+                <strong>${code}</strong> ${desc.startsWith(code) ? desc.slice(code.length).trim() : desc}
+              </td>
               <td style="padding: 8px 10px; text-align: right; font-family: monospace;">$${(it.unitPrice || unitPrice).toFixed(2)}</td>
-              <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-family: monospace;">$${(it.amount || subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-family: monospace; color: #047857;">$${(it.amount || subtotal).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
-          `).join('')}
+            `;
+          }).join('')}
         </tbody>
       </table>
 
@@ -123,7 +130,7 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
           <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">IMPORTE TOTAL CON LETRA:</div>
           <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-top: 4px;">${numeroALetras(total)}</div>
           <div style="font-size: 10px; color: #64748b; margin-top: 8px;">
-            * Documento de control interno previo al timbrado de CFDI 4.0.
+            * Documento con desglose fiscal exacto para emisión en el portal del SAT.
           </div>
         </div>
 
@@ -143,21 +150,21 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
         </div>
       </div>
 
-      <!-- SELLO Y CÓDIGO QR DE VALIDACIÓN -->
+      <!-- VALIDACIÓN FISCAL -->
       <div style="margin-top: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 44px; height: 44px; background: #1e3a8a; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px;">
             📄
           </div>
           <div>
-            <div style="font-weight: 800; font-size: 11px; color: #0f172a;">DOCUMENTO AUDITADO DE CONTROL INTERNO (PRE-CFDI)</div>
+            <div style="font-weight: 800; font-size: 11px; color: #0f172a;">DESGLOSE FISCAL CFDI 4.0 (EMISIÓN SAT)</div>
             <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
-              Validación SAT: Clave 24111500 (Bolsas polietileno) · Unidad KGM · RFC Receptor: GTP9211049B6
+              Clave SAT: 24141500 · Unidad: KGM · Objeto Impuesto: 02 · RFC: GTP930115PU1
             </div>
           </div>
         </div>
         <div style="text-align: right; font-size: 9.5px; color: #94a3b8; font-family: monospace;">
-          SELLO: ${invFolio}-${ocFolio}-${Date.now().toString(36).toUpperCase()}
+          CONTROL: ${invFolio}-${ocFolio}
         </div>
       </div>
 

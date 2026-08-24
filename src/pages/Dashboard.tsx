@@ -44,6 +44,7 @@ import { FinancialTrendChart } from '../components/Dashboard/FinancialTrendChart
 import { getRentabilidadHtml } from './DashboardReports';
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
+import { ProvidenciaHubWidget } from '../components/Dashboard/ProvidenciaHubWidget';
 
 
 
@@ -939,6 +940,9 @@ return () => unsub();
           </div>
         </div>
       </div>
+
+      {/* ─── 1.5. HUB OPERATIVO PROVIDENCIA (TH VS GT EN TIEMPO REAL) ─────── */}
+      <ProvidenciaHubWidget />
 
       {/* ─── 2. HERO SUITE DE 4 PILARES FINANCIEROS (SIEMPRE VISIBLE) ──────── */}
       {loading ? (

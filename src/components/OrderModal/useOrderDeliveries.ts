@@ -118,15 +118,53 @@ export function useOrderDeliveries(
           unitPrice: unitPrice,
           amount: kilos * unitPrice,
         }];
+      } else if (orderItems.length > 1 && kilos > 0) {
+        // Si la entrega no trajo desglose partida por partida pero la OC tiene varios artículos,
+        // incluir las partidas proporcionales o completas
+        invoiceItems = orderItems.map((matched: any) => {
+          const unitPrice = Number(matched.unitPrice || f.customSellPrice || 43);
+          const qty = Number(matched.quantity || 0);
+          return {
+            id: matched.id || crypto.randomUUID(),
+            code: matched.code || '24111500',
+            description: matched.description || 'Bolsa de Polietileno',
+            quantity: qty,
+            unit: matched.unit || 'Kilos',
+            unitPrice: unitPrice,
+            amount: qty * unitPrice,
+          };
+        });
       }
 
-      // Draft a new invoice
+      const invSubtotal = invoiceItems.reduce((acc, it) => acc + (it.amount || 0), 0) || (kilos * (Number(f.customSellPrice) || 43));
+      const invTotal = invSubtotal * 1.16;
+
+      // Draft a new invoice with complete items and financials
       const newInv: Invoice = {
         id: crypto.randomUUID(),
         orderId: f.id || '',
         kilos,
         items: invoiceItems.length > 0 ? invoiceItems : undefined,
-        creditCycle: { status: 'pedido' },
+        financials: {
+          salePricePerKg: Number(f.customSellPrice) || 43,
+          costPricePerKg: Number(f.customCostPrice) || 38,
+          commissionRate: 0.08,
+          saleTotal: invSubtotal,
+          costTotal: kilos * (Number(f.customCostPrice) || 38),
+          commission: invSubtotal * 0.08,
+          invoiceTotal: invTotal,
+          netCashFlow: invSubtotal - (kilos * (Number(f.customCostPrice) || 38)) - (invSubtotal * 0.08),
+        },
+        creditCycle: {
+          status: 'pending',
+          issueDate: Timestamp.now(),
+          dueDate: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        },
+        collection: {
+          paidAmount: 0,
+          contrareciboNumber: '',
+          notes: invoiceItems.length > 0 ? `Conceptos: ${invoiceItems.map(it => `${it.description} (${it.quantity} kg)`).join(' · ')}` : ''
+        }
       };
 
       return {

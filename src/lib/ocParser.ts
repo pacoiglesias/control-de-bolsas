@@ -37,38 +37,87 @@ const MESES: Record<string, number> = {
   julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11,
 };
 
-// Linea de articulo real: {No.} {Codigo} {Cantidad} {Descripcion...} {P.U.} {Dtos} {Importe}
-// La descripcion queda capturada de forma no-voraz entre la Cantidad y los
-// 3 numeros finales -- funciona incluso si la descripcion misma contiene
-// numeros con decimales (medidas como "1.20 M X 1.60 M"), porque el motor
-// de regex solo se detiene cuando encuentra exactamente 3 tokens
-// decimales consecutivos justo antes del fin de linea.
-const ITEM_LINE_RE = /^\s*\d+\s+(\S+)\s+([\d,]+\.\d+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/gm;
-
 export function parseOrdenDeCompra(text: string): ParsedOC {
   const items: PurchaseOrderItem[] = [];
   if (text) {
-    for (const m of text.matchAll(ITEM_LINE_RE)) {
-      const [, code, cantidadStr, descRaw, puStr, , importeStr] = m;
-      const desc = descRaw.trim();
-      if (/subtotal|^total$/i.test(desc)) continue;
-      const quantity = Number(cantidadStr.replace(/,/g, ''));
-      if (!quantity || quantity <= 0) continue;
-      items.push({
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
-        code: code.trim(),
-        description: desc,
-        quantity,
-        unitPrice: Number(puStr.replace(/,/g, '')),
-        amount: Number(importeStr.replace(/,/g, '')),
-        unit: 'Kilos',
-      });
+    const lines = text.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      if (/subtotal|^total\b|importe con letra|orden de compra|p\.?\s*u\.?/i.test(line)) continue;
+
+      // Formato A: {No.} {Codigo} {Cantidad} {Descripcion} {P.U.} {Dtos} {Importe}
+      // Ej: "1 EGBO000095-SC 1,000.0000 BOLSA POLIETILENO 120X 125 CM _Sin Color 43.0000 0.0000 43,000.0000"
+      const matchA = line.match(/^\s*\d+\s+([a-zA-Z0-9_\-]+)\s+([\d,]+\.\d+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
+      if (matchA) {
+        const [, code, cantidadStr, descRaw, puStr, , importeStr] = matchA;
+        const desc = descRaw.trim();
+        const quantity = Number(cantidadStr.replace(/,/g, ''));
+        if (quantity > 0 && !/subtotal/i.test(desc)) {
+          items.push({
+            id: 'item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            code: code.trim(),
+            description: desc,
+            quantity,
+            unitPrice: Number(puStr.replace(/,/g, '')),
+            amount: Number(importeStr.replace(/,/g, '')),
+            unit: 'Kilos',
+          });
+          continue;
+        }
+      }
+
+      // Formato B: {No.} {Codigo} {Descripcion} {Cantidad} {P.U.} {Dtos} {Importe}
+      // Ej: "1 egbo000107-sc BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250 1,000.0000 43.0000 0.0000 43,000.0000"
+      const matchB = line.match(/^\s*\d+\s+([a-zA-Z0-9_\-]+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
+      if (matchB) {
+        const [, code, descRaw, cantidadStr, puStr, , importeStr] = matchB;
+        const desc = descRaw.trim();
+        const quantity = Number(cantidadStr.replace(/,/g, ''));
+        if (quantity > 0 && !/subtotal/i.test(desc)) {
+          items.push({
+            id: 'item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            code: code.trim(),
+            description: desc,
+            quantity,
+            unitPrice: Number(puStr.replace(/,/g, '')),
+            amount: Number(importeStr.replace(/,/g, '')),
+            unit: 'Kilos',
+          });
+          continue;
+        }
+      }
+
+      // Formato C: {No.} {Descripcion} {Cantidad} {P.U.} {Importe} (Sin código explícito o 3 números al final)
+      const matchC = line.match(/^\s*\d+\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
+      if (matchC) {
+        const [, descRaw, cantidadStr, puStr, importeStr] = matchC;
+        const desc = descRaw.trim();
+        const quantity = Number(cantidadStr.replace(/,/g, ''));
+        if (quantity > 0 && !/subtotal/i.test(desc)) {
+          // Extraer posible código al inicio de la descripción si existe
+          const codeMatch = desc.match(/^([a-zA-Z0-9_\-]+)\s+(.+)$/);
+          const finalCode = codeMatch ? codeMatch[1] : '';
+          const finalDesc = codeMatch ? codeMatch[2] : desc;
+          items.push({
+            id: 'item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            code: finalCode,
+            description: finalDesc,
+            quantity,
+            unitPrice: Number(puStr.replace(/,/g, '')),
+            amount: Number(importeStr.replace(/,/g, '')),
+            unit: 'Kilos',
+          });
+          continue;
+        }
+      }
     }
   }
 
-  const ocMatch = text?.match(/CDB OC:\s*([\w/]+)/i);
+  // Extraer folio, OC y proveedor
+  const ocMatch = text?.match(/CDB\s*OC:\s*([\w/]+)/i) || text?.match(/Orden\s*de\s*Compra\s*\n\s*(\d{8,14})/i);
   const folioMatch = text?.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\s\n\r]+)/i);
-  const providerMatch = text?.match(/Proveedor\s*\n\s*([^\n]+)/i);
+  const providerMatch = text?.match(/Proveedor\s*\n\s*([^\n]+)/i) || text?.match(/([Nn]\d{3,5}\s*-\s*[^\n]+)/);
 
   const isProvidencia = !!text?.match(/PROVIDENCIA/i);
   let client = '';
@@ -82,7 +131,8 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
   }
 
   let estimatedDeliveryDate: Date | null = null;
-  const fechaMatch = text?.match(/Fecha Entrega:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{4})/i);
+  const fechaMatch = text?.match(/Fecha\s*Entrega:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{4})/i)
+    || text?.match(/Fecha\s*Pedido:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{4})/i);
   if (fechaMatch) {
     const dia = Number(fechaMatch[1]);
     const mes = MESES[fechaMatch[2].toLowerCase()];

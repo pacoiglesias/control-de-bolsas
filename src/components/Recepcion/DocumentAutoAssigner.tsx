@@ -193,12 +193,21 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
       const folio = data.ocFolio || `OC-${data.folio || Date.now()}`;
       const dept = data.department || (data.client?.toUpperCase().includes('GT') ? 'GT' : 'TH');
 
+      const isTH = dept === 'TH' || (data.client || '').toUpperCase().includes('NAVA') || (data.client || '').toUpperCase().includes('TH');
+      const clientName = isTH 
+        ? 'GRUPO TEXTIL PROVIDENCIA (TH - José Nava Flores)' 
+        : 'GRUPO TEXTIL PROVIDENCIA (P4 - Evelia)';
+      const buyerName = isTH ? 'JOSÉ NAVA FLORES' : 'EVELIA';
+      const approverName = isTH ? 'JOSÉ ANTONIO TORRE LAMUÑO' : undefined;
+
       const newOrder = {
         id: orderId,
         folio,
         oc: folio,
-        client: dept === 'GT' ? 'Grupo Textil Providencia - GT' : 'Grupo Textil Providencia - TH',
-        department: dept,
+        client: clientName,
+        department: isTH ? 'TH-ALMACEN-1' : 'P4-ALM',
+        buyer: buyerName,
+        approver: approverName,
         totalKilograms: totalKilos,
         productDescription: data.items?.[0]?.description || 'Bolsa de Polietileno Transparente en Rollo',
         status: 'pedido',
@@ -260,6 +269,56 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
     }
   };
 
+  // Accion 4: Asignar Complemento de Pago (REP) a la Factura
+  const handleAssignPaymentComplement = async () => {
+    if (!targetOrder) return toast('Selecciona la orden destino', 'bad');
+    setIsSaving(true);
+
+    try {
+      const orderRef = doc(db, PATHS.orders, targetOrder.id);
+      let matched = false;
+      const invoices = (targetOrder.invoices || []).map((inv) => {
+        if (
+          (data.folio && inv.folio?.trim() === data.folio?.trim()) ||
+          (data.uuid && inv.collection?.sapDocument?.trim() === data.uuid?.trim()) ||
+          (data.uuid && inv.folio?.trim() === data.uuid?.trim()) ||
+          (!data.folio && !matched)
+        ) {
+          matched = true;
+          return {
+            ...inv,
+            creditCycle: {
+              ...inv.creditCycle,
+              status: 'paid' as const,
+            },
+            collection: {
+              ...inv.collection,
+              paidAmount: data.total || inv.financials?.invoiceTotal || inv.kilos * 43 * 1.16,
+              paidAt: data.date ? Timestamp.fromDate(new Date(data.date)) : Timestamp.now(),
+              complementStatus: 'issued' as const,
+              paymentDocument: data.complementoFolio ? `CP-${data.complementoFolio}` : (data.complementoUuid || 'CP-SAT'),
+              notes: `${inv.collection?.notes ? inv.collection.notes + ' · ' : ''}Complemento de Pago SAT #${data.complementoFolio || 'S/N'} (${money(data.total || 0)})`
+            }
+          };
+        }
+        return inv;
+      });
+
+      await updateDoc(orderRef, {
+        invoices,
+        'creditCycle.status': 'paid',
+      });
+
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      toast(`💰 Complemento de Pago asignado a la Factura #${data.folio || ''} en OC ${targetOrder.folio} (Cobrado: ${money(data.total || 0)})`, 'ok');
+      onClear();
+    } catch (err: any) {
+      toast(`Error al aplicar complemento de pago: ${err.message}`, 'bad');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -278,11 +337,11 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 24 }}>
-              {data.type === 'xml_factura' ? '🧾' : data.type === 'contrarecibo' ? '🏷️' : '📋'}
+              {data.type === 'complemento_pago' ? '💳' : data.type === 'xml_factura' ? '🧾' : data.type === 'contrarecibo' ? '🏷️' : '📋'}
             </span>
             <div>
               <div style={{ fontSize: 17, fontWeight: 900, color: '#fff' }}>
-                Datos Analizados con Éxito
+                {data.type === 'complemento_pago' ? 'Complemento de Pago SAT Detectado' : 'Datos Analizados con Éxito'}
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
                 {data.fileName || 'Contenido pegado del portapapeles'} · Confianza: {Math.round(data.confidence * 100)}%
@@ -311,11 +370,22 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
       {/* Grid de Resumen de Datos Extraídos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
         <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Folio / OC</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+            {data.type === 'complemento_pago' ? 'Factura Pagada' : 'Folio / OC'}
+          </div>
           <div style={{ fontSize: 15, fontWeight: 900, color: '#60a5fa', marginTop: 3 }}>
-            {data.ocFolio || data.folio || 'Sin Folio'}
+            {data.folio ? `#${data.folio}` : (data.ocFolio || 'Sin Folio')}
           </div>
         </div>
+
+        {data.complementoFolio && (
+          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Folio Complemento</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#a78bfa', marginTop: 3 }}>
+              CP #{data.complementoFolio}
+            </div>
+          </div>
+        )}
 
         {data.contrarecibo && (
           <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -327,25 +397,24 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
         )}
 
         <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Kilos</div>
-          <div style={{ fontSize: 15, fontWeight: 900, color: '#fbbf24', marginTop: 3 }}>
-            {data.kilos ? `${data.kilos.toLocaleString('es-MX')} kg` : 'Por definir'}
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+            {data.type === 'complemento_pago' ? 'Monto Cobrado' : 'Importe Total'}
           </div>
-        </div>
-
-        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Importe Total</div>
           <div style={{ fontSize: 15, fontWeight: 900, color: '#10b981', marginTop: 3 }}>
             {data.total ? money(data.total) : 'Calculado auto'}
           </div>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Depto. Asignado</div>
-          <div style={{ fontSize: 14, fontWeight: 900, color: data.department === 'GT' ? '#34d399' : '#c084fc', marginTop: 3 }}>
-            🏢 {data.department || 'TH'}
+        {data.date && (
+          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              {data.type === 'complemento_pago' ? 'Fecha de Pago' : 'Fecha Emisión'}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#38bdf8', marginTop: 3 }}>
+              📅 {data.date}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── SECCIÓN DE GUÍA PROACTIVA Y ACCIONES ────────────────────────────── */}
@@ -400,31 +469,59 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
 
         {/* Botones de Acción Proactiva de 1 Clic */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-          {/* Boton 1: Asignar Factura / XML */}
-          <button
-            onClick={handleAssignInvoiceToOrder}
-            disabled={isSaving || !targetOrder}
-            style={{
-              flex: 1,
-              minWidth: 200,
-              background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
-              border: 'none',
-              color: '#fff',
-              padding: '12px 18px',
-              borderRadius: 12,
-              fontWeight: 800,
-              fontSize: 13,
-              cursor: targetOrder ? 'pointer' : 'not-allowed',
-              opacity: targetOrder ? 1 : 0.5,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              boxShadow: '0 4px 15px rgba(37, 99, 235, 0.4)',
-            }}
-          >
-            <span>🧾</span> Asignar Factura a OC {targetOrder?.folio || ''}
-          </button>
+          {/* Boton Especial: Complemento de Pago */}
+          {data.type === 'complemento_pago' ? (
+            <button
+              onClick={handleAssignPaymentComplement}
+              disabled={isSaving || !targetOrder}
+              style={{
+                flex: 1,
+                minWidth: 220,
+                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                border: 'none',
+                color: '#fff',
+                padding: '14px 20px',
+                borderRadius: 12,
+                fontWeight: 900,
+                fontSize: 14,
+                cursor: targetOrder ? 'pointer' : 'not-allowed',
+                opacity: targetOrder ? 1 : 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)',
+              }}
+            >
+              <span>💰</span> Registrar Pago {data.total ? money(data.total) : ''} en Factura #{data.folio || ''}
+            </button>
+          ) : (
+            /* Boton 1: Asignar Factura / XML */
+            <button
+              onClick={handleAssignInvoiceToOrder}
+              disabled={isSaving || !targetOrder}
+              style={{
+                flex: 1,
+                minWidth: 200,
+                background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                border: 'none',
+                color: '#fff',
+                padding: '12px 18px',
+                borderRadius: 12,
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: targetOrder ? 'pointer' : 'not-allowed',
+                opacity: targetOrder ? 1 : 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 4px 15px rgba(37, 99, 235, 0.4)',
+              }}
+            >
+              <span>🧾</span> Asignar Factura a OC {targetOrder?.folio || ''}
+            </button>
+          )}
 
           {/* Boton 2: Asignar solo Contrarecibo si aplica */}
           {data.contrarecibo && (

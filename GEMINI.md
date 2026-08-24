@@ -46,3 +46,22 @@ Este archivo configura las reglas de operación, compilación, pruebas y desplie
 *   **Margen Bruto de Operación:** **$5.00 / kg**.
 *   **Comisión del Contador:** 8% sobre subtotal de facturación.
 
+### 6. Separación Estricta de Departamentos de Providencia y Prefijos de Contrarecibos
+*   **Textil Hogar (TH / NAVA):**
+    *   **Nombre de Cliente:** `TEXTIL HOGAR (TH - NAVA)` / `GRUPO TEXTIL PROVIDENCIA (TH)`
+    *   **Departamento:** `TH-ALMACEN-1`
+    *   **Solicitó:** `JOSÉ NAVA FLORES`
+    *   **Autorizó:** `JOSÉ ANTONIO TORRE LAMUÑO`
+    *   **Prefijo Oficial de Contrarecibos:** **`TH-`** (ej. `TH-946`, `TH-1024`)
+*   **Grupo Textil Providencia / Planta P4 (GT / EVELIA):**
+    *   **Nombre de Cliente:** `GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)`
+    *   **Departamento:** `P4-ALM`
+    *   **Solicitó / Contacto:** `EVELIA`
+    *   **Prefijo Oficial de Contrarecibos:** **`GT-`** (ej. `GT-570`, `GT-890`)
+*   **Regla de Enrutamiento Automático:**
+    1. Si un contrarecibo o documento empieza con prefijo `TH-` o proviene de José Nava Flores / Torre Lamuño, se asigna forzosamente a **TH (Textil Hogar)**.
+    2. Si empieza con prefijo `GT-` o proviene de Evelia / P4, se asigna forzosamente a **GT (Grupo Textil)**.
+    3. Nunca combinar entregas, facturas o contrarecibos entre ambos expedientes.
+
+
+

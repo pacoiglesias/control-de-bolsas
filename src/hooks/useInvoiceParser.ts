@@ -1,9 +1,83 @@
 import { Timestamp } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { addDays } from '../lib/finance';
-import type { Invoice } from '../lib/types';
+import type { Invoice, PurchaseOrderItem } from '../lib/types';
 import type { FinanceConfigCore } from '../lib/finance';
 import type { ParsedInvoiceData } from '../lib/xmlParser';
+
+export function extractInvoiceItemsFromText(text: string, defaultPrice: number = 43): PurchaseOrderItem[] {
+  const items: PurchaseOrderItem[] = [];
+  if (!text) return items;
+
+  // Buscar bloques que inician con "{Cantidad} KGM - KILOGRAMO" o "{Cantidad} KGM" o "{Cantidad} KG"
+  // Seguido de la descripción / código, clave SAT, y montos
+  const conceptRegex = /([\d,]+(?:\.\d+)?)\s*(?:KGM\s*-\s*KILOGRAMO|KGM|KILOGRAMO|KG)\s+([\s\S]+?)(?=(?:[\d,]+(?:\.\d+)?\s*(?:KGM\s*-\s*KILOGRAMO|KGM|KILOGRAMO|KG)|IMPORTE CON LETRA|SUBTOTAL|\n\s*SUBTOTAL|$))/gi;
+  
+  let match;
+  while ((match = conceptRegex.exec(text)) !== null) {
+    const qtyStr = match[1];
+    const block = match[2];
+    const quantity = Number(qtyStr.replace(/,/g, ''));
+    if (!quantity || quantity <= 0) continue;
+
+    // Extraer primera línea del bloque como descripción / código
+    const firstLine = block.trim().split('\n')[0] || '';
+    
+    // Extraer clave SAT si existe
+    const satMatch = block.match(/Clave\s*Prod\.?\s*Serv\.?\s*-\s*(\d+)/i);
+    const satCode = satMatch ? satMatch[1] : '';
+
+    // Extraer montos del bloque
+    const priceMatch = block.match(/\$\s*([\d,]+(?:\.\d+)?)/);
+    const amountsMatch = [...block.matchAll(/\$\s*([\d,]+(?:\.\d{2})?)/g)];
+    
+    let unitPrice = defaultPrice;
+    let amount = quantity * unitPrice;
+
+    if (amountsMatch.length >= 2) {
+      const lastAmount = Number(amountsMatch[amountsMatch.length - 1][1].replace(/,/g, ''));
+      if (lastAmount > 0) {
+        amount = lastAmount;
+        unitPrice = Math.round((amount / quantity) * 100) / 100;
+      }
+    } else if (priceMatch) {
+      const p = Number(priceMatch[1].replace(/,/g, ''));
+      if (p > 0 && p < 1000) {
+        unitPrice = p;
+        amount = quantity * unitPrice;
+      }
+    }
+
+    // Separar código y descripción de firstLine
+    let code = satCode || '24111500';
+    let description = firstLine.trim();
+
+    // 1. Caso código pegado directamente a la descripción (ej: "EGBO000018-SCBOLSA POLIETILENO...")
+    const stuckCode = firstLine.match(/^([a-zA-Z0-9]{4,15}-(?:SC|BL|sc|bl|[a-zA-Z]{2}))([a-zA-Z].+)$/);
+    if (stuckCode) {
+      code = stuckCode[1];
+      description = stuckCode[2].trim();
+    } else {
+      const codeSplit = firstLine.match(/^([a-zA-Z0-9_\-]+)\s+(.+)$/);
+      if (codeSplit) {
+        code = codeSplit[1];
+        description = codeSplit[2].trim();
+      }
+    }
+
+    items.push({
+      id: 'inv_item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      code: code || '24111500',
+      description: description || 'Bolsa de Polietileno',
+      quantity,
+      unit: 'Kilos',
+      unitPrice,
+      amount,
+    });
+  }
+
+  return items;
+}
 
 interface UseInvoiceParserProps {
   invoices: Invoice[];
@@ -72,12 +146,35 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       }
     }
 
+    const subtotalMatch = text.match(/SUBTOTAL\s*\$?\s*([\d,]+\.\d{2})/i);
+    const totalMatch = text.match(/TOTAL\s*\$?\s*([\d,]+\.\d{2})/i);
+    
+    // Extraer conceptos/partidas detalladas de la factura
+    const items = extractInvoiceItemsFromText(text, config?.salePricePerKg || 43);
+    const calculatedKilos = items.reduce((s, it) => s + (it.quantity || 0), 0);
+    const finalKilos = kilos > 0 ? kilos : calculatedKilos;
+
+    const calculatedSubtotal = items.reduce((s, it) => s + (it.amount || 0), 0);
+    const subtotal = subtotalMatch ? Number(subtotalMatch[1].replace(/,/g, '')) : (calculatedSubtotal > 0 ? calculatedSubtotal : (finalKilos * (config?.salePricePerKg || 43)));
+    const total = totalMatch ? Number(totalMatch[1].replace(/,/g, '')) : (subtotal * 1.16);
+
     const newInvoice: Invoice = {
       id: Date.now().toString(),
       orderId: orderId,
       folio: finalFolio,
-      kilos: kilos,
+      kilos: finalKilos,
       oc: oc,
+      items: items.length > 0 ? items : undefined,
+      financials: {
+        salePricePerKg: config?.salePricePerKg || 43,
+        costPricePerKg: config?.costPricePerKg || 38,
+        commissionRate: config?.commissionRate || 0.08,
+        saleTotal: subtotal,
+        costTotal: finalKilos * (config?.costPricePerKg || 38),
+        commission: subtotal * (config?.commissionRate || 0.08),
+        invoiceTotal: total,
+        netCashFlow: subtotal - (finalKilos * (config?.costPricePerKg || 38)) - (subtotal * (config?.commissionRate || 0.08)),
+      },
       creditCycle: { 
         status: 'pending', 
         issueDate: Timestamp.fromDate(issue), 
@@ -86,57 +183,78 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       collection: { 
         paidAmount: 0, 
         contrareciboNumber: '', 
-        notes: '' 
+        notes: items.length > 0 ? `Conceptos: ${items.map(it => `${it.description} (${it.quantity} kg)`).join(' · ')}` : ''
       }
     };
 
-    // Antes esto llamaba a setInvoices() y mostraba el toast de éxito de
-    // forma incondicional -- pero el setInvoices que pasa OrderModalProvider
-    // era un no-op ("handle it properly later"), así que la factura nunca se
-    // guardaba en Firestore aunque la UI dijera "Factura agregada". Ahora se
-    // espera a que el guardado real termine antes de confirmar éxito.
+    // Espera a que el guardado real termine antes de confirmar éxito.
     try {
       await setInvoices([...invoices, newInvoice]);
-      toast(`Factura agregada. Folio: ${finalFolio || 'No encontrado'}, Kilos: ${kilos || 0}`, 'ok');
+      toast(`✅ Factura #${finalFolio || 'S/N'} agregada con ${items.length > 0 ? `${items.length} conceptos y ` : ''}${finalKilos.toLocaleString('es-MX')} kg.`, 'ok');
     } catch (e: any) {
       toast(`No se pudo guardar la factura: ${e?.message || 'error desconocido'}`, 'bad');
     }
   };
 
   const processParsedXml = async (data: ParsedInvoiceData) => {
+    const finalFolio = data.folio || data.uuid;
+
     // Validación Antiduplicados
     const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
-    if (currentInvoicesFolios.includes(data.uuid)) {
-      toast(`La Factura #${data.uuid} ya existe en este mismo expediente.`, 'bad');
+    if (currentInvoicesFolios.includes(finalFolio.toUpperCase()) || currentInvoicesFolios.includes(data.uuid.toUpperCase())) {
+      toast(`La Factura #${finalFolio} ya existe en este mismo expediente.`, 'bad');
       return;
     }
     if (allOrders && allOrders.length > 0) {
       const duplicadoGlobal = allOrders.find(o => 
-        (o.invoices || []).some((i: any) => i.folio?.trim().toUpperCase() === data.uuid)
+        (o.invoices || []).some((i: any) => 
+          i.folio?.trim().toUpperCase() === finalFolio.toUpperCase() ||
+          i.folio?.trim().toUpperCase() === data.uuid.toUpperCase() ||
+          i.collection?.sapDocument?.trim().toUpperCase() === data.uuid.toUpperCase()
+        )
       );
       if (duplicadoGlobal) {
-        toast(`La Factura #${data.uuid} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
+        toast(`La Factura #${finalFolio} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
         return;
       }
     }
 
-    // Inferir kilos desde los conceptos (buscando KG, KGM o algo parecido en la descripcion/unidad)
-    let totalKilos = 0;
-    data.conceptos.forEach(c => {
-      totalKilos += c.cantidad; // Asumimos que la cantidad es kilos si es una empresa de empaques, pero puede que no.
-      // Podríamos ser más inteligentes, pero tomaremos la cantidad por defecto.
-    });
+    // Extraer conceptos desde el XML
+    const xmlItems: PurchaseOrderItem[] = (data.conceptos || []).map((c, idx) => ({
+      id: 'inv_item_' + Date.now().toString(36) + '_' + idx,
+      code: c.codigo || c.claveProdServ || '24141500',
+      description: c.descripcion || 'Bolsa de Polietileno',
+      quantity: c.cantidad || 0,
+      unit: c.claveUnidad || 'Kilos',
+      unitPrice: c.valorUnitario || config?.salePricePerKg || 43,
+      amount: c.importe || ((c.cantidad || 0) * (c.valorUnitario || 43)),
+    }));
 
-    // Asegurar que la fecha viene con la zona horaria correcta (generalmente el SAT devuelve YYYY-MM-DDTHH:mm:ss)
+    let totalKilos = xmlItems.reduce((s, it) => s + (it.quantity || 0), 0);
+    const subtotal = data.subTotal || xmlItems.reduce((s, it) => s + it.amount, 0);
+    const total = data.total || (subtotal * 1.16);
+
+    // Asegurar que la fecha viene con la zona horaria correcta
     const issue = new Date(data.fecha + 'Z'); 
     const due = addDays(issue, config.creditDays);
 
     const newInvoice: Invoice = {
       id: Date.now().toString(),
       orderId: orderId,
-      folio: data.uuid,
-      kilos: totalKilos, // O 0 si preferimos que lo llenen manual
-      oc: '',
+      folio: finalFolio,
+      kilos: totalKilos,
+      oc: data.ocNumber || '',
+      items: xmlItems.length > 0 ? xmlItems : undefined,
+      financials: {
+        salePricePerKg: config?.salePricePerKg || 43,
+        costPricePerKg: config?.costPricePerKg || 38,
+        commissionRate: config?.commissionRate || 0.08,
+        saleTotal: subtotal,
+        costTotal: totalKilos * (config?.costPricePerKg || 38),
+        commission: subtotal * (config?.commissionRate || 0.08),
+        invoiceTotal: total,
+        netCashFlow: subtotal - (totalKilos * (config?.costPricePerKg || 38)) - (subtotal * (config?.commissionRate || 0.08)),
+      },
       creditCycle: { 
         status: 'pending', 
         issueDate: Timestamp.fromDate(issue), 
@@ -145,13 +263,14 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       collection: { 
         paidAmount: 0, 
         contrareciboNumber: '', 
-        notes: '' 
+        sapDocument: data.uuid,
+        notes: xmlItems.length > 0 ? `Conceptos XML: ${xmlItems.map(it => `${it.code} - ${it.description} (${it.quantity} kg)`).join(' · ')}` : ''
       }
     };
 
     try {
       await setInvoices([...invoices, newInvoice]);
-      toast(`Factura XML Procesada. UUID: ${data.uuid}. Subtotal: $${data.subTotal}`, 'ok');
+      toast(`✅ Factura XML Procesada. UUID: ${data.uuid}. Subtotal: $${data.subTotal}`, 'ok');
     } catch (e: any) {
       toast(`No se pudo guardar la factura: ${e?.message || 'error desconocido'}`, 'bad');
     }

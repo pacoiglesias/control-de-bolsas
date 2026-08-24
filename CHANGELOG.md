@@ -1,5 +1,22 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.21] - 24 Agosto 2026 (Hub Operativo Providencia TH vs GT & Soporte de Complementos de Pago SAT)
+
+### 🏭 Nuevo — Hub Operativo Providencia en Tiempo Real (`ProvidenciaHubWidget.tsx`)
+- **Separación Estricta de Plantas & Compradores:**
+  - 🏢 **Textil Hogar (TH / NAVA):** `TH-ALMACEN-1` · Solicitó: **José Nava Flores** · Autorizó: **Torre Lamuño** · Prefijo de Contrarecibo **`TH-`**.
+  - 🏭 **Grupo Textil Providencia (GT / EVELIA):** `P4-ALM` · Solicitó / Contacto: **Evelia** · Prefijo de Contrarecibo **`GT-`**.
+- **Monitoreo de Kilos por Partida en Vivo:**
+  - **OC 120267114114 (TH - Nava):** 6,500.00 kg pedidos | 3,465.81 kg entregados (53.3%) | 3,034.19 kg pendientes | Facturas 6198 y 6200 en revisión.
+  - **OC 12026439713 (GT - Evelia):** 3,700.00 kg pedidos | 1,000.00 kg entregados (27.0%) | 2,700.00 kg pendientes | Factura 6193 en revisión.
+- **Acceso Rápido de 1 Clic:** Asignación directa de contrarecibos `TH-` / `GT-` y visualización de partidas.
+
+### 💳 Nuevo — Soporte Integral de Complementos de Pago CFDI 4.0 (Pagos 2.0 / REP)
+- **Extracción Automática de Pagos (`xmlParser.ts`):** Lectura de nodos `pago20:Pago` y `pago20:DoctoRelacionado`, extrayendo folio comercial de la factura liquidada (ej. Factura #5970), UUID fiscal, fecha de pago y monto pagado ($108,647.46).
+- **Asignación y Liquidación en 1 Clic (`DocumentAutoAssigner.tsx`):** Al cargar el XML de un complemento de pago (como Folio 6174), el sistema actualiza la factura a estatus `paid`, registra la fecha y monto cobrado y archiva el comprobante.
+
+---
+
 ## [v8.9.20] - 24 Agosto 2026 (Hub de Recepción Mágica, Costo $38/kg & Control TH/GT)
 
 ### 📥 Nuevo — Hub de Recepción & Pegado Mágico (`SmartDocumentDropzone.tsx` & `DocumentAutoAssigner.tsx`)
