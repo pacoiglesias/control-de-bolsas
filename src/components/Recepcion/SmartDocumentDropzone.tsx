@@ -11,6 +11,7 @@ export interface ExtractedDocumentData {
   fileName?: string;
   uuid?: string;
   folio?: string;
+  oc?: string;
   ocFolio?: string;
   contrarecibo?: string;
   complementoFolio?: string;
@@ -24,6 +25,7 @@ export interface ExtractedDocumentData {
   date?: string;
   dueDate?: string;
   items?: Array<{
+    code?: string;
     description: string;
     quantity: number;
     unitPrice?: number;
@@ -194,27 +196,36 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
           const subtotal = d.subtotal || undefined;
           const total = d.total || (subtotal ? subtotal * 1.16 : undefined);
 
-          const dept: 'TH' | 'GT' = (d.departamento === 'GT' || (d.cliente || '').toUpperCase().includes('GT')) ? 'GT' : 'TH';
+          const dept: 'TH' | 'GT' = (d.departamento === 'GT' || (d.cliente || '').toUpperCase().includes('GT') || (d.entidad || '').toUpperCase().includes('GT')) ? 'GT' : 'TH';
+          const officialOc = d.oc || d.ordenCompra || d.ocFolio || (d.folio && d.folio.startsWith('12026') ? d.folio : undefined);
+          const internalFolio = (d.folio && !d.folio.startsWith('12026')) ? d.folio : (d.folioOC || d.numeroOrden || undefined);
 
           const docData: ExtractedDocumentData = {
-            type: d.tipoDocumento === 'orden_compra' ? 'orden_compra' : d.tipoDocumento === 'contrarecibo' ? 'contrarecibo' : 'pdf_document',
+            type: (d.tipoDocumento === 'orden_compra' || d.tipoDocumento === 'oc' || !!officialOc) ? 'orden_compra' : d.tipoDocumento === 'contrarecibo' ? 'contrarecibo' : 'pdf_document',
             fileName: file.name,
-            folio: d.folio || d.numeroFactura || undefined,
-            ocFolio: d.oc || d.ordenCompra || d.folioOC || undefined,
+            oc: officialOc,
+            ocFolio: officialOc,
+            folio: internalFolio || d.folio || undefined,
             contrarecibo: d.contrarecibo || d.numeroContrarecibo || undefined,
             kilos: totalKilos,
             subtotal,
             iva: total && subtotal ? total - subtotal : undefined,
             total,
-            client: d.cliente || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+            client: d.entidad || d.cliente || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
             department: dept,
             date: d.fecha || new Date().toISOString().split('T')[0],
-            dueDate: d.fechaVencimiento || undefined,
-            items: d.conceptos || [],
-            confidence: 0.92,
+            dueDate: d.fechaEntrega || d.fechaVencimiento || undefined,
+            items: (d.conceptos || []).map((c: any) => ({
+              code: c.codigo || c.code || '',
+              description: c.descripcion || c.description || 'Bolsa de Polietileno',
+              quantity: Number(c.cantidad || c.quantity || 0),
+              unitPrice: Number(c.precioUnitario || c.unitPrice || 43.0),
+              amount: Number(c.importe || c.amount || ((c.cantidad || 0) * (c.precioUnitario || 43.0))),
+            })),
+            confidence: 0.95,
           };
 
-          toast('✅ PDF analizado con éxito', 'ok');
+          toast('✅ PDF de Orden de Compra analizado con éxito', 'ok');
           onDocumentProcessed(docData);
         } catch (aiErr: any) {
           console.warn('Fallback a parser local', aiErr);
