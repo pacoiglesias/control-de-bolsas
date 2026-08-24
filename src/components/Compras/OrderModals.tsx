@@ -115,10 +115,10 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
   const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
   const [existingDeliveries] = useState(() => migrateLegacyDeliveries(order, order.deliveries ?? []));
   const [nueva, setNueva] = useState(() => newDeliveryEvent(order.items ?? []));
-  const { kilosEntregados } = computeDeliveredTotals(existingDeliveries);
+  const { kilosEntregados, deliveredByItem } = computeDeliveredTotals(existingDeliveries);
   
   const kilosDeEsta = round2((nueva.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0));
-  const kilosPedidos = (order.items ?? []).reduce((a, x) => a + x.quantity, 0);
+  const kilosPedidos = (order.items ?? []).reduce((a, x) => a + x.quantity, 0) || order.totalKilograms || 0;
 
   function setQty(itemId: string, qty: number) {
     const nextList = updateDeliveryItemQuantity([nueva], 0, itemId, qty);
@@ -182,8 +182,8 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
     <Modal title={`📦 Registrar Entrega en Báscula — ${order.folio || '(sin folio)'}`} onClose={onClose}>
       <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>
-          <span>Avance de Entregas:</span>
-          <span>{kilosEntregados.toLocaleString('es-MX')} de {kilosPedidos.toLocaleString('es-MX')} kg</span>
+          <span>Avance General de la OC:</span>
+          <span>{kilosEntregados.toLocaleString('es-MX')} de {kilosPedidos.toLocaleString('es-MX')} kg ({kilosPedidos > 0 ? Math.round((kilosEntregados / kilosPedidos) * 100) : 0}%)</span>
         </div>
         <div style={{ width: '100%', height: 7, background: 'var(--bg-inset)', borderRadius: 4, overflow: 'hidden' }}>
           <div style={{ width: `${kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0}%`, height: '100%', background: 'var(--accent)', borderRadius: 4 }} />
@@ -191,7 +191,7 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6 }}>
           <span>🔒 Tope Inviolable: {kilosPedidos.toLocaleString('es-MX')} kg (Cero mermas)</span>
           <span style={{ color: kilosRestantesPermitidos > 0 ? 'var(--accent)' : 'var(--ok)', fontWeight: 700 }}>
-            {kilosRestantesPermitidos > 0 ? `Restante permitido: ${kilosRestantesPermitidos.toLocaleString('es-MX')} kg` : '✓ OC Completa'}
+            {kilosRestantesPermitidos > 0 ? `Restante pendiente: ${kilosRestantesPermitidos.toLocaleString('es-MX')} kg` : '✓ OC Completa'}
           </span>
         </div>
       </div>
@@ -203,15 +203,34 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
       {(order.items ?? []).length === 0 ? <Empty>Este expediente no tiene productos capturados.</Empty> : (
         <div className="table-scroll">
         <table className="data-table" style={{ width: '100%', marginTop: 12 }}>
-          <thead><tr><th>Producto</th><th className="num">Esta entrega (kg)</th><th>Acción Rápida</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Partida / Producto</th>
+              <th className="num" style={{ width: 130 }}>Esta entrega (kg)</th>
+              <th style={{ width: 140, textAlign: 'right' }}>Acción Rápida</th>
+            </tr>
+          </thead>
           <tbody>
-            {(order.items ?? []).map(it => {
+            {(order.items ?? []).map((it, idx) => {
               const qty = (nueva.items ?? []).find((x) => x.itemId === it.id)?.quantity ?? 0;
+              const deliveredThisItem = deliveredByItem[it.id] ?? 0;
+              const pendingThisItem = Math.max(0, it.quantity - deliveredThisItem);
+              const pctItem = it.quantity > 0 ? Math.min(100, Math.round((deliveredThisItem / it.quantity) * 100)) : 0;
+
               return (
                 <tr key={it.id}>
                   <td>
-                    <strong>{it.description || it.code}</strong>
-                    <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Pedido: {it.quantity.toLocaleString('es-MX')} kg</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, background: 'var(--bg-inset)', padding: '2px 6px', borderRadius: 4 }}>
+                        #{idx + 1}
+                      </span>
+                      <strong>{it.description || it.code}</strong>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                      <span>Pedido: <strong>{it.quantity.toLocaleString('es-MX')} kg</strong></span>
+                      <span>Entregado: <strong style={{ color: 'var(--ok)' }}>{deliveredThisItem.toLocaleString('es-MX')} kg</strong> ({pctItem}%)</span>
+                      <span>Falta: <strong style={{ color: pendingThisItem > 0 ? 'var(--bad)' : 'var(--ok)' }}>{pendingThisItem.toLocaleString('es-MX')} kg</strong></span>
+                    </div>
                   </td>
                   <td className="num">
                     <input
@@ -224,16 +243,20 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
                       onChange={e => setQty(it.id, Number(e.target.value))}
                     />
                   </td>
-                  <td>
-                    {kilosRestantesPermitidos > 0 && (
+                  <td style={{ textAlign: 'right' }}>
+                    {pendingThisItem > 0 ? (
                       <button
                         type="button"
                         className="btn-small"
-                        style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', border: '1px solid #3b82f6', fontWeight: 700 }}
-                        onClick={() => setQty(it.id, kilosRestantesPermitidos)}
+                        style={{ fontSize: 11, padding: '4px 10px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', border: '1px solid #3b82f6', fontWeight: 700, borderRadius: 6 }}
+                        onClick={() => setQty(it.id, pendingThisItem)}
                       >
-                        ⚡ Restante ({kilosRestantesPermitidos.toLocaleString('es-MX')} kg)
+                        ⚡ Restante ({pendingThisItem.toLocaleString('es-MX')} kg)
                       </button>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 800, padding: '4px 8px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 6 }}>
+                        ✓ Surtida
+                      </span>
                     )}
                   </td>
                 </tr>

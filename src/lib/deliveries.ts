@@ -151,8 +151,7 @@ export function unmarkDeliveriesByInvoiceId(deliveries: Delivery[], invoiceId: s
  * muy viejos, de antes de que existiera items[].
  */
 export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries: Delivery[]): Delivery[] {
-  const yaFormatoNuevo = existingDeliveries.some((d) => Array.isArray(d.items) && d.items.length > 0);
-  if (yaFormatoNuevo) return existingDeliveries;
+  if (existingDeliveries && existingDeliveries.length > 0) return existingDeliveries;
 
   const items = order.items ?? [];
   const totalLegacy = items.reduce((acc, it) => acc + (Number(it.deliveredQuantity) || 0), 0);
@@ -168,13 +167,14 @@ export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries
     }];
   }
 
-  if ((order.totalKilograms ?? 0) > 0 && (order.invoices?.length ?? 0) > 0) {
+  const kilosFacturados = (order.invoices ?? []).reduce((acc, inv) => acc + (Number(inv.kilos) || 0), 0);
+  if (kilosFacturados > 0) {
     return [{
       id: `legacy-${order.id}`,
       date: order.processedAt ?? Timestamp.now(),
-      kilos: round2(order.totalKilograms ?? 0),
+      kilos: round2(kilosFacturados),
       invoiced: true,
-      notes: 'Migrado automáticamente: expediente sin desglose por producto.',
+      notes: 'Migrado automáticamente: kilos amparados en facturas emitidas.',
     }];
   }
 
