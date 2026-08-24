@@ -1,8 +1,9 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, useMemo } from 'react';
 import CobranzaContext from './CobranzaContext';
 import { Card, Empty, KpiCard, Drawer } from '../ui';
 import AgingTable from './AgingTable';
 import ProximasTable from './ProximasTable';
+import { QuickCrModal } from '../QuickCrModal';
 
 /**
  * FIX (v8.9.8, split de Cobranza/index.tsx — 85KB): tab "Pendientes de
@@ -16,9 +17,45 @@ export default function TabPendientes() {
   const [showAging, setShowAging] = useState(false);
   const [showProximas, setShowProximas] = useState(false);
   const [showUtilidad, setShowUtilidad] = useState(false);
+  const [quickCrTarget, setQuickCrTarget] = useState<{ o: any; inv?: any } | null>(null);
+
+  const sinCrItems = useMemo(() => {
+    return (data?.lista || []).filter((x: any) => x && !x.hasCr);
+  }, [data]);
 
   return (
     <>
+      {sinCrItems.length > 0 && (
+        <div style={{
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1.5px solid #3b82f6',
+          borderRadius: 12,
+          padding: '12px 18px',
+          marginBottom: 20,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}>
+          <div>
+            <strong style={{ color: '#2563eb', fontSize: 14 }}>
+              ⚠️ Tienes {sinCrItems.length} {sinCrItems.length === 1 ? 'factura esperando' : 'facturas esperando'} Contrarecibo
+            </strong>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Captura el número de CR y su promesa de pago a 30 días en 1 toque.
+            </div>
+          </div>
+          <button
+            className="btn"
+            style={{ background: '#2563eb', color: '#fff', border: 'none', fontWeight: 800, fontSize: 12.5, padding: '7px 14px' }}
+            onClick={() => setQuickCrTarget({ o: sinCrItems[0].o, inv: sinCrItems[0].inv })}
+          >
+            ⚡ Capturar CR (#{sinCrItems[0].inv.folio || sinCrItems[0].o.folio})
+          </button>
+        </div>
+      )}
+
       <div className="kpi-grid">
         <KpiCard hero tone={data.meDeben > 0 ? 'warn' : 'ok'} label="TE DEBEN" value={money(data.meDeben)}
           sub={`${data.open.length} órdenes abiertas`} />
@@ -112,6 +149,14 @@ export default function TabPendientes() {
             </div>
           )}
         </Drawer>
+      )}
+
+      {quickCrTarget && (
+        <QuickCrModal
+          order={quickCrTarget.o}
+          invoice={quickCrTarget.inv}
+          onClose={() => setQuickCrTarget(null)}
+        />
       )}
     </>
   );

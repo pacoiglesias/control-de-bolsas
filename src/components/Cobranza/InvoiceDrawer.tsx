@@ -165,7 +165,39 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
               />
             </Field>
             
-            <Field label="Fecha Vencimiento">
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 700 }}>Fecha Vencimiento (Promesa de Pago)</label>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    type="button"
+                    className="btn-small"
+                    style={{ fontSize: 10.5, padding: '2px 6px', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: '1px solid #3b82f6', fontWeight: 700 }}
+                    onClick={() => {
+                      const base = localInvoice.creditCycle.issueDate ? (typeof (localInvoice.creditCycle.issueDate as any).toDate === 'function' ? (localInvoice.creditCycle.issueDate as any).toDate() : new Date(localInvoice.creditCycle.issueDate as any)) : new Date();
+                      const d = new Date(base);
+                      d.setDate(d.getDate() + 30);
+                      updateField(['creditCycle', 'dueDate'], Timestamp.fromDate(d));
+                      toast('📅 Vencimiento calculado a +30 días', 'ok');
+                    }}
+                  >
+                    ⚡ +30d Providencia
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-small"
+                    style={{ fontSize: 10.5, padding: '2px 6px', background: 'var(--paper-sunk)' }}
+                    onClick={() => {
+                      const base = new Date();
+                      const d = new Date(base);
+                      d.setDate(d.getDate() + 15);
+                      updateField(['creditCycle', 'dueDate'], Timestamp.fromDate(d));
+                    }}
+                  >
+                    +15d
+                  </button>
+                </div>
+              </div>
               <input
                 type="date"
                 value={toInputDate(localInvoice.creditCycle.dueDate) || ''}
@@ -176,16 +208,44 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
                   }
                 }}
               />
-            </Field>
+            </div>
             
-            <Field label="Folio Contrarecibo">
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 700 }}>Folio Contrarecibo</label>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    type="button"
+                    className="btn-small"
+                    style={{ fontSize: 10.5, padding: '2px 6px', fontWeight: 800, background: (localInvoice.collection?.contrareciboNumber || '').startsWith('TH-') ? '#3b82f6' : 'var(--paper-sunk)', color: (localInvoice.collection?.contrareciboNumber || '').startsWith('TH-') ? '#fff' : 'var(--ink)' }}
+                    onClick={() => {
+                      const current = (localInvoice.collection?.contrareciboNumber || '').replace(/^[A-Z]+-?/i, '');
+                      updateField(['collection', 'contrareciboNumber'], `TH-${current}`);
+                    }}
+                  >
+                    🟦 TH-
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-small"
+                    style={{ fontSize: 10.5, padding: '2px 6px', fontWeight: 800, background: (localInvoice.collection?.contrareciboNumber || '').startsWith('GT-') ? '#8b5cf6' : 'var(--paper-sunk)', color: (localInvoice.collection?.contrareciboNumber || '').startsWith('GT-') ? '#fff' : 'var(--ink)' }}
+                    onClick={() => {
+                      const current = (localInvoice.collection?.contrareciboNumber || '').replace(/^[A-Z]+-?/i, '');
+                      updateField(['collection', 'contrareciboNumber'], `GT-${current}`);
+                    }}
+                  >
+                    🟪 GT-
+                  </button>
+                </div>
+              </div>
               <input
                 type="text"
                 value={localInvoice.collection?.contrareciboNumber ?? ''}
-                onChange={e => updateField(['collection', 'contrareciboNumber'], e.target.value)}
-                placeholder="Ej. GT-123"
+                onChange={e => updateField(['collection', 'contrareciboNumber'], e.target.value.toUpperCase())}
+                placeholder="Ej. GT-123 o TH-842"
+                style={{ fontWeight: 700, fontFamily: 'monospace' }}
               />
-            </Field>
+            </div>
 
             <Field label="Estatus Cobranza">
               <select

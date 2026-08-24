@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { useCobranza } from './CobranzaContext';
 import { Card, Empty, CopyButton, StatusBadge } from '../ui';
 import { fmtDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { promptDialog } from '../../lib/promptDialog';
+import { QuickCrModal } from '../QuickCrModal';
 
 export default function ProximasTable() {
   const { data, money, search, setSearch, filteredLista, payContrareciboBlock, fastCollectContrareciboBlock, payInvoiceExact, exportCobranzaCsv, toggleComplementStatus, reprogramarVencimiento, copyReminder, toast, filterType, setFilterType, setSelected } = useCobranza();
+  const [quickCrTarget, setQuickCrTarget] = useState<{ o: any; inv?: any } | null>(null);
+
   return (
+    <>
     <Card 
         title="Qué cobrar primero" 
         hint={search.trim() ? `${filteredLista.length} coincidencia(s) de ${data.lista.length}` : `${data.lista.length}`}
@@ -90,7 +95,8 @@ export default function ProximasTable() {
               }, {} as Record<string, any[]>);
               
               const renderRow = ({ o, inv, d, saldo }: any) => {
-                                return (
+                const hasCr = Boolean(inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber);
+                return (
                   <tr key={inv.id} className={``}
                     onClick={() => setSelected(o)} 
                     style={{ cursor: 'pointer', background: 'transparent' }}>
@@ -98,25 +104,23 @@ export default function ProximasTable() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>{inv.folio ?? o.folio ?? '—'}</span>
                         {(inv.folio || o.folio) && <CopyButton text={inv.folio ?? o.folio ?? ''} />}
-                        {inv.id !== o.id + '-inv0' ? <span style={{fontSize: '0.8em', color: 'var(--ink-faint)', marginLeft: 4}}>(parcial)</span> : null}
                       </div>
                     </td>
-                    <td>{nombreClienteVisible(o.client)}</td>
-                    <td className="mono">{fmtDate(inv.creditCycle.dueDate)}</td>
+                    <td>{nombreClienteVisible(o.client)} {o.department ? `(${o.department})` : ''}</td>
+                    <td>
+                      {inv.creditCycle.dueDate 
+                        ? fmtDate(inv.creditCycle.dueDate)
+                        : <span style={{ color: 'var(--ink-faint)' }}>Sin fecha</span>}
+                    </td>
                     <td className="num mono">
-                      {d === null ? '—' : (
-                        d > 30 ? (
-                          <span className="badge" style={{ background: '#b91c1c', color: '#fff', fontWeight: 700 }}>🔴 +{d} días</span>
-                        ) : d > 15 ? (
-                          <span className="badge" style={{ background: '#ea580c', color: '#fff', fontWeight: 700 }}>🟠 +{d} días</span>
-                        ) : d > 0 ? (
-                          <span className="badge" style={{ background: 'var(--warn)', color: '#333', fontWeight: 700 }}>🟡 +{d} días</span>
-                        ) : d === 0 ? (
-                          <span style={{ color: 'var(--warn)', fontWeight: 'bold' }}>Vence hoy</span>
-                        ) : (
-                          <span style={{ color: 'var(--ok)' }}>Faltan {Math.abs(d)} d</span>
-                        )
-                      )}
+                      {d !== null ? (
+                        <span style={{ 
+                          color: d > 0 ? 'var(--bad)' : d > -5 ? 'var(--warn)' : 'var(--ok)',
+                          fontWeight: 700 
+                        }}>
+                          {d > 0 ? `+${d}d atraso` : `${Math.abs(d)}d restantes`}
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="num mono" style={{ fontWeight: 700 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
@@ -126,6 +130,18 @@ export default function ProximasTable() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {!hasCr && (
+                          <button
+                            className="btn-small btn-primary"
+                            style={{ padding: '3px 8px', fontSize: '11px', fontWeight: 800 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickCrTarget({ o, inv });
+                            }}
+                          >
+                            📝 Asignar CR y Fecha
+                          </button>
+                        )}
                         <StatusBadge status={inv.creditCycle.status} />
                         {inv.creditCycle.status === 'paid' && (
                           <button 
@@ -251,5 +267,13 @@ export default function ProximasTable() {
           </>
         )}
       </Card>
+      {quickCrTarget && (
+        <QuickCrModal
+          order={quickCrTarget.o}
+          invoice={quickCrTarget.inv}
+          onClose={() => setQuickCrTarget(null)}
+        />
+      )}
+    </>
   );
 }

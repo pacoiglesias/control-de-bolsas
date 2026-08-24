@@ -5,6 +5,7 @@ import { daysLate, extractCr } from '../../lib/finance';
 import { toDate, fmtDate, nombreClienteVisible } from '../../lib/format';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { InvoiceDrawer } from './InvoiceDrawer';
+import { QuickCrModal } from '../QuickCrModal';
 import { useConfig } from '../../hooks/useConfig';
 import { useToast } from '../../context/ToastContext';
 import { generateCollectionNotice } from '../../lib/whatsappReminder';
@@ -27,6 +28,7 @@ export default function TableroKanban() {
   const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<{o: any, inv: any} | null>(null);
+  const [quickCrTarget, setQuickCrTarget] = useState<{o: any, inv?: any} | null>(null);
   const { config: dynamicConfig } = useConfig();
 
   const cols = useMemo(() => {
@@ -166,7 +168,15 @@ export default function TableroKanban() {
         
         {/* Quick Actions Bar */}
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-          {(inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') && (
+          {!cr ? (
+            <button 
+              className="btn" 
+              style={{ flex: 1, padding: '7px 10px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+              onClick={() => setQuickCrTarget({ o, inv })}
+            >
+              <span>📝</span> Asignar CR y Fecha
+            </button>
+          ) : (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') ? (
             <>
               <button 
                 className="btn" 
@@ -205,7 +215,7 @@ export default function TableroKanban() {
                 <span>📋</span> Copiar Aviso
               </button>
             </>
-          )}
+          ) : null}
           {inv.creditCycle.status === 'paid' && (
             <>
               <button 
@@ -283,10 +293,19 @@ export default function TableroKanban() {
         onDragLeave={() => setActiveTarget(null)}
         onDrop={(e) => handleDrop(e, 'colRevision')}
       >
-        <div style={{ fontWeight: 800, color: TONE.colRevision.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
+        <div style={{ fontWeight: 800, color: TONE.colRevision.color, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
           <span>🔎 En Revisión (Sin CR)</span>
           <span style={{ background: 'var(--paper-raised)', color: TONE.colRevision.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colRevision.length}</span>
         </div>
+        {cols.colRevision.length > 0 && (
+          <button
+            className="btn"
+            style={{ width: '100%', marginBottom: 10, fontSize: 11.5, padding: '6px 10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            onClick={() => setQuickCrTarget({ o: cols.colRevision[0].o, inv: cols.colRevision[0].inv })}
+          >
+            <span>⚡</span> Capturar 1er CR (#{cols.colRevision[0].inv.folio || cols.colRevision[0].o.folio})
+          </button>
+        )}
         <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed var(--line-soft)' }}>Total: {money(cols.totales.colRevision)}</div>
         <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
           <AnimatePresence>
@@ -366,6 +385,13 @@ export default function TableroKanban() {
         order={drawerTarget.o}
         dynamicConfig={dynamicConfig}
         onClose={() => setDrawerTarget(null)}
+      />
+    )}
+    {quickCrTarget && (
+      <QuickCrModal
+        order={quickCrTarget.o}
+        invoice={quickCrTarget.inv}
+        onClose={() => setQuickCrTarget(null)}
       />
     )}
     </>

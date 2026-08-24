@@ -1,51 +1,101 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { logAction } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
 import { toInputDate, fromInputDate } from '../lib/format';
-import type { PurchaseOrder } from '../lib/types';
+import { inferDepartment } from '../lib/finance';
+import type { PurchaseOrder, Invoice } from '../lib/types';
 import { motion } from 'framer-motion';
 
 interface QuickCrModalProps {
   order: PurchaseOrder;
+  invoice?: Invoice | null;
   onClose: () => void;
 }
 
-export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
+export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
   const { user } = useAuth();
   const toast = useToast();
-  const [crNumber, setCrNumber] = useState(order.collection?.contrareciboNumber || '');
   
-  // Fecha sugerida: 30 días a partir de hoy o dueDate actual
-  const [dueDate, setDueDate] = useState(() => {
-    if (order.creditCycle?.dueDate) {
-      return toInputDate(order.creditCycle.dueDate);
+  // Detección de departamento / planta oficial
+  const dept = useMemo(() => {
+    return inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+  }, [order]);
+
+  const defaultPrefix = dept === 'TH' ? 'TH-' : 'GT-';
+  const initialCr = (invoice?.collection?.contrareciboNumber || order.collection?.contrareciboNumber || '').trim();
+
+  const [crNumber, setCrNumber] = useState(() => {
+    if (initialCr) return initialCr;
+    return defaultPrefix;
+  });
+  
+  // Fecha base para cálculos: fecha de emisión de la factura o hoy
+  const baseDate = useMemo(() => {
+    const rawIssue = invoice?.creditCycle?.issueDate || order.creditCycle?.issueDate;
+    if (rawIssue) {
+      if (typeof (rawIssue as any).toDate === 'function') return (rawIssue as any).toDate();
+      return new Date(rawIssue as any);
     }
-    const d = new Date();
+    return new Date();
+  }, [invoice, order]);
+
+  // Fecha sugerida: 30 días a partir de la emisión o dueDate actual
+  const [dueDate, setDueDate] = useState(() => {
+    const rawDue = invoice?.creditCycle?.dueDate || order.creditCycle?.dueDate;
+    if (rawDue) {
+      return toInputDate(rawDue);
+    }
+    const d = new Date(baseDate);
     d.setDate(d.getDate() + 30);
     return toInputDate(d);
   });
 
+  const [applyToAll, setApplyToAll] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  // Helper para asignar días relativos
+  const setDaysFromBase = (days: number) => {
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() + days);
+    setDueDate(toInputDate(d));
+    toast(`📅 Vencimiento establecido a +${days} días`, 'ok');
+  };
+
+  // Helper para alternar prefijo
+  const setPrefix = (pref: string) => {
+    const digitsOnly = crNumber.replace(/^[A-Z]+-?/i, '').trim();
+    setCrNumber(`${pref}${digitsOnly}`);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!crNumber.trim()) {
-      return toast('Ingresa el número de Contrarecibo (ej. TH-842)', 'bad');
+    const cleanCr = crNumber.trim().toUpperCase();
+
+    if (!cleanCr || cleanCr === 'TH-' || cleanCr === 'GT-') {
+      return toast('Ingresa el número de Contrarecibo (ej. TH-946 o GT-597)', 'bad');
+    }
+
+    // Regla de Separación Estricta
+    if (dept === 'TH' && cleanCr.startsWith('GT-')) {
+      return toast('⚠️ Separación Estricta: Las facturas de Textil Hogar (TH) deben usar prefijo TH-.', 'bad');
+    }
+    if (dept === 'GT' && cleanCr.startsWith('TH-')) {
+      return toast('⚠️ Separación Estricta: Las facturas de Grupo Textil (GT) deben usar prefijo GT-.', 'bad');
     }
 
     setBusy(true);
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
-      const cleanCr = crNumber.trim();
       const rawDate = dueDate ? fromInputDate(dueDate) : null;
       const parsedDueDate = rawDate ? Timestamp.fromDate(rawDate) : null;
 
-      // Actualizar en el expediente raíz y en cada factura existente sin CR
+      // Actualizar en el expediente raíz y en las facturas
       const updatedInvoices = (order.invoices || []).map((inv) => {
-        if (!inv.collection?.contrareciboNumber) {
+        const isTarget = invoice ? (inv.id === invoice.id || applyToAll) : (!inv.collection?.contrareciboNumber || applyToAll);
+        if (isTarget) {
           return {
             ...inv,
             collection: {
@@ -55,7 +105,7 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
             },
             creditCycle: {
               ...inv.creditCycle,
-              status: inv.creditCycle?.status === 'pedido' || inv.creditCycle?.status === 'facturado' ? 'pending' : inv.creditCycle?.status,
+              status: inv.creditCycle?.status === 'pedido' || inv.creditCycle?.status === 'facturado' ? 'pending' : inv.creditCycle?.status || 'pending',
               dueDate: parsedDueDate || inv.creditCycle?.dueDate,
             }
           };
@@ -66,7 +116,7 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
       await updateDoc(orderRef, {
         'collection.contrareciboNumber': cleanCr,
         'collection.contrareciboDate': Timestamp.now(),
-        'creditCycle.status': order.creditCycle?.status === 'pedido' || order.creditCycle?.status === 'facturado' ? 'pending' : order.creditCycle?.status,
+        'creditCycle.status': order.creditCycle?.status === 'pedido' || order.creditCycle?.status === 'facturado' ? 'pending' : order.creditCycle?.status || 'pending',
         ...(parsedDueDate ? { 'creditCycle.dueDate': parsedDueDate } : {}),
         invoices: updatedInvoices,
         updatedAt: Timestamp.now(),
@@ -77,7 +127,7 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
         orderId: order.id,
       });
 
-      toast(`✅ Contrarecibo ${cleanCr} asignado correctamente`, 'ok');
+      toast(`✅ Contrarecibo ${cleanCr} y fecha asignados correctamente`, 'ok');
       onClose();
     } catch (err: any) {
       toast('Error al guardar Contrarecibo: ' + err.message, 'bad');
@@ -91,8 +141,8 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(4px)',
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(6px)',
         zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
@@ -106,24 +156,29 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         style={{
-          background: 'var(--paper-raised)',
+          background: 'var(--paper)',
           border: '1px solid var(--line)',
           borderRadius: 16,
           padding: 24,
-          maxWidth: 420,
+          maxWidth: 440,
           width: '100%',
-          boxShadow: 'var(--shadow-lg)',
+          boxShadow: 'var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.2))',
           color: 'var(--ink)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>
-              Asignar Contrarecibo (CR)
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className={`badge ${dept === 'TH' ? 'badge-th' : 'badge-gt'}`} style={{ padding: '2px 8px', fontSize: 11, fontWeight: 800, background: dept === 'TH' ? '#3b82f6' : '#8b5cf6', color: '#fff' }}>
+                {dept === 'TH' ? '🟦 Textil Hogar (Nava)' : '🟪 Grupo Textil (Evelia)'}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-soft)' }}>
+                {invoice ? `Factura #${invoice.folio}` : 'Asignar CR'}
+              </span>
             </div>
-            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>
-              OC {order.folio || order.oc}
+            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 4 }}>
+              OC: {order.oc || order.folio || 'S/F'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
               {order.client || 'Grupo Textil Providencia'}
@@ -131,42 +186,73 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--ink-soft)' }}
+            style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink-soft)' }}
           >
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Campo de Contrarecibo y Selector de Prefijo */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>
-              Número de Contrarecibo (CR):
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 800 }}>
+                Número de Contrarecibo (CR):
+              </label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  type="button"
+                  className="btn-small"
+                  style={{ fontSize: 11, padding: '2px 8px', fontWeight: 800, background: crNumber.startsWith('TH-') ? '#3b82f6' : 'var(--paper-sunk)', color: crNumber.startsWith('TH-') ? '#fff' : 'var(--ink)' }}
+                  onClick={() => setPrefix('TH-')}
+                >
+                  🟦 TH-
+                </button>
+                <button
+                  type="button"
+                  className="btn-small"
+                  style={{ fontSize: 11, padding: '2px 8px', fontWeight: 800, background: crNumber.startsWith('GT-') ? '#8b5cf6' : 'var(--paper-sunk)', color: crNumber.startsWith('GT-') ? '#fff' : 'var(--ink)' }}
+                  onClick={() => setPrefix('GT-')}
+                >
+                  🟪 GT-
+                </button>
+              </div>
+            </div>
+
             <input
               type="text"
-              placeholder="Ej. TH-842 o GT-105"
+              placeholder="Ej. TH-946 o GT-597"
               value={crNumber}
               onChange={(e) => setCrNumber(e.target.value.toUpperCase())}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
                 padding: '10px 14px',
-                fontSize: 16,
-                fontWeight: 800,
+                fontSize: 18,
+                fontWeight: 900,
                 borderRadius: 10,
-                border: '2px solid #2563eb',
+                border: '2px solid var(--accent)',
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
                 outline: 'none',
+                fontFamily: 'monospace',
+                letterSpacing: '0.05em',
               }}
               autoFocus
             />
           </div>
 
+          {/* Campo de Fecha de Vencimiento y Atajos Rápidos */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>
-              Fecha Programada de Pago / Vencimiento:
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 800 }}>
+                Fecha Promesa de Pago:
+              </label>
+              <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+                30 días estándar
+              </span>
+            </div>
+
             <input
               type="date"
               value={dueDate}
@@ -180,23 +266,72 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
                 fontSize: 14,
+                fontWeight: 700,
                 outline: 'none',
+                marginBottom: 8,
               }}
             />
+
+            {/* Atajos de cálculo de fecha */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-small"
+                style={{ fontSize: 11, padding: '4px 8px', fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: '1px solid #3b82f6' }}
+                onClick={() => setDaysFromBase(30)}
+              >
+                ⚡ +30 Días (Providencia)
+              </button>
+              <button
+                type="button"
+                className="btn-small"
+                style={{ fontSize: 11, padding: '4px 8px', background: 'var(--paper-sunk)' }}
+                onClick={() => setDaysFromBase(15)}
+              >
+                +15 Días
+              </button>
+              <button
+                type="button"
+                className="btn-small"
+                style={{ fontSize: 11, padding: '4px 8px', background: 'var(--paper-sunk)' }}
+                onClick={() => setDaysFromBase(45)}
+              >
+                +45 Días
+              </button>
+              <button
+                type="button"
+                className="btn-small"
+                style={{ fontSize: 11, padding: '4px 8px', background: 'var(--paper-sunk)' }}
+                onClick={() => setDaysFromBase(60)}
+              >
+                +60 Días
+              </button>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          {order.invoices && order.invoices.length > 1 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink-soft)', cursor: 'pointer', marginTop: 4 }}>
+              <input
+                type="checkbox"
+                checked={applyToAll}
+                onChange={(e) => setApplyToAll(e.target.checked)}
+              />
+              Aplicar este contrarecibo a todas las facturas de esta OC ({order.invoices.length} facturas)
+            </label>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
             <button
               type="button"
               onClick={onClose}
               style={{
                 flex: 1,
-                padding: '10px',
+                padding: '11px',
                 borderRadius: 10,
                 border: '1px solid var(--line)',
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer',
               }}
             >
@@ -207,16 +342,17 @@ export function QuickCrModal({ order, onClose }: QuickCrModalProps) {
               disabled={busy}
               style={{
                 flex: 2,
-                padding: '10px',
+                padding: '11px',
                 borderRadius: 10,
                 border: 'none',
                 background: '#2563eb',
                 color: '#fff',
                 fontWeight: 800,
+                fontSize: 14,
                 cursor: 'pointer',
               }}
             >
-              {busy ? 'Guardando...' : '💾 Guardar CR'}
+              {busy ? 'Guardando...' : '💾 Guardar y Asignar CR'}
             </button>
           </div>
         </form>
