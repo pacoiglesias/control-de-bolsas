@@ -95,8 +95,8 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
 
   // 6. Folio u OC de la orden
   const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
-  if (orderFolio.startsWith('TH-') || orderFolio === 'TH' || orderFolio.startsWith('TH')) return 'TH';
-  if (orderFolio.startsWith('GT-') || orderFolio === 'GT' || orderFolio.startsWith('GT')) return 'GT';
+  if (orderFolio.startsWith('TH') || orderFolio.includes('14114') || orderFolio.includes('71/14114') || orderFolio.includes('120267114114')) return 'TH';
+  if (orderFolio.startsWith('GT') || orderFolio.includes('9713') || orderFolio.includes('43/9713') || orderFolio.includes('12026439713')) return 'GT';
 
   // 7. Identificador del documento
   const orderId = (order?.id || '').trim().toLowerCase();
@@ -110,24 +110,18 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   // 8. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Providencia - GT")
   const clientStr = (order?.client || '').trim().toUpperCase();
   if (
-    clientStr === 'TH' ||
-    clientStr.endsWith(' TH') ||
-    clientStr.endsWith('-TH') ||
-    clientStr.includes(' TH ') ||
-    clientStr.includes('-TH-') ||
-    clientStr.includes(' - TH') ||
-    clientStr.includes('TEXTIL HOGAR')
+    clientStr.includes('TH') ||
+    clientStr.includes('TEXTIL HOGAR') ||
+    clientStr.includes('NAVA') ||
+    clientStr.includes('LAMUÑO')
   ) {
     return 'TH';
   }
   if (
-    clientStr === 'GT' ||
-    clientStr.endsWith(' GT') ||
-    clientStr.endsWith('-GT') ||
-    clientStr.includes(' GT ') ||
-    clientStr.includes('-GT-') ||
-    clientStr.includes(' - GT') ||
-    clientStr.includes('GRUPO TEXTIL')
+    clientStr.includes('EVELIA') ||
+    clientStr.includes('P4') ||
+    (clientStr.includes('GRUPO TEXTIL') && !clientStr.includes('TH')) ||
+    clientStr.includes('GT')
   ) {
     return 'GT';
   }

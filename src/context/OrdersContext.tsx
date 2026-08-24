@@ -123,13 +123,75 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM', quantity: 500, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
             ];
             best.totalKilograms = 6500;
-            if (!best.items || best.items.length < 6) {
-              best.items = thItems;
-            }
-            best.client = 'GRUPO TEXTIL PROVIDENCIA (TH - Nava)';
+            best.items = thItems;
+            best.client = 'TEXTIL HOGAR (TH - NAVA)';
             best.department = 'TH-ALMACEN-1';
             best.folio = '71/14114';
             best.oc = '120267114114';
+            best.deliveries = [
+              {
+                id: 'del-th-6198',
+                date: best.processedAt || null,
+                kilos: 1965.81,
+                invoiced: true,
+                invoiceId: 'inv-6198',
+                docType: 'factura',
+                docFolio: '6198',
+              },
+              {
+                id: 'del-th-6200',
+                date: best.processedAt || null,
+                kilos: 1500.0,
+                invoiced: true,
+                invoiceId: 'inv-6200',
+                docType: 'factura',
+                docFolio: '6200',
+              },
+            ];
+            best.invoices = [
+              {
+                id: 'inv-6198',
+                orderId: best.id,
+                folio: '6198',
+                kilos: 1965.81,
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 84529.83,
+                  invoiceTotal: 98054.60,
+                  costTotal: 74700.78,
+                  commission: 6762.39,
+                  netCashFlow: 16591.44,
+                  tradeMargin: 9829.05,
+                },
+                creditCycle: {
+                  status: 'manual_review',
+                  issueDate: best.processedAt || null,
+                  dueDate: null,
+                },
+              },
+              {
+                id: 'inv-6200',
+                orderId: best.id,
+                folio: '6200',
+                kilos: 1500.0,
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 64500.0,
+                  invoiceTotal: 74820.0,
+                  costTotal: 57000.0,
+                  commission: 5160.0,
+                  netCashFlow: 12660.0,
+                  tradeMargin: 7500.0,
+                },
+                creditCycle: {
+                  status: 'manual_review',
+                  issueDate: best.processedAt || null,
+                  dueDate: null,
+                },
+              },
+            ];
           } else if (canonicalKey === '12026439713' || canonicalKey.includes('43/9713') || canonicalKey.includes('43-9713')) {
             const gtItems = [
               { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
@@ -138,13 +200,45 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
             ];
             best.totalKilograms = 3700;
-            if (!best.items || best.items.length < 4) {
-              best.items = gtItems;
-            }
+            best.items = gtItems;
             best.client = 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)';
             best.department = 'P4-ALM';
             best.folio = '43/9713';
             best.oc = '12026439713';
+            best.deliveries = [
+              {
+                id: 'del-gt-6193',
+                date: best.processedAt || null,
+                kilos: 1000.0,
+                invoiced: true,
+                invoiceId: 'inv-6193',
+                docType: 'factura',
+                docFolio: '6193',
+              },
+            ];
+            best.invoices = [
+              {
+                id: 'inv-6193',
+                orderId: best.id,
+                folio: '6193',
+                kilos: 1000.0,
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 43000.0,
+                  invoiceTotal: 49880.0,
+                  costTotal: 38000.0,
+                  commission: 3440.0,
+                  netCashFlow: 8440.0,
+                  tradeMargin: 5000.0,
+                },
+                creditCycle: {
+                  status: 'manual_review',
+                  issueDate: best.processedAt || null,
+                  dueDate: null,
+                },
+              },
+            ];
           }
 
           deduplicatedDocs.push(best);
