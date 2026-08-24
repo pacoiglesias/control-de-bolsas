@@ -69,14 +69,14 @@ export function OverdueBanner() {
           Dashboard. Antes decían casi lo mismo ("N se vencieron
           recientemente" vs "N facturas fuera de fecha") y se veían como si
           fueran el mismo dato aunque casi nunca coincidieran. */}
-      <span>🔴 Nuevo: {aviso.cantidad} factura{aviso.cantidad === 1 ? '' : 's'} se venci{aviso.cantidad === 1 ? 'ó' : 'eron'} en las últimas horas (esto no es el total vencido, solo lo que acaba de vencer){listaFolios ? `: ${listaFolios}` : ''}.</span>
+      <span>🔴 Atención de Cobranza: {aviso.cantidad} contrarecibo{aviso.cantidad === 1 ? '' : 's'} con fecha de pago vencida en las últimas horas (promesa de pago cumplida por Providencia){listaFolios ? `: ${listaFolios}` : ''}.</span>
       <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
         <button
           className="btn"
           style={{ background: 'var(--bad)', color: '#fff', borderColor: 'var(--bad)', padding: '4px 10px', fontSize: 12 }}
-          onClick={() => nav('/ordenes?filtro=overdue')}
+          onClick={() => nav('/cobranza')}
         >
-          Ver vencidas
+          Ver contrarecibos
         </button>
         <button
           className="btn"

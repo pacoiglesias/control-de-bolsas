@@ -157,7 +157,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
               automático de las últimas horas). Este número de aquí es el
               acumulado total a hoy -- se aclara explícitamente para que no
               parezcan el mismo dato cuando no coinciden. */}
-          {vencidos} factura{vencidos === 1 ? '' : 's'} vencida{vencidos === 1 ? '' : 's'} en total (acumulado a hoy)
+          {vencidos} contrarecibo{vencidos === 1 ? '' : 's'} vencido{vencidos === 1 ? '' : 's'} en total (acumulado a hoy)
         </div>
       </motion.div>
       

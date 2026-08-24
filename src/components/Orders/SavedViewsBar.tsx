@@ -10,7 +10,7 @@ export interface SavedView {
 const DEFAULT_VIEWS: SavedView[] = [
   { id: 'view-all', name: 'Todas las Órdenes', filter: 'all', icon: '📁' },
   { id: 'view-sin-cr', name: 'Sin Contrarecibo', filter: 'sin_cr', icon: '⚠️' },
-  { id: 'view-overdue', name: 'Facturas Vencidas', filter: 'overdue', icon: '🚨' },
+  { id: 'view-overdue', name: 'Contrarecibos Vencidos', filter: 'overdue', icon: '🚨' },
   { id: 'view-paid', name: 'Con el Contador', filter: 'paid', icon: '🟡' },
   { id: 'view-collected', name: 'Cobrado y en Caja', filter: 'collected', icon: '✅' },
 ];
