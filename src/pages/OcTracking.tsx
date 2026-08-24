@@ -7,8 +7,9 @@ import OrderModal from '../components/OrderModal';
 import { EntregasKanban } from '../components/OcTracking/EntregasKanban';
 import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
-import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible, toDate } from '../lib/format';
-import { getOrderSummary, round2, extractCr } from '../lib/finance';
+import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible, toDate, fmtDate } from '../lib/format';
+import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/finance';
+import { computeDeliveredTotals } from '../lib/deliveries';
 import type { PurchaseOrder } from '../lib/types';
 
 interface OcGroup {
@@ -162,52 +163,190 @@ export default function OcTracking() {
   }, [allOcGroups]);
 
   function getManifiestoHtml(pendingOrders: OcGroup[]) {
+    const totalPedidosGlobal = pendingOrders.reduce((acc, g) => acc + g.kilosPedidos, 0);
+    const totalEntregadosGlobal = pendingOrders.reduce((acc, g) => acc + g.kilosEntregados, 0);
+    const totalFaltantesGlobal = pendingOrders.reduce((acc, g) => acc + g.kilosFaltantes, 0);
+    const globalPct = totalPedidosGlobal > 0 ? Math.round((totalEntregadosGlobal / totalPedidosGlobal) * 100) : 0;
+    const provider = settings.providerName || 'Andrés';
+    const client = settings.clientShortName || 'Providencia';
+
     return `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Manifiesto de Entregas</title>
+          <title>Manifiesto Analítico de Entregas — ${provider} a ${client}</title>
           <style>
-            body { font-family: system-ui, sans-serif; padding: 20px; color: #0f172a; font-size: 13px; line-height: 1.5; background: #fff; }
-            table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 32px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background: #f8fafc; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-            tr:last-child td { border-bottom: none; }
-            tr:nth-child(even) { background-color: #fafaf9; }
-            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-            .check-box { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 4px; display: inline-block; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 80px; text-align: center; font-weight: 600; color: #475569; }
-            .sig-box { border-top: 1px solid #94a3b8; width: 250px; padding-top: 10px; }
+            @page { size: letter portrait; margin: 12mm 15mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 15px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+            
+            /* KPIs Grid */
+            .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0 20px 0; }
+            .kpi-tile { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; text-align: center; }
+            .kpi-val { font-size: 17px; font-weight: 800; color: #1e293b; margin-bottom: 2px; }
+            .kpi-lbl { font-size: 10px; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em; }
+
+            /* OC Card Container */
+            .oc-container { border: 1.5px solid #cbd5e1; border-radius: 10px; margin-bottom: 24px; overflow: hidden; page-break-inside: avoid; }
+            .oc-header { background: #1e293b; color: #fff; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; }
+            .oc-title { font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+            .badge-dept { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+            .badge-th { background: #3b82f6; color: #fff; }
+            .badge-gt { background: #8b5cf6; color: #fff; }
+
+            /* Partidas Table */
+            table.partidas-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+            table.partidas-table th { background: #f1f5f9; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.04em; padding: 8px 12px; border-bottom: 1px solid #cbd5e1; text-align: left; }
+            table.partidas-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+            table.partidas-table tr:last-child td { border-bottom: none; }
+            table.partidas-table tr:nth-child(even) { background-color: #fafaf9; }
+            
+            .num { text-align: right; font-family: 'SFMono-Regular', Consolas, Menlo, monospace; }
+            .badge-status { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+            .st-complete { background: #dcfce7; color: #15803d; }
+            .st-partial { background: #fef3c7; color: #b45309; }
+            .st-pending { background: #fee2e2; color: #b91c1c; }
+
+            /* Bitácora de viajes */
+            .remisiones-box { background: #f8fafc; border-top: 1px dashed #cbd5e1; padding: 8px 14px; font-size: 11px; color: #475569; }
+            .remisiones-title { font-weight: 700; color: #1e293b; margin-bottom: 4px; text-transform: uppercase; font-size: 10px; }
+
+            /* Progress Bar */
+            .progress-bg { width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 6px; }
+            .progress-fill { height: 100%; background: #10b981; border-radius: 3px; }
+
+            /* Signatures */
+            .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 40px; text-align: center; font-size: 11px; color: #334155; page-break-inside: avoid; }
+            .sig-box { border-top: 1.5px solid #64748b; padding-top: 8px; font-weight: 700; }
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(settings, `Manifiesto de Entregas Logística - ${settings.providerName || 'Andrés'} a ${settings.clientShortName || 'Providencia'}`)}
+          ${getPrintHeaderHtml(settings, `Manifiesto Analítico de Entregas — ${provider} a ${client}`)}
           
-          <h3 style="margin-top: 20px;">Órdenes de Compra (${pendingOrders.length})</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>OC / Folio</th><th>Cliente</th><th class="num">Pedida (kg)</th><th class="num">Entregada (kg)</th><th class="num">Por Surtir (kg)</th><th style="width: 80px; text-align: center;">Firma Recepción</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${pendingOrders.length > 0 ? pendingOrders.map(g => `
-                <tr>
-                  <td><strong>${escapeHtml(g.oc)}</strong></td>
-                  <td>${escapeHtml(g.order.client || '—')}</td>
-                  <td class="num">${g.kilosPedidos.toLocaleString('es-MX')}</td>
-                  <td class="num" style="color: #059669; font-weight: bold;">${g.kilosEntregados.toLocaleString('es-MX')}</td>
-                  <td class="num" style="color: ${g.kilosFaltantes > 0 ? '#b91c1c' : '#059669'}; font-weight: bold;">${g.kilosFaltantes > 0 ? g.kilosFaltantes.toLocaleString('es-MX') : '0'}</td>
-                  <td style="text-align: center;"><div class="check-box"></div></td>
-                </tr>
-              `).join('') : '<tr><td colspan="6" style="text-align: center; padding: 20px;">No hay órdenes seleccionadas</td></tr>'}
-            </tbody>
-          </table>
+          <!-- KPIs Ejecutivos -->
+          <div class="kpi-row">
+            <div class="kpi-tile">
+              <div class="kpi-val">${totalPedidosGlobal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</div>
+              <div class="kpi-lbl">Total Pedido (OCs)</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-val" style="color: #059669;">${totalEntregadosGlobal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</div>
+              <div class="kpi-lbl">Total Entregado (${globalPct}%)</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-val" style="color: ${totalFaltantesGlobal > 0 ? '#b91c1c' : '#059669'};">${totalFaltantesGlobal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</div>
+              <div class="kpi-lbl">Por Surtir (Faltante)</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-val">${pendingOrders.length}</div>
+              <div class="kpi-lbl">Órdenes Activas</div>
+            </div>
+          </div>
 
+          <!-- Desglose por Orden de Compra y Partidas -->
+          ${pendingOrders.map(g => {
+            const order = g.order;
+            const items = order.items && order.items.length > 0 ? order.items : [];
+            const deliveries = order.deliveries || [];
+            const { deliveredByItem } = computeDeliveredTotals(deliveries);
+            const dept = inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+            const resp = dept === 'TH' ? 'Nava (Textil Hogar)' : 'Evelia (Grupo Textil / P4)';
+
+            return `
+              <div class="oc-container">
+                <div class="oc-header">
+                  <div class="oc-title">
+                    <span class="badge-dept ${dept === 'TH' ? 'badge-th' : 'badge-gt'}">${dept}</span>
+                    <span>OC: ${escapeHtml(g.oc)} · Folio: ${escapeHtml(order.folio || 'S/F')}</span>
+                    <span style="font-size: 11px; font-weight: 500; opacity: 0.85;">(${resp})</span>
+                  </div>
+                  <div style="font-size: 12px; font-weight: 700;">
+                    Avance: ${g.kilosEntregados.toLocaleString('es-MX')} / ${g.kilosPedidos.toLocaleString('es-MX')} kg (${g.kilosPedidos > 0 ? Math.round((g.kilosEntregados / g.kilosPedidos) * 100) : 0}%)
+                  </div>
+                </div>
+
+                <!-- Tabla de Partidas -->
+                <table class="partidas-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 140px;">Partida / SKU</th>
+                      <th>Descripción / Medida del Producto</th>
+                      <th class="num" style="width: 90px;">Pedido (kg)</th>
+                      <th class="num" style="width: 95px;">Entregado (kg)</th>
+                      <th class="num" style="width: 90px;">Faltante (kg)</th>
+                      <th style="width: 110px; text-align: center;">Estatus Partida</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${items.length > 0 ? items.map((it, idx) => {
+                      const pedKg = Number(it.quantity) || 0;
+                      const entKg = deliveredByItem[it.id] ?? (items.length === 1 ? g.kilosEntregados : 0);
+                      const faltKg = Math.max(0, pedKg - entKg);
+                      const pctPartida = pedKg > 0 ? Math.min(100, Math.round((entKg / pedKg) * 100)) : 0;
+                      const stClass = entKg >= pedKg && pedKg > 0 ? 'st-complete' : entKg > 0 ? 'st-partial' : 'st-pending';
+                      const stLabel = entKg >= pedKg && pedKg > 0 ? '✅ 100% Surtido' : entKg > 0 ? `🟡 ${pctPartida}% Parcial` : '⏳ Pendiente';
+
+                      return `
+                        <tr>
+                          <td><strong>#${idx + 1}</strong> · <span style="font-family: monospace; font-size: 11px;">${escapeHtml(it.code || 'S/C')}</span></td>
+                          <td>${escapeHtml(it.description || 'Bolsa de Polietileno')}</td>
+                          <td class="num"><strong>${pedKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></td>
+                          <td class="num" style="color: #059669; font-weight: 700;">${entKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                          <td class="num" style="color: ${faltKg > 0 ? '#b91c1c' : '#059669'}; font-weight: 700;">${faltKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                          <td style="text-align: center;">
+                            <span class="badge-status ${stClass}">${stLabel}</span>
+                          </td>
+                        </tr>
+                      `;
+                    }).join('') : `
+                      <tr>
+                        <td><strong>#1</strong> · <span style="font-family: monospace;">GENERAL</span></td>
+                        <td>Bolsa de Polietileno (Partida Consolidada)</td>
+                        <td class="num"><strong>${g.kilosPedidos.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></td>
+                        <td class="num" style="color: #059669; font-weight: 700;">${g.kilosEntregados.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                        <td class="num" style="color: ${g.kilosFaltantes > 0 ? '#b91c1c' : '#059669'}; font-weight: 700;">${g.kilosFaltantes.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                        <td style="text-align: center;">
+                          <span class="badge-status ${g.kilosEntregados >= g.kilosPedidos ? 'st-complete' : g.kilosEntregados > 0 ? 'st-partial' : 'st-pending'}">
+                            ${g.kilosEntregados >= g.kilosPedidos ? '✅ Surtido' : g.kilosEntregados > 0 ? '🟡 Parcial' : '⏳ Pendiente'}
+                          </span>
+                        </td>
+                      </tr>
+                    `}
+                  </tbody>
+                </table>
+
+                <!-- Bitácora de Entregas / Viajes de Báscula -->
+                ${deliveries.length > 0 ? `
+                  <div class="remisiones-box">
+                    <div class="remisiones-title">🚚 Historial de Báscula / Remisiones (${deliveries.length} viaje${deliveries.length === 1 ? '' : 's'}):</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 14px;">
+                      ${deliveries.map((d, i) => `
+                        <div>
+                          <strong>Viaje #${i + 1}:</strong> ${fmtDate(d.date) || 'S/F'} · <span style="color: #047857; font-weight: 700;">${(Number(d.kilos) || (d.items || []).reduce((a, x) => a + (Number(x.quantity) || 0), 0)).toLocaleString('es-MX')} kg</span>
+                          ${d.notes ? ` <span style="color: #64748b;">(${escapeHtml(d.notes)})</span>` : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+
+          <!-- Cuadro de Firmas Oficial -->
           <div class="signatures">
-            <div class="sig-box">Firma Fabricante (${settings.providerName || 'Andrés'})</div>
-            <div class="sig-box">Firma Recepción (${settings.clientShortName || 'Providencia'})</div>
+            <div class="sig-box">
+              Entrega & Báscula Fabricante<br>
+              <span style="font-size: 10px; font-weight: normal; color: #64748b;">${provider}</span>
+            </div>
+            <div class="sig-box">
+              Transportista / Chofer<br>
+              <span style="font-size: 10px; font-weight: normal; color: #64748b;">Firma de Custodia</span>
+            </div>
+            <div class="sig-box">
+              Recepción de Almacén<br>
+              <span style="font-size: 10px; font-weight: normal; color: #64748b;">${client} (Nava / Evelia)</span>
+            </div>
           </div>
 
           <script>
