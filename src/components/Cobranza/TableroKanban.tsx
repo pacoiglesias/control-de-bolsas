@@ -8,6 +8,7 @@ import { InvoiceDrawer } from './InvoiceDrawer';
 import { QuickCrModal } from '../QuickCrModal';
 import { useConfig } from '../../hooks/useConfig';
 import { useToast } from '../../context/ToastContext';
+import { confirmDialog } from '../../lib/confirmDialog';
 import { generateCollectionNotice } from '../../lib/whatsappReminder';
 
 // FIX 2026-08-10 (Staff Engineer -- task ERP #12): este tablero tenía sus
@@ -24,7 +25,7 @@ const TONE: Record<string, { color: string; bg: string }> = {
 };
 
 export default function TableroKanban() {
-  const { data, money, moveInvoice } = useContext(CobranzaContext)!;
+  const { data, money, moveInvoice, deleteOrArchiveInvoice } = useContext(CobranzaContext)!;
   const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<{o: any, inv: any} | null>(null);
@@ -146,8 +147,27 @@ export default function TableroKanban() {
         onClick={() => setDrawerTarget({ o: x.o, inv: x.inv })}
       >
         {x._posibleDuplicado && (
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--warn)', background: 'var(--warn-bg)', padding: '4px 8px', borderRadius: 6, marginBottom: 8, display: 'inline-block' }}>
-            ⚠️ Posible duplicado — mismo CR en otra tarjeta
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: 8, padding: '4px 8px', marginBottom: 8, gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--warn)' }}>
+              ⚠️ Posible duplicado (mismo CR)
+            </span>
+            <button
+              className="btn"
+              style={{ padding: '3px 8px', fontSize: 10.5, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, cursor: 'pointer' }}
+              onClick={async (e) => {
+                e.stopPropagation();
+                const ok = await confirmDialog({
+                  message: `¿Deseas quitar/archivar este registro duplicado (${inv.folio || o.folio || 'CR: ' + cr})?`,
+                  danger: true,
+                });
+                if (ok) {
+                  await deleteOrArchiveInvoice(o.id, inv.id);
+                }
+              }}
+              title="Quitar / Archivar este duplicado"
+            >
+              🗑️ Quitar
+            </button>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'flex-start' }}>
@@ -167,7 +187,7 @@ export default function TableroKanban() {
         </div>
         
         {/* Quick Actions Bar */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
           {!cr ? (
             <button 
               className="btn" 
@@ -243,6 +263,34 @@ export default function TableroKanban() {
               ↩️ Revertir
             </button>
           )}
+          <button
+            className="btn"
+            title="Archivar o eliminar este registro de cobranza"
+            style={{
+              padding: '6px 8px',
+              fontSize: 11,
+              background: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: 8,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              const ok = await confirmDialog({
+                message: `¿Deseas archivar/eliminar esta tarjeta (${inv.folio || o.folio || 'CR: ' + cr}) de Cobranza?`,
+                danger: true,
+              });
+              if (ok) {
+                await deleteOrArchiveInvoice(o.id, inv.id);
+              }
+            }}
+          >
+            🗑️
+          </button>
         </div>
       </motion.div>
     );

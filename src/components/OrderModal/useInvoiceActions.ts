@@ -1,4 +1,4 @@
-import { doc, runTransaction, Timestamp } from 'firebase/firestore';
+import { doc, runTransaction, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
@@ -115,9 +115,18 @@ export function useInvoiceActions() {
         const currentInvoices = currentOrder.invoices || [];
         const newInvoicesArray = currentInvoices.filter((i) => i.id !== invoiceId);
 
-        tx.update(orderRef, {
-          ...camposInvoices(newInvoicesArray),
-        });
+        if (newInvoicesArray.length === 0 && (!currentOrder.items || currentOrder.items.length === 0 || currentOrder.creditCycle?.status !== 'pedido')) {
+          tx.update(orderRef, {
+            isDeleted: true,
+            deletedAt: serverTimestamp(),
+            deletedBy: user?.email || 'admin@sistema',
+            ...camposInvoices([]),
+          });
+        } else {
+          tx.update(orderRef, {
+            ...camposInvoices(newInvoicesArray),
+          });
+        }
 
         tx.delete(invRef);
       });

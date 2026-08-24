@@ -377,6 +377,7 @@ export default function Cobranza() {
     collectContrareciboBlock,
     revertCollectedContrareciboBlock,
     liquidateAccountantBlock,
+    deleteOrArchiveInvoice,
   } = useCobranzaActions({ orders, data, config, toast, user });
 
   const filteredLista = useMemo(() => {
@@ -592,7 +593,7 @@ export default function Cobranza() {
     shareCobranzaGlobalReport, printCobranzaGlobalReport, search, setSearch, filteredLista,
     payContrareciboBlock, fastCollectContrareciboBlock, payInvoiceExact, undoContrareciboBlock, collectContrareciboBlock, revertCollectedContrareciboBlock,
     liquidateAccountantBlock, toggleComplementStatus, reprogramarVencimiento, copyReminder, sendWhatsApp, printConsolidatedCr, shareConsolidatedCr,
-    filterType, setFilterType, setSelected, abrirConFoco, moveInvoice
+    filterType, setFilterType, setSelected, abrirConFoco, moveInvoice, deleteOrArchiveInvoice
   };
 
   return (

@@ -65,16 +65,25 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         const ocMap = new Map<string, PurchaseOrder[]>();
 
         for (const doc of rawDocs) {
-          const canonicalKey = (doc.oc || doc.folio || doc.id).trim().toUpperCase();
+          let canonicalKey = (doc.oc || doc.folio || doc.id).trim().toUpperCase();
+          if (canonicalKey.startsWith('SEED-')) canonicalKey = canonicalKey.replace('SEED-', '');
+          if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
+
           const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
           const isCrDoc = canonicalKey.startsWith('TH-') || canonicalKey.startsWith('GT-') || crNum.startsWith('TH-') || crNum.startsWith('GT-') || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').trim().toUpperCase().startsWith('TH-') || (inv.collection?.contrareciboNumber || '').trim().toUpperCase().startsWith('GT-'));
 
-          // Si es un documento de contrarecibo que no está en la lista oficial de 8, ignorarlo
+          // Si es un documento de contrarecibo que no está en la lista oficial de 11, ignorarlo
           if (isCrDoc) {
             const matchesOfficial = OFFICIAL_VALID_CRS.some(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
             if (!matchesOfficial) {
               continue;
             }
+          }
+
+          // Si el documento pertenece a un contrarecibo oficial pero no a las 2 OCs abiertas, unificarlo bajo el nombre del CR
+          const crMatch = OFFICIAL_VALID_CRS.find(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
+          if (crMatch && canonicalKey !== '120267114114' && canonicalKey !== '12026439713') {
+            canonicalKey = crMatch;
           }
 
           const list = ocMap.get(canonicalKey) || [];
@@ -120,6 +129,22 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
             best.invoices = mergedInvoices.length > 0 ? mergedInvoices : best.invoices;
             best.deliveries = mergedDeliveries.length > 0 ? mergedDeliveries : best.deliveries;
+          }
+
+          // Deduplicar facturas internas de best si contiene duplicados
+          if (best.invoices && best.invoices.length > 1) {
+            const cleanInvs: any[] = [];
+            const seenInv = new Set<string>();
+            for (const inv of best.invoices) {
+              const k = (inv.folio || inv.id || '').toUpperCase().trim();
+              if (k && !seenInv.has(k)) {
+                seenInv.add(k);
+                cleanInvs.push(inv);
+              } else if (!k) {
+                cleanInvs.push(inv);
+              }
+            }
+            best.invoices = cleanInvs;
           }
 
           // 🎯 Parámetros Oficiales Reales de las Órdenes de Compra de Providencia:

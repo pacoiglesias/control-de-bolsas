@@ -622,6 +622,47 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
     }
   }
 
+  /**
+   * Elimina o archiva un duplicado o factura directamente desde la vista de cobranza
+   */
+  async function deleteOrArchiveInvoice(orderId: string, invoiceId?: string) {
+    try {
+      const orderRef = doc(db, PATHS.orders, orderId);
+      let wasArchived = false;
+
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(orderRef);
+        if (!snap.exists()) throw new Error('El expediente ya no existe en la base de datos.');
+
+        const currentOrder = snap.data() as PurchaseOrder;
+        const currentInvoices = currentOrder.invoices || [];
+
+        if (invoiceId && currentInvoices.length > 1) {
+          const newInvoices = currentInvoices.filter(i => i.id !== invoiceId);
+          tx.update(orderRef, camposInvoices(newInvoices));
+          tx.delete(doc(db, PATHS.invoices, invoiceId));
+        } else {
+          tx.update(orderRef, {
+            isDeleted: true,
+            deletedAt: Timestamp.now(),
+            deletedBy: user?.email || 'admin@sistema',
+          });
+          if (invoiceId) {
+            tx.delete(doc(db, PATHS.invoices, invoiceId));
+          }
+          wasArchived = true;
+        }
+      });
+
+      await logAction(user?.email, 'Cobranza: Registro/Duplicado Eliminado', { orderId, invoiceId, wasArchived });
+      sound.playSuccess();
+      toast(wasArchived ? '🗑️ Expediente duplicado archivado en la papelera' : '🗑️ Factura eliminada del expediente', 'ok');
+    } catch (e: any) {
+      sound.playError();
+      toast(`Error al eliminar: ${e.message}`, 'bad');
+    }
+  }
+
   return {
     reprogramarVencimiento,
     toggleComplementStatus,
@@ -632,5 +673,6 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
     collectContrareciboBlock,
     revertCollectedContrareciboBlock,
     liquidateAccountantBlock,
+    deleteOrArchiveInvoice,
   };
 }

@@ -21,7 +21,7 @@ interface InvoiceDrawerProps {
 
 export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: InvoiceDrawerProps) {
   const toast = useToast();
-  const { saveInvoice } = useInvoiceActions();
+  const { saveInvoice, deleteInvoice } = useInvoiceActions();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
   const [pdfBusy, setPdfBusy] = useState(false);
   const hasChanges = JSON.stringify(invoice) !== JSON.stringify(localInvoice);
@@ -262,11 +262,23 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
         </Card>
 
         {/* ACCIONES */}
-        <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '20px' }}>
-          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Cancelar</button>
+        <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '20px', flexWrap: 'wrap' }}>
           <button 
+            type="button"
             className="btn" 
-            style={{ flex: 1, background: 'var(--accent)', color: '#fff', opacity: hasChanges ? 1 : 0.5 }} 
+            style={{ padding: '8px 14px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700, borderRadius: 8 }} 
+            onClick={async () => {
+              await deleteInvoice(order, invoice.id);
+              onClose();
+            }}
+          >
+            🗑️ Eliminar / Archivar
+          </button>
+          <button type="button" className="btn" style={{ flex: 1 }} onClick={onClose}>Cancelar</button>
+          <button 
+            type="button"
+            className="btn" 
+            style={{ flex: 1, background: 'var(--accent)', color: '#fff', opacity: hasChanges ? 1 : 0.5, fontWeight: 700 }} 
             onClick={handleSave}
             disabled={!hasChanges}
           >
