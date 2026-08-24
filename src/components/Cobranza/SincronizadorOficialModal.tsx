@@ -37,8 +37,9 @@ export const OFFICIAL_CRS: OfficialCrRecord[] = [
 ];
 
 export const OFFICIAL_IN_REVIEW = [
-  { folio: '6198', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 98054.60, department: 'TH', dateStr: '2026-08-20' },
-  { folio: '6193', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 49880.00, department: 'GT', dateStr: '2026-08-19' }
+  { folio: '6198', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 98054.60, department: 'TH', dateStr: '2026-08-20', kilos: 1965.81, uuid: '01704C49-71EA-4201-8ABD-11A44A178101' },
+  { folio: '6200', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 74820.00, department: 'TH', dateStr: '2026-08-24', kilos: 1500.00, uuid: '771D692B-0BCF-480C-B2CA-40A48E996BA9' },
+  { folio: '6193', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 49880.00, department: 'GT', dateStr: '2026-08-19', kilos: 1000.00, uuid: '4BA4D9DA-35A2-4B47-BD0B-59AC9BB059A6' }
 ];
 
 export function SincronizadorOficialModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
@@ -206,25 +207,24 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         }
       }
 
-      // 2. Sincronizar Facturas en Revisión si existieran
+      // 2. Sincronizar Facturas en Revisión por Orden de Compra
       if (Array.isArray(OFFICIAL_IN_REVIEW)) {
+        // Agrupar facturas por OC
+        const ocGroupsMap = new Map<string, typeof OFFICIAL_IN_REVIEW>();
         for (const item of OFFICIAL_IN_REVIEW) {
-          const orderId = `oc-${item.oc}`;
-          const issueDate = new Date(`${item.dateStr}T12:00:00`);
-          const dueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-          
-          // Kilos de la Orden de Compra completa
-          const kilosPedidosOC = item.oc === '120267114114' ? 6500 : 3700;
-          
-          // Kilos facturados reales
-          const kilosFacturados = item.oc === '120267114114' ? 1965.81 : 1000.00;
-          
-          // Kilos entregados totales en esta orden (incluye el no facturado de 1,500 kg si es la OC 120267114114)
-          const kilosAdicionalesNoFacturados = item.oc === '120267114114' ? 1500 : 0;
-          const kilosEntregadosTotales = kilosFacturados + kilosAdicionalesNoFacturados;
+          const list = ocGroupsMap.get(item.oc) || [];
+          list.push(item);
+          ocGroupsMap.set(item.oc, list);
+        }
+
+        for (const [ocNumber, items] of ocGroupsMap.entries()) {
+          const orderId = `oc-${ocNumber}`;
+          const isTH = ocNumber === '120267114114';
+          const kilosPedidosOC = isTH ? 6500 : 3700;
+          const earliestDate = new Date(`${items[0].dateStr}T12:00:00`);
 
           // Partidas oficiales extraídas del PDF
-          const itemsList = item.oc === '120267114114' ? [
+          const itemsList = isTH ? [
             { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
             { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
             { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
@@ -238,93 +238,88 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
           ];
 
-          // Crear deliveries
-          const deliveriesList: any[] = [
-            {
-              id: `del-billed-${item.folio}`,
-              date: Timestamp.fromDate(issueDate),
-              kilos: kilosFacturados,
-              invoiced: true,
-              invoiceId: `inv-${item.folio}`,
-              docType: 'factura' as const,
-              docFolio: item.folio,
-            }
-          ];
+          const invoicesList = items.map(inv => {
+            const iDate = new Date(`${inv.dateStr}T12:00:00`);
+            const dDate = new Date(iDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+            return {
+              id: `inv-${inv.folio}`,
+              orderId,
+              folio: inv.folio,
+              kilos: inv.kilos,
+              uuid: inv.uuid,
+              creditCycle: {
+                status: 'facturado',
+                issueDate: Timestamp.fromDate(iDate),
+                dueDate: Timestamp.fromDate(dDate),
+              },
+              collection: {
+                contrareciboNumber: '',
+                paidAmount: 0,
+                notes: `Factura ${inv.folio} en revisión en Cuentas por Pagar Providencia`,
+              },
+              financials: {
+                invoiceTotal: inv.total,
+                saleTotal: round2(inv.total / 1.16),
+                ivaTotal: round2(inv.total - (inv.total / 1.16)),
+              },
+            };
+          });
 
-          if (kilosAdicionalesNoFacturados > 0) {
-            deliveriesList.push({
-              id: `del-pending-${orderId}`,
-              date: Timestamp.fromDate(issueDate),
-              kilos: kilosAdicionalesNoFacturados,
-              invoiced: false,
-              invoiceId: '',
-              docType: 'remision' as const,
-              docFolio: 'PENDIENTE',
-              notes: 'Entregado pero no facturado',
-            });
-          }
+          const deliveriesList = items.map(inv => {
+            const iDate = new Date(`${inv.dateStr}T12:00:00`);
+            return {
+              id: `del-billed-${inv.folio}`,
+              date: Timestamp.fromDate(iDate),
+              kilos: inv.kilos,
+              invoiced: true,
+              invoiceId: `inv-${inv.folio}`,
+              docType: 'factura' as const,
+              docFolio: inv.folio,
+            };
+          });
+
+          const totalKilosEntregados = deliveriesList.reduce((a, d) => a + d.kilos, 0);
 
           const orderDoc: any = {
             id: orderId,
-            folio: item.oc === '120267114114' ? '71/14114' : '43/9713',
-            oc: item.oc,
-            client: item.client,
-            department: item.department,
+            folio: isTH ? '71/14114' : '43/9713',
+            oc: ocNumber,
+            client: isTH ? 'GRUPO TEXTIL PROVIDENCIA (TH - Nava)' : 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)',
+            department: isTH ? 'TH-ALMACEN-1' : 'P4-ALM',
             totalKilograms: kilosPedidosOC,
             items: itemsList,
-            invoices: [
-              {
-                id: `inv-${item.folio}`,
-                orderId: orderId,
-                folio: item.folio,
-                kilos: kilosFacturados,
-                creditCycle: {
-                  status: 'facturado',
-                  issueDate: Timestamp.fromDate(issueDate),
-                  dueDate: Timestamp.fromDate(dueDate),
-                },
-                collection: {
-                  contrareciboNumber: '', // Sin CR, en revisión
-                  paidAmount: 0,
-                  notes: `Factura ${item.folio} en revisión en Cuentas por Pagar Providencia`,
-                },
-                financials: {
-                  invoiceTotal: item.total,
-                  saleTotal: item.total / 1.16,
-                  ivaTotal: item.total - (item.total / 1.16),
-                },
-              }
-            ],
-            invoiceStatuses: ['facturado'],
+            invoices: invoicesList,
+            invoiceStatuses: invoicesList.map(() => 'facturado'),
             collection: {
               contrareciboNumber: '',
               paidAmount: 0,
             },
             creditCycle: {
               status: 'facturado',
-              issueDate: Timestamp.fromDate(issueDate),
+              issueDate: Timestamp.fromDate(earliestDate),
             },
             status: 'facturado',
             deliveries: deliveriesList,
-            createdAt: Timestamp.fromDate(issueDate),
+            createdAt: Timestamp.fromDate(earliestDate),
             updatedAt: serverTimestamp(),
           };
 
           await setDoc(doc(db, PATHS.orders, orderId), orderDoc, { merge: true });
-          addLog(`📝 Factura #${item.folio} (OC ${item.oc}): Registrada en revisión por ${money(item.total)}.`);
+          const foliosListStr = items.map(i => `#${i.folio} (${i.kilos} kg)`).join(', ');
+          addLog(`📝 OC ${ocNumber} (${isTH ? 'TH' : 'GT'}): Facturas ${foliosListStr} registradas en revisión.`);
 
           // Registrar compra en la colección de Compras con Andrés
           const purchaseDoc = {
             id: orderId,
-            date: Timestamp.fromDate(issueDate),
+            date: Timestamp.fromDate(earliestDate),
             provider: 'Andres',
-            expectedKilos: kilosEntregadosTotales,
-            receivedKilos: kilosEntregadosTotales,
-            pricePerKg: 43,
-            totalAmount: round2(kilosEntregadosTotales * 43),
+            expectedKilos: totalKilosEntregados,
+            receivedKilos: totalKilosEntregados,
+            pricePerKg: 38,
+            totalAmount: round2(totalKilosEntregados * 38),
             paidAmount: 0,
             status: 'entregado',
-            notes: item.oc === '120267114114' ? 'Incluye 1,500 kg entregados no facturados' : 'Entregado completo',
+            notes: `Entrega de ${totalKilosEntregados} kg para OC ${ocNumber}`,
             createdAt: serverTimestamp(),
           };
           await setDoc(doc(db, PATHS.purchases, orderId), purchaseDoc, { merge: true });

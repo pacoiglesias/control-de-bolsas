@@ -9,15 +9,15 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
     expect(OFFICIAL_CRS.length).toBe(11);
   });
 
-  it('debe calcular la deuda total de Providencia exactamente en $1,249,670.94', () => {
+  it('debe calcular la deuda total de Providencia con las 3 facturas en revisión (F-6198, F-6200, F-6193) en $1,324,490.94', () => {
     const totalCrs = OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0);
     const totalRevision = Array.isArray(OFFICIAL_IN_REVIEW)
-      ? OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0)
+      ? round2(OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0))
       : 0;
     const deudaTotal = round2(totalCrs + totalRevision);
 
-    expect(totalRevision).toBe(147934.60);
-    expect(deudaTotal).toBe(1249670.94);
+    expect(totalRevision).toBe(222754.60);
+    expect(deudaTotal).toBe(1324490.94);
   });
 
   it('debe calcular la comisión contable (8% sobre subtotal) con precisión milimétrica', () => {

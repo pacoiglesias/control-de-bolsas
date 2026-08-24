@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.25 Auditoría y Cuadre Oficial de las Facturas Emitidas (F-6198, F-6200, F-6193) & OCs de Providencia',
+    date: '24 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Incorporación formal de las 3 facturas emitidas oficiales (F-6198 por $98,054.60, F-6200 por $74,820.00 y F-6193 por $49,880.00) cuadradas contra sus 2 Órdenes de Compra originales (TH 120267114114 de 6,500 kg y GT 12026439713 de 3,700 kg).',
+    highlights: [
+      '🧾 Facturas Emitidas Oficiales: F-6198 (1,965.81 kg) y F-6200 (1,500.00 kg) asociadas a la OC 120267114114 (TH · Nava), y F-6193 (1,000.00 kg) asociada a la OC 12026439713 (GT · Evelia).',
+      '📦 Cero Kilos en Patio por Facturar: Los 1,500 kg de TH quedaron formalmente amparados bajo la factura timbrada F-6200.',
+      '⏳ Balance de Kilos por Surtir: 3,034.19 kg faltantes en TH y 2,700.00 kg faltantes en GT (5,734.19 kg en total por entregar en báscula).',
+      '💵 Conciliación de Cartera en Revisión: Total de $222,754.60 en facturas listas para asignación de contrarecibo sellado.',
+    ],
+  },
+  {
     version: 'v8.9.24 Centro de Mando Providencia Dinámico, Flujo Neto Real en Caja ($8.44/kg) & Blindaje Anti-Duplicados',
     date: '24 de Agosto de 2026',
     time: '10:30 PM',
