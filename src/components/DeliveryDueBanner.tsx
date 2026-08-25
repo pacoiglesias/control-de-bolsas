@@ -20,19 +20,14 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
   const [deliveryModalOrder, setDeliveryModalOrder] = useState<PurchaseOrder | null>(null);
 
   const pendientes = useMemo(() => {
-    const ahora = Date.now();
     return (orders || [])
       .filter((o) => {
-        if (!o || !o.estimatedDeliveryDate) return false;
+        if (!o || (o as any).isDeleted || o.isClosedShort) return false;
         const s = getOrderSummary(o);
         if (s.status === 'collected') return false;
         const total = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 0;
         const faltante = total - s.kilosDelivered;
-        if (faltante <= 0.01) return false;
-        const ts = toDate(o.estimatedDeliveryDate)?.getTime();
-        if (!ts) return false;
-        const dias = (ts - ahora) / (1000 * 60 * 60 * 24);
-        return dias <= 3;
+        return faltante > 0.01;
       })
       .map((o) => {
         const s = getOrderSummary(o);

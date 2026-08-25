@@ -8,6 +8,16 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.32 Unificación de los 2 Pedidos Activos y 5,734.19 kg Faltantes en el Banner Logístico',
+    date: '25 de Agosto de 2026',
+    time: '04:20 AM',
+    summary: 'Ajuste del banner logístico para incluir todas las órdenes abiertas con faltante de entrega sin exclusión de fecha estimada, mostrando los 2 pedidos en curso (TH 3,034.19 kg y GT 2,700.00 kg) y el total exacto de 5,734.19 kg.',
+    highlights: [
+      '📦 2 Pedidos en Curso: Inclusión en vivo tanto de Textil Hogar (3,034.19 kg) como de Grupo Textil (2,700.00 kg).',
+      '⚖️ 5,734.19 kg Pendientes Globales: Cálculo fiel de los kilos contratados restantes por recibir en báscula.',
+    ],
+  },
+  {
     version: 'v8.9.31 Restauración de Visibilidad Total de Órdenes Abiertas y Exactitud de Partidas CFDI',
     date: '25 de Agosto de 2026',
     time: '04:15 AM',

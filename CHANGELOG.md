@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.32] - 25 Agosto 2026 (Unificación de los 2 Pedidos Activos y 5,734.19 kg Faltantes en el Banner Logístico)
+
+### 📦 Corrección Integral de Alertas de Entregas en Curso (`DeliveryDueBanner.tsx`)
+- **Visualización de Ambas OCs Activas:** Se eliminó la restricción temporal de 3 días que ocultaba la orden de Textil Hogar, mostrando ahora con precisión los **2 pedidos con entrega en curso**:
+  - **Textil Hogar (`120267114114`):** 6,500.00 kg pedidos | 3,465.81 kg entregados | **3,034.19 kg faltantes**.
+  - **Grupo Textil Providencia (`12026439713`):** 3,700.00 kg pedidos | 1,000.00 kg entregados | **2,700.00 kg faltantes**.
+- **Total Pendiente Global:** Sincronizado a **5,734.19 kg** pendientes de recibir en planta.
+
+---
+
 ## [v8.9.31] - 25 Agosto 2026 (Restauración de Visibilidad Total de Órdenes Abiertas y Exactitud de Partidas CFDI)
 
 ### 📋 Eliminación de Filtro Involuntario de Órdenes y Partidas CFDI Reales
