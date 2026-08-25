@@ -191,7 +191,7 @@ export default function TabEntregas() {
               type="button"
               className="btn"
               style={{ background: '#fff', color: '#1e293b', fontWeight: 700, borderColor: '#cbd5e1' }}
-              onClick={ctx.handlePrintPreFactura}
+              onClick={ctx.printPreFactura}
             >
               📋 Descargar Pre-Factura PDF
             </button>

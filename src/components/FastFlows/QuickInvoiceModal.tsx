@@ -36,12 +36,26 @@ export function QuickInvoiceModal({
   const { config } = useConfig();
   const { orders: allOrders } = useOrders();
   
-  // Encontrar órdenes que tienen kilos recibidos sin facturar
+  // Encontrar todas las órdenes activas/abiertas del ERP
   const validOrders = useMemo(() => {
-    return orders.filter(o => {
-      if (o.isClosedShort) return false;
+    const list = orders.filter(o => {
+      if ((o as any).isDeleted) return false;
       const summary = getOrderSummary(o);
-      return summary.kilosDelivered > summary.kilosInvoiced + 0.01;
+      const kOrd = Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      const isPaidAndDelivered = (o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid') && summary.kilosInvoiced >= summary.kilosDelivered - 0.01 && summary.kilosDelivered >= kOrd - 0.01;
+      return !isPaidAndDelivered;
+    });
+
+    return list.sort((a, b) => {
+      const sa = getOrderSummary(a);
+      const sb = getOrderSummary(b);
+      const unbilledA = sa.kilosDelivered - sa.kilosInvoiced;
+      const unbilledB = sb.kilosDelivered - sb.kilosInvoiced;
+      if (unbilledA > 0.01 && unbilledB <= 0.01) return -1;
+      if (unbilledB > 0.01 && unbilledA <= 0.01) return 1;
+      const kOrdA = Number(a.totalKilograms) || (a.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      const kOrdB = Number(b.totalKilograms) || (b.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      return (kOrdA - sa.kilosDelivered) - (kOrdB - sb.kilosDelivered);
     });
   }, [orders]);
 
@@ -61,7 +75,11 @@ export function QuickInvoiceModal({
   const availableKilos = useMemo(() => {
     if (!selectedOrder) return 0;
     const summary = getOrderSummary(selectedOrder);
-    return round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+    const unbilledDelivered = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+    if (unbilledDelivered > 0.01) return unbilledDelivered;
+    const kOrd = Number(selectedOrder.totalKilograms) || (selectedOrder.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+    const unbilledOrdered = round2(Math.max(0, kOrd - summary.kilosInvoiced));
+    return unbilledOrdered > 0 ? unbilledOrdered : kOrd;
   }, [selectedOrder]);
 
   const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
@@ -312,20 +330,25 @@ export function QuickInvoiceModal({
             className="input boxed"
             style={{ width: '100%', fontSize: 14, fontWeight: 600, padding: '10px 14px', borderRadius: 10 }}
           >
-            <option value="">-- Selecciona un expediente con entregas por facturar --</option>
+            <option value="">-- Selecciona un expediente activo --</option>
             {validOrders.map(o => {
               const summary = getOrderSummary(o);
-              const pending = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+              const pendingDelivered = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+              const kOrd = Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+              const pendingOrdered = round2(Math.max(0, kOrd - summary.kilosInvoiced));
+              const label = pendingDelivered > 0.01 
+                ? `${pendingDelivered.toLocaleString('es-MX')} kg listos de báscula`
+                : `${pendingOrdered.toLocaleString('es-MX')} kg de OC`;
               return (
                 <option key={o.id} value={o.id}>
-                  {o.folio || o.oc || 'S/N'} · {nombreClienteVisible(o.client)} — ({pending.toLocaleString('es-MX')} kg listos para facturar)
+                  {o.folio || o.oc || 'S/N'} · {nombreClienteVisible(o.client)} — ({label})
                 </option>
               );
             })}
           </select>
           {validOrders.length === 0 && (
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ink-soft)' }}>
-              ℹ️ No hay órdenes con entregas pendientes de facturar en este momento.
+              ℹ️ No hay expedientes activos pendientes de facturación en este momento.
             </div>
           )}
         </div>

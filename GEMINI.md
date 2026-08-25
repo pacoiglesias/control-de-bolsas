@@ -63,5 +63,10 @@ Este archivo configura las reglas de operación, compilación, pruebas y desplie
     2. Si empieza con prefijo `GT-` o proviene de Evelia / P4, se asigna forzosamente a **GT (Grupo Textil)**.
     3. Nunca combinar entregas, facturas o contrarecibos entre ambos expedientes.
 
+### 7. Regla de Oro de Integridad de Datos y No-Regresión en Contextos y Modales
+*   **Fusión No-Destructiva en OrdersContext:** Al inyectar o calibrar órdenes canónicas (TH y GT), **NUNCA** reemplazar el arreglo `deliveries` o `invoices` con una lista estática cerrada (`best.deliveries = [...]`). Siempre fusionar respetando cualquier nuevo registro creado en Firestore por el usuario (`[...baseDeliveries, ...firestoreDeliveries]`).
+*   **Visibilidad de Facturación en Expedientes:** La pestaña `🧾 Facturas & Cobros` debe existir siempre en la barra principal de pestañas de `OrderModal` (`TABS`).
+*   **Disponibilidad en Facturación Rápida:** El modal `QuickInvoiceModal` debe listar siempre todas las órdenes activas del ERP para permitir tanto facturar entregas de báscula como prefacturar OCs abiertas.
+
 
 

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
-import type { PurchaseOrder } from '../lib/types';
+import type { PurchaseOrder, Delivery, Invoice } from '../lib/types';
 import { toDate } from '../lib/format';
 
 /**
@@ -163,7 +163,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.department = 'TH-ALMACEN-1';
             best.folio = '120267114114';
             best.oc = '120267114114';
-            const baseDeliveries = [
+            const baseDeliveries: Delivery[] = [
               {
                 id: 'del-th-6198',
                 date: best.processedAt || null,
@@ -191,17 +191,17 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6200',
               },
             ];
-            const mergedThDeliveries = [...baseDeliveries];
+            const mergedThDeliveries: Delivery[] = [...baseDeliveries];
             const seenDelIds = new Set(baseDeliveries.map(d => d.id));
             for (const d of (best.deliveries || [])) {
-              if (d.id && !seenDelIds.has(d.id)) {
+              if (d && d.id && !seenDelIds.has(d.id)) {
                 seenDelIds.add(d.id);
                 mergedThDeliveries.push(d);
               }
             }
             best.deliveries = mergedThDeliveries;
 
-            const baseInvoices = [
+            const baseInvoices: Invoice[] = [
               {
                 id: 'inv-6198',
                 orderId: best.id,
@@ -218,7 +218,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   tradeMargin: 9829.05,
                 },
                 creditCycle: {
-                  status: 'manual_review',
+                  status: 'facturado',
                   issueDate: best.processedAt || null,
                   dueDate: null,
                 },
@@ -239,16 +239,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   tradeMargin: 7500.0,
                 },
                 creditCycle: {
-                  status: 'manual_review',
+                  status: 'facturado',
                   issueDate: best.processedAt || null,
                   dueDate: null,
                 },
               },
             ];
-            const mergedThInvoices = [...baseInvoices];
-            const seenInvIds = new Set(baseInvoices.map(i => i.id || i.folio));
+            const mergedThInvoices: Invoice[] = [...baseInvoices];
+            const seenInvIds = new Set(baseInvoices.map(i => i.id || i.folio || ''));
             for (const inv of (best.invoices || [])) {
-              const k = inv.id || inv.folio;
+              const k = inv.id || inv.folio || '';
               if (k && !seenInvIds.has(k)) {
                 seenInvIds.add(k);
                 mergedThInvoices.push(inv);
@@ -269,7 +269,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.folio = '12026439713';
             best.oc = '12026439713';
 
-            const baseGtDeliveries = [
+            const baseGtDeliveries: Delivery[] = [
               {
                 id: 'del-gt-6193',
                 date: best.processedAt || null,
@@ -283,17 +283,17 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6193',
               },
             ];
-            const mergedGtDeliveries = [...baseGtDeliveries];
+            const mergedGtDeliveries: Delivery[] = [...baseGtDeliveries];
             const seenGtDelIds = new Set(baseGtDeliveries.map(d => d.id));
             for (const d of (best.deliveries || [])) {
-              if (d.id && !seenGtDelIds.has(d.id)) {
+              if (d && d.id && !seenGtDelIds.has(d.id)) {
                 seenGtDelIds.add(d.id);
                 mergedGtDeliveries.push(d);
               }
             }
             best.deliveries = mergedGtDeliveries;
 
-            const baseGtInvoices = [
+            const baseGtInvoices: Invoice[] = [
               {
                 id: 'inv-6193',
                 orderId: best.id,
@@ -310,16 +310,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   tradeMargin: 5000.0,
                 },
                 creditCycle: {
-                  status: 'manual_review',
+                  status: 'facturado',
                   issueDate: best.processedAt || null,
                   dueDate: null,
                 },
               },
             ];
-            const mergedGtInvoices = [...baseGtInvoices];
-            const seenGtInvIds = new Set(baseGtInvoices.map(i => i.id || i.folio));
+            const mergedGtInvoices: Invoice[] = [...baseGtInvoices];
+            const seenGtInvIds = new Set(baseGtInvoices.map(i => i.id || i.folio || ''));
             for (const inv of (best.invoices || [])) {
-              const k = inv.id || inv.folio;
+              const k = inv.id || inv.folio || '';
               if (k && !seenGtInvIds.has(k)) {
                 seenGtInvIds.add(k);
                 mergedGtInvoices.push(inv);

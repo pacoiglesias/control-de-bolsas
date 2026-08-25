@@ -526,5 +526,59 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(deliveredByItem['p1']).toBe(550);
     expect(deliveredByItem['p2']).toBe(200);
   });
+
+  it('fusiona entregas base canónicas con entregas capturadas por el usuario sin pérdida', () => {
+    const baseDeliveries = [
+      { id: 'del-th-6198', kilos: 1965.81 },
+      { id: 'del-th-6200', kilos: 1500.00 },
+    ];
+    const userDeliveries = [
+      { id: 'del-user-new-1', kilos: 850.00 },
+    ];
+
+    const merged = [...baseDeliveries];
+    const seen = new Set(baseDeliveries.map(d => d.id));
+    for (const d of userDeliveries) {
+      if (d.id && !seen.has(d.id)) {
+        seen.add(d.id);
+        merged.push(d);
+      }
+    }
+
+    expect(merged.length).toBe(3);
+    expect(merged.some(d => d.id === 'del-user-new-1')).toBe(true);
+    const totalKilos = merged.reduce((sum, d) => sum + d.kilos, 0);
+    expect(round2(totalKilos)).toBe(4315.81);
+  });
+
+  it('identifica órdenes abiertas y elegibles para facturación rápida', () => {
+    const orders: any[] = [
+      {
+        id: 'ord-1',
+        totalKilograms: 6500,
+        deliveries: [{ id: 'd1', kilos: 3465.81, invoiced: true }],
+        invoices: [{ id: 'i1', kilos: 3465.81 }],
+        creditCycle: { status: 'pedido' },
+      },
+      {
+        id: 'ord-2',
+        totalKilograms: 1000,
+        deliveries: [{ id: 'd2', kilos: 1000, invoiced: true }],
+        invoices: [{ id: 'i2', kilos: 1000, creditCycle: { status: 'collected' } }],
+        creditCycle: { status: 'collected' },
+      }
+    ];
+
+    const valid = orders.filter(o => {
+      if (o.isDeleted) return false;
+      const summary = getOrderSummary(o);
+      const kOrd = Number(o.totalKilograms) || 0;
+      const isPaidAndDelivered = (o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid') && summary.kilosInvoiced >= summary.kilosDelivered - 0.01 && summary.kilosDelivered >= kOrd - 0.01;
+      return !isPaidAndDelivered;
+    });
+
+    expect(valid.length).toBe(1);
+    expect(valid[0].id).toBe('ord-1');
+  });
 });
 
