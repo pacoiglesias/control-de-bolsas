@@ -1,5 +1,22 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.28] - 25 Agosto 2026 (Auditoría Integral de Fórmulas, Desglose Exacto de Kilos por Partida y Respaldo Anti-Bloqueo de Impresiones)
+
+### ⚖️ Auditoría & Desglose Preciso de Kilos por Partida (`deliveries.ts` & `TabProductos.tsx`)
+- **Atribución Automática de Entregas:** `computeDeliveredTotals` ahora recibe las partidas de la orden (`orderItems`). Si una entrega física se registró a nivel global y la orden tiene un solo concepto de bolsa, se le atribuye directamente dicho volumen para que nunca figure erróneamente en "0 kg entregados".
+- **Mapeo por Código y por ID:** Se garantiza que partidas identificadas por clave SAT, código o ID interno concilien sus kilos entregados de forma automática.
+- **Sincronización en Formulario:** `useOrderProducts.ts` y `useOrderDeliveries.ts` ahora recalculan automáticamente los importes (`amount`) y el total de kilos de la orden (`totalKilograms`) al editar cantidades o agregar/eliminar partidas.
+
+### 🖨️ Respaldo Anti-Bloqueo de Impresiones y Descarga Directa de Pre-Facturas (`orderModalPrint.ts` & `prefacturaGenerator.ts`)
+- **Motor de Impresión `openPrintHtml`:** Reemplazados los llamados vulnerables a `window.open(blobUrl)` por escritura directa en ventana y fallback automático mediante `iframe` invisible, asegurando compatibilidad 100% en navegadores móviles (iOS Safari, Android Chrome) y navegadores con bloqueador de ventanas emergentes.
+- **Descarga en 1 Clic de Pre-Facturas PDF:** El botón `📋 Descargar Pre-Factura PDF` genera el archivo PDF directamente con `html2pdf.js`, con avisos de avance visuales y datos fiscales del SAT pre-llenados.
+
+### 📊 Conciliación Homogénea de Fórmulas y Cálculos
+- **Unificación de Kilos de OC:** `Orders.tsx`, `OcTracking.tsx`, `EntregasKanban.tsx`, `SeguimientoPedidosTable.tsx` y `ProvidenciaHubWidget.tsx` ahora utilizan la misma jerarquía canónica: suma de partidas si existen, fallback a `totalKilograms`, o fallback a kilos entregados.
+- **102/102 Pruebas Unitarias Exitosas:** Suite completa de validación contable y financiera pasando al 100%.
+
+---
+
 ## [v8.9.27] - 25 Agosto 2026 (Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg)
 
 ### 🚚 Flujo Proactivo de Entregas & Centro de Acción Rápida (`QuickDeliveryModal.tsx`)

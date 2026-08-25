@@ -102,7 +102,9 @@ export function SeguimientoPedidosTable({
           cliente: nombreClienteVisible(o.client),
           department: o.department || (inferDepartment(o) ?? undefined),
           fecha: o.processedAt,
-          kilosPedidos: o.totalKilograms || (o.items || []).reduce((a, it) => a + (it.quantity || 0), 0) || s.kilosDelivered,
+          kilosPedidos: (o.items && o.items.length > 0)
+            ? (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0)
+            : (Number(o.totalKilograms) || s.kilosDelivered || 0),
           kilosEntregados: s.kilosDelivered,
           kilosFacturados: s.kilosInvoiced,
           total: s.invoiceTotal || s.saleTotal,

@@ -138,11 +138,47 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
             onQuickInvoice(order);
             onClose();
           }}
-          style={menuItemStyle}
+          style={{ ...menuItemStyle, color: '#fcd34d' }}
         >
           <span>⚡</span> <span>Facturar / Asignar CR</span>
         </button>
       )}
+
+      <button
+        onClick={async () => {
+          toast('📄 Generando Pre-Factura en PDF...', 'info');
+          try {
+            await generatePrefacturaPdf(order, null);
+            toast('✅ Pre-Factura descargada', 'ok');
+          } catch (e) {
+            console.error(e);
+            toast('Error generando prefactura PDF', 'bad');
+          }
+          onClose();
+        }}
+        style={menuItemStyle}
+      >
+        <span>📋</span> <span>Descargar Pre-Factura PDF</span>
+      </button>
+
+      <button
+        onClick={() => {
+          toast('📄 Abriendo Remisión de Báscula...', 'ok');
+          printRemision({
+            folio: order.folio,
+            oc: order.oc,
+            client: order.client,
+            department: order.department,
+            items: order.items,
+            kilosNum: Number(order.totalKilograms) || 0,
+            provName: 'Andrés',
+          });
+          onClose();
+        }}
+        style={menuItemStyle}
+      >
+        <span>📄</span> <span>Imprimir Remisión Báscula</span>
+      </button>
 
       <button onClick={handleCopyFolio} style={menuItemStyle}>
         <span>📋</span> <span>Copiar Folio</span>

@@ -367,9 +367,24 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
               🤖 Reintentar IA
             </button>
           )}
-          <button className="btn" style={{ marginLeft: 8 }} onClick={handlePrintRemision}>📄 Remisión</button>
-          <button className="btn" style={{ marginLeft: 8, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}
-            onClick={handlePrintPreFactura}>📋 Pre-Factura</button>
+          <button
+            type="button"
+            className="btn"
+            style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+            onClick={handlePrintRemision}
+            title="Imprimir o ver Remisión Oficial de Báscula"
+          >
+            <span>📄</span> Remisión de Báscula
+          </button>
+          <button
+            type="button"
+            className="btn"
+            style={{ marginLeft: 8, background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', border: 'none', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            onClick={handlePrintPreFactura}
+            title="Descargar Pre-Factura en formato PDF oficial para facturar en SAT"
+          >
+            <span>📋</span> Descargar Pre-Factura PDF
+          </button>
           <span className="spacer" />
           <button className="btn" onClick={handleClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
           {!readOnly && (

@@ -75,22 +75,47 @@ export function removeDeliveryAt(
 }
 
 /** Cuánto se ha entregado, por producto y en total, sumando todos los eventos. */
-export function computeDeliveredTotals(deliveries: Delivery[]): {
+export function computeDeliveredTotals(deliveries: Delivery[], orderItems?: PurchaseOrderItem[]): {
   deliveredByItem: Record<string, number>;
   kilosEntregados: number;
 } {
   const deliveredByItem: Record<string, number> = {};
   let kilosEntregados = 0;
+
   deliveries.forEach((d) => {
     const items = d.items ?? [];
     const sumItems = items.reduce((a, x) => a + (Number(x.quantity) || 0), 0);
-    items.forEach((di) => {
-      deliveredByItem[di.itemId] = (deliveredByItem[di.itemId] ?? 0) + (Number(di.quantity) || 0);
-    });
-    // Entregas sin desglose por producto (expedientes muy viejos, de antes
-    // de items[]): se cuenta su total tal cual, sin atribuirlo a ningun item.
-    kilosEntregados += sumItems > 0 ? sumItems : (Number(d.kilos) || 0);
+    const dKilos = Number(d.kilos) || sumItems;
+
+    if (items.length > 0) {
+      items.forEach((di) => {
+        const q = Number(di.quantity) || 0;
+        deliveredByItem[di.itemId] = round2((deliveredByItem[di.itemId] ?? 0) + q);
+        // Si orderItems está disponible, asegurar mapeo por ID o código si difieren
+        if (orderItems && orderItems.length > 0) {
+          const match = orderItems.find(it => it.id === di.itemId || it.code === di.itemId);
+          if (match && match.id !== di.itemId) {
+            deliveredByItem[match.id] = round2((deliveredByItem[match.id] ?? 0) + q);
+          }
+        }
+      });
+    } else if (orderItems && orderItems.length === 1) {
+      // Entrega global en orden con 1 sola partida: atribuir directamente al concepto
+      const singleItem = orderItems[0];
+      deliveredByItem[singleItem.id] = round2((deliveredByItem[singleItem.id] ?? 0) + dKilos);
+    }
+
+    kilosEntregados += sumItems > 0 ? sumItems : dKilos;
   });
+
+  // Si la orden solo tiene 1 concepto y hubo entregas globales registradas, garantizar que no quede en 0
+  if (orderItems && orderItems.length === 1 && kilosEntregados > 0) {
+    const singleItem = orderItems[0];
+    if ((deliveredByItem[singleItem.id] ?? 0) < kilosEntregados) {
+      deliveredByItem[singleItem.id] = round2(kilosEntregados);
+    }
+  }
+
   return { deliveredByItem, kilosEntregados: round2(kilosEntregados) };
 }
 

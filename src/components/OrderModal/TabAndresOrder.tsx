@@ -6,6 +6,7 @@ import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useAndresStats } from '../../hooks/useAndresStats';
 import { useNavigate } from 'react-router-dom';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
+import { openPrintHtml } from './orderModalPrint';
 
 interface TabAndresOrderProps {
   order: PurchaseOrder;
@@ -142,16 +143,13 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
           </div>
 
           <script>
-            window.onload = () => window.print();
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
           </script>
         </body>
       </html>
     `;
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
+    openPrintHtml(html);
   }
 
   function handlePrintRemision() {
@@ -234,16 +232,13 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
           </div>
 
           <script>
-            window.onload = () => window.print();
+            window.onafterprint = () => window.close();
+            window.onload = () => { window.print(); }
           </script>
         </body>
       </html>
     `;
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
+    openPrintHtml(html);
   }
 
   return (

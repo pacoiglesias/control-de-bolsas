@@ -24,7 +24,8 @@ export function EntregasKanban({
     const cobrado: PurchaseOrder[] = [];
 
     for (const o of orders) {
-      const kilosPedidos = o.totalKilograms || 0;
+      const itemsKg = (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+      const kilosPedidos = itemsKg > 0 ? itemsKg : (Number(o.totalKilograms) || 0);
       const { kilosEntregados } = computeDeliveredTotals(o.deliveries ?? []);
       const invoices = o.invoices ?? [];
       const kilosFacturados = invoices.reduce((a, i) => a + (i.kilos || 0), 0);
@@ -61,7 +62,8 @@ export function EntregasKanban({
   });
 
   const renderCard = (o: PurchaseOrder) => {
-    const kilosPedidos = o.totalKilograms || 0;
+    const itemsKg = (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+    const kilosPedidos = itemsKg > 0 ? itemsKg : (Number(o.totalKilograms) || 0);
     const { kilosEntregados } = computeDeliveredTotals(o.deliveries ?? []);
     const pct = kilosPedidos > 0 ? Math.min(100, Math.round((kilosEntregados / kilosPedidos) * 100)) : 0;
     const totalFacturas = (o.invoices ?? []).reduce((a, i) => a + (i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0), 0);

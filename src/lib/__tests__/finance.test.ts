@@ -498,5 +498,33 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     });
     expect(customNotice).toContain('Ing. Carlos Nava (Textil Hogar Planta 1)');
   });
+
+  it('calcula entregas por producto y totales sin desfases entre items y orden', async () => {
+    const { computeDeliveredTotals } = await import('../deliveries');
+    const deliveries = [
+      {
+        id: 'del-1',
+        date: null,
+        kilos: 500,
+        items: [
+          { itemId: 'p1', quantity: 300 },
+          { itemId: 'p2', quantity: 200 },
+        ],
+      },
+      {
+        id: 'del-2',
+        date: null,
+        kilos: 250,
+        items: [
+          { itemId: 'p1', quantity: 250 },
+        ],
+      },
+    ];
+
+    const { deliveredByItem, kilosEntregados } = computeDeliveredTotals(deliveries as any);
+    expect(kilosEntregados).toBe(750);
+    expect(deliveredByItem['p1']).toBe(550);
+    expect(deliveredByItem['p2']).toBe(200);
+  });
 });
 

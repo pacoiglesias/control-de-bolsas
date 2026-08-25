@@ -571,31 +571,42 @@ export default function Orders() {
                       </td>
                       <td>{nombreClienteVisible(o.client)}</td>
                       <td>{o.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(o.provider) ? o.provider : '—'}</td>
-                      <td className="num mono" style={{ minWidth: 160 }}>
-                        <KilosProgressBar
-                          compact
-                          deliveredKg={summary.kilosDelivered}
-                          totalKg={o.totalKilograms || (o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || summary.kilosDelivered}
-                        />
-                        <OrderStepper order={o} compact style={{ marginTop: 4 }} />
-                      </td>
-                      <td className="num mono">
-                        {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
-                        {o.totalKilograms && summary.kilosDelivered >= o.totalKilograms && (
-                          <span style={{ display: 'block', fontSize: '0.75em', color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
-                        )}
-                      </td>
-                      <td className="num mono">
-                        {((o.totalKilograms ?? 0) - summary.kilosDelivered > 0) ? (
-                          <span style={{ color: '#d97706', fontWeight: 700 }}>
-                            ⏳ {kilos((o.totalKilograms ?? 0) - summary.kilosDelivered)}
-                          </span>
-                        ) : o.totalKilograms ? (
-                          <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85em' }}>
-                            🟢 0 kg (Al día)
-                          </span>
-                        ) : '—'}
-                      </td>
+                      {(() => {
+                        const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+                        const orderTotalKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0);
+                        const faltanKg = Math.max(0, orderTotalKg - summary.kilosDelivered);
+                        const isSurtido = orderTotalKg > 0 && summary.kilosDelivered >= orderTotalKg;
+
+                        return (
+                          <>
+                            <td className="num mono" style={{ minWidth: 160 }}>
+                              <KilosProgressBar
+                                compact
+                                deliveredKg={summary.kilosDelivered}
+                                totalKg={orderTotalKg}
+                              />
+                              <OrderStepper order={o} compact style={{ marginTop: 4 }} />
+                            </td>
+                            <td className="num mono">
+                              {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
+                              {isSurtido && (
+                                <span style={{ display: 'block', fontSize: '0.75em', color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
+                              )}
+                            </td>
+                            <td className="num mono">
+                              {faltanKg > 0.01 ? (
+                                <span style={{ color: '#d97706', fontWeight: 700 }}>
+                                  ⏳ {kilos(faltanKg)}
+                                </span>
+                              ) : orderTotalKg > 0 ? (
+                                <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85em' }}>
+                                  🟢 0 kg (Al día)
+                                </span>
+                              ) : '—'}
+                            </td>
+                          </>
+                        );
+                      })()}
                       <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
                       <td className="num mono">{money(summary.invoiceTotal)}</td>
                       <td className="num mono">{money(summary.paidAmount)}</td>

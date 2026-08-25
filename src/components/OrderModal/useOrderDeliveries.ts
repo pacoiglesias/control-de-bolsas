@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import type { Delivery, Invoice } from '../../lib/types';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { round2 } from '../../lib/finance';
 
 export function useOrderDeliveries(
   setForm: React.Dispatch<React.SetStateAction<any>>,
@@ -36,18 +37,22 @@ export function useOrderDeliveries(
   const updateDeliveryItemQty = useCallback((deliveryIndex: number, itemId: string, quantity: number) => {
     setForm((f: any) => {
       const next = [...f.deliveries];
-      const deliv = next[deliveryIndex];
-      const itIdx = deliv.items.findIndex((x: any) => x.itemId === itemId);
+      const deliv = { ...next[deliveryIndex] };
+      const currentItems = deliv.items || [];
+      const itIdx = currentItems.findIndex((x: any) => x.itemId === itemId);
       
-      const newItems = [...deliv.items];
+      const newItems = [...currentItems];
       if (itIdx >= 0) {
-        if (quantity > 0) newItems[itIdx].quantity = quantity;
+        if (quantity > 0) newItems[itIdx] = { ...newItems[itIdx], quantity };
         else newItems.splice(itIdx, 1);
       } else if (quantity > 0) {
         newItems.push({ itemId, quantity });
       }
       
+      const totalKg = round2(newItems.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0));
       deliv.items = newItems;
+      deliv.kilos = totalKg;
+      next[deliveryIndex] = deliv;
       return { ...f, deliveries: next };
     });
   }, [setForm]);

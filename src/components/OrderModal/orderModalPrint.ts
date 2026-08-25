@@ -1,6 +1,53 @@
 import { escapeHtml, toDate, fmtDate } from '../../lib/format';
 import { round2, computeFinancials } from '../../lib/finance';
 
+export function openPrintHtml(html: string) {
+  // 1. Intentar abrir ventana de impresión directamente
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    try {
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      return;
+    } catch (e) {
+      console.warn('Error escribiendo en ventana de impresión, usando iframe:', e);
+    }
+  }
+
+  // 2. Fallback infalible para móviles o navegadores con bloqueador de popups: Iframe invisible
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.zIndex = '-9999';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow?.document;
+  if (doc) {
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error('Error al imprimir desde iframe:', err);
+      } finally {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 120_000);
+      }
+    }, 300);
+  }
+}
 
 export function printRemision({ folio, oc, client, department, items, deliveredByItem, kilosNum, config, provName }: any) {
   const rawItems = items && items.length > 0 ? items : [];
@@ -114,10 +161,7 @@ export function printRemision({ folio, oc, client, department, items, deliveredB
       </body>
     </html>
   `;
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  openPrintHtml(html);
 }
 
 export function printSingleDeliveryRemision({
@@ -250,10 +294,7 @@ export function printSingleDeliveryRemision({
       </body>
     </html>
   `;
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  openPrintHtml(html);
 }
 
 export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynamicConfig, provName }: any) {
@@ -389,10 +430,7 @@ export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynam
       </body>
     </html>
   `;
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  openPrintHtml(html);
 }
 
 export function printConsolidatedPackage({ folio, client, department, oc, totalKilograms, invoices, deliveries, config, provName }: any) {
@@ -553,8 +591,5 @@ export function printConsolidatedPackage({ folio, client, department, oc, totalK
     </html>
   `;
 
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  openPrintHtml(html);
 }

@@ -116,7 +116,8 @@ export default function OcTracking() {
       };
 
       const summary = getOrderSummary(mergedOrder);
-      const kilosPedidos = Number(mergedOrder.totalKilograms ?? 0) || (mergedOrder.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+      const itemsKg = (mergedOrder.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+      const kilosPedidos = itemsKg > 0 ? itemsKg : (Number(mergedOrder.totalKilograms ?? 0) || Number(summary.kilosDelivered ?? 0));
       const kilosEntregados = Number(summary.kilosDelivered ?? 0);
       const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
       const kilosFacturados = Number(summary.kilosInvoiced ?? 0);
@@ -245,7 +246,7 @@ export default function OcTracking() {
     const pct = group.kilosPedidos > 0 ? Math.round((group.kilosEntregados / group.kilosPedidos) * 100) : 0;
     const items = group.order.items || [];
     const deliveries = group.order.deliveries || [];
-    const { deliveredByItem } = computeDeliveredTotals(deliveries);
+    const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
 
     let text = `📦 *REPORTE DE ENTREGA — OC ${group.oc}*\n`;
     text += `🏢 *Planta:* ${deptName} · Folio: ${group.order.folio || 'S/F'}\n`;
@@ -370,7 +371,7 @@ export default function OcTracking() {
             const order = g.order;
             const items = order.items && order.items.length > 0 ? order.items : [];
             const deliveries = order.deliveries || [];
-            const { deliveredByItem } = computeDeliveredTotals(deliveries);
+            const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
             const dept = inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
             const resp = dept === 'TH' ? 'Nava (Textil Hogar)' : 'Evelia (Grupo Textil / P4)';
 
@@ -694,7 +695,7 @@ export default function OcTracking() {
 
             const items = group.order.items || [];
             const deliveries = group.order.deliveries || [];
-            const { deliveredByItem } = computeDeliveredTotals(deliveries);
+            const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
 
             return (
               <div

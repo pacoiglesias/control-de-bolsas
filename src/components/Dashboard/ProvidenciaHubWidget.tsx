@@ -111,8 +111,8 @@ export function ProvidenciaHubWidget() {
       };
 
       const dept = inferDepartment(o) || (o.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
-      const summary = getOrderSummary(o);
-      const totalKg = Number(o.totalKilograms) || o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0;
+      const itemsSum = o.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || 0;
+      const totalKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0);
       const deliveredKg = summary.kilosDelivered || 0;
       const invoicedKg = summary.kilosInvoiced || 0;
       const remainingKg = Math.max(0, totalKg - deliveredKg);

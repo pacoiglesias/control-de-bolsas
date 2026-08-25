@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.28 Auditoría Integral de Fórmulas, Desglose Exacto de Kilos por Partida y Respaldo Anti-Bloqueo de Impresiones',
+    date: '25 de Agosto de 2026',
+    time: '03:15 AM',
+    summary: 'Auditoría completa de fórmulas y balances contables, atribución automática de entregas globales al concepto único de bolsa para evitar ceros artificiales, motor de impresión openPrintHtml inmune a bloqueadores de popups y generación directa de Pre-Facturas PDF.',
+    highlights: [
+      '⚖️ Desglose Preciso por Partida: computeDeliveredTotals atribuye automáticamente las entregas al concepto de bolsa correspondiente cuando se capturan pesadas globales.',
+      '🖨️ Motor de Impresión Anti-Bloqueo: Implementado openPrintHtml con fallback invisible que permite imprimir remisiones y pedidos en cualquier celular o navegador.',
+      '📋 Descarga Directa de Pre-Factura: Botón directo que genera y descarga el PDF fiscal en 1 clic desde el expediente o menú contextual.',
+      '🔄 Homologación de Fórmulas: Conexión unificada de totalOrderKg (partidas > totalKilograms > entregas) en todas las tablas del sistema.',
+      '🧪 102/102 Tests Pasados: Suite completa de validación contable y financiera verificada.',
+    ],
+  },
+  {
     version: 'v8.9.27 Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg',
     date: '25 de Agosto de 2026',
     time: '02:30 AM',

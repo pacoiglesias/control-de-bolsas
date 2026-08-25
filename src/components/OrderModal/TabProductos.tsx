@@ -177,10 +177,19 @@ export default function TabProductos() {
                             {/* Solo lectura: se captura en la pestaña Entregas, no aquí. Antes
                                 este campo era editable y era la mitad del sistema duplicado que
                                 no se enteraba de la pestaña Entregas. */}
-                            <span className="mono" title="Se captura en la pestaña Entregas">
-                              {(deliveredByItem[it.id] ?? 0).toLocaleString('es-MX')}
-                            </span>
-                            {(deliveredByItem[it.id] ?? 0) >= it.quantity && it.quantity > 0 && <span style={{ fontSize: 16 }} title="Completado">✅</span>}
+                            {(() => {
+                              const itemDelivered = deliveredByItem[it.id] ?? deliveredByItem[it.code] ?? (form.items.length === 1 ? kilosEntregados : (it.deliveredQuantity ?? 0));
+                              return (
+                                <>
+                                  <span className="mono" title="Kilos entregados y validados en báscula">
+                                    {itemDelivered.toLocaleString('es-MX')}
+                                  </span>
+                                  {itemDelivered >= it.quantity && it.quantity > 0 && (
+                                    <span style={{ fontSize: 16 }} title="Partida 100% Surtida">✅</span>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td>

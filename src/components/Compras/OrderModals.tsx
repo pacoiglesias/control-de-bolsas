@@ -115,7 +115,7 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
   const [baselineUpdatedAt] = useState(() => order.updatedAt ?? null);
   const [existingDeliveries] = useState(() => migrateLegacyDeliveries(order, order.deliveries ?? []));
   const [nueva, setNueva] = useState(() => newDeliveryEvent(order.items ?? []));
-  const { kilosEntregados, deliveredByItem } = computeDeliveredTotals(existingDeliveries);
+  const { kilosEntregados, deliveredByItem } = computeDeliveredTotals(existingDeliveries, order.items ?? []);
   
   const kilosDeEsta = round2((nueva.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0));
   const kilosPedidos = (order.items ?? []).reduce((a, x) => a + x.quantity, 0) || order.totalKilograms || 0;
@@ -141,6 +141,8 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
     try {
       const ref = doc(db, PATHS.orders, order.id);
       const nuevasDeliveries = [...existingDeliveries, nueva];
+      const { kilosEntregados: totalEntregadoAhora } = computeDeliveredTotals(nuevasDeliveries, order.items ?? []);
+      
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists()) throw new Error('El expediente ya no existe.');
@@ -152,8 +154,6 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
         }
         tx.set(ref, { deliveries: nuevasDeliveries, updatedAt: serverTimestamp() }, { merge: true });
       });
-      
-      const { kilosEntregados: totalEntregadoAhora } = computeDeliveredTotals(nuevasDeliveries);
       
       await upsertAndresPurchase({
         orderId: order.id,

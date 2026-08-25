@@ -1,4 +1,23 @@
 
+### Iteración 26: Corrección Universal de Desglose de Kilos por Concepto, Respaldo Anti-Bloqueo de Impresiones PDF/Remisiones y Auditoría Integral de Fórmulas (COMPLETADO)
+**Fecha:** 2026-08-25
+**Archivos:** `src/lib/deliveries.ts`, `src/components/OrderModal/TabProductos.tsx`, `src/components/OrderModal/useOrderProducts.ts`, `src/components/OrderModal/useOrderDeliveries.ts`, `src/components/OrderModal/OrderModalProvider.tsx`, `src/components/OrderModal/orderModalPrint.ts`, `src/components/OrderModal/TabAndresOrder.tsx`, `src/components/OrderModal/index.tsx`, `src/pages/Orders.tsx`, `src/pages/OcTracking.tsx`, `src/components/OcTracking/EntregasKanban.tsx`, `src/components/Compras/OrderModals.tsx`, `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/lib/__tests__/finance.test.ts`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. Al abrir la lista de partidas o conceptos de una orden de compra en `TabProductos.tsx`, partidas con entregas registradas en báscula aparecían en "0 kg entregados" debido a que `computeDeliveredTotals` no recibía las partidas de la orden (`orderItems`) y no mapeaba las entregas globales al concepto único correspondiente ni reconocía IDs de producto asignados por código.
+2. Al pulsar los botones `📄 Remisión` o `📋 Pre-Factura` en `/ordenes`, los navegadores modernos (especialmente en móviles o con bloqueador de ventanas emergentes) bloqueaban las llamadas de `window.open(blobUrl)` provocando que pareciera que el sistema "no hacía nada".
+3. Al editar o agregar partidas en `useOrderProducts.ts`, los importes de línea y el total de kilos de la orden (`totalKilograms`) no se recalculaban automáticamente en el formulario.
+4. Desfase en tablas donde si `o.totalKilograms` era 0 o estaba desactualizado pero `o.items` contenía los kilos reales de la OC, no se calculaban correctamente los kilos faltantes por entregar.
+**Solución:**
+- Perfeccionado `computeDeliveredTotals(deliveries, orderItems)` en `deliveries.ts`: mapea partidas por `id` y `code`, y si la orden cuenta con una sola partida/concepto, atribuye automáticamente las entregas globales al concepto para que nunca figure en 0 kg.
+- Desarrollado el helper infalible `openPrintHtml(html)` en `orderModalPrint.ts`: elimina los `Blob` URLs que eran bloqueados por navegadores y escribe directamente en la ventana de impresión, con fallback transparente por `iframe` invisible en dispositivos móviles.
+- Conectado el botón `📋 Pre-Factura` directamente al generador oficial de PDF `generatePrefacturaPdf` con notificaciones proactivas de estado ("📄 Generando Prefactura en PDF...", "✅ Prefactura descargada").
+- Sincronizados los importes (`amount = quantity * unitPrice`) y el acumulado de kilos (`totalKilograms`) en `useOrderProducts.ts` y `useOrderDeliveries.ts`.
+- Homologado el cálculo de `orderTotalKg` (suma de `items` primero, fallback a `totalKilograms`) en todas las vistas del ERP (`Orders.tsx`, `OcTracking.tsx`, `EntregasKanban.tsx`, `ProvidenciaHubWidget.tsx` y `SeguimientoPedidosTable.tsx`).
+- Añadida prueba unitaria automatizada en `finance.test.ts` (102/102 vitest pasando).
+**Estado:** ✅ Verificado — 102/102 pruebas unitarias pasando al 100%, compilación limpia en 10s con `npm run build` y listo para despliegue a producción en Firebase Hosting.
+
+---
+
 ### Iteración 25: Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg (COMPLETADO)
 **Fecha:** 2026-08-25
 **Archivos:** `src/components/FastFlows/QuickDeliveryModal.tsx`, `src/components/OrderModal/orderModalPrint.ts`, `src/components/OrderModal/TabEntregas.tsx`, `src/components/OrderModal/EmitirFacturaModal.tsx`, `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/lib/duplicateGuards.ts`, `src/lib/format.ts`, `src/lib/ocParser.ts`, `src/pages/CajaChica.tsx`, `src/pages/AuditSync.tsx`, `src/pages/AuditSync.helpers.ts`, `src/lib/netProfitReportPdf.ts`, `src/components/Dashboard/AdminQuickEditPanel.tsx`, `src/components/Dashboard/CorteMensualModal.tsx`, `src/components/Dashboard/ExecutiveFinancialCard.tsx`, `src/components/Dashboard/SmartAlerts.tsx`, `src/components/Dashboard/MoneyFlowPipeline.tsx`, `src/components/Dashboard/CorteSemanalModal.tsx`, `src/components/Dashboard/ActionRadar.tsx`, `src/components/Compras/PagarAndresModal.tsx`, `src/lib/__tests__/duplicateGuards.test.ts`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
