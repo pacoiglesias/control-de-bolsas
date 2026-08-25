@@ -1,4 +1,24 @@
 
+### Iteración 25: Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg (COMPLETADO)
+**Fecha:** 2026-08-25
+**Archivos:** `src/components/FastFlows/QuickDeliveryModal.tsx`, `src/components/OrderModal/orderModalPrint.ts`, `src/components/OrderModal/TabEntregas.tsx`, `src/components/OrderModal/EmitirFacturaModal.tsx`, `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/lib/duplicateGuards.ts`, `src/lib/format.ts`, `src/lib/ocParser.ts`, `src/pages/CajaChica.tsx`, `src/pages/AuditSync.tsx`, `src/pages/AuditSync.helpers.ts`, `src/lib/netProfitReportPdf.ts`, `src/components/Dashboard/AdminQuickEditPanel.tsx`, `src/components/Dashboard/CorteMensualModal.tsx`, `src/components/Dashboard/ExecutiveFinancialCard.tsx`, `src/components/Dashboard/SmartAlerts.tsx`, `src/components/Dashboard/MoneyFlowPipeline.tsx`, `src/components/Dashboard/CorteSemanalModal.tsx`, `src/components/Dashboard/ActionRadar.tsx`, `src/components/Compras/PagarAndresModal.tsx`, `src/lib/__tests__/duplicateGuards.test.ts`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. Al registrar una pesada de entrega en báscula (`QuickDeliveryModal`), el modal se cerraba de golpe obligando al operador a navegar manualmente a través de otras vistas para emitir la factura o imprimir la remisión del viaje.
+2. Necesidad de generar e imprimir comprobantes oficiales de remisión por cada viaje individual de báscula (con su chofer, fecha y folio correspondiente) y compartirlos al instante por WhatsApp con Providencia o con Andrés.
+3. Existencia de valores de costo residuales de $42.00/kg como fallback en varios submódulos en lugar del costo oficial vigente de compra a Andrés de **$38.00/kg** (con venta a Providencia de **$43.00/kg** + 16% IVA = $49.88/kg y margen bruto de $5.00/kg).
+4. Riesgo de registrar folios de remisión repetidos entre diferentes órdenes de compra al capturar a prisa desde dispositivos móviles.
+5. Limpieza de nombres de cliente en encabezados para no desplegar sufijos redundantes de nuestro propio código de proveedor (`·N0321 - ELEMENTAL DENIM`).
+**Solución:**
+- Desarrollado el **Centro de Éxito y Acción Rápida (*Delivery Completion Hub*)** en `QuickDeliveryModal.tsx`: tras registrar una pesada en báscula, ofrece de inmediato 1-tap para: (1) `🧾 Emitir Factura de esta Entrega de Inmediato`, (2) `📄 Imprimir / Ver Remisión Oficial`, (3) `💬 Enviar Comprobante por WhatsApp`, y (4) `➕ Registrar otra entrega`.
+- Creada la función `printSingleDeliveryRemision` en `orderModalPrint.ts` para emitir el voucher oficial de báscula por viaje individual con firmas de chofer y almacén Providencia.
+- Agregados botones directos `[📄 Remisión]` y `[💬 WA]` en cada viaje de entrega dentro de `TabEntregas.tsx`.
+- Implementado el guardián `findDuplicateRemision` en `duplicateGuards.ts` y conectado en tiempo real en `QuickDeliveryModal.tsx` con pruebas automatizadas (`vitest`).
+- Homologados todos los cálculos y respaldos de costo en todo el ERP a **$38.00 / kg**.
+- Limpiados los identificadores de proveedor propio en `format.ts`, `ocParser.ts`, `OrderModal` y `KanbanBoard`.
+**Estado:** ✅ Verificado — 101/101 pruebas unitarias pasando al 100%, compilación limpia en 10s con `npm run build` y desplegado en vivo a producción en Firebase Hosting.
+
+---
+
 ### Iteración 24: Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento Estricto TH vs GT (COMPLETADO)
 **Fecha:** 2026-08-24
 **Archivos:** `src/context/OrdersContext.tsx`, `src/lib/finance.ts`, `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/pages/OcTracking.tsx`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`

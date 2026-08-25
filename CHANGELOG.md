@@ -1,5 +1,26 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.27] - 25 Agosto 2026 (Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg)
+
+### 🚚 Flujo Proactivo de Entregas & Centro de Acción Rápida (`QuickDeliveryModal.tsx`)
+- **Delivery Completion Hub:** Tras guardar una entrega de báscula, se despliega una pantalla interactiva con botones directos:
+  1. `🧾 EMITIR FACTURA DE ESTA ENTREGA (X kg) ➔` (Asistente en 3 pasos precargado).
+  2. `📄 Imprimir / Ver Remisión de Báscula` (Generador instantáneo en PDF con firmas).
+  3. `💬 WhatsApp` (Envío con resumen listo a Providencia o a Andrés).
+  4. `➕ Registrar otra entrega` o `✓ Terminar`.
+
+### 📋 Remisiones Individuales por Viaje (`orderModalPrint.ts` & `TabEntregas.tsx`)
+- **Voucher Oficial de Báscula:** Nueva función `printSingleDeliveryRemision` para generar el comprobante formal de cada viaje individual de entrega.
+- **Acciones Rápidas en Fila:** Botones `[📄 Remisión]` y `[💬 WA]` directos en cada viaje registrado en el expediente.
+
+### 🛡️ Guardián de Remisiones Duplicadas (`duplicateGuards.ts`)
+- **Detección en Tiempo Real:** Detección de folios de remisión ya existentes en otras OCs para evitar dobles registros.
+
+### 💰 Homologación de Costos a $38.00/kg
+- **Parámetros Canónicos:** Eliminados fallbacks residuales a $42.00/kg en Caja Chica, Auditoría, Cortes y Liquidación de Andrés, fijando $38.00/kg como costo oficial inamovible.
+
+---
+
 ## [v8.9.26] - 24 Agosto 2026 (Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento Estricto TH vs GT)
 
 ### 🛡️ Core — Deduplicación Canónica Global (`OrdersContext.tsx`)

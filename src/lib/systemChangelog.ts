@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.27 Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg',
+    date: '25 de Agosto de 2026',
+    time: '02:30 AM',
+    summary: 'Implementación del Centro de Éxito de Entregas (Delivery Completion Hub) con emisión de facturas y remisiones de báscula en 1 toque, guardián anti-duplicidad de remisiones y homologación de costo oficial a $38.00/kg en todos los módulos.',
+    highlights: [
+      '🚚 Delivery Completion Hub: Al registrar una entrega, el modal presenta de inmediato acciones en 1 tap para facturar, generar PDF de remisión o enviar por WhatsApp.',
+      '📋 Remisión Individual por Viaje: Generación formal de vouchers de báscula con desglose por partida y firmas de recepción.',
+      '🛡️ Guardián de Remisiones Duplicadas: Detección en tiempo real que previene registrar el mismo folio de remisión en diferentes órdenes de compra.',
+      '💰 Homologación Canónica de Costos ($38.00/kg): Eliminación de fallbacks residuales a $42.00/kg en Caja Chica, Auditoría y Cortes, asegurando el margen de $5.00/kg.',
+      '🏷️ Limpieza Visual: Eliminación de sufijos propios redundantes (·N0321 - ELEMENTAL DENIM) en nombres de cliente y encabezados.',
+    ],
+  },
+  {
     version: 'v8.9.26 Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento de Plantas TH / GT',
     date: '24 de Agosto de 2026',
     time: '11:15 PM',
