@@ -165,6 +165,48 @@ export default function TabEntregas() {
         )}
       </div>
 
+      {ctx.kilosPendientesDeFacturar > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(217,119,6,0.15) 100%)',
+          border: '1.5px solid #f59e0b',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#b45309', fontSize: 14 }}>
+              ⚡ Tienes {ctx.kilosPendientesDeFacturar.toLocaleString('es-MX')} kg entregados pendientes de facturar
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              Genera la factura oficial para Providencia o descarga la Pre-Factura PDF para trámite de contrarecibo.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ background: '#fff', color: '#1e293b', fontWeight: 700, borderColor: '#cbd5e1' }}
+              onClick={ctx.handlePrintPreFactura}
+            >
+              📋 Descargar Pre-Factura PDF
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#fff', fontWeight: 800, border: 'none' }}
+              onClick={() => setTab('facturas')}
+            >
+              🧾 Facturar {ctx.kilosPendientesDeFacturar.toLocaleString('es-MX')} kg ➔
+            </button>
+          </div>
+        </div>
+      )}
+
       {showFotoModal && (
         <FotoRemisionModal
           onClose={() => setShowFotoModal(false)}

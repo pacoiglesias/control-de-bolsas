@@ -39,7 +39,7 @@ export default function Orders() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
-  const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos'>('resumen');
+  const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('kanban');
   
   const [page, setPage] = useState(1);
@@ -623,6 +623,7 @@ export default function Orders() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setInitialModalTab('facturas');
                                 setSelected(o);
                               }}
                               style={{

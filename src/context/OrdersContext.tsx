@@ -163,7 +163,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.department = 'TH-ALMACEN-1';
             best.folio = '120267114114';
             best.oc = '120267114114';
-            best.deliveries = [
+            const baseDeliveries = [
               {
                 id: 'del-th-6198',
                 date: best.processedAt || null,
@@ -191,7 +191,17 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6200',
               },
             ];
-            best.invoices = [
+            const mergedThDeliveries = [...baseDeliveries];
+            const seenDelIds = new Set(baseDeliveries.map(d => d.id));
+            for (const d of (best.deliveries || [])) {
+              if (d.id && !seenDelIds.has(d.id)) {
+                seenDelIds.add(d.id);
+                mergedThDeliveries.push(d);
+              }
+            }
+            best.deliveries = mergedThDeliveries;
+
+            const baseInvoices = [
               {
                 id: 'inv-6198',
                 orderId: best.id,
@@ -235,6 +245,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 },
               },
             ];
+            const mergedThInvoices = [...baseInvoices];
+            const seenInvIds = new Set(baseInvoices.map(i => i.id || i.folio));
+            for (const inv of (best.invoices || [])) {
+              const k = inv.id || inv.folio;
+              if (k && !seenInvIds.has(k)) {
+                seenInvIds.add(k);
+                mergedThInvoices.push(inv);
+              }
+            }
+            best.invoices = mergedThInvoices;
           } else if (canonicalKey === '12026439713' || canonicalKey.includes('43/9713') || canonicalKey.includes('43-9713')) {
             const gtItems = [
               { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
@@ -248,7 +268,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.department = 'P4-ALM';
             best.folio = '12026439713';
             best.oc = '12026439713';
-            best.deliveries = [
+
+            const baseGtDeliveries = [
               {
                 id: 'del-gt-6193',
                 date: best.processedAt || null,
@@ -262,7 +283,17 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6193',
               },
             ];
-            best.invoices = [
+            const mergedGtDeliveries = [...baseGtDeliveries];
+            const seenGtDelIds = new Set(baseGtDeliveries.map(d => d.id));
+            for (const d of (best.deliveries || [])) {
+              if (d.id && !seenGtDelIds.has(d.id)) {
+                seenGtDelIds.add(d.id);
+                mergedGtDeliveries.push(d);
+              }
+            }
+            best.deliveries = mergedGtDeliveries;
+
+            const baseGtInvoices = [
               {
                 id: 'inv-6193',
                 orderId: best.id,
@@ -285,6 +316,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 },
               },
             ];
+            const mergedGtInvoices = [...baseGtInvoices];
+            const seenGtInvIds = new Set(baseGtInvoices.map(i => i.id || i.folio));
+            for (const inv of (best.invoices || [])) {
+              const k = inv.id || inv.folio;
+              if (k && !seenGtInvIds.has(k)) {
+                seenGtInvIds.add(k);
+                mergedGtInvoices.push(inv);
+              }
+            }
+            best.invoices = mergedGtInvoices;
           }
 
           deduplicatedDocs.push(best);

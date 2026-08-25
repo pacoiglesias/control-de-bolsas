@@ -1,5 +1,15 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.30] - 25 Agosto 2026 (Preservación Reactiva de Entregas en Firestore y Visibilidad Total de Facturas & Remisiones)
+
+### 🚚 Persistencia y Fusión de Entregas y Facturas en Tiempo Real (`OrdersContext.tsx`)
+- **Fusión No-Destructiva:** Corregida la sobrescritura en memoria de `best.deliveries` y `best.invoices`: el contexto ahora combina las entregas/facturas canónicas base con **cualquier nueva entrega o factura registrada por el usuario en Firestore**, asegurando que los kilos registrados en báscula aparezcan de inmediato en pantalla.
+- **Pestaña `🧾 Facturas & Cobros` Visible en Modal:** Restaurada la pestaña de Facturas directamente en la barra de navegación de `OrderModal`, permitiendo emitir, consultar y pegar textos de facturas en 1 clic.
+- **Acceso Rápido desde Tablas:** El botón `🧾 Facturar (X kg)` en `Orders.tsx` abre el expediente directamente en la pestaña de facturación con los kilos listos para timbrar.
+- **Banner de Acción Rápida en Entregas:** En `TabEntregas.tsx`, se muestra un banner destacado con botones directos `[🧾 Facturar X kg Ahora ➔]` y `[📋 Descargar Pre-Factura PDF]` cuando existen entregas físicas sin facturar.
+
+---
+
 ## [v8.9.29] - 25 Agosto 2026 (Calibración Canónica de Entregas por Partida en las Órdenes de Textil Hogar y Grupo Textil)
 
 ### 📦 Desglose Oficial de Kilos Entregados por Partida (`OrdersContext.tsx` & `SincronizadorOficialModal.tsx`)

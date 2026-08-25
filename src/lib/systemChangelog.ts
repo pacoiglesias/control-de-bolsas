@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.30 Preservación Reactiva de Entregas en Firestore y Visibilidad Total de Facturas & Remisiones',
+    date: '25 de Agosto de 2026',
+    time: '04:00 AM',
+    summary: 'Fusión no-destructiva de entregas y facturas en OrdersContext que respeta entregas nuevas capturadas por el usuario, reincorporación de la pestaña Facturas en el modal de expedientes y botones de acceso directo para facturar y emitir remisiones.',
+    highlights: [
+      '🚚 Fusión Reactiva de Entregas: Las pesadas de báscula registradas en Firestore se integran y actualizan en pantalla al instante sin sobrescribirse.',
+      '🧾 Pestaña Facturas en Modal: Acceso visible e inmediato a la pestaña Facturas & Cobros con conteo y alertas de entregas pendientes.',
+      '📋 Botones Directos de Remisión & Factura: Banners destacados para emitir facturas y descargar Pre-Facturas PDF en 1 solo clic.',
+    ],
+  },
+  {
     version: 'v8.9.29 Calibración Canónica de Entregas por Partida en las Órdenes de Textil Hogar y Grupo Textil',
     date: '25 de Agosto de 2026',
     time: '03:45 AM',

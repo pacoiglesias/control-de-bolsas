@@ -13,6 +13,7 @@ import { confirmDialog } from '../../lib/confirmDialog';
 import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
 import TabEntregas from './TabEntregas';
+import TabFacturas from './TabFacturas';
 import { TabAndresOrder } from './TabAndresOrder';
 import { OrderStepper } from './OrderStepper';
 import { NextActionBanner } from './NextActionBanner';
@@ -116,11 +117,12 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
   const { settings } = useSystemSettings();
   const provName = settings?.providerName || 'Andrés';
 
-  const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number; alert?: boolean }[] = [
+  const TABS: { key: TabName; label: string; count?: number; alert?: boolean }[] = [
     { key: 'resumen',   label: '📋 Expediente' },
     { key: 'productos', label: '📦 Orden de Compra', count: form.items.length },
     { key: 'andres',    label: `🏭 Pedido a ${provName}` },
     { key: 'entregas',  label: '🚛 Entregas', count: form.deliveries.length, alert: hasUninvoicedDeliveries },
+    { key: 'facturas',  label: '🧾 Facturas & Cobros', count: invoiceCount, alert: hasUninvoicedDeliveries },
   ];
 
   return (
@@ -334,6 +336,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
               {tab === 'productos' && <TabProductos />}
               {tab === 'andres'    && <TabAndresOrder order={order} config={config} customCostPrice={form.customCostPrice} customSellPrice={form.customSellPrice} />}
               {tab === 'entregas'  && <TabEntregas />}
+              {tab === 'facturas'  && <TabFacturas />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -434,10 +437,8 @@ export default function OrderModal({
   initialTab?: TabName;
   focusInvoiceId?: string | null;
 }) {
-  // Si llega con focusInvoiceId o initialTab='facturas' (desde Cobranza),
-  // el CR modal se abre directo sin pasar por el tab de facturas (ya no existe).
-  const openCRDirectly = !!focusInvoiceId || initialTab === 'facturas';
-  const realInitialTab: TabName = openCRDirectly ? 'resumen' : initialTab;
+  const openCRDirectly = !!focusInvoiceId;
+  const realInitialTab: TabName = initialTab;
 
   return (
     <OrderModalProvider
