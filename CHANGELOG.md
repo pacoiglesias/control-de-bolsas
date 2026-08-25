@@ -1,5 +1,16 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.31] - 25 Agosto 2026 (Restauración de Visibilidad Total de Órdenes Abiertas y Exactitud de Partidas CFDI)
+
+### 📋 Eliminación de Filtro Involuntario de Órdenes y Partidas CFDI Reales
+- **Salvaguarda de Órdenes en Curso:** Corregido el filtro `isCrDoc` en `OrdersContext.tsx`: solo aplica a documentos mock de seed históricos sin partidas (`seed-cr-`), garantizando que **ninguna orden abierta o capturada por el usuario sea ocultada o descartada jamás**.
+- **Desglose Exacto CFDI 6200 y 6193:**
+  - **F-6200 (1,500 kg):** Conciliada exactamente con `#2 enbo000167-bl` (1,000 kg) y `#4 enbo000006-sc` (500 kg), reflejando la factura fiscal real.
+  - **F-6193 (1,000 kg):** Conciliada exactamente con `#1 EGBO000095-SC` (500 kg) y `#2 EGBO000018-SC` (500 kg), reflejando la factura fiscal real.
+- **Facturación Rápida Universal:** `QuickInvoiceModal` permite seleccionar cualquier expediente abierto y emitir facturas con los kilos exactos de báscula o prefacturación.
+
+---
+
 ## [v8.9.30] - 25 Agosto 2026 (Preservación Reactiva de Entregas en Firestore y Visibilidad Total de Facturas & Remisiones)
 
 ### 🚚 Persistencia y Fusión de Entregas y Facturas en Tiempo Real (`OrdersContext.tsx`)

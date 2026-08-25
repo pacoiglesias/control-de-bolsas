@@ -70,10 +70,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
 
           const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
-          const isCrDoc = canonicalKey.startsWith('TH-') || canonicalKey.startsWith('GT-') || crNum.startsWith('TH-') || crNum.startsWith('GT-') || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').trim().toUpperCase().startsWith('TH-') || (inv.collection?.contrareciboNumber || '').trim().toUpperCase().startsWith('GT-'));
+          const isSeedCrDoc = (doc.id.startsWith('seed-cr-') || doc.id.startsWith('cr-')) && (!doc.items || doc.items.length === 0);
 
-          // Si es un documento de contrarecibo que no está en la lista oficial de 11, ignorarlo
-          if (isCrDoc) {
+          // Si es un documento seed mock que no está en la lista oficial de 11, ignorarlo
+          if (isSeedCrDoc) {
             const matchesOfficial = OFFICIAL_VALID_CRS.some(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
             if (!matchesOfficial) {
               continue;
@@ -183,7 +183,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 kilos: 1500.0,
                 items: [
                   { itemId: 'it-th-2', quantity: 1000.0 },
-                  { itemId: 'it-th-6', quantity: 500.0 },
+                  { itemId: 'it-th-4', quantity: 500.0 },
                 ],
                 invoiced: true,
                 invoiceId: 'inv-6200',
@@ -275,7 +275,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 date: best.processedAt || null,
                 kilos: 1000.0,
                 items: [
-                  { itemId: 'it-gt-1', quantity: 1000.0 },
+                  { itemId: 'it-gt-1', quantity: 500.0 },
+                  { itemId: 'it-gt-2', quantity: 500.0 },
                 ],
                 invoiced: true,
                 invoiceId: 'inv-6193',

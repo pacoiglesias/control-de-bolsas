@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.31 Restauración de Visibilidad Total de Órdenes Abiertas y Exactitud de Partidas CFDI',
+    date: '25 de Agosto de 2026',
+    time: '04:15 AM',
+    summary: 'Eliminación del filtro involuntario en OrdersContext para garantizar que ninguna orden en proceso quede oculta, y ajuste de partidas reales de facturas CFDI 6200 y 6193.',
+    highlights: [
+      '📋 Visibilidad Total de Órdenes: Protección absoluta para que todas las OCs activas permanezcan visibles en todas las vistas.',
+      '🧾 Desglose Fiscal Exacto: F-6200 vinculada a Partida #2 (1,000 kg) y Partida #4 (500 kg); F-6193 vinculada a Partida #1 (500 kg) y Partida #2 (500 kg).',
+      '⚡ Facturación Rápida: Acceso fluido a todos los pedidos abiertos sin restricciones de filtro.',
+    ],
+  },
+  {
     version: 'v8.9.30 Preservación Reactiva de Entregas en Firestore y Visibilidad Total de Facturas & Remisiones',
     date: '25 de Agosto de 2026',
     time: '04:00 AM',

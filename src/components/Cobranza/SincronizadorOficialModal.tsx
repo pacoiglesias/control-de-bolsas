@@ -275,11 +275,12 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
               : inv.folio === '6200'
               ? [
                   { itemId: 'it-th-2', quantity: 1000.0 },
-                  { itemId: 'it-th-6', quantity: 500.0 },
+                  { itemId: 'it-th-4', quantity: 500.0 },
                 ]
               : inv.folio === '6193'
               ? [
-                  { itemId: 'it-gt-1', quantity: 1000.0 },
+                  { itemId: 'it-gt-1', quantity: 500.0 },
+                  { itemId: 'it-gt-2', quantity: 500.0 },
                 ]
               : [];
 
