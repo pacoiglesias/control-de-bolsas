@@ -45,6 +45,7 @@ import { getRentabilidadHtml } from './DashboardReports';
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
 import { ProvidenciaHubWidget } from '../components/Dashboard/ProvidenciaHubWidget';
+import { ActiveOrdersMobileCards } from '../components/Dashboard/ActiveOrdersMobileCards';
 
 
 
@@ -82,6 +83,9 @@ export default function Dashboard() {
   const [showContrarecibosDrawer, setShowContrarecibosDrawer] = useState(false);
   const [showSeguimientoDrawer, setShowSeguimientoDrawer] = useState(false);
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
+  const [selectedInvoiceOrderId, setSelectedInvoiceOrderId] = useState<string | null>(null);
+  const [showQuickDelivery, setShowQuickDelivery] = useState(false);
+  const [selectedDeliveryOrderId, setSelectedDeliveryOrderId] = useState<string | null>(null);
   const [showQuickCollection, setShowQuickCollection] = useState(false);
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
@@ -1170,6 +1174,23 @@ return () => unsub();
               </div>
             </div>
 
+            {/* B. Vista Móvil de Tarjetas de OCs Activas con Acciones Directas */}
+            <div className="mobile-cards-list">
+              <ActiveOrdersMobileCards
+                orders={seguimientoOrders}
+                config={config as any}
+                onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+                onQuickDelivery={(orderId) => {
+                  setSelectedDeliveryOrderId(orderId);
+                  setShowQuickDelivery(true);
+                }}
+                onQuickInvoice={(orderId) => {
+                  setSelectedInvoiceOrderId(orderId);
+                  setShowQuickInvoice(true);
+                }}
+              />
+            </div>
+
             {/* B. Pipeline Financiero de 5 Estaciones */}
             <MoneyFlowPipeline
               orders={seguimientoOrders}
@@ -1445,6 +1466,10 @@ return () => unsub();
         setShowSeguimientoDrawer={setShowSeguimientoDrawer}
         showQuickInvoice={showQuickInvoice}
         setShowQuickInvoice={setShowQuickInvoice}
+        selectedInvoiceOrderId={selectedInvoiceOrderId}
+        showQuickDelivery={showQuickDelivery}
+        setShowQuickDelivery={setShowQuickDelivery}
+        selectedDeliveryOrderId={selectedDeliveryOrderId}
         showQuickCollection={showQuickCollection}
         setShowQuickCollection={setShowQuickCollection}
         showQuickPay={showQuickPay}
@@ -1481,21 +1506,30 @@ return () => unsub();
         nav={nav}
       />
 
-      {/* La calculadora flotante ahora se monta una sola vez de forma
-          global en App.tsx (junto a CommandPalette/FloatingQuickHub), para
-          que el atajo funcione desde cualquier pantalla y no solo aquí. */}
-
       {/* Dock Rápido de Acciones Locales en Móvil (1 Toque) */}
       <MobileQuickDock
         onNewOrder={() => nav('/ordenes?nueva=1')}
-        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickDelivery={() => {
+          setSelectedDeliveryOrderId(null);
+          setShowQuickDelivery(true);
+        }}
+        onQuickInvoice={() => {
+          setSelectedInvoiceOrderId(null);
+          setShowQuickInvoice(true);
+        }}
         onQuickCollection={() => setShowQuickCollection(true)}
         onQuickPay={() => setShowQuickPay(true)}
+        onFastEntry={() => nav('/recepcion')}
         onMagicPaste={() => setShowMagicPaste(true)}
         onOpenCalculator={() => {
           const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
           if (btn) btn.click();
         }}
+        pendingDeliveriesCount={(seguimientoOrders || []).filter(o => {
+          if (!o || o.isClosedShort) return false;
+          const s = getOrderSummary(o);
+          return s.kilosDelivered < (Number(o.totalKilograms) || 0) - 0.01;
+        }).length}
         pendingInvoicesCount={pendingInvoicesCount}
         pendingCollectionsCount={pendingCollectionsCount}
       />

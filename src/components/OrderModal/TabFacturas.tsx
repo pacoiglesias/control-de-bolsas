@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { PasteTextModal } from '../PasteTextModal';
-import { Timestamp } from 'firebase/firestore';
-import { addDays } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
+import { EmitirFacturaModal } from './EmitirFacturaModal';
 import type { Invoice } from '../../lib/types';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
@@ -13,6 +12,7 @@ export default function TabFacturas() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [showEmitirModal, setShowEmitirModal] = useState(false);
 
   const { saveInvoice } = useInvoiceActions();
 
@@ -48,6 +48,9 @@ export default function TabFacturas() {
   };
 
   const addInvoiceLocal = async () => {
+    // Kept as escape hatch for advanced users
+    const { Timestamp } = await import('firebase/firestore');
+    const { addDays } = await import('../../lib/finance');
     const issue = new Date();
     const due = addDays(issue, config.creditDays);
     const nuevoId = Date.now().toString();
@@ -59,8 +62,6 @@ export default function TabFacturas() {
       creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
       collection: { paidAmount: 0, contrareciboNumber: '', notes: '' }
     };
-    
-    // Auto-save immediately using useInvoiceActions
     try {
       await saveInvoice(order, newInv, dynamicConfig);
       setExpandedIds(prev => new Set(prev).add(nuevoId));
@@ -72,6 +73,18 @@ export default function TabFacturas() {
 
   return (
     <>
+      {/* Modal de Emisión Guiada */}
+      {showEmitirModal && (
+        <EmitirFacturaModal
+          order={order}
+          kilosPendientes={kilosPendientesDeFacturar}
+          dynamicConfig={dynamicConfig}
+          config={config}
+          onClose={() => setShowEmitirModal(false)}
+          onCreated={(inv) => setExpandedIds(prev => new Set(prev).add(inv.id))}
+        />
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
@@ -80,7 +93,21 @@ export default function TabFacturas() {
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
-            
+
+            {/* Botón principal: asistente paso a paso */}
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowEmitirModal(true)}
+              style={{ padding: '8px 16px', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              🧾 Emitir Factura
+              {kilosPendientesDeFacturar > 0.01 && (
+                <span style={{ background: 'rgba(255,255,255,0.25)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 900 }}>
+                  {kilosPendientesDeFacturar.toLocaleString('es-MX')} kg
+                </span>
+              )}
+            </button>
+
             <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
             <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
 
@@ -102,12 +129,7 @@ export default function TabFacturas() {
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="btn btn-primary" onClick={addInvoiceLocal}>+ Manual</button>
-              {kilosPendientesDeFacturar > 0.01 && (
-                <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                  Sugerido: {kilosPendientesDeFacturar.toLocaleString('es-MX')} kg
-                </span>
-              )}
+              <button className="btn" onClick={addInvoiceLocal} style={{ fontSize: 12, opacity: 0.7 }} title="Crear factura en blanco sin asistente">+ En Blanco</button>
             </div>
           </div>
         )}

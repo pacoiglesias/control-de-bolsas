@@ -3,6 +3,8 @@ import { money } from '../../lib/format';
 import { computeAndresRequirement } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { useAndresStats } from '../../hooks/useAndresStats';
+import { useNavigate } from 'react-router-dom';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 
 interface TabAndresOrderProps {
@@ -14,7 +16,9 @@ interface TabAndresOrderProps {
 
 export function TabAndresOrder({ order, config, customCostPrice, customSellPrice }: TabAndresOrderProps) {
   const toast = useToast();
+  const nav = useNavigate();
   const { settings } = useSystemSettings();
+  const { stats, loading: loadingBalance } = useAndresStats();
 
   const provName = settings?.providerName || 'Andrés';
   const clientName = settings?.clientShortName || 'Providencia';
@@ -27,6 +31,37 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
     };
     return computeAndresRequirement(virtualOrder, config);
   }, [order, config, customCostPrice, customSellPrice]);
+
+  // --- Balance vs costo OC ---
+  const saldoActual = loadingBalance ? null : (stats?.saldoProveedor ?? 0);
+  const costOC = req.costTotal;
+  // saldoActual positivo = empresa le pagó de más (crédito a favor de Andrés)
+  // negativo = empresa le debe
+  // Para iniciar el pedido: si saldo < costOC, se necesita anticipo
+  const anticipoNecesario = saldoActual !== null ? Math.max(costOC - Math.max(saldoActual, 0), 0) : null;
+  const tieneDeudaPrevia = saldoActual !== null && saldoActual < 0;
+  const alcanzaElSaldo = saldoActual !== null && saldoActual >= costOC;
+
+  const tono: 'ok' | 'warn' | 'bad' =
+    alcanzaElSaldo ? 'ok' :
+    tieneDeudaPrevia ? 'bad' :
+    'warn';
+
+  const balanceColors = {
+    ok:   { bg: 'rgba(16,185,129,0.08)', border: '#10b981', text: '#047857', badge: '#d1fae5' },
+    warn: { bg: 'rgba(245,158,11,0.08)', border: '#f59e0b', text: '#b45309', badge: '#fef3c7' },
+    bad:  { bg: 'rgba(239,68,68,0.08)',  border: '#ef4444', text: '#b91c1c', badge: '#fef2f2' },
+  }[tono];
+
+  const icono = alcanzaElSaldo ? '✅' : tieneDeudaPrevia ? '🔴' : '⚠️';
+
+  function handleWhatsAppAnticipo() {
+    const monto = anticipoNecesario && anticipoNecesario > 0 ? anticipoNecesario : costOC;
+    const msg = tieneDeudaPrevia
+      ? `Hola ${provName}, para poder iniciar el pedido de OC ${req.folio} (${req.kilos.toLocaleString('es-MX')} kg) necesitamos liquidar el saldo anterior de ${money(Math.abs(saldoActual ?? 0))} más el costo de esta OC de ${money(costOC)}. Total a cubrir: ${money(monto)}. Por favor confírmame cuándo podemos coordinar el anticipo.`
+      : `Hola ${provName}, para iniciar el pedido de OC ${req.folio} (${req.kilos.toLocaleString('es-MX')} kg) necesitamos un anticipo de ${money(monto)} (el costo es ${money(costOC)}${saldoActual && saldoActual > 0 ? `, ya tienes ${money(saldoActual)} a tu favor` : ''}). Por favor confírmame cuándo lo podemos arrancar.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  }
 
   function handleCopyText() {
     navigator.clipboard.writeText(req.whatsappMessage);
@@ -213,6 +248,98 @@ export function TabAndresOrder({ order, config, customCostPrice, customSellPrice
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ───── TARJETA DE BALANCE — PRIMERA COSA VISIBLE ───── */}
+      <div style={{
+        background: balanceColors.bg,
+        border: `2px solid ${balanceColors.border}`,
+        borderRadius: 14,
+        padding: '16px 18px',
+      }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: balanceColors.text, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {icono} Saldo Actual con {provName} — ¿Se necesita anticipo para esta OC?
+        </div>
+
+        {loadingBalance ? (
+          <div style={{ color: 'var(--ink-soft)', fontSize: 13 }}>Calculando saldo…</div>
+        ) : (
+          <>
+            {/* Fila de números */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+              {[
+                {
+                  label: 'Saldo con ' + provName,
+                  val: money(saldoActual ?? 0),
+                  hint: saldoActual !== null && saldoActual >= 0 ? '↑ Crédito disponible' : '↓ Deuda pendiente',
+                  color: saldoActual !== null && saldoActual >= 0 ? '#047857' : '#b91c1c',
+                },
+                {
+                  label: 'Costo de esta OC',
+                  val: money(costOC),
+                  hint: `${req.kilos.toLocaleString('es-MX')} kg × $${req.costPricePerKg.toFixed(2)}`,
+                  color: '#b45309',
+                },
+                alcanzaElSaldo
+                  ? { label: 'Estado', val: '✅ Saldo suficiente', hint: 'Puedes hacer el pedido ya', color: '#047857' }
+                  : {
+                      label: anticipoNecesario && anticipoNecesario > 0 ? 'Anticipo Necesario' : 'A cubrir',
+                      val: money(tieneDeudaPrevia ? Math.abs(saldoActual ?? 0) + costOC : (anticipoNecesario ?? costOC)),
+                      hint: tieneDeudaPrevia ? 'Deuda anterior + costo OC' : 'Para iniciar producción',
+                      color: '#b91c1c',
+                    },
+              ].map(({ label, val, hint, color }) => (
+                <div key={label} style={{ background: 'var(--paper)', borderRadius: 10, padding: '10px 14px', border: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 17, fontWeight: 900, color, fontFamily: 'monospace' }}>{val}</div>
+                  <div style={{ fontSize: 10, color: 'var(--ink-soft)', marginTop: 2 }}>{hint}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Mensaje de acción */}
+            <div style={{
+              background: 'var(--paper)',
+              borderRadius: 8,
+              padding: '10px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              color: balanceColors.text,
+              marginBottom: 12,
+              border: `1px solid ${balanceColors.border}`,
+              lineHeight: 1.5,
+            }}>
+              {alcanzaElSaldo
+                ? `✅ ${provName} tiene crédito suficiente (${money(saldoActual ?? 0)}) para cubrir el costo de esta OC (${money(costOC)}). Puedes hacer el pedido sin anticipos.`
+                : tieneDeudaPrevia
+                ? `🔴 ${provName} tiene una deuda anterior de ${money(Math.abs(saldoActual ?? 0))} más el costo de esta OC (${money(costOC)}). Total a cubrir antes de iniciar: ${money(Math.abs(saldoActual ?? 0) + costOC)}.`
+                : `⚠️ ${provName} tiene crédito de ${money(saldoActual ?? 0)} pero la OC cuesta ${money(costOC)}. Necesitas anticipar ${money(anticipoNecesario ?? 0)} para iniciar la producción.`
+              }
+            </div>
+
+            {/* Botones */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {!alcanzaElSaldo && (
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ background: 'rgba(37,211,102,0.1)', border: '1px solid #25D366', color: '#128C7E', fontWeight: 700, fontSize: 12 }}
+                  onClick={handleWhatsAppAnticipo}
+                >
+                  💬 WhatsApp: Solicitar Anticipo
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 12 }}
+                onClick={() => nav('/compras')}
+              >
+                🏦 Ver Cuentas Completas con {provName}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
       {/* Resumen Principal de Requerimiento */}
       <div
         style={{

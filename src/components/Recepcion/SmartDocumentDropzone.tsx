@@ -410,10 +410,14 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
           <div>
             <div style={{ fontSize: 42, marginBottom: 8 }}>📥</div>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: '-0.3px' }}>
-              Arrastra o Sube aquí tu PDF o XML
+              <span className="hide-mobile">Arrastra o Sube aquí tu PDF o XML</span>
+              <span className="show-mobile">📎 Toca para subir archivo</span>
             </div>
-            <div style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.7)', marginTop: 4 }}>
+            <div className="hide-mobile" style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.7)', marginTop: 4 }}>
               O simplemente presiona <kbd style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: 6, fontWeight: 800, color: '#38bdf8' }}>Ctrl + V</kbd> para pegar texto, XML o imagen del portapapeles
+            </div>
+            <div className="show-mobile" style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.65)', marginTop: 4 }}>
+              Desde tu galería, archivos o cámara
             </div>
 
             {/* Badges de Formatos Aceptados */}

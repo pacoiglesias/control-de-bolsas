@@ -5,6 +5,7 @@ import { ContrarecibosTable } from './ContrarecibosTable';
 import { SeguimientoPedidosTable } from './SeguimientoPedidosTable';
 import { QuickInvoiceModal } from '../FastFlows/QuickInvoiceModal';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
+import { QuickDeliveryModal } from '../FastFlows/QuickDeliveryModal';
 import { PagarAndresModal } from '../Compras/PagarAndresModal';
 import { MagicPasteModal } from '../MagicPasteModal';
 import { SincronizadorOficialModal } from '../Cobranza/SincronizadorOficialModal';
@@ -26,6 +27,10 @@ export interface DashboardModalsHostProps {
   setShowSeguimientoDrawer: (v: boolean) => void;
   showQuickInvoice: boolean;
   setShowQuickInvoice: (v: boolean) => void;
+  selectedInvoiceOrderId?: string | null;
+  showQuickDelivery?: boolean;
+  setShowQuickDelivery?: (v: boolean) => void;
+  selectedDeliveryOrderId?: string | null;
   showQuickCollection: boolean;
   setShowQuickCollection: (v: boolean) => void;
   showQuickPay: boolean;
@@ -67,7 +72,8 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
   const {
     showContrarecibosDrawer, setShowContrarecibosDrawer,
     showSeguimientoDrawer, setShowSeguimientoDrawer,
-    showQuickInvoice, setShowQuickInvoice,
+    showQuickInvoice, setShowQuickInvoice, selectedInvoiceOrderId,
+    showQuickDelivery, setShowQuickDelivery, selectedDeliveryOrderId,
     showQuickCollection, setShowQuickCollection,
     showQuickPay, setShowQuickPay,
     showCorteMensual, setShowCorteMensual,
@@ -111,7 +117,19 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
       )}
 
       {showQuickInvoice && (
-        <QuickInvoiceModal orders={seguimientoOrders} onClose={() => setShowQuickInvoice(false)} />
+        <QuickInvoiceModal
+          orders={seguimientoOrders}
+          initialOrderId={selectedInvoiceOrderId}
+          onClose={() => setShowQuickInvoice(false)}
+        />
+      )}
+
+      {showQuickDelivery && setShowQuickDelivery && (
+        <QuickDeliveryModal
+          orders={seguimientoOrders}
+          initialOrderId={selectedDeliveryOrderId}
+          onClose={() => setShowQuickDelivery(false)}
+        />
       )}
 
       {showQuickCollection && (

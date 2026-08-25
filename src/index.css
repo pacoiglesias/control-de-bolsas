@@ -1224,5 +1224,28 @@ button:active {
   border-radius: 16px;
 }
 
+/* =========================================================================
+   Responsive: mobile-cards vs desktop-table
+   En móvil (≤640px) se muestran las tarjetas apiladas y se ocultan las tablas.
+   En escritorio se ocultan las tarjetas y se muestran las tablas.
+========================================================================= */
+.mobile-cards-list { display: none; }
+.desktop-table     { display: block; }
+.show-mobile       { display: none; }
+.hide-mobile       { display: inline; }
+
+@media (max-width: 640px) {
+  .mobile-cards-list { display: block; }
+  .desktop-table     { display: none; }
+  .show-mobile       { display: inline; }
+  .hide-mobile       { display: none; }
+
+  /* Evitar que el contenido quede tapado por el botón sticky de guardar */
+  .page-container { padding-bottom: 100px !important; }
+
+  /* Dropzone: compactar en móvil */
+  #desktop-save-btn { display: none !important; }
+}
+
 
 

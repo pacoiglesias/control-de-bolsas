@@ -23,7 +23,15 @@ interface ConceptRow {
   maxAvailable: number;
 }
 
-export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
+export function QuickInvoiceModal({
+  orders,
+  initialOrderId,
+  onClose,
+}: {
+  orders: PurchaseOrder[];
+  initialOrderId?: string | null;
+  onClose: () => void;
+}) {
   const toast = useToast();
   const { config } = useConfig();
   const { orders: allOrders } = useOrders();
@@ -37,7 +45,12 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
     });
   }, [orders]);
 
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(() => {
+    if (initialOrderId && validOrders.some(o => o.id === initialOrderId)) {
+      return initialOrderId;
+    }
+    return validOrders[0]?.id || '';
+  });
   const [folio, setFolio] = useState('');
   const [saving, setSaving] = useState(false);
   const [conceptRows, setConceptRows] = useState<ConceptRow[]>([]);
@@ -52,7 +65,17 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
   }, [selectedOrder]);
 
   const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
-  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 42;
+  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 38;
+
+  // Auto-cargar conceptos al montar si hay orden pre-seleccionada
+  useState(() => {
+    if (selectedOrderId) {
+      const order = validOrders.find(o => o.id === selectedOrderId);
+      if (order) {
+        setTimeout(() => handleSelectOrder(selectedOrderId), 0);
+      }
+    }
+  });
 
   const handleSelectOrder = (oId: string) => {
     setSelectedOrderId(oId);
