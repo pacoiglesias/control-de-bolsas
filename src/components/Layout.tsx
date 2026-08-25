@@ -18,6 +18,7 @@ import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
 import { OfflineIndicator } from './ui/OfflineIndicator';
+import { OfflineBanner } from './OfflineBanner';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -285,6 +286,7 @@ export default function Layout() {
         </aside>
 
         <main className="main">
+          <OfflineBanner />
           <div className="content">
             <OverdueBanner />
             <DeliveryDueBanner orders={orders} />

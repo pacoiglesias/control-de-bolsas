@@ -44,7 +44,48 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-stylesheets',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'app-images-cache',
+              expiration: {
+                maxEntries: 60,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+        ],
       }
     })
   ],
