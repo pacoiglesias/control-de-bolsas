@@ -3,6 +3,8 @@ import type { PurchaseOrder } from '../../lib/types';
 import { money } from '../../lib/format';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
 import { useToast } from '../../context/ToastContext';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { printRemision } from '../OrderModal/orderModalPrint';
 
 interface OrderContextMenuProps {
   order: PurchaseOrder;

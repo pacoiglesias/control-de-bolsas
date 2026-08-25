@@ -178,7 +178,7 @@ export default function TabProductos() {
                                 este campo era editable y era la mitad del sistema duplicado que
                                 no se enteraba de la pestaña Entregas. */}
                             {(() => {
-                              const itemDelivered = deliveredByItem[it.id] ?? deliveredByItem[it.code] ?? (form.items.length === 1 ? kilosEntregados : (it.deliveredQuantity ?? 0));
+                              const itemDelivered = deliveredByItem[it.id] ?? (it.code ? deliveredByItem[it.code] : undefined) ?? (form.items.length === 1 ? kilosEntregados : (it.deliveredQuantity ?? 0));
                               return (
                                 <>
                                   <span className="mono" title="Kilos entregados y validados en báscula">

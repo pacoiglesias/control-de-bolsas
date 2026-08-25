@@ -248,9 +248,11 @@ export function OrderModalProvider({
       await generatePrefacturaPdf({
         ...order,
         ...form,
+        customCostPrice: form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined,
+        customSellPrice: form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined,
         items: form.items,
         totalKilograms: kilosNum,
-      }, null);
+      } as unknown as PurchaseOrder, null);
       toast('✅ Pre-Factura descargada con éxito', 'ok');
     } catch (err: any) {
       console.error('Error generando prefactura PDF, usando vista de impresión:', err);
