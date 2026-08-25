@@ -267,10 +267,27 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
           const deliveriesList = items.map(inv => {
             const iDate = new Date(`${inv.dateStr}T12:00:00`);
+            const delivItems = inv.folio === '6198'
+              ? [
+                  { itemId: 'it-th-1', quantity: 990.16 },
+                  { itemId: 'it-th-3', quantity: 975.65 },
+                ]
+              : inv.folio === '6200'
+              ? [
+                  { itemId: 'it-th-2', quantity: 1000.0 },
+                  { itemId: 'it-th-6', quantity: 500.0 },
+                ]
+              : inv.folio === '6193'
+              ? [
+                  { itemId: 'it-gt-1', quantity: 1000.0 },
+                ]
+              : [];
+
             return {
               id: `del-billed-${inv.folio}`,
               date: Timestamp.fromDate(iDate),
               kilos: inv.kilos,
+              items: delivItems,
               invoiced: true,
               invoiceId: `inv-${inv.folio}`,
               docType: 'factura' as const,

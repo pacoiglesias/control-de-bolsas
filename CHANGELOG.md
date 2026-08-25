@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.29] - 25 Agosto 2026 (Calibración Canónica de Entregas por Partida en las Órdenes de Textil Hogar y Grupo Textil)
+
+### 📦 Desglose Oficial de Kilos Entregados por Partida (`OrdersContext.tsx` & `SincronizadorOficialModal.tsx`)
+- **Textil Hogar (TH `120267114114` - 6,500 kg):**
+  - F-6198 (1,965.81 kg): Desglosado en `#1 egbo000107-sc` (990.16 kg, faltan 9.84 kg) y `#3 egbo000103-sc` (975.65 kg, faltan 24.35 kg).
+  - F-6200 (1,500.00 kg): Desglosado en `#2 enbo000167-bl` (1,000.00 kg, 100% surtido ✅) y `#6 enbo000044-sc` (500.00 kg, 100% surtido ✅).
+  - Total entregado: **3,465.81 kg (53.3%)** | Pendiente por entregar: **3,034.19 kg** (`#4 2,000 kg`, `#5 1,000 kg`, `#1 9.84 kg`, `#3 24.35 kg`).
+- **Grupo Textil (GT `12026439713` - 3,700 kg):**
+  - F-6193 (1,000.00 kg): Desglosado en `#1 EGBO000095-SC` (1,000.00 kg, 100% surtido ✅).
+  - Total entregado: **1,000.00 kg (27.0%)** | Pendiente por entregar: **2,700.00 kg** (`#2 1,000 kg`, `#3 700 kg`, `#4 1,000 kg`).
+- **Visualización en Reportes:** Eliminados los "0 kg entregados" en las tablas de seguimiento de partidas y mensajes automáticos de WhatsApp de `/oc`.
+
+---
+
 ## [v8.9.28] - 25 Agosto 2026 (Auditoría Integral de Fórmulas, Desglose Exacto de Kilos por Partida y Respaldo Anti-Bloqueo de Impresiones)
 
 ### ⚖️ Auditoría & Desglose Preciso de Kilos por Partida (`deliveries.ts` & `TabProductos.tsx`)

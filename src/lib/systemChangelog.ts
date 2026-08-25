@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.29 Calibración Canónica de Entregas por Partida en las Órdenes de Textil Hogar y Grupo Textil',
+    date: '25 de Agosto de 2026',
+    time: '03:45 AM',
+    summary: 'Incorporación del desglose exacto de partidas entregadas para la OC de Textil Hogar (F-6198 y F-6200 con 3,465.81 kg) y Grupo Textil (F-6193 con 1,000.00 kg), eliminando ceros en tablas de partidas.',
+    highlights: [
+      '📦 TH 120267114114: Partida #6 (enbo000044-sc de 500 kg) y Partida #2 (enbo000167-bl de 1,000 kg) amparadas al 100% bajo F-6200.',
+      '📦 TH 120267114114: Partida #1 (egbo000107-sc con 990.16 kg) y Partida #3 (egbo000103-sc con 975.65 kg) amparadas bajo F-6198.',
+      '📦 GT 12026439713: Partida #1 (EGBO000095-SC de 1,000 kg) amparada al 100% bajo F-6193.',
+      '📊 WhatsApp & Tablas de Partidas: Despliegue de entregas reales por partida tanto en el reporte de WhatsApp como en la vista analítica de /oc y TabProductos.',
+    ],
+  },
+  {
     version: 'v8.9.28 Auditoría Integral de Fórmulas, Desglose Exacto de Kilos por Partida y Respaldo Anti-Bloqueo de Impresiones',
     date: '25 de Agosto de 2026',
     time: '03:15 AM',

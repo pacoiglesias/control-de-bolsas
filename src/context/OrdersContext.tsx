@@ -168,6 +168,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 id: 'del-th-6198',
                 date: best.processedAt || null,
                 kilos: 1965.81,
+                items: [
+                  { itemId: 'it-th-1', quantity: 990.16 },
+                  { itemId: 'it-th-3', quantity: 975.65 },
+                ],
                 invoiced: true,
                 invoiceId: 'inv-6198',
                 docType: 'factura',
@@ -177,6 +181,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 id: 'del-th-6200',
                 date: best.processedAt || null,
                 kilos: 1500.0,
+                items: [
+                  { itemId: 'it-th-2', quantity: 1000.0 },
+                  { itemId: 'it-th-6', quantity: 500.0 },
+                ],
                 invoiced: true,
                 invoiceId: 'inv-6200',
                 docType: 'factura',
@@ -245,6 +253,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 id: 'del-gt-6193',
                 date: best.processedAt || null,
                 kilos: 1000.0,
+                items: [
+                  { itemId: 'it-gt-1', quantity: 1000.0 },
+                ],
                 invoiced: true,
                 invoiceId: 'inv-6193',
                 docType: 'factura',

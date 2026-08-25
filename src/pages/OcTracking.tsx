@@ -257,7 +257,7 @@ export default function OcTracking() {
       text += `📋 *DESGLOSE DE PARTIDAS:*\n`;
       items.forEach((it, idx) => {
         const ped = Number(it.quantity) || 0;
-        const ent = deliveredByItem[it.id] ?? 0;
+        const ent = deliveredByItem[it.id] ?? (it.code ? deliveredByItem[it.code] : undefined) ?? (items.length === 1 ? group.kilosEntregados : (it.deliveredQuantity ?? 0));
         const falt = Math.max(0, ped - ent);
         const st = ent >= ped && ped > 0 ? '✅ 100%' : ent > 0 ? `🟡 Parcial (${ent}/${ped} kg)` : '⏳ Pendiente';
         text += `• #${idx + 1} ${it.description || it.code || 'Bolsa'}: ${ent}/${ped} kg (Faltan: ${falt} kg · ${st})\n`;
@@ -867,7 +867,7 @@ export default function OcTracking() {
                             <tbody>
                               {items.map((it, idx) => {
                                 const pedKg = Number(it.quantity) || 0;
-                                const entKg = deliveredByItem[it.id] ?? 0;
+                                const entKg = deliveredByItem[it.id] ?? (it.code ? deliveredByItem[it.code] : undefined) ?? (items.length === 1 ? group.kilosEntregados : (it.deliveredQuantity ?? 0));
                                 const faltKg = Math.max(0, pedKg - entKg);
                                 return (
                                   <tr key={idx} style={{ borderTop: '1px solid var(--line-soft)' }}>
