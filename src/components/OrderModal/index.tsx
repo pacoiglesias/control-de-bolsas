@@ -16,7 +16,8 @@ import TabEntregas from './TabEntregas';
 import { TabAndresOrder } from './TabAndresOrder';
 import { OrderStepper } from './OrderStepper';
 import { NextActionBanner } from './NextActionBanner';
-import { money } from '../../lib/format';
+import { EmitirFacturaModal } from './EmitirFacturaModal';
+import { money, nombreClienteVisible } from '../../lib/format';
 import { useProducts } from '../../hooks/useProducts';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 
@@ -52,6 +53,8 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     form,
     readOnly,
     config,
+    dynamicConfig,
+    kilosPendientesDeFacturar,
     knownClients,
     knownProviders,
     knownClientEmails,
@@ -71,8 +74,9 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     viabilityWarning,
   } = ctx as any;
 
-  // Estado local: ¿mostrar el modal de Facturas & CR?
+  // Estado local: ¿mostrar el modal de Facturas & CR? o Emitir Factura
   const [showCRModal, setShowCRModal] = useState(initialOpenCR);
+  const [showEmitirFacturaModal, setShowEmitirFacturaModal] = useState(false);
 
   // Antes, cerrar el expediente (X, Escape, clic afuera, o el boton
   // "Cancelar") descartaba SIEMPRE lo escrito sin avisar -- form vive en
@@ -124,17 +128,25 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
       <Modal
         wide
         title={
-          /* ── Cabecera de identidad: PED · OC · CR siempre visibles ── */
+          /* ── Cabecera de identidad: PED · OC · CR siempre visibles sin duplicados ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <DocBadge type="ped" value={order.folio ?? `#${order.id?.slice(0,6)}`} />
+              {order.folio && order.folio !== order.oc ? (
+                <DocBadge type="ped" value={order.folio} />
+              ) : !order.oc ? (
+                <DocBadge type="ped" value={order.folio ?? `#${order.id?.slice(0,6)}`} />
+              ) : null}
               {order.oc && <DocBadge type="oc" value={order.oc} />}
               {crs.map(cr => <DocBadge key={cr} type="cr" value={cr} />)}
             </div>
             <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500 }}>
-              {order.client ?? '—'}
-              {order.provider ? <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span> : null}
-              {order.provider ?? ''}
+              {nombreClienteVisible(order.client)}
+              {order.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(order.provider) ? (
+                <>
+                  <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span>
+                  <span>{order.provider}</span>
+                </>
+              ) : null}
             </div>
           </div>
         }
@@ -193,44 +205,70 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
           </div>
         </div>
 
-        {/* ── BOTÓN DESTACADO: Facturas & CR ────────────────────────────────── */}
-        <button
-          onClick={() => { sound.playPop(); setShowCRModal(true); }}
-          style={{
-            width: '100%', marginBottom: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 18px', borderRadius: 10, cursor: 'pointer',
-            background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
-            border: '1px solid #047857', color: '#fff',
-            fontWeight: 700, fontSize: 14, transition: 'opacity 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>💰</span>
-            <span>
-              Facturas &amp; Contrarecibos
-              {invoiceCount > 0 && (
-                <span style={{
-                  marginLeft: 10, background: 'rgba(255,255,255,0.2)',
-                  padding: '1px 8px', borderRadius: 99, fontSize: 12,
-                }}>
-                  {invoiceCount} factura{invoiceCount !== 1 ? 's' : ''}
+        {/* ── BOTONES DE ACCIÓN: EMITIR FACTURA Y FACTURAS/CR ────────────────── */}
+        {(() => {
+          const kilosEntregados = (form.deliveries || []).reduce((sum: number, d: any) => sum + (Number(d.kilos) || 0), 0);
+          const kilosFacturados = (form.invoices || []).reduce((sum: number, inv: any) => sum + (Number(inv.kilos) || 0), 0);
+          const pendingKgToBill = Math.max(0, kilosEntregados - kilosFacturados);
+
+          return (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+              {/* Botón Principal: EMITIR FACTURA */}
+              <button
+                type="button"
+                onClick={() => { sound.playPop(); setShowEmitirFacturaModal(true); }}
+                style={{
+                  flex: '1 1 260px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 18px', borderRadius: 12, cursor: 'pointer',
+                  background: pendingKgToBill > 0 
+                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  border: 'none', color: '#ffffff',
+                  fontWeight: 800, fontSize: 14,
+                  boxShadow: pendingKgToBill > 0 
+                    ? '0 4px 16px rgba(245, 158, 11, 0.4)' 
+                    : '0 4px 16px rgba(37, 99, 235, 0.3)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🧾</span>
+                  <span>
+                    {pendingKgToBill > 0 
+                      ? `EMITIR FACTURA (${pendingKgToBill.toLocaleString('es-MX')} kg listos)`
+                      : `+ Emitir Factura`}
+                  </span>
                 </span>
-              )}
-              {crs.length > 0 && (
-                <span style={{
-                  marginLeft: 6, background: 'rgba(255,255,255,0.15)',
-                  padding: '1px 8px', borderRadius: 99, fontSize: 12,
-                }}>
-                  CR: {crs.join(' · ')}
+                <span style={{ fontSize: 12.5, background: 'rgba(255,255,255,0.25)', padding: '3px 8px', borderRadius: 6 }}>
+                  Asistente 3 Pasos ➔
                 </span>
-              )}
-            </span>
-          </span>
-          <span style={{ opacity: 0.7 }}>Abrir →</span>
-        </button>
+              </button>
+
+              {/* Botón: Facturas & Contrarecibos (Historial y Cobros) */}
+              <button
+                type="button"
+                onClick={() => { sound.playPop(); setShowCRModal(true); }}
+                style={{
+                  flex: '1 1 200px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 18px', borderRadius: 12, cursor: 'pointer',
+                  background: 'var(--paper-sunk)',
+                  border: '1px solid var(--line)', color: 'var(--ink)',
+                  fontWeight: 700, fontSize: 13.5,
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>💰</span>
+                  <span>
+                    Facturas &amp; CR ({invoiceCount})
+                  </span>
+                </span>
+                <span style={{ color: 'var(--ink-soft)' }}>Ver Historial →</span>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* ── Tabs: SOLO Expediente · OC · Pedido Andrés · Entregas ── */}
         <div style={{
@@ -345,6 +383,21 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
       {/* ── Modal secundario: Facturas & CR (se monta dentro del Provider) ── */}
       {showCRModal && (
         <FacturasCRModal onClose={() => setShowCRModal(false)} />
+      )}
+
+      {/* ── Modal de Emisión Rápida Asistida de Factura ── */}
+      {showEmitirFacturaModal && (
+        <EmitirFacturaModal
+          order={order}
+          kilosPendientes={kilosPendientesDeFacturar}
+          dynamicConfig={dynamicConfig}
+          config={config}
+          onClose={() => setShowEmitirFacturaModal(false)}
+          onCreated={() => {
+            setShowEmitirFacturaModal(false);
+            sound.playChaChing();
+          }}
+        />
       )}
     </>
   );

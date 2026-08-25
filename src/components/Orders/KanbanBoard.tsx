@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { money } from '../../lib/format';
+import { money, kilos, nombreClienteVisible } from '../../lib/format';
 import type { OrderStatus, PurchaseOrder } from '../../lib/types';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { KilosProgressBar } from './KilosProgressBar';
@@ -289,8 +289,37 @@ export default function KanbanBoard({
                       </div>
                       
                       <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                        <strong>{item.o.client || 'Sin Cliente'}</strong>
+                        <strong>{nombreClienteVisible(item.o.client)}</strong>
                       </div>
+
+                      {/* Botón directo de facturación si hay kilos listos */}
+                      {item.s.kilosDelivered > item.s.kilosInvoiced + 0.01 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sound.playPop();
+                            onSelect(item.o);
+                          }}
+                          style={{
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                          }}
+                        >
+                          <span>🧾 Facturar listos</span>
+                          <span>{kilos(item.s.kilosDelivered - item.s.kilosInvoiced)} ➔</span>
+                        </button>
+                      )}
 
                       {/* Barra Visual de Avance de Kilos */}
                       <KilosProgressBar

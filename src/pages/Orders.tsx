@@ -570,7 +570,7 @@ export default function Orders() {
                         })()}
                       </td>
                       <td>{nombreClienteVisible(o.client)}</td>
-                      <td>{o.provider ?? '—'}</td>
+                      <td>{o.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(o.provider) ? o.provider : '—'}</td>
                       <td className="num mono" style={{ minWidth: 160 }}>
                         <KilosProgressBar
                           compact
@@ -606,6 +606,33 @@ export default function Orders() {
                             <PulsingBadge label="🚨 Vencida" tone="red" pulse />
                           ) : (
                             <StatusBadge status={st} />
+                          )}
+                          {summary.kilosDelivered > summary.kilosInvoiced + 0.01 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelected(o);
+                              }}
+                              style={{
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: '0.78em',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                boxShadow: '0 2px 6px rgba(245,158,11,0.3)',
+                                marginTop: 2,
+                              }}
+                              title="Abrir expediente para emitir factura"
+                            >
+                              <span>🧾</span> Facturar ({kilos(summary.kilosDelivered - summary.kilosInvoiced)})
+                            </button>
                           )}
                           {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
                             <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>

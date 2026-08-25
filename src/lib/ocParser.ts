@@ -118,6 +118,10 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
   const ocMatch = text?.match(/CDB\s*OC:\s*([\w/]+)/i) || text?.match(/Orden\s*de\s*Compra\s*\n\s*(\d{8,14})/i);
   const folioMatch = text?.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\s\n\r]+)/i);
   const providerMatch = text?.match(/Proveedor\s*\n\s*([^\n]+)/i) || text?.match(/([Nn]\d{3,5}\s*-\s*[^\n]+)/);
+  let provider = providerMatch ? providerMatch[1].trim() : '';
+  if (/ELEMENTAL\s*DENIM|N0321/i.test(provider)) {
+    provider = ''; // Es nuestro propio nombre/código de proveedor ante Providencia, no un proveedor externo
+  }
 
   const isProvidencia = !!text?.match(/PROVIDENCIA/i);
   let client = '';

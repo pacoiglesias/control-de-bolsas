@@ -66,8 +66,16 @@ export const percent = (n: number | undefined | null): string => {
  * exacto para excluir estos expedientes de ciertos calculos).
  */
 export function nombreClienteVisible(client: string | null | undefined): string {
+  if (!client) return '—';
   if (client === 'MIGRACION') return 'Histórico (sin cliente registrado)';
-  return client || '—';
+  
+  // Limpiar sufijos accidentales de proveedor propio o códigos de proveedor pegados de la OC
+  let cleaned = client
+    .replace(/[·\-]?\s*N0321\s*[-–]?\s*ELEMENTAL\s*DENIM/gi, '')
+    .replace(/[·\-]?\s*ELEMENTAL\s*DENIM/gi, '')
+    .trim();
+
+  return cleaned || client || '—';
 }
 
 /**
