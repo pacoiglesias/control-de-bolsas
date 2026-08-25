@@ -105,7 +105,7 @@ export function CorteSemanalModal({
         const dDate = toDate(d.date);
         if (dDate && dDate >= startOfWeek && dDate <= endOfWeek) {
           const k = d.kilos || 0;
-          const costo = k * (config.costPricePerKg || 42);
+          const costo = k * (config.costPricePerKg || 38);
           entregas.push({
             folioOC: o.oc || o.folio || '—',
             client: o.client || 'Providencia',

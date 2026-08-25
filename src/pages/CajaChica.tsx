@@ -76,7 +76,7 @@ export default function CajaChica() {
   // inflaba esta tarjeta sin relacion real con Andres.
   const provPurchases = allPurchases.filter(p => normalizarTexto(p.provider) === normalizarTexto(provName));
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
-  const currentCostPerKg = config?.costPricePerKg || 42;
+  const currentCostPerKg = config?.costPricePerKg || 38;
   const totalPurchasesCost = Number((totalReceivedKilos * currentCostPerKg).toFixed(2));
   
   const provExpenses = expenses.filter(e => normalizarTexto(e.provider) === normalizarTexto(provName));

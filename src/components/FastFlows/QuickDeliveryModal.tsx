@@ -10,6 +10,7 @@ import { round2, getOrderSummary } from '../../lib/finance';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { sound } from '../../lib/sounds';
 import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
+import { findDuplicateRemision } from '../../lib/duplicateGuards';
 
 interface QuickDeliveryModalProps {
   orders: PurchaseOrder[];
@@ -60,6 +61,11 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
   const [docFolio, setDocFolio] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  const duplicateRemision = useMemo(() => {
+    if (!docFolio.trim()) return null;
+    return findDuplicateRemision(orders, docFolio.trim());
+  }, [orders, docFolio]);
 
   // Estado posterior al guardado: Centro de Éxito y Acción Rápida
   const [completedDelivery, setCompletedDelivery] = useState<{
@@ -615,6 +621,11 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
                         onChange={(e) => setDocFolio(e.target.value)}
                         placeholder="Ej. REM-4589"
                       />
+                      {duplicateRemision && (
+                        <div style={{ color: 'var(--bad)', fontSize: 11, fontWeight: 700, marginTop: 4 }}>
+                          ⚠️ Este folio ya existe en la OC {duplicateRemision.orderFolio} ({duplicateRemision.client}).
+                        </div>
+                      )}
                     </div>
                   </div>
 

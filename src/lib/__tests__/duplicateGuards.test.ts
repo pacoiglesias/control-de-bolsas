@@ -3,6 +3,7 @@ import {
   findDuplicateContrarecibo,
   findDuplicateInvoiceFolio,
   findDuplicateOrderFolio,
+  findDuplicateRemision,
   normalizeFolio,
 } from '../duplicateGuards';
 import type { PurchaseOrder } from '../types';
@@ -89,5 +90,34 @@ describe('duplicateGuards test suite', () => {
 
     // Unique folio
     expect(findDuplicateOrderFolio(mockOrders, 'OC-9999')).toBeNull();
+  });
+
+  it('detects duplicate delivery remisiones accurately', () => {
+    const ordersWithDeliveries: PurchaseOrder[] = [
+      {
+        id: 'ord_10',
+        folio: 'OC-2026',
+        client: 'Providencia',
+        deliveries: [
+          {
+            id: 'del_1',
+            docFolio: 'REM-8899',
+            kilos: 1200,
+            date: new Date() as any,
+          },
+        ],
+      } as any,
+    ];
+
+    const dup = findDuplicateRemision(ordersWithDeliveries, 'rem-8899');
+    expect(dup).not.toBeNull();
+    expect(dup?.orderFolio).toBe('OC-2026');
+    expect(dup?.matchedValue).toBe('REM-8899');
+
+    // Should ignore when editing same delivery
+    expect(findDuplicateRemision(ordersWithDeliveries, 'rem-8899', 'del_1')).toBeNull();
+
+    // Should return null for non-existing remision
+    expect(findDuplicateRemision(ordersWithDeliveries, 'REM-0000')).toBeNull();
   });
 });

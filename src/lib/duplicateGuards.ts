@@ -135,3 +135,37 @@ export function findDuplicateOrderFolio(
 
   return null;
 }
+
+/**
+ * Valida si un Folio de Remisión de Báscula ya existe en cualquier entrega de cualquier orden.
+ */
+export function findDuplicateRemision(
+  orders: PurchaseOrder[],
+  remisionFolio: string,
+  excludeDeliveryId?: string
+): DuplicateMatch | null {
+  const target = normalizeFolio(remisionFolio);
+  if (!target || target.length < 2) return null;
+
+  for (const o of orders) {
+    if (o.isClosedShort) continue;
+    for (const d of o.deliveries || []) {
+      if (excludeDeliveryId && d.id === excludeDeliveryId) continue;
+      const f = normalizeFolio(d.docFolio);
+      if (f === target) {
+        const dt = toDate(d.date);
+        return {
+          exists: true,
+          type: 'remision',
+          matchedValue: (d.docFolio || '').trim(),
+          orderFolio: o.folio || o.oc || 'S/OC',
+          client: o.client || 'Providencia',
+          dateStr: dt ? fmtDate(dt) : undefined,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+

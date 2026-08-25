@@ -29,7 +29,7 @@ export type UrgentAction = {
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
   const actions = useMemo<UrgentAction[]>(() => {
     const saleKg = config?.salePricePerKg || 43;
-    const costKg = config?.costPricePerKg || 42;
+    const costKg = config?.costPricePerKg || 38;
     const ivaRate = config?.ivaRate || 0.16;
     const list: UrgentAction[] = [];
     const today = new Date();

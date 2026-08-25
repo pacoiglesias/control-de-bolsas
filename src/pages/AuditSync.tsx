@@ -79,7 +79,7 @@ export default function AuditSync() {
   // Pestaña Ajustador Masivo
   const [batchTarget] = useState<'all' | 'pending' | 'providencia'>('pending');
   const [batchSalePrice, setBatchSalePrice] = useState<number>(config.salePricePerKg || 43);
-  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg || 42);
+  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg || 38);
 
   // Pestaña Archivo Excel Tradicional
   const [file, setFile] = useState<File | null>(null);
@@ -291,7 +291,7 @@ export default function AuditSync() {
     }[] = [];
 
     const defaultSale = config.salePricePerKg || 43;
-    const defaultCost = config.costPricePerKg || 42;
+    const defaultCost = config.costPricePerKg || 38;
     const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
@@ -483,7 +483,7 @@ export default function AuditSync() {
       } else if (field === 'kilos') {
         const numKilos = Math.max(0, Number(value) || 0);
         const pVenta = order.customSellPrice || config.salePricePerKg || 43;
-        const pCosto = order.customCostPrice || config.costPricePerKg || 42;
+        const pCosto = order.customCostPrice || config.costPricePerKg || 38;
 
         if (invoices.length > 0) {
           const updatedInvoices = invoices.map((inv) => {

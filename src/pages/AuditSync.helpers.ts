@@ -181,7 +181,7 @@ export function useAuditSyncGrid(activeOrders: PurchaseOrder[], config: Financia
     const rows: AuditGridRow[] = [];
 
     const defaultSale = config.salePricePerKg || 43;
-    const defaultCost = config.costPricePerKg || 42;
+    const defaultCost = config.costPricePerKg || 38;
     // FIX (auditoría v8.9.5): mismo motivo que arriba -- antes 0.08 estaba
     // escrito a mano dos veces en este mismo bloque.
     const comisionRate = config.commissionRate ?? 0.08;

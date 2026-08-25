@@ -24,7 +24,7 @@ export function MoneyFlowPipeline({
   onSelectStage,
 }: MoneyFlowPipelineProps) {
   const data = useMemo(() => {
-    const costKg = config?.costPricePerKg || 42;
+    const costKg = config?.costPricePerKg || 38;
     const saleKg = config?.salePricePerKg || 43;
     const ivaRate = config?.ivaRate || 0.16;
 

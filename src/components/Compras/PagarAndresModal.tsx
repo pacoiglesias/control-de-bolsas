@@ -279,7 +279,7 @@ export function PagarAndresModal({
         {/* Indicador de Adelanto a Favor de Andrés */}
         {montoNum > deudaConAndres && deudaConAndres > 0 && (
           <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 10, fontSize: 12, color: '#047857', lineHeight: 1.4 }}>
-            ✨ <strong>¡Excelente pago!</strong> Este importe de <strong>{money(montoNum)}</strong> liquida la deuda con Andrés al 100% y le deja un <strong>adelanto a tu favor de {money(montoNum - deudaConAndres)}</strong> (cubriendo ~{Math.round((montoNum - deudaConAndres) / (config?.costPricePerKg || 42)).toLocaleString()} kg de entregas futuras).
+            ✨ <strong>¡Excelente pago!</strong> Este importe de <strong>{money(montoNum)}</strong> liquida la deuda con Andrés al 100% y le deja un <strong>adelanto a tu favor de {money(montoNum - deudaConAndres)}</strong> (cubriendo ~{Math.round((montoNum - deudaConAndres) / (config?.costPricePerKg || 38)).toLocaleString()} kg de entregas futuras).
           </div>
         )}
 
@@ -299,7 +299,7 @@ export function PagarAndresModal({
 
         {/* ─── CÁLCULO AUTOMÁTICO DE KILOS AMPARADOS A PRECIO DE COSTO ─── */}
         {montoNum > 0 && (() => {
-          const currentCost = config?.costPricePerKg || 42;
+          const currentCost = config?.costPricePerKg || 38;
           const currentSale = config?.salePricePerKg || 43;
           const ivaRate = config?.ivaRate || 0.16;
           const kilosAmparados = montoNum / currentCost;

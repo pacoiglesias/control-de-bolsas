@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
@@ -67,15 +67,12 @@ export function QuickInvoiceModal({
   const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
   const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 38;
 
-  // Auto-cargar conceptos al montar si hay orden pre-seleccionada
-  useState(() => {
+  // Auto-cargar conceptos al montar o cambiar orden seleccionada
+  useEffect(() => {
     if (selectedOrderId) {
-      const order = validOrders.find(o => o.id === selectedOrderId);
-      if (order) {
-        setTimeout(() => handleSelectOrder(selectedOrderId), 0);
-      }
+      handleSelectOrder(selectedOrderId);
     }
-  });
+  }, [selectedOrderId]);
 
   const handleSelectOrder = (oId: string) => {
     setSelectedOrderId(oId);

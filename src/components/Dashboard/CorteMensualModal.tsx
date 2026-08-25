@@ -117,7 +117,7 @@ export function CorteMensualModal({
     const totalPagadoAndres = pagosAndres.reduce((a, e) => a + e.amount, 0);
     const totalEgresosOperativos = egresosOperativos.reduce((a, e) => a + e.amount, 0);
     const totalKilosCobrados = facturasCobradas.reduce((a, f) => a + f.kilos, 0);
-    const costoAndresDeKilosCobrados = round2(totalKilosCobrados * (config.costPricePerKg || 42));
+    const costoAndresDeKilosCobrados = round2(totalKilosCobrados * (config.costPricePerKg || 38));
     const gananciaNetaPeriodo = round2(totalCobrado - costoAndresDeKilosCobrados - totalEgresosOperativos);
 
     return {
