@@ -1467,6 +1467,7 @@ return () => unsub();
         showQuickInvoice={showQuickInvoice}
         setShowQuickInvoice={setShowQuickInvoice}
         selectedInvoiceOrderId={selectedInvoiceOrderId}
+        setSelectedInvoiceOrderId={setSelectedInvoiceOrderId}
         showQuickDelivery={showQuickDelivery}
         setShowQuickDelivery={setShowQuickDelivery}
         selectedDeliveryOrderId={selectedDeliveryOrderId}

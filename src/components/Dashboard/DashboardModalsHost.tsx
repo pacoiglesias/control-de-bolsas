@@ -28,6 +28,7 @@ export interface DashboardModalsHostProps {
   showQuickInvoice: boolean;
   setShowQuickInvoice: (v: boolean) => void;
   selectedInvoiceOrderId?: string | null;
+  setSelectedInvoiceOrderId?: (id: string | null) => void;
   showQuickDelivery?: boolean;
   setShowQuickDelivery?: (v: boolean) => void;
   selectedDeliveryOrderId?: string | null;
@@ -72,7 +73,7 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
   const {
     showContrarecibosDrawer, setShowContrarecibosDrawer,
     showSeguimientoDrawer, setShowSeguimientoDrawer,
-    showQuickInvoice, setShowQuickInvoice, selectedInvoiceOrderId,
+    showQuickInvoice, setShowQuickInvoice, selectedInvoiceOrderId, setSelectedInvoiceOrderId,
     showQuickDelivery, setShowQuickDelivery, selectedDeliveryOrderId,
     showQuickCollection, setShowQuickCollection,
     showQuickPay, setShowQuickPay,
@@ -129,6 +130,11 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
           orders={seguimientoOrders}
           initialOrderId={selectedDeliveryOrderId}
           onClose={() => setShowQuickDelivery(false)}
+          onOpenInvoice={(orderId) => {
+            setShowQuickDelivery(false);
+            if (setSelectedInvoiceOrderId) setSelectedInvoiceOrderId(orderId);
+            setShowQuickInvoice(true);
+          }}
         />
       )}
 

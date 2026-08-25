@@ -120,6 +120,142 @@ export function printRemision({ folio, oc, client, department, items, deliveredB
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+export function printSingleDeliveryRemision({
+  folio,
+  oc,
+  client,
+  department,
+  delivery,
+  items,
+  provName,
+}: {
+  folio?: string;
+  oc?: string;
+  client?: string;
+  department?: string;
+  delivery: { date: any; kilos: number; driver?: string; docFolio?: string; docType?: string; notes?: string; items?: any[] };
+  items?: any[];
+  provName?: string;
+}) {
+  const deliveryKilos = Number(delivery.kilos) || 0;
+  const rawItems = items && items.length > 0 ? items : [];
+  
+  const itemsRows = rawItems.length > 0 ? rawItems.map((it: any, idx: number) => {
+    const totalOrderKg = rawItems.reduce((s, i) => s + (i.quantity || 0), 0) || 1;
+    const deliveryItemQty = delivery.items?.find((x: any) => x.itemId === it.id)?.quantity ?? (deliveryKilos * ((it.quantity || 0) / totalOrderKg));
+    return `
+      <tr>
+        <td style="font-family: monospace; font-weight: 700; color: #1e3a8a;">${escapeHtml(it.code || `P-${idx + 1}`)}</td>
+        <td style="font-weight: 600;">${escapeHtml(it.description || 'Bolsa de Polietileno')}</td>
+        <td style="text-align: right; font-family: monospace; font-weight: 600;">${Number(it.quantity || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align: right; font-family: monospace; font-weight: 700; color: #047857;">${Number(deliveryItemQty || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</td>
+      </tr>
+    `;
+  }).join('') : `
+    <tr>
+      <td style="font-family: monospace;">24111500</td>
+      <td>Bolsa de Polietileno Transparente en Rollo</td>
+      <td style="text-align: right; font-family: monospace;">${deliveryKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+      <td style="text-align: right; font-family: monospace; font-weight: 700;">${deliveryKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</td>
+    </tr>
+  `;
+
+  const dateFormatted = fmtDate(delivery.date) || fmtDate(new Date());
+  const remisionNumber = delivery.docFolio || folio || oc || 'S/F';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Remisión de Entrega #${escapeHtml(remisionNumber)}</title>
+        <style>
+          body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 28px 36px; color: #0f172a; font-size: 13px; line-height: 1.4; max-width: 900px; margin: 0 auto; }
+          .header { border-bottom: 2px solid #2563eb; padding-bottom: 14px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; font-size: 12.5px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12px; }
+          th, td { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+          th { background: #1e293b; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+          .total-box { margin-left: auto; width: 300px; background: #f0fdf4; border: 1.5px solid #16a34a; border-radius: 8px; padding: 12px 16px; margin-bottom: 30px; text-align: right; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; text-align: center; }
+          .signature-line { border-top: 1px solid #475569; padding-top: 8px; font-weight: 700; font-size: 12px; }
+          @media print { body { padding: 0; } .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div style="font-size: 20px; font-weight: 900; color: #1e3a8a;">BOLSAS ELEMENTAL / PROVIDENCIA</div>
+            <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-top: 2px;">COMPROBANTE DE ENTREGA Y RECEPCIÓN EN BÁSCULA</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 16px; font-weight: 900; color: #2563eb;">REMISIÓN #${escapeHtml(remisionNumber)}</div>
+            <div style="font-size: 11.5px; color: #475569; margin-top: 2px;"><strong>Fecha Entrega:</strong> ${dateFormatted}</div>
+            ${oc ? `<div style="font-size: 11.5px; color: #475569;"><strong>Orden de Compra:</strong> ${escapeHtml(oc)}</div>` : ''}
+          </div>
+        </div>
+        
+        <div class="grid">
+          <div>
+            <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">DATOS DEL CLIENTE / RECEPTOR:</div>
+            <strong>Cliente:</strong> ${escapeHtml(client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV')}<br>
+            <strong>Departamento:</strong> ${escapeHtml(department) || 'TH / GT'}<br>
+            <strong>Destino:</strong> Almacén de Providencia
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">DATOS DE TRASLADO / TRANSPORTE:</div>
+            <strong>Chofer / Entrega:</strong> ${escapeHtml(delivery.driver || provName || 'Andrés')}<br>
+            <strong>Tipo:</strong> ${delivery.docType === 'factura' ? 'Factura Directa' : 'Remisión de Báscula'}<br>
+            ${delivery.notes ? `<strong>Notas:</strong> ${escapeHtml(delivery.notes)}` : ''}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 130px;">Código Art.</th>
+              <th>Descripción de la Partida / Medidas</th>
+              <th style="width: 120px; text-align: right;">Cant. OC (kg)</th>
+              <th style="width: 130px; text-align: right;">Entregado Esta Remisión (kg)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsRows}
+          </tbody>
+        </table>
+
+        <div class="total-box">
+          <div style="font-size: 11px; color: #15803d; font-weight: 700; text-transform: uppercase;">Total Kilos en este Viaje:</div>
+          <div style="font-size: 20px; font-weight: 900; color: #16a34a; font-family: monospace; margin-top: 2px;">
+            ${deliveryKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg
+          </div>
+        </div>
+
+        <div class="signatures">
+          <div>
+            <div style="height: 45px;"></div>
+            <div class="signature-line">Entregó: ${escapeHtml(delivery.driver || provName || 'Andrés')}</div>
+          </div>
+          <div>
+            <div style="height: 45px;"></div>
+            <div class="signature-line">Recibió en Almacén Providencia (Sello / Firma)</div>
+          </div>
+        </div>
+
+        <script>
+          window.onafterprint = () => window.close();
+          window.onload = () => { window.print(); }
+        </script>
+      </body>
+    </html>
+  `;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynamicConfig, provName }: any) {
   const rawItems = items && items.length > 0 ? items : [];
   

@@ -35,6 +35,8 @@ function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) 
   );
 }
 
+import { printSingleDeliveryRemision } from './orderModalPrint';
+import { triggerHaptic } from '../../lib/hapticEngine';
 import { FotoRemisionModal } from './FotoRemisionModal';
 
 export default function TabEntregas() {
@@ -47,6 +49,44 @@ export default function TabEntregas() {
 
   const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, setTab } = ctx;
   const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
+
+  const handlePrintSingleDelivery = (d: any) => {
+    triggerHaptic();
+    const k = round2((d.items ?? []).reduce((a: number, x: any) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
+    printSingleDeliveryRemision({
+      folio: form.folio,
+      oc: form.oc,
+      client: form.client,
+      department: form.department,
+      items: form.items,
+      delivery: {
+        date: d.date ? (typeof d.date.toDate === 'function' ? d.date.toDate() : new Date(d.date)) : new Date(),
+        kilos: k,
+        driver: d.driver || provName || 'Andrés',
+        docFolio: d.docFolio,
+        docType: d.docType,
+        notes: d.notes,
+        items: d.items,
+      },
+      provName: d.driver || provName || 'Andrés',
+    });
+  };
+
+  const handleShareDeliveryWA = (d: any) => {
+    triggerHaptic();
+    const k = round2((d.items ?? []).reduce((a: number, x: any) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
+    const ocNum = form.oc || form.folio || 'S/N';
+    const text = `🚚 *COMPROBANTE DE ENTREGA EN BÁSCULA*\n\n` +
+      `📦 *OC / Pedido:* #${ocNum}\n` +
+      `🏢 *Cliente:* ${form.client || 'Providencia'}\n` +
+      `⚖️ *Kilos Entregados:* ${k.toLocaleString('es-MX')} kg\n` +
+      `📅 *Fecha:* ${toInputDate(d.date) || 'Hoy'}\n` +
+      `🚛 *Chofer / Entrega:* ${d.driver || provName || 'Andrés'}\n` +
+      (d.docFolio ? `📋 *Folio Remisión:* ${d.docFolio}\n` : '') +
+      (d.notes ? `📝 *Notas:* ${d.notes}\n` : '') +
+      `\n_Registrado desde Sistema ERP Bolsas Elemental_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
 
   const handleImportMaquilaDelivery = async (d: any) => {
     // 1. Encuentra el ítem en la OC actual (buscando por código o por id)
@@ -283,12 +323,39 @@ export default function TabEntregas() {
                           )}
                           <strong className="mono" style={{ fontSize: 13 }}>{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ fontSize: 11.5, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            onClick={() => handlePrintSingleDelivery(d)}
+                            title="Imprimir o generar PDF de esta remisión individual"
+                          >
+                            <span>📄</span> Remisión
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ fontSize: 11.5, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#047857', borderColor: '#10b981', background: 'rgba(16,185,129,0.08)' }}
+                            onClick={() => handleShareDeliveryWA(d)}
+                            title="Enviar comprobante por WhatsApp"
+                          >
+                            <span>💬</span> WA
+                          </button>
                           {!readOnly && !d.invoiced && kilosDeEsta > 0 && (
-                            <button className="btn btn-primary" onClick={() => facturarEntrega(i)}>🧾 Facturar esta entrega</button>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: 12, padding: '4px 10px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', border: 'none', color: '#fff', fontWeight: 800 }}
+                              onClick={() => facturarEntrega(i)}
+                            >
+                              🧾 Facturar esta entrega
+                            </button>
                           )}
                           {!readOnly && !d.invoiced && (
-                            <button className="btn btn-danger" onClick={() => removeDelivery(i)}>Eliminar</button>
+                            <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 8px' }} onClick={() => removeDelivery(i)}>
+                              Eliminar
+                            </button>
                           )}
                         </div>
                       </div>

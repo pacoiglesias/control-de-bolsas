@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
 import { addDays, computeFinancials } from '../../lib/finance';
-import { toInputDate, fromInputDate, money } from '../../lib/format';
+import { toInputDate, fromInputDate, money, nombreClienteVisible } from '../../lib/format';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import type { PurchaseOrder, Invoice, FinancialConfig } from '../../lib/types';
@@ -123,7 +123,7 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
         financials: fin,
         items: invoiceItems,
         creditCycle: {
-          status: 'pending',
+          status: 'facturado',
           issueDate: Timestamp.fromDate(issue),
           dueDate: Timestamp.fromDate(due),
         },
@@ -197,7 +197,7 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
             <div>
               <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: '-0.3px' }}>🧾 Emitir Factura</div>
               <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
-                OC: <strong style={{ fontFamily: 'monospace' }}>{order.oc || order.folio || 'S/N'}</strong> · {order.client || 'Providencia'}
+                OC: <strong style={{ fontFamily: 'monospace' }}>{order.oc || order.folio || 'S/N'}</strong> · {nombreClienteVisible(order.client)}
               </div>
             </div>
             <button

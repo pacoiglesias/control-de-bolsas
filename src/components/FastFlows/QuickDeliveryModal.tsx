@@ -8,14 +8,17 @@ import type { PurchaseOrder, Delivery } from '../../lib/types';
 import { nombreClienteVisible } from '../../lib/format';
 import { round2, getOrderSummary } from '../../lib/finance';
 import { triggerHaptic } from '../../lib/hapticEngine';
+import { sound } from '../../lib/sounds';
+import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
 
 interface QuickDeliveryModalProps {
   orders: PurchaseOrder[];
   initialOrderId?: string | null;
   onClose: () => void;
+  onOpenInvoice?: (orderId: string) => void;
 }
 
-export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDeliveryModalProps) {
+export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvoice }: QuickDeliveryModalProps) {
   const toast = useToast();
 
   // Filtrar órdenes que tienen kilos pendientes por entregar físicamente
@@ -53,7 +56,22 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDel
   const [kilos, setKilos] = useState<number | ''>(selectedInfo ? selectedInfo.faltante : '');
   const [dateStr, setDateStr] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [driver, setDriver] = useState<string>('Andrés');
+  const [docType, setDocType] = useState<'remision' | 'factura'>('remision');
+  const [docFolio, setDocFolio] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  // Estado posterior al guardado: Centro de Éxito y Acción Rápida
+  const [completedDelivery, setCompletedDelivery] = useState<{
+    order: PurchaseOrder;
+    kilos: number;
+    driver: string;
+    dateStr: string;
+    docType: 'remision' | 'factura';
+    docFolio: string;
+    notes: string;
+    remainingKg: number;
+  } | null>(null);
 
   const handleSelectOrder = (oId: string) => {
     setSelectedOrderId(oId);
@@ -107,8 +125,10 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDel
           date: Timestamp.fromDate(dateObj),
           kilos: k,
           driver: driver.trim() || 'Andrés',
+          docType,
+          docFolio: docFolio.trim(),
           invoiced: false,
-          notes: `Entrega directa de ${k.toLocaleString('es-MX')} kg - Almacén Providencia`,
+          notes: notes.trim() || `Entrega directa de ${k.toLocaleString('es-MX')} kg - Almacén Providencia`,
         };
 
         existingDeliveries.push(newDelivery);
@@ -118,8 +138,20 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDel
         });
       });
 
-      toast(`✅ Entrega de ${k.toLocaleString('es-MX')} kg registrada exitosamente.`, 'ok');
-      onClose();
+      sound.playChaChing();
+      toast(`✅ Entrega de ${k.toLocaleString('es-MX')} kg guardada con éxito.`, 'ok');
+
+      // Pasar a la pantalla de completado y acción rápida
+      setCompletedDelivery({
+        order: selectedInfo.order,
+        kilos: k,
+        driver: driver.trim() || 'Andrés',
+        dateStr,
+        docType,
+        docFolio: docFolio.trim(),
+        notes: notes.trim(),
+        remainingKg: round2(Math.max(0, selectedInfo.faltante - k)),
+      });
     } catch (err: any) {
       console.error(err);
       toast(`Error al guardar entrega: ${err.message}`, 'bad');
@@ -128,14 +160,215 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDel
     }
   };
 
+  const handlePrintRemisionBtn = () => {
+    if (!completedDelivery) return;
+    triggerHaptic();
+    printSingleDeliveryRemision({
+      folio: completedDelivery.order.folio,
+      oc: completedDelivery.order.oc,
+      client: completedDelivery.order.client,
+      department: completedDelivery.order.department,
+      items: completedDelivery.order.items,
+      delivery: {
+        date: new Date(completedDelivery.dateStr),
+        kilos: completedDelivery.kilos,
+        driver: completedDelivery.driver,
+        docFolio: completedDelivery.docFolio,
+        docType: completedDelivery.docType,
+        notes: completedDelivery.notes,
+      },
+      provName: completedDelivery.driver || 'Andrés',
+    });
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!completedDelivery) return;
+    triggerHaptic();
+    const ocNum = completedDelivery.order.oc || completedDelivery.order.folio || 'S/N';
+    const text = `🚚 *COMPROBANTE DE ENTREGA EN BÁSCULA*\n\n` +
+      `📦 *OC / Pedido:* #${ocNum}\n` +
+      `🏢 *Cliente:* ${nombreClienteVisible(completedDelivery.order.client)}\n` +
+      `⚖️ *Kilos Entregados:* ${completedDelivery.kilos.toLocaleString('es-MX')} kg\n` +
+      `📅 *Fecha:* ${completedDelivery.dateStr}\n` +
+      `🚛 *Chofer / Entrega:* ${completedDelivery.driver}\n` +
+      (completedDelivery.docFolio ? `📋 *Folio Remisión:* ${completedDelivery.docFolio}\n` : '') +
+      `⏳ *Faltante Restante:* ${completedDelivery.remainingKg.toLocaleString('es-MX')} kg\n\n` +
+      `_Registrado desde Sistema ERP Bolsas Elemental_`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   return (
     <Modal
-      title="📦 Registrar Entrega de Andrés"
+      title={completedDelivery ? '🎉 Entrega Completada' : '📦 Registrar Entrega de Andrés'}
       onClose={onClose}
       wide={false}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {pendingOrders.length === 0 ? (
+        {completedDelivery ? (
+          /* ── PANTALLA DE ÉXITO Y ACCIÓN RÁPIDA (DELIVERY HUB) ── */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
+                border: '1.5px solid #10b981',
+                borderRadius: 14,
+                padding: '16px 18px',
+                color: '#ffffff',
+                textAlign: 'center',
+                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.25)',
+              }}
+            >
+              <span style={{ fontSize: 36, display: 'block', marginBottom: 4 }}>🚚</span>
+              <div style={{ fontSize: 18, fontWeight: 900 }}>
+                ¡Entrega de {completedDelivery.kilos.toLocaleString('es-MX')} kg Registrada!
+              </div>
+              <div style={{ fontSize: 12.5, color: '#d1fae5', marginTop: 4 }}>
+                Orden de Compra: <strong>#{completedDelivery.order.oc || completedDelivery.order.folio}</strong> · {nombreClienteVisible(completedDelivery.order.client)}
+              </div>
+            </div>
+
+            {/* Resumen del Viaje */}
+            <div
+              style={{
+                background: 'var(--paper-sunk)',
+                border: '1px solid var(--line)',
+                borderRadius: 12,
+                padding: 12,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+                fontSize: 12.5,
+              }}
+            >
+              <div>
+                <span style={{ color: 'var(--ink-soft)', fontSize: 11, display: 'block' }}>Fecha de Báscula:</span>
+                <strong>{completedDelivery.dateStr}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--ink-soft)', fontSize: 11, display: 'block' }}>Chofer / Entrega:</span>
+                <strong>{completedDelivery.driver}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--ink-soft)', fontSize: 11, display: 'block' }}>Tipo / Folio:</span>
+                <strong>{completedDelivery.docType === 'factura' ? 'Factura' : 'Remisión'} {completedDelivery.docFolio ? `#${completedDelivery.docFolio}` : ''}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--ink-soft)', fontSize: 11, display: 'block' }}>Faltante Restante en OC:</span>
+                <strong style={{ color: completedDelivery.remainingKg > 0 ? '#d97706' : '#10b981' }}>
+                  {completedDelivery.remainingKg > 0 ? `${completedDelivery.remainingKg.toLocaleString('es-MX')} kg` : '✅ 100% Surtido'}
+                </strong>
+              </div>
+            </div>
+
+            {/* ── BOTÓN ESTRELLA 1: FACTURAR DE INMEDIATO ── */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                onClose();
+                onOpenInvoice?.(completedDelivery.order.id);
+              }}
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                padding: '14px 18px',
+                fontSize: 14.5,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.4)',
+                width: '100%',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>🧾</span>
+                <span>EMITIR FACTURA DE ESTA ENTREGA ({completedDelivery.kilos.toLocaleString('es-MX')} kg)</span>
+              </span>
+              <span style={{ background: 'rgba(255,255,255,0.25)', padding: '3px 8px', borderRadius: 6, fontSize: 12 }}>
+                Asistente ➔
+              </span>
+            </button>
+
+            {/* ── BOTONES SECUNDARIOS: REMISIÓN Y WHATSAPP ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button
+                type="button"
+                onClick={handlePrintRemisionBtn}
+                style={{
+                  background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                <span>📄</span> Imprimir Remisión
+              </button>
+
+              <button
+                type="button"
+                onClick={handleWhatsAppShare}
+                style={{
+                  background: 'linear-gradient(135deg, #065f46 0%, #059669 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                <span>💬</span> WhatsApp
+              </button>
+            </div>
+
+            {/* Acciones de Cierre / Continuar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setCompletedDelivery(null);
+                  setKilos('');
+                  setDocFolio('');
+                  setNotes('');
+                }}
+                style={{ fontSize: 12, fontWeight: 700 }}
+              >
+                ➕ Registrar otra entrega
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={onClose}
+                style={{ fontSize: 13, fontWeight: 800, padding: '8px 18px' }}
+              >
+                ✓ Terminar
+              </button>
+            </div>
+          </motion.div>
+        ) : pendingOrders.length === 0 ? (
           <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--ink-soft)' }}>
             <span style={{ fontSize: 40, display: 'block', marginBottom: 12 }}>🎉</span>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>
@@ -329,7 +562,63 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDel
                     )}
                   </div>
 
-                  {/* 3. Fecha y Chofer */}
+                  {/* 3. Tipo de Documento y Folio */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                        Tipo de Documento:
+                      </label>
+                      <div style={{ display: 'flex', borderRadius: 8, border: '1px solid var(--line)', overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={() => setDocType('remision')}
+                          style={{
+                            flex: 1,
+                            padding: '8px 6px',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            border: 'none',
+                            background: docType === 'remision' ? '#2563eb' : 'var(--paper-sunk)',
+                            color: docType === 'remision' ? '#fff' : 'var(--ink-soft)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          📋 Remisión
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDocType('factura')}
+                          style={{
+                            flex: 1,
+                            padding: '8px 6px',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            border: 'none',
+                            background: docType === 'factura' ? '#059669' : 'var(--paper-sunk)',
+                            color: docType === 'factura' ? '#fff' : 'var(--ink-soft)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          📄 Factura
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                        {docType === 'factura' ? 'Folio Factura:' : 'Folio Remisión / Báscula:'}
+                      </label>
+                      <input
+                        type="text"
+                        className="input boxed mono"
+                        style={{ width: '100%', boxSizing: 'border-box', fontSize: 13 }}
+                        value={docFolio}
+                        onChange={(e) => setDocFolio(e.target.value)}
+                        placeholder="Ej. REM-4589"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4. Fecha y Chofer */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
                       <label style={{ fontSize: 11.5, fontWeight: 700, display: 'block', marginBottom: 4 }}>
@@ -358,8 +647,23 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose }: QuickDel
                     </div>
                   </div>
 
-                  {/* 4. Botones de Acción */}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+                  {/* 5. Notas opcionales */}
+                  <div>
+                    <label style={{ fontSize: 11.5, fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                      Notas de Báscula / Observaciones:
+                    </label>
+                    <input
+                      type="text"
+                      className="input boxed"
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 12 }}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Ej. Entregado en tarimas selladas, turno matutino"
+                    />
+                  </div>
+
+                  {/* 6. Botones de Acción */}
+                  <div style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                     <button type="button" className="btn" onClick={onClose} disabled={saving}>
                       Cancelar
                     </button>
