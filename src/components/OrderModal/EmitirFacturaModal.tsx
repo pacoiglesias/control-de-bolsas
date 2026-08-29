@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
-import { addDays, computeFinancials } from '../../lib/finance';
+import { addDays, computeFinancials, round2 } from '../../lib/finance';
 import { toInputDate, fromInputDate, money, nombreClienteVisible } from '../../lib/format';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
-import type { PurchaseOrder, Invoice, FinancialConfig } from '../../lib/types';
+import type { PurchaseOrder, Invoice, FinancialConfig, PurchaseOrderItem } from '../../lib/types';
 
 interface EmitirFacturaModalProps {
   order: PurchaseOrder;
@@ -18,6 +18,17 @@ interface EmitirFacturaModalProps {
 
 type Step = 1 | 2 | 3;
 
+interface ConceptRowItem {
+  id: string;
+  code: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  ocQuantity: number;
+  unitPrice: number;
+  selected: boolean;
+}
+
 export function EmitirFacturaModal({
   order,
   kilosPendientes,
@@ -29,11 +40,10 @@ export function EmitirFacturaModal({
   const toast = useToast();
   const { saveInvoice } = useInvoiceActions();
 
-  const precio = dynamicConfig.salePricePerKg || config.salePricePerKg || 43;
+  const precio = order.customSellPrice || dynamicConfig.salePricePerKg || config.salePricePerKg || 43;
 
   // --- Estado del formulario ---
   const [step, setStep] = useState<Step>(1);
-  const [kilos, setKilos] = useState(kilosPendientes > 0 ? kilosPendientes : 0);
   const [folio, setFolio] = useState('');
   const [issueDate, setIssueDate] = useState(toInputDate(new Date()));
   const [dueDate, setDueDate] = useState(() => {
@@ -44,40 +54,101 @@ export function EmitirFacturaModal({
   const [busy, setBusy] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
 
+  // --- Conceptos / Partidas cargados de la OC ---
+  const [conceptItems, setConceptItems] = useState<ConceptRowItem[]>(() => {
+    const ocItems = order.items || [];
+    if (ocItems.length > 0) {
+      const totalOcKilos = ocItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+      const ratio = kilosPendientes > 0 && totalOcKilos > 0 ? (kilosPendientes / totalOcKilos) : 1;
+
+      return ocItems.map((it, idx) => {
+        const ocQty = Number(it.quantity) || 0;
+        const initialQty = kilosPendientes > 0 ? round2(ocQty * ratio) : ocQty;
+        return {
+          id: it.id || `item_${idx}_${Date.now()}`,
+          code: it.code || '24111500',
+          description: it.description || 'Bolsa de Polietileno',
+          unit: it.unit || 'KGM',
+          quantity: initialQty > 0 ? initialQty : ocQty,
+          ocQuantity: ocQty,
+          unitPrice: it.unitPrice || precio,
+          selected: true,
+        };
+      });
+    }
+
+    // Fallback: Concepto genérico inicial con los kilos disponibles o de la orden
+    const fallbackKilos = kilosPendientes > 0 ? kilosPendientes : (Number(order.totalKilograms) || 1000);
+    return [{
+      id: `item_0_${Date.now()}`,
+      code: config.satClaveProdServ || '24111500',
+      description: 'BOLSA POLIETILENO TRANSPARENTE EN ROLLO / BULTOS',
+      unit: 'KGM',
+      quantity: fallbackKilos,
+      ocQuantity: fallbackKilos,
+      unitPrice: precio,
+      selected: true,
+    }];
+  });
+
+  // Kilos y montos calculados a partir de los conceptos seleccionados
+  const selectedItems = useMemo(() => conceptItems.filter(it => it.selected), [conceptItems]);
+  const kilos = useMemo(() => round2(selectedItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0)), [selectedItems]);
+
   // --- Cálculos en tiempo real ---
   const fin = useMemo(() => computeFinancials(kilos, { ...dynamicConfig, salePricePerKg: precio }), [kilos, dynamicConfig, precio]);
-  const subtotal = fin.saleTotal ?? kilos * precio;
-  const iva = subtotal * 0.16;
-  const total = subtotal + iva;
+  const subtotal = useMemo(() => round2(selectedItems.reduce((s, it) => s + ((Number(it.quantity) || 0) * (Number(it.unitPrice) || precio)), 0)), [selectedItems, precio]);
+  const iva = round2(subtotal * 0.16);
+  const total = round2(subtotal + iva);
 
-  // Máximo facturables = kilos pendientes (ya entregados, ya descontados los ya facturados)
+  // Máximo facturables = kilos pendientes si existen
   const maxFacturables = kilosPendientes;
 
-  // Construir items de factura proporcional a los kilos que se van a facturar
-  const invoiceItems = useMemo(() => {
-    const ocItems = order.items || [];
-    if (ocItems.length === 0) {
-      // Fallback: un sólo concepto genérico con los kilos indicados
-      return [{
-        id: '1',
-        code: config.satClaveProdServ || '24111500',
-        description: 'BOLSA POLIETILENO TRANSPARENTE EN ROLLO / BULTOS',
-        quantity: kilos,
-        unit: 'KGM',
-        unitPrice: precio,
-        amount: kilos * precio,
-      }];
-    }
-    const totalOcKilos = ocItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-    if (totalOcKilos === 0) return ocItems;
-    // Distribuir los kilos a facturar proporcionalmente entre los renglones de la OC
-    const ratio = kilos / totalOcKilos;
-    return ocItems.map((it) => {
-      const q = Math.round((Number(it.quantity) || 0) * ratio * 100) / 100;
-      const p = it.unitPrice || precio;
-      return { ...it, quantity: q, unitPrice: p, amount: Math.round(q * p * 100) / 100 };
+  // Actualizar un concepto
+  const updateConcept = (index: number, field: keyof ConceptRowItem, value: any) => {
+    setConceptItems(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
     });
-  }, [order.items, kilos, precio, config.satClaveProdServ]);
+  };
+
+  const toggleSelectAll = (select: boolean) => {
+    setConceptItems(prev => prev.map(it => ({ ...it, selected: select })));
+  };
+
+  const addCustomConcept = () => {
+    setConceptItems(prev => [
+      ...prev,
+      {
+        id: `custom_${Date.now()}`,
+        code: '24111500',
+        description: 'Concepto adicional...',
+        unit: 'KGM',
+        quantity: 0,
+        ocQuantity: 0,
+        unitPrice: precio,
+        selected: true,
+      }
+    ]);
+  };
+
+  const removeConcept = (index: number) => {
+    setConceptItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Convertir a formato PurchaseOrderItem para guardar en la factura
+  const finalInvoiceItems: PurchaseOrderItem[] = useMemo(() => {
+    return selectedItems.map(it => ({
+      id: it.id,
+      code: it.code || '24111500',
+      description: it.description.trim(),
+      quantity: Number(it.quantity) || 0,
+      unit: it.unit || 'KGM',
+      unitPrice: Number(it.unitPrice) || precio,
+      amount: round2((Number(it.quantity) || 0) * (Number(it.unitPrice) || precio)),
+    }));
+  }, [selectedItems, precio]);
 
   // Datos fiscales del receptor (Providencia)
   const datosSAT = `RFC: GTP930115PU1
@@ -91,23 +162,24 @@ Objeto de Impuesto: 02 - Sí objeto de impuesto
 IVA: 16%
 Método de Pago: PPD - Pago en parcialidades o diferido
 Forma de Pago: 99 - Por definir
-OC de referencia: ${order.oc || order.folio || 'S/N'}`;
+OC de referencia: ${order.oc || order.folio || 'S/N'}
+Conceptos:
+${finalInvoiceItems.map(it => `• [${it.code || '24111500'}] ${it.description}: ${it.quantity.toLocaleString('es-MX')} kg @ $${it.unitPrice.toFixed(2)} = ${money(it.amount)}`).join('\n')}`;
 
   const handleCopyAll = () => {
     navigator.clipboard.writeText(datosSAT);
     setCopiedAll(true);
-    toast('📋 Datos fiscales de Providencia copiados al portapapeles', 'ok');
+    toast('📋 Datos fiscales y conceptos copiados al portapapeles', 'ok');
     setTimeout(() => setCopiedAll(false), 3000);
   };
 
   const handleCreate = async () => {
     if (kilos <= 0) {
-      toast('Los kilos deben ser mayores a 0.', 'bad');
+      toast('Debes seleccionar al menos un concepto con kilos mayores a 0.', 'bad');
       return;
     }
-    if (maxFacturables > 0 && kilos > maxFacturables) {
-      toast(`⚠️ No puedes facturar más de ${maxFacturables.toLocaleString('es-MX')} kg (kilos entregados sin facturar).`, 'bad');
-      return;
+    if (maxFacturables > 0 && kilos > maxFacturables + 0.01) {
+      toast(`⚠️ Aviso: La suma (${kilos.toLocaleString('es-MX')} kg) excede los ${maxFacturables.toLocaleString('es-MX')} kg entregados sin facturar.`, 'bad');
     }
     setBusy(true);
     try {
@@ -115,13 +187,19 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
       const issue = fromInputDate(issueDate) || new Date();
       const due = fromInputDate(dueDate) || addDays(issue, config.creditDays || 30);
 
+      const conceptNotes = finalInvoiceItems.map(it => `${it.description} (${it.quantity.toLocaleString('es-MX')} kg)`).join(' · ');
+
       const newInv: Invoice = {
         id: nuevoId,
         orderId: order.id || '',
         folio: folio.trim().toUpperCase() || '',
         kilos,
-        financials: fin,
-        items: invoiceItems,
+        financials: {
+          ...fin,
+          saleTotal: subtotal,
+          invoiceTotal: total,
+        },
+        items: finalInvoiceItems,
         creditCycle: {
           status: 'facturado',
           issueDate: Timestamp.fromDate(issue),
@@ -130,7 +208,7 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
         collection: {
           paidAmount: 0,
           contrareciboNumber: '',
-          notes: '',
+          notes: conceptNotes ? `Conceptos: ${conceptNotes}` : '',
         },
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
@@ -138,7 +216,7 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
 
       await saveInvoice(order, newInv, dynamicConfig);
       onCreated?.(newInv);
-      toast(`✅ Factura creada — ${kilos.toLocaleString('es-MX')} kg · ${money(total)} con IVA`, 'ok');
+      toast(`✅ Factura creada con ${finalInvoiceItems.length} conceptos — ${kilos.toLocaleString('es-MX')} kg · ${money(total)} con IVA`, 'ok');
       onClose();
     } catch {
       // toast handled in saveInvoice
@@ -148,9 +226,9 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
   };
 
   const stepLabels: Record<Step, string> = {
-    1: '📊 Datos de la Factura',
-    2: '🏛️ Datos del Cliente (SAT)',
-    3: '✅ Confirmar y Crear',
+    1: '📦 Partidas & Conceptos de la OC',
+    2: '🏛️ Datos Fiscales SAT (CFDI 4.0)',
+    3: '✅ Confirmar y Emitir Factura',
   };
 
   return (
@@ -158,58 +236,57 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.7)',
+        background: 'rgba(0,0,0,0.75)',
         backdropFilter: 'blur(8px)',
         zIndex: 9999,
         display: 'flex',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         justifyContent: 'center',
-        padding: 0,
+        padding: '16px',
       }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, y: 60 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 60 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 280 }}
         style={{
           background: 'var(--paper)',
           border: '1px solid var(--line)',
-          borderRadius: '20px 20px 0 0',
+          borderRadius: 20,
           width: '100%',
-          maxWidth: 540,
-          maxHeight: '94vh',
-          overflowY: 'auto',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
+          maxWidth: 640,
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
           color: 'var(--ink)',
+          overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle bar */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 40, height: 4, borderRadius: 4, background: 'var(--line)' }} />
+        {/* Header fijo */}
+        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--line-soft)', background: 'var(--paper-raised)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🧾</span> Emitir Factura Detallada
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+              OC: <strong style={{ fontFamily: 'monospace', color: 'var(--ink)' }}>{order.oc || order.folio || 'S/N'}</strong> · {nombreClienteVisible(order.client)}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'var(--paper-sunk)', border: 'none', borderRadius: 8, width: 32, height: 32, fontSize: 16, cursor: 'pointer', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            ✕
+          </button>
         </div>
 
-        <div style={{ padding: '0 20px 28px' }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, paddingTop: 8 }}>
-            <div>
-              <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: '-0.3px' }}>🧾 Emitir Factura</div>
-              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
-                OC: <strong style={{ fontFamily: 'monospace' }}>{order.oc || order.folio || 'S/N'}</strong> · {nombreClienteVisible(order.client)}
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              style={{ background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--ink-soft)', padding: 4 }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Step indicator */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+        {/* Step Indicator */}
+        <div style={{ padding: '12px 22px 0', background: 'var(--paper)' }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             {([1, 2, 3] as Step[]).map((s) => (
               <div
                 key={s}
@@ -225,188 +302,271 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
               />
             ))}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#2563eb', marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#2563eb' }}>
             Paso {step} de 3 — {stepLabels[step]}
           </div>
+        </div>
 
+        {/* Contenido Scrollable */}
+        <div style={{ padding: '16px 22px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <AnimatePresence mode="wait">
-            {/* ───────── PASO 1: Datos de la Factura ───────── */}
+            
+            {/* ───────── PASO 1: Partidas & Conceptos de la OC ───────── */}
             {step === 1 && (
               <motion.div
                 key="step1"
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: 16 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                exit={{ opacity: 0, x: -16 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
               >
-                {/* Folio */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                    Número de Folio de la Factura <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(puedes dejarlo en blanco si aún no tienes el folio del SAT)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. 6250 — déjalo vacío si aún no lo tienes"
-                    value={folio}
-                    onChange={(e) => setFolio(e.target.value.toUpperCase())}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      padding: '13px 14px',
-                      fontSize: 20,
-                      fontWeight: 900,
-                      fontFamily: 'monospace',
-                      borderRadius: 12,
-                      border: '2px solid var(--line)',
-                      background: 'var(--paper-sunk)',
-                      color: 'var(--ink)',
-                      outline: 'none',
-                      letterSpacing: '0.05em',
-                    }}
-                    autoFocus
-                  />
-                </div>
-
-                {/* Kilos */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                    Kilos a Facturar
-                  </label>
-                  <div style={{
-                    background: 'var(--paper-sunk)',
-                    border: '2px solid var(--accent)',
-                    borderRadius: 12,
-                    padding: '10px 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                  }}>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={kilos}
-                      onChange={(e) => setKilos(Number(e.target.value))}
-                      style={{
-                        flex: 1,
-                        background: 'transparent',
-                        border: 'none',
-                        outline: 'none',
-                        fontSize: 24,
-                        fontWeight: 900,
-                        fontFamily: 'monospace',
-                        color: 'var(--ink)',
-                      }}
-                    />
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-soft)' }}>kg</span>
-                  </div>
-                  {kilosPendientes > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setKilos(kilosPendientes)}
-                      style={{
-                        marginTop: 6,
-                        fontSize: 11,
-                        padding: '3px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--accent)',
-                        background: 'transparent',
-                        color: '#2563eb',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                      }}
-                    >
-                      ⚡ Usar pendientes: {kilosPendientes.toLocaleString('es-MX')} kg
-                    </button>
-                  )}
-                </div>
-
-                {/* Resumen de importes en tiempo real */}
-                <div style={{
-                  background: 'linear-gradient(135deg, rgba(2,132,199,0.08), rgba(3,105,161,0.12))',
-                  border: '1px solid #0284c7',
-                  borderRadius: 12,
-                  padding: '12px 16px',
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', marginBottom: 10, textTransform: 'uppercase' }}>
-                    📊 Resumen de Importes (calculado automático)
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {[
-                      { label: 'Precio / kg', val: `$${precio.toFixed(2)}` },
-                      { label: 'Subtotal (sin IVA)', val: money(subtotal) },
-                      { label: 'IVA (16%)', val: money(iva) },
-                      { label: 'TOTAL c/IVA', val: money(total), accent: true },
-                    ].map(({ label, val, accent }) => (
-                      <div key={label} style={{ background: 'var(--paper)', borderRadius: 8, padding: '8px 10px', border: `1px solid ${accent ? '#0284c7' : 'var(--line-soft)'}` }}>
-                        <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 600 }}>{label}</div>
-                        <div style={{ fontSize: accent ? 16 : 13, fontWeight: 900, color: accent ? '#0369a1' : 'var(--ink)', fontFamily: 'monospace', marginTop: 2 }}>{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Fechas */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {/* Folio y Fechas */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 10, background: 'var(--paper-sunk)', padding: 12, borderRadius: 12, border: '1px solid var(--line-soft)' }}>
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Fecha de Emisión</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--ink-soft)' }}>Folio Factura</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. 6250"
+                      value={folio}
+                      onChange={(e) => setFolio(e.target.value.toUpperCase())}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '8px 10px',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        fontFamily: 'monospace',
+                        borderRadius: 8,
+                        border: '1px solid var(--line)',
+                        background: 'var(--paper)',
+                        color: 'var(--ink)',
+                        outline: 'none',
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--ink-soft)' }}>Emisión</label>
                     <input
                       type="date"
                       value={issueDate}
                       onChange={(e) => {
                         setIssueDate(e.target.value);
                         const issue = fromInputDate(e.target.value);
-                        if (issue) {
-                          const d = addDays(issue, config.creditDays || 30);
-                          setDueDate(toInputDate(d));
-                        }
+                        if (issue) setDueDate(toInputDate(addDays(issue, config.creditDays || 30)));
                       }}
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--paper-sunk)', color: 'var(--ink)', fontSize: 14, fontWeight: 700, outline: 'none' }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontSize: 12, fontWeight: 700, outline: 'none' }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Fecha de Vencimiento</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--ink-soft)' }}>Vencimiento</label>
                     <input
                       type="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--paper-sunk)', color: 'var(--ink)', fontSize: 14, fontWeight: 700, outline: 'none' }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontSize: 12, fontWeight: 700, outline: 'none' }}
                     />
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[15, 30, 45].map((d) => (
+
+                {/* Banner de Conceptos de la OC */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📦</span> Conceptos Cargados de la OC ({selectedItems.length} de {conceptItems.length} seleccionados)
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                      Marca los conceptos a incluir y ajusta los kilos a facturar en cada renglón.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
                     <button
-                      key={d}
                       type="button"
-                      onClick={() => {
-                        const issue = fromInputDate(issueDate) || new Date();
-                        setDueDate(toInputDate(addDays(issue, d)));
-                      }}
-                      style={{ flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 700, borderRadius: 8, border: '1px solid var(--line)', background: d === 30 ? 'rgba(37,99,235,0.1)' : 'var(--paper-sunk)', color: d === 30 ? '#2563eb' : 'var(--ink-soft)', cursor: 'pointer' }}
+                      onClick={() => toggleSelectAll(true)}
+                      style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper-sunk)', cursor: 'pointer', fontWeight: 700 }}
                     >
-                      +{d} días
+                      ⚡ Todos
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectAll(false)}
+                      style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper-sunk)', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      Ninguno
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addCustomConcept}
+                      style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      ➕ Agregar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista de Partidas / Conceptos */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+                  {conceptItems.map((item, idx) => {
+                    const rowAmount = round2((Number(item.quantity) || 0) * (Number(item.unitPrice) || precio));
+                    return (
+                      <div
+                        key={item.id || idx}
+                        style={{
+                          background: item.selected ? 'rgba(37,99,235,0.04)' : 'var(--paper-sunk)',
+                          border: item.selected ? '1.5px solid #3b82f6' : '1px solid var(--line-soft)',
+                          borderRadius: 10,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          transition: 'all 0.2s ease',
+                          opacity: item.selected ? 1 : 0.6,
+                        }}
+                      >
+                        {/* Fila superior: Checkbox + Código + Descripción */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={(e) => updateConcept(idx, 'selected', e.target.checked)}
+                            style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#2563eb', flexShrink: 0 }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: '#1e40af', background: 'rgba(37,99,235,0.08)', padding: '1px 6px', borderRadius: 4 }}>
+                                {item.code || '24111500'}
+                              </span>
+                              <strong style={{ fontSize: 12.5, color: 'var(--ink)' }}>
+                                {item.description}
+                              </strong>
+                            </div>
+                            {item.ocQuantity > 0 && (
+                              <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+                                Pedido en OC: <b>{item.ocQuantity.toLocaleString('es-MX')} kg</b>
+                              </div>
+                            )}
+                          </div>
+                          {conceptItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeConcept(idx)}
+                              style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 14, cursor: 'pointer', padding: '2px 6px' }}
+                              title="Quitar este concepto"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Fila inferior: Inputs de Kilos, Precio e Importe */}
+                        {item.selected && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, borderTop: '1px dashed var(--line-soft)', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '1 1 140px' }}>
+                              <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>Kilos:</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.quantity}
+                                onChange={(e) => updateConcept(idx, 'quantity', Number(e.target.value))}
+                                style={{
+                                  width: 85,
+                                  padding: '4px 6px',
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  fontFamily: 'monospace',
+                                  borderRadius: 6,
+                                  border: '1px solid var(--line)',
+                                  background: 'var(--paper)',
+                                  color: 'var(--ink)',
+                                  outline: 'none',
+                                }}
+                              />
+                              {item.ocQuantity > 0 && item.quantity !== item.ocQuantity && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateConcept(idx, 'quantity', item.ocQuantity)}
+                                  style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, background: 'var(--paper-raised)', border: '1px solid var(--line)', cursor: 'pointer', fontWeight: 700, color: '#2563eb' }}
+                                  title="Poner el total de la OC"
+                                >
+                                  Máx
+                                </button>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>P. Unit:</span>
+                              <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>${item.unitPrice.toFixed(2)}</span>
+                            </div>
+
+                            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                              <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: '#059669' }}>
+                                {money(rowAmount)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Resumen de Importes */}
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(37,99,235,0.06), rgba(59,130,246,0.1))',
+                  border: '1px solid rgba(37,99,235,0.25)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 700 }}>KILOS TOTALES</div>
+                      <div className="mono" style={{ fontSize: 14, fontWeight: 900, color: 'var(--ink)', marginTop: 2 }}>
+                        {kilos.toLocaleString('es-MX')} kg
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 700 }}>SUBTOTAL</div>
+                      <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>
+                        {money(subtotal)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 700 }}>IVA (16%)</div>
+                      <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink-soft)', marginTop: 2 }}>
+                        {money(iva)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#2563eb', fontWeight: 800 }}>TOTAL c/IVA</div>
+                      <div className="mono" style={{ fontSize: 16, fontWeight: 900, color: '#2563eb', marginTop: 2 }}>
+                        {money(total)}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setStep(2)}
                   disabled={kilos <= 0}
                   style={{
-                    marginTop: 6,
                     width: '100%',
-                    padding: '15px',
-                    borderRadius: 14,
+                    padding: '14px',
+                    borderRadius: 12,
                     border: 'none',
                     background: kilos > 0 ? '#2563eb' : 'var(--line)',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: 800,
                     cursor: kilos > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
                   }}
                 >
-                  Siguiente → Datos del Cliente SAT
+                  Siguiente → Datos SAT & Pre-Factura ({finalInvoiceItems.length} partidas)
                 </button>
               </motion.div>
             )}
@@ -415,9 +575,9 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
             {step === 2 && (
               <motion.div
                 key="step2"
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: 16 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                exit={{ opacity: 0, x: -16 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
               >
                 <div style={{
@@ -434,56 +594,73 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
                     { label: 'Razón Social', val: 'GRUPO TEXTIL PROVIDENCIA SA DE CV', mono: false },
                     { label: 'Régimen Fiscal', val: '601 - General de Ley Personas Morales', mono: false },
                     { label: 'Uso CFDI', val: 'G01 - Adquisición de mercancías', mono: false },
-                    { label: 'Clave Prod/Serv SAT', val: '24111500', mono: true },
-                    { label: 'Unidad SAT', val: 'KGM (Kilogramo)', mono: true },
                     { label: 'Precio Unitario', val: `$${precio.toFixed(2)} / kg`, mono: true, accent: true },
-                    { label: 'Objeto de Impuesto', val: '02 - Sí objeto de impuesto', mono: false },
-                    { label: 'IVA', val: '16%', mono: true },
                     { label: 'Método de Pago', val: 'PPD - Pago en parcialidades o diferido', mono: false },
                     { label: 'Forma de Pago', val: '99 - Por definir', mono: false },
                     { label: 'OC de referencia', val: order.oc || order.folio || 'S/N', mono: true, accent: true },
                   ].map(({ label, val, mono, accent }) => (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(124,58,237,0.15)', paddingBottom: 7, marginBottom: 7 }}>
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(124,58,237,0.15)', paddingBottom: 6, marginBottom: 6 }}>
                       <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>{label}:</span>
                       <span style={{ fontSize: 12, fontWeight: 800, fontFamily: mono ? 'monospace' : 'inherit', color: accent ? '#7c3aed' : 'var(--ink)' }}>{val}</span>
                     </div>
                   ))}
                 </div>
 
+                {/* Desglose de partidas SAT */}
+                <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-soft)', marginBottom: 8, textTransform: 'uppercase' }}>
+                    📦 Partidas a capturar en el SAT ({finalInvoiceItems.length}):
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {finalInvoiceItems.map((it, idx) => (
+                      <div key={it.id || idx} style={{ background: 'var(--paper)', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line-soft)', fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span className="mono" style={{ fontWeight: 800, color: '#2563eb' }}>{it.code || '24111500'}</span> · <strong>{it.description}</strong>
+                        </div>
+                        <div className="mono" style={{ fontWeight: 800 }}>
+                          {it.quantity.toLocaleString('es-MX')} kg @ ${it.unitPrice.toFixed(2)} = {money(it.amount)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <button
+                  type="button"
                   onClick={handleCopyAll}
                   style={{
                     width: '100%',
-                    padding: '13px',
-                    borderRadius: 12,
+                    padding: '12px',
+                    borderRadius: 10,
                     border: `2px solid ${copiedAll ? '#10b981' : '#7c3aed'}`,
                     background: copiedAll ? 'rgba(16,185,129,0.1)' : 'rgba(124,58,237,0.1)',
                     color: copiedAll ? '#10b981' : '#7c3aed',
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: 800,
                     cursor: 'pointer',
-                    transition: 'all 0.2s',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
                   }}
                 >
-                  {copiedAll ? '✅ ¡Copiado!' : '📋 Copiar todos los datos para el portal SAT'}
+                  {copiedAll ? '✅ ¡Copiado al Portapapeles!' : '📋 Copiar todos los datos fiscales y partidas para el SAT'}
                 </button>
 
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button
+                    type="button"
                     onClick={() => setStep(1)}
-                    style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--paper-sunk)', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+                    style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--paper-sunk)', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
                   >
-                    ← Atrás
+                    ← Modificar Conceptos
                   </button>
                   <button
+                    type="button"
                     onClick={() => setStep(3)}
-                    style={{ flex: 2, padding: '13px', borderRadius: 12, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14 }}
+                    style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14 }}
                   >
-                    Siguiente → Confirmar
+                    Siguiente → Confirmar Factura
                   </button>
                 </div>
               </motion.div>
@@ -493,12 +670,12 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
             {step === 3 && (
               <motion.div
                 key="step3"
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: 16 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                exit={{ opacity: 0, x: -16 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
               >
-                <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, marginBottom: 4 }}>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
                   Revisa que todo esté correcto antes de crear la factura en el sistema:
                 </div>
 
@@ -518,8 +695,8 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
                   {[
                     { k: 'OC de referencia', v: order.oc || order.folio || 'S/N' },
                     { k: 'Cliente', v: order.client || 'Grupo Textil Providencia' },
+                    { k: 'Partidas desglosadas', v: `${finalInvoiceItems.length} concepto(s)` },
                     { k: 'Kilos facturados', v: `${kilos.toLocaleString('es-MX')} kg` },
-                    { k: 'Precio unitario', v: `$${precio.toFixed(2)} / kg` },
                     { k: 'Subtotal (sin IVA)', v: money(subtotal) },
                     { k: 'IVA (16%)', v: money(iva) },
                     { k: 'TOTAL con IVA', v: money(total), accent: true },
@@ -532,62 +709,60 @@ OC de referencia: ${order.oc || order.folio || 'S/N'}`;
                       style={{
                         display: 'flex',
                         justifyContent: 'space-between',
-                        padding: '9px 16px',
-                        borderBottom: '1px solid var(--line)',
+                        padding: '8px 14px',
+                        borderBottom: '1px solid var(--line-soft)',
                         background: accent ? 'rgba(37,99,235,0.06)' : 'transparent',
                       }}
                     >
-                      <span style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 600 }}>{k}</span>
+                      <span style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontWeight: 600 }}>{k}</span>
                       <span style={{ fontSize: 12, fontWeight: accent ? 900 : 700, color: accent ? '#2563eb' : 'var(--ink)', fontFamily: 'monospace' }}>{v}</span>
                     </div>
                   ))}
                 </div>
 
-                {!folio && (
-                  <div style={{
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    background: 'rgba(234,179,8,0.1)',
-                    border: '1px solid rgba(234,179,8,0.4)',
-                    fontSize: 12,
-                    color: '#a16207',
-                    fontWeight: 600,
-                  }}>
-                    ⚠️ Sin folio — La factura se guardará sin número. Podrás agregarlo después desde el expediente una vez que lo tengas del portal del SAT.
+                {/* Vista previa de partidas */}
+                <div style={{ background: 'var(--paper-sunk)', padding: 10, borderRadius: 8, border: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', marginBottom: 6 }}>
+                    Partidas asignadas a esta factura:
                   </div>
-                )}
+                  {finalInvoiceItems.map((it, idx) => (
+                    <div key={it.id || idx} style={{ fontSize: 11, color: 'var(--ink)', padding: '2px 0' }}>
+                      • <strong>{it.description}</strong>: {it.quantity.toLocaleString('es-MX')} kg @ ${it.unitPrice.toFixed(2)} ({money(it.amount)})
+                    </div>
+                  ))}
+                </div>
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                   <button
-                    onClick={() => setStep(2)}
-                    style={{ flex: 1, padding: '14px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--paper-sunk)', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+                    type="button"
+                    onClick={() => setStep(1)}
+                    style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--paper-sunk)', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
                   >
-                    ← Atrás
+                    ← Modificar
                   </button>
                   <button
+                    type="button"
                     onClick={handleCreate}
                     disabled={busy || kilos <= 0}
                     style={{
                       flex: 2,
-                      padding: '15px',
+                      padding: '13px',
                       borderRadius: 12,
                       border: 'none',
-                      background: busy || kilos <= 0 ? 'var(--line)' : 'linear-gradient(135deg, #059669, #10b981)',
+                      background: busy ? 'var(--line)' : '#059669',
                       color: '#fff',
-                      fontSize: 16,
                       fontWeight: 900,
-                      cursor: busy || kilos <= 0 ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
+                      fontSize: 15,
+                      cursor: busy ? 'wait' : 'pointer',
+                      boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
                     }}
                   >
-                    {busy ? '⏳ Creando...' : '✅ Crear Factura'}
+                    {busy ? 'Creando factura...' : '💾 Crear y Guardar Factura'}
                   </button>
                 </div>
               </motion.div>
             )}
+
           </AnimatePresence>
         </div>
       </motion.div>

@@ -287,10 +287,37 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
             </Field>
           </div>
 
-          {localInvoice.items && localInvoice.items.length > 0 && (
+          {localInvoice.items && localInvoice.items.length > 0 ? (
             <div style={{ marginTop: 16, background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
-              <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>📦</span> Partidas / Conceptos de esta Factura ({localInvoice.items.length})
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>📦</span> Partidas / Conceptos de esta Factura ({localInvoice.items.length})
+                </div>
+                {order.items && order.items.length > 0 && !readOnly && (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 11, padding: '2px 8px', background: 'var(--paper)', border: '1px solid var(--line)' }}
+                    onClick={() => {
+                      const totalOcKilos = order.items!.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+                      const ratio = totalOcKilos > 0 ? (localInvoice.kilos / totalOcKilos) : 1;
+                      const newItems = order.items!.map(it => {
+                        const q = round2((Number(it.quantity) || 0) * ratio);
+                        const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                        return {
+                          ...it,
+                          quantity: q,
+                          unitPrice: p,
+                          amount: round2(q * p),
+                        };
+                      });
+                      updateField(['items'], newItems);
+                      toast('📦 Conceptos re-sincronizados desde la OC', 'ok');
+                    }}
+                  >
+                    🔄 Recargar de OC
+                  </button>
+                )}
               </div>
               <div className="table-scroll">
                 <table className="data-table" style={{ fontSize: 11.5, width: '100%' }}>
@@ -316,6 +343,37 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                   </tbody>
                 </table>
               </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: 14, background: 'rgba(37,99,235,0.05)', border: '1px dashed rgba(37,99,235,0.25)', padding: '10px 14px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--ink)' }}>
+                ℹ️ Esta factura aún no tiene partidas desglosadas (solo kilos totales).
+              </div>
+              {order.items && order.items.length > 0 && !readOnly && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontSize: 11.5, padding: '4px 12px' }}
+                  onClick={() => {
+                    const totalOcKilos = order.items!.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+                    const ratio = totalOcKilos > 0 ? (localInvoice.kilos / totalOcKilos) : 1;
+                    const newItems = order.items!.map(it => {
+                      const q = round2((Number(it.quantity) || 0) * ratio);
+                      const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                      return {
+                        ...it,
+                        quantity: q,
+                        unitPrice: p,
+                        amount: round2(q * p),
+                      };
+                    });
+                    updateField(['items'], newItems);
+                    toast(`📦 ${newItems.length} conceptos importados de la OC`, 'ok');
+                  }}
+                >
+                  📦 Cargar {order.items.length} Conceptos de la OC
+                </button>
+              )}
             </div>
           )}
           

@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.34 Carga Interactiva de Partidas de la OC en Emisión de Facturas y Sincronizador de Conceptos',
+    date: '29 de Agosto de 2026',
+    time: '10:48 PM',
+    summary: 'Integración completa e interactiva de partidas de la OC en el modal de emisión de facturas (EmitirFacturaModal), selección inteligente por renglón con kilos editables y desglose fiscal automático, precarga de partidas por default en Facturación Rápida (QuickInvoiceModal) y botón de re-sincronización de conceptos en el visor de facturas.',
+    highlights: [
+      '📦 Partidas de la OC en Emisión Guiada: EmitirFacturaModal ahora muestra y desglosa todas las partidas de la OC con clave SAT, descripción, kilos pedidos, kilos a facturar editables y botón Máx.',
+      '⚡ Selección Múltiple y Rápida: Checkboxes por partida, botones "Todos" / "Ninguno", y cálculo en tiempo real de subtotales, IVA y total con IVA.',
+      '🔄 Recargar Conceptos en Facturas Existentes: Botón "📦 Cargar Conceptos de la OC" en InvoiceWidget para sincronizar partidas en facturas que solo tenían kilos globales.',
+      '📋 SAT Helper Visual: El widget de facturación en TabFacturas ahora lista las partidas disponibles directamente antes de emitir.',
+    ],
+  },
+  {
     version: 'v8.9.33 Visibilidad de Entregas en Facturación, Mejoras de Cobranza y Dashboard Inteligente',
     date: '29 de Agosto de 2026',
     time: '10:38 PM',

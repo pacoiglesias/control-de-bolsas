@@ -368,10 +368,15 @@ export function QuickInvoiceModal({
           maxAvail = round2(uninvoicedKilosFlat * proporcion);
         }
 
-        // 3. Si sigue en 0 pero hay solo 1 partida y hay pendingKilos, usarlos directamente
-        if (maxAvail < 0.01 && order.items!.length === 1 && pendingKilos > 0) {
-          maxAvail = pendingKilos;
+        // 3. Si hay pendingKilos generales pero no desglosados, distribuir proporcionalmente
+        if (maxAvail < 0.01 && pendingKilos > 0 && totalOCKilos > 0) {
+          const proporcion = Number(it.quantity || 0) / totalOCKilos;
+          maxAvail = round2(pendingKilos * proporcion);
         }
+
+        // 4. Si aún es 0 o no hay entregas, usar la cantidad original de la OC
+        const ocQty = Number(it.quantity || 0);
+        const finalQty = maxAvail > 0 ? maxAvail : ocQty;
 
         return {
           id: it.id || `item_${idx}_${Date.now()}`,
@@ -379,13 +384,14 @@ export function QuickInvoiceModal({
           description: it.description || 'Bolsa de Polietileno',
           unit: it.unit || 'KGM',
           unitPrice: it.unitPrice || currentSellPrice,
-          selected: maxAvail > 0 || (order.items!.length === 1),
-          quantity: maxAvail > 0 ? maxAvail : Number(it.quantity || 0),
-          maxAvailable: maxAvail > 0 ? maxAvail : Number(it.quantity || 0),
+          selected: true, // Siempre seleccionados por default para que se vean y sumen de inmediato
+          quantity: finalQty,
+          maxAvailable: ocQty > 0 ? ocQty : finalQty,
         };
       });
       setConceptRows(rows);
     } else {
+      const defaultQty = pendingKilos > 0 ? pendingKilos : (Number(order.totalKilograms) || 1000);
       setConceptRows([{
         id: `default_${Date.now()}`,
         code: '24111500',
@@ -393,8 +399,8 @@ export function QuickInvoiceModal({
         unit: 'KGM',
         unitPrice: currentSellPrice,
         selected: true,
-        quantity: pendingKilos,
-        maxAvailable: pendingKilos,
+        quantity: defaultQty,
+        maxAvailable: defaultQty,
       }]);
     }
   };
