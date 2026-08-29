@@ -6,6 +6,7 @@ import { toInputDate, fromInputDate, money, nombreClienteVisible } from '../../l
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import type { PurchaseOrder, Invoice, FinancialConfig, PurchaseOrderItem } from '../../lib/types';
+import { getEffectiveOrderItems, CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS } from '../../lib/types';
 
 interface EmitirFacturaModalProps {
   order: PurchaseOrder;
@@ -54,27 +55,32 @@ export function EmitirFacturaModal({
   const [busy, setBusy] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
 
+  // Helper para convertir una lista de items de la OC a ConceptRowItem
+  const mapItemsToConcepts = (items: PurchaseOrderItem[]): ConceptRowItem[] => {
+    const totalOcKilos = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+    const ratio = kilosPendientes > 0 && totalOcKilos > 0 ? (kilosPendientes / totalOcKilos) : 1;
+
+    return items.map((it, idx) => {
+      const ocQty = Number(it.quantity) || 0;
+      const initialQty = kilosPendientes > 0 ? round2(ocQty * ratio) : ocQty;
+      return {
+        id: it.id || `item_${idx}_${Date.now()}`,
+        code: it.code || '24111500',
+        description: it.description || 'Bolsa de Polietileno',
+        unit: it.unit || 'KGM',
+        quantity: initialQty > 0 ? initialQty : ocQty,
+        ocQuantity: ocQty,
+        unitPrice: it.unitPrice || precio,
+        selected: true,
+      };
+    });
+  };
+
   // --- Conceptos / Partidas cargados de la OC ---
   const [conceptItems, setConceptItems] = useState<ConceptRowItem[]>(() => {
-    const ocItems = order.items || [];
-    if (ocItems.length > 0) {
-      const totalOcKilos = ocItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-      const ratio = kilosPendientes > 0 && totalOcKilos > 0 ? (kilosPendientes / totalOcKilos) : 1;
-
-      return ocItems.map((it, idx) => {
-        const ocQty = Number(it.quantity) || 0;
-        const initialQty = kilosPendientes > 0 ? round2(ocQty * ratio) : ocQty;
-        return {
-          id: it.id || `item_${idx}_${Date.now()}`,
-          code: it.code || '24111500',
-          description: it.description || 'Bolsa de Polietileno',
-          unit: it.unit || 'KGM',
-          quantity: initialQty > 0 ? initialQty : ocQty,
-          ocQuantity: ocQty,
-          unitPrice: it.unitPrice || precio,
-          selected: true,
-        };
-      });
+    const effectiveItems = getEffectiveOrderItems(order);
+    if (effectiveItems.length > 0) {
+      return mapItemsToConcepts(effectiveItems);
     }
 
     // Fallback: Concepto genérico inicial con los kilos disponibles o de la orden
@@ -373,31 +379,47 @@ ${finalInvoiceItems.map(it => `• [${it.code || '24111500'}] ${it.description}:
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>📦</span> Conceptos Cargados de la OC ({selectedItems.length} de {conceptItems.length} seleccionados)
+                      <span>📦</span> Conceptos de la Factura ({selectedItems.length} de {conceptItems.length} seleccionados)
                     </div>
                     <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
                       Marca los conceptos a incluir y ajusta los kilos a facturar en cada renglón.
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setConceptItems(mapItemsToConcepts(CANONICAL_TH_ITEMS))}
+                      style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 6, border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.08)', color: '#1d4ed8', cursor: 'pointer', fontWeight: 700 }}
+                      title="Cargar las 6 partidas de Textil Hogar"
+                    >
+                      🏷️ Plantilla TH (6)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConceptItems(mapItemsToConcepts(CANONICAL_GT_ITEMS))}
+                      style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 6, border: '1px solid #16a34a', background: 'rgba(22,163,74,0.08)', color: '#15803d', cursor: 'pointer', fontWeight: 700 }}
+                      title="Cargar las 4 partidas de Grupo Textil"
+                    >
+                      🏷️ Plantilla GT (4)
+                    </button>
                     <button
                       type="button"
                       onClick={() => toggleSelectAll(true)}
-                      style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper-sunk)', cursor: 'pointer', fontWeight: 700 }}
+                      style={{ fontSize: 10.5, padding: '3px 7px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper-sunk)', cursor: 'pointer', fontWeight: 700 }}
                     >
                       ⚡ Todos
                     </button>
                     <button
                       type="button"
                       onClick={() => toggleSelectAll(false)}
-                      style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper-sunk)', cursor: 'pointer', fontWeight: 600 }}
+                      style={{ fontSize: 10.5, padding: '3px 7px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--paper-sunk)', cursor: 'pointer', fontWeight: 600 }}
                     >
                       Ninguno
                     </button>
                     <button
                       type="button"
                       onClick={addCustomConcept}
-                      style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                      style={{ fontSize: 10.5, padding: '3px 9px', borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
                     >
                       ➕ Agregar
                     </button>

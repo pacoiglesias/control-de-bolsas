@@ -5,6 +5,7 @@ import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
 import { EmitirFacturaModal } from './EmitirFacturaModal';
 import type { Invoice } from '../../lib/types';
+import { getEffectiveOrderItems } from '../../lib/types';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
 export default function TabFacturas() {
@@ -206,33 +207,37 @@ export default function TabFacturas() {
         </div>
 
         {/* Partidas de la OC disponibles para facturar */}
-        {order.items && order.items.length > 0 && (
-          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(2,132,199,0.2)' }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>📦 Partidas de la OC ({order.items.length} conceptos disponibles):</span>
-              <button
-                type="button"
-                className="btn-small"
-                style={{ fontSize: 10, padding: '2px 6px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: 700 }}
-                onClick={() => setShowEmitirModal(true)}
-              >
-                ⚡ Facturar con Partidas
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 6 }}>
-              {order.items.map((it, idx) => (
-                <div key={it.id || idx} style={{ background: 'var(--paper)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--line-soft)', fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ minWidth: 0, paddingRight: 6 }}>
-                    <span className="mono" style={{ fontWeight: 800, color: '#2563eb' }}>{it.code || 'S/C'}</span> · <span style={{ fontWeight: 600 }}>{it.description}</span>
+        {(() => {
+          const effectiveItems = getEffectiveOrderItems(order);
+          if (effectiveItems.length === 0) return null;
+          return (
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(2,132,199,0.2)' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>📦 Partidas de la OC ({effectiveItems.length} conceptos disponibles):</span>
+                <button
+                  type="button"
+                  className="btn-small"
+                  style={{ fontSize: 10, padding: '2px 6px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: 700 }}
+                  onClick={() => setShowEmitirModal(true)}
+                >
+                  ⚡ Facturar con Partidas
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 6 }}>
+                {effectiveItems.map((it, idx) => (
+                  <div key={it.id || idx} style={{ background: 'var(--paper)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--line-soft)', fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ minWidth: 0, paddingRight: 6 }}>
+                      <span className="mono" style={{ fontWeight: 800, color: '#2563eb' }}>{it.code || 'S/C'}</span> · <span style={{ fontWeight: 600 }}>{it.description}</span>
+                    </div>
+                    <strong className="mono" style={{ whiteSpace: 'nowrap', fontSize: 11.5 }}>
+                      {(Number(it.quantity) || 0).toLocaleString('es-MX')} kg
+                    </strong>
                   </div>
-                  <strong className="mono" style={{ whiteSpace: 'nowrap', fontSize: 11.5 }}>
-                    {(Number(it.quantity) || 0).toLocaleString('es-MX')} kg
-                  </strong>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
       
       {invoices.length === 0 ? (

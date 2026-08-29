@@ -7,6 +7,7 @@ import { useOrders } from '../../hooks/useOrders';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder, Invoice, PurchaseOrderItem, Delivery } from '../../lib/types';
+import { getEffectiveOrderItems, CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS } from '../../lib/types';
 import { money, nombreClienteVisible } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
 import { computeFinancials, round2, getOrderSummary } from '../../lib/finance';
@@ -350,10 +351,12 @@ export function QuickInvoiceModal({
       .filter(d => !d.items || d.items.length === 0)
       .reduce((sum, d) => sum + Number(d.kilos || 0), 0));
 
-    if (order.items && order.items.length > 0) {
-      const totalOCKilos = round2(order.items.reduce((s, it) => s + Number(it.quantity || 0), 0));
+    const effectiveItems = getEffectiveOrderItems(order);
 
-      const rows: ConceptRow[] = order.items.map((it, idx) => {
+    if (effectiveItems.length > 0) {
+      const totalOCKilos = round2(effectiveItems.reduce((s, it) => s + Number(it.quantity || 0), 0));
+
+      const rows: ConceptRow[] = effectiveItems.map((it, idx) => {
         // 1. Intentar calcular desde items detallados de entregas
         const deliveredPendingDetailed = uninvoicedDeliveries.reduce((sum, d) => {
           const di = (d.items || []).find((x: any) => x.itemId === it.id || x.itemId === it.code);
@@ -403,6 +406,26 @@ export function QuickInvoiceModal({
         maxAvailable: defaultQty,
       }]);
     }
+  };
+
+  const applyTemplate = (items: PurchaseOrderItem[]) => {
+    const totalOcKilos = round2(items.reduce((s, it) => s + Number(it.quantity || 0), 0));
+    const rows: ConceptRow[] = items.map((it, idx) => {
+      const ocQty = Number(it.quantity || 0);
+      const q = availableKilos > 0 && totalOcKilos > 0 ? round2(availableKilos * (ocQty / totalOcKilos)) : ocQty;
+      return {
+        id: it.id || `item_${idx}_${Date.now()}`,
+        code: it.code || '24111500',
+        description: it.description || 'Bolsa de Polietileno',
+        unit: it.unit || 'KGM',
+        unitPrice: it.unitPrice || currentSellPrice,
+        selected: true,
+        quantity: q > 0 ? q : ocQty,
+        maxAvailable: ocQty > 0 ? ocQty : q,
+      };
+    });
+    setConceptRows(rows);
+    toast(`📦 ${rows.length} partidas de la plantilla cargadas`, 'ok');
   };
 
   const toggleRowSelect = (index: number) => {
@@ -665,7 +688,25 @@ export function QuickInvoiceModal({
                   <button
                     type="button"
                     className="btn"
-                    style={{ fontSize: 11.5, padding: '4px 10px', background: 'var(--paper)', border: '1px solid var(--line)' }}
+                    style={{ fontSize: 10.5, padding: '3px 8px', background: 'rgba(59,130,246,0.08)', color: '#1d4ed8', border: '1px solid #3b82f6', fontWeight: 700 }}
+                    onClick={() => applyTemplate(CANONICAL_TH_ITEMS)}
+                    title="Cargar las 6 partidas de Textil Hogar"
+                  >
+                    🏷️ Plantilla TH (6)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 10.5, padding: '3px 8px', background: 'rgba(22,163,74,0.08)', color: '#15803d', border: '1px solid #16a34a', fontWeight: 700 }}
+                    onClick={() => applyTemplate(CANONICAL_GT_ITEMS)}
+                    title="Cargar las 4 partidas de Grupo Textil"
+                  >
+                    🏷️ Plantilla GT (4)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 10.5, padding: '3px 7px', background: 'var(--paper)', border: '1px solid var(--line)' }}
                     onClick={() => selectAllRows(true)}
                   >
                     ⚡ Todos
@@ -673,7 +714,7 @@ export function QuickInvoiceModal({
                   <button
                     type="button"
                     className="btn"
-                    style={{ fontSize: 11.5, padding: '4px 10px', background: 'var(--paper)', border: '1px solid var(--line)' }}
+                    style={{ fontSize: 10.5, padding: '3px 7px', background: 'var(--paper)', border: '1px solid var(--line)' }}
                     onClick={() => selectAllRows(false)}
                   >
                     Ninguno
@@ -681,7 +722,7 @@ export function QuickInvoiceModal({
                   <button
                     type="button"
                     className="btn btn-primary"
-                    style={{ fontSize: 11.5, padding: '4px 12px' }}
+                    style={{ fontSize: 10.5, padding: '3px 10px' }}
                     onClick={addNewCustomRow}
                   >
                     ➕ Agregar

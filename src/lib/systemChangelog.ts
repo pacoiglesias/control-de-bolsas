@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.36 Motor Universal de Conceptos y Plantillas Preconfiguradas para Facturación',
+    date: '29 de Agosto de 2026',
+    time: '11:00 PM',
+    summary: 'Resolución definitiva para la carga de conceptos en facturación: motor universal getEffectiveOrderItems que infiere automáticamente las partidas oficiales de Textil Hogar (6) y Grupo Textil (4) ante cualquier expediente con items incompletos, además de botones de plantillas rápidas (Plantilla TH / Plantilla GT) tanto en Facturación Guiada (EmitirFacturaModal) como en Facturación Rápida (QuickInvoiceModal) y en el panel SAT.',
+    highlights: [
+      '🏷️ Motor de Inferencia de Partidas getEffectiveOrderItems: Si un pedido no tiene capturados los items en Firestore, el sistema los auto-completa con sus 6 o 4 partidas oficiales de Providencia según el departamento o cliente.',
+      '📦 Botones de Plantilla con 1 Clic: Botones "Plantilla TH (6)" y "Plantilla GT (4)" disponibles en EmitirFacturaModal y QuickInvoiceModal para rellenar instantáneamente todas las partidas con sus claves SAT, descripciones y kilos de OC.',
+      '⚡ Sincronización en Widget SAT: La pestaña Facturas muestra de forma inmediata las partidas completas listas para facturar.',
+    ],
+  },
+  {
     version: 'v8.9.35 Auditoría Integral y Perfeccionamiento del Sistema de Facturación Multi-Nivel',
     date: '29 de Agosto de 2026',
     time: '10:50 PM',
