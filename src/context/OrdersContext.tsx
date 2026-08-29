@@ -207,6 +207,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 orderId: best.id,
                 folio: '6198',
                 kilos: 1965.81,
+                items: [
+                  { id: 'it-th-3', code: 'egbo000103-sc', description: 'egbo000103-sc BULTO 80 X 20 +20 X 160 *250', quantity: 975.65, unitPrice: 43.0, amount: 41952.95, unit: 'KGM' },
+                  { id: 'it-th-1', code: 'egbo000107-sc', description: 'egbo000107-sc BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 990.16, unitPrice: 43.0, amount: 42576.88, unit: 'KGM' },
+                ],
                 financials: {
                   costPricePerKg: 38,
                   salePricePerKg: 43,
@@ -228,6 +232,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 orderId: best.id,
                 folio: '6200',
                 kilos: 1500.0,
+                items: [
+                  { id: 'it-th-4', code: 'enbo000006-sc', description: 'enbo000006-sc BOLSA POLIETILENO 77 CM X 55 CM _Sin Color', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                  { id: 'it-th-2', code: 'enbo000167-bl', description: 'enbo000167-bl BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000.0, unitPrice: 43.0, amount: 43000.0, unit: 'KGM' },
+                ],
                 financials: {
                   costPricePerKg: 38,
                   salePricePerKg: 43,
@@ -275,8 +283,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 date: best.processedAt || null,
                 kilos: 1000.0,
                 items: [
-                  { itemId: 'it-gt-1', quantity: 500.0 },
                   { itemId: 'it-gt-2', quantity: 500.0 },
+                  { itemId: 'it-gt-1', quantity: 500.0 },
                 ],
                 invoiced: true,
                 invoiceId: 'inv-6193',
@@ -300,6 +308,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 orderId: best.id,
                 folio: '6193',
                 kilos: 1000.0,
+                items: [
+                  { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'EGBO000018-SC BOLSA POLIETILENO 1.00 M X 1.15 M (60+40x115)', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                  { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'EGBO000095-SC BOLSA POLIETILENO 120X 125 CM (80+20+20X125)', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                ],
                 financials: {
                   costPricePerKg: 38,
                   salePricePerKg: 43,

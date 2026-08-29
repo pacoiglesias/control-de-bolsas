@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.37 Alineación Exacta con CFDIs Oficiales de Elemental Denim y Providencia',
+    date: '29 de Agosto de 2026',
+    time: '11:05 PM',
+    summary: 'Alineación matemática y estructural 1:1 con las facturas reales (6198, 6200, 6193) y órdenes de compra oficiales (120267114114 TH-ALMACEN-1 y 12026439713 P4-ALM): incorporación del desglose exacto de partidas en baseInvoices, estandarización de Clave SAT 24141500, Domicilio Fiscal 90800, Unidad KGM y condiciones de pago por OC.',
+    highlights: [
+      '📄 Desglose Exacto de Facturas Canónicas: Factura 6198 (egbo000103-sc 975.65 kg + egbo000107-sc 990.16 kg), Factura 6200 (enbo000006-sc 500 kg + enbo000167-bl 1000 kg), Factura 6193 (EGBO000018-SC 500 kg + EGBO000095-SC 500 kg).',
+      '🏛️ Estandarización Fiscal CFDI 4.0: Clave ProdServ 24141500, Unidad KGM, CP Receptor 90800, Uso G01, PPD 99 y condiciones de pago con folio de OC.',
+      '📦 Sincronización Integral en Emisión: Partidas y descripciones fieles a las OCs de Providencia en todos los formularios y PDFs.',
+    ],
+  },
+  {
     version: 'v8.9.36 Motor Universal de Conceptos y Plantillas Preconfiguradas para Facturación',
     date: '29 de Agosto de 2026',
     time: '11:00 PM',

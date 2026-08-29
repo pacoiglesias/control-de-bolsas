@@ -106,7 +106,7 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
         </thead>
         <tbody>
           ${items.map((it, idx) => {
-            const satCode = it.satCode || '24111500';
+            const satCode = it.satCode || it.codeSat || '24141500';
             const code = it.code || 'S/C';
             const desc = it.description || 'Bolsa de Polietileno';
             return `
@@ -160,7 +160,7 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
           <div>
             <div style="font-weight: 800; font-size: 11px; color: #0f172a;">DESGLOSE FISCAL CFDI 4.0 (EMISIÓN SAT)</div>
             <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
-              Clave SAT: 24111500 · Unidad: KGM · Objeto Impuesto: 02 · RFC: GTP930115PU1
+              Clave SAT: 24141500 · Unidad: KGM · Objeto Impuesto: 02 · RFC: GTP930115PU1
             </div>
           </div>
         </div>

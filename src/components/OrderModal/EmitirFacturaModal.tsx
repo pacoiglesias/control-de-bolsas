@@ -159,18 +159,19 @@ export function EmitirFacturaModal({
   // Datos fiscales del receptor (Providencia)
   const datosSAT = `RFC: GTP930115PU1
 Nombre/Razón Social: GRUPO TEXTIL PROVIDENCIA SA DE CV
+Domicilio Fiscal (CP): 90800
 Régimen Fiscal: 601 - General de Ley Personas Morales
 Uso CFDI: G01 - Adquisición de mercancías
-Clave ProdServ SAT: 24111500
+Clave ProdServ SAT: 24141500 (Suministros para seguridad y protección)
 Unidad SAT: KGM (Kilogramo)
 Precio Unitario: $${precio.toFixed(2)}
 Objeto de Impuesto: 02 - Sí objeto de impuesto
-IVA: 16%
+IVA: 16% (Tasa 0.160000)
 Método de Pago: PPD - Pago en parcialidades o diferido
 Forma de Pago: 99 - Por definir
-OC de referencia: ${order.oc || order.folio || 'S/N'}
-Conceptos:
-${finalInvoiceItems.map(it => `• [${it.code || '24111500'}] ${it.description}: ${it.quantity.toLocaleString('es-MX')} kg @ $${it.unitPrice.toFixed(2)} = ${money(it.amount)}`).join('\n')}`;
+Condiciones de Pago / OC: OC ${order.oc || order.folio || 'S/N'}
+Conceptos desglosados:
+${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — ${it.quantity.toLocaleString('es-MX')} KGM @ $${it.unitPrice.toFixed(2)} = ${money(it.amount)} (IVA $${round2(it.amount * 0.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })})`).join('\n')}`;
 
   const handleCopyAll = () => {
     navigator.clipboard.writeText(datosSAT);
@@ -614,12 +615,15 @@ ${finalInvoiceItems.map(it => `• [${it.code || '24111500'}] ${it.description}:
                   {[
                     { label: 'RFC Receptor', val: 'GTP930115PU1', mono: true },
                     { label: 'Razón Social', val: 'GRUPO TEXTIL PROVIDENCIA SA DE CV', mono: false },
+                    { label: 'Domicilio Fiscal (CP)', val: '90800', mono: true },
                     { label: 'Régimen Fiscal', val: '601 - General de Ley Personas Morales', mono: false },
                     { label: 'Uso CFDI', val: 'G01 - Adquisición de mercancías', mono: false },
+                    { label: 'Clave ProdServ SAT', val: '24141500', mono: true },
+                    { label: 'Unidad SAT', val: 'KGM (Kilogramo)', mono: true },
                     { label: 'Precio Unitario', val: `$${precio.toFixed(2)} / kg`, mono: true, accent: true },
                     { label: 'Método de Pago', val: 'PPD - Pago en parcialidades o diferido', mono: false },
                     { label: 'Forma de Pago', val: '99 - Por definir', mono: false },
-                    { label: 'OC de referencia', val: order.oc || order.folio || 'S/N', mono: true, accent: true },
+                    { label: 'Condiciones de Pago', val: `OC ${order.oc || order.folio || 'S/N'}`, mono: true, accent: true },
                   ].map(({ label, val, mono, accent }) => (
                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(124,58,237,0.15)', paddingBottom: 6, marginBottom: 6 }}>
                       <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>{label}:</span>

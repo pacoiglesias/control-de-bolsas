@@ -1,5 +1,54 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.37] - 29 Agosto 2026 (Alineación Exacta con CFDIs Oficiales de Elemental Denim y Providencia)
+
+### 📄 Desglose Exacto de Partidas en Facturas Canónicas y CFDI 4.0
+- **Facturas Canónicas con Partidas Detalladas:**
+  - **F-6198 (1,965.81 kg @ $43.00 = $84,529.83 subtotal / $98,054.60 total):** Partida 1 `egbo000103-sc` (975.65 kg = $41,952.95) + Partida 2 `egbo000107-sc` (990.16 kg = $42,576.88).
+  - **F-6200 (1,500.00 kg @ $43.00 = $64,500.00 subtotal / $74,820.00 total):** Partida 1 `enbo000006-sc` (500.00 kg = $21,500.00) + Partida 2 `enbo000167-bl` (1,000.00 kg = $43,000.00).
+  - **F-6193 (1,000.00 kg @ $43.00 = $43,000.00 subtotal / $49,880.00 total):** Partida 1 `EGBO000018-SC` (500.00 kg = $21,500.00) + Partida 2 `EGBO000095-SC` (500.00 kg = $21,500.00).
+- **Estandarización Fiscal CFDI 4.0:**
+  - Clave ProdServ SAT oficial: **`24141500`** (*Suministros para seguridad y protección*).
+  - Unidad SAT: **`KGM`** (*Kilogramo*).
+  - Domicilio Fiscal Receptor (Providencia): **`90800`** (Santa Ana Chiautempan).
+  - Régimen Fiscal: **`601`**, Uso CFDI: **`G01`**, Método: **`PPD`**, Forma: **`99`**, Condiciones de Pago: **`OC {folio}`**.
+
+---
+
+## [v8.9.36] - 29 Agosto 2026 (Motor Universal de Conceptos y Plantillas Preconfiguradas para Facturación)
+
+### 🏷️ Inferencia de Partidas Oficiales (`getEffectiveOrderItems`) y Botones de Plantillas
+- **Motor `getEffectiveOrderItems`:** Infiere y recupera automáticamente las 6 partidas de Textil Hogar o las 4 de Grupo Textil cuando una orden en Firestore no tenga capturado el arreglo de partidas.
+- **Plantillas con 1 Clic:** Botones `🏷️ Plantilla TH (6)` y `🏷️ Plantilla GT (4)` en `EmitirFacturaModal` y `QuickInvoiceModal` para rellenar instantáneamente cualquier factura con las descripciones y claves SAT oficiales.
+- **Cuadrícula en Panel SAT:** La pestaña `TabFacturas.tsx` muestra la cuadrícula interactiva de partidas disponibles para facturar con el botón `⚡ Facturar con Partidas`.
+
+---
+
+## [v8.9.35] - 29 Agosto 2026 (Auditoría Integral y Perfeccionamiento del Sistema de Facturación Multi-Nivel)
+
+### 🧾 Reingeniería de Flujo de Emisión de Facturas y Pre-Facturas
+- **Paso 1 Interactivo en `EmitirFacturaModal`:** Tabla completa de partidas con checkboxes, inputs de kilos por renglón, recálculo dinámico de subtotal e IVA, y botones `⚡ Máx`.
+- **Edición en Línea en `InvoiceWidget`:** Posibilidad de editar o agregar renglones de partidas directamente en facturas existentes, además de botón `Recargar de OC`.
+- **Botón en `InvoiceDrawer`:** Acción `📦 Vincular Partidas de la OC a esta Factura` para facturas que no tenían partidas asociadas.
+
+---
+
+## [v8.9.34] - 29 Agosto 2026 (Perfeccionamiento del Dashboard y Semáforo de Facturas en Revisión)
+
+### 🚦 Alertas Proactivas y Semáforo del Día
+- **Alerta Proactiva para Facturas `in_review`:** Bloque destacado en `ProactiveBriefingCard.tsx` y bloque 4b en `SemaforoDelDia.tsx` con badges dinámicos para facturas pendientes de contrarecibo.
+- **Badges de Conteo en Tabs del Dashboard:** Indicadores numéricos en las pestañas `⚡ Semáforo del Día` y `🏢 Centro de Mando`.
+- **Corrección de Fechas en Gráfica de Tendencia:** Parsing seguro de `issueDate` en `FinancialTrendChart.tsx`.
+
+---
+
+## [v8.9.33] - 26 Agosto 2026 (Actualización de Rendimiento y Despliegue Estable)
+
+### 🚀 Optimización de Bundling y Compatibilidad
+- Reestructuración de módulos para mejorar tiempo de carga en dispositivos móviles y sincronización en tiempo real con Firestore.
+
+---
+
 ## [v8.9.32] - 25 Agosto 2026 (Unificación de los 2 Pedidos Activos y 5,734.19 kg Faltantes en el Banner Logístico)
 
 ### 📦 Corrección Integral de Alertas de Entregas en Curso (`DeliveryDueBanner.tsx`)

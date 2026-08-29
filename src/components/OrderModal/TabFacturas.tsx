@@ -190,7 +190,7 @@ export default function TabFacturas() {
           </div>
           <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
             <span style={{ color: 'var(--ink-soft)' }}>Clave SAT:</span><br/>
-            <strong>24111500</strong> (Bolsas)
+            <strong>24141500</strong> (Suministros)
           </div>
           <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
             <span style={{ color: 'var(--ink-soft)' }}>Unidad:</span><br/>

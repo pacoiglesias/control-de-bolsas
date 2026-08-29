@@ -1,4 +1,20 @@
 
+### Iteración 30: Alineación Matemática y Estructural 1:1 con CFDIs Oficiales de Elemental Denim y Providencia (COMPLETADO)
+**Fecha:** 2026-08-29
+**Archivos:** `src/context/OrdersContext.tsx`, `src/lib/types.ts`, `src/components/OrderModal/EmitirFacturaModal.tsx`, `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/components/OrderModal/TabFacturas.tsx`, `src/lib/prefacturaGenerator.ts`, `CHANGELOG.md`, `package.json`, `src/lib/systemChangelog.ts`
+**Problema & Necesidad:**
+1. Al emitir facturas o consultar expedientes, los conceptos de las facturas no cargaban las partidas desglosadas o aparecían incompletos si el documento en Firestore no tenía capturado el array de items.
+2. Necesidad de alinear los conceptos y metadatos fiscales con los CFDIs reales emitidos por Elemental Denim a Grupo Textil Providencia: Factura 6198 ($98,054.60), Factura 6200 ($74,820.00) y Factura 6193 ($49,880.00).
+3. Estandarización de Clave ProdServ SAT `24141500` (Suministros para seguridad y protección), Unidad `KGM`, Domicilio Fiscal Receptor `90800` (Santa Ana Chiautempan) y Condiciones de Pago por OC.
+**Solución:**
+- Desarrollado el motor de inferencia `getEffectiveOrderItems(order)` en `types.ts`: ante cualquier orden sin partidas, auto-completa las 6 partidas de Textil Hogar o las 4 de Grupo Textil.
+- Agregados botones de plantillas con 1 clic (`🏷️ Plantilla TH (6)` y `🏷️ Plantilla GT (4)`) en `EmitirFacturaModal` y `QuickInvoiceModal`.
+- Incorporado el desglose exacto de partidas por renglón en `baseInvoices` de `OrdersContext.tsx` para las facturas 6198, 6200 y 6193.
+- Estandarizada la clave fiscal `24141500`, unidad `KGM`, CP `90800`, régimen `601`, uso `G01`, `PPD 99` en generadores de PDF, pre-facturas y copiado SAT.
+**Estado:** ✅ Verificado — 104/104 pruebas unitarias pasando al 100%, compilación limpia en 10s con `npm run build` y desplegado en vivo a producción en Firebase Hosting.
+
+---
+
 ### Iteración 26: Corrección Universal de Desglose de Kilos por Concepto, Respaldo Anti-Bloqueo de Impresiones PDF/Remisiones y Auditoría Integral de Fórmulas (COMPLETADO)
 **Fecha:** 2026-08-25
 **Archivos:** `src/lib/deliveries.ts`, `src/components/OrderModal/TabProductos.tsx`, `src/components/OrderModal/useOrderProducts.ts`, `src/components/OrderModal/useOrderDeliveries.ts`, `src/components/OrderModal/OrderModalProvider.tsx`, `src/components/OrderModal/orderModalPrint.ts`, `src/components/OrderModal/TabAndresOrder.tsx`, `src/components/OrderModal/index.tsx`, `src/pages/Orders.tsx`, `src/pages/OcTracking.tsx`, `src/components/OcTracking/EntregasKanban.tsx`, `src/components/Compras/OrderModals.tsx`, `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/components/Dashboard/ProvidenciaHubWidget.tsx`, `src/lib/__tests__/finance.test.ts`, `package.json`, `CHANGELOG.md`, `src/lib/systemChangelog.ts`
