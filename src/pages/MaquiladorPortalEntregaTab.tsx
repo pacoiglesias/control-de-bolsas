@@ -643,27 +643,31 @@ export default function MaquiladorPortalEntregaTab({
 
           {/* Botón de Confirmación */}
           <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ scale: isOverDelivery ? 1 : 1.01 }}
+            whileTap={{ scale: isOverDelivery ? 1 : 0.98 }}
             type="submit"
-            disabled={saving || !kilos || numKilos <= 0}
+            disabled={saving || !kilos || numKilos <= 0 || isOverDelivery}
             style={{
               padding: '18px',
               fontSize: 17,
               fontWeight: 900,
               borderRadius: 16,
               background:
-                saving || !kilos || numKilos <= 0
+                saving || !kilos || numKilos <= 0 || isOverDelivery
                   ? 'rgba(255,255,255,0.1)'
                   : 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)',
               border: 'none',
-              color: '#fff',
-              cursor: saving || !kilos || numKilos <= 0 ? 'default' : 'pointer',
-              boxShadow: '0 8px 24px rgba(124, 58, 237, 0.4)',
+              color: isOverDelivery ? '#f87171' : '#fff',
+              cursor: saving || !kilos || numKilos <= 0 || isOverDelivery ? 'default' : 'pointer',
+              boxShadow: isOverDelivery ? 'none' : '0 8px 24px rgba(124, 58, 237, 0.4)',
               transition: 'all 0.2s',
             }}
           >
-            {saving ? '⏳ Guardando entrega...' : `✅ Confirmar Entrega de ${numKilos > 0 ? numKilos : ''} kg`}
+            {isOverDelivery 
+              ? '🚫 Excede los kilos pendientes de la OC' 
+              : saving 
+                ? '⏳ Guardando entrega...' 
+                : `✅ Confirmar Entrega de ${numKilos > 0 ? numKilos : ''} kg`}
           </motion.button>
         </motion.form>
       )}

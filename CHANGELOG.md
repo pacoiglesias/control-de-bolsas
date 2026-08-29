@@ -1,5 +1,14 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v8.9.38] - 29 Agosto 2026 (Aislamiento Estricto de Contrarecibos vs Facturas en Revisión y Desacoplamiento de OC)
+
+### 🛡️ Desacoplamiento Universal de Contrarecibos (`extractCr`)
+- **Aislamiento Hermético por Factura:** `extractCr` garantiza que cuando una factura individual no cuenta todavía con contrarecibo emitido por Providencia (`contrareciboNumber = ""` o en revisión), **NO hereda** de forma indebida el contrarecibo general de la Orden de Compra o de entregas anteriores.
+- **Claridad Operativa OC vs Contrarecibo:** Las facturas recién emitidas o por emitir permanecen legítimamente en la columna **"En Revisión / Sin Contrarecibo"** del Tablero Kanban y con indicador `—` en tablas de seguimiento hasta que Providencia asigne el contrarecibo oficial (`TH-` o `GT-`).
+- **Blindaje en Pruebas Unitarias:** Certificado con 105 tests automatizados (`finance.test.ts`).
+
+---
+
 ## [v8.9.37] - 29 Agosto 2026 (Alineación Exacta con CFDIs Oficiales de Elemental Denim y Providencia)
 
 ### 📄 Desglose Exacto de Partidas en Facturas Canónicas y CFDI 4.0

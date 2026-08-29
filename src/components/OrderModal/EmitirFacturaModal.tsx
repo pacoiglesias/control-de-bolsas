@@ -6,7 +6,12 @@ import { toInputDate, fromInputDate, money, nombreClienteVisible } from '../../l
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import type { PurchaseOrder, Invoice, FinancialConfig, PurchaseOrderItem } from '../../lib/types';
-import { getEffectiveOrderItems, CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS } from '../../lib/types';
+import { CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS } from '../../lib/types';
+import { computeItemInvoiceBreakdown } from '../../lib/deliveries';
+import { printConsolidatedPackage } from './orderModalPrint';
+import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { useOrders } from '../../hooks/useOrders';
+import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
 
 interface EmitirFacturaModalProps {
   order: PurchaseOrder;
@@ -26,6 +31,10 @@ interface ConceptRowItem {
   unit: string;
   quantity: number;
   ocQuantity: number;
+  alreadyInvoiced: number;
+  alreadyDelivered: number;
+  uninvoicedDeliveredKilos: number;
+  remainingOcKilos: number;
   unitPrice: number;
   selected: boolean;
 }
@@ -39,6 +48,8 @@ export function EmitirFacturaModal({
   onCreated,
 }: EmitirFacturaModalProps) {
   const toast = useToast();
+  const { orders } = useOrders();
+  const { settings } = useSystemSettings();
   const { saveInvoice } = useInvoiceActions();
 
   const precio = order.customSellPrice || dynamicConfig.salePricePerKg || config.salePricePerKg || 43;
@@ -55,7 +66,14 @@ export function EmitirFacturaModal({
   const [busy, setBusy] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
 
-  // Helper para convertir una lista de items de la OC a ConceptRowItem
+  // Detector en vivo de folio duplicado
+  const duplicateInvoiceMatch = useMemo(() => {
+    const clean = folio.trim();
+    if (!clean || clean.length < 2) return null;
+    return findDuplicateInvoiceFolio(orders, clean);
+  }, [orders, folio]);
+
+  // Helper para convertir una lista de items de plantilla a ConceptRowItem
   const mapItemsToConcepts = (items: PurchaseOrderItem[]): ConceptRowItem[] => {
     const totalOcKilos = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
     const ratio = kilosPendientes > 0 && totalOcKilos > 0 ? (kilosPendientes / totalOcKilos) : 1;
@@ -65,33 +83,54 @@ export function EmitirFacturaModal({
       const initialQty = kilosPendientes > 0 ? round2(ocQty * ratio) : ocQty;
       return {
         id: it.id || `item_${idx}_${Date.now()}`,
-        code: it.code || '24111500',
+        code: it.code || '24141500',
         description: it.description || 'Bolsa de Polietileno',
         unit: it.unit || 'KGM',
         quantity: initialQty > 0 ? initialQty : ocQty,
         ocQuantity: ocQty,
+        alreadyInvoiced: 0,
+        alreadyDelivered: initialQty,
+        uninvoicedDeliveredKilos: initialQty,
+        remainingOcKilos: ocQty,
         unitPrice: it.unitPrice || precio,
         selected: true,
       };
     });
   };
 
-  // --- Conceptos / Partidas cargados de la OC ---
+  // --- Conceptos / Partidas cargados de la OC usando el motor de conciliación ---
   const [conceptItems, setConceptItems] = useState<ConceptRowItem[]>(() => {
-    const effectiveItems = getEffectiveOrderItems(order);
-    if (effectiveItems.length > 0) {
-      return mapItemsToConcepts(effectiveItems);
+    const breakdown = computeItemInvoiceBreakdown(order, precio);
+    if (breakdown.length > 0) {
+      return breakdown.map((b) => ({
+        id: b.id,
+        code: b.code,
+        description: b.description,
+        unit: b.unit,
+        quantity: b.suggestedKilosToInvoice,
+        ocQuantity: b.ocQuantity,
+        alreadyInvoiced: b.alreadyInvoiced,
+        alreadyDelivered: b.alreadyDelivered,
+        uninvoicedDeliveredKilos: b.uninvoicedDeliveredKilos,
+        remainingOcKilos: b.remainingOcKilos,
+        unitPrice: b.unitPrice || precio,
+        selected: b.selected,
+      }));
     }
 
     // Fallback: Concepto genérico inicial con los kilos disponibles o de la orden
     const fallbackKilos = kilosPendientes > 0 ? kilosPendientes : (Number(order.totalKilograms) || 1000);
     return [{
       id: `item_0_${Date.now()}`,
-      code: config.satClaveProdServ || '24111500',
+      code: config.satClaveProdServ || '24141500',
       description: 'BOLSA POLIETILENO TRANSPARENTE EN ROLLO / BULTOS',
       unit: 'KGM',
       quantity: fallbackKilos,
       ocQuantity: fallbackKilos,
+      alreadyInvoiced: 0,
+      alreadyDelivered: fallbackKilos,
+      uninvoicedDeliveredKilos: fallbackKilos,
+      remainingOcKilos: fallbackKilos,
       unitPrice: precio,
       selected: true,
     }];
@@ -124,18 +163,22 @@ export function EmitirFacturaModal({
   };
 
   const addCustomConcept = () => {
-    setConceptItems(prev => [
+    setConceptItems((prev) => [
       ...prev,
       {
         id: `custom_${Date.now()}`,
-        code: '24111500',
+        code: '24141500',
         description: 'Concepto adicional...',
         unit: 'KGM',
         quantity: 0,
         ocQuantity: 0,
+        alreadyInvoiced: 0,
+        alreadyDelivered: 0,
+        uninvoicedDeliveredKilos: 0,
+        remainingOcKilos: 0,
         unitPrice: precio,
         selected: true,
-      }
+      },
     ]);
   };
 
@@ -147,7 +190,7 @@ export function EmitirFacturaModal({
   const finalInvoiceItems: PurchaseOrderItem[] = useMemo(() => {
     return selectedItems.map(it => ({
       id: it.id,
-      code: it.code || '24111500',
+      code: it.code || '24141500',
       description: it.description.trim(),
       quantity: Number(it.quantity) || 0,
       unit: it.unit || 'KGM',
@@ -344,13 +387,18 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                         fontWeight: 800,
                         fontFamily: 'monospace',
                         borderRadius: 8,
-                        border: '1px solid var(--line)',
+                        border: duplicateInvoiceMatch ? '1.5px solid #ef4444' : '1px solid var(--line)',
                         background: 'var(--paper)',
                         color: 'var(--ink)',
                         outline: 'none',
                       }}
                       autoFocus
                     />
+                    {duplicateInvoiceMatch && (
+                      <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 800, marginTop: 4, lineHeight: 1.2 }}>
+                        🚨 Folio ya usado en OC #{duplicateInvoiceMatch.orderFolio} ({duplicateInvoiceMatch.client})
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--ink-soft)' }}>Emisión</label>
@@ -428,104 +476,243 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                 </div>
 
                 {/* Lista de Partidas / Conceptos */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto' }}>
                   {conceptItems.map((item, idx) => {
                     const rowAmount = round2((Number(item.quantity) || 0) * (Number(item.unitPrice) || precio));
+                    const isFullyInvoiced = item.alreadyInvoiced >= item.ocQuantity && item.ocQuantity > 0;
+                    const faltanOcKilos = round2(Math.max(0, item.ocQuantity - item.alreadyInvoiced));
+
                     return (
                       <div
                         key={item.id || idx}
                         style={{
-                          background: item.selected ? 'rgba(37,99,235,0.04)' : 'var(--paper-sunk)',
-                          border: item.selected ? '1.5px solid #3b82f6' : '1px solid var(--line-soft)',
-                          borderRadius: 10,
-                          padding: '10px 12px',
+                          background: isFullyInvoiced
+                            ? 'var(--paper-sunk)'
+                            : item.selected
+                            ? 'rgba(37,99,235,0.03)'
+                            : 'var(--paper)',
+                          border: isFullyInvoiced
+                            ? '1px solid var(--line-soft)'
+                            : item.selected
+                            ? '1.5px solid #2563eb'
+                            : '1px solid var(--line)',
+                          borderRadius: 12,
+                          padding: '12px 14px',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: 6,
-                          transition: 'all 0.2s ease',
-                          opacity: item.selected ? 1 : 0.6,
+                          gap: 10,
+                          boxShadow: item.selected ? '0 2px 8px rgba(37,99,235,0.08)' : 'none',
+                          opacity: isFullyInvoiced && !item.selected ? 0.65 : 1,
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        {/* Fila superior: Checkbox + Código + Descripción */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input
-                            type="checkbox"
-                            checked={item.selected}
-                            onChange={(e) => updateConcept(idx, 'selected', e.target.checked)}
-                            style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#2563eb', flexShrink: 0 }}
-                          />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                              <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: '#1e40af', background: 'rgba(37,99,235,0.08)', padding: '1px 6px', borderRadius: 4 }}>
-                                {item.code || '24111500'}
-                              </span>
-                              <strong style={{ fontSize: 12.5, color: 'var(--ink)' }}>
-                                {item.description}
-                              </strong>
-                            </div>
-                            {item.ocQuantity > 0 && (
-                              <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 2 }}>
-                                Pedido en OC: <b>{item.ocQuantity.toLocaleString('es-MX')} kg</b>
+                        {/* Fila 1: Checkbox + Identificador + Nombre + Estatus */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={item.selected}
+                              onChange={(e) => updateConcept(idx, 'selected', e.target.checked)}
+                              style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#2563eb', flexShrink: 0, marginTop: 2 }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span
+                                  className="mono"
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    color: '#1e40af',
+                                    background: 'rgba(37,99,235,0.1)',
+                                    padding: '2px 7px',
+                                    borderRadius: 4,
+                                    letterSpacing: '0.02em',
+                                  }}
+                                >
+                                  {item.code || '24141500'}
+                                </span>
+                                <strong style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.3 }}>
+                                  {item.description}
+                                </strong>
+                                {isFullyInvoiced && (
+                                  <span
+                                    style={{
+                                      fontSize: 10.5,
+                                      color: '#16a34a',
+                                      fontWeight: 800,
+                                      background: '#dcfce7',
+                                      padding: '2px 8px',
+                                      borderRadius: 6,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                    }}
+                                  >
+                                    ✓ 100% Facturado
+                                  </span>
+                                )}
                               </div>
-                            )}
+
+                              {/* Fila de Pills Informativas (OC, Facturado, Falta Facturar, Báscula) */}
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, alignItems: 'center' }}>
+                                {item.ocQuantity > 0 && (
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--paper-sunk)', border: '1px solid var(--line-soft)', color: 'var(--ink-soft)' }}>
+                                    📦 OC: <strong style={{ color: 'var(--ink)' }}>{item.ocQuantity.toLocaleString('es-MX')} kg</strong>
+                                  </span>
+                                )}
+                                {item.alreadyInvoiced > 0 && (
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', color: '#6d28d9' }}>
+                                    🧾 Ya Facturado: <strong>{item.alreadyInvoiced.toLocaleString('es-MX')} kg</strong>
+                                  </span>
+                                )}
+                                {faltanOcKilos > 0.01 ? (
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#b45309', fontWeight: 700 }}>
+                                    ⏳ Falta Facturar: {faltanOcKilos.toLocaleString('es-MX')} kg
+                                  </span>
+                                ) : item.ocQuantity > 0 ? (
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)', color: '#15803d', fontWeight: 700 }}>
+                                    🟢 0 kg pendientes
+                                  </span>
+                                ) : null}
+                                {item.uninvoicedDeliveredKilos > 0 ? (
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 700 }}>
+                                    🚚 Listo en Báscula: {item.uninvoicedDeliveredKilos.toLocaleString('es-MX')} kg
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--paper-sunk)', color: 'var(--ink-soft)' }}>
+                                    ⚖️ 0 kg en báscula
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
+
                           {conceptItems.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeConcept(idx)}
-                              style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 14, cursor: 'pointer', padding: '2px 6px' }}
-                              title="Quitar este concepto"
+                              style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 16, cursor: 'pointer', opacity: 0.7, padding: '2px 6px' }}
+                              title="Quitar esta partida de la factura"
                             >
                               ✕
                             </button>
                           )}
                         </div>
 
-                        {/* Fila inferior: Inputs de Kilos, Precio e Importe */}
+                        {/* Fila 2: Captura de Kilos, Botones Rápidos y Cálculos (Solo si está seleccionada) */}
                         {item.selected && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, borderTop: '1px dashed var(--line-soft)', flexWrap: 'wrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '1 1 140px' }}>
-                              <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>Kilos:</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.quantity}
-                                onChange={(e) => updateConcept(idx, 'quantity', Number(e.target.value))}
-                                style={{
-                                  width: 85,
-                                  padding: '4px 6px',
-                                  fontSize: 13,
-                                  fontWeight: 800,
-                                  fontFamily: 'monospace',
-                                  borderRadius: 6,
-                                  border: '1px solid var(--line)',
-                                  background: 'var(--paper)',
-                                  color: 'var(--ink)',
-                                  outline: 'none',
-                                }}
-                              />
-                              {item.ocQuantity > 0 && item.quantity !== item.ocQuantity && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              paddingTop: 8,
+                              borderTop: '1px dashed var(--line-soft)',
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            {/* Selector de Kilos con Botones Rápidos */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                                Kilos a facturar:
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', background: 'var(--paper)', border: '1.5px solid #2563eb', borderRadius: 8, overflow: 'hidden' }}>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.quantity === 0 ? '' : item.quantity}
+                                  placeholder="0.00"
+                                  onChange={(e) => updateConcept(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                                  style={{
+                                    width: 90,
+                                    padding: '6px 8px',
+                                    fontSize: 14,
+                                    fontWeight: 900,
+                                    fontFamily: 'monospace',
+                                    textAlign: 'right',
+                                    border: 'none',
+                                    outline: 'none',
+                                    background: 'transparent',
+                                    color: 'var(--ink)',
+                                  }}
+                                />
+                                <span style={{ padding: '6px 8px 6px 0', fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                                  kg
+                                </span>
+                              </div>
+
+                              {/* Botones Rápidos y Claros */}
+                              {item.uninvoicedDeliveredKilos > 0 && (
                                 <button
                                   type="button"
-                                  onClick={() => updateConcept(idx, 'quantity', item.ocQuantity)}
-                                  style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, background: 'var(--paper-raised)', border: '1px solid var(--line)', cursor: 'pointer', fontWeight: 700, color: '#2563eb' }}
-                                  title="Poner el total de la OC"
+                                  onClick={() => updateConcept(idx, 'quantity', item.uninvoicedDeliveredKilos)}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: '4px 8px',
+                                    borderRadius: 6,
+                                    background: '#dbeafe',
+                                    color: '#1d4ed8',
+                                    border: '1px solid #bfdbfe',
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                  }}
+                                  title={`Cargar los ${item.uninvoicedDeliveredKilos.toLocaleString('es-MX')} kg listos de báscula`}
                                 >
-                                  Máx
+                                  ⚡ Cargar Báscula ({item.uninvoicedDeliveredKilos.toLocaleString('es-MX')} kg)
+                                </button>
+                              )}
+
+                              {faltanOcKilos > 0 && faltanOcKilos !== item.uninvoicedDeliveredKilos && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateConcept(idx, 'quantity', faltanOcKilos)}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: '4px 8px',
+                                    borderRadius: 6,
+                                    background: 'var(--paper-sunk)',
+                                    color: 'var(--ink)',
+                                    border: '1px solid var(--line)',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                  }}
+                                  title={`Cargar todo lo restante de la OC (${faltanOcKilos.toLocaleString('es-MX')} kg)`}
+                                >
+                                  Restante OC ({faltanOcKilos.toLocaleString('es-MX')} kg)
+                                </button>
+                              )}
+
+                              {item.quantity > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateConcept(idx, 'quantity', 0)}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: '4px 6px',
+                                    borderRadius: 6,
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                  }}
+                                  title="Poner en 0 kg"
+                                >
+                                  ✕ Limpiar
                                 </button>
                               )}
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>P. Unit:</span>
-                              <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>${item.unitPrice.toFixed(2)}</span>
-                            </div>
-
-                            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                              <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: '#059669' }}>
+                            {/* Precio e Importe Calculado */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+                              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                                @ ${item.unitPrice.toFixed(2)}/kg
+                              </div>
+                              <div className="mono" style={{ fontSize: 14.5, fontWeight: 900, color: '#059669' }}>
                                 {money(rowAmount)}
-                              </span>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -572,17 +759,17 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  disabled={kilos <= 0}
+                  disabled={kilos <= 0 || !!duplicateInvoiceMatch}
                   style={{
                     width: '100%',
                     padding: '14px',
                     borderRadius: 12,
                     border: 'none',
-                    background: kilos > 0 ? '#2563eb' : 'var(--line)',
+                    background: (kilos > 0 && !duplicateInvoiceMatch) ? '#2563eb' : 'var(--line)',
                     color: '#fff',
                     fontSize: 15,
                     fontWeight: 800,
-                    cursor: kilos > 0 ? 'pointer' : 'not-allowed',
+                    cursor: (kilos > 0 && !duplicateInvoiceMatch) ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -641,7 +828,7 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                     {finalInvoiceItems.map((it, idx) => (
                       <div key={it.id || idx} style={{ background: 'var(--paper)', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--line-soft)', fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <span className="mono" style={{ fontWeight: 800, color: '#2563eb' }}>{it.code || '24111500'}</span> · <strong>{it.description}</strong>
+                          <span className="mono" style={{ fontWeight: 800, color: '#2563eb' }}>{it.code || '24141500'}</span> · <strong>{it.description}</strong>
                         </div>
                         <div className="mono" style={{ fontWeight: 800 }}>
                           {it.quantity.toLocaleString('es-MX')} kg @ ${it.unitPrice.toFixed(2)} = {money(it.amount)}
@@ -758,6 +945,40 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                   ))}
                 </div>
 
+                {/* Botón de Salida Documental Rápida */}
+                <button
+                  type="button"
+                  onClick={() => printConsolidatedPackage({
+                    folio: order.folio,
+                    client: order.client,
+                    department: order.department,
+                    oc: order.oc,
+                    totalKilograms: order.totalKilograms,
+                    invoices: order.invoices,
+                    deliveries: order.deliveries,
+                    config,
+                    provName: settings?.providerName || 'Andrés',
+                  })}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #3b82f6',
+                    background: 'rgba(59,130,246,0.08)',
+                    color: '#1d4ed8',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                  title="Imprimir juego completo (Factura + Báscula + OC) para ingresar a ventanilla de Cuentas por Pagar"
+                >
+                  <span>🖨️</span> Imprimir Paquete para Contrarecibo (Factura + Báscula + OC)
+                </button>
+
                 <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                   <button
                     type="button"
@@ -769,17 +990,17 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                   <button
                     type="button"
                     onClick={handleCreate}
-                    disabled={busy || kilos <= 0}
+                    disabled={busy || kilos <= 0 || !!duplicateInvoiceMatch}
                     style={{
                       flex: 2,
                       padding: '13px',
                       borderRadius: 12,
                       border: 'none',
-                      background: busy ? 'var(--line)' : '#059669',
+                      background: (busy || !!duplicateInvoiceMatch) ? 'var(--line)' : '#059669',
                       color: '#fff',
                       fontWeight: 900,
                       fontSize: 15,
-                      cursor: busy ? 'wait' : 'pointer',
+                      cursor: (busy || !!duplicateInvoiceMatch) ? 'not-allowed' : 'pointer',
                       boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
                     }}
                   >

@@ -80,9 +80,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          // Si el documento pertenece a un contrarecibo oficial pero no a las 2 OCs abiertas, unificarlo bajo el nombre del CR
-          const crMatch = OFFICIAL_VALID_CRS.find(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
-          if (crMatch && canonicalKey !== '120267114114' && canonicalKey !== '12026439713') {
+          // Si el documento pertenece a un contrarecibo oficial pero no a las OCs abiertas, unificarlo bajo el nombre del CR
+          const isExplicitOc = canonicalKey === '120267114114' || canonicalKey === '12026439713' || canonicalKey === '120267114014' || canonicalKey.includes('71/14014');
+          const crMatch = !isExplicitOc ? OFFICIAL_VALID_CRS.find(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c))) : null;
+          if (crMatch) {
             canonicalKey = crMatch;
           }
 
@@ -145,6 +146,30 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               }
             }
             best.invoices = cleanInvs;
+          }
+
+          // 🎯 Limpieza de la OC 120267114014: aún no tiene contrarecibos
+          if (canonicalKey === '120267114014' || canonicalKey.includes('71/14014') || best.oc === '120267114014' || best.folio === '120267114014') {
+            if (best.collection?.contrareciboNumber === 'TH-946') {
+              best.collection = {
+                ...best.collection,
+                contrareciboNumber: '',
+              };
+            }
+            if (best.invoices && best.invoices.length > 0) {
+              best.invoices = best.invoices.map(inv => {
+                if (inv.collection?.contrareciboNumber === 'TH-946') {
+                  return {
+                    ...inv,
+                    collection: {
+                      ...inv.collection,
+                      contrareciboNumber: '',
+                    },
+                  };
+                }
+                return inv;
+              });
+            }
           }
 
           // 🎯 Parámetros Oficiales Reales de las Órdenes de Compra de Providencia:

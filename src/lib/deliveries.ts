@@ -2,16 +2,10 @@ import { Timestamp, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'fire
 import { db, PATHS } from './firebase';
 import { computeFinancials, addDays, round2 } from './finance';
 import type { Delivery, Invoice, PurchaseOrder, PurchaseOrderItem, FinancialConfig } from './types';
+import { getEffectiveOrderItems } from './types';
 
 /**
- * Toda la lógica de "entregas como eventos" en un solo lugar, como funciones
- * puras (reciben datos, devuelven datos — nunca tocan Firestore ni estado de
- * React directamente). Antes vivía solo dentro de OrderModal.tsx: si Compras
- * quería lo mismo, tenía que reimplementarlo aparte, con el riesgo real de
- * que las dos copias divergieran (ya pasó una vez con "Facturar lo
- * entregado" — ver Ciclo 23 en AUDIT_NOTEBOOK.md). Al ser puras, además
- * quedan listas para tener sus propias pruebas automatizadas sin necesidad
- * de montar el componente completo.
+ * Toda la lógica de "entregas como eventos" y conciliación por partida para facturación.
  */
 
 /** Arma una entrega nueva en blanco, con un renglón en 0 por cada producto de la OC. */
@@ -57,9 +51,7 @@ export function updateDeliveryItemQuantity(
 }
 
 /**
- * Intenta quitar una entrega. No borra si ya está facturada: devuelve un
- * error para que quien llame decida cómo avisarlo (toast, alert, lo que
- * tenga esa pantalla), en vez de asumir un mecanismo de aviso concreto.
+ * Intenta quitar una entrega. No borra si ya está facturada.
  */
 export function removeDeliveryAt(
   deliveries: Delivery[],
@@ -91,7 +83,6 @@ export function computeDeliveredTotals(deliveries: Delivery[], orderItems?: Purc
       items.forEach((di) => {
         const q = Number(di.quantity) || 0;
         deliveredByItem[di.itemId] = round2((deliveredByItem[di.itemId] ?? 0) + q);
-        // Si orderItems está disponible, asegurar mapeo por ID o código si difieren
         if (orderItems && orderItems.length > 0) {
           const match = orderItems.find(it => it.id === di.itemId || it.code === di.itemId);
           if (match && match.id !== di.itemId) {
@@ -100,7 +91,6 @@ export function computeDeliveredTotals(deliveries: Delivery[], orderItems?: Purc
         }
       });
     } else if (orderItems && orderItems.length === 1) {
-      // Entrega global en orden con 1 sola partida: atribuir directamente al concepto
       const singleItem = orderItems[0];
       deliveredByItem[singleItem.id] = round2((deliveredByItem[singleItem.id] ?? 0) + dKilos);
     }
@@ -108,7 +98,6 @@ export function computeDeliveredTotals(deliveries: Delivery[], orderItems?: Purc
     kilosEntregados += sumItems > 0 ? sumItems : dKilos;
   });
 
-  // Si la orden solo tiene 1 concepto y hubo entregas globales registradas, garantizar que no quede en 0
   if (orderItems && orderItems.length === 1 && kilosEntregados > 0) {
     const singleItem = orderItems[0];
     if ((deliveredByItem[singleItem.id] ?? 0) < kilosEntregados) {
@@ -120,11 +109,172 @@ export function computeDeliveredTotals(deliveries: Delivery[], orderItems?: Purc
 }
 
 /**
- * Factura UNA entrega específica — nunca el acumulado. Devuelve la factura
- * nueva y la entrega ya marcada como facturada, o un error si no hay nada
- * que facturar. Quien llama decide qué hacer con el resultado (agregarlo al
- * expediente, cambiar de pestaña, mostrar el toast).
+ * Desglose exacto de cada partida para facturación:
+ * Calcula con precisión matemática cuántos kilos fueron solicitados en la OC,
+ * cuántos ya fueron entregados en báscula, cuántos ya han sido facturados en facturas previas,
+ * y cuántos kilos reales quedan pendientes por facturar (descontando estrictamente lo ya amparado).
  */
+export interface ItemInvoiceBreakdown {
+  id: string;
+  code: string;
+  description: string;
+  unit: string;
+  unitPrice: number;
+  ocQuantity: number;
+  alreadyDelivered: number;
+  alreadyInvoiced: number;
+  uninvoicedDeliveredKilos: number;
+  remainingOcKilos: number;
+  suggestedKilosToInvoice: number;
+  selected: boolean;
+}
+
+export function computeItemInvoiceBreakdown(
+  order: PurchaseOrder,
+  defaultUnitPrice: number = 43
+): ItemInvoiceBreakdown[] {
+  const effectiveItems = getEffectiveOrderItems(order);
+  const deliveries = order.deliveries || [];
+  const invoices = order.invoices || [];
+
+  const totalDeliveredKilos = deliveries.reduce((sum, d) => {
+    if (d.items && d.items.length > 0) {
+      return sum + d.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+    }
+    return sum + (Number(d.kilos) || 0);
+  }, 0);
+
+  const totalOcKilos = effectiveItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+
+  // Mapeo detallado de entregas por ítem
+  const deliveredMap: Record<string, number> = {};
+  deliveries.forEach((d) => {
+    if (d.items && d.items.length > 0) {
+      d.items.forEach((di) => {
+        const key = di.itemId;
+        deliveredMap[key] = (deliveredMap[key] || 0) + (Number(di.quantity) || 0);
+      });
+    }
+  });
+
+  // Mapeo detallado de facturas emitidas por ítem
+  const invoicedMap: Record<string, number> = {};
+  invoices.forEach((inv) => {
+    if (inv.items && inv.items.length > 0) {
+      inv.items.forEach((it) => {
+        const keyId = it.id;
+        const keyCode = it.code && it.code !== '24141500' ? it.code.trim().toLowerCase() : null;
+        const keyDesc = it.description ? it.description.trim().toLowerCase() : null;
+
+        if (keyId) invoicedMap[keyId] = (invoicedMap[keyId] || 0) + (Number(it.quantity) || 0);
+        if (keyCode && keyCode !== keyId) invoicedMap[keyCode] = (invoicedMap[keyCode] || 0) + (Number(it.quantity) || 0);
+        if (keyDesc && keyDesc !== keyId && keyDesc !== keyCode) invoicedMap[keyDesc] = (invoicedMap[keyDesc] || 0) + (Number(it.quantity) || 0);
+      });
+    }
+  });
+
+  const hasDeliveries = deliveries.length > 0 && totalDeliveredKilos > 0;
+  const flatDeliveriesKilos = deliveries
+    .filter((d) => !d.items || d.items.length === 0)
+    .reduce((sum, d) => sum + (Number(d.kilos) || 0), 0);
+
+  const flatInvoicesKilos = invoices
+    .filter((inv) => !inv.items || inv.items.length === 0)
+    .reduce((sum, inv) => sum + (Number(inv.kilos) || 0), 0);
+
+  return effectiveItems.map((it, idx) => {
+    const ocQty = Number(it.quantity) || 0;
+    const itemKeyById = it.id;
+    const itemKeyByCode = it.code && it.code !== '24141500' ? it.code.trim().toLowerCase() : null;
+    const itemKeyByDesc = it.description ? it.description.trim().toLowerCase() : null;
+
+    // Entregas detalladas para este ítem
+    let itemDelivered = 0;
+    if (itemKeyById && deliveredMap[itemKeyById] !== undefined) {
+      itemDelivered = deliveredMap[itemKeyById];
+    } else if (itemKeyByCode && deliveredMap[itemKeyByCode] !== undefined) {
+      itemDelivered = deliveredMap[itemKeyByCode];
+    } else if (itemKeyByDesc && deliveredMap[itemKeyByDesc] !== undefined) {
+      itemDelivered = deliveredMap[itemKeyByDesc];
+    }
+
+    // Si existen entregas globales sin desglose por ítem, distribuir proporcionalmente
+    if (flatDeliveriesKilos > 0 && totalOcKilos > 0) {
+      const share = round2(flatDeliveriesKilos * (ocQty / totalOcKilos));
+      itemDelivered = round2(itemDelivered + share);
+    }
+
+    // Facturas detalladas para este ítem
+    let itemInvoiced = 0;
+    if (itemKeyById && invoicedMap[itemKeyById] !== undefined) {
+      itemInvoiced = invoicedMap[itemKeyById];
+    } else if (itemKeyByCode && invoicedMap[itemKeyByCode] !== undefined) {
+      itemInvoiced = invoicedMap[itemKeyByCode];
+    } else if (itemKeyByDesc && invoicedMap[itemKeyByDesc] !== undefined) {
+      itemInvoiced = invoicedMap[itemKeyByDesc];
+    }
+
+    // Si existen facturas globales sin desglose por ítem, distribuir proporcionalmente
+    if (flatInvoicesKilos > 0 && totalOcKilos > 0) {
+      const share = round2(flatInvoicesKilos * (ocQty / totalOcKilos));
+      itemInvoiced = round2(itemInvoiced + share);
+    }
+
+    // Descontar estrictamente lo ya facturado
+    const uninvoicedDeliveredKilos = round2(Math.max(0, itemDelivered - itemInvoiced));
+    const remainingOcKilos = round2(Math.max(0, ocQty - itemInvoiced));
+
+    let suggestedKilos = 0;
+    if (hasDeliveries) {
+      // Si hay entregas en la orden, sugerir SOLO los kilos recibidos en báscula que NO han sido facturados
+      suggestedKilos = uninvoicedDeliveredKilos;
+    } else {
+      // Si es una orden abierta sin báscula, sugerir los kilos restantes de la OC
+      suggestedKilos = remainingOcKilos;
+    }
+
+    return {
+      id: it.id || `item_${idx}_${Date.now()}`,
+      code: it.code || '24141500',
+      description: it.description || 'Bolsa de Polietileno',
+      unit: it.unit || 'KGM',
+      unitPrice: it.unitPrice || defaultUnitPrice,
+      ocQuantity: ocQty,
+      alreadyDelivered: round2(itemDelivered),
+      alreadyInvoiced: round2(itemInvoiced),
+      uninvoicedDeliveredKilos,
+      remainingOcKilos,
+      suggestedKilosToInvoice: suggestedKilos,
+      selected: suggestedKilos > 0.01,
+    };
+  });
+}
+
+/**
+ * Vincula entregas de báscula a una nueva factura emitida, marcándolas invoiced: true
+ */
+export function linkDeliveriesToInvoice(
+  deliveries: Delivery[],
+  invoiceId: string,
+  kilosToInvoice: number,
+): Delivery[] {
+  let remaining = kilosToInvoice;
+  return deliveries.map((d) => {
+    const dKilos =
+      d.items && d.items.length > 0
+        ? d.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0)
+        : Number(d.kilos || 0);
+
+    if (!d.invoiced && dKilos > 0 && remaining > 0.001) {
+      const portion = Math.min(dKilos, remaining);
+      remaining -= portion;
+      return { ...d, invoiced: true, invoiceId };
+    }
+    return d;
+  });
+}
+
+/** Factura UNA entrega específica. */
 export function buildInvoiceFromDelivery(
   delivery: Delivery,
   config: FinancialConfig,
@@ -168,13 +318,7 @@ export function unmarkDeliveriesByInvoiceId(deliveries: Delivery[], invoiceId: s
   return deliveries.map((d) => (d.invoiceId === invoiceId ? { ...d, invoiced: false, invoiceId: undefined } : d));
 }
 
-/**
- * Migra expedientes que todavía no tienen entregas en formato de evento:
- * arma UNA entrega histórica con lo que ya había, marcada como ya facturada
- * si el expediente ya tenía facturas (para no ofrecer facturarla otra vez).
- * Cubre tanto el formato con items[].deliveredQuantity como los expedientes
- * muy viejos, de antes de que existiera items[].
- */
+/** Migra expedientes sin eventos de entrega. */
 export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries: Delivery[]): Delivery[] {
   if (existingDeliveries && existingDeliveries.length > 0) return existingDeliveries;
 
@@ -206,19 +350,7 @@ export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries
   return [];
 }
 
-/**
- * Crea o actualiza el registro de compra a Andres ligado a un expediente
- * (mismo id en las dos colecciones). Antes esta escritura solo vivia dentro
- * de OrderModal.save(): cuando se agrego el atajo "Registrar Entrega" en
- * Compras.tsx (Ciclo 28) para capturar entregas sin abrir el expediente
- * completo, ese camino nunca llamaba a esto — la entrega quedaba guardada
- * en el expediente, pero la deuda con Andres jamas se actualizaba. Ahora
- * los dos caminos llaman a esta MISMA funcion, en vez de mantener dos
- * copias que puedan volver a divergir.
- *
- * El costo se reconoce sobre lo ENTREGADO (receivedKilos), no lo pedido:
- * decision de negocio confirmada explicitamente por el usuario (Ciclo 14).
- */
+/** Upsert de compras a Andrés. */
 export async function upsertAndresPurchase(params: {
   orderId: string;
   provider: string;

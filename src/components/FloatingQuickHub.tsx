@@ -35,17 +35,36 @@ export function FloatingQuickHub() {
     playSoftClick();
   };
 
-  const handleNewOrder = () => {
-    // Mismo problema que en CommandPalette: 'open-order-modal' no tiene
-    // listener en Orders.tsx. El parámetro real que abre el modal de orden
-    // nueva es ?nueva=1 (ver el useEffect correspondiente en Orders.tsx).
+  // 1. Capturar OC
+  const handleFastOc = () => {
     setIsOpen(false);
     navigate('/ordenes?nueva=1');
+    playSoftClick();
+    triggerHaptic('medium');
   };
 
-  const handleBalanza = () => {
+  // 2. Capturar Entrega Báscula
+  const handleFastDelivery = () => {
     setIsOpen(false);
-    navigate('/audit');
+    window.dispatchEvent(new CustomEvent('open-fast-delivery'));
+    playSoftClick();
+    triggerHaptic('medium');
+  };
+
+  // 3. Emitir Factura CFDI
+  const handleFastInvoice = () => {
+    setIsOpen(false);
+    window.dispatchEvent(new CustomEvent('open-fast-invoice'));
+    playSoftClick();
+    triggerHaptic('medium');
+  };
+
+  // 4. Capturar Contrarecibo
+  const handleFastCr = () => {
+    setIsOpen(false);
+    window.dispatchEvent(new CustomEvent('open-fast-cr-collection'));
+    playSoftClick();
+    triggerHaptic('medium');
   };
 
   return (
@@ -58,143 +77,195 @@ export function FloatingQuickHub() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
-        gap: 10,
+        gap: 8,
       }}
     >
       {/* Botones Desplegables del Speed-Dial */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 15, scale: 0.9 }}
+            initial={{ opacity: 0, y: 15, scale: 0.92 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 15, scale: 0.9 }}
+            exit={{ opacity: 0, y: 15, scale: 0.92 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
+              gap: 7,
               alignItems: 'flex-end',
             }}
           >
-            {/* 1. Spotlight Buscador */}
-            <button
-              onClick={handleSpotlight}
-              className="quick-hub-pill glow-sky"
+            {/* 1. Capturar OC */}
+            <motion.button
+              whileHover={{ scale: 1.04, x: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleFastOc}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 14px',
-                background: 'rgba(30, 41, 59, 0.95)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(59, 130, 246, 0.4)',
+                padding: '9px 15px',
+                background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)',
+                border: '1.5px solid rgba(147, 197, 253, 0.4)',
                 borderRadius: 99,
                 color: '#fff',
-                fontSize: 12,
-                fontWeight: 700,
+                fontSize: 12.5,
+                fontWeight: 800,
                 cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                boxShadow: '0 8px 24px rgba(37, 99, 235, 0.45)',
               }}
             >
-              <span>🔍 Spotlight Universal</span>
-              <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4 }}>Ctrl+K</span>
-            </button>
+              <span>📝 1. Capturar OC / Pedido</span>
+            </motion.button>
 
-            {/* 2. Modo Privacidad */}
-            <button
-              onClick={handlePrivacy}
-              className="quick-hub-pill glow-purple"
+            {/* 2. Capturar Entrega Báscula */}
+            <motion.button
+              whileHover={{ scale: 1.04, x: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleFastDelivery}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 14px',
+                padding: '9px 15px',
+                background: 'linear-gradient(135deg, #047857 0%, #059669 100%)',
+                border: '1.5px solid rgba(110, 231, 183, 0.4)',
+                borderRadius: 99,
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(5, 150, 105, 0.45)',
+              }}
+            >
+              <span>🚚 2. Registrar Entrega Báscula</span>
+            </motion.button>
+
+            {/* 3. Emitir Factura CFDI */}
+            <motion.button
+              whileHover={{ scale: 1.04, x: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleFastInvoice}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '9px 15px',
+                background: 'linear-gradient(135deg, #b45309 0%, #d97706 100%)',
+                border: '1.5px solid rgba(253, 230, 138, 0.4)',
+                borderRadius: 99,
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(217, 119, 6, 0.45)',
+              }}
+            >
+              <span>🧾 3. Emitir Factura CFDI</span>
+            </motion.button>
+
+            {/* 4. Capturar Contrarecibo */}
+            <motion.button
+              whileHover={{ scale: 1.04, x: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleFastCr}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '9px 15px',
+                background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)',
+                border: '1.5px solid rgba(196, 181, 253, 0.4)',
+                borderRadius: 99,
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(124, 58, 237, 0.45)',
+              }}
+            >
+              <span>📑 4. Capturar Contrarecibo</span>
+            </motion.button>
+
+            {/* Divisor */}
+            <div style={{ height: 1, width: '100%', background: 'rgba(255,255,255,0.12)', margin: '2px 0' }} />
+
+            {/* 5. Spotlight Buscador */}
+            <motion.button
+              whileHover={{ scale: 1.03, x: -2 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleSpotlight}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '7px 13px',
                 background: 'rgba(30, 41, 59, 0.95)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(168, 85, 247, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
                 borderRadius: 99,
                 color: '#fff',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
+              }}
+            >
+              <span>🔍 Spotlight Buscador</span>
+              <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: 4 }}>Ctrl+K</span>
+            </motion.button>
+
+            {/* 6. Modo Privacidad */}
+            <motion.button
+              whileHover={{ scale: 1.03, x: -2 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handlePrivacy}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '7px 13px',
+                background: 'rgba(30, 41, 59, 0.95)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: 99,
+                color: '#fff',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
               }}
             >
               <span>{isPrivate ? '👁️ Mostrar Cifras' : '🕶️ Modo Privacidad'}</span>
-              <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4 }}>Ctrl+H</span>
-            </button>
+              <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', padding: '1px 5px', borderRadius: 4 }}>Ctrl+H</span>
+            </motion.button>
 
-            {/* 3. Calculadora de Kilos */}
-            <button
+            {/* 7. Calculadora */}
+            <motion.button
+              whileHover={{ scale: 1.03, x: -2 }}
+              whileTap={{ scale: 0.97 }}
               onClick={handleKiloCalc}
-              className="quick-hub-pill"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 14px',
+                padding: '7px 13px',
                 background: 'rgba(30, 41, 59, 0.95)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
                 borderRadius: 99,
                 color: '#fff',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
               }}
             >
               <span>🧮 Calculadora $/kg</span>
-            </button>
-
-            {/* 4. Nuevo Pedido */}
-            <button
-              onClick={handleNewOrder}
-              className="quick-hub-pill glow-emerald"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 14px',
-                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                border: '1px solid #10b981',
-                borderRadius: 99,
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(5, 150, 105, 0.4)',
-              }}
-            >
-              <span>➕ Nuevo Pedido / OC</span>
-            </button>
-
-            {/* 5. Balanza de Comprobación */}
-            <button
-              onClick={handleBalanza}
-              className="quick-hub-pill"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 14px',
-                background: 'rgba(30, 41, 59, 0.95)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: 99,
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
-              }}
-            >
-              <span>⚖️ Balanza de Auditoría</span>
-            </button>
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -205,20 +276,20 @@ export function FloatingQuickHub() {
         whileTap={{ scale: 0.92 }}
         onClick={toggleHub}
         style={{
-          width: 48,
-          height: 48,
+          width: 52,
+          height: 52,
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-          border: '2px solid rgba(255, 255, 255, 0.3)',
+          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+          border: '2.5px solid rgba(255, 255, 255, 0.35)',
           color: '#fff',
-          fontSize: 20,
+          fontSize: 22,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           cursor: 'pointer',
-          boxShadow: '0 10px 25px rgba(37, 99, 235, 0.5)',
+          boxShadow: '0 10px 25px rgba(37, 99, 235, 0.55)',
         }}
-        title="Acciones Rápidas del ERP"
+        title="Acciones Rápidas del ERP (1. OC, 2. Entrega, 3. Factura, 4. Contrarecibo)"
       >
         <motion.span animate={{ rotate: isOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
           ⚡

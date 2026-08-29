@@ -170,7 +170,7 @@ export default function TabFacturas() {
                 const razon = 'GRUPO TEXTIL PROVIDENCIA';
                 const regimen = '601 - General de Ley Personas Morales';
                 const uso = 'G01 - Adquisición de mercancías';
-                const claveProd = '24111500';
+                const claveProd = '24141500';
                 const claveUnidad = 'KGM';
                 const precio = (dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2);
                 const txt = `RFC: ${rfc}\nNombre: ${razon}\nRégimen: ${regimen}\nUso CFDI: ${uso}\nClave ProdServ: ${claveProd}\nUnidad: ${claveUnidad}\nPrecio Unitario: $${precio}\nObjeto Impuesto: 02 - Sí objeto de impuesto (IVA 16%)\nMétodo de Pago: PPD\nForma de Pago: 99`;

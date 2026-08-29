@@ -103,7 +103,7 @@ export function useOrderDeliveries(
             const qty = Number(di.quantity);
             return {
               id: matched?.id || crypto.randomUUID(),
-              code: matched?.code || '24111500',
+              code: matched?.code || '24141500',
               description: matched?.description || 'Bolsa de Polietileno',
               quantity: qty,
               unit: matched?.unit || 'Kilos',
@@ -116,7 +116,7 @@ export function useOrderDeliveries(
         const unitPrice = Number(matched.unitPrice || f.customSellPrice || 43);
         invoiceItems = [{
           id: matched.id || crypto.randomUUID(),
-          code: matched.code || '24111500',
+          code: matched.code || '24141500',
           description: matched.description || 'Bolsa de Polietileno',
           quantity: kilos,
           unit: matched.unit || 'Kilos',
@@ -131,7 +131,7 @@ export function useOrderDeliveries(
           const qty = Number(matched.quantity || 0);
           return {
             id: matched.id || crypto.randomUUID(),
-            code: matched.code || '24111500',
+            code: matched.code || '24141500',
             description: matched.description || 'Bolsa de Polietileno',
             quantity: qty,
             unit: matched.unit || 'Kilos',

@@ -416,6 +416,34 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(gtOrder).toBeNull();
   });
 
+  it('extractCr no fuga el contrarecibo de la orden raíz a facturas nuevas pendientes de contrarecibo', async () => {
+    const { extractCr } = await import('../finance');
+
+    const multiInvoiceOrder = {
+      id: 'ord-th-120267114114',
+      oc: '120267114114',
+      folio: '71/14114',
+      collection: { contrareciboNumber: 'TH-946' },
+      invoices: [
+        { id: 'inv-6198', folio: '6198', kilos: 1965.81, collection: { contrareciboNumber: 'TH-946' } },
+        { id: 'inv-6200', folio: '6200', kilos: 1500.00, collection: { contrareciboNumber: '' } }, // En revisión, aún sin CR
+        { id: 'inv-nueva', folio: '', kilos: 1000.00, collection: { contrareciboNumber: '' } },     // Por facturar
+      ],
+    };
+
+    // La factura 6198 tiene su CR asignado
+    expect(extractCr(multiInvoiceOrder.invoices[0], multiInvoiceOrder)).toBe('TH-946');
+
+    // La factura 6200 NO tiene CR asignado, por lo que debe devolver vacío ('') y no heredar TH-946
+    expect(extractCr(multiInvoiceOrder.invoices[1], multiInvoiceOrder)).toBe('');
+
+    // La factura nueva tampoco debe heredar TH-946
+    expect(extractCr(multiInvoiceOrder.invoices[2], multiInvoiceOrder)).toBe('');
+
+    // Si se consulta la orden directamente como expediente global
+    expect(extractCr(undefined, multiInvoiceOrder)).toBe('TH-946');
+  });
+
   it('los responsables de área son Nava para Textil Hogar TH y Evelia para Grupo Textil GT', async () => {
     const { getDepartmentManager, getDepartmentBadgeLabel } = await import('../format');
     const { generateCollectionNotice } = await import('../whatsappReminder');

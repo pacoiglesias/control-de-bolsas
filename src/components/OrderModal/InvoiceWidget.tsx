@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Field, CopyButton } from '../ui';
 import { CurrencyInput } from '../CurrencyInput';
 import { fromInputDate, money, toInputDate, toDate } from '../../lib/format';
@@ -34,6 +34,10 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
   const { saveInvoice, deleteInvoice } = useInvoiceActions();
   const toast = useToast();
   const [localInvoice, setLocalInvoice] = useState<Invoice>(invoice);
+
+  useEffect(() => {
+    setLocalInvoice(invoice);
+  }, [invoice]);
   
   // Track if there are local unsaved changes
   const hasChanges = JSON.stringify(invoice) !== JSON.stringify(localInvoice);
@@ -327,7 +331,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                       onClick={() => {
                         const newIt = {
                           id: `custom_${Date.now()}`,
-                          code: '24111500',
+                          code: '24141500',
                           description: 'Bolsa de Polietileno',
                           unit: 'KGM',
                           quantity: 0,
@@ -359,12 +363,12 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                       <tr key={it.id || idx}>
                         <td>
                           {readOnly ? (
-                            <span className="mono" style={{ color: 'var(--ink-soft)' }}>{it.code || '24111500'}</span>
+                            <span className="mono" style={{ color: 'var(--ink-soft)' }}>{it.code || '24141500'}</span>
                           ) : (
                             <input
                               type="text"
                               className="input boxed mono"
-                              value={it.code || '24111500'}
+                              value={it.code || '24141500'}
                               onChange={e => {
                                 const next = [...localInvoice.items!];
                                 next[idx] = { ...next[idx], code: e.target.value };

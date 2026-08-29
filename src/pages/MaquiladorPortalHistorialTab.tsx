@@ -1,23 +1,14 @@
 import { glass } from './MaquiladorPortal.shared';
 
-/**
- * FIX (v8.9.8, split de MaquiladorPortal.tsx — ~1530 lineas): tab
- * "Historial de Entregas" extraido tal cual, sin cambiar logica.
- *
- * FIX (v8.9.9, auditoría Staff Engineer -- contraste WCAG AA): el texto
- * secundario usaba blanco al 30%/40% de opacidad sobre fondo oscuro, muy por
- * debajo del contraste mínimo AA (4.5:1) -- este portal es el único flujo
- * con usuario externo (Andrés, sin cuenta de Firebase, en campo con luz
- * solar), así que la legibilidad aquí pesa más que en el resto de la app.
- * Subido a 60%/65%.
- */
+interface MaquiladorPortalHistorialTabProps {
+  historial: any[];
+  handleDownloadDeliveryTicket: (h: any) => void;
+}
+
 export default function MaquiladorPortalHistorialTab({
   historial,
   handleDownloadDeliveryTicket,
-}: {
-  historial: any[];
-  handleDownloadDeliveryTicket: (h: any) => void;
-}) {
+}: MaquiladorPortalHistorialTabProps) {
   return (
     <div style={{ ...glass, padding: 22 }}>
       <div
@@ -33,7 +24,7 @@ export default function MaquiladorPortalHistorialTab({
       </div>
 
       {historial.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.65)' }}>
+        <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.4)' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
           <div>Aún no has registrado entregas recientemente.</div>
         </div>
@@ -59,7 +50,7 @@ export default function MaquiladorPortalHistorialTab({
                   📝 {h.notes}
                 </div>
               )}
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
                 {h.date ? new Date(h.date).toLocaleString('es-MX') : 'Reciente'}
               </div>
             </div>

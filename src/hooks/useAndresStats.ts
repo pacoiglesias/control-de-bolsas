@@ -81,11 +81,10 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       return ta - tb;
     });
 
-    let running = -deudaHistorica;
+    let running = deudaHistorica;
     for (const row of ledger) {
-      running += row.cargo;
-      running -= row.abono;
-      row.balance = running;
+      running += (row.abono - row.cargo);
+      row.balance = round2(running);
     }
     ledger.reverse();
 

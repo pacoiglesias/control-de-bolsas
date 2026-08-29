@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.38 Aislamiento Estricto de Contrarecibos vs Facturas en Revisión y Desacoplamiento de OC',
+    date: '29 de Agosto de 2026',
+    time: '11:15 PM',
+    summary: 'Aislamiento estricto de contrarecibos en la función universal extractCr: las facturas recién emitidas o pendientes de contrarecibo no heredan contrarecibos de la orden padre ni de expedientes anteriores. Permanece hermética la distinción entre Orden de Compra (OC), Factura y Contrarecibo (CR).',
+    highlights: [
+      '🛡️ Desacoplamiento Hermético extractCr: Las facturas que aún no reciben contrarecibo de Providencia permanecen como "Sin Contrarecibo / En Revisión" (CR vacío) sin heredar folios de la orden padre.',
+      '📋 Tablero Kanban y Seguimiento por OC: Clasificación 100% exacta de facturas en revisión, evitando que salten indebidamente a "Por Cobrar" antes de que Providencia entregue el contrarecibo.',
+      '🧪 Blindaje con 105 Tests Automatizados: Incorporada prueba unitaria específica en finance.test.ts.',
+    ],
+  },
+  {
     version: 'v8.9.37 Alineación Exacta con CFDIs Oficiales de Elemental Denim y Providencia',
     date: '29 de Agosto de 2026',
     time: '11:05 PM',

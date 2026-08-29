@@ -86,14 +86,16 @@ export async function exportToExcel() {
     (o.deliveries || []).forEach((del: any, idx: number) => {
       const delDate = toDate(del.date);
       const k = del.kilos || 0;
-      const costo = round2(k * 42.00);
+      const unitCost = Number(o.customCostPrice || 38.00);
+      const costo = round2(k * unitCost);
 
       maquilaRows.push({
         Fecha: delDate ? delDate.toLocaleDateString('es-MX') : '',
         OrdenCompra: o.oc || o.folio || 'S/N',
         DocumentoEntrega: del.docType ? `${del.docType.toUpperCase()} ${del.docFolio || ''}` : `Entrega #${idx + 1}`,
         KilosBascula: k,
-        CostoMaquila_42_Kg: costo,
+        CostoUnitario: unitCost,
+        CostoMaquilaTotal: costo,
         ChoferTransporte: del.driver || 'Andrés Chofer',
         Placas: del.plates || '',
       });

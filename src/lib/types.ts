@@ -56,8 +56,8 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    */
   commissionBase: 'subtotal',
   historicalDebtAndres: 82628.94,
-  // Tomados de una OC real del negocio; editables en Configuracion.
-  satClaveProdServ: '24111500',
+  // Tomados de los CFDIs oficiales del negocio (CFDI 4.0); editables en Configuración.
+  satClaveProdServ: '24141500',
   satClaveUnidad: 'KGM',
   satMetodoPago: 'PPD',
   satFormaPago: '99',

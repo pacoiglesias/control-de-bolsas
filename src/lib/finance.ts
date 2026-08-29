@@ -29,12 +29,28 @@ export type {
 } from '../../functions/src/shared/finance.core';
 
 export function extractCr(inv: any, o?: any): string {
-  let cr = (inv?.collection?.contrareciboNumber || o?.collection?.contrareciboNumber || '').trim();
-  if (!cr) {
+  // 1. Si se pasa una factura individual explícita
+  if (inv && (inv.id !== o?.id || inv.folio !== o?.folio || inv.kilos !== undefined)) {
+    const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim();
+    if (invCr) return invCr;
     const f1 = (inv?.folio || '').trim().toUpperCase();
-    const f2 = (o?.folio || '').trim().toUpperCase();
-    if (f1.startsWith('TH-') || f1.startsWith('GT-')) cr = f1;
-    else if (f2.startsWith('TH-') || f2.startsWith('GT-')) cr = f2;
+    if (f1.startsWith('TH-') || f1.startsWith('GT-')) return f1;
+    // Si la orden raíz no tiene array de facturas (documento legacy único), puede revisar la orden
+    if (!o?.invoices || o.invoices.length <= 1) {
+      const oCr = (o?.collection?.contrareciboNumber || '').trim();
+      if (oCr) return oCr;
+      const f2 = (o?.folio || '').trim().toUpperCase();
+      if (f2.startsWith('TH-') || f2.startsWith('GT-')) return f2;
+    }
+    return '';
+  }
+
+  // 2. Si no hay factura o se evalúa el documento raíz de la orden
+  const target = inv || o;
+  let cr = (target?.collection?.contrareciboNumber || target?.contrarecibo || '').trim();
+  if (!cr) {
+    const f = (target?.folio || '').trim().toUpperCase();
+    if (f.startsWith('TH-') || f.startsWith('GT-')) cr = f;
   }
   return cr;
 }

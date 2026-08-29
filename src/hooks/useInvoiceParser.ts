@@ -49,7 +49,7 @@ export function extractInvoiceItemsFromText(text: string, defaultPrice: number =
     }
 
     // Separar código y descripción de firstLine
-    let code = satCode || '24111500';
+    let code = satCode || '24141500';
     let description = firstLine.trim();
 
     // 1. Caso código pegado directamente a la descripción (ej: "EGBO000018-SCBOLSA POLIETILENO...")
@@ -67,7 +67,7 @@ export function extractInvoiceItemsFromText(text: string, defaultPrice: number =
 
     items.push({
       id: 'inv_item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      code: code || '24111500',
+      code: code || '24141500',
       description: description || 'Bolsa de Polietileno',
       quantity,
       unit: 'Kilos',

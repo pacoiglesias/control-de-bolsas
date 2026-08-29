@@ -27,3 +27,16 @@ describe('validarTamanoExcel', () => {
     expect(err).toContain('MB');
   });
 });
+
+describe('buildOfficialExcelWorkbook', () => {
+  it('construye un libro de Excel con las 3 hojas oficiales (Captura, Catálogo e Instructivo)', async () => {
+    const { buildOfficialExcelWorkbook } = await import('../excelTemplateGenerator');
+    const wb = buildOfficialExcelWorkbook();
+
+    expect(wb).not.toBeNull();
+    expect(wb.SheetNames).toContain('📦 Captura Expedientes');
+    expect(wb.SheetNames).toContain('🏢 Catálogo & Precios');
+    expect(wb.SheetNames).toContain('📖 Instructivo');
+  });
+});
+

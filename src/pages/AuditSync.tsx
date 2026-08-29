@@ -19,6 +19,7 @@ import { type OrderStatus, type PurchaseOrder } from '../lib/types';
 import * as XLSX from 'xlsx';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
+import { downloadOfficialExcelTemplate } from '../lib/excelTemplateGenerator';
 
 const BalanzaComprobacionModal = lazy(() => import('../components/Dashboard/BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
 const OrderModal = lazy(() => import('../components/OrderModal'));
@@ -955,6 +956,26 @@ export default function AuditSync() {
           onClick={() => setMode('excel')}
         >
           <span>📁</span> Conciliar Archivo .xlsx
+        </button>
+
+        <span style={{ flex: 1 }} />
+
+        <button
+          type="button"
+          className="btn"
+          style={{
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: '#059669',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          onClick={() => downloadOfficialExcelTemplate()}
+          title="Descargar plantilla oficial prediseñada para captura y sincronización masiva"
+        >
+          <span>📥</span> Descargar Plantilla Excel Oficial (.xlsx)
         </button>
       </div>
 

@@ -93,11 +93,10 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
 
-        // Buscar si ya existe una orden con este CR o monto aproximado, o folio/OC heredada para TH-946 (Factura 6167)
+        // Buscar si ya existe una orden con este CR
         const matchingOrder = orders.find(o => 
           (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
-          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr) ||
-          (item.cr === 'TH-946' && (o.oc === '120267114014' || o.folio === '120267114014' || (o.invoices || []).some(i => i.folio === '6167')))
+          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr)
         );
 
         if (matchingOrder) {

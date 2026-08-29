@@ -254,7 +254,7 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
                 <div key={it.id || idx} style={{ background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 6, fontSize: 11.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{it.description}</div>
-                    <div style={{ color: 'var(--ink-soft)', fontSize: 10.5 }}>Clave SAT: {it.code || '24111500'}</div>
+                    <div style={{ color: 'var(--ink-soft)', fontSize: 10.5 }}>Clave SAT: {it.code || '24141500'}</div>
                   </div>
                   <div className="mono" style={{ fontWeight: 700 }}>
                     {(it.quantity || 0).toLocaleString('es-MX')} kg

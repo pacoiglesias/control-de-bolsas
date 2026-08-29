@@ -11,7 +11,7 @@ import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firest
 import { camposInvoices } from '../../lib/invoiceOps';
 import type { Invoice } from '../../lib/types';
 import { confirmDialog } from '../../lib/confirmDialog';
-import { OrderStepper } from './OrderStepper';
+import { OrderLifecycleSemaphore } from './OrderLifecycleSemaphore';
 
 type OrderWithSummary = {
   o: PurchaseOrder;
@@ -327,8 +327,8 @@ export default function KanbanBoard({
                         totalKg={item.o.totalKilograms || (item.o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || item.s.kilosDelivered}
                       />
 
-                      {/* Stepper Visual de Vida del Pedido */}
-                      <OrderStepper order={item.o} compact style={{ marginTop: 2 }} />
+                      {/* Semáforo Visual de Vida del Pedido */}
+                      <OrderLifecycleSemaphore order={item.o} summary={item.s} compact style={{ marginTop: 4, width: '100%', justifyContent: 'space-between' }} />
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 2 }}>
                         <div style={{ color: item.s.invoiceTotal - item.s.paidAmount > 0 ? 'var(--bad)' : 'var(--ok)', fontWeight: 700 }}>

@@ -347,7 +347,13 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
             </label>
           )}
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+          {/* Banner de días de revisión de Providencia */}
+          <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 11.5, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>ℹ️</span>
+            <span>Los días de ingreso y sellado de Contrarecibos en Providencia son <strong>Martes y Jueves</strong> (Ventanilla de Cuentas por Pagar).</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <button
               type="button"
               onClick={onClose}

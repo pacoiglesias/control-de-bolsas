@@ -40,7 +40,7 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
     items = [
       {
         id: '1',
-        code: '24111500',
+        code: '24141500',
         description: 'BOLSA POLIETILENO TRANSPARENTE EN ROLLO / BULTOS',
         quantity: fallbackKilos,
         unit: 'Kilos',

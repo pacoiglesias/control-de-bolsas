@@ -63,7 +63,7 @@ export function printRemision({ folio, oc, client, department, items, deliveredB
     `;
   }).join('') : `
     <tr>
-      <td style="font-family: monospace;">24111500</td>
+      <td style="font-family: monospace;">24141500</td>
       <td>Bolsa de Polietileno Transparente en Rollo</td>
       <td style="text-align: right; font-family: monospace;">${kilosNum.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
       <td style="text-align: right; font-family: monospace; font-weight: 700;">${kilosNum.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</td>
@@ -118,7 +118,7 @@ export function printRemision({ folio, oc, client, department, items, deliveredB
             <div style="font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">DATOS DE LOGÍSTICA:</div>
             <strong>Fabricante:</strong> ${escapeHtml(provName || 'Andrés')}<br>
             <strong>Estatus:</strong> Entrega Física en Báscula<br>
-            <strong>Clave SAT:</strong> ${escapeHtml(config?.satClaveProdServ || '24111500')} (Bolsas Polietileno)
+            <strong>Clave SAT:</strong> ${escapeHtml(config?.satClaveProdServ || '24141500')} (Bolsas Polietileno)
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export function printSingleDeliveryRemision({
     `;
   }).join('') : `
     <tr>
-      <td style="font-family: monospace;">24111500</td>
+      <td style="font-family: monospace;">24141500</td>
       <td>Bolsa de Polietileno Transparente en Rollo</td>
       <td style="text-align: right; font-family: monospace;">${deliveryKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
       <td style="text-align: right; font-family: monospace; font-weight: 700;">${deliveryKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg</td>
@@ -366,7 +366,7 @@ export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynam
             <h1>Pre-Factura CFDI 4.0</h1>
             <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Bolsas Elemental ERP · Documento Fiscal de Facturación</div>
           </div>
-          <div class="badge">ORDEN / NOTA: ${escapeHtml(folio) || '120267114014'}</div>
+          <div class="badge">ORDEN / NOTA: ${escapeHtml(folio || 'S/N')}</div>
         </div>
 
         <div class="grid">
@@ -384,7 +384,7 @@ export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynam
             <strong>Forma de Pago:</strong> 99 Por definir<br>
             <strong>Clave Prod/Serv SAT:</strong> 24141500 (Bolsas de plástico)<br>
             <strong>Clave Unidad SAT:</strong> KGM (Kilogramos)<br>
-            <strong>Nota en CFDI:</strong> OC ${escapeHtml(folio) || '120267114014'}
+            <strong>Nota en CFDI:</strong> OC ${escapeHtml(folio || 'S/N')}
           </div>
         </div>
 

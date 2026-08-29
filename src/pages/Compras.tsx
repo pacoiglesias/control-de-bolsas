@@ -83,11 +83,8 @@ export default function Compras() {
   // arrancaba su acumulado en $0 — cada renglon quedaba desfasado por el
   // monto completo del ajuste historico, sin coincidir con el numero
   // principal de la pantalla.
-  let currentBalance = deudaHistorica;
-  const ledgerWithBalance = ledger.map(e => {
-    currentBalance += (e.cargo - e.abono);
-    return { ...e, balance: currentBalance };
-  });
+  // El libro mayor (ledger) ya viene ordenado y con su balance acumulado calculado cronológicamente
+  const ledgerWithBalance = ledger;
 
   function exportComprasCsv() {
     const headers = ['Fecha', 'Concepto', 'Cargo (Deuda)', 'Abono (Pago)', 'Origen'];

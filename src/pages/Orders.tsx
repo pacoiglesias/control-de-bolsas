@@ -11,12 +11,16 @@ import KanbanBoard from '../components/Orders/KanbanBoard';
 import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { QuickCrModal } from '../components/QuickCrModal';
 import { KilosProgressBar } from '../components/Orders/KilosProgressBar';
-import { OrderStepper } from '../components/Orders/OrderStepper';
+import { OrderLifecycleSemaphore } from '../components/Orders/OrderLifecycleSemaphore';
 import { PulsingBadge } from '../components/ui/PulsingBadge';
 import { OrderContextMenu } from '../components/Orders/OrderContextMenu';
 import { SavedViewsBar } from '../components/Orders/SavedViewsBar';
-import { kilos, money, nombreClienteVisible } from '../lib/format';
-import { getOrderSummary, extractCr } from '../lib/finance';
+import { OrdersKpiRibbon } from '../components/Orders/OrdersKpiRibbon';
+import { OrderRowActions } from '../components/Orders/OrderRowActions';
+import { ExcelDragDropModal } from '../components/Excel/ExcelDragDropModal';
+import { ProactiveCrHubModal } from '../components/Cobranza/ProactiveCrHubModal';
+import { kilos, money, nombreClienteVisible, toDate } from '../lib/format';
+import { getOrderSummary, extractCr, round2 } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 
 const FILTERS: { key: 'all' | 'sin_cr' | OrderStatus; label: string }[] = [
@@ -38,6 +42,8 @@ export default function Orders() {
   const [search, setSearch] = useState(params.get('q') || '');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showCrHubModal, setShowCrHubModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('kanban');
@@ -45,6 +51,27 @@ export default function Orders() {
   const [page, setPage] = useState(1);
   const pageSize = 30;
   const observerTarget = useRef(null);
+
+  // Estadísticas proactivas de facturas en espera de Contrarecibo
+  const sinCrStats = useMemo(() => {
+    let count = 0;
+    let totalMoney = 0;
+    orders.forEach(o => {
+      if ((o as any).isDeleted || o.isClosedShort) return;
+      (o.invoices || []).forEach(inv => {
+        const cr = extractCr(inv, o);
+        const st = inv.creditCycle?.status;
+        const total = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+        const paid = inv.collection?.paidAmount || 0;
+        const isPaid = st === 'paid' || st === 'collected' || (paid >= total && total > 0);
+        if (!cr && !isPaid) {
+          count++;
+          totalMoney += total;
+        }
+      });
+    });
+    return { count, totalMoney };
+  }, [orders]);
 
   useEffect(() => {
     const q = params.get('q');
@@ -307,6 +334,19 @@ export default function Orders() {
         </p>
       </div>
 
+      {/* KPI Ribbon de Métricas en Tiempo Real */}
+      <OrdersKpiRibbon
+        totalKilosPedidos={totals.kilos}
+        totalKilosEntregados={totals.kilosEntregados}
+        totalKilosSinFacturar={round2(Math.max(0, totals.kilosEntregados - totals.kilosFacturados))}
+        totalSinCrCount={counts.sin_cr ?? 0}
+        totalCarteraDeuda={totals.deuda}
+        totalCobrado={totals.cobrado}
+        onOpenFastInvoice={() => window.dispatchEvent(new CustomEvent('open-fast-invoice'))}
+        onOpenFastCr={() => window.dispatchEvent(new CustomEvent('open-fast-cr-collection'))}
+        onOpenFastDelivery={() => window.dispatchEvent(new CustomEvent('open-fast-delivery'))}
+      />
+
       <Card
         actions={
           <>
@@ -330,6 +370,19 @@ export default function Orders() {
                 }}>
                   + Expediente Manual
                 </button>
+                <button
+                  className="btn"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#059669',
+                    fontWeight: 700,
+                  }}
+                  onClick={() => setShowExcelModal(true)}
+                  title="Importar archivo Excel arrastrándolo o descargar plantilla"
+                >
+                  📊 Importar Excel (.xlsx)
+                </button>
                 <span className="spacer" />
                 <button className="btn no-print" onClick={exportCSV}>⭳ CSV</button>
               </>
@@ -341,6 +394,60 @@ export default function Orders() {
         title="Listado"
         hint={`${rows.length} de ${orders.length}`}
       >
+        {/* Banner Proactivo de Contrarecibos Pendientes */}
+        {sinCrStats.count > 0 && (
+          <div
+            className="no-print"
+            style={{
+              background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.08) 100%)',
+              border: '1px solid #f59e0b',
+              borderRadius: 12,
+              padding: '12px 18px',
+              margin: '12px 16px 4px 16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 24 }}>📋</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#d97706' }}>
+                  {sinCrStats.count === 1 ? '1 Factura emitida espera Contrarecibo en Providencia' : `${sinCrStats.count} Facturas emitidas esperan Contrarecibo en Providencia`} ({money(sinCrStats.totalMoney)})
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                  Ingresa los números sellados por Cuentas por Pagar o usa el pegado inteligente (Ctrl + V).
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{
+                background: '#d97706',
+                borderColor: '#b45309',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 12,
+                padding: '6px 16px',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+              }}
+              onClick={() => setShowCrHubModal(true)}
+            >
+              ⚡ Capturar Contrarecibos Pendientes ({sinCrStats.count})
+            </button>
+          </div>
+        )}
+
         <SavedViewsBar
           currentFilter={filter}
           onSelectFilter={(f) => setParams(f === 'all' ? {} : { filtro: f })}
@@ -455,12 +562,20 @@ export default function Orders() {
                     Deuda Restante {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
                   </th>
                   <th>Estado</th>
+                  <th style={{ width: 150, textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedRows.map(({ o, s: summary }) => {
                   const st = summary.status;
                   const deuda = summary.invoiceTotal - summary.paidAmount;
+                  const unbilledKilos = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+                  const hasSinCr = summary.invoices.length > 0 && summary.invoices.some((i: any) => {
+                    const cr = extractCr(i, o);
+                    const isPaid = i.creditCycle?.status === 'paid' || i.creditCycle?.status === 'collected';
+                    return !cr && !isPaid;
+                  });
+
                   return (
                     <tr
                       key={o.id}
@@ -493,36 +608,58 @@ export default function Orders() {
                         )}
                         {!o.isClosedShort && o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected' && summary.invoices.length > 0 && summary.invoices.some((i: any) => {
                           const cr = extractCr(i, o);
-                          const st = i.creditCycle?.status;
+                          const sti = i.creditCycle?.status;
                           const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;
                           const paidAmt = i.collection?.paidAmount || 0;
                           if (cr) return false;
-                          if (st === 'paid' || st === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
-                          return st === 'facturado' || st === 'manual_review' || (i.folio && i.folio.trim().length > 0);
-                        }) && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                            <span className="badge-sin-cr-pulse" style={{ fontSize: '0.72em', fontWeight: 800, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>⚠️ SIN CR</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setQuickCrOrder(o);
-                              }}
-                              title="Capturar Contrarecibo rápidamente"
-                              style={{
-                                background: 'rgba(37, 99, 235, 0.12)',
-                                border: '1px solid rgba(37, 99, 235, 0.3)',
-                                color: '#2563eb',
-                                borderRadius: 6,
-                                padding: '1px 6px',
-                                fontSize: '0.75em',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              + Asignar CR
-                            </button>
-                          </div>
-                        )}
+                          if (sti === 'paid' || sti === 'collected' || (paidAmt >= totalInv && totalInv > 0)) return false;
+                          return sti === 'facturado' || sti === 'manual_review' || (i.folio && i.folio.trim().length > 0);
+                        }) && (() => {
+                          const sinCrInv = summary.invoices.find((i: any) => !extractCr(i, o) && i.creditCycle?.status !== 'paid' && i.creditCycle?.status !== 'collected');
+                          const rawIssue = sinCrInv?.creditCycle?.issueDate || o.creditCycle?.issueDate;
+                          const issue = rawIssue ? toDate(rawIssue) : null;
+                          const diasRevision = issue ? Math.max(0, Math.floor((Date.now() - issue.getTime()) / (1000 * 3600 * 24))) : null;
+
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                              <span
+                                className="badge-sin-cr-pulse"
+                                style={{
+                                  fontSize: '0.72em',
+                                  fontWeight: 800,
+                                  color: diasRevision && diasRevision >= 4 ? '#b91c1c' : '#d97706',
+                                  background: diasRevision && diasRevision >= 4 ? '#fee2e2' : '#fef3c7',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  letterSpacing: '0.03em',
+                                }}
+                              >
+                                {diasRevision !== null && diasRevision > 0
+                                  ? `⚠️ SIN CR (${diasRevision}d en revisión)`
+                                  : '⚠️ SIN CR (En revisión)'}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickCrOrder(o);
+                                }}
+                                title="Capturar Contrarecibo rápidamente"
+                                style={{
+                                  background: 'rgba(37, 99, 235, 0.12)',
+                                  border: '1px solid rgba(37, 99, 235, 0.3)',
+                                  color: '#2563eb',
+                                  borderRadius: 6,
+                                  padding: '1px 6px',
+                                  fontSize: '0.75em',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                + Asignar CR
+                              </button>
+                            </div>
+                          );
+                        })()}
                         {summary.invoices.some((i: any) => extractCr(i, o)) && (() => {
                           const conCr = summary.invoices.filter((i: any) => extractCr(i, o));
                           const expandido = crExpandido.has(o.id);
@@ -579,13 +716,12 @@ export default function Orders() {
 
                         return (
                           <>
-                            <td className="num mono" style={{ minWidth: 160 }}>
+                            <td className="num mono" style={{ minWidth: 140 }}>
                               <KilosProgressBar
                                 compact
                                 deliveredKg={summary.kilosDelivered}
                                 totalKg={orderTotalKg}
                               />
-                              <OrderStepper order={o} compact style={{ marginTop: 4 }} />
                             </td>
                             <td className="num mono">
                               {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
@@ -612,46 +748,29 @@ export default function Orders() {
                       <td className="num mono">{money(summary.paidAmount)}</td>
                       <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                          {st === 'overdue' ? (
-                            <PulsingBadge label="🚨 Vencida" tone="red" pulse />
-                          ) : (
-                            <StatusBadge status={st} />
-                          )}
-                          {summary.kilosDelivered > summary.kilosInvoiced + 0.01 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInitialModalTab('facturas');
-                                setSelected(o);
-                              }}
-                              style={{
-                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 6,
-                                padding: '3px 8px',
-                                fontSize: '0.78em',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                boxShadow: '0 2px 6px rgba(245,158,11,0.3)',
-                                marginTop: 2,
-                              }}
-                              title="Abrir expediente para emitir factura"
-                            >
-                              <span>🧾</span> Facturar ({kilos(summary.kilosDelivered - summary.kilosInvoiced)})
-                            </button>
-                          )}
-                          {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
-                            <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                              {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate} días` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)} días`}
-                            </span>
-                          )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start', minWidth: 175 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {st === 'overdue' ? (
+                              <PulsingBadge label="🚨 Vencida" tone="red" pulse />
+                            ) : (
+                              <StatusBadge status={st} />
+                            )}
+                            {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
+                              <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>
+                                {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate} días` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)} días`}
+                              </span>
+                            )}
+                          </div>
+                          <OrderLifecycleSemaphore order={o} summary={summary} compact />
                         </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <OrderRowActions
+                          order={o}
+                          kilosPendientesDeFacturar={unbilledKilos}
+                          hasSinCr={hasSinCr}
+                          onOpenModal={() => { setInitialModalTab('resumen'); setSelected(o); }}
+                        />
                       </td>
                     </tr>
                   );
@@ -667,6 +786,7 @@ export default function Orders() {
                   <td className="num">{money(totals.venta)}</td>
                   <td className="num">{money(totals.cobrado)}</td>
                   <td className="num">{money(totals.deuda)}</td>
+                  <td />
                   <td />
                 </tr>
               </tfoot>
@@ -710,6 +830,18 @@ export default function Orders() {
             setSelected(o);
           }}
           onQuickInvoice={(o) => setQuickCrOrder(o)}
+        />
+      )}
+      {showExcelModal && (
+        <ExcelDragDropModal
+          isOpen={showExcelModal}
+          onClose={() => setShowExcelModal(false)}
+        />
+      )}
+      {showCrHubModal && (
+        <ProactiveCrHubModal
+          isOpen={showCrHubModal}
+          onClose={() => setShowCrHubModal(false)}
         />
       )}
     </>

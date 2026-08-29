@@ -43,11 +43,12 @@ export function FastEntry() {
 
   const missingDeliveries = useMemo(() => {
     return activeOrders.map(o => {
-      const pedidos = o.totalKilograms ?? 0;
+      const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+      const pedidos = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || 0);
       const entregados = o.deliveries?.reduce((a, b) => a + (b.kilos || 0), 0) ?? 0;
-      const faltante = pedidos - entregados;
+      const faltante = Math.max(0, pedidos - entregados);
       return { order: o, pedidos, entregados, faltante };
-    }).filter(x => x.faltante > 0);
+    }).filter(x => x.faltante > 0.01);
   }, [activeOrders]);
 
   const missing = useMemo(() => {

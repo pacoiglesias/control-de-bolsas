@@ -64,6 +64,8 @@ function RouteFallback() {
   );
 }
 
+import { GlobalFastFlowsHost } from './components/FastFlows/GlobalFastFlowsHost';
+
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <PrivacyProvider>
@@ -76,12 +78,7 @@ function AppProviders({ children }: { children: React.ReactNode }) {
                   <UndoProvider>
                     <CommandPalette />
                     <FloatingQuickHub />
-                    {/* Antes solo vivía dentro de Dashboard.tsx, así que el
-                        evento 'open-kilo-calculator' que disparan el Quick
-                        Hub y el Command Palette no tenía a quién llegarle
-                        fuera de esa pantalla (y ni siquiera dentro de ella,
-                        porque no escuchaba el evento). Se monta una sola vez
-                        aquí, como el resto de la suite flotante. */}
+                    <GlobalFastFlowsHost />
                     <FloatingKiloCalculator />
                     <ConfirmDialogHost />
                     <PromptDialogHost />
