@@ -43,7 +43,7 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
       if ((inv.kilos || 0) <= 0 && totalInv <= 0) return;
 
       // Factura emitida genuinamente que aún no recibe CR
-      if (st === 'facturado' || st === 'manual_review' || (inv.folio && inv.folio.trim().length > 0)) {
+      if (st === 'facturado' || st === 'manual_review' || st === 'in_review' || (inv.folio && inv.folio.trim().length > 0)) {
         let dias = 0;
         const dt = toDate(inv.creditCycle?.issueDate || o.estimatedDeliveryDate || o.processedAt);
         if (dt) {

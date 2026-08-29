@@ -288,56 +288,175 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
           </div>
 
           {localInvoice.items && localInvoice.items.length > 0 ? (
-            <div style={{ marginTop: 16, background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
-              <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ marginTop: 16, background: 'var(--paper-sunk)', padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>📦</span> Partidas / Conceptos de esta Factura ({localInvoice.items.length})
                 </div>
-                {order.items && order.items.length > 0 && !readOnly && (
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{ fontSize: 11, padding: '2px 8px', background: 'var(--paper)', border: '1px solid var(--line)' }}
-                    onClick={() => {
-                      const totalOcKilos = order.items!.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-                      const ratio = totalOcKilos > 0 ? (localInvoice.kilos / totalOcKilos) : 1;
-                      const newItems = order.items!.map(it => {
-                        const q = round2((Number(it.quantity) || 0) * ratio);
-                        const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
-                        return {
-                          ...it,
-                          quantity: q,
-                          unitPrice: p,
-                          amount: round2(q * p),
+                {!readOnly && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {order.items && order.items.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ fontSize: 11, padding: '3px 8px', background: 'var(--paper)', border: '1px solid var(--line)' }}
+                        onClick={() => {
+                          const totalOcKilos = order.items!.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+                          const ratio = totalOcKilos > 0 ? (localInvoice.kilos / totalOcKilos) : 1;
+                          const newItems = order.items!.map(it => {
+                            const q = round2((Number(it.quantity) || 0) * ratio);
+                            const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                            return {
+                              ...it,
+                              quantity: q,
+                              unitPrice: p,
+                              amount: round2(q * p),
+                            };
+                          });
+                          updateField(['items'], newItems);
+                          toast('📦 Conceptos re-sincronizados desde la OC', 'ok');
+                        }}
+                      >
+                        🔄 Recargar de OC
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ fontSize: 11, padding: '3px 8px' }}
+                      onClick={() => {
+                        const newIt = {
+                          id: `custom_${Date.now()}`,
+                          code: '24111500',
+                          description: 'Bolsa de Polietileno',
+                          unit: 'KGM',
+                          quantity: 0,
+                          unitPrice: dynamicConfig.salePricePerKg || 43,
+                          amount: 0,
                         };
-                      });
-                      updateField(['items'], newItems);
-                      toast('📦 Conceptos re-sincronizados desde la OC', 'ok');
-                    }}
-                  >
-                    🔄 Recargar de OC
-                  </button>
+                        updateField(['items'], [...localInvoice.items!, newIt]);
+                      }}
+                    >
+                      ➕ Agregar Partida
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="table-scroll">
                 <table className="data-table" style={{ fontSize: 11.5, width: '100%' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: 100 }}>Clave SAT</th>
+                      <th style={{ width: 110 }}>Clave SAT</th>
                       <th>Descripción del Concepto</th>
-                      <th className="num" style={{ width: 100 }}>Kilos</th>
-                      <th className="num" style={{ width: 90 }}>P. Unitario</th>
-                      <th className="num" style={{ width: 110 }}>Importe</th>
+                      <th className="num" style={{ width: 120 }}>Kilos</th>
+                      <th className="num" style={{ width: 100 }}>P. Unitario</th>
+                      <th className="num" style={{ width: 115 }}>Importe</th>
+                      {!readOnly && <th style={{ width: 36 }}></th>}
                     </tr>
                   </thead>
                   <tbody>
                     {localInvoice.items.map((it, idx) => (
                       <tr key={it.id || idx}>
-                        <td className="mono" style={{ color: 'var(--ink-soft)' }}>{it.code || '24111500'}</td>
-                        <td style={{ fontWeight: 600 }}>{it.description}</td>
-                        <td className="num mono" style={{ fontWeight: 700 }}>{it.quantity.toLocaleString('es-MX')} {it.unit || 'kg'}</td>
-                        <td className="num mono">{money(it.unitPrice)}</td>
-                        <td className="num mono" style={{ fontWeight: 800, color: '#047857' }}>{money(it.amount)}</td>
+                        <td>
+                          {readOnly ? (
+                            <span className="mono" style={{ color: 'var(--ink-soft)' }}>{it.code || '24111500'}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              className="input boxed mono"
+                              value={it.code || '24111500'}
+                              onChange={e => {
+                                const next = [...localInvoice.items!];
+                                next[idx] = { ...next[idx], code: e.target.value };
+                                updateField(['items'], next);
+                              }}
+                              style={{ fontSize: 11, padding: '3px 6px' }}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          {readOnly ? (
+                            <span style={{ fontWeight: 600 }}>{it.description}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              className="input boxed"
+                              value={it.description}
+                              onChange={e => {
+                                const next = [...localInvoice.items!];
+                                next[idx] = { ...next[idx], description: e.target.value };
+                                updateField(['items'], next);
+                              }}
+                              style={{ fontSize: 11, padding: '3px 6px', fontWeight: 600 }}
+                            />
+                          )}
+                        </td>
+                        <td className="num">
+                          {readOnly ? (
+                            <span className="mono" style={{ fontWeight: 700 }}>{it.quantity.toLocaleString('es-MX')} {it.unit || 'kg'}</span>
+                          ) : (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="input boxed mono"
+                              value={it.quantity}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                const next = [...localInvoice.items!];
+                                const p = next[idx].unitPrice || dynamicConfig.salePricePerKg || 43;
+                                next[idx] = { ...next[idx], quantity: val, amount: round2(val * p) };
+                                const sumKilos = round2(next.reduce((s, x) => s + Number(x.quantity || 0), 0));
+                                updateField(['items'], next);
+                                updateField(['kilos'], sumKilos);
+                              }}
+                              style={{ fontSize: 11.5, padding: '3px 6px', width: 90, textAlign: 'right', fontWeight: 700 }}
+                            />
+                          )}
+                        </td>
+                        <td className="num">
+                          {readOnly ? (
+                            <span className="mono">{money(it.unitPrice)}</span>
+                          ) : (
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              className="input boxed mono"
+                              value={it.unitPrice}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                const next = [...localInvoice.items!];
+                                const q = Number(next[idx].quantity || 0);
+                                next[idx] = { ...next[idx], unitPrice: val, amount: round2(q * val) };
+                                updateField(['items'], next);
+                              }}
+                              style={{ fontSize: 11, padding: '3px 6px', width: 75, textAlign: 'right' }}
+                            />
+                          )}
+                        </td>
+                        <td className="num mono" style={{ fontWeight: 800, color: '#047857' }}>
+                          {money(it.amount || round2((Number(it.quantity) || 0) * (Number(it.unitPrice) || 43)))}
+                        </td>
+                        {!readOnly && (
+                          <td style={{ textAlign: 'center' }}>
+                            {((localInvoice.items?.length || 0) > 1) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = (localInvoice.items || []).filter((_, i) => i !== idx);
+                                  const sumKilos = round2(next.reduce((s, x) => s + Number(x.quantity || 0), 0));
+                                  updateField(['items'], next);
+                                  updateField(['kilos'], sumKilos);
+                                }}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 13, cursor: 'pointer', padding: 2 }}
+                                title="Eliminar partida"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

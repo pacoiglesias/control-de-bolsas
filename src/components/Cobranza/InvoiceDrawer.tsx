@@ -4,7 +4,7 @@ import { money, toInputDate, fmtDate } from '../../lib/format';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { Timestamp } from 'firebase/firestore';
-import { extractCr, type FinanceConfigCore } from '../../lib/finance';
+import { extractCr, round2, type FinanceConfigCore } from '../../lib/finance';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -264,6 +264,9 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             </div>
           ) : order.items && order.items.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 2 }}>
+                Conceptos de la OC disponibles:
+              </div>
               {order.items.map((it, idx) => (
                 <div key={it.id || idx} style={{ background: 'var(--paper-sunk)', padding: '6px 10px', borderRadius: 6, fontSize: 11.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -275,6 +278,29 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
                   </div>
                 </div>
               ))}
+              <button
+                type="button"
+                className="btn"
+                style={{ fontSize: 11.5, padding: '4px 10px', marginTop: 4, background: 'rgba(37,99,235,0.08)', color: '#2563eb', border: '1px solid rgba(37,99,235,0.3)', fontWeight: 700 }}
+                onClick={() => {
+                  const totalOcKilos = order.items!.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+                  const ratio = totalOcKilos > 0 ? ((localInvoice.kilos || totalOcKilos) / totalOcKilos) : 1;
+                  const newItems = order.items!.map(it => {
+                    const q = round2((Number(it.quantity) || 0) * ratio);
+                    const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                    return {
+                      ...it,
+                      quantity: q,
+                      unitPrice: p,
+                      amount: round2(q * p),
+                    };
+                  });
+                  updateField(['items'], newItems);
+                  toast(`📦 ${newItems.length} partidas de la OC vinculadas a la factura`, 'ok');
+                }}
+              >
+                📦 Vincular {order.items.length} Partidas de la OC a esta Factura
+              </button>
             </div>
           ) : (
             <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>

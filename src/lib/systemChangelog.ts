@@ -8,6 +8,19 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.35 Auditoría Integral y Perfeccionamiento del Sistema de Facturación Multi-Nivel',
+    date: '29 de Agosto de 2026',
+    time: '10:50 PM',
+    summary: 'Auditoría integral y optimización transversal del sistema de facturación: edición interactiva de partidas dentro de facturas existentes (InvoiceWidget), vinculación directa de partidas desde Cobranza (InvoiceDrawer), integración de facturas in_review en el panel de facturas sin CR, y ajuste de claves SAT oficiales en generadores de PDF.',
+    highlights: [
+      '📦 Edición Completa de Partidas en Factura: InvoiceWidget ahora permite modificar kilos, clave SAT, descripción y precio unitario por renglón con cálculo financiero automático.',
+      '➕ Agregar & Eliminar Partidas en Vivo: Botones para agregar nuevos conceptos o remover partidas directamente dentro de la tarjeta de factura.',
+      '🔄 Sincronización en Cobranza: InvoiceDrawer incorpora botón de 1 clic para importar y asociar todas las partidas de la OC a la factura.',
+      '📄 Clave SAT Oficial: Prefactura PDF estandarizada con Clave SAT 24111500 (Recipientes y bolsas) y desglose fiel por renglón.',
+      '🔍 Detección Unificada de Facturas sin CR: FacturasSinCRPanel incluye facturas en estatus in_review.',
+    ],
+  },
+  {
     version: 'v8.9.34 Carga Interactiva de Partidas de la OC en Emisión de Facturas y Sincronizador de Conceptos',
     date: '29 de Agosto de 2026',
     time: '10:48 PM',
