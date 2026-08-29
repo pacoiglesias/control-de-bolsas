@@ -8,6 +8,59 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.43 Captura por Excel Drag & Drop, Plantilla Oficial y Hub Proactivo de Contrarecibos',
+    date: '30 de Agosto de 2026',
+    time: '12:15 AM',
+    summary: 'Módulos de alta velocidad para captura masiva de datos: Generador y descarga de Plantilla Oficial de Excel (.xlsx) con 3 hojas estructuradas (Captura, Catálogo y Reglas), Zona universal de Arrastrar y Soltar (Drag & Drop), y Hub Proactivo de Contrarecibos con banner de alerta en vivo, pegado inteligente (Ctrl+V) y selector rápido de vencimiento (+30d).',
+    highlights: [
+      '📥 Descarga de Plantilla Oficial de Excel (.xlsx): Libro prediseñado con validaciones SAT (24141500), catálogo de partidas oficiales TH y GT, y fórmulas de precios vigentes ($38 compra / $43 venta).',
+      '📂 Zona Universal Drag & Drop: Mapeo inteligente de columnas de archivos .xlsx y .csv de hasta 15MB con previsualización tabular y sincronización por lotes a Firestore.',
+      '📋 Hub Proactivo de Contrarecibos: Detección y listado en vivo de todas las facturas en revisión, banner de alerta superior en Expedientes, pegado inteligente (Ctrl+V) de WhatsApp/correo y asignación en 1 clic.',
+    ],
+  },
+  {
+    version: 'v8.9.42 Desvinculación de Contrarecibo en OC 120267114014 y Blindaje de Mapeo',
+    date: '30 de Agosto de 2026',
+    time: '12:08 AM',
+    summary: 'Desvinculación definitiva del contrarecibo TH-946 de la Orden de Compra 120267114014 en el sincronizador oficial y en el contexto global de órdenes, asegurando fidelidad 1:1 con la realidad operativa de órdenes en proceso.',
+    highlights: [
+      '🛡️ Desacoplamiento de TH-946: Se eliminó el mapeo estático de prueba para que los contrarecibos solo se asignen cuando el usuario los capture explícitamente.',
+      '🧹 Limpieza Canónica Reactiva: Limpieza de contrarecibos huérfanos en la OC 120267114014, quedando correctamente en estado de pedido / en revisión.',
+    ],
+  },
+  {
+    version: 'v8.9.41 Semáforo de 5 Etapas del Ciclo de Vida del Expediente en Tablas y Kanban',
+    date: '30 de Agosto de 2026',
+    time: '12:05 AM',
+    summary: 'Componente maestro OrderLifecycleSemaphore: visualización de 5 etapas (1. OC ➔ 2. Báscula ➔ 3. Factura ➔ 4. Contrarecibo ➔ 5. Cobro) con micro-indicadores de colores (verde, azul, ámbar, gris) y tooltips enriquecidos en cada fila de Expedientes y tarjetas Kanban.',
+    highlights: [
+      '🚥 Semáforo de 5 Etapas del Expediente: Visibilidad instantánea del avance operativo sin necesidad de abrir el modal ni cruzar columnas.',
+      '💡 Tooltips Enriquecidos: Desglose exacto de kilos entregados vs pedidos, facturas emitidas, números de contrarecibo y saldos cobrados al pasar el cursor.',
+      '🚨 Detector Reactivo de Folios Duplicados: Alerta visual en tiempo real en la emisión de facturas ante folios previamente registrados.',
+    ],
+  },
+  {
+    version: 'v8.9.40 Cierre del Ciclo OC ➔ Factura ➔ Contrarecibo (Paquete de Revisión 1-Clic y Aging de Contrarecibos)',
+    date: '29 de Agosto de 2026',
+    time: '11:45 PM',
+    summary: 'Optimización del flujo entre la emisión de facturas y la recepción de contrarecibos: botón para imprimir en 1 clic el paquete documental exigido por Cuentas por Pagar (Factura + Báscula + OC) con firmas formales y aging dinámico de facturas en revisión.',
+    highlights: [
+      '🖨️ Paquete Documental para Contrarecibo 1-Clic: Impresión unificada de factura CFDI, boletas de báscula y OC con firmas de recepción cliente y caja.',
+      '⏳ Aging Dinámico de Contrarecibos: Conteo de días en revisión con resaltado en rojo si superan los 4 días.',
+      'ℹ️ Recordatorio Oficial Providencia: Banner indicando que los días de sellado en ventanilla son martes y jueves.',
+    ],
+  },
+  {
+    version: 'v8.9.39 Rediseño de Tarjetas de Facturación con Indicador Explícito de "Falta Facturar"',
+    date: '29 de Agosto de 2026',
+    time: '11:30 PM',
+    summary: 'Rediseño ergonómico de las tarjetas de conceptos de facturación en EmitirFacturaModal e InvoiceConceptTable: cálculo automático y visualización destacada de "Falta Facturar (X kg)", botón de carga instantánea de báscula y teclado numérico directo.',
+    highlights: [
+      '⏳ Badge Explícito de Kilos Faltantes: Visualización clara de los kilos pendientes de facturar por partida de la OC.',
+      '⚡ Botón de Carga de Báscula 1-Clic: Carga los kilos pesados en báscula automáticamente con un solo toque.',
+    ],
+  },
+  {
     version: 'v8.9.38 Aislamiento Estricto de Contrarecibos vs Facturas en Revisión y Desacoplamiento de OC',
     date: '29 de Agosto de 2026',
     time: '11:15 PM',
