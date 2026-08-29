@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOrderSummary, inferDepartment } from '../lib/finance';
-import { toDate, kilos as fmtKilos } from '../lib/format';
+import { kilos as fmtKilos } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
 import { RegistrarEntregaModal } from './Compras/OrderModals';
 import { useConfig } from '../hooks/useConfig';

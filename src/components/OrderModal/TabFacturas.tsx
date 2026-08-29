@@ -216,14 +216,22 @@ export default function TabFacturas() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {(() => {
-            const ORDEN_ESTADO: Record<string, number> = { overdue: 0, pending: 0, paid: 1, collected: 2 };
+            const ORDEN_ESTADO: Record<string, number> = { overdue: 0, pending: 0, in_review: 0, paid: 1, collected: 2 };
             const TITULO_SECCION: Record<string, string> = {
-              pending: '🔴 Por Cobrar', overdue: '🔴 Por Cobrar',
-              paid: '🟡 Con el Contador', collected: '✅ Cobradas',
+              pending: '🔴 Por Cobrar',
+              in_review: '🔴 Por Cobrar',
+              overdue: '🔴 Por Cobrar',
+              paid: '🟡 Con el Contador',
+              collected: '✅ Cobradas',
             };
-            const ordenadas = [...invoices].sort(
-              (a, b) => (ORDEN_ESTADO[a.creditCycle.status] ?? 9) - (ORDEN_ESTADO[b.creditCycle.status] ?? 9)
-            );
+            const ordenadas = [...invoices].sort((a, b) => {
+              const ga = ORDEN_ESTADO[a.creditCycle.status] ?? 9;
+              const gb = ORDEN_ESTADO[b.creditCycle.status] ?? 9;
+              if (ga !== gb) return ga - gb;
+              // Orden secundario: vencimiento más próximo primero
+              const toMs = (ts: any) => ts ? (typeof ts.toDate === 'function' ? ts.toDate().getTime() : new Date(ts).getTime()) : Infinity;
+              return toMs(a.creditCycle.dueDate) - toMs(b.creditCycle.dueDate);
+            });
             return ordenadas.map((inv: Invoice, i: number) => {
               const statusActual = inv.creditCycle.status;
               const statusAnterior = i > 0 ? ordenadas[i - 1].creditCycle.status : null;

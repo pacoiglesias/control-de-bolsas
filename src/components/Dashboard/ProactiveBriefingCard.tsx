@@ -137,6 +137,37 @@ export function ProactiveBriefingCard({
       });
     }
 
+    // 4. Facturas en revisión (in_review) esperando Contrarecibo
+    const inReviewInvoices: { order: PurchaseOrder; folio: string; amount: number }[] = [];
+    (orders || []).forEach(o => {
+      if (!o) return;
+      (o.invoices || []).forEach(inv => {
+        if (!inv) return;
+        if (inv.creditCycle?.status === 'in_review') {
+          inReviewInvoices.push({
+            order: o,
+            folio: inv.folio || o.folio || 'S/F',
+            amount: round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate))),
+          });
+        }
+      });
+    });
+
+    if (inReviewInvoices.length > 0) {
+      const totalInReview = inReviewInvoices.reduce((s, x) => s + x.amount, 0);
+      items.push({
+        id: 'in_review_cr',
+        badge: '🔵 ESPERANDO CONTRARECIBO',
+        badgeColor: '#2563eb',
+        title: `${inReviewInvoices.length} factura(s) en revisión por Providencia (${money(totalInReview)})`,
+        description: `Enviadas y en espera de que Providencia emita el Contrarecibo. Folios: ${inReviewInvoices.slice(0, 3).map(x => '#' + x.folio).join(', ')}${inReviewInvoices.length > 3 ? ' ...' : ''}. Dale seguimiento para acelerar el CR.`,
+        actionLabel: 'Ver Cobranza',
+        actionColor: '#2563eb',
+        actionIcon: '🔵',
+        onExecute: onOpenQuickCollection,
+      });
+    }
+
     return items;
   }, [orders, saleKg, ivaRate, onOpenQuickInvoice, onOpenQuickCollection, onOpenOrder]);
 
@@ -239,7 +270,7 @@ export function ProactiveBriefingCard({
           transition={{ duration: 0.2 }}
           style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}
         >
-          <div style={{ flex: '1 1 280px' }}>
+          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 800, color: '#f8fafc', lineHeight: 1.3 }}>
               {current.title}
             </div>
@@ -248,7 +279,7 @@ export function ProactiveBriefingCard({
             </div>
           </div>
 
-          <div>
+          <div style={{ flexShrink: 0 }}>
             <motion.button
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.02 }}
@@ -268,6 +299,8 @@ export function ProactiveBriefingCard({
                 gap: 6,
                 boxShadow: `0 4px 14px ${current.actionColor}50`,
                 whiteSpace: 'nowrap',
+                width: '100%',
+                justifyContent: 'center',
               }}
             >
               <span>{current.actionIcon}</span> {current.actionLabel}

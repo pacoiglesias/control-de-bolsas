@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'paid' | 'collected' | 'overdue' | 'manual_review';
+export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review';
 
 export interface FinancialConfig {
   salePricePerKg: number;
@@ -273,17 +273,19 @@ export interface Purchase {
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pedido: 'Pedido',
   facturado: 'Facturado',
-  pending: 'Por cobrar',
-  paid: '🟡 Con el contador',
+  pending: 'Por Cobrar',
+  in_review: '🔵 En Revisión (Esperando CR)',
+  paid: '🟡 Con el Contador',
   collected: '✅ Recibida',
-  overdue: 'Vencida',
-  manual_review: 'Revisión manual',
+  overdue: '🔴 Vencida',
+  manual_review: 'Revisión Manual',
 };
 
 export const STATUS_TONE: Record<OrderStatus, string> = {
   pedido: 'b-info',
   facturado: 'b-warn',
   pending: 'b-info',
+  in_review: 'b-info',
   paid: 'b-warn',
   collected: 'b-ok',
   overdue: 'b-bad',

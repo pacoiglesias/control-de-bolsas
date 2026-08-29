@@ -47,13 +47,18 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
         }
       });
 
-      // Aggregate invoices
+      // Aggregate invoices — lee creditCycle.issueDate (ruta correcta)
       (order.invoices || []).forEach((inv: any) => {
-        const t = inv.issueDate?.toMillis ? inv.issueDate.toMillis() : inv.issueDate?._seconds ? inv.issueDate._seconds * 1000 : 0;
+        // Excluir solo las totalmente cobradas sin fecha (no aportan al período)
+        const st = inv.creditCycle?.status;
+        if (st === 'pedido') return;
+        // Fecha de emisión: creditCycle.issueDate es la ruta correcta
+        const rawDate = inv.creditCycle?.issueDate ?? inv.issueDate;
+        const t = rawDate?.toMillis ? rawDate.toMillis() : rawDate?._seconds ? rawDate._seconds * 1000 : 0;
         if (t >= startTime && t <= now) {
           const bIdx = Math.min(bucketCount - 1, Math.max(0, Math.floor((t - startTime) / bucketDuration)));
-          buckets[bIdx].sales += Number(inv.financials?.subtotal) || 0;
-          buckets[bIdx].profit += Number(inv.financials?.netProfit) || 0;
+          buckets[bIdx].sales += Number(inv.financials?.subtotal) || Number(inv.financials?.saleTotal) || 0;
+          buckets[bIdx].profit += Number(inv.financials?.netProfit) || Number(inv.financials?.netCashFlow) || 0;
         }
       });
     });

@@ -394,8 +394,24 @@ return () => unsub();
     let count = 0;
     seguimientoOrders.forEach(o => {
       (o.invoices || []).forEach(inv => {
-        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') {
+        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'in_review' || inv.creditCycle?.status === 'paid') {
           count++;
+        }
+      });
+    });
+    return count;
+  }, [seguimientoOrders]);
+
+  const overdueCollectionsCount = useMemo(() => {
+    const now = Date.now();
+    let count = 0;
+    seguimientoOrders.forEach(o => {
+      (o.invoices || []).forEach(inv => {
+        const st = inv.creditCycle?.status;
+        if (st !== 'collected' && st !== 'paid') {
+          const due = inv.creditCycle?.dueDate;
+          const dueMs = due ? (typeof (due as any).toDate === 'function' ? (due as any).toDate().getTime() : new Date(due as any).getTime()) : null;
+          if (dueMs !== null && dueMs < now) count++;
         }
       });
     });
@@ -1030,7 +1046,16 @@ return () => unsub();
           }}
         >
           <span>📁</span>
-          <span>Expedientes & OCs ({seguimientoOrders.length})</span>
+          <span>Expedientes & OCs</span>
+          {seguimientoOrders.length > 0 && (
+            <span style={{
+              background: pendingInvoicesCount > 0 ? '#f59e0b' : '#64748b',
+              color: '#fff', fontSize: 10, fontWeight: 800,
+              padding: '1px 6px', borderRadius: 999, minWidth: 18, textAlign: 'center',
+            }}>
+              {pendingInvoicesCount > 0 ? pendingInvoicesCount : seguimientoOrders.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -1057,6 +1082,15 @@ return () => unsub();
         >
           <span>📆</span>
           <span>Centro de Cobranza</span>
+          {pendingCollectionsCount > 0 && (
+            <span style={{
+              background: overdueCollectionsCount > 0 ? '#dc2626' : '#0284c7',
+              color: '#fff', fontSize: 10, fontWeight: 800,
+              padding: '1px 6px', borderRadius: 999, minWidth: 18, textAlign: 'center',
+            }}>
+              {pendingCollectionsCount}
+            </span>
+          )}
         </button>
 
         <button

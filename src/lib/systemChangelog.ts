@@ -8,6 +8,26 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.33 Visibilidad de Entregas en Facturación, Mejoras de Cobranza y Dashboard Inteligente',
+    date: '29 de Agosto de 2026',
+    time: '10:38 PM',
+    summary: 'Rediseño completo del modal de facturación rápida con visibilidad de entregas reales, mejoras al InvoiceDrawer con validación de CR duplicado y acciones rápidas de WhatsApp/Email, nuevo estado in_review para el ciclo de cobranza, y 5 mejoras al Dashboard incluyendo fix crítico en la gráfica de tendencias.',
+    highlights: [
+      '🚚 Facturación Móvil: Barra de progreso 4 niveles (OC/Entregado/Facturado/Pendiente) y panel de historial de entregas reales con status de facturación en QuickInvoiceModal.',
+      '📱 Vista Móvil de Facturación: Tarjetas verticales responsivas en lugar de tabla horizontal para pantallas < 600px con botón Máx táctil.',
+      '🚨 Validación CR Duplicado: InvoiceDrawer detecta en tiempo real si el Contrarecibo ya existe en otra factura y bloquea el guardado.',
+      '📲 Acciones Rápidas de Cobranza: Nuevo card en InvoiceDrawer con botones de 1 toque — Copiar Folio, WhatsApp y Email institucional.',
+      '📊 Barra Visual del Ciclo de Crédito: 4 pasos animados en InvoiceDrawer — Emitida → En Revisión → Contador → Cobrada.',
+      '⏱️ Chip de Urgencia: Header del InvoiceDrawer muestra días al vencimiento con colores semafóricos (verde/amarillo/rojo).',
+      '🔵 Estado in_review: Nuevo estado "En Revisión (Esperando CR)" en todo el sistema — tipos, select, agrupación en TabFacturas.',
+      '📋 Ordenación de Facturas: TabFacturas ordena dentro de cada grupo por fecha de vencimiento ascendente.',
+      '🔔 Dashboard — Alerta Proactiva: ProactiveBriefingCard genera alerta 🔵 ESPERANDO CONTRARECIBO cuando hay facturas in_review.',
+      '🚦 SemaforoDelDia — Bloque 4b: Nuevo bloque azul "En Revisión / Esperando CR" visible en el semáforo operativo.',
+      '🏷️ Badges en Pestañas: Centro de Cobranza muestra badge rojo (vencidas) o azul (pendientes); Expedientes muestra conteo de urgentes.',
+      '🐛 Fix Gráfica de Tendencias: FinancialTrendChart leía inv.issueDate (ruta incorrecta) — ahora usa creditCycle.issueDate, las facturas ya aparecen correctamente en la gráfica.',
+    ],
+  },
+  {
     version: 'v8.9.32 Unificación de los 2 Pedidos Activos y 5,734.19 kg Faltantes en el Banner Logístico',
     date: '25 de Agosto de 2026',
     time: '04:20 AM',
