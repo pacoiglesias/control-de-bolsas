@@ -72,6 +72,20 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
           const isSeedCrDoc = (doc.id.startsWith('seed-cr-') || doc.id.startsWith('cr-')) && (!doc.items || doc.items.length === 0);
 
+          // 🛡️ Ignorar documentos dummy de prueba o seeds obsoletos (ANDRES-PEND, 120267114014)
+          if (
+            canonicalKey.includes('ANDRES-PEND') || 
+            doc.id.includes('ANDRES-PEND') || 
+            canonicalKey === '120267114014' || 
+            canonicalKey.includes('71/14014') || 
+            canonicalKey.includes('71-14014') || 
+            doc.id.includes('14014') ||
+            (doc.folio || '').includes('14014') ||
+            (doc.oc || '').includes('14014')
+          ) {
+            continue;
+          }
+
           // Si es un documento seed mock que no está en la lista oficial de 11, ignorarlo
           if (isSeedCrDoc) {
             const matchesOfficial = OFFICIAL_VALID_CRS.some(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
@@ -81,7 +95,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           }
 
           // Si el documento pertenece a un contrarecibo oficial pero no a las OCs abiertas, unificarlo bajo el nombre del CR
-          const isExplicitOc = canonicalKey === '120267114114' || canonicalKey === '12026439713' || canonicalKey === '120267114014' || canonicalKey.includes('71/14014');
+          const isExplicitOc = canonicalKey === '120267114114' || canonicalKey === '12026439713';
           const crMatch = !isExplicitOc ? OFFICIAL_VALID_CRS.find(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c))) : null;
           if (crMatch) {
             canonicalKey = crMatch;
@@ -305,10 +319,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             const gtItems = [
               { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
               { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-              { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 700, unitPrice: 43.0, amount: 30100, unit: 'Kilos' },
+              { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 955.20, unitPrice: 43.0, amount: 41073.60, unit: 'Kilos' },
               { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
             ];
-            best.totalKilograms = 3700;
+            best.totalKilograms = 3955.20;
             best.items = gtItems;
             best.client = 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)';
             best.department = 'P4-ALM';
