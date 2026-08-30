@@ -178,9 +178,25 @@ export default function Orders() {
       // es que genuinamente falte facturar algo hoy. Esta lista no tenia
       // esa misma exclusion, asi que mostraba a HIST-001 como pendiente
       // cuando el Dashboard, correctamente, no lo contaba.
-      if (filter === 'pedido' && o.client === 'MIGRACION') return false;
       if (!q) return true;
-      return [o.folio, o.client, o.fileName, o.collection?.contrareciboNumber, String(o.totalKilograms ?? '')]
+      const invFolios = (o.invoices || []).map((i: any) => i.folio || '').join(' ');
+      const crFolios = (o.invoices || []).map((i: any) => extractCr(i, o)).join(' ');
+      const itemDesc = (o.items || []).map((it: any) => `${it.code || ''} ${it.description || ''}`).join(' ');
+      const drivers = (o.deliveries || []).map((d: any) => d.driver || '').join(' ');
+
+      return [
+        o.folio,
+        o.oc,
+        o.client,
+        o.department,
+        o.fileName,
+        o.collection?.contrareciboNumber,
+        invFolios,
+        crFolios,
+        itemDesc,
+        drivers,
+        String(o.totalKilograms ?? ''),
+      ]
         .join(' ')
         .toLowerCase()
         .includes(q);
