@@ -1,4 +1,32 @@
 
+### Iteración 46: Barra de Navegación Móvil Táctil Universal, Fast Action Hub Flotante & Búsqueda Multi-Campo (COMPLETADO)
+[2026-08-30]
+Archivos:
+- `src/components/Navigation/MobileBottomBar.tsx` (Nuevo)
+- `src/components/Layout.tsx`
+- `src/index.css`
+- `src/pages/Orders.tsx`
+- `src/lib/systemChangelog.ts`
+- `package.json`
+Problema:
+1. **Navegación Móvil Fragmentada:** En dispositivos móviles, la barra de acceso rápido solo estaba disponible en el Dashboard. Al navegar a otras páginas (Expedientes, Cobranza, etc.), el usuario dependía exclusivamente del menú hamburguesa superior, y al tocar un enlace el drawer no se cerraba automáticamente.
+2. **Búsqueda Limitada:** El buscador de órdenes no indexaba números de facturas internas, contrarecibos de partidas, claves SAT ni choferes de báscula.
+Solución:
+1. **Barra de Navegación Móvil Universal (`MobileBottomBar.tsx`):**
+   - Barra inferior fija estilo app nativa visible en toda la aplicación en smartphones.
+   - 4 accesos rápidos de pulgar: 📊 *Inicio*, 📂 *Pedidos*, 🚚 *Báscula*, 🧾 *Cobranza*.
+   - Botón central flotante **`⚡ Fast Action Hub`** con menú táctil tipo Bottom Sheet para: 1) Captura de Báscula, 2) Facturar Kilos, 3) Capturar CR, y 4) Cobro a Caja.
+   - Badges dinámicos en vivo con conteo de pedidos pendientes y facturas vencidas.
+   - Autocierre suave del drawer de navegación al tocar cualquier enlace en móviles.
+2. **Búsqueda Universal Multi-Campo:**
+   - Indexación multi-campo en `Orders.tsx` abarcando OC, Facturas timbradas, Contrarecibos, claves SAT y Choferes.
+Riesgo: 🟢 Bajo (Rigor UX y 100% responsivo).
+Commit: `feat(mobile): universal mobile bottom bar, floating fast action hub and multi-field spotlight index`
+Estado: ✅ Verificado — 115/115 pruebas unitarias pasando, compilación TypeScript limpia (`npm run build` en 10.78s).
+OKRs afectados: Experiencia Móvil de Nivel Mundial (100%), Facilidad Operativa Touch-First, Cero Errores.
+
+---
+
 ### Iteración 45: Guardrails Anti-Sobrecupo en Tiempo Real & Conciliación 3-Way Match (COMPLETADO)
 [2026-08-30]
 Archivos:

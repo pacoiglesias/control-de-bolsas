@@ -19,6 +19,7 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
 import { OfflineIndicator } from './ui/OfflineIndicator';
 import { OfflineBanner } from './OfflineBanner';
+import { MobileBottomBar } from './Navigation/MobileBottomBar';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -243,7 +244,10 @@ export default function Layout() {
                   to={it.to!}
                   end={it.end}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                  onClick={() => sound.playSwoosh()}
+                  onClick={() => {
+                    sound.playSwoosh();
+                    setNavOpen(false);
+                  }}
                 >
                   <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
                   <span>{it.label}</span>
@@ -278,8 +282,6 @@ export default function Layout() {
             >
               💾 Respaldo Local (1 Clic)
             </button>
-            {/* El cambio de tema ya vive en el ícono ◐ de la barra superior
-                (siempre visible); este botón duplicaba la misma acción. */}
             <span className="who">{user?.email}</span>
             <button onClick={() => void signOut()}>⏻ Cerrar sesión</button>
           </div>
@@ -293,15 +295,13 @@ export default function Layout() {
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
-            {/* El botón de respaldo local ya vive en el pie del sidebar
-                ("💾 Respaldo Local (1 Clic)"); aquí se repetía la misma
-                acción con otra etiqueta. */}
             Bolsas Elemental v{__APP_VERSION__} · Desarrollado por Paco Iglesias &copy; 2026<br/>
             Última actualización: {typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'}
           </footer>
         </main>
       </div>
 
+      <MobileBottomBar />
       <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );

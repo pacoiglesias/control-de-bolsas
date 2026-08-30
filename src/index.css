@@ -1218,13 +1218,15 @@ button:active {
   .desktop-only-block {
     display: none !important;
   }
-  .page, .app-main, .container {
-    padding-bottom: 90px !important;
+  .main, .content, .page, .app-main, .container {
+    padding-bottom: max(85px, env(safe-area-inset-bottom, 85px)) !important;
   }
 }
 
 @media (min-width: 769px) {
-  .mobile-quick-dock {
+  .mobile-quick-dock,
+  .mobile-bottom-bar,
+  .mobile-sheet-overlay {
     display: none !important;
   }
 }

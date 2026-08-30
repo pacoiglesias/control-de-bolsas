@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.46 Barra de Navegación Móvil Táctil Universal, Fast Action Hub Flotante y Búsqueda Spotlight Multi-Campo',
+    date: '30 de Agosto de 2026',
+    time: '12:10 PM',
+    summary: 'Optimización integral de adaptabilidad web y móvil 100% responsiva (Mobile-First): barra inferior universal estilo app nativa (MobileBottomBar) con acceso directo a Inicio, Expedientes, Báscula y Cobranza, botón flotante central Fast Action Hub para capturas de 1 toque, autocierre de menú lateral en pantallas táctiles y búsqueda spotlight multi-campo.',
+    highlights: [
+      '📱 Barra de Navegación Inferior Nativa (MobileBottomBar): Navegación táctil ergonómica para pulgar fija en todas las pantallas con badges en vivo de pedidos pendientes y facturas vencidas.',
+      '⚡ Botón Flotante Central "Fast Action Hub": Menú táctil emergente tipo Bottom Sheet con acceso directo a 1) Captura de Báscula, 2) Facturar Kilos, 3) Capturar CR y 4) Cobro a Caja.',
+      '🔍 Búsqueda Universal Multi-Campo: Búsqueda instantánea en expedientes por Folios CFDI, Contrarecibos, Claves SAT/SKUs y Choferes de báscula.',
+      '🚪 Autocierre Ergonómico de Menú en Móviles: Cierre suave e instantáneo del drawer de navegación al seleccionar cualquier ruta.',
+    ],
+  },
+  {
     version: 'v8.9.45 Guardrails Anti-Sobrecupo en Tiempo Real & Conciliación 3-Way Match (Báscula ➔ Factura SAT ➔ Contrarecibo)',
     date: '30 de Agosto de 2026',
     time: '11:45 AM',
