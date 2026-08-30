@@ -161,27 +161,13 @@ export default function Layout() {
         {/* Barra de Búsqueda Rápida Universal */}
         <button
           type="button"
+          className="topbar-search-btn"
           onClick={() => window.dispatchEvent(new CustomEvent('open-command-menu'))}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'var(--paper-sunk)',
-            border: '1px solid var(--line-soft)',
-            borderRadius: 20,
-            padding: '5px 12px',
-            color: 'var(--ink-soft)',
-            fontSize: 12.5,
-            fontWeight: 500,
-            cursor: 'pointer',
-            marginLeft: 8,
-            transition: 'all 0.2s ease',
-          }}
           title="Buscar cualquier orden, factura o contrarecibo (Ctrl + K)"
         >
           <span>🔍</span>
-          <span style={{ fontSize: 12 }}>Buscar...</span>
-          <kbd style={{ fontSize: 10, background: 'var(--paper-raised)', border: '1px solid var(--line)', borderRadius: 4, padding: '1px 5px', color: 'var(--ink-soft)' }}>Ctrl K</kbd>
+          <span className="search-label">Buscar...</span>
+          <kbd className="search-kbd">Ctrl K</kbd>
         </button>
 
         <span className="spacer" />

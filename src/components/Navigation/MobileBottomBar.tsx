@@ -412,6 +412,58 @@ export function MobileBottomBar() {
                   <strong style={{ fontSize: 12.5, color: '#14b8a6' }}>Cobro a Caja</strong>
                   <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Ingreso tesorería</span>
                 </button>
+
+                {/* 5. Centinela Auto-Auditor */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickSheet(false);
+                    triggerHaptic('medium');
+                    navigate('/audit');
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.08) 100%)',
+                    border: '1px solid rgba(99, 102, 241, 0.4)',
+                    borderRadius: 14,
+                    padding: '12px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: 24 }}>🛡️</span>
+                  <strong style={{ fontSize: 12.5, color: '#818cf8' }}>Auto-Auditor</strong>
+                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Centinela SAP</span>
+                </button>
+
+                {/* 6. Búsqueda Universal */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickSheet(false);
+                    triggerHaptic('light');
+                    window.dispatchEvent(new CustomEvent('open-command-menu'));
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(148, 163, 184, 0.15) 0%, rgba(100, 116, 139, 0.08) 100%)',
+                    border: '1px solid rgba(148, 163, 184, 0.4)',
+                    borderRadius: 14,
+                    padding: '12px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: 24 }}>🔍</span>
+                  <strong style={{ fontSize: 12.5, color: '#cbd5e1' }}>Búsqueda</strong>
+                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Folio, OC o CR</span>
+                </button>
               </div>
             </motion.div>
           </div>

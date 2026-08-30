@@ -58,6 +58,7 @@ export function AuditCentinelaBadge({
     <>
       <button
         type="button"
+        className="centinela-badge"
         onClick={() => setOpenModal(true)}
         title={
           isPerfect

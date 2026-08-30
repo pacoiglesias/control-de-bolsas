@@ -340,6 +340,38 @@ html, body {
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  padding: 6px 12px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.topbar-search-btn:hover {
+  background: var(--paper-raised);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.topbar-search-btn .search-kbd {
+  font-size: 10px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ink-soft);
 }
 .icon-btn {
   background: transparent;
