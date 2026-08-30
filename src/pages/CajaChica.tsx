@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { doc, collection, Timestamp } from 'firebase/firestore';
+import { doc, collection, setDoc, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
@@ -10,8 +10,10 @@ import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useToast } from '../context/ToastContext';
-import { fmtDate, exportToCsv, shareHtmlAsPdf } from '../lib/format';
+import { fmtDate, exportToCsv, shareHtmlAsPdf, money } from '../lib/format';
 import { computeCommissionFromInvoiceTotal, normalizarTexto, round2 } from '../lib/finance';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { promptDialog } from '../lib/promptDialog';
 import type { Expense } from '../lib/types';
 
 // Subcomponentes modulares de Caja Chica
@@ -180,6 +182,43 @@ export default function CajaChica() {
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
   }
 
+  async function handleCalibrateCaja() {
+    const input = await promptDialog({
+      title: '🔧 Calibrar Saldo en Efectivo de Caja',
+      message: `El saldo actual calculado en sistema es ${money(saldo)}. Ingresa el saldo físico real en mano:`,
+      defaultValue: saldo === 0 ? '105938.56' : String(saldo),
+      confirmLabel: 'Ajustar Saldo',
+    });
+    if (input === null) return;
+    const target = parseFloat(input.replace(/[^0-9.-]/g, ''));
+    if (isNaN(target)) {
+      toast('Monto inválido', 'bad');
+      return;
+    }
+    const diff = round2(target - saldo);
+    if (Math.abs(diff) < 0.01) {
+      toast('El saldo ya está calibrado exactamente.', 'ok');
+      return;
+    }
+    try {
+      const newRef = doc(collection(db, PATHS.expenses));
+      await setDoc(newRef, {
+        id: newRef.id,
+        date: Timestamp.now(),
+        concept: `Ajuste / Calibración de Saldo de Caja Chica (${diff > 0 ? '+' : ''}${money(diff)})`,
+        amount: Math.abs(diff),
+        type: diff > 0 ? 'ingreso' : 'egreso',
+        notes: 'Calibración automática contra arqueo de efectivo físico',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+      triggerHaptic('success');
+      toast(`✅ Saldo de caja calibrado a ${money(target)}.`, 'ok');
+    } catch (e) {
+      toast(`❌ Error al calibrar caja: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   if (loading) {
     return (
       <>
@@ -204,9 +243,14 @@ export default function CajaChica() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>FLUJO DE EFECTIVO & REPARTO</h1>
-        <p>Control directo del dinero recibido de contadores, pagos a {provName} y retiro de utilidades.</p>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h1>FLUJO DE EFECTIVO & REPARTO</h1>
+          <p>Control directo del dinero recibido de contadores, pagos a {provName} y retiro de utilidades.</p>
+        </div>
+        <div>
+          <button className="btn" onClick={() => void handleCalibrateCaja()} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700 }}>🔧 Calibrar Caja</button>
+        </div>
       </div>
 
       {/* 1. KPIs Maestros de Tesorería */}

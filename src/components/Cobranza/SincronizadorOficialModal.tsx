@@ -345,8 +345,8 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const docRef = doc(db, PATHS.config, 'financials');
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists() || docSnap.data()?.historicalDebtAndres === undefined) {
-          await setDoc(docRef, { historicalDebtAndres: 82628.94 }, { merge: true });
-          addLog(`⚖️ Saldo histórico inicial con Andrés establecido a: $82,628.94.`);
+          await setDoc(docRef, { historicalDebtAndres: 13411.84 }, { merge: true });
+          addLog(`⚖️ Saldo histórico inicial con Andrés establecido a: $13,411.84.`);
         } else {
           addLog(`⚖️ Saldo histórico con Andrés preservado (ya configurado por el usuario: ${money(docSnap.data().historicalDebtAndres)}).`);
         }

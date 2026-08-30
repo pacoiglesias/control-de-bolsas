@@ -209,7 +209,7 @@ export function useDashboardStats(
       if (!p || normalizarTexto(p.provider) !== 'andres') return;
       totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
-    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 82628.94;
+    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 13411.84;
     const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica;
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
