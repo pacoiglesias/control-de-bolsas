@@ -98,9 +98,9 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
             🧾
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <strong style={{ fontSize: 15, color: '#b45309' }}>
-                ¡TIENES {fmtKilos(totalPatioKg)} ENTREGADOS EN PATIO LISTOS PARA FACTURAR AL SAT!
+                ¡TIENES {fmtKilos(totalPatioKg)} ENTREGADOS EN PATIO LISTOS PARA FACTURAR A PROVIDENCIA (SAT)!
               </strong>
               <span
                 style={{
@@ -115,8 +115,8 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
                 {money(totalAmountWithIva)} con IVA
               </span>
             </div>
-            <p style={{ margin: '2px 0 0 0', fontSize: 12.5, color: '#92400e' }}>
-              El material ya fue recibido y amparado en báscula por los almacenes de Providencia. Solo falta timbrar las facturas con las partidas correspondientes.
+            <p style={{ margin: '3px 0 0 0', fontSize: 12.5, color: '#92400e', lineHeight: 1.4 }}>
+              Material amparado en báscula por Providencia. Se factura a <strong>Grupo Textil Providencia SA de CV</strong> a <strong>$43.00/kg + 16% IVA</strong> ($49.88/kg).
             </p>
           </div>
         </div>
@@ -138,44 +138,67 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
           }}
         >
           <span>⚡</span>
-          <span>Facturar Kilos de Patio</span>
+          <span>Facturar a Providencia</span>
         </button>
       </div>
 
-      {/* Tarjetas de Desglose por Orden */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
-        {patioList.map((item) => (
-          <div
-            key={item.id}
-            style={{
-              background: 'rgba(255, 255, 255, 0.7)',
-              border: '1px solid rgba(245, 158, 11, 0.4)',
-              borderRadius: 10,
-              padding: '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f' }}>
-                {item.dept === 'TH' ? '🏛️ Textil Hogar' : '🏭 Grupo Textil'} · OC {item.oc}
+      {/* Tarjetas de Desglose por Departamento */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
+        {patioList.map((item) => {
+          const subtotal = item.patioKg * salePrice;
+          return (
+            <div
+              key={item.id}
+              style={{
+                background: 'rgba(255, 255, 255, 0.85)',
+                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#78350f' }}>
+                  {item.dept === 'TH' ? '🏛️ TEXTIL HOGAR (TH)' : '🏭 GRUPO TEXTIL (GT)'} · OC {item.oc}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#92400e', marginTop: 2 }}>
+                  Contacto: <strong>{item.responsable}</strong> · Subtotal: <strong>{money(subtotal)}</strong>
+                </div>
               </div>
-              <div style={{ fontSize: 11.5, color: '#92400e' }}>
-                Contacto: <strong>{item.responsable}</strong>
-              </div>
-            </div>
 
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#b45309' }}>
-                {fmtKilos(item.patioKg)}
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#78350f' }}>
-                {money(item.amountWithIva)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 900, color: '#b45309' }}>
+                    {fmtKilos(item.patioKg)}
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: '#78350f' }}>
+                    {money(item.amountWithIva)} con IVA
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenFacturacion(item.order.id)}
+                  style={{
+                    background: '#fef3c7',
+                    border: '1px solid #d97706',
+                    color: '#92400e',
+                    fontWeight: 800,
+                    fontSize: 11.5,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ⚡ Facturar
+                </button>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
