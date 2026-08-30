@@ -20,6 +20,7 @@ import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
 import { OfflineIndicator } from './ui/OfflineIndicator';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileBottomBar } from './Navigation/MobileBottomBar';
+import { AuditCentinelaBadge } from './Audit/AuditCentinelaBadge';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -184,6 +185,7 @@ export default function Layout() {
         </button>
 
         <span className="spacer" />
+        <AuditCentinelaBadge />
         <OnlineUsers />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, marginLeft: 8 }}>
           <OfflineIndicator />
