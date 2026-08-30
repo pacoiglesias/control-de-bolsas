@@ -100,6 +100,9 @@ export default defineConfig({
         manualChunks: {
           firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
           react: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['framer-motion'],
+          excel: ['xlsx'],
+          pdf: ['html2pdf.js'],
         },
       },
     },
