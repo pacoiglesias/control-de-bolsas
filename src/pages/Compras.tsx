@@ -164,10 +164,10 @@ export default function Compras() {
     }
 
     try {
-      const diff = realBalance - (totalPagado - totalPurchasesCost);
+      const diff = realBalance - totalPagado;
       await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: diff }, { merge: true });
       triggerHaptic('success');
-      toast(`✅ Saldo calibrado con éxito. Nueva deuda histórica ajustada a ${money(diff)}.`, 'ok');
+      toast(`✅ Saldo calibrado con éxito a ${money(realBalance)}.`, 'ok');
     } catch (e) {
       toast(`❌ Error al calibrar: ${(e as Error).message}`, 'bad');
     }

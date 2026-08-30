@@ -6,17 +6,7 @@ import { useConfig } from '../../hooks/useConfig';
 import { runContinuousAutoAudit } from '../../lib/auditEngine';
 import { AuditCentinelaModal } from './AuditCentinelaModal';
 
-export function AuditCentinelaBadge({
-  onOpenOrder,
-  onOpenInvoiceModal,
-  onCalibrateAndres,
-  onCalibrateCaja,
-}: {
-  onOpenOrder?: (orderId: string) => void;
-  onOpenInvoiceModal?: (orderId: string) => void;
-  onCalibrateAndres?: () => void;
-  onCalibrateCaja?: () => void;
-}) {
+export function AuditCentinelaBadge() {
   const { orders } = useOrdersContext();
   const { purchases } = usePurchases();
   const { expenses } = useExpenses();
@@ -107,10 +97,6 @@ export function AuditCentinelaBadge({
         <AuditCentinelaModal
           report={report}
           onClose={() => setOpenModal(false)}
-          onOpenOrder={onOpenOrder}
-          onOpenInvoiceModal={onOpenInvoiceModal}
-          onCalibrateAndres={onCalibrateAndres}
-          onCalibrateCaja={onCalibrateCaja}
         />
       )}
     </>

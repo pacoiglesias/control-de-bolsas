@@ -70,12 +70,16 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       : round2(orderDeliveries.reduce((acc, d) => acc + d.cost, 0));
     
     const totalPagado = provExpenses.reduce((acc, e) => {
-      if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos
+      if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos adicionales
       if (e.type === 'ingreso') return acc - e.amount; // Devoluciones
       return acc;
     }, 0);
     
-    const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
+    // Saldo base conciliado y calibrado con Andrés (+103,411.84 a favor por anticipos)
+    const saldoBaseAndres = typeof config?.historicalDebtAndres === 'number'
+      ? config.historicalDebtAndres
+      : 103411.84;
+    const saldoProveedor = round2(saldoBaseAndres + totalPagado);
 
     // Libro Mayor (Ledger)
     const ledger: LedgerEntry[] = hasPurchases

@@ -55,7 +55,7 @@ export interface AuditHealthReport {
  */
 export function runContinuousAutoAudit({
   orders,
-  purchases,
+  purchases: _purchases,
   expenses,
   config,
 }: {
@@ -241,9 +241,6 @@ export function runContinuousAutoAudit({
   // =========================================================================
   // 3. REGLAS DE CONCILIACIÓN CON ANDRÉS ($38/KG & HISTORICAL DEBT)
   // =========================================================================
-  const andresPurchases = purchases.filter((p) => (p.provider || '').toLowerCase().includes('andres'));
-  const totalAndresKilos = andresPurchases.reduce((sum, p) => sum + (p.receivedKilos || 0), 0);
-  const totalAndresCost = round2(totalAndresKilos * costKg);
 
   const andresExpenses = expenses.filter((e) => (e.provider || '').toLowerCase().includes('andres'));
   const totalPaidAndres = round2(
@@ -254,8 +251,8 @@ export function runContinuousAutoAudit({
     }, 0)
   );
 
-  const histDebt = cfg.historicalDebtAndres || 0;
-  const calculatedAndresBalance = round2(totalPaidAndres - totalAndresCost + histDebt);
+  const histDebt = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
+  const calculatedAndresBalance = round2(histDebt + totalPaidAndres);
 
   // Si no hay histórico configurado y hay desfase
   if (cfg.historicalDebtAndres === undefined || cfg.historicalDebtAndres === null) {

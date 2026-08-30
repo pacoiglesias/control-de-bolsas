@@ -210,7 +210,7 @@ export function useDashboardStats(
       totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
     const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
-    const deudaAndres = totalPagadoAndres - totalPurchasesCost + deudaHistorica;
+    const deudaAndres = round2(deudaHistorica + totalPagadoAndres);
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
     const proyeccionFlujo = localSaldoCaja + transito + deudaAndres;
