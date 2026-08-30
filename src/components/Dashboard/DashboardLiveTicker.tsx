@@ -43,7 +43,7 @@ export function DashboardLiveTicker({
           <span style={{ fontSize: 14 }}>💵</span>
           <div>
             <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Efectivo en Caja</div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: saldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(saldoCaja)}</div>
+            <div className="tabular-nums money-val" style={{ fontSize: 14, fontWeight: 900, color: saldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(saldoCaja)}</div>
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export function DashboardLiveTicker({
           <span style={{ fontSize: 14 }}>🏷️</span>
           <div>
             <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Por Cobrar (Providencia)</div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8' }}>{money(porCobrar)}</div>
+            <div className="tabular-nums money-val" style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8' }}>{money(porCobrar)}</div>
           </div>
         </div>
 
@@ -63,7 +63,7 @@ export function DashboardLiveTicker({
           <span style={{ fontSize: 14 }}>⚖️</span>
           <div>
             <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con {providerName || 'Andrés'}</div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
+            <div className="tabular-nums money-val" style={{ fontSize: 14, fontWeight: 900, color: deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
               {money(deudaAndres)}
             </div>
           </div>
@@ -75,7 +75,7 @@ export function DashboardLiveTicker({
           <span style={{ fontSize: 14 }}>📦</span>
           <div>
             <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Kilos en Proceso</div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: '#c084fc' }}>{kilosTotal.toLocaleString('es-MX')} kg</div>
+            <div className="tabular-nums kilo-val" style={{ fontSize: 14, fontWeight: 900, color: '#c084fc' }}>{kilosTotal.toLocaleString('es-MX')} kg</div>
           </div>
         </div>
       </div>

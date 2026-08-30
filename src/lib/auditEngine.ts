@@ -301,6 +301,23 @@ export function runContinuousAutoAudit({
   }
 
   // =========================================================================
+  // 4.5. DETECCIÓN DE FUGA DE MARGEN BRUTO (Tope de $5.00/kg)
+  // =========================================================================
+  const baseMargin = saleKg - costKg;
+  if (baseMargin < 5.0) {
+    anomalies.push({
+      id: 'margin_leak_alert',
+      category: 'integridad_datos',
+      severity: 'critical',
+      title: `Fuga de Margen Bruto ($${baseMargin.toFixed(2)}/kg)`,
+      description: `El margen actual entre venta ($${saleKg.toFixed(2)}) y costo ($${costKg.toFixed(2)}) es menor al estándar de $5.00/kg.`,
+      rootCause: `Parámetros de precios descalibrados en Configuración Financiera.`,
+      recommendation: `Revisar y calibrar los precios base a $43.00 venta y $38.00 costo en Configuración.`,
+      autoFixAvailable: false,
+    });
+  }
+
+  // =========================================================================
   // 5. CÁLCULO DE SCORE DE SALUD GLOBAL (0 a 100) & SUBSISTEMAS
   // =========================================================================
   let criticalCount = 0;

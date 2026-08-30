@@ -49,9 +49,27 @@ export default function Layout() {
   const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
+  const [density, setDensity] = useState<'normal' | 'compact'>(() => {
+    return (localStorage.getItem('cb_table_density') as any) || 'normal';
+  });
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
+
+  useEffect(() => {
+    if (density === 'compact') {
+      document.body.classList.add('density-compact');
+    } else {
+      document.body.classList.remove('density-compact');
+    }
+  }, [density]);
+
+  const toggleDensity = () => {
+    const next = density === 'normal' ? 'compact' : 'normal';
+    setDensity(next);
+    localStorage.setItem('cb_table_density', next);
+    toast(next === 'compact' ? '📐 Modo SAP / Alta Densidad activado' : '🔲 Modo Cómodo activado', 'ok');
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -195,6 +213,25 @@ export default function Layout() {
             }}
           >
             {isPrivate ? '🙈' : '👁️'}
+          </button>
+
+          {/* Botón de Densidad de Tablas SAP */}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={toggleDensity}
+            aria-label="Alternar Densidad SAP"
+            title={density === 'compact' ? "Modo Alta Densidad SAP Activo. Clic para modo cómodo." : "Modo Cómodo Activo. Clic para modo compacto SAP."}
+            style={{
+              background: density === 'compact' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+              color: density === 'compact' ? '#3b82f6' : 'inherit',
+              border: density === 'compact' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
+              borderRadius: 8,
+              fontSize: 15,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {density === 'compact' ? '📐' : '🔲'}
           </button>
           
           <NotificationsCenter />

@@ -41,13 +41,13 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Ventas {monthFilter === 'ALL' ? 'Totales' : 'del Mes'}
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+        <div className="tabular-nums money-val" style={{ fontSize: 32, fontWeight: 900, color: 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.ventasTotal || 0} />
         </div>
         <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
           <Sparkline data={[120, 150, 130, 180, 140, 200, 170]} width={240} height={40} color="var(--accent)" />
         </div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+        <div className="tabular-nums kilo-val" style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
           📦 Kilos amparados: {fmtKilos(k.kilosTotal || k.totalKilos || k.kilos || 0)} kg
         </div>
@@ -76,7 +76,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Dinero en la Calle
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: (k.porCobrar || k.dineroRealARecibir) > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+        <div className="tabular-nums money-val" style={{ fontSize: 32, fontWeight: 900, color: (k.porCobrar || k.dineroRealARecibir) > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.porCobrar || k.dineroRealARecibir || 0} />
         </div>
         <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.2, zIndex: 0 }}>
@@ -111,7 +111,7 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
           <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ok)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
             Efectivo en Caja
           </div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ok)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+          <div className="tabular-nums money-val" style={{ fontSize: 32, fontWeight: 900, color: 'var(--ok)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
             <ResponsiveMoney value={saldoCaja} />
           </div>
           <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.35, zIndex: 0 }}>
@@ -147,16 +147,10 @@ export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrareci
         <div style={{ fontSize: 12, fontWeight: 800, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
           Urgencias (Vencido)
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
+        <div className="tabular-nums money-val" style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
           <ResponsiveMoney value={k.vencido || 0} />
         </div>
         <div style={{ fontSize: 13, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: 700, zIndex: 1 }}>
-          {/* FIX (v8.9.1): "fuera de fecha" a secas se confundía con el aviso
-              de OverdueBanner ("N se vencieron recientemente"), que cuenta
-              algo distinto (solo lo que cruzó a vencido en el chequeo
-              automático de las últimas horas). Este número de aquí es el
-              acumulado total a hoy -- se aclara explícitamente para que no
-              parezcan el mismo dato cuando no coinciden. */}
           {vencidos} contrarecibo{vencidos === 1 ? '' : 's'} vencido{vencidos === 1 ? '' : 's'} en total (acumulado a hoy)
         </div>
       </motion.div>
