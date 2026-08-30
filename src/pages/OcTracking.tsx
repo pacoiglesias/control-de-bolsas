@@ -11,7 +11,7 @@ import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVis
 import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/finance';
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
-import { openWhatsAppMessage } from '../lib/whatsappReminder';
+import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
 import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder, Invoice, Delivery } from '../lib/types';
 
@@ -274,6 +274,48 @@ export default function OcTracking() {
 
     openWhatsAppMessage(text);
     toast(`📲 Abriendo WhatsApp con el estatus de la OC ${group.oc}`, 'ok');
+  }
+
+  function handleShareOcEmail(group: OcGroup) {
+    const dept = inferDepartment(group.order) || (group.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+    const deptName = dept === 'TH' ? 'Textil Hogar (Nava)' : 'Grupo Textil (Evelia)';
+    const pct = group.kilosPedidos > 0 ? Math.round((group.kilosEntregados / group.kilosPedidos) * 100) : 0;
+    const items = group.order.items || [];
+    const deliveries = group.order.deliveries || [];
+    const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
+
+    const subject = `Estatus de Entrega y Fabricación — OC ${group.oc} — ${deptName}`;
+    let body = `Estimado equipo,\n\n`;
+    body += `Compartimos el reporte oficial de avance de la Orden de Compra ${group.oc}:\n\n`;
+    body += `• Planta / Almacén: ${deptName}\n`;
+    body += `• Folio Interno: ${group.order.folio || 'S/F'}\n`;
+    body += `• Avance Global: ${group.kilosEntregados.toLocaleString('es-MX')} de ${group.kilosPedidos.toLocaleString('es-MX')} kg (${pct}% completado)\n`;
+    body += `• Kilos Pendientes por Surtir: ${group.kilosFaltantes.toLocaleString('es-MX')} kg\n\n`;
+
+    if (items.length > 0) {
+      body += `DESGLOSE DE PARTIDAS:\n`;
+      items.forEach((it, idx) => {
+        const ped = Number(it.quantity) || 0;
+        const ent = deliveredByItem[it.id] ?? (it.code ? deliveredByItem[it.code] : undefined) ?? (items.length === 1 ? group.kilosEntregados : (it.deliveredQuantity ?? 0));
+        const falt = Math.max(0, ped - ent);
+        const st = ent >= ped && ped > 0 ? 'Completada 100%' : ent > 0 ? `Parcial (${ent}/${ped} kg)` : 'Pendiente';
+        body += `• Partida #${idx + 1} ${it.description || it.code || 'Bolsa'}: ${ent}/${ped} kg (Faltan: ${falt} kg — ${st})\n`;
+      });
+      body += `\n`;
+    }
+
+    if (group.invoices.length > 0) {
+      body += `FACTURAS Y CONTRARECIBOS:\n`;
+      group.invoices.forEach(inv => {
+        body += `• Factura #${inv.folio}: ${inv.kilos} kg | Contrarecibo: ${inv.cr || 'Pendiente'}\n`;
+      });
+      body += `\n`;
+    }
+
+    body += `Quedamos atentos a cualquier solicitud.\n\nAtentamente,\nControl de Bolsas ERP`;
+
+    openEmailMessage(subject, body);
+    toast(`📧 Abriendo cliente de correo con el estatus de la OC ${group.oc}`, 'ok');
   }
 
   const toggle = (oc: string) => {
@@ -812,6 +854,17 @@ export default function OcTracking() {
                         ⚡ Facturar
                       </button>
                     )}
+                    <button
+                      className="btn"
+                      style={{ fontSize: 11.5, padding: '6px 10px', background: '#3b82f6', color: '#fff', border: 'none', fontWeight: 700 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShareOcEmail(group);
+                      }}
+                      title="Compartir estatus por Correo Electrónico"
+                    >
+                      📧 Correo
+                    </button>
                     <button
                       className="btn"
                       style={{ fontSize: 11.5, padding: '6px 10px', background: '#25D366', color: '#fff', border: 'none', fontWeight: 700 }}

@@ -189,3 +189,48 @@ export function generateAndresWhatsAppSummary({
 _Control de Bolsas ERP — Estado de Cuenta Oficial._`;
 }
 
+export function generateAndresEmailDraft({
+  providerName = 'Andrés',
+  totalPagado,
+  totalPurchasesCost,
+  totalReceivedKilos,
+  saldoProveedor,
+  costPricePerKg = 38,
+}: {
+  providerName?: string;
+  totalPagado: number;
+  totalPurchasesCost: number;
+  totalReceivedKilos: number;
+  saldoProveedor: number;
+  costPricePerKg?: number;
+}): InstitutionalEmailDraft {
+  const saldoSigno = saldoProveedor >= 0 ? `Saldo a favor de ${providerName} (Anticipos vigentes)` : `Saldo a favor de la Empresa (Deuda pendiente)`;
+  const subject = `Estado de Cuenta Conciliado — ${providerName} — ${fmtDate(new Date())}`;
+  const body = `Estimado ${providerName},
+
+Adjuntamos el resumen oficial de tu Estado de Cuenta y Maquila al día de hoy ${fmtDate(new Date())}:
+
+• Kilos Totales Entregados: ${totalReceivedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (Costo: $${costPricePerKg.toFixed(2)}/kg)
+• Valor Total de Entregas: ${money(totalPurchasesCost)}
+• Anticipos / Pagos Realizados: ${money(totalPagado)}
+--------------------------------------------------
+• Saldo Conciliado: ${saldoProveedor < 0 ? '-' : '+'}${money(Math.abs(saldoProveedor))}
+• Estatus de Saldo: ${saldoSigno}
+
+Quedamos a tus órdenes para cualquier duda o conciliación.
+
+Atentamente,
+Administración — Control de Bolsas ERP`;
+
+  return {
+    to: '',
+    subject,
+    body,
+  };
+}
+
+export function openEmailMessage(subject: string, body: string, to = ''): void {
+  const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = url;
+}
+

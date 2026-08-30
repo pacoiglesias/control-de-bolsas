@@ -1,5 +1,5 @@
 import { money } from '../lib/format';
-import { openWhatsAppMessage } from '../lib/whatsappReminder';
+import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
 import { glass, kpiCard } from './MaquiladorPortal.shared';
 
 interface MaquiladorPortalEstadoTabProps {
@@ -143,25 +143,23 @@ export default function MaquiladorPortalEstadoTab({
         <button
           onClick={() => {
             const saldoText =
-              statement.saldoProveedor < 0
-                ? `Saldo a mi favor de +${money(Math.abs(statement.saldoProveedor))}`
-                : `Anticipo pendiente de -${money(Math.abs(statement.saldoProveedor))}`;
-            const subject = encodeURIComponent(`Resumen de Estado de Cuenta - ${provName}`);
-            const body = encodeURIComponent(
-              `Hola Paco,\n\nTe comparto mi resumen de estado de cuenta:\n• Total Fabricado: ${money(
-                statement.totalPurchasesCost
-              )} (${statement.totalReceivedKilos?.toLocaleString?.('es-MX') || 0} kg)\n• Total Pagado: ${money(
-                statement.totalPagado
-              )}\n• Balance Actual: ${saldoText}\n\nQuedo atento a tus comentarios.\nSaludos cordiales,\n${provName}.`
-            );
-            window.open(`mailto:paco@cobertores.com?subject=${subject}&body=${body}`, '_blank');
+              statement.saldoProveedor >= 0
+                ? `Saldo a favor de ${provName}: +${money(Math.abs(statement.saldoProveedor))}`
+                : `Anticipo pendiente: -${money(Math.abs(statement.saldoProveedor))}`;
+            const subject = `Resumen de Estado de Cuenta — ${provName}`;
+            const body = `Hola Paco,\n\nTe comparto mi resumen de cuenta:\n\n• Total Fabricado: ${money(
+              statement.totalPurchasesCost
+            )}\n• Total Pagado: ${money(
+              statement.totalPagado
+            )}\n• Balance Actual: ${saldoText}\n\nQuedo atento.\n\nSaludos,\n${provName}`;
+            openEmailMessage(subject, body);
           }}
           style={{
             background: 'rgba(59, 130, 246, 0.2)',
             border: '1px solid #3b82f6',
             borderRadius: 12,
             padding: '12px 16px',
-            color: '#93c5fd',
+            color: '#60a5fa',
             fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
@@ -170,13 +168,13 @@ export default function MaquiladorPortalEstadoTab({
             gap: 6,
           }}
         >
-          <span>✉️</span> Enviar Correo
+          <span>📧</span> Correo
         </button>
 
         <button
           onClick={() => {
             const saldoText =
-              statement.saldoProveedor < 0
+              statement.saldoProveedor >= 0
                 ? `Saldo a mi favor de *+${money(Math.abs(statement.saldoProveedor))}*`
                 : `Anticipo pendiente de *-${money(Math.abs(statement.saldoProveedor))}*`;
             const text = `Hola Paco, te comparto mi resumen de cuenta:\n• Total Fabricado: *${money(

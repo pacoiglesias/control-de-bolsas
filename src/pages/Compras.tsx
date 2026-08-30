@@ -19,7 +19,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { triggerHaptic } from '../lib/hapticEngine';
 import { promptDialog } from '../lib/promptDialog';
-import { generateAndresWhatsAppSummary, openWhatsAppMessage } from '../lib/whatsappReminder';
+import { generateAndresWhatsAppSummary, openWhatsAppMessage, generateAndresEmailDraft, openInstitutionalEmail } from '../lib/whatsappReminder';
 
 export default function Compras() {
   const { role } = useAuth();
@@ -187,6 +187,20 @@ export default function Compras() {
     toast(`📲 Abriendo WhatsApp con el Estado de Cuenta de ${provName}`, 'ok');
   }
 
+  function handleSendEmail() {
+    const draft = generateAndresEmailDraft({
+      providerName: provName,
+      totalPagado,
+      totalPurchasesCost,
+      totalReceivedKilos,
+      saldoProveedor,
+      costPricePerKg: currentCostPerKg,
+    });
+    openInstitutionalEmail(draft);
+    triggerHaptic('success');
+    toast(`📧 Abriendo cliente de correo con el Estado de Cuenta de ${provName}`, 'ok');
+  }
+
   return (
     <>
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
@@ -196,6 +210,7 @@ export default function Compras() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => void handleCalibrateSaldo()} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700 }}>🔧 Calibrar Saldo</button>
+          <button className="btn" onClick={handleSendEmail} style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700 }}>📧 Enviar Correo</button>
           <button className="btn" onClick={handleSendWhatsApp} style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', fontWeight: 700 }}>📲 Enviar WhatsApp</button>
           <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>
           <button className="btn" onClick={() => setSelected({} as Purchase)}>➕ Nuevo Anticipo / OC</button>

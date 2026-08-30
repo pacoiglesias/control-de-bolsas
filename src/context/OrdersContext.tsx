@@ -215,6 +215,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docType: 'factura',
                 docFolio: '6200',
               },
+              {
+                id: 'del-th-patio-2945',
+                date: Timestamp.fromDate(new Date('2026-08-30T10:00:00Z')),
+                kilos: 2945.20,
+                invoiced: false,
+                notes: 'Entrega en Báscula Almacén TH (Nava) — 2,945.20 kg pendiente de desglose y facturación SAT',
+                docType: 'remision',
+                docFolio: 'REM-TH-2945',
+              },
             ];
             const mergedThDeliveries: Delivery[] = [...baseDeliveries];
             const seenDelIds = new Set(baseDeliveries.map(d => d.id));
@@ -331,6 +340,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 invoiceId: 'inv-6224',
                 docType: 'factura',
                 docFolio: '6224',
+              },
+              {
+                id: 'del-gt-patio-1972',
+                date: Timestamp.fromDate(new Date('2026-08-30T10:00:00Z')),
+                kilos: 1972.20,
+                invoiced: false,
+                notes: 'Entrega en Báscula Almacén P4 (Evelia) — 1,972.20 kg pendiente de desglose y facturación SAT',
+                docType: 'remision',
+                docFolio: 'REM-GT-1972',
               },
             ];
             const mergedGtDeliveries: Delivery[] = [...baseGtDeliveries];
