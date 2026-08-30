@@ -23,23 +23,20 @@ export interface OfficialCrRecord {
 }
 
 export const OFFICIAL_CRS: OfficialCrRecord[] = [
-  { no: 1, cr: 'TH-946', issueDate: '2026-08-17', dueDate: '2026-09-16', total: 81780.00, status: 'GENERADO', department: 'TH' },
-  { no: 2, cr: 'TH-912', issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, status: 'GENERADO', department: 'TH' },
-  { no: 3, cr: 'TH-879', issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, status: 'GENERADO', department: 'TH' },
-  { no: 4, cr: 'TH-836', issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, status: 'GENERADO', department: 'TH' },
-  { no: 5, cr: 'GT-742', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, status: 'GENERADO', department: 'GT' },
-  { no: 6, cr: 'TH-804', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, status: 'GENERADO', department: 'TH' },
-  { no: 7, cr: 'GT-713', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, status: 'GENERADO', department: 'GT' },
-  { no: 8, cr: 'GT-651', issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, status: 'GENERADO', department: 'GT' },
-  { no: 9, cr: 'TH-768', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, status: 'EN PROCESO DE PAGO', department: 'TH' },
-  { no: 10, cr: 'GT-624', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00, status: 'EN PROCESO DE PAGO', department: 'GT' },
-  { no: 11, cr: 'GT-597', issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, status: 'EN PROCESO DE PAGO', department: 'GT' },
+  { no: 1, cr: 'GT-874', issueDate: '2026-08-24', dueDate: '2026-09-23', total: 49880.00, status: 'GENERADO', department: 'GT' },
+  { no: 2, cr: 'TH-990', issueDate: '2026-08-24', dueDate: '2026-09-23', total: 98054.60, status: 'GENERADO', department: 'TH' },
+  { no: 3, cr: 'TH-946', issueDate: '2026-08-17', dueDate: '2026-09-16', total: 81780.00, status: 'GENERADO', department: 'TH' },
+  { no: 4, cr: 'TH-912', issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, status: 'GENERADO', department: 'TH' },
+  { no: 5, cr: 'TH-879', issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, status: 'GENERADO', department: 'TH' },
+  { no: 6, cr: 'TH-836', issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, status: 'GENERADO', department: 'TH' },
+  { no: 7, cr: 'GT-742', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, status: 'GENERADO', department: 'GT' },
+  { no: 8, cr: 'GT-713', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, status: 'GENERADO', department: 'GT' },
+  { no: 9, cr: 'GT-651', issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, status: 'GENERADO', department: 'GT' },
 ];
 
 export const OFFICIAL_IN_REVIEW = [
-  { folio: '6198', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 98054.60, department: 'TH', dateStr: '2026-08-20', kilos: 1965.81, uuid: '01704C49-71EA-4201-8ABD-11A44A178101' },
+  { folio: '6224', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 49032.04, department: 'GT', dateStr: '2026-08-26', kilos: 983.00, uuid: '' },
   { folio: '6200', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 74820.00, department: 'TH', dateStr: '2026-08-24', kilos: 1500.00, uuid: '771D692B-0BCF-480C-B2CA-40A48E996BA9' },
-  { folio: '6193', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 49880.00, department: 'GT', dateStr: '2026-08-19', kilos: 1000.00, uuid: '4BA4D9DA-35A2-4B47-BD0B-59AC9BB059A6' }
 ];
 
 export function SincronizadorOficialModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {

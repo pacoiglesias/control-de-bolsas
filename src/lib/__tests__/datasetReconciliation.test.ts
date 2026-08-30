@@ -3,25 +3,25 @@ import { OFFICIAL_CRS, OFFICIAL_IN_REVIEW } from '../../components/Cobranza/Sinc
 import { round2, computeCommissionFromInvoiceTotal } from '../finance';
 
 describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
-  it('debe sumar exactamente $1,101,736.34 en los 11 Contrarecibos Oficiales', () => {
+  it('debe sumar exactamente $782,559.93 en los 9 Contrarecibos Oficiales Generados', () => {
     const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
-    expect(totalCrs).toBe(1101736.34);
-    expect(OFFICIAL_CRS.length).toBe(11);
+    expect(totalCrs).toBe(782559.93);
+    expect(OFFICIAL_CRS.length).toBe(9);
   });
 
-  it('debe calcular la deuda total de Providencia con las 3 facturas en revisión (F-6198, F-6200, F-6193) en $1,324,490.94', () => {
+  it('debe calcular la deuda total de Providencia con las 2 facturas en revisión (F-6224, F-6200) en $906,411.97', () => {
     const totalCrs = OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0);
     const totalRevision = Array.isArray(OFFICIAL_IN_REVIEW)
       ? round2(OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0))
       : 0;
     const deudaTotal = round2(totalCrs + totalRevision);
 
-    expect(totalRevision).toBe(222754.60);
-    expect(deudaTotal).toBe(1324490.94);
+    expect(totalRevision).toBe(123852.04);
+    expect(deudaTotal).toBe(906411.97);
   });
 
   it('debe calcular la comisión contable (8% sobre subtotal) con precisión milimétrica', () => {
-    const totalConIva = 1101736.34;
+    const totalConIva = 782559.93;
     const subtotal = totalConIva / 1.16;
     const comisionEsperada = round2(subtotal * 0.08);
 
@@ -57,7 +57,7 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
 
     // Filtrado estricto
     const validOrders = mockOrders.filter((o: any) => !o.isDeleted);
-    expect(validOrders.length).toBe(11);
+    expect(validOrders.length).toBe(9);
 
     const sumaValidada = round2(
       validOrders.reduce((sum, o) => {
@@ -66,6 +66,6 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
       }, 0)
     );
 
-    expect(sumaValidada).toBe(1101736.34);
+    expect(sumaValidada).toBe(782559.93);
   });
 });

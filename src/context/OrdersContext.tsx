@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder, Delivery, Invoice } from '../lib/types';
 import { toDate } from '../lib/format';
@@ -247,9 +247,13 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   tradeMargin: 9829.05,
                 },
                 creditCycle: {
-                  status: 'facturado',
-                  issueDate: best.processedAt || null,
-                  dueDate: null,
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-08-20T09:34:40Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-09-23T00:00:00Z')),
+                },
+                collection: {
+                  contrareciboNumber: 'TH-990',
+                  contrareciboDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
                 },
               },
               {
@@ -273,7 +277,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 },
                 creditCycle: {
                   status: 'facturado',
-                  issueDate: best.processedAt || null,
+                  issueDate: Timestamp.fromDate(new Date('2026-08-24T10:06:14Z')),
                   dueDate: null,
                 },
               },
@@ -305,7 +309,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             const baseGtDeliveries: Delivery[] = [
               {
                 id: 'del-gt-6193',
-                date: best.processedAt || null,
+                date: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),
                 kilos: 1000.0,
                 items: [
                   { itemId: 'it-gt-2', quantity: 500.0 },
@@ -315,6 +319,18 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 invoiceId: 'inv-6193',
                 docType: 'factura',
                 docFolio: '6193',
+              },
+              {
+                id: 'del-gt-6224',
+                date: Timestamp.fromDate(new Date('2026-08-26T10:33:34Z')),
+                kilos: 983.0,
+                items: [
+                  { itemId: 'it-gt-4', quantity: 983.0 },
+                ],
+                invoiced: true,
+                invoiceId: 'inv-6224',
+                docType: 'factura',
+                docFolio: '6224',
               },
             ];
             const mergedGtDeliveries: Delivery[] = [...baseGtDeliveries];
@@ -348,8 +364,36 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   tradeMargin: 5000.0,
                 },
                 creditCycle: {
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-09-23T00:00:00Z')),
+                },
+                collection: {
+                  contrareciboNumber: 'GT-874',
+                  contrareciboDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
+                },
+              },
+              {
+                id: 'inv-6224',
+                orderId: best.id,
+                folio: '6224',
+                kilos: 983.0,
+                items: [
+                  { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 983.0, unitPrice: 43.0, amount: 42269.0, unit: 'KGM' },
+                ],
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 42269.0,
+                  invoiceTotal: 49032.04,
+                  costTotal: 37354.0,
+                  commission: 3381.52,
+                  netCashFlow: 8296.52,
+                  tradeMargin: 4915.0,
+                },
+                creditCycle: {
                   status: 'facturado',
-                  issueDate: best.processedAt || null,
+                  issueDate: Timestamp.fromDate(new Date('2026-08-26T10:33:34Z')),
                   dueDate: null,
                 },
               },
