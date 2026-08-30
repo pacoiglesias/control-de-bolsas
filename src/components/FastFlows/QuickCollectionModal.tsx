@@ -155,7 +155,11 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
       return toast(`⚠️ El contrarecibo ${cr.trim()} ya fue usado en la Factura #${duplicateCr.invoiceFolio} (${duplicateCr.orderFolio}). No se permiten duplicados.`, 'bad');
     }
 
-    const cleanCr = cr.trim().toUpperCase();
+    let cleanCr = cr.trim().toUpperCase();
+    if (/^\d+$/.test(cleanCr) && activeSelectedDept) {
+      cleanCr = `${activeSelectedDept}-${cleanCr}`;
+    }
+
     if (activeSelectedDept === 'TH' && cleanCr.startsWith('GT-')) {
       return toast('⚠️ Separación Estricta: Las facturas de TH no pueden llevar un contrarecibo con prefijo GT.', 'bad');
     }

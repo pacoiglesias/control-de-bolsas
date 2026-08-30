@@ -82,7 +82,10 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCr = crNumber.trim().toUpperCase();
+    let cleanCr = crNumber.trim().toUpperCase();
+    if (/^\d+$/.test(cleanCr) && dept) {
+      cleanCr = `${dept}-${cleanCr}`;
+    }
 
     if (!cleanCr || cleanCr === 'TH-' || cleanCr === 'GT-') {
       return toast('Ingresa el número de Contrarecibo (ej. TH-946 o GT-597)', 'bad');
