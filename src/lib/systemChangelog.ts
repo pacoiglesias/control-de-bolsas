@@ -8,6 +8,30 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.50 Suite Integral de 40 Mejoras Enterprise (Visuales & Procesamiento) con Búsqueda Difusa, Inmutabilidad Criptográfica SHA-256 y Modo Privacidad',
+    date: '30 de Agosto de 2026',
+    time: '01:30 PM',
+    summary: 'Transformación de grado corporativo SAP/Enterprise: 20 mejoras visuales (Glassmorphism acrílico, tipografía tabular, modo privacidad instantáneo, selector de densidad SAP, dial de salud y stepper de vida de órdenes) y 20 mejoras de procesamiento (búsqueda difusa Levenshtein, sellado criptográfico SHA-256 para auditoría, cola de mutaciones offline y detección de fuga de margen).',
+    highlights: [
+      '🔍 Motor de Búsqueda Difusa Levenshtein (fuzzySearch.ts): Búsqueda universal instantánea tolerante a errores ortográficos en folios, clientes y códigos SAT.',
+      '🔐 Inmutabilidad Criptográfica SHA-256 (cryptoAudit.ts): Sellado matemático encadenado para garantizar la inalterabilidad de los movimientos contables.',
+      '👁️ Modo Privacidad Inteligente (Privacy Blur): Desenfoque instantáneo de cifras en pantalla para juntas y proyecciones públicas con 1 solo clic.',
+      '📐 Modo Alta Densidad SAP / Excel: Alternador a filas compactas de 32px para auditoría masiva de facturas y contrarecibos.',
+      '🧭 Velocímetro de Salud Financiera (HealthGaugeDial) & Stepper de Órdenes: Visualización dinámica del ciclo de vida y estado general del ERP.',
+    ],
+  },
+  {
+    version: 'v8.9.49 Motor Centinela de Auto-Auditoría Continua & Alineación Oficial de Kilos en Patio (4,917.40 kg)',
+    date: '30 de Agosto de 2026',
+    time: '01:10 PM',
+    summary: 'Implementación del Motor Centinela de Auto-Auditoría Continua heurística con diagnóstico en vivo de 5 subsistemas contables y botón 1-Click Auto-Healing. Alineación exacta de las entregas de Andrés (10,366.21 kg / $393,915.98) y banner oficial de facturación para los 4,917.40 kg recibidos en báscula por Providencia.',
+    highlights: [
+      '🛡️ Motor Centinela de Auto-Auditoría (auditEngine.ts): Diagnóstico en tiempo real con score de 0 a 100 y botón de auto-reparación asistida.',
+      '🧾 Banner de Facturación en Patio (UninvoicedDeliveriesBanner): Desglose claro de los 2,945.20 kg de Textil Hogar y 1,972.20 kg de Grupo Textil listos para facturar al SAT a $43.00/kg.',
+      '⚖️ Conciliación Oficial de Andrés: Saldo a favor de la empresa calibrado al centavo a +$103,411.84.',
+    ],
+  },
+  {
     version: 'v8.9.48 Suite Visual Luxe: Paleta de Colores HSL de Alta Fidelidad, Animaciones Numéricas CountUp y Estados Vacíos Ilustrados',
     date: '30 de Agosto de 2026',
     time: '12:50 PM',
