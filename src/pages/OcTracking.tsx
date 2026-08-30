@@ -183,7 +183,7 @@ export default function OcTracking() {
 
     if (plantFilter !== 'ALL') {
       base = base.filter(g => {
-        const d = inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+        const d = inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : g.order.department?.toUpperCase().includes('GT') ? 'GT' : null);
         return d === plantFilter;
       });
     }
@@ -372,7 +372,7 @@ export default function OcTracking() {
             const items = order.items && order.items.length > 0 ? order.items : [];
             const deliveries = order.deliveries || [];
             const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
-            const dept = inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+            const dept = inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : order.department?.toUpperCase().includes('GT') ? 'GT' : 'TH');
             const resp = dept === 'TH' ? 'Nava (Textil Hogar)' : 'Evelia (Grupo Textil / P4)';
 
             return `
@@ -552,14 +552,14 @@ export default function OcTracking() {
             onClick={() => setPlantFilter('TH')}
             style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700, borderColor: '#3b82f6', color: plantFilter === 'TH' ? '#fff' : '#3b82f6' }}
           >
-            🟦 Textil Hogar (TH · Nava) ({allOcGroups.filter(g => (inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT')) === 'TH').length})
+            🟦 Textil Hogar (TH · Nava) ({allOcGroups.filter(g => inferDepartment(g.order) === 'TH' || (g.order.department?.toUpperCase().includes('TH'))).length})
           </button>
           <button
             className={`btn-small ${plantFilter === 'GT' ? 'btn-primary' : ''}`}
             onClick={() => setPlantFilter('GT')}
             style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700, borderColor: '#8b5cf6', color: plantFilter === 'GT' ? '#fff' : '#8b5cf6' }}
           >
-            🟪 Grupo Textil (GT · Evelia) ({allOcGroups.filter(g => (inferDepartment(g.order) || (g.order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT')) === 'GT').length})
+            🟪 Grupo Textil (GT · Evelia) ({allOcGroups.filter(g => inferDepartment(g.order) === 'GT' || (g.order.department?.toUpperCase().includes('GT'))).length})
           </button>
         </div>
 

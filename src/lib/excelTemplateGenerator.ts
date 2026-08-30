@@ -30,7 +30,7 @@ export function buildOfficialExcelWorkbook() {
   ];
 
   const sampleRows = [
-    // Ejemplo 1: Textil Hogar (TH) - Con Entrega Parcial
+    // Ejemplo 1: Textil Hogar (TH - Nava / Lamuño) - Partida 1 Facturada
     [
       '120267114114',
       'TEXTIL HOGAR (TH - NAVA)',
@@ -42,13 +42,13 @@ export function buildOfficialExcelWorkbook() {
       38.00,
       990.16,
       '6198',
-      'TH-946',
+      'TH-1024',
       '2026-08-17',
       '2026-09-16',
       'Por Cobrar',
-      'Entrega en planta Nava · Sin mermas'
+      'Solicitó: José Nava Flores · Autorizó: Torre Lamuño'
     ],
-    // Ejemplo 2: Textil Hogar (TH) - Otra Partida de la misma OC
+    // Ejemplo 2: Textil Hogar (TH - Nava / Lamuño) - Partida 2 Facturada
     [
       '120267114114',
       'TEXTIL HOGAR (TH - NAVA)',
@@ -60,19 +60,37 @@ export function buildOfficialExcelWorkbook() {
       38.00,
       975.65,
       '6198',
-      'TH-946',
+      'TH-1024',
       '2026-08-17',
       '2026-09-16',
       'Por Cobrar',
-      'Entrega en planta Nava'
+      'Entrega en planta Nava · Cero mermas'
     ],
-    // Ejemplo 3: Grupo Textil Providencia (GT / Planta P4) - Pedido Abierto
+    // Ejemplo 3: Grupo Textil Providencia (GT - Evelia / Planta P4) - Partida 1 Facturada
     [
       '12026439713',
       'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)',
       'P4-ALM',
       '24141500',
-      'BULTO POLIETILENO 55 X 30 X 140 CM _Sin Color',
+      'BOLSA POLIETILENO 120X 125 CM _Sin Color',
+      1000,
+      43.00,
+      38.00,
+      500.00,
+      '6193',
+      'GT-570',
+      '2026-08-25',
+      '2026-09-24',
+      'Por Cobrar',
+      'Contacto: Evelia · Planta P4'
+    ],
+    // Ejemplo 4: Grupo Textil Providencia (GT - Evelia / Planta P4) - Partida 2 en Proceso
+    [
+      '12026439713',
+      'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)',
+      'P4-ALM',
+      '24141500',
+      'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color',
       1000,
       43.00,
       38.00,
@@ -82,9 +100,9 @@ export function buildOfficialExcelWorkbook() {
       '2026-08-25',
       '2026-09-24',
       'En Proceso',
-      'Contacto: Evelia / Planta P4'
+      'Contacto: Evelia · Pendiente de entrega de Andrés'
     ],
-    // Renglón en blanco para que el usuario empiece a llenar
+    // Renglón en blanco para que el usuario capture libremente
     [
       '',
       'TEXTIL HOGAR (TH - NAVA)',

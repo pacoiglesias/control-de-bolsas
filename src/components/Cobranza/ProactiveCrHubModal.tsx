@@ -57,7 +57,7 @@ export const ProactiveCrHubModal: React.FC<ProactiveCrHubModalProps> = ({ isOpen
         const isPaid = st === 'paid' || st === 'collected' || (paid >= total && total > 0);
         if (cr || isPaid) return;
 
-        const dept = (inferDepartment(o) || (o.department?.includes('TH') ? 'TH' : 'GT')) as 'TH' | 'GT';
+        const dept = (inferDepartment(o) || (o.department?.includes('TH') ? 'TH' : o.department?.includes('GT') ? 'GT' : 'TH')) as 'TH' | 'GT';
         const rawIssue = inv.creditCycle?.issueDate || o.creditCycle?.issueDate;
         const issueDate = toDate(rawIssue) || new Date();
         const daysInReview = Math.max(0, Math.floor((Date.now() - issueDate.getTime()) / (1000 * 3600 * 24)));

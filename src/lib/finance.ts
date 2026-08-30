@@ -73,16 +73,13 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   // 1. Factura individual explícita
   if (inv?.department && typeof inv.department === 'string') {
     const d = inv.department.trim().toUpperCase();
-    if (d === 'TH' || d === 'GT') return d;
-    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
-    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
+    if (d === 'TH' || d.startsWith('TH-') || d.includes('TEXTIL HOGAR') || d.includes('TH-ALM')) return 'TH';
+    if (d === 'GT' || d.startsWith('GT-') || d.includes('P4') || d.includes('P4-ALM')) return 'GT';
+    if (d.includes('NAVA') || d.includes('LAMUÑO')) return 'TH';
+    if (d.includes('EVELIA')) return 'GT';
   }
 
-  // 2. Contrarecibo en factura O en orden via extractCr
-  // FIX: cada condicion traia 3 clausulas donde 2 eran redundantes --
-  // startsWith('TH-') y === 'TH' ya estan cubiertas por startsWith('TH')
-  // (toda cadena que empieza con "TH-" tambien empieza con "TH", y "TH"
-  // tambien "empieza con" "TH"). Mismo comportamiento, sin la redundancia.
+  // 2. Contrarecibo en factura O en orden
   const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim().toUpperCase();
   if (invCr.startsWith('TH')) return 'TH';
   if (invCr.startsWith('GT')) return 'GT';
@@ -99,35 +96,61 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   // 4. Campo explícito en la orden
   if (order?.department && typeof order.department === 'string') {
     const d = order.department.trim().toUpperCase();
-    if (d === 'TH' || d === 'GT') return d;
-    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
-    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
+    if (d === 'TH' || d.startsWith('TH-') || d.includes('TEXTIL HOGAR') || d.includes('TH-ALM') || d.includes('NAVA')) return 'TH';
+    if (d === 'GT' || d.startsWith('GT-') || d.includes('P4') || d.includes('P4-ALM') || d.includes('EVELIA')) return 'GT';
   }
 
   // 5. Contrarecibo a nivel de orden
   const orderCr = (order?.collection?.contrareciboNumber || order?.contrarecibo || '').trim().toUpperCase();
-  if (orderCr.startsWith('TH-') || orderCr === 'TH' || orderCr.startsWith('TH')) return 'TH';
-  if (orderCr.startsWith('GT-') || orderCr === 'GT' || orderCr.startsWith('GT')) return 'GT';
+  if (orderCr.startsWith('TH')) return 'TH';
+  if (orderCr.startsWith('GT')) return 'GT';
 
-  // 6. Folio u OC de la orden
-  const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
-  if (orderFolio.startsWith('TH') || orderFolio.includes('14114') || orderFolio.includes('71/14114') || orderFolio.includes('120267114114')) return 'TH';
-  if (orderFolio.startsWith('GT') || orderFolio.includes('9713') || orderFolio.includes('43/9713') || orderFolio.includes('12026439713')) return 'GT';
+  // 6. Folio u OC de la orden (División 71 = Nava / TH, División 43 = Evelia / GT)
+  const orderFolio = `${order?.folio || ''} ${order?.oc || ''}`.trim().toUpperCase();
+  if (
+    orderFolio.startsWith('TH') ||
+    orderFolio.includes('1202671') ||
+    orderFolio.includes('71/') ||
+    orderFolio.includes('71-') ||
+    orderFolio.includes('14014') ||
+    orderFolio.includes('14114') ||
+    orderFolio.includes('NAVA')
+  ) {
+    return 'TH';
+  }
+  if (
+    orderFolio.startsWith('GT') ||
+    orderFolio.includes('1202643') ||
+    orderFolio.includes('43/') ||
+    orderFolio.includes('43-') ||
+    orderFolio.includes('9713') ||
+    orderFolio.includes('EVELIA')
+  ) {
+    return 'GT';
+  }
 
   // 7. Identificador del documento
   const orderId = (order?.id || '').trim().toLowerCase();
-  if (orderId.includes('cr-th') || orderId.includes('inv-th') || orderId.includes('th-') || orderId.endsWith('-th')) return 'TH';
-  if (orderId.includes('cr-gt') || orderId.includes('inv-gt') || orderId.includes('gt-') || orderId.endsWith('-gt')) return 'GT';
+  if (orderId.includes('cr-th') || orderId.includes('inv-th') || orderId.includes('th-') || orderId.endsWith('-th') || orderId.includes('14014') || orderId.includes('14114')) return 'TH';
+  if (orderId.includes('cr-gt') || orderId.includes('inv-gt') || orderId.includes('gt-') || orderId.endsWith('-gt') || orderId.includes('9713')) return 'GT';
 
   const invId = (inv?.id || '').trim().toLowerCase();
   if (invId.includes('cr-th') || invId.includes('inv-th') || invId.includes('th-') || invId.endsWith('-th')) return 'TH';
   if (invId.includes('cr-gt') || invId.includes('inv-gt') || invId.includes('gt-') || invId.endsWith('-gt')) return 'GT';
 
-  // 8. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Providencia - GT")
+  // 8. Contacto, comprador o notas
+  const orderNotes = `${order?.notes || ''} ${order?.buyer || ''} ${order?.contact || ''} ${order?.requestedBy || ''}`.toUpperCase();
+  if (orderNotes.includes('NAVA') || orderNotes.includes('LAMUÑO') || orderNotes.includes('TH-ALMACEN')) return 'TH';
+  if (orderNotes.includes('EVELIA') || orderNotes.includes('P4')) return 'GT';
+
+  // 9. Nombre del cliente o tags explícitos
   const clientStr = (order?.client || '').trim().toUpperCase();
   if (
-    clientStr.includes('TH') ||
     clientStr.includes('TEXTIL HOGAR') ||
+    clientStr.includes('(TH') ||
+    clientStr.includes('- TH') ||
+    clientStr.includes('TH -') ||
+    clientStr.includes('TH-') ||
     clientStr.includes('NAVA') ||
     clientStr.includes('LAMUÑO')
   ) {
@@ -136,10 +159,20 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   if (
     clientStr.includes('EVELIA') ||
     clientStr.includes('P4') ||
-    (clientStr.includes('GRUPO TEXTIL') && !clientStr.includes('TH')) ||
-    clientStr.includes('GT')
+    clientStr.includes('(GT') ||
+    clientStr.includes('- GT') ||
+    clientStr.includes('GT -') ||
+    clientStr.includes('GT-') ||
+    (clientStr.includes('GRUPO TEXTIL') && !clientStr.includes('TEXTIL HOGAR') && !clientStr.includes('TH'))
   ) {
     return 'GT';
+  }
+
+  // 10. Fallback por análisis de partidas canónicas
+  if (Array.isArray(order?.items) && order.items.length > 0) {
+    const codes = order.items.map((it: any) => (it.code || it.description || '').toUpperCase()).join(' ');
+    if (codes.includes('EGBO000103') || codes.includes('EGBO000107') || codes.includes('ENBO000006') || codes.includes('ENBO000167')) return 'TH';
+    if (codes.includes('EGBO000095') || codes.includes('EGBO000018') || codes.includes('EGBO000017') || codes.includes('EGBO000093')) return 'GT';
   }
 
   return null;

@@ -38,42 +38,59 @@ export function DashboardCollectionView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewModeAll ? 24 : 0 }}>
       {!viewModeAll && (
-        <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>📆</span>
-          <span>Centro de Cobranza & Contrarecibos Providencia</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>📆</span>
+            <span>Centro de Cobranza & Contrarecibos Providencia</span>
+          </div>
         </div>
       )}
 
+      {/* 1. Resumen Semanal de Proyección de Cobranza */}
       <WeeklyCollectionSummary
         orders={seguimientoOrders}
         onOpenQuickCollection={onOpenQuickCollection}
       />
 
-      <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
+      {/* 2. Grid de 2 Columnas: Línea de Tiempo + Alertas de Facturación */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: 20,
+          alignItems: 'flex-start',
+        }}
+      >
+        {/* Columna Principal: Timeline de Contrarecibos */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+          <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
+          <PorRecibirPanel
+            porRecibir={k.porRecibir}
+            totalPorRecibir={k.totalPorRecibir}
+            onRecibir={handleRecibir}
+            recibiendoId={recibiendoId}
+          />
+        </div>
 
-      <PorRecibirPanel
-        porRecibir={k.porRecibir}
-        totalPorRecibir={k.totalPorRecibir}
-        onRecibir={handleRecibir}
-        recibiendoId={recibiendoId}
-      />
+        {/* Columna Lateral: Facturas en espera de CR y Semáforo Operativo */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+          <FacturasSinCRPanel
+            orders={seguimientoOrders}
+            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
+          />
 
-      <FacturasSinCRPanel
-        orders={seguimientoOrders}
-        onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-      />
+          <SemaforoDelDia
+            orders={seguimientoOrders}
+            purchases={purchases}
+            config={config}
+            nav={nav}
+            onOpenQuickInvoice={onOpenQuickInvoice}
+            onOpenQuickCollection={onOpenQuickCollection}
+          />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        <SemaforoDelDia
-          orders={seguimientoOrders}
-          purchases={purchases}
-          config={config}
-          nav={nav}
-          onOpenQuickInvoice={onOpenQuickInvoice}
-          onOpenQuickCollection={onOpenQuickCollection}
-        />
-        <SmartAlerts orders={activeOrders} deudaAndres={k.deudaAndres} />
-        <CashflowProjection orders={activeOrders} />
+          <SmartAlerts orders={activeOrders} deudaAndres={k.deudaAndres} />
+          <CashflowProjection orders={activeOrders} />
+        </div>
       </div>
     </div>
   );

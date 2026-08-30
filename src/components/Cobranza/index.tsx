@@ -396,6 +396,8 @@ export default function Cobranza() {
         onOpenAutoConciliador={() => setShowAutoConciliador(true)}
       />
 
+      <CobranzaStats />
+
       <CobranzaTabsNav />
 
       {activeTab === 'tablero' && <TableroKanban />}

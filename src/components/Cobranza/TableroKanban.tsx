@@ -11,25 +11,19 @@ import { useToast } from '../../context/ToastContext';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { generateCollectionNotice } from '../../lib/whatsappReminder';
 
-// FIX 2026-08-10 (Staff Engineer -- task ERP #12): este tablero tenía sus
-// 4 columnas con degradados y colores de texto en hex/rgba fijos (pensados
-// solo para fondo claro) -- en modo oscuro se veían como 4 "islas" de modo
-// claro dentro de una app oscura. TONE centraliza el color por columna
-// usando variables CSS que ya cambian solas en [data-theme="dark"] (ver
-// src/index.css), igual que el resto del sistema.
-const TONE: Record<string, { color: string; bg: string }> = {
-  colRevision: { color: 'var(--ink-soft)', bg: 'var(--paper-sunk)' },
-  colPorCobrar: { color: 'var(--bad)', bg: 'var(--bad-bg)' },
-  colContador: { color: 'var(--warn)', bg: 'var(--warn-bg)' },
-  colCaja: { color: 'var(--ok)', bg: 'var(--ok-bg)' },
+const TONE: Record<string, { color: string; bg: string; border: string }> = {
+  colRevision: { color: 'var(--ink-soft)', bg: 'var(--paper-sunk)', border: 'var(--line)' },
+  colPorCobrar: { color: '#dc2626', bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.2)' },
+  colContador: { color: '#d97706', bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.2)' },
+  colCaja: { color: '#059669', bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.2)' },
 };
 
 export default function TableroKanban() {
   const { data, money, moveInvoice, deleteOrArchiveInvoice } = useContext(CobranzaContext)!;
   const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
-  const [drawerTarget, setDrawerTarget] = useState<{o: any, inv: any} | null>(null);
-  const [quickCrTarget, setQuickCrTarget] = useState<{o: any, inv?: any} | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<{ o: any; inv: any } | null>(null);
+  const [quickCrTarget, setQuickCrTarget] = useState<{ o: any; inv?: any } | null>(null);
   const { config: dynamicConfig } = useConfig();
 
   const cols = useMemo(() => {
@@ -38,14 +32,6 @@ export default function TableroKanban() {
     const colContador: any[] = [];
     const colCaja: any[] = [];
 
-    // ANTES: `data.open` — el arreglo crudo de facturas abiertas, que NUNCA
-    // tuvo el campo `hasCr` calculado (ese calculo solo vive en
-    // `data.lista`, un arreglo derivado y separado). `!x.hasCr` sobre un
-    // campo inexistente es siempre verdadero, asi que TODAS las facturas
-    // caian en "Sin CR" sin importar si de verdad tenian un contrarecibo —
-    // la propia tarjeta mostraba "CR: TH-836" en verde mientras el tablero
-    // la clasificaba como "Sin CR". Con `data.lista` el campo ya viene
-    // calculado correctamente.
     (data?.lista || []).forEach((x: any) => {
       if (!x) return;
       if (!x.hasCr) {
@@ -55,23 +41,15 @@ export default function TableroKanban() {
       }
     });
 
-    (data?.paid || []).forEach((x: any) => { if (x) colContador.push(x); });
-    (data?.collected || []).forEach((x: any) => { if (x) colCaja.push(x); });
+    (data?.paid || []).forEach((x: any) => {
+      if (x) colContador.push(x);
+    });
+    (data?.collected || []).forEach((x: any) => {
+      if (x) colCaja.push(x);
+    });
 
-    // Sort "Por Cobrar" so overdue is at the top
     colPorCobrar.sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
 
-    // Deteccion de posibles duplicados: mismo CR (o mismo folio si no hay
-    // CR) repetido dentro de la misma columna casi siempre significa un
-    // expediente duplicado en la base de datos (como paso con la
-    // migracion original), no un error de la pantalla. Se marca la
-    // tarjeta en vez de esconderla, para que el usuario decida.
-    //
-    // OJO: varias facturas migradas comparten el folio generico "S/N"
-    // (no vacio, el texto literal "S/N") como placeholder -- si se usa
-    // como respaldo para comparar, TODAS las facturas de un mismo
-    // expediente migrado se marcan como duplicadas entre si, sin serlo.
-    // Un folio asi no distingue nada, asi que nunca cuenta como clave.
     const FOLIOS_PLACEHOLDER = new Set(['s/n', 'sin folio', '']);
     const marcarDuplicados = (arr: any[]) => {
       const contador: Record<string, number> = {};
@@ -89,21 +67,19 @@ export default function TableroKanban() {
     [colRevision, colPorCobrar, colContador, colCaja].forEach(marcarDuplicados);
 
     const sumaSaldo = (arr: any[]) => arr.reduce((acc, x) => acc + (x.saldo ?? 0), 0);
-    // "saldo" es (monto de la factura - lo ya pagado por el cliente) --
-    // correcto para "En Revision"/"Por Cobrar" (el cliente todavia debe
-    // ese dinero), pero para "Con el Contador"/"En Caja Chica" el cliente
-    // YA pago completo, asi que saldo siempre da 0 ahi, sin importar
-    // cuantas tarjetas haya. El total de esas dos columnas debe sumar el
-    // monto real de cada factura, no la deuda del cliente (que es cero
-    // a proposito, no un error de datos).
     const montoFactura = (x: any) => x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0;
     const sumaMonto = (arr: any[]) => arr.reduce((acc, x) => acc + montoFactura(x), 0);
 
     return {
-      colRevision, colPorCobrar, colContador, colCaja,
+      colRevision,
+      colPorCobrar,
+      colContador,
+      colCaja,
       totales: {
-        colRevision: sumaSaldo(colRevision), colPorCobrar: sumaSaldo(colPorCobrar),
-        colContador: sumaMonto(colContador), colCaja: sumaMonto(colCaja),
+        colRevision: sumaSaldo(colRevision),
+        colPorCobrar: sumaSaldo(colPorCobrar),
+        colContador: sumaMonto(colContador),
+        colCaja: sumaMonto(colCaja),
       },
     };
   }, [data]);
@@ -120,40 +96,63 @@ export default function TableroKanban() {
     const amt = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
     const late = daysLate(toDate(inv.creditCycle?.dueDate));
     const isOverdue = late !== null && late > 0;
-    
+
     return (
-      <motion.div 
+      <motion.div
         layout
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-        whileHover={{ y: -4, scale: 1.02, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ y: -2, boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.08)' }}
         key={inv.id}
         draggable
         onDragStart={(e: any) => onDragStart(e, o.id, inv.id)}
         style={{
-          background: 'var(--glass-bg)', 
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          border: x._posibleDuplicado ? '2px solid rgba(245, 158, 11, 0.5)' : isOverdue ? '2px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--glass-border)', 
-          borderRadius: 16, 
-          padding: 16,
-          marginBottom: 12,
+          background: 'var(--paper, #fff)',
+          border: x._posibleDuplicado
+            ? '1.5px solid rgba(245, 158, 11, 0.6)'
+            : isOverdue
+            ? '1.5px solid rgba(239, 68, 68, 0.5)'
+            : '1px solid var(--card-border, var(--line))',
+          borderRadius: 12,
+          padding: '12px 14px',
+          marginBottom: 10,
           cursor: 'grab',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
+          boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+          position: 'relative',
         }}
         onClick={() => setDrawerTarget({ o: x.o, inv: x.inv })}
       >
+        {/* Banner de Posible Duplicado */}
         {x._posibleDuplicado && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: 8, padding: '4px 8px', marginBottom: 8, gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--warn)' }}>
-              ⚠️ Posible duplicado (mismo CR)
-            </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(245, 158, 11, 0.12)',
+              borderRadius: 6,
+              padding: '3px 6px',
+              marginBottom: 8,
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: 'var(--warn)',
+            }}
+          >
+            <span>⚠️ Posible duplicado (CR)</span>
             <button
               className="btn"
-              style={{ padding: '3px 8px', fontSize: 10.5, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, cursor: 'pointer' }}
+              style={{
+                padding: '2px 5px',
+                fontSize: 10,
+                background: '#ef4444',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
               onClick={async (e) => {
                 e.stopPropagation();
                 const ok = await confirmDialog({
@@ -164,43 +163,131 @@ export default function TableroKanban() {
                   await deleteOrArchiveInvoice(o.id, inv.id);
                 }
               }}
-              title="Quitar / Archivar este duplicado"
             >
-              🗑️ Quitar
+              Quitar
             </button>
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'flex-start' }}>
-          <strong style={{ fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>{inv.folio || o.folio || 'Sin Folio'}</strong>
-          <span style={{ fontSize: 15, fontWeight: 800, color: isOverdue ? 'var(--bad)' : 'var(--ink)', letterSpacing: '-0.02em' }}>{money(amt)}</span>
+
+        {/* Encabezado: Folio + Importe */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                fontFamily: 'monospace',
+                background: 'var(--paper-sunk)',
+                padding: '2px 6px',
+                borderRadius: 6,
+                color: 'var(--ink)',
+              }}
+            >
+              {inv.folio ? `#${inv.folio}` : o.folio ? `#${o.folio}` : 'Sin Folio'}
+            </span>
+          </div>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: isOverdue ? 'var(--bad)' : 'var(--ink)',
+              fontFamily: 'monospace',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {money(amt)}
+          </span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 12, fontWeight: 500 }}>
-          {nombreClienteVisible(o.client)} {o.department ? <span style={{ opacity: 0.7 }}>({o.department})</span> : ''}
+
+        {/* Cliente y Departamento */}
+        <div
+          style={{
+            fontSize: 11.5,
+            color: 'var(--ink-soft)',
+            marginBottom: 8,
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {nombreClienteVisible(o.client)} {o.department ? <span style={{ opacity: 0.75 }}>({o.department})</span> : ''}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 10, borderTop: '1px solid var(--line-soft)' }}>
-          <span style={{ fontSize: 11, background: cr ? 'var(--ok-bg)' : 'var(--paper-sunk)', color: cr ? 'var(--ok)' : 'var(--ink-soft)', padding: '4px 8px', borderRadius: 6, fontWeight: 700, letterSpacing: '0.02em' }}>
+
+        {/* Badges de Contrarecibo y Vencimiento */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingTop: 6,
+            borderTop: '1px solid var(--line-soft)',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10.5,
+              background: cr ? 'rgba(5, 150, 105, 0.12)' : 'var(--paper-sunk)',
+              color: cr ? '#059669' : 'var(--ink-soft)',
+              padding: '2px 6px',
+              borderRadius: 4,
+              fontWeight: 700,
+              fontFamily: 'monospace',
+            }}
+          >
             {cr ? `CR: ${cr}` : 'Sin CR'}
           </span>
-          <span style={{ fontSize: 11, color: isOverdue ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: isOverdue ? 700 : 500 }}>
-            {isOverdue ? `Atraso: ${late} días` : (inv.creditCycle?.dueDate ? `Vence: ${fmtDate(inv.creditCycle.dueDate)}` : '')}
+          <span
+            style={{
+              fontSize: 10.5,
+              color: isOverdue ? 'var(--bad)' : 'var(--ink-soft)',
+              fontWeight: isOverdue ? 700 : 500,
+            }}
+          >
+            {isOverdue
+              ? `+${late}d atraso`
+              : inv.creditCycle?.dueDate
+              ? fmtDate(inv.creditCycle.dueDate)
+              : ''}
           </span>
         </div>
-        
-        {/* Quick Actions Bar */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+
+        {/* Barra de Acción Rápida Compacta */}
+        <div
+          style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center' }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {!cr ? (
-            <button 
-              className="btn" 
-              style={{ flex: 1, padding: '7px 10px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+            <button
+              className="btn btn-primary"
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                fontSize: 11,
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                fontWeight: 700,
+              }}
               onClick={() => setQuickCrTarget({ o, inv })}
             >
-              <span>📝</span> Asignar CR y Fecha
+              📝 Asignar CR
             </button>
-          ) : (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') ? (
+          ) : inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue' ? (
             <>
-              <button 
-                className="btn" 
-                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600 }}
+              <button
+                className="btn btn-primary"
+                style={{
+                  flex: 1,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontWeight: 700,
+                }}
                 onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
               >
                 💸 Cobro Rápido
@@ -209,16 +296,12 @@ export default function TableroKanban() {
                 className="btn"
                 title="Copiar aviso formal de cobro al portapapeles"
                 style={{
-                  padding: '6px 10px',
+                  padding: '4px 7px',
                   fontSize: 11,
                   background: 'var(--paper-sunk)',
                   color: 'var(--ink)',
                   border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
+                  borderRadius: 6,
                 }}
                 onClick={() => {
                   const notice = generateCollectionNotice({
@@ -232,51 +315,72 @@ export default function TableroKanban() {
                   toast('📋 Aviso de cobro copiado al portapapeles.', 'ok');
                 }}
               >
-                <span>📋</span> Copiar Aviso
+                📋
               </button>
             </>
-          ) : null}
-          {inv.creditCycle.status === 'paid' && (
+          ) : inv.creditCycle.status === 'paid' ? (
             <>
-              <button 
-                className="btn" 
-                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--ok)', color: '#fff', border: 'none', borderRadius: 8 }}
+              <button
+                className="btn btn-ok"
+                style={{
+                  flex: 1,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  background: 'var(--ok)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontWeight: 700,
+                }}
                 onClick={() => moveInvoice(o.id, inv.id, 'colCaja')}
               >
-                ✅ Recibir Efectivo
+                ✅ Recibir en Caja
               </button>
-              <button 
-                className="btn" 
-                style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--paper-sunk)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 8 }}
+              <button
+                className="btn"
+                title="Deshacer cobro"
+                style={{
+                  padding: '4px 7px',
+                  fontSize: 11,
+                  background: 'var(--paper-sunk)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                }}
                 onClick={() => moveInvoice(o.id, inv.id, 'colPorCobrar')}
               >
-                ↩️ Deshacer
+                ↩️
               </button>
             </>
-          )}
-          {inv.creditCycle.status === 'collected' && (
-            <button 
-              className="btn" 
-              style={{ flex: 1, padding: '6px 8px', fontSize: 11, background: 'var(--paper-sunk)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 8 }}
+          ) : inv.creditCycle.status === 'collected' ? (
+            <button
+              className="btn"
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                fontSize: 11,
+                background: 'var(--paper-sunk)',
+                color: 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: 6,
+              }}
               onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
             >
               ↩️ Revertir
             </button>
-          )}
+          ) : null}
+
+          {/* Botón discreto de eliminación / archivo */}
           <button
             className="btn"
-            title="Archivar o eliminar este registro de cobranza"
+            title="Archivar o eliminar de cobranza"
             style={{
-              padding: '6px 8px',
-              fontSize: 11,
-              background: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              borderRadius: 8,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              padding: '4px 6px',
+              fontSize: 10.5,
+              background: 'transparent',
+              color: 'var(--ink-faint)',
+              border: 'none',
+              borderRadius: 6,
             }}
             onClick={async (e) => {
               e.stopPropagation();
@@ -297,7 +401,7 @@ export default function TableroKanban() {
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); // Necessary to allow dropping
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
@@ -315,133 +419,229 @@ export default function TableroKanban() {
   };
 
   const getColStyle = (colId: string) => ({
-    flex: '0 0 320px',
-    background: activeTarget === colId ? 'color-mix(in srgb, var(--ink) 6%, transparent)' : TONE[colId].bg,
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    borderRadius: 20,
-    padding: 20,
+    flex: '0 0 300px',
+    background: activeTarget === colId ? 'color-mix(in srgb, var(--ink) 5%, transparent)' : TONE[colId].bg,
+    borderRadius: 16,
+    padding: '16px 14px',
     display: 'flex',
     flexDirection: 'column' as const,
     maxHeight: '75vh',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1px solid ${activeTarget === colId ? 'color-mix(in srgb, var(--ink) 15%, transparent)' : 'var(--glass-border)'}`,
-    boxShadow: 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.3)'
+    transition: 'all 0.2s ease',
+    border: `1px solid ${activeTarget === colId ? 'var(--accent)' : TONE[colId].border}`,
   });
 
   return (
     <>
       <KanbanScrollWrapper>
-      
-      {/* Columna En Revisión */}
-      <div
-        style={getColStyle('colRevision')}
-        onDragOver={handleDragOver}
-        onDragEnter={() => setActiveTarget('colRevision')}
-        onDragLeave={() => setActiveTarget(null)}
-        onDrop={(e) => handleDrop(e, 'colRevision')}
-      >
-        <div style={{ fontWeight: 800, color: TONE.colRevision.color, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
-          <span>🔎 En Revisión (Sin CR)</span>
-          <span style={{ background: 'var(--paper-raised)', color: TONE.colRevision.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colRevision.length}</span>
-        </div>
-        {cols.colRevision.length > 0 && (
-          <button
-            className="btn"
-            style={{ width: '100%', marginBottom: 10, fontSize: 11.5, padding: '6px 10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-            onClick={() => setQuickCrTarget({ o: cols.colRevision[0].o, inv: cols.colRevision[0].inv })}
+        {/* 1. Columna En Revisión (Sin CR) */}
+        <div
+          style={getColStyle('colRevision')}
+          onDragOver={handleDragOver}
+          onDragEnter={() => setActiveTarget('colRevision')}
+          onDragLeave={() => setActiveTarget(null)}
+          onDrop={(e) => handleDrop(e, 'colRevision')}
+        >
+          <div
+            style={{
+              fontWeight: 800,
+              color: TONE.colRevision.color,
+              marginBottom: 6,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 13.5,
+              letterSpacing: '-0.01em',
+            }}
           >
-            <span>⚡</span> Capturar 1er CR (#{cols.colRevision[0].inv.folio || cols.colRevision[0].o.folio})
-          </button>
-        )}
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed var(--line-soft)' }}>Total: {money(cols.totales.colRevision)}</div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
-          <AnimatePresence>
-            {cols.colRevision.map(renderCard)}
-          </AnimatePresence>
-          {cols.colRevision.length === 0 && <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
+            <span>🔎 En Revisión (Sin CR)</span>
+            <span
+              style={{
+                background: 'var(--paper)',
+                color: 'var(--ink)',
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11.5,
+                fontWeight: 700,
+                border: '1px solid var(--line)',
+              }}
+            >
+              {cols.colRevision.length}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 12, fontWeight: 700 }}>
+            Total: {money(cols.totales.colRevision)}
+          </div>
+          <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
+            <AnimatePresence>{cols.colRevision.map(renderCard)}</AnimatePresence>
+            {cols.colRevision.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12, marginTop: 32 }}>
+                Sin facturas pendientes de CR
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Columna Por Cobrar */}
-      <div
-        style={getColStyle('colPorCobrar')}
-        onDragOver={handleDragOver}
-        onDragEnter={() => setActiveTarget('colPorCobrar')}
-        onDragLeave={() => setActiveTarget(null)}
-        onDrop={(e) => handleDrop(e, 'colPorCobrar')}
-      >
-        <div style={{ fontWeight: 800, color: TONE.colPorCobrar.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
-          <span>⏳ Por Cobrar (Con CR)</span>
-          <span style={{ background: 'var(--paper-raised)', color: TONE.colPorCobrar.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colPorCobrar.length}</span>
+        {/* 2. Columna Por Cobrar (Con CR) */}
+        <div
+          style={getColStyle('colPorCobrar')}
+          onDragOver={handleDragOver}
+          onDragEnter={() => setActiveTarget('colPorCobrar')}
+          onDragLeave={() => setActiveTarget(null)}
+          onDrop={(e) => handleDrop(e, 'colPorCobrar')}
+        >
+          <div
+            style={{
+              fontWeight: 800,
+              color: TONE.colPorCobrar.color,
+              marginBottom: 6,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 13.5,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            <span>⏳ Por Cobrar (Con CR)</span>
+            <span
+              style={{
+                background: 'var(--paper)',
+                color: TONE.colPorCobrar.color,
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11.5,
+                fontWeight: 700,
+                border: '1px solid var(--line)',
+              }}
+            >
+              {cols.colPorCobrar.length}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: TONE.colPorCobrar.color, marginBottom: 12, fontWeight: 700 }}>
+            Total: {money(cols.totales.colPorCobrar)}
+          </div>
+          <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
+            <AnimatePresence>{cols.colPorCobrar.map(renderCard)}</AnimatePresence>
+            {cols.colPorCobrar.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12, marginTop: 32 }}>
+                Soltar aquí...
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: TONE.colPorCobrar.color, opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed color-mix(in srgb, var(--bad) 20%, transparent)' }}>Total: {money(cols.totales.colPorCobrar)}</div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
-          <AnimatePresence>
-            {cols.colPorCobrar.map(renderCard)}
-          </AnimatePresence>
-          {cols.colPorCobrar.length === 0 && <div style={{ textAlign: 'center', color: 'color-mix(in srgb, var(--bad) 60%, var(--ink-faint))', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
-        </div>
-      </div>
 
-      {/* Columna Con Contador */}
-      <div
-        style={getColStyle('colContador')}
-        onDragOver={handleDragOver}
-        onDragEnter={() => setActiveTarget('colContador')}
-        onDragLeave={() => setActiveTarget(null)}
-        onDrop={(e) => handleDrop(e, 'colContador')}
-      >
-        <div style={{ fontWeight: 800, color: TONE.colContador.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
-          <span>🟡 Con el Contador</span>
-          <span style={{ background: 'var(--paper-raised)', color: TONE.colContador.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colContador.length}</span>
+        {/* 3. Columna Con el Contador */}
+        <div
+          style={getColStyle('colContador')}
+          onDragOver={handleDragOver}
+          onDragEnter={() => setActiveTarget('colContador')}
+          onDragLeave={() => setActiveTarget(null)}
+          onDrop={(e) => handleDrop(e, 'colContador')}
+        >
+          <div
+            style={{
+              fontWeight: 800,
+              color: TONE.colContador.color,
+              marginBottom: 6,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 13.5,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            <span>🟡 Con el Contador</span>
+            <span
+              style={{
+                background: 'var(--paper)',
+                color: TONE.colContador.color,
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11.5,
+                fontWeight: 700,
+                border: '1px solid var(--line)',
+              }}
+            >
+              {cols.colContador.length}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: TONE.colContador.color, marginBottom: 12, fontWeight: 700 }}>
+            Total: {money(cols.totales.colContador)}
+          </div>
+          <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
+            <AnimatePresence>{cols.colContador.map(renderCard)}</AnimatePresence>
+            {cols.colContador.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12, marginTop: 32 }}>
+                Soltar aquí...
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: TONE.colContador.color, opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed color-mix(in srgb, var(--warn) 20%, transparent)' }}>Total: {money(cols.totales.colContador)}</div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
-          <AnimatePresence>
-            {cols.colContador.map(renderCard)}
-          </AnimatePresence>
-          {cols.colContador.length === 0 && <div style={{ textAlign: 'center', color: 'color-mix(in srgb, var(--warn) 60%, var(--ink-faint))', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
-        </div>
-      </div>
 
-      {/* Columna En Caja */}
-      <div
-        style={getColStyle('colCaja')}
-        onDragOver={handleDragOver}
-        onDragEnter={() => setActiveTarget('colCaja')}
-        onDragLeave={() => setActiveTarget(null)}
-        onDrop={(e) => handleDrop(e, 'colCaja')}
-      >
-        <div style={{ fontWeight: 800, color: TONE.colCaja.color, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, letterSpacing: '-0.02em' }}>
-          <span>✅ En Caja Chica</span>
-          <span style={{ background: 'var(--paper-raised)', color: TONE.colCaja.color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>{cols.colCaja.length}</span>
+        {/* 4. Columna En Caja Chica */}
+        <div
+          style={getColStyle('colCaja')}
+          onDragOver={handleDragOver}
+          onDragEnter={() => setActiveTarget('colCaja')}
+          onDragLeave={() => setActiveTarget(null)}
+          onDrop={(e) => handleDrop(e, 'colCaja')}
+        >
+          <div
+            style={{
+              fontWeight: 800,
+              color: TONE.colCaja.color,
+              marginBottom: 6,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 13.5,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            <span>✅ En Caja Chica</span>
+            <span
+              style={{
+                background: 'var(--paper)',
+                color: TONE.colCaja.color,
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11.5,
+                fontWeight: 700,
+                border: '1px solid var(--line)',
+              }}
+            >
+              {cols.colCaja.length}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: TONE.colCaja.color, marginBottom: 12, fontWeight: 700 }}>
+            Total: {money(cols.totales.colCaja)}
+          </div>
+          <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
+            <AnimatePresence>{cols.colCaja.map(renderCard)}</AnimatePresence>
+            {cols.colCaja.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12, marginTop: 32 }}>
+                Soltar aquí...
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: TONE.colCaja.color, opacity: 0.8, marginBottom: 16, fontWeight: 700, paddingBottom: 16, borderBottom: '1px dashed color-mix(in srgb, var(--ok) 20%, transparent)' }}>Total: {money(cols.totales.colCaja)}</div>
-        <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 8, paddingBottom: 20 }}>
-          <AnimatePresence>
-            {cols.colCaja.map(renderCard)}
-          </AnimatePresence>
-          {cols.colCaja.length === 0 && <div style={{ textAlign: 'center', color: 'color-mix(in srgb, var(--ok) 60%, var(--ink-faint))', fontSize: 13, marginTop: 40, fontWeight: 500 }}>Soltar aquí...</div>}
-        </div>
-      </div>
+      </KanbanScrollWrapper>
 
-    </KanbanScrollWrapper>
-    {drawerTarget && (
-      <InvoiceDrawer
-        invoice={drawerTarget.inv}
-        order={drawerTarget.o}
-        dynamicConfig={dynamicConfig}
-        onClose={() => setDrawerTarget(null)}
-      />
-    )}
-    {quickCrTarget && (
-      <QuickCrModal
-        order={quickCrTarget.o}
-        invoice={quickCrTarget.inv}
-        onClose={() => setQuickCrTarget(null)}
-      />
-    )}
+      {drawerTarget && (
+        <InvoiceDrawer
+          invoice={drawerTarget.inv}
+          order={drawerTarget.o}
+          dynamicConfig={dynamicConfig}
+          onClose={() => setDrawerTarget(null)}
+        />
+      )}
+
+      {quickCrTarget && (
+        <QuickCrModal
+          order={quickCrTarget.o}
+          invoice={quickCrTarget.inv}
+          onClose={() => setQuickCrTarget(null)}
+        />
+      )}
     </>
   );
 }

@@ -24,7 +24,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
   
   // Detección de departamento / planta oficial
   const dept = useMemo(() => {
-    return inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
+    return inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : order.department?.toUpperCase().includes('GT') ? 'GT' : 'TH');
   }, [order]);
 
   const defaultPrefix = dept === 'TH' ? 'TH-' : 'GT-';

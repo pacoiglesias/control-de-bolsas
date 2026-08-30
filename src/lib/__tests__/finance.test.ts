@@ -482,6 +482,12 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(inferDepartment({ collection: { contrareciboNumber: 'TH-879' } })).toBe('TH');
     expect(inferDepartment({ collection: { contrareciboNumber: 'GT-651' } })).toBe('GT');
 
+    // Por número de OC de división Providencia (71 = TH Nava, 43 = GT Evelia)
+    expect(inferDepartment({ oc: '120267114014', client: 'Grupo Textil Providencia' })).toBe('TH');
+    expect(inferDepartment({ folio: '71/14014', client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV' })).toBe('TH');
+    expect(inferDepartment({ oc: '12026439713', client: 'Grupo Textil Providencia' })).toBe('GT');
+    expect(inferDepartment({ folio: '43/9713', client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV' })).toBe('GT');
+
     // Por cliente
     expect(inferDepartment({ client: 'Providencia Textil Hogar' })).toBe('TH');
     expect(inferDepartment({ client: 'Providencia Grupo Textil' })).toBe('GT');
@@ -489,8 +495,8 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(inferDepartment({ client: 'Grupo Textil Providencia - GT' })).toBe('GT');
 
     // Aislamiento en filterOrderByDepartment
-    const thOnlyOrder = { id: 'th-1', folio: 'TH-768', totalKilograms: 1000, client: 'Providencia' };
-    const gtOnlyOrder = { id: 'gt-1', folio: 'GT-597', totalKilograms: 2000, client: 'Providencia' };
+    const thOnlyOrder = { id: 'th-1', oc: '120267114014', totalKilograms: 1500, client: 'Grupo Textil Providencia' };
+    const gtOnlyOrder = { id: 'gt-1', oc: '12026439713', totalKilograms: 3700, client: 'Grupo Textil Providencia' };
 
     expect(filterOrderByDepartment(thOnlyOrder, 'TH')).not.toBeNull();
     expect(filterOrderByDepartment(thOnlyOrder, 'GT')).toBeNull();

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { round2, computeCommissionFromInvoiceTotal, normalizarTexto } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, orderMatchesDepartment } from '../lib/finance';
 import { toDate } from '../lib/format';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
 import { DEFAULT_CONFIG } from '../lib/types';
@@ -29,25 +29,7 @@ export function useDashboardStats(
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
       if (!o) return false;
       if (!deptFilter || deptFilter === 'ALL') return true;
-      const client = (o.client || '').toLowerCase();
-      const folio = (o.folio || o.oc || '').toLowerCase();
-      const cr = (o.collection?.contrareciboNumber || o.invoices?.[0]?.collection?.contrareciboNumber || '').toLowerCase();
-      
-      if (deptFilter === 'TH') {
-        if (cr.startsWith('th-')) return true;
-        if (cr.startsWith('gt-')) return false;
-        if (folio.startsWith('th-')) return true;
-        if (folio.startsWith('gt-')) return false;
-        return client.includes('nava') || client.includes('textil hogar') || (client.includes('providencia') && !client.includes('evelia') && !client.includes('grupo textil'));
-      }
-      if (deptFilter === 'GT') {
-        if (cr.startsWith('gt-')) return true;
-        if (cr.startsWith('th-')) return false;
-        if (folio.startsWith('gt-')) return true;
-        if (folio.startsWith('th-')) return false;
-        return client.includes('evelia') || client.includes('grupo textil');
-      }
-      return true;
+      return orderMatchesDepartment(o, deptFilter);
     });
 
     const kpis = statsDoc?.kpis || {};

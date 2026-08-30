@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.44 Modernización Visual Integral, Densidad Optimizada y Aislamiento Hermético TH vs GT',
+    date: '30 de Agosto de 2026',
+    time: '12:50 AM',
+    summary: 'Rediseño integral de interfaz y optimización operativa en todo el ERP: motor hermético de clasificación para Textil Hogar (Nava / división 71) vs Grupo Textil (Evelia / división 43), eliminación de espacios desmedidos en formularios de pedidos, barra ejecutiva y KPIs en tiempo real en Cobranza, Tablero Kanban de alta densidad con botón contextual único y navegación directa en pendientes de cobro.',
+    highlights: [
+      '🏢 Aislamiento Hermético TH (Nava) vs GT (Evelia): Resolución inequívoca de OCs por prefijo de división (1202671 / 71/ para Nava y 1202643 / 43/ para Evelia), eliminando falsos positivos por razón social corporativa.',
+      '📈 Cabecera Ejecutiva & KPIs de Cobranza: Barra limpia con sincronización rápida, auto-conciliación, reportes PDF/Excel agrupados y métricas en vivo de cartera vencida y recaudado.',
+      '📋 Tablero Kanban y Tablas de Alta Densidad: Tarjetas compactas sin botones redundantes, selector directo entre Facturas & CRs, Utilidad Neta y Antigüedad de Saldos (Aging).',
+      '📦 Formulario de Pedidos Compacto y Balanceado: Resumen de expediente en cuadrículas limpias de 2 bloques, cálculo de margen en tiempo real (+$5.00/kg) y chips de estado en una sola línea.',
+    ],
+  },
+  {
     version: 'v8.9.43 Captura por Excel Drag & Drop, Plantilla Oficial y Hub Proactivo de Contrarecibos',
     date: '30 de Agosto de 2026',
     time: '12:15 AM',

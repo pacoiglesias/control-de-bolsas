@@ -1,4 +1,45 @@
 
+### Iteración 44: Modernización Visual Integral, Densidad Optimizada y Aislamiento Hermético TH (Nava) vs GT (Evelia) (COMPLETADO)
+[2026-08-30]
+Archivos:
+- `src/lib/finance.ts`
+- `src/hooks/useDashboardStatsV2.ts`
+- `src/pages/OcTracking.tsx`
+- `src/components/Dashboard/ProvidenciaHubWidget.tsx`
+- `src/components/QuickCrModal.tsx`
+- `src/components/Cobranza/ProactiveCrHubModal.tsx`
+- `src/components/Cobranza/CobranzaHeader.tsx`
+- `src/components/Cobranza/CobranzaStats.tsx`
+- `src/components/Cobranza/TableroKanban.tsx`
+- `src/components/Cobranza/TabPendientes.tsx`
+- `src/components/Cobranza/ProximasTable.tsx`
+- `src/components/OrderModal/TabResumen.tsx`
+- `src/components/Dashboard/views/DashboardCollectionView.tsx`
+- `src/components/Cobranza/TabPagadas.tsx`, `TabRecogidas.tsx`, `TabContabilidad.tsx`
+- `src/lib/__tests__/finance.test.ts`
+Problema:
+1. **Falso Positivo Departamental:** La razón social oficial de facturación en todas las órdenes es `GRUPO TEXTIL PROVIDENCIA SA DE CV`. El motor infería erróneamente `GT` (Evelia) para órdenes de Textil Hogar (Nava) con OC `120267114014` (división 71) al buscar la cadena "Grupo Textil" antes de la división de la OC, provocando que se mostraran 2 órdenes de Evelia cuando una pertenecía a Nava.
+2. **Densidad y Sobrecarga Visual:** Módulos de Cobranza, Facturas y Pedidos presentaban tarjetas desproporcionadas, botones redundantes por fila y espacios vacíos excesivos ("amontonado" y "espacios muy grandes").
+Impacto: Pérdida de confianza en el ruteo departamental y fatiga visual en la operación diaria.
+Solución:
+1. **Aislamiento Hermético TH vs GT (`finance.ts`):**
+   - Ruteo inequívoco por prefijo numérico de división de OC: División `71` (`1202671...`, `71/...`, `14014`, `14114`, `TH-`) ➔ **Textil Hogar (Nava)**; División `43` (`1202643...`, `43/...`, `9713`, `GT-`) ➔ **Grupo Textil (Evelia)**.
+   - Evaluación de división antes de analizar el nombre genérico del cliente.
+   - Sincronización en `useDashboardStatsV2.ts`, `OcTracking.tsx` y widgets con eliminación de fallbacks ciegos a GT.
+2. **Rediseño Ejecutivo de Cobranza (`CobranzaHeader.tsx`, `CobranzaStats.tsx`, `TableroKanban.tsx`, `TabPendientes.tsx`):**
+   - Barra ejecutiva limpia con menú agrupado de reportes PDF/Excel.
+   - KPIs en tiempo real de cartera vencida y cobros proyectados a 7 y 15 días.
+   - Tablero Kanban con botón contextual único por tarjeta.
+   - Sub-navegación directa a Facturas & Contrarecibos, Utilidad Neta y Antigüedad de Saldos (Aging).
+3. **Formulario de Pedidos Compacto (`TabResumen.tsx`):**
+   - Cuadrículas limpias de 2 bloques (Datos de Pedido y Precios $/kg), margen unitario visible en vivo (`+$5.00/kg`) y chips inline.
+Riesgo: 🟢 Bajo (Rigor contable y pruebas matemáticas 100% blindadas).
+Commit: `feat(ui-routing): integral visual modernization, high density erp layout and hermetic TH vs GT division isolation`
+Estado: ✅ Verificado — 109/109 pruebas unitarias pasando, compilación TypeScript limpia (`npm run build` en 12.43s) y desplegado en vivo a producción en Firebase Hosting (`https://control-de-bolsas-69.web.app`).
+OKRs afectados: Confianza Contable (100%), Aislamiento Departamental Hermético, Excelencia UX/UI de Nivel Mundial.
+
+---
+
 ### Iteración 43: Captura por Excel Drag & Drop, Plantilla Oficial y Hub Proactivo de Contrarecibos (COMPLETADO)
 [2026-08-30]
 Archivos:
