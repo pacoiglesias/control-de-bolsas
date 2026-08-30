@@ -1,64 +1,66 @@
 /* =========================================================================
-   Control Bolsas ERP — Design Tokens & Theme Variables
+   Control Bolsas ERP — Design Tokens & Theme Variables (Luxe Edition v8.9.48)
    ========================================================================= */
 
 :root {
-  /* Fondo y Superficies */
-  --bg-body: #F9F9FB;           /* Gris extremadamente sutil, casi blanco */
-  --paper: #F3F4F6;             /* Contraste suave para áreas secundarias */
-  --paper-raised: #FFFFFF;      /* Tarjetas puramente blancas */
-  --paper-sunk: #E5E7EB;        /* Hover sutil / estados inactivos */
+  /* Fondo y Superficies (Slate Luxe Light) */
+  --bg-body: #F8FAFC;           /* Slate 50 ultra limpio */
+  --paper: #F1F5F9;             /* Slate 100 suave para áreas secundarias */
+  --paper-raised: #FFFFFF;      /* Blanco puro nítido para tarjetas */
+  --paper-sunk: #E2E8F0;        /* Slate 200 para hovers y bordes */
   
-  /* Textos y Tinta */
-  --ink: #111827;               /* Gris muy oscuro, casi negro, más suave a la vista */
-  --ink-soft: #4B5563;          /* Gris medio para textos secundarios */
-  --ink-faint: #9CA3AF;         /* Gris claro para hints y placeholders */
+  /* Textos y Tipografía (Máximo Contraste y Legibilidad) */
+  --ink: #0F172A;               /* Slate 900 profundo */
+  --ink-soft: #475569;          /* Slate 600 balanceado */
+  --ink-faint: #94A3B8;         /* Slate 400 para hints y placeholders */
   
-  /* Bordes y Líneas */
-  --line: #D1D5DB;              
-  --line-soft: #E5E7EB;         
+  /* Bordes y Líneas Refinadas */
+  --line: #CBD5E1;              /* Slate 300 */
+  --line-soft: #E2E8F0;         /* Slate 200 */
 
-  /* Colores de Marca (Providencia Ámbar) */
-  --accent: #D97706;            /* Ámbar vibrante */
-  --accent-deep: #B45309;       /* Ámbar oscuro (hover) */
-  --accent-tint: #FEF3C7;       /* Ámbar muy claro (fondos/focus) */
+  /* Colores de Marca y Acento (Providencia Royal Amber) */
+  --accent: #D97706;            /* Ámbar dorado vibrante */
+  --accent-deep: #B45309;       /* Ámbar oscuro elegante */
+  --accent-tint: #FEF3C7;       /* Ámbar satinado suave */
   
-  /* Sidebar (Dark mode interno) */
-  --sidebar: #0F172A;           /* Slate 900 */
-  --sidebar-ink: #F1F5F9;       /* Slate 100 */
-  --sidebar-line: #1E293B;      /* Slate 800 */
-  --sidebar-hover: #1E293B;     
-  --sidebar-active: #334155;    /* Slate 700 */
+  /* Barra Lateral Ejecutiva (Dark Slate Gradient) */
+  --sidebar: #0B0F19;           /* Midnight Slate 950 */
+  --sidebar-ink: #F8FAFC;       /* Slate 50 */
+  --sidebar-line: rgba(255, 255, 255, 0.08);
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-active: rgba(217, 119, 6, 0.22);
   
   /* Controles (Inputs, selects) */
   --field: #FFFFFF;
   
-  /* Estados Semánticos (Verde, Azul, Amarillo, Rojo, Teal) */
-  --ok: #059669; --ok-bg: #D1FAE5;
-  --info: #2563EB; --info-bg: #DBEAFE;
-  --warn: #D97706; --warn-bg: #FEF3C7;
-  --bad: #DC2626; --bad-bg: #FEE2E2;
-  --cash: #0D9488; --cash-bg: #CCFBF1;
+  /* Estados Semánticos de Alta Fidelidad */
+  --ok: #059669; --ok-bg: #ECFDF5;      /* Esmeralda / Cobrado */
+  --info: #2563EB; --info-bg: #EFF6FF;  /* Azul Cobalto / Báscula */
+  --warn: #D97706; --warn-bg: #FFFBEB;  /* Ámbar / En Proceso */
+  --bad: #E11D48; --bad-bg: #FFF1F2;    /* Rosa Carmesí / Vencido */
+  --cash: #0D9488; --cash-bg: #F0FDFA;  /* Teal / Caja Chica */
+  --purple: #7C3AED; --purple-bg: #F5F3FF; /* Violeta / 3-Way Match */
 
-  /* Tonos dedicados para tableros Kanban (Orders/Cobranza/Compras) */
-  --kanban-review: #c2410c; --kanban-review-bg: #ffedd5;
-  --kanban-collected: #047857; --kanban-collected-bg: #ecfdf5;
+  /* Tableros Kanban */
+  --kanban-review: #EA580C; --kanban-review-bg: #FFF7ED;
+  --kanban-collected: #059669; --kanban-collected-bg: #ECFDF5;
 
-  /* Bordes (Radios) */
+  /* Radios de Curvatura Ergonómicos */
   --radius: 16px;       /* Tarjetas, modales */
-  --radius-sm: 8px;     /* Botones, inputs */
+  --radius-sm: 10px;    /* Botones, inputs */
+  --radius-lg: 24px;    /* Bottom sheets, héroes */
   
-  /* Sombras (Elevación Moderna) */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-hover: 0 10px 20px -5px rgba(217, 119, 6, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  /* Sombras Multicapa Refinadas */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-hover: 0 12px 24px -4px rgba(217, 119, 6, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
   
-  /* Efectos Glass */
-  --glass: rgba(255, 255, 255, 0.7);
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  /* Efectos Glassmorphism Pulidos */
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(226, 232, 240, 0.8);
+  --glass-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.06);
 
   /* Alias de compatibilidad */
   --brand: var(--accent);
@@ -81,54 +83,56 @@
   --surface-sunken: var(--paper-sunk);
   --ink-muted: var(--ink-soft);
   --info-deep: #1d4ed8;
-  --glass-bg: rgba(255,255,255,0.5);
-  --glass-shadow: 0 12px 32px rgba(0,0,0,0.12);
-  --blur-radius: 24px;
+  --blur-radius: 20px;
   --accent-sunk: var(--accent-tint);
 }
 
 :root[data-theme="dark"] {
-  --bg-body: #09090b;           /* Zinc 950 (OLED Midnight) */
-  --paper: #18181b;             /* Zinc 900 */
-  --paper-raised: #27272a;      /* Zinc 800 */
-  --paper-sunk: #3f3f46;        /* Zinc 700 */
+  /* Fondo y Superficies (OLED Midnight Deep Slate) */
+  --bg-body: #080C14;           /* Negro profundo azulado */
+  --paper: #0F172A;             /* Slate 900 */
+  --paper-raised: #1E293B;      /* Slate 800 */
+  --paper-sunk: #334155;        /* Slate 700 */
   
-  --ink: #F9FAFB;
-  --ink-soft: #9CA3AF;
-  --ink-faint: #6B7280;
+  --ink: #F8FAFC;               /* Slate 50 */
+  --ink-soft: #94A3B8;          /* Slate 400 */
+  --ink-faint: #64748B;         /* Slate 500 */
   
-  --line: #4B5563;
-  --line-soft: #374151;
+  --line: #334155;              /* Slate 700 */
+  --line-soft: #1E293B;         /* Slate 800 */
   
-  --accent: #F59E0B;
-  --accent-deep: #FCD34D;
-  --accent-tint: #451A03;
+  --accent: #F59E0B;            /* Ámbar dorado brillante */
+  --accent-deep: #FCD34D;       /* Amarillo dorado */
+  --accent-tint: rgba(245, 158, 11, 0.15);
   
-  --sidebar: #09090b;
-  --sidebar-line: #27272a;
-  --sidebar-hover: #18181b;
-  --sidebar-active: #27272a;
+  --sidebar: #06090F;           /* Obsidian */
+  --sidebar-line: rgba(255, 255, 255, 0.06);
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+  --sidebar-active: rgba(245, 158, 11, 0.2);
   
-  --field: #09090b;
+  --field: #0F172A;
   
   --ok: #10B981; --ok-bg: rgba(16, 185, 129, 0.15);
   --info: #3B82F6; --info-bg: rgba(59, 130, 246, 0.15);
   --warn: #F59E0B; --warn-bg: rgba(245, 158, 11, 0.15);
-  --bad: #EF4444; --bad-bg: rgba(239, 68, 68, 0.15);
+  --bad: #F43F5E; --bad-bg: rgba(244, 63, 94, 0.15);
   --cash: #14B8A6; --cash-bg: rgba(20, 184, 166, 0.15);
+  --purple: #A78BFA; --purple-bg: rgba(167, 139, 250, 0.15);
 
-  --kanban-review: #fb923c; --kanban-review-bg: rgba(194, 65, 12, 0.18);
-  --kanban-collected: #34d399; --kanban-collected-bg: rgba(4, 120, 87, 0.18);
+  --kanban-review: #FB923C; --kanban-review-bg: rgba(251, 146, 60, 0.15);
+  --kanban-collected: #34D399; --kanban-collected-bg: rgba(52, 211, 153, 0.15);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.8);
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.9), 0 2px 4px -1px rgba(0, 0, 0, 0.7);
-  --shadow-hover: 0 10px 20px -5px rgba(245, 158, 11, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.8);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.9), 0 10px 10px -5px rgba(0, 0, 0, 0.8);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.6);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.7), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 12px 24px -4px rgba(245, 158, 11, 0.2), 0 4px 8px -2px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
   
-  --glass: rgba(9, 9, 11, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass: rgba(15, 23, 42, 0.85);
+  --glass-bg: rgba(15, 23, 42, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 
-  /* Mismos alias de compatibilidad que en modo claro */
+  /* Mismos alias de compatibilidad */
   --brand: var(--accent);
   --brand-dark: var(--accent-deep);
   --brand-light: var(--accent-tint);
@@ -148,9 +152,7 @@
   --surface-alt: var(--paper-sunk);
   --surface-sunken: var(--paper-sunk);
   --ink-muted: var(--ink-soft);
-  --info-deep: #93c5fd;
-  --glass-bg: rgba(24,24,27,0.5);
-  --glass-shadow: 0 12px 32px rgba(0,0,0,0.4);
-  --blur-radius: 24px;
+  --info-deep: #93C5FD;
+  --blur-radius: 20px;
   --accent-sunk: var(--accent-tint);
 }

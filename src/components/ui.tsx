@@ -4,6 +4,9 @@ import { money, kilos, compactMoney, compactKilos } from '../lib/format';
 import { useConfig } from '../hooks/useConfig';
 import { usePrivacy } from '../context/PrivacyContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatedNumber } from './ui/AnimatedNumber';
+export { AnimatedNumber } from './ui/AnimatedNumber';
+export { EmptyStatePro } from './ui/EmptyStatePro';
 
 export function KpiCard({
   label,
@@ -459,7 +462,7 @@ export function ResponsiveMoney({ value, forceShow }: { value: number; forceShow
 
   return (
     <>
-      <span className="hide-mobile">{money(value)}</span>
+      <span className="hide-mobile"><AnimatedNumber value={value} format="money" /></span>
       <span className="hide-desktop">{compactMoney(value)}</span>
     </>
   );

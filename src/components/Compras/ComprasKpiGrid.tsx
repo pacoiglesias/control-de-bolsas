@@ -1,6 +1,6 @@
 import { Card } from '../ui';
-import { money, kilos } from '../../lib/format';
 import { motion } from 'framer-motion';
+import { AnimatedNumber } from '../ui/AnimatedNumber';
 
 export function ComprasKpiGrid({
   totalReceivedKilos,
@@ -25,18 +25,18 @@ export function ComprasKpiGrid({
       <Card title="🚚 KILOS RECIBIDOS">
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
           <div>
-            <div className="num" style={{ fontSize: 42, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-1px' }}>
-              {kilos(totalReceivedKilos)}
+            <div className="num" style={{ fontSize: 36, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-1px' }}>
+              <AnimatedNumber value={totalReceivedKilos} format="kilos" />
             </div>
-            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>Total histórico de mercancía ingresada por Andrés.</p>
+            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 13.5 }}>Total histórico de mercancía ingresada por Andrés.</p>
           </div>
           
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="btn" 
-            style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--bg-inset)', borderColor: 'var(--border)', color: 'var(--ink)', fontWeight: 'bold' }} 
-            onClick={onPayAtrasadas} /* Reuse this function to just switch tab to 'ordenes' */
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', background: 'var(--paper-sunk)', borderColor: 'var(--line)', color: 'var(--ink)', fontWeight: 'bold' }} 
+            onClick={onPayAtrasadas}
           >
             📦 Registrar Llegada de Material
           </motion.button>
@@ -46,10 +46,10 @@ export function ComprasKpiGrid({
       <Card title="⚖️ ESTADO DE CUENTA">
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
           <div>
-            <div className="num" style={{ fontSize: 42, fontWeight: 800, color: saldoProveedor < 0 ? 'var(--bad)' : saldoProveedor > 0 ? 'var(--ok)' : 'var(--ink)', letterSpacing: '-1px' }}>
-              {saldoProveedor < 0 ? '-' : '+'}{money(Math.abs(saldoProveedor))}
+            <div className="num" style={{ fontSize: 36, fontWeight: 800, color: saldoProveedor < 0 ? 'var(--bad)' : saldoProveedor > 0 ? 'var(--ok)' : 'var(--ink)', letterSpacing: '-1px' }}>
+              {saldoProveedor < 0 ? '-' : '+'}<AnimatedNumber value={Math.abs(saldoProveedor)} format="money" />
             </div>
-            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>
+            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 13.5 }}>
               {saldoProveedor < 0 ? `Deuda actual con Andrés.` : saldoProveedor > 0 ? `Saldo a favor (Anticipos).` : 'Cuenta saldada.'}
             </p>
           </div>
@@ -77,10 +77,10 @@ export function ComprasKpiGrid({
       <Card title="⚠️ ENTREGAS ATRASADAS">
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
           <div>
-            <div className="num" style={{ fontSize: 42, fontWeight: 800, color: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--ok)', letterSpacing: '-1px' }}>
-              {entregasAtrasadasCount}
+            <div className="num" style={{ fontSize: 36, fontWeight: 800, color: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--ok)', letterSpacing: '-1px' }}>
+              <AnimatedNumber value={entregasAtrasadasCount} format="number" decimals={0} />
             </div>
-            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 14 }}>
+            <p className="hint" style={{ marginTop: 8, marginBottom: 16, fontSize: 13.5 }}>
               Órdenes de compra que ya pasaron su fecha estimada de llegada.
             </p>
           </div>
@@ -93,9 +93,9 @@ export function ComprasKpiGrid({
               width: '100%', 
               display: 'flex', 
               justifyContent: 'center', 
-              background: entregasAtrasadasCount > 0 ? 'var(--warn-bg)' : 'var(--bg-inset)', 
-              borderColor: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--border)', 
-              color: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--hint)', 
+              background: entregasAtrasadasCount > 0 ? 'var(--warn-bg)' : 'var(--paper-sunk)', 
+              borderColor: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--line)', 
+              color: entregasAtrasadasCount > 0 ? 'var(--warn)' : 'var(--ink-soft)', 
               fontWeight: 'bold',
               cursor: entregasAtrasadasCount > 0 ? 'pointer' : 'not-allowed',
               opacity: entregasAtrasadasCount > 0 ? 1 : 0.6

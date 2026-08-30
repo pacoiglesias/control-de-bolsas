@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import CobranzaContext from './CobranzaContext';
 import { money } from '../../lib/format';
 import { motion } from 'framer-motion';
+import { AnimatedNumber } from '../ui/AnimatedNumber';
 
 export default function CobranzaStats() {
   const ctx = useContext(CobranzaContext);
@@ -24,11 +25,11 @@ export default function CobranzaStats() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         style={{
-          background: 'var(--card-bg, var(--paper))',
-          border: '1px solid var(--card-border, var(--line))',
-          borderRadius: 14,
+          background: 'var(--paper-raised)',
+          border: '1px solid var(--line-soft)',
+          borderRadius: 'var(--radius)',
           padding: '14px 18px',
-          boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -43,7 +44,7 @@ export default function CobranzaStats() {
           </span>
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', margin: '6px 0 2px', letterSpacing: '-0.02em' }}>
-          {money(data.meDeben)}
+          <AnimatedNumber value={data.meDeben} format="money" />
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
           En crédito a Providencia
@@ -56,11 +57,11 @@ export default function CobranzaStats() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
         style={{
-          background: isOverdueAlert ? 'rgba(239, 68, 68, 0.06)' : 'var(--card-bg, var(--paper))',
-          border: isOverdueAlert ? '1.5px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--card-border, var(--line))',
-          borderRadius: 14,
+          background: isOverdueAlert ? 'var(--bad-bg)' : 'var(--paper-raised)',
+          border: isOverdueAlert ? '1.5px solid rgba(225, 29, 72, 0.35)' : '1px solid var(--line-soft)',
+          borderRadius: 'var(--radius)',
           padding: '14px 18px',
-          boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+          boxShadow: isOverdueAlert ? '0 0 20px rgba(225, 29, 72, 0.15)' : 'var(--shadow-sm)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -71,17 +72,17 @@ export default function CobranzaStats() {
             Cartera Vencida
           </span>
           {isOverdueAlert ? (
-            <span style={{ fontSize: 10.5, background: 'var(--bad)', color: '#fff', padding: '2px 8px', borderRadius: 12, fontWeight: 800 }}>
+            <span className="badge b-bad" style={{ fontSize: 10.5, fontWeight: 800 }}>
               ¡Atención!
             </span>
           ) : (
-            <span style={{ fontSize: 10.5, background: 'var(--ok-bg)', color: 'var(--ok)', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+            <span className="badge b-ok" style={{ fontSize: 10.5, fontWeight: 700 }}>
               Al corriente
             </span>
           )}
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, color: isOverdueAlert ? 'var(--bad)' : 'var(--ink)', margin: '6px 0 2px', letterSpacing: '-0.02em' }}>
-          {money(data.vencido)}
+          <AnimatedNumber value={data.vencido} format="money" />
         </div>
         <div style={{ fontSize: 11.5, color: isOverdueAlert ? 'var(--bad)' : 'var(--ink-soft)' }}>
           {isOverdueAlert ? 'Plazo vencido según CR' : '0 facturas en mora'}
@@ -94,11 +95,11 @@ export default function CobranzaStats() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         style={{
-          background: 'var(--card-bg, var(--paper))',
-          border: '1px solid var(--card-border, var(--line))',
-          borderRadius: 14,
+          background: 'var(--paper-raised)',
+          border: '1px solid var(--line-soft)',
+          borderRadius: 'var(--radius)',
           padding: '14px 18px',
-          boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -108,12 +109,12 @@ export default function CobranzaStats() {
           <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Cobro a 7 Días
           </span>
-          <span style={{ fontSize: 11, background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+          <span className="badge b-info" style={{ fontSize: 10.5, fontWeight: 700 }}>
             Proyección
           </span>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#2563eb', margin: '6px 0 2px', letterSpacing: '-0.02em' }}>
-          {money(data.proyeccion7d)}
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--info)', margin: '6px 0 2px', letterSpacing: '-0.02em' }}>
+          <AnimatedNumber value={data.proyeccion7d} format="money" />
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
           A 15 días: <strong>{money(data.proyeccion15d)}</strong>
@@ -126,11 +127,11 @@ export default function CobranzaStats() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         style={{
-          background: 'var(--card-bg, var(--paper))',
-          border: '1px solid var(--card-border, var(--line))',
-          borderRadius: 14,
+          background: 'var(--paper-raised)',
+          border: '1px solid var(--line-soft)',
+          borderRadius: 'var(--radius)',
           padding: '14px 18px',
-          boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -140,12 +141,12 @@ export default function CobranzaStats() {
           <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ok)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Recaudado / En Caja
           </span>
-          <span style={{ fontSize: 11, background: 'var(--ok-bg)', color: 'var(--ok)', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+          <span className="badge b-ok" style={{ fontSize: 10.5, fontWeight: 700 }}>
             {data.paid.length + data.collected.length} cobros
           </span>
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ok)', margin: '6px 0 2px', letterSpacing: '-0.02em' }}>
-          {money(data.cobrado)}
+          <AnimatedNumber value={data.cobrado} format="money" />
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
           Comisiones: {money(data.comisiones)}

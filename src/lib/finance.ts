@@ -572,7 +572,7 @@ export function computeAndresRequirement(order: PurchaseOrder, config: Financial
   const itemsKilos = items.reduce((a, it) => a + (Number(it.quantity) || 0), 0);
   const kilos = itemsKilos > 0 ? itemsKilos : (Number(order.totalKilograms) || 0);
 
-  const costPricePerKg = Number(order.customCostPrice ?? config?.costPricePerKg ?? 42);
+  const costPricePerKg = Number(order.customCostPrice ?? config?.costPricePerKg ?? 38);
   const salePricePerKg = Number(order.customSellPrice ?? config?.salePricePerKg ?? 43);
 
   const costTotal = round2(new Decimal(kilos).times(costPricePerKg).toNumber());

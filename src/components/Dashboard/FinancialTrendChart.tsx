@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { PurchaseOrder } from '../../lib/types';
 import { money } from '../../lib/format';
+import { AnimatedNumber } from '../ui/AnimatedNumber';
 
 interface FinancialTrendChartProps {
   orders: PurchaseOrder[];
@@ -19,7 +20,6 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
     const now = Date.now();
     const startTime = now - days * 24 * 60 * 60 * 1000;
 
-    // Bucket into 6 intervals for smooth visual points
     const bucketCount = period === '30d' ? 6 : period === '90d' ? 8 : 12;
     const bucketDuration = (days * 24 * 60 * 60 * 1000) / bucketCount;
 
@@ -38,7 +38,6 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
     });
 
     (orders || []).forEach((order) => {
-      // Aggregate deliveries
       (order.deliveries || []).forEach((del: any) => {
         const t = del.date?.toMillis ? del.date.toMillis() : del.date?._seconds ? del.date._seconds * 1000 : 0;
         if (t >= startTime && t <= now) {
@@ -47,12 +46,9 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
         }
       });
 
-      // Aggregate invoices — lee creditCycle.issueDate (ruta correcta)
       (order.invoices || []).forEach((inv: any) => {
-        // Excluir solo las totalmente cobradas sin fecha (no aportan al período)
         const st = inv.creditCycle?.status;
         if (st === 'pedido') return;
-        // Fecha de emisión: creditCycle.issueDate es la ruta correcta
         const rawDate = inv.creditCycle?.issueDate ?? inv.issueDate;
         const t = rawDate?.toMillis ? rawDate.toMillis() : rawDate?._seconds ? rawDate._seconds * 1000 : 0;
         if (t >= startTime && t <= now) {
@@ -92,12 +88,11 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: 16,
+        background: 'var(--paper-raised)',
+        border: '1px solid var(--line-soft)',
+        borderRadius: 'var(--radius)',
         padding: '20px',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-        backdropFilter: 'blur(12px)',
+        boxShadow: 'var(--shadow-sm)',
         position: 'relative',
         overflow: 'hidden',
         ...style,
@@ -108,23 +103,23 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18 }}>📈</span>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>
               Tendencia de Flujo & Producción
             </h3>
           </div>
-          <p style={{ margin: '4px 0 0 0', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: 12.5, color: 'var(--ink-soft)' }}>
             Volumen de kilos maquilados vs. facturación neta
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.06)', padding: 3, borderRadius: 10 }}>
+        <div style={{ display: 'flex', gap: 6, background: 'var(--paper-sunk)', padding: 3, borderRadius: 10 }}>
           {(['30d', '90d', '1y'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
               style={{
-                background: period === p ? '#3b82f6' : 'transparent',
-                color: period === p ? '#fff' : 'rgba(255,255,255,0.6)',
+                background: period === p ? 'var(--accent)' : 'transparent',
+                color: period === p ? '#fff' : 'var(--ink-soft)',
                 border: 'none',
                 borderRadius: 8,
                 padding: '6px 12px',
@@ -142,17 +137,23 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
 
       {/* KPI Chips */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
-        <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: 10, padding: '8px 12px' }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>KILOS MAQUILADOS</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: '#60a5fa' }}>{totalKilosPeriod.toLocaleString('es-MX')} kg</div>
+        <div style={{ background: 'var(--info-bg)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: 10, padding: '8px 12px' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 700 }}>KILOS MAQUILADOS</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--info)' }}>
+            <AnimatedNumber value={totalKilosPeriod} format="kilos" />
+          </div>
         </div>
-        <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 10, padding: '8px 12px' }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>FACTURACIÓN</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: '#34d399' }}>{money(totalSalesPeriod)}</div>
+        <div style={{ background: 'var(--ok-bg)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 10, padding: '8px 12px' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 700 }}>FACTURACIÓN</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--ok)' }}>
+            <AnimatedNumber value={totalSalesPeriod} format="money" />
+          </div>
         </div>
-        <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 10, padding: '8px 12px' }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>UTILIDAD NETA</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: '#fbbf24' }}>{money(totalProfitPeriod)}</div>
+        <div style={{ background: 'var(--warn-bg)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: 10, padding: '8px 12px' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 700 }}>UTILIDAD NETA</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--warn)' }}>
+            <AnimatedNumber value={totalProfitPeriod} format="money" />
+          </div>
         </div>
       </div>
 
@@ -161,12 +162,12 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
         <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto', maxHeight: 180, display: 'block' }}>
           <defs>
             <linearGradient id="salesGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="var(--ok)" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="var(--ok)" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="kilosGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="var(--info)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="var(--info)" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -180,15 +181,15 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
                 y1={y}
                 x2={width - padding}
                 y2={y}
-                stroke="rgba(255, 255, 255, 0.05)"
+                stroke="var(--line-soft)"
                 strokeDasharray="4,4"
               />
             );
           })}
 
           {/* Lines */}
-          <polyline fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" points={pointsKilos} />
-          <polyline fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" points={pointsSales} />
+          <polyline fill="none" stroke="var(--info)" strokeWidth="2.5" strokeLinecap="round" points={pointsKilos} />
+          <polyline fill="none" stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" points={pointsSales} />
 
           {/* Interactive Points */}
           {data.map((d, i) => {
@@ -197,9 +198,9 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
             const yKilos = height - padding - (d.kilos / maxKilos) * (height - 2 * padding);
             return (
               <g key={i} onMouseEnter={() => setActivePoint(d)} onMouseLeave={() => setActivePoint(null)} style={{ cursor: 'pointer' }}>
-                <circle cx={x} cy={ySales} r={4} fill="#34d399" stroke="#0f172a" strokeWidth={2} />
-                <circle cx={x} cy={yKilos} r={4} fill="#60a5fa" stroke="#0f172a" strokeWidth={2} />
-                <text x={x} y={height - 8} fill="rgba(255,255,255,0.4)" fontSize="10" textAnchor="middle" fontWeight="600">
+                <circle cx={x} cy={ySales} r={4} fill="var(--ok)" stroke="var(--paper-raised)" strokeWidth={2} />
+                <circle cx={x} cy={yKilos} r={4} fill="var(--info)" stroke="var(--paper-raised)" strokeWidth={2} />
+                <text x={x} y={height - 8} fill="var(--ink-faint)" fontSize="10" textAnchor="middle" fontWeight="600">
                   {d.label}
                 </text>
               </g>
@@ -214,18 +215,18 @@ export const FinancialTrendChart: React.FC<FinancialTrendChartProps> = ({
               position: 'absolute',
               top: 10,
               right: 10,
-              background: 'rgba(15, 23, 42, 0.95)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: 'var(--paper-raised)',
+              border: '1px solid var(--line)',
               borderRadius: 8,
               padding: '8px 12px',
-              fontSize: 11,
-              color: '#fff',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+              fontSize: 11.5,
+              color: 'var(--ink)',
+              boxShadow: 'var(--shadow-lg)',
               pointerEvents: 'none',
               zIndex: 10,
             }}
           >
-            <div style={{ fontWeight: 800, color: '#a78bfa', marginBottom: 2 }}>Período {activePoint.label}</div>
+            <div style={{ fontWeight: 800, color: 'var(--accent)', marginBottom: 2 }}>Período {activePoint.label}</div>
             <div>🔵 Kilos: <b>{activePoint.kilos.toLocaleString('es-MX')} kg</b></div>
             <div>🟢 Ventas: <b>{money(activePoint.sales)}</b></div>
             <div>🟡 Utilidad: <b>{money(activePoint.profit)}</b></div>

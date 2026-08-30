@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.48 Suite Visual Luxe: Paleta de Colores HSL de Alta Fidelidad, Animaciones Numéricas CountUp y Estados Vacíos Ilustrados',
+    date: '30 de Agosto de 2026',
+    time: '12:50 PM',
+    summary: 'Evolución visual integral del sistema: renovación de la paleta de colores con contraste semántico calibrado (Slate Luxe / OLED Midnight), animación numérica suave (CountUp) en todas las tarjetas financieras y KPIs, gráfica vectorial interactiva SVG de flujo y estados vacíos ilustrados (EmptyStatePro).',
+    highlights: [
+      '🎨 Paleta de Colores Luxe HSL: Fondos Slate 50 / OLED Midnight con bordes de micro-luz y acentos Providencia Royal Amber (#F59E0B), Esmeralda (#10B981) y Cobalto (#3B82F6).',
+      '🔢 Animaciones Numéricas Fluidas (AnimatedNumber): Conteo suave con interpolación easeOutCubic para montos y pesajes en Cobranza, Compras y Dashboard.',
+      '📈 Curva Interactiva de Cobranza (FinancialTrendChart & BillingTrendChart): Gráficas vectoriales SVG con tooltips flotantes en cristal.',
+      '🖼️ Estados Vacíos Ilustrados (EmptyStatePro): Gráficos vectoriales con badges y llamadas a la acción cuando no hay deudas vencidas.',
+    ],
+  },
+  {
     version: 'v8.9.47 Arquitectura Modular de Estilos CSS (Split de index.css en 6 Submódulos)',
     date: '30 de Agosto de 2026',
     time: '12:30 PM',
