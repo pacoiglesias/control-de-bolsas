@@ -41,9 +41,33 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   const deudaHistorica = config?.historicalDebtAndres || 0;
 
   const stats = useMemo(() => {
-    // Totales
-    const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
-    const totalPurchasesCost = round2(provPurchases.reduce((acc, p) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), 0));
+    // 1. Unificar entregas de compras registradas y entregas físicas en órdenes
+    const orderDeliveries: { id: string; date: any; concept: string; kilos: number; cost: number }[] = [];
+    orders.forEach((o) => {
+      if ((o as any).isDeleted || o.isClosedShort) return;
+      const ocLabel = o.oc || o.folio || 'S/N';
+      (o.deliveries || []).forEach((d) => {
+        const dKilos = Number(d.kilos) || 0;
+        if (dKilos <= 0) return;
+        const dCost = round2(dKilos * currentCostPerKg);
+        orderDeliveries.push({
+          id: d.id || `del-${ocLabel}-${dKilos}`,
+          date: d.date || null,
+          concept: `Entrega Material (${dKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg) · OC ${ocLabel}${d.docFolio ? ` [${d.docFolio}]` : ''}`,
+          kilos: dKilos,
+          cost: dCost,
+        });
+      });
+    });
+
+    const hasPurchases = provPurchases.length > 0;
+    const totalReceivedKilos = hasPurchases 
+      ? provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0)
+      : round2(orderDeliveries.reduce((acc, d) => acc + d.kilos, 0));
+
+    const totalPurchasesCost = hasPurchases
+      ? round2(provPurchases.reduce((acc, p) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), 0))
+      : round2(orderDeliveries.reduce((acc, d) => acc + d.cost, 0));
     
     const totalPagado = provExpenses.reduce((acc, e) => {
       if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos
@@ -54,26 +78,47 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
 
     // Libro Mayor (Ledger)
-    const ledger: LedgerEntry[] = [
-      ...provPurchases.map(p => ({
-        id: p.id,
-        date: p.date,
-        concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
-        cargo: round2((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)),
-        abono: 0,
-        balance: 0,
-        source: 'purchase' as const
-      })).filter(x => x.cargo > 0),
-      ...provExpenses.map(e => ({
-        id: e.id,
-        date: e.date,
-        concept: e.concept,
-        cargo: e.type === 'ingreso' ? e.amount : 0, 
-        abono: e.type === 'egreso' ? e.amount : 0, 
-        balance: 0,
-        source: 'expense' as const
-      }))
-    ];
+    const ledger: LedgerEntry[] = hasPurchases
+      ? [
+          ...provPurchases.map(p => ({
+            id: p.id,
+            date: p.date,
+            concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
+            cargo: round2((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)),
+            abono: 0,
+            balance: 0,
+            source: 'purchase' as const
+          })).filter(x => x.cargo > 0),
+          ...provExpenses.map(e => ({
+            id: e.id,
+            date: e.date,
+            concept: e.concept,
+            cargo: e.type === 'ingreso' ? e.amount : 0, 
+            abono: e.type === 'egreso' ? e.amount : 0, 
+            balance: 0,
+            source: 'expense' as const
+          }))
+        ]
+      : [
+          ...orderDeliveries.map(d => ({
+            id: d.id,
+            date: d.date,
+            concept: d.concept,
+            cargo: d.cost,
+            abono: 0,
+            balance: 0,
+            source: 'purchase' as const,
+          })),
+          ...provExpenses.map(e => ({
+            id: e.id,
+            date: e.date,
+            concept: e.concept,
+            cargo: e.type === 'ingreso' ? e.amount : 0, 
+            abono: e.type === 'egreso' ? e.amount : 0, 
+            balance: 0,
+            source: 'expense' as const
+          }))
+        ];
 
     ledger.sort((a, b) => {
       const ta = toDate(a.date)?.getTime() || 0;
@@ -95,7 +140,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       saldoProveedor,
       ledger
     };
-  }, [provPurchases, provExpenses, currentCostPerKg, deudaHistorica, orderById]);
+  }, [provPurchases, provExpenses, currentCostPerKg, deudaHistorica, orderById, orders]);
 
   // Alertas Proactivas
   const hoy = Date.now();

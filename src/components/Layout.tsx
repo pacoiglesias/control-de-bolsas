@@ -14,6 +14,7 @@ import { downloadBackupJsonFile } from '../lib/cloudBackup';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { DeliveryDueBanner } from './DeliveryDueBanner';
+import { UninvoicedDeliveriesBanner } from './UninvoicedDeliveriesBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
@@ -280,6 +281,7 @@ export default function Layout() {
           <div className="content">
             <OverdueBanner />
             <DeliveryDueBanner orders={orders} />
+            <UninvoicedDeliveriesBanner orders={orders} />
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>

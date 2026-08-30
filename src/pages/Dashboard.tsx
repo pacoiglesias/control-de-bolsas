@@ -25,6 +25,7 @@ import { DashboardLiveTicker } from '../components/Dashboard/DashboardLiveTicker
 import { DashboardHeaderToolbar } from '../components/Dashboard/DashboardHeaderToolbar';
 import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
 import { ProvidenciaHubWidget } from '../components/Dashboard/ProvidenciaHubWidget';
+import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
 import { DashboardViewModeTabs, type DashboardViewMode } from '../components/Dashboard/DashboardViewModeTabs';
 import { DashboardExecutiveView } from '../components/Dashboard/views/DashboardExecutiveView';
@@ -436,6 +437,18 @@ export default function Dashboard() {
 
       {/* 1.5. Hub Operativo Providencia (Textil Hogar vs Grupo Textil en Vivo) */}
       <ProvidenciaHubWidget />
+
+      {/* 1.8. Radar de Acciones Operativas y Facturación de Entregas */}
+      <ActionRadar
+        orders={globalOrders}
+        purchases={purchases}
+        config={config as any}
+        nav={nav}
+        onOpenOrder={(o) => {
+          setSelectedInvoiceOrderId(o.id);
+          setShowQuickInvoice(true);
+        }}
+      />
 
       {/* 2. Hero Suite de 4 Pilares Financieros */}
       <ModernKpiGrid
