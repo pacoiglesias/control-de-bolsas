@@ -399,8 +399,8 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(allFiltered?.invoices).toHaveLength(4);
   });
 
-  it('DEFAULT_CONFIG tiene el saldo real con Andrés calibrado a 13411.84', () => {
-    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(13411.84);
+  it('DEFAULT_CONFIG tiene el saldo real con Andrés calibrado a 100411.84', () => {
+    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(100411.84);
   });
 
   it('un contrarecibo puede contener varias facturas (1 CR -> N Facturas), pero nunca mezcla facturas de TH y GT', async () => {
