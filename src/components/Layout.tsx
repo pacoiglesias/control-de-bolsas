@@ -72,25 +72,25 @@ export default function Layout() {
   const providerLabel = settings.providerName || 'Andrés';
 
   const navItems = useMemo<NavItem[]>(() => [
-    { type: 'link', to: '/', icon: '📊', label: 'Dashboard Maestro', end: true, roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/', icon: '📊', label: 'Centro de Mando / KPIs', end: true, roles: ['admin', 'manager', 'viewer'] },
     
     { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/oc', icon: '🚚', label: 'Entregas en Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: '📥', label: 'Recepción & Pegado Mágico', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/catalogo', icon: '🛍️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes de Pedido', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: '📥', label: 'Recepción & Captura Rápida', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de Partidas / SKUs', roles: ['admin', 'manager'] },
 
     { type: 'group', label: 'FINANZAS & TESORERÍA', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: '📈', label: `Cobranza ${clientLabel}`, roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: '🛒', label: `Compras ${providerLabel}`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo & Dinero en Tránsito', roles: ['admin'] },
+    { type: 'link', to: '/cobranza', icon: '🧾', label: `Cuentas por Cobrar (${clientLabel})`, roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: '🏭', label: `Cuentas por Pagar (${providerLabel})`, roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Caja Chica & Tesorería', roles: ['admin'] },
 
-    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
-    { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Sábana', roles: ['admin'] },
-    { type: 'link', to: '/mining', icon: '📈', label: 'Métricas & Data Mining', roles: ['admin'] },
-    { type: 'link', to: '/portal-maquilador', icon: '⚖️', label: 'Portal Proveedor / Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Centro de Control', roles: ['admin'] },
-    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Permisos', roles: ['admin'] },
+    { type: 'group', label: 'AUDITORÍA & SISTEMA', roles: ['admin'] },
+    { type: 'link', to: '/audit', icon: '⚖️', label: 'Balanza & Conciliación', roles: ['admin'] },
+    { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocio (BI)', roles: ['admin'] },
+    { type: 'link', to: '/portal-maquilador', icon: '🚛', label: 'Portal Báscula / Maquila', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración del ERP', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Accesos', roles: ['admin'] },
   ], [clientLabel, providerLabel]);
 
   const handleDownloadLocalBackup = () => {
@@ -232,8 +232,8 @@ export default function Layout() {
             {navItems.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
               if (it.type === 'group') {
                 return (
-                  <div key={it.label} style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink-soft)', opacity: 0.75, marginTop: '18px', marginBottom: '4px', paddingLeft: '12px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-                    {it.label}
+                  <div key={it.label} className="nav-group-title">
+                    <span>{it.label}</span>
                   </div>
                 );
               }
