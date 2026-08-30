@@ -101,11 +101,17 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       .filter((o: PurchaseOrder) => {
         const folioMatch = normalizarTexto(o.folio || o.oc || '').includes(q);
         const clientMatch = normalizarTexto(o.client || '').includes(q);
+        const invoiceMatch = (o.invoices || []).some((inv: any) =>
+          normalizarTexto(inv.folio || '').includes(q)
+        );
         const crMatch = (o.invoices || []).some((inv: any) =>
           normalizarTexto(inv.collection?.contrareciboNumber || '').includes(q)
         );
+        const driverMatch = (o.deliveries || []).some((d: any) =>
+          normalizarTexto(d.driver || d.docFolio || '').includes(q)
+        );
         const descMatch = normalizarTexto((o as any).productDescription || (o as any).notes || '').includes(q);
-        return folioMatch || clientMatch || crMatch || descMatch;
+        return folioMatch || clientMatch || invoiceMatch || crMatch || driverMatch || descMatch;
       })
       .slice(0, 8)
       .map((o: PurchaseOrder) => {
