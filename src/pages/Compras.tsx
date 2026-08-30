@@ -228,7 +228,7 @@ export default function Compras() {
                     const ord = orderById.get(p.id);
                     const orderedKg = p.expectedKilos || Number(ord?.totalKilograms) || 0;
                     const receivedKg = p.receivedKilos || 0;
-                    const costKg = p.pricePerKg || currentCostPerKg || 42;
+                    const costKg = p.pricePerKg || currentCostPerKg || 38;
                     return {
                       folio: ord?.folio || ord?.oc || p.id,
                       client: ord?.client ? nombreClienteVisible(ord.client) : 'Providencia',
