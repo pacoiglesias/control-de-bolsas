@@ -3,7 +3,7 @@ import { useOrderModal } from './OrderModalContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useToast } from '../../context/ToastContext';
 import { fromInputDate, toInputDate, fmtDateTime } from '../../lib/format';
-import { round2 } from '../../lib/finance';
+import { round2, validateOrderWeightGuardrail } from '../../lib/finance';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
@@ -284,6 +284,35 @@ export default function TabEntregas() {
                 </div>
               );
             })()}
+
+            {/* Guardrail Anti-Sobrecupo */}
+            {(() => {
+              const guardrail = validateOrderWeightGuardrail(form, 0);
+              if (!guardrail.isOverLimit) return null;
+              return (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    background: 'rgba(220, 38, 38, 0.08)',
+                    border: '1.5px solid #dc2626',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ color: '#b91c1c', fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🛡️ Guardrail Activo:</span>
+                    <span>{guardrail.message}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    La suma de boletas de báscula ({kilosEntregados.toLocaleString('es-MX')} kg) supera los kilos amparados por la OC ({kilosPedidos.toLocaleString('es-MX')} kg). Revisa los pesajes capturados.
+                  </div>
+                </div>
+              );
+            })()}
+
             {showPortal && <MaquilaDeliveriesSelector onSelect={handleImportMaquilaDelivery} onCancel={() => setShowPortal(false)} />}
             {form.items.length === 0 ? (
               <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>

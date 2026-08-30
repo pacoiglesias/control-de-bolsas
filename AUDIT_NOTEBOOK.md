@@ -1,4 +1,37 @@
 
+### Iteración 45: Guardrails Anti-Sobrecupo en Tiempo Real & Conciliación 3-Way Match (COMPLETADO)
+[2026-08-30]
+Archivos:
+- `src/lib/finance.ts`
+- `src/components/Cobranza/ThreeWayMatchWidget.tsx` (Nuevo)
+- `src/components/Cobranza/CobranzaTabsNav.tsx`
+- `src/components/Cobranza/index.tsx`
+- `src/components/FastFlows/QuickDeliveryModal.tsx`
+- `src/components/FastFlows/QuickInvoiceModal.tsx`
+- `src/components/FastFlows/InvoiceFinancialCard.tsx`
+- `src/components/OrderModal/TabEntregas.tsx`
+- `src/components/OrderModal/EmitirFacturaModal.tsx`
+- `src/lib/__tests__/finance.test.ts`
+- `src/lib/systemChangelog.ts`
+- `package.json`
+Problema:
+1. **Riesgo de Sobre-Entrega / Sobrefacturación:** Posibilidad de que un operador capture kilos en exceso por encima del tope de la OC o facture más kilos de los amparados por boleta de báscula en patio, violando las reglas contables inviolables del negocio.
+2. **Cotejo Manual Fragmentado:** El proceso de conciliar Báscula ➔ Factura SAT ➔ Contrarecibo se realizaba en pestañas y pantallas dispersas, sin una matriz centralizada de 3-Way Match.
+Solución:
+1. **Guardrails Preventivos en Tiempo Real (`finance.ts`):**
+   - `validateOrderWeightGuardrail`: Bloqueo preventivo de capturas de entregas que excedan el tope de la OC, con botón interactivo de 1 toque: `⚡ Ajustar al tope exacto (X kg)`.
+   - `validateInvoiceWeightGuardrail`: Detección en vivo de sobrefacturación tanto contra báscula como contra OC, inhabilitando botones de timbrado y mostrando alertas rojas.
+2. **Widget Interactivo de Conciliación 3-Way Match (`ThreeWayMatchWidget.tsx`):**
+   - Matriz comparativa de 3 columnas: ⚖️ Báscula (Patio), 🧾 Factura CFDI ($43.00/kg) y 📋 Contrarecibo Providencia.
+   - Pestaña directa en Cuentas por Cobrar con contadores de partidas 100% conciliadas, en espera de CR y discrepancias.
+3. **Pruebas Automatizadas:** 6 nuevas pruebas en `finance.test.ts` elevando la suite a 115 tests aprobados al 100%.
+Riesgo: 🟢 Bajo (Rigor contable y cero regresiones).
+Commit: `feat(guardrails): real-time weight limits and 3-way match reconciliation system`
+Estado: ✅ Verificado — 115/115 pruebas unitarias pasando, compilación TypeScript limpia (`npm run build` en 11.01s).
+OKRs afectados: Prevención de Errores Operativos (100%), Conciliación 3-Way Match de Nivel Mundial.
+
+---
+
 ### Iteración 44: Modernización Visual Integral, Densidad Optimizada y Aislamiento Hermético TH (Nava) vs GT (Evelia) (COMPLETADO)
 [2026-08-30]
 Archivos:

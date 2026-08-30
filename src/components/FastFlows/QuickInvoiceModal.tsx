@@ -7,7 +7,7 @@ import { useOrders } from '../../hooks/useOrders';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder, Invoice, PurchaseOrderItem, Delivery } from '../../lib/types';
-import { round2, getOrderSummary, computeFinancials } from '../../lib/finance';
+import { round2, getOrderSummary, computeFinancials, validateInvoiceWeightGuardrail } from '../../lib/finance';
 import { nombreClienteVisible } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
 import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
@@ -497,6 +497,7 @@ export function QuickInvoiceModal({
               onInvoice={handleInvoice}
               onClose={onClose}
               selectedRowsCount={selectedRows.length}
+              guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}
             />
           </motion.div>
         )}

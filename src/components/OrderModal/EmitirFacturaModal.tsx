@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
-import { addDays, computeFinancials, round2 } from '../../lib/finance';
+import { addDays, computeFinancials, round2, validateInvoiceWeightGuardrail } from '../../lib/finance';
 import { toInputDate, fromInputDate, money, nombreClienteVisible } from '../../lib/format';
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
@@ -756,24 +756,69 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                   </div>
                 </div>
 
+                {/* Guardrail Anti-Sobrefacturación */}
+                {(() => {
+                  const guardrail = validateInvoiceWeightGuardrail(order, kilos);
+                  if (!guardrail.isOverDelivered && !guardrail.isOverOrdered) return null;
+                  return (
+                    <div
+                      style={{
+                        background: 'rgba(220, 38, 38, 0.08)',
+                        border: '1.5px solid #dc2626',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ color: '#b91c1c', fontWeight: 800, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🛡️ Guardrail Anti-Sobrefacturación:</span>
+                        <span>{guardrail.message}</span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                        A Providencia no se le pueden facturar kilos de más. Ajusta los conceptos seleccionados para que no sobrepasen lo amparado en báscula.
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  disabled={kilos <= 0 || !!duplicateInvoiceMatch}
+                  disabled={
+                    kilos <= 0 ||
+                    !!duplicateInvoiceMatch ||
+                    validateInvoiceWeightGuardrail(order, kilos).isOverDelivered ||
+                    validateInvoiceWeightGuardrail(order, kilos).isOverOrdered
+                  }
                   style={{
                     width: '100%',
                     padding: '14px',
                     borderRadius: 12,
                     border: 'none',
-                    background: (kilos > 0 && !duplicateInvoiceMatch) ? '#2563eb' : 'var(--line)',
+                    background:
+                      kilos > 0 &&
+                      !duplicateInvoiceMatch &&
+                      !validateInvoiceWeightGuardrail(order, kilos).isOverDelivered &&
+                      !validateInvoiceWeightGuardrail(order, kilos).isOverOrdered
+                        ? '#2563eb'
+                        : 'var(--line)',
                     color: '#fff',
                     fontSize: 15,
                     fontWeight: 800,
-                    cursor: (kilos > 0 && !duplicateInvoiceMatch) ? 'pointer' : 'not-allowed',
+                    cursor:
+                      kilos > 0 &&
+                      !duplicateInvoiceMatch &&
+                      !validateInvoiceWeightGuardrail(order, kilos).isOverDelivered &&
+                      !validateInvoiceWeightGuardrail(order, kilos).isOverOrdered
+                        ? 'pointer'
+                        : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
+                    boxShadow: kilos > 0 ? '0 4px 14px rgba(37,99,235,0.3)' : 'none',
                   }}
                 >
                   Siguiente → Datos SAT & Pre-Factura ({finalInvoiceItems.length} partidas)

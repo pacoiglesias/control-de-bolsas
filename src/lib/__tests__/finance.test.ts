@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto, computeAndresRequirement, getSuggestedNextAction } from '../finance';
+import {
+  computeFinancials,
+  computeDynamicFinancials,
+  configEfectiva,
+  getOrderSummary,
+  round2,
+  extractDashboardAlerts,
+  calculateLiveMargenTotal,
+  normalizarTexto,
+  computeAndresRequirement,
+  getSuggestedNextAction,
+  validateOrderWeightGuardrail,
+  validateInvoiceWeightGuardrail,
+  evaluateThreeWayMatch,
+} from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
@@ -613,6 +627,113 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
 
     expect(valid.length).toBe(1);
     expect(valid[0].id).toBe('ord-1');
+  });
+});
+
+describe('Guardrails Anti-Sobrecupo y Anti-Sobrefacturación', () => {
+  it('validateOrderWeightGuardrail detecta entregas dentro del límite', () => {
+    const o = orden({ totalKilograms: 1500, deliveries: [{ id: 'd1', kilos: 500 } as any] });
+    const res = validateOrderWeightGuardrail(o, 500);
+    expect(res.totalOrderedKg).toBe(1500);
+    expect(res.alreadyDeliveredKg).toBe(500);
+    expect(res.maxAllowedNewKg).toBe(1000);
+    expect(res.excessKg).toBe(0);
+    expect(res.isOverLimit).toBe(false);
+  });
+
+  it('validateOrderWeightGuardrail detecta y bloquea sobrecupo exacto (+100 kg)', () => {
+    const o = orden({ totalKilograms: 1500, deliveries: [{ id: 'd1', kilos: 1000 } as any] });
+    const res = validateOrderWeightGuardrail(o, 600);
+    expect(res.totalOrderedKg).toBe(1500);
+    expect(res.alreadyDeliveredKg).toBe(1000);
+    expect(res.maxAllowedNewKg).toBe(500);
+    expect(res.excessKg).toBe(100);
+    expect(res.isOverLimit).toBe(true);
+    expect(res.message).toContain('Sobrecupo detectado');
+  });
+
+  it('validateInvoiceWeightGuardrail detecta sobrefacturación vs entregado en báscula', () => {
+    const o = orden({
+      totalKilograms: 1500,
+      deliveries: [{ id: 'd1', kilos: 1000 } as any],
+      invoices: [{ id: 'i1', kilos: 800 } as any],
+    });
+    const res = validateInvoiceWeightGuardrail(o, 300); // 800 + 300 = 1100 vs 1000 entregados
+    expect(res.totalDeliveredKg).toBe(1000);
+    expect(res.alreadyInvoicedKg).toBe(800);
+    expect(res.maxAvailableToInvoice).toBe(200);
+    expect(res.excessVsDelivered).toBe(100);
+    expect(res.isOverDelivered).toBe(true);
+    expect(res.message).toContain('Sobrefacturación en Báscula');
+  });
+});
+
+describe('Asistente de Conciliación 3-Way Match', () => {
+  it('identifica un 3-Way Match perfecto (Báscula = Factura = CR)', () => {
+    const o = orden({
+      totalKilograms: 1000,
+      deliveries: [{ id: 'd1', kilos: 1000, date: null } as any],
+      invoices: [
+        {
+          id: 'i1',
+          folio: '6205',
+          kilos: 1000,
+          financials: { salePricePerKg: 43.0, invoiceTotal: 49880.0 } as any,
+          collection: { contrareciboNumber: 'TH-946' },
+          creditCycle: { status: 'facturado' },
+        } as any,
+      ],
+    });
+
+    const match = evaluateThreeWayMatch(o, o.invoices?.[0]);
+    expect(match.status).toBe('MATCH_PERFECT');
+    expect(match.isPerfect).toBe(true);
+    expect(match.deliveryKg).toBe(1000);
+    expect(match.invoiceKg).toBe(1000);
+    expect(match.crNumber).toBe('TH-946');
+    expect(match.diffKg).toBe(0);
+  });
+
+  it('detecta discrepancia cuando la factura difiere en kilos de la báscula', () => {
+    const o = orden({
+      totalKilograms: 1000,
+      deliveries: [{ id: 'd1', kilos: 950 } as any],
+      invoices: [
+        {
+          id: 'i1',
+          folio: '6205',
+          kilos: 1000,
+          collection: { contrareciboNumber: 'TH-946' },
+        } as any,
+      ],
+    });
+
+    const match = evaluateThreeWayMatch(o, o.invoices?.[0]);
+    expect(match.status).toBe('DISCREPANCY');
+    expect(match.isPerfect).toBe(false);
+    expect(match.diffKg).toBe(50);
+    expect(match.reason).toContain('Discrepancia de peso');
+  });
+
+  it('detecta pendiente de Contrarecibo cuando báscula y factura coinciden', () => {
+    const o = orden({
+      folio: '120267114014',
+      oc: '120267114014',
+      totalKilograms: 1000,
+      deliveries: [{ id: 'd1', kilos: 1000 } as any],
+      invoices: [
+        {
+          id: 'i1',
+          folio: '6205',
+          kilos: 1000,
+          collection: { contrareciboNumber: '' },
+        } as any,
+      ],
+    });
+
+    const match = evaluateThreeWayMatch(o, o.invoices?.[0]);
+    expect(match.status).toBe('PENDING_CR');
+    expect(match.isPerfect).toBe(false);
   });
 });
 

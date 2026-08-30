@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.45 Guardrails Anti-Sobrecupo en Tiempo Real & Conciliación 3-Way Match (Báscula ➔ Factura SAT ➔ Contrarecibo)',
+    date: '30 de Agosto de 2026',
+    time: '11:45 AM',
+    summary: 'Implementación del sistema de prevención y control de flujo de alta precisión: Guardrails anti-sobrecupo y anti-sobrefacturación en tiempo real con bloqueo y botón de autoajuste al tope exacto de la OC, y widget de Conciliación 3-Way Match para cotejar boletas de báscula en patio, facturas timbradas en el SAT y contrarecibos de Providencia.',
+    highlights: [
+      '🛡️ Guardrails Anti-Sobrecupo en Tiempo Real: Bloqueo automático si se intenta registrar una entrega que sobrepase los kilos pedidos de la OC, con botón de 1 clic para ajustar al tope exacto.',
+      '🧾 Prevención contra Sobrefacturación: Alertas preventivas y bloqueo en emisión de factura y facturación rápida si los conceptos seleccionados exceden lo entregado en patio o pedido en la OC.',
+      '⚖️ Asistente de Conciliación 3-Way Match: Tablero visual interactivo en Cuentas por Cobrar que audita y compara 1) Kilos en Báscula, 2) Factura SAT ($43/kg + IVA) y 3) Sello de Contrarecibo Providencia.',
+      '🧭 Menús Laterales Ejecutivos: Nomenclatura contable estandarizada (CxC, CxP, Centro de Mando, Inteligencia de Negocio) y diseño visual con indicadores de estado activos e iluminación ámbar.',
+    ],
+  },
+  {
     version: 'v8.9.44 Modernización Visual Integral, Densidad Optimizada y Aislamiento Hermético TH vs GT',
     date: '30 de Agosto de 2026',
     time: '12:50 AM',

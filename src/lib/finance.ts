@@ -725,4 +725,262 @@ export function getSuggestedNextAction(order: PurchaseOrder, _config?: Financial
   };
 }
 
+/**
+ * =========================================================================
+ * GUARDRAILS ANTI-SOBRECUPO & VALIDACIONES PREVENTIVAS EN TIEMPO REAL
+ * =========================================================================
+ */
+
+export interface WeightGuardrailResult {
+  totalOrderedKg: number;
+  alreadyDeliveredKg: number;
+  maxAllowedNewKg: number;
+  excessKg: number;
+  isOverLimit: boolean;
+  projectedTotalKg: number;
+  pctCapacity: number;
+  message: string;
+}
+
+export function validateOrderWeightGuardrail(
+  order: PurchaseOrder | any,
+  newDeliveryKg: number,
+  currentDeliveryId?: string
+): WeightGuardrailResult {
+  const itemsSum = Array.isArray(order?.items)
+    ? order.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0), 0)
+    : 0;
+  const totalOrderedKg = round2(itemsSum > 0 ? itemsSum : (Number(order?.totalKilograms) || 0));
+
+  const deliveries = Array.isArray(order?.deliveries) ? order.deliveries : [];
+  const alreadyDeliveredKg = round2(
+    deliveries
+      .filter((d: any) => !currentDeliveryId || d.id !== currentDeliveryId)
+      .reduce((s: number, d: any) => s + (Number(d.kilos) || 0), 0)
+  );
+
+  const maxAllowedNewKg = round2(Math.max(0, totalOrderedKg - alreadyDeliveredKg));
+  const projectedTotalKg = round2(alreadyDeliveredKg + (Number(newDeliveryKg) || 0));
+  const excessKg = round2(Math.max(0, projectedTotalKg - totalOrderedKg));
+  const isOverLimit = excessKg > 0.01 && totalOrderedKg > 0;
+  const pctCapacity = totalOrderedKg > 0 ? round2((projectedTotalKg / totalOrderedKg) * 100) : 100;
+
+  let message = 'Dentro del cupo de la Orden de Compra.';
+  if (isOverLimit) {
+    message = `⚠️ Sobrecupo detectado: Excede por +${excessKg.toLocaleString('es-MX')} kg el tope de la OC (${totalOrderedKg.toLocaleString('es-MX')} kg).`;
+  } else if (maxAllowedNewKg <= 0.01) {
+    message = '✅ Esta Orden de Compra ya está surtida al 100%.';
+  }
+
+  return {
+    totalOrderedKg,
+    alreadyDeliveredKg,
+    maxAllowedNewKg,
+    excessKg,
+    isOverLimit,
+    projectedTotalKg,
+    pctCapacity,
+    message,
+  };
+}
+
+export interface InvoiceGuardrailResult {
+  totalOrderedKg: number;
+  totalDeliveredKg: number;
+  alreadyInvoicedKg: number;
+  maxAvailableToInvoice: number;
+  excessVsDelivered: number;
+  excessVsOrdered: number;
+  isOverDelivered: boolean;
+  isOverOrdered: boolean;
+  message: string;
+}
+
+export function validateInvoiceWeightGuardrail(
+  order: PurchaseOrder | any,
+  newInvoiceKg: number,
+  currentInvoiceId?: string
+): InvoiceGuardrailResult {
+  const s = getOrderSummary(order);
+  const totalOrderedKg = round2(Number(order?.totalKilograms) || s.kilosDelivered || 0);
+  const totalDeliveredKg = round2(s.kilosDelivered || 0);
+
+  const invoices = Array.isArray(order?.invoices) ? order.invoices : [];
+  const alreadyInvoicedKg = round2(
+    invoices
+      .filter((i: any) => !currentInvoiceId || (i.id !== currentInvoiceId && i.folio !== currentInvoiceId))
+      .reduce((sum: number, i: any) => sum + (Number(i.kilos) || 0), 0)
+  );
+
+  const maxAvailableToInvoice = round2(Math.max(0, totalDeliveredKg - alreadyInvoicedKg));
+  const projectedInvoicedKg = round2(alreadyInvoicedKg + (Number(newInvoiceKg) || 0));
+  const excessVsDelivered = round2(Math.max(0, projectedInvoicedKg - totalDeliveredKg));
+  const excessVsOrdered = round2(Math.max(0, projectedInvoicedKg - totalOrderedKg));
+
+  const isOverDelivered = excessVsDelivered > 0.01 && totalDeliveredKg > 0;
+  const isOverOrdered = excessVsOrdered > 0.01 && totalOrderedKg > 0;
+
+  let message = 'Kilos listos y amparados para timbrado CFDI.';
+  if (isOverDelivered) {
+    message = `⚠️ Sobrefacturación en Báscula: Se intentan facturar +${excessVsDelivered.toLocaleString('es-MX')} kg más de lo entregado en patio (${totalDeliveredKg.toLocaleString('es-MX')} kg).`;
+  } else if (isOverOrdered) {
+    message = `⚠️ Sobrefacturación en OC: Se intentan facturar +${excessVsOrdered.toLocaleString('es-MX')} kg más del total de la OC (${totalOrderedKg.toLocaleString('es-MX')} kg).`;
+  }
+
+  return {
+    totalOrderedKg,
+    totalDeliveredKg,
+    alreadyInvoicedKg,
+    maxAvailableToInvoice,
+    excessVsDelivered,
+    excessVsOrdered,
+    isOverDelivered,
+    isOverOrdered,
+    message,
+  };
+}
+
+/**
+ * =========================================================================
+ * ASISTENTE DE CONCILIACIÓN "3-WAY MATCH" (Báscula ➔ Factura SAT ➔ Contrarecibo)
+ * =========================================================================
+ */
+
+export type ThreeWayMatchStatus = 'MATCH_PERFECT' | 'PENDING_INVOICE' | 'PENDING_CR' | 'DISCREPANCY';
+
+export interface ThreeWayMatchEvaluation {
+  status: ThreeWayMatchStatus;
+  isPerfect: boolean;
+  hasDelivery: boolean;
+  hasInvoice: boolean;
+  hasCr: boolean;
+  deliveryKg: number;
+  invoiceKg: number;
+  diffKg: number;
+  crNumber: string;
+  unitPrice: number;
+  invoiceTotal: number;
+  expectedTotal: number;
+  diffMoney: number;
+  reason: string;
+}
+
+export function evaluateThreeWayMatch(
+  order: PurchaseOrder | any,
+  invoice?: any,
+  deliveriesList?: any[]
+): ThreeWayMatchEvaluation {
+  const deliveries = deliveriesList || order?.deliveries || [];
+  const totalDeliveredKg = round2(deliveries.reduce((acc: number, d: any) => acc + (Number(d.kilos) || 0), 0));
+  
+  const inv = invoice || (Array.isArray(order?.invoices) && order.invoices.length > 0 ? order.invoices[0] : null);
+  const hasDelivery = totalDeliveredKg > 0.01;
+  const hasInvoice = !!inv && (Number(inv.kilos) > 0 || (inv.folio && inv.folio.trim().length > 0));
+  
+  const cr = extractCr(inv, order).trim().toUpperCase();
+  const hasCr = cr.length > 0 && (cr.startsWith('TH') || cr.startsWith('GT'));
+
+  const invoiceKg = round2(Number(inv?.kilos) || 0);
+  const deliveryKg = totalDeliveredKg;
+  const diffKg = round2(Math.abs(deliveryKg - invoiceKg));
+
+  const unitPrice = round2(inv?.financials?.salePricePerKg || 43.0);
+  const invoiceTotal = round2(inv?.financials?.invoiceTotal || (invoiceKg * unitPrice * 1.16));
+  const expectedTotal = round2(deliveryKg * unitPrice * 1.16);
+  const diffMoney = round2(Math.abs(invoiceTotal - expectedTotal));
+
+  if (!hasDelivery) {
+    return {
+      status: 'DISCREPANCY',
+      isPerfect: false,
+      hasDelivery: false,
+      hasInvoice,
+      hasCr,
+      deliveryKg: 0,
+      invoiceKg,
+      diffKg: invoiceKg,
+      crNumber: cr,
+      unitPrice,
+      invoiceTotal,
+      expectedTotal: 0,
+      diffMoney: invoiceTotal,
+      reason: 'No se han registrado boletas de pesaje en báscula.',
+    };
+  }
+
+  if (!hasInvoice) {
+    return {
+      status: 'PENDING_INVOICE',
+      isPerfect: false,
+      hasDelivery: true,
+      hasInvoice: false,
+      hasCr,
+      deliveryKg,
+      invoiceKg: 0,
+      diffKg: deliveryKg,
+      crNumber: cr,
+      unitPrice,
+      invoiceTotal: 0,
+      expectedTotal,
+      diffMoney: expectedTotal,
+      reason: `Hay ${deliveryKg.toLocaleString('es-MX')} kg en báscula listos para timbrar CFDI.`,
+    };
+  }
+
+  if (diffKg > 0.05) {
+    return {
+      status: 'DISCREPANCY',
+      isPerfect: false,
+      hasDelivery: true,
+      hasInvoice: true,
+      hasCr,
+      deliveryKg,
+      invoiceKg,
+      diffKg,
+      crNumber: cr,
+      unitPrice,
+      invoiceTotal,
+      expectedTotal,
+      diffMoney,
+      reason: `Discrepancia de peso: Báscula marca ${deliveryKg.toLocaleString('es-MX')} kg pero Factura ampara ${invoiceKg.toLocaleString('es-MX')} kg (Diferencia: ${diffKg.toLocaleString('es-MX')} kg).`,
+    };
+  }
+
+  if (!hasCr) {
+    return {
+      status: 'PENDING_CR',
+      isPerfect: false,
+      hasDelivery: true,
+      hasInvoice: true,
+      hasCr: false,
+      deliveryKg,
+      invoiceKg,
+      diffKg: 0,
+      crNumber: '',
+      unitPrice,
+      invoiceTotal,
+      expectedTotal,
+      diffMoney: 0,
+      reason: 'Báscula y Factura coinciden perfectamente. En espera de sello de Contrarecibo en ventanilla Providencia.',
+    };
+  }
+
+  return {
+    status: 'MATCH_PERFECT',
+    isPerfect: true,
+    hasDelivery: true,
+    hasInvoice: true,
+    hasCr: true,
+    deliveryKg,
+    invoiceKg,
+    diffKg: 0,
+    crNumber: cr,
+    unitPrice,
+    invoiceTotal,
+    expectedTotal,
+    diffMoney: 0,
+    reason: `✅ 3-Way Match Perfecto: Báscula (${deliveryKg.toLocaleString('es-MX')} kg) = Factura F-${inv?.folio || ''} ($${invoiceTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}) = Contrarecibo ${cr}.`,
+  };
+}
+
 

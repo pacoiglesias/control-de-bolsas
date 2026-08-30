@@ -28,6 +28,8 @@ import type { PurchaseOrder } from '../../lib/types';
 import { useCobranzaActions } from './useCobranzaActions';
 import { useCobranzaReports } from './useCobranzaReports';
 import { useMoveInvoice } from './useMoveInvoice';
+import { ThreeWayMatchWidget } from './ThreeWayMatchWidget';
+import { QuickCrModal } from '../QuickCrModal';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -41,8 +43,9 @@ export default function Cobranza() {
   const [showAutoConciliador, setShowAutoConciliador] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
   const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
+  const [quickCrTarget, setQuickCrTarget] = useState<{ order: PurchaseOrder; invoice?: any } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta'>(
+  const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta' | 'three_way'>(
     (location.state as any)?.tab || 'tablero'
   );
   const [search, setSearch] = useState('');
@@ -356,6 +359,7 @@ export default function Cobranza() {
 
   const ctx = {
     data,
+    orders,
     settings,
     money,
     activeTab,
@@ -406,6 +410,21 @@ export default function Cobranza() {
       {activeTab === 'recogidas' && <TabRecogidas groupedByTr={groupedByTr} />}
       {activeTab === 'contabilidad' && <TabContabilidad />}
       {activeTab === 'estado_cuenta' && <EstadoCuenta />}
+      {activeTab === 'three_way' && (
+        <ThreeWayMatchWidget
+          orders={orders}
+          onOpenOrder={(o) => setSelected(o)}
+          onOpenQuickCr={(o, inv) => setQuickCrTarget({ order: o, invoice: inv })}
+        />
+      )}
+
+      {quickCrTarget && (
+        <QuickCrModal
+          order={quickCrTarget.order}
+          invoice={quickCrTarget.invoice}
+          onClose={() => setQuickCrTarget(null)}
+        />
+      )}
 
       {selected && (
         <OrderModal

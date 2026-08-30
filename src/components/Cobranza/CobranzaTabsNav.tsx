@@ -29,6 +29,20 @@ export default function CobranzaTabsNav() {
       <button className={`tab ${activeTab === 'estado_cuenta' ? 'active' : ''}`} onClick={() => setActiveTab('estado_cuenta')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <IconScale size={16} /> Estado de Cuenta (Espejo)
       </button>
+      <button
+        className={`tab ${activeTab === 'three_way' ? 'active' : ''}`}
+        onClick={() => setActiveTab('three_way')}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          background: activeTab === 'three_way' ? 'rgba(5, 150, 105, 0.15)' : undefined,
+          color: activeTab === 'three_way' ? '#059669' : undefined,
+          fontWeight: 700,
+        }}
+      >
+        🛡️ Conciliación 3-Way Match
+      </button>
     </div>
   );
 }

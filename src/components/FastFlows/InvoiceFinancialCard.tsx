@@ -1,4 +1,5 @@
 import { money } from '../../lib/format';
+import type { InvoiceGuardrailResult } from '../../lib/finance';
 
 interface InvoiceFinancialCardProps {
   kilosToInvoice: number;
@@ -16,6 +17,7 @@ interface InvoiceFinancialCardProps {
   onInvoice: () => void;
   onClose: () => void;
   selectedRowsCount: number;
+  guardrail?: InvoiceGuardrailResult | null;
 }
 
 export function InvoiceFinancialCard({
@@ -34,6 +36,7 @@ export function InvoiceFinancialCard({
   onInvoice,
   onClose,
   selectedRowsCount,
+  guardrail,
 }: InvoiceFinancialCardProps) {
   return (
     <div
@@ -139,21 +142,51 @@ export function InvoiceFinancialCard({
             type="button"
             className="btn btn-primary"
             onClick={onInvoice}
-            disabled={saving || !folio.trim() || kilosToInvoice <= 0 || !!duplicateInvoice}
+            disabled={
+              saving ||
+              !folio.trim() ||
+              kilosToInvoice <= 0 ||
+              !!duplicateInvoice ||
+              Boolean(guardrail?.isOverDelivered || guardrail?.isOverOrdered)
+            }
             style={{
               padding: '10px 24px',
               fontWeight: 800,
               fontSize: 14,
               borderRadius: 10,
-              background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+              background:
+                guardrail?.isOverDelivered || guardrail?.isOverOrdered
+                  ? 'var(--bad)'
+                  : 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
               border: 'none',
               boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
             }}
           >
-            {saving ? '⏳ Emitiendo...' : `🧾 Emitir Factura (${kilosToInvoice.toLocaleString('es-MX')} kg)`}
+            {saving
+              ? '⏳ Emitiendo...'
+              : guardrail?.isOverDelivered || guardrail?.isOverOrdered
+              ? '⛔ Sobrefacturación Detectada'
+              : `🧾 Emitir Factura (${kilosToInvoice.toLocaleString('es-MX')} kg)`}
           </button>
         </div>
       </div>
+
+      {guardrail && (guardrail.isOverDelivered || guardrail.isOverOrdered) && (
+        <div
+          style={{
+            marginTop: 12,
+            background: 'rgba(220, 38, 38, 0.1)',
+            border: '1px solid #dc2626',
+            borderRadius: 8,
+            padding: '8px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#b91c1c',
+          }}
+        >
+          🛡️ {guardrail.message}
+        </div>
+      )}
     </div>
   );
 }

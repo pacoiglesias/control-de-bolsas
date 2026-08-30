@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { Modal } from '../ui';
 import type { PurchaseOrder, Delivery } from '../../lib/types';
 import { nombreClienteVisible } from '../../lib/format';
-import { round2, getOrderSummary } from '../../lib/finance';
+import { round2, getOrderSummary, validateOrderWeightGuardrail } from '../../lib/finance';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { sound } from '../../lib/sounds';
 import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
@@ -561,11 +561,56 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
                       )}
                     </div>
 
-                    {willExceed && (
-                      <div style={{ color: 'var(--bad)', fontSize: 11.5, fontWeight: 800, marginTop: 6 }}>
-                        ⚠️ ¡Error! No se pueden entregar más de {selectedInfo.faltante.toLocaleString('es-MX')} kg. La OC no permite excedentes.
-                      </div>
-                    )}
+                    {/* Guardrail Activo de Kilos */}
+                    {(() => {
+                      const guardrail = selectedInfo ? validateOrderWeightGuardrail(selectedInfo.order, Number(kilos) || 0) : null;
+                      if (!guardrail || !guardrail.isOverLimit) return null;
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          style={{
+                            background: 'rgba(220, 38, 38, 0.08)',
+                            border: '1px solid #dc2626',
+                            borderRadius: 10,
+                            padding: '10px 12px',
+                            marginTop: 10,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ color: '#b91c1c', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>🛡️ Guardrail Anti-Sobrecupo:</span>
+                            <span>Exceso de +{guardrail.excessKg.toLocaleString('es-MX')} kg</span>
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                            Regla inviolable: Andrés nunca entrega más kilos de lo solicitado en la OC ({guardrail.totalOrderedKg.toLocaleString('es-MX')} kg).
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                triggerHaptic('heavy');
+                                setKilos(guardrail.maxAllowedNewKg);
+                              }}
+                              style={{
+                                background: '#dc2626',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                padding: '5px 10px',
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ⚡ Ajustar al tope exacto ({guardrail.maxAllowedNewKg.toLocaleString('es-MX')} kg)
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })()}
                   </div>
 
                   {/* 3. Tipo de Documento y Folio */}
