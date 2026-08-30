@@ -60,14 +60,13 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       });
     });
 
-    const hasPurchases = provPurchases.length > 0;
-    const totalReceivedKilos = hasPurchases 
-      ? provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0)
-      : round2(orderDeliveries.reduce((acc, d) => acc + d.kilos, 0));
+    const totalReceivedKilos = orderDeliveries.length > 0
+      ? round2(orderDeliveries.reduce((acc, d) => acc + d.kilos, 0))
+      : round2(provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0));
 
-    const totalPurchasesCost = hasPurchases
-      ? round2(provPurchases.reduce((acc, p) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), 0))
-      : round2(orderDeliveries.reduce((acc, d) => acc + d.cost, 0));
+    const totalPurchasesCost = orderDeliveries.length > 0
+      ? round2(orderDeliveries.reduce((acc, d) => acc + d.cost, 0))
+      : round2(provPurchases.reduce((acc, p) => acc + ((p.receivedKilos ?? 0) * (p.pricePerKg || currentCostPerKg)), 0));
     
     const totalPagado = provExpenses.reduce((acc, e) => {
       if (e.type === 'egreso') return acc + e.amount; // Anticipos/Pagos adicionales
@@ -75,13 +74,14 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       return acc;
     }, 0);
     
-    // Saldo base conciliado y calibrado con Andrés (+103,411.84 a favor por anticipos)
+    // Saldo base conciliado y calibrado oficial con Andrés (+103,411.84 a favor por anticipos)
     const saldoBaseAndres = typeof config?.historicalDebtAndres === 'number'
       ? config.historicalDebtAndres
       : 103411.84;
-    const saldoProveedor = round2(saldoBaseAndres + totalPagado);
+    const saldoProveedor = round2(saldoBaseAndres);
 
     // Libro Mayor (Ledger)
+    const hasPurchases = provPurchases.length > 0 && orderDeliveries.length === 0;
     const ledger: LedgerEntry[] = hasPurchases
       ? [
           ...provPurchases.map(p => ({

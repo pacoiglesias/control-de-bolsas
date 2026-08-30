@@ -172,12 +172,14 @@ export function useDashboardStats(
       periodText = `Datos del mes de ${date.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`;
     }
 
-    let totalReceivedKilos = 0;
-    (purchases || []).forEach(p => {
-      if (!p || normalizarTexto(p.provider) !== 'andres') return;
-      totalReceivedKilos += Number(p.receivedKilos) || 0;
-    });
-    const inventarioVivo = totalReceivedKilos - totalKilosInvoiced;
+    let totalReceivedKilos = totalKilosDelivered;
+    if (totalReceivedKilos === 0) {
+      (purchases || []).forEach(p => {
+        if (!p || normalizarTexto(p.provider) !== 'andres') return;
+        totalReceivedKilos += Number(p.receivedKilos) || 0;
+      });
+    }
+    const inventarioVivo = Math.max(0, totalReceivedKilos - totalKilosInvoiced);
 
     let localSaldoCaja = 0;
     let opex = 0;
@@ -210,7 +212,7 @@ export function useDashboardStats(
       totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
     const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
-    const deudaAndres = round2(deudaHistorica + totalPagadoAndres);
+    const deudaAndres = round2(deudaHistorica);
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
     const proyeccionFlujo = localSaldoCaja + transito + deudaAndres;

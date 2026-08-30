@@ -164,8 +164,7 @@ export default function Compras() {
     }
 
     try {
-      const diff = realBalance - totalPagado;
-      await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: diff }, { merge: true });
+      await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: realBalance }, { merge: true });
       triggerHaptic('success');
       toast(`✅ Saldo calibrado con éxito a ${money(realBalance)}.`, 'ok');
     } catch (e) {

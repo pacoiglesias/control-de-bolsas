@@ -239,15 +239,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: 'REM-TH-2945',
               },
             ];
-            const mergedThDeliveries: Delivery[] = [...baseDeliveries];
-            const seenDelIds = new Set(baseDeliveries.map(d => d.id));
-            for (const d of (best.deliveries || [])) {
-              if (d && d.id && !seenDelIds.has(d.id)) {
-                seenDelIds.add(d.id);
-                mergedThDeliveries.push(d);
-              }
-            }
-            best.deliveries = mergedThDeliveries;
+            best.deliveries = baseDeliveries;
 
             const baseInvoices: Invoice[] = [
               {
@@ -365,15 +357,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: 'REM-GT-1972',
               },
             ];
-            const mergedGtDeliveries: Delivery[] = [...baseGtDeliveries];
-            const seenGtDelIds = new Set(baseGtDeliveries.map(d => d.id));
-            for (const d of (best.deliveries || [])) {
-              if (d && d.id && !seenGtDelIds.has(d.id)) {
-                seenGtDelIds.add(d.id);
-                mergedGtDeliveries.push(d);
-              }
-            }
-            best.deliveries = mergedGtDeliveries;
+            best.deliveries = baseGtDeliveries;
 
             const baseGtInvoices: Invoice[] = [
               {

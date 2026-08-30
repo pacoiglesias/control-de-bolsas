@@ -241,18 +241,8 @@ export function runContinuousAutoAudit({
   // =========================================================================
   // 3. REGLAS DE CONCILIACIÓN CON ANDRÉS ($38/KG & HISTORICAL DEBT)
   // =========================================================================
-
-  const andresExpenses = expenses.filter((e) => (e.provider || '').toLowerCase().includes('andres'));
-  const totalPaidAndres = round2(
-    andresExpenses.reduce((sum, e) => {
-      if (e.type === 'egreso') return sum + e.amount;
-      if (e.type === 'ingreso') return sum - e.amount;
-      return sum;
-    }, 0)
-  );
-
   const histDebt = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
-  const calculatedAndresBalance = round2(histDebt + totalPaidAndres);
+  const calculatedAndresBalance = round2(histDebt);
 
   // Si no hay histórico configurado y hay desfase
   if (cfg.historicalDebtAndres === undefined || cfg.historicalDebtAndres === null) {
