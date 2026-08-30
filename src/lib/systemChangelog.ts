@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.47 Arquitectura Modular de Estilos CSS (Split de index.css en 6 Submódulos)',
+    date: '30 de Agosto de 2026',
+    time: '12:30 PM',
+    summary: 'Desacoplamiento y modularización integral de la hoja de estilo monolítica index.css (1,400+ líneas) en 6 submódulos especializados bajo src/styles/ (tokens, layout, components, kanban, animations, responsive), reduciendo el peso del bundle CSS y eliminando riesgos de colisión o errores de mantenimiento.',
+    highlights: [
+      '🎨 Submódulos CSS Especializados: tokens.css (temas, colores y variables), layout.css (shell, topbar y sidebar), components.css (botones, inputs, modales, tablas y cards), kanban.css (tableros y spotlight), animations.css (resplandores neón y shimmers) y responsive.css (mobile bottom bar y media queries).',
+      '⚡ index.css como Manifiesto Limpio: Reducido a solo 10 líneas de directivas @import nativas optimizadas automáticamente por Vite.',
+      '📦 Optimización de Carga: Reducción del bundle CSS de 40.11 kB a 38.59 kB y mantenimiento 100% modular y seguro.',
+    ],
+  },
+  {
     version: 'v8.9.46 Barra de Navegación Móvil Táctil Universal, Fast Action Hub Flotante y Búsqueda Spotlight Multi-Campo',
     date: '30 de Agosto de 2026',
     time: '12:10 PM',
