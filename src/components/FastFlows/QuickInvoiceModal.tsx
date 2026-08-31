@@ -435,11 +435,16 @@ export function QuickInvoiceModal({
       clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
       oc: ocNum,
       notaCondiciones: `OC ${ocNum}`,
-      items: selectedRows.map((r) => ({
-        kilos: Number(r.quantity) || 0,
-        description: `${r.code ? r.code + ' ' : ''}${r.description}`,
-        unitPrice: Number(r.unitPrice) || currentSellPrice,
-      })),
+      items: selectedRows.map((r) => {
+        const desc = r.code && !r.description.toLowerCase().includes(r.code.toLowerCase())
+          ? `${r.code} ${r.description}`
+          : r.description;
+        return {
+          kilos: Number(r.quantity) || 0,
+          description: desc,
+          unitPrice: Number(r.unitPrice) || currentSellPrice,
+        };
+      }),
       metodoPago: 'PPD',
       formaPago: '99 por definir',
       claveSat: '24141500',
