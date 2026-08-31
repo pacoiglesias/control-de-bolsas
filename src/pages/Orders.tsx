@@ -46,7 +46,7 @@ export default function Orders() {
   const [showCrHubModal, setShowCrHubModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
-  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('kanban');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('list');
   
   const [page, setPage] = useState(1);
   const pageSize = 30;
