@@ -12,6 +12,7 @@ import { nombreClienteVisible } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
 import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
 import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
+import { triggerHaptic } from '../../lib/hapticEngine';
 
 // Subcomponentes modulares de Facturación Rápida
 import { InvoiceProgressBar } from './InvoiceProgressBar';
@@ -289,17 +290,28 @@ export function QuickInvoiceModal({
 
   const handleInvoice = async () => {
     if (!selectedOrder) return;
-    if (selectedRows.length === 0) return toast('Selecciona al menos un concepto para facturar', 'bad');
-    if (kilosToInvoice <= 0) return toast('Ingresa una cantidad de kilos válida en los conceptos seleccionados', 'bad');
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      return toast('Selecciona al menos un concepto para facturar', 'bad');
+    }
+    if (kilosToInvoice <= 0) {
+      triggerHaptic('warning');
+      return toast('Ingresa una cantidad de kilos válida en los conceptos seleccionados', 'bad');
+    }
     if (kilosToInvoice > availableKilos + 0.1) {
+      triggerHaptic('warning');
       return toast(
         `⚠️ Los kilos seleccionados (${kilosToInvoice.toLocaleString('es-MX')} kg) superan los disponibles (${availableKilos.toLocaleString('es-MX')} kg)`,
         'bad'
       );
     }
-    if (!folio.trim()) return toast('Falta el folio de la factura', 'bad');
+    if (!folio.trim()) {
+      triggerHaptic('warning');
+      return toast('Falta el folio de la factura', 'bad');
+    }
 
     if (duplicateInvoice) {
+      triggerHaptic('warning');
       return toast(
         `🚨 La factura #${folio.trim()} ya fue registrada en la OC #${duplicateInvoice.orderFolio}. No se permiten facturas duplicadas.`,
         'bad'
@@ -370,9 +382,11 @@ export function QuickInvoiceModal({
 
       await updateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);
 
+      triggerHaptic('success');
       toast('✅ Factura emitida con conceptos desglosados y kilos descontados exitosamente', 'ok');
       onClose();
     } catch (e: any) {
+      triggerHaptic('error');
       toast(`Error al facturar: ${e.message}`, 'bad');
     } finally {
       setSaving(false);
