@@ -186,10 +186,12 @@ export default function Dashboard() {
 
   const k = useDashboardStats(null, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
 
-  const saldoCaja = round2((expenses || []).reduce((acc, e) => {
-    if (!e) return acc;
-    return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
-  }, 0));
+  const saldoCaja = useMemo(() => {
+    return round2((expenses || []).reduce((acc, e) => {
+      if (!e) return acc;
+      return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
+    }, 0));
+  }, [expenses]);
 
   const pendingInvoicesCount = useMemo(() => {
     return seguimientoOrders.filter(o => {

@@ -1,4 +1,17 @@
 
+### Iteración 69: Memoización de Saldo de Caja Chica y Cero Re-cálculos Innecesarios en Dashboard (COMPLETADO)
+[2026-08-31]
+Archivo: `src/pages/Dashboard.tsx`
+Problema: El saldo consolidado de caja chica (`saldoCaja`) se recalculaba en el cuerpo principal del componente `Dashboard` en cada ciclo de render, incluso ante cambios menores de estado en pestañas de vista (`viewMode`) o apertura/cierre de menús contextuales.
+Impacto: Desperdicio de ciclos de CPU en móviles durante la navegación entre pestañas ejecutivas y operativas.
+Solución: Se envolvió el cómputo de `saldoCaja` dentro de `useMemo` con dependencia exclusiva en `[expenses]`, eliminando re-cálculos redundantes.
+Riesgo: 🟢 Cero.
+Commit: `perf(dashboard): memoize saldoCaja computation to prevent redundant renders`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 3 (Rendimiento Frontend <50ms) y OKR 5 (Eficiencia Energética y Fluidez Móvil).
+
+---
+
 ### Iteración 68: Blindaje de Topes Matemáticos por Partida contra Sobrefacturación (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/deliveries.ts`
