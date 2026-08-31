@@ -1,4 +1,17 @@
 
+### Iteración 68: Blindaje de Topes Matemáticos por Partida contra Sobrefacturación (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/deliveries.ts`
+Problema: En `computeItemInvoiceBreakdown`, ante entregas acumuladas de báscula que excedieran temporalmente el remanente de una partida, la sugerencia de facturación (`suggestedKilos`) podía sugerir kilos por encima de los autorizados por la OC.
+Impacto: Riesgo de timbrar CFDI por kilos superiores a la OC autorizada por Providencia (violación de la Regla Inviolable 4).
+Solución: Se aplicó un techo matemático estricto `round2(Math.min(uninvoicedDeliveredKilos, remainingOcKilos))` que garantiza que nunca se sugiera ni facture un solo gramo por encima de la orden oficial.
+Riesgo: 🟢 Cero.
+Commit: `fix(deliveries): enforce strict OC ceiling in suggested invoice breakdown`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 4 (Integridad Contable).
+
+---
+
 ### Iteración 67: Generalización Universal de Detección de Contrarecibos en 3-Way Match (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/finance.ts`

@@ -227,7 +227,8 @@ export function computeItemInvoiceBreakdown(
     let suggestedKilos = 0;
     if (hasDeliveries) {
       // Si hay entregas en la orden, sugerir SOLO los kilos recibidos en báscula que NO han sido facturados
-      suggestedKilos = uninvoicedDeliveredKilos;
+      // y con tope estricto a los kilos restantes de la OC (Regla Inviolable 4)
+      suggestedKilos = round2(Math.min(uninvoicedDeliveredKilos, remainingOcKilos));
     } else {
       // Si es una orden abierta sin báscula, sugerir los kilos restantes de la OC
       suggestedKilos = remainingOcKilos;
