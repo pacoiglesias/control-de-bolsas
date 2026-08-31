@@ -31,6 +31,7 @@ interface InvoiceConceptTableProps {
   onUpdateField: <K extends keyof ConceptRow>(index: number, field: K, val: ConceptRow[K]) => void;
   onFillMax: (index: number) => void;
   onRemoveRow: (index: number) => void;
+  onDownloadPrefactura?: () => void;
 }
 
 export function InvoiceConceptTable({
@@ -109,8 +110,34 @@ export function InvoiceConceptTable({
             style={{ fontSize: 10.5, padding: '3px 10px' }}
             onClick={onAddNewRow}
           >
-            ➕ Agregar
+            + Fila
           </button>
+          {onDownloadPrefactura && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                fontSize: 11,
+                padding: '4px 12px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 800,
+                borderRadius: 8,
+                boxShadow: '0 2px 8px rgba(16,185,129,0.35)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                cursor: 'pointer',
+              }}
+              onClick={onDownloadPrefactura}
+              disabled={kilosToInvoice <= 0}
+              title="Descargar Prefactura oficial en Excel (.xlsx)"
+            >
+              <span>📊</span>
+              <span>Prefactura Excel</span>
+            </button>
+          )}
         </div>
       </div>
 

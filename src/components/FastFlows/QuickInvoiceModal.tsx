@@ -583,6 +583,7 @@ export function QuickInvoiceModal({
               onUpdateField={updateRowField}
               onFillMax={fillRowMax}
               onRemoveRow={removeRow}
+              onDownloadPrefactura={handleDownloadPrefactura}
             />
 
             {/* 4. Resumen Financiero y Folio SAT */}
