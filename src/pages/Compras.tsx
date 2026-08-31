@@ -202,17 +202,75 @@ export default function Compras() {
 
   return (
     <>
-      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
         <div>
-          <h1>Módulo de Compras & Cuenta Corriente con {provName}</h1>
-          <p>Control de anticipos, entregas en báscula, costo de compra y estado de cuenta con el proveedor ({provName}).</p>
+          <h1 style={{ fontWeight: 900, letterSpacing: '-0.03em' }}>
+            Módulo de Compras & Cuenta Corriente con {provName}
+          </h1>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+            Control de anticipos, entregas en báscula, costo de compra ($38/kg) y estado de cuenta oficial.
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={() => void handleCalibrateSaldo()} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700 }}>🔧 Calibrar Saldo</button>
-          <button className="btn" onClick={handleSendEmail} style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700 }}>📧 Enviar Correo</button>
-          <button className="btn" onClick={handleSendWhatsApp} style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', fontWeight: 700 }}>📲 Enviar WhatsApp</button>
-          <button className="btn" onClick={() => setAjusteModal(true)}>⚖️ Ajuste Manual</button>
-          <button className="btn" onClick={() => setSelected({} as Purchase)}>➕ Nuevo Anticipo / OC</button>
+          <button
+            className="btn"
+            onClick={() => void handleCalibrateSaldo()}
+            style={{
+              minHeight: 40,
+              borderRadius: 10,
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1px solid #a7f3d0',
+              fontWeight: 700,
+              fontSize: 12.5,
+            }}
+          >
+            🔧 Calibrar Saldo
+          </button>
+          <button
+            className="btn"
+            onClick={handleSendEmail}
+            style={{
+              minHeight: 40,
+              borderRadius: 10,
+              background: '#eff6ff',
+              color: '#1d4ed8',
+              border: '1px solid #93c5fd',
+              fontWeight: 700,
+              fontSize: 12.5,
+            }}
+          >
+            📧 Enviar Correo
+          </button>
+          <button
+            className="btn"
+            onClick={handleSendWhatsApp}
+            style={{
+              minHeight: 40,
+              borderRadius: 10,
+              background: '#f0fdf4',
+              color: '#15803d',
+              border: '1px solid #86efac',
+              fontWeight: 700,
+              fontSize: 12.5,
+            }}
+          >
+            📲 Enviar WhatsApp
+          </button>
+          <button
+            className="btn"
+            onClick={() => setAjusteModal(true)}
+            style={{ minHeight: 40, borderRadius: 10, fontWeight: 700, fontSize: 12.5 }}
+          >
+            ⚖️ Ajuste Manual
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setSelected({} as Purchase)}
+            style={{ minHeight: 40, borderRadius: 10, fontWeight: 800, fontSize: 12.5 }}
+          >
+            ➕ Nuevo Anticipo / OC
+          </button>
         </div>
       </div>
 
@@ -224,9 +282,41 @@ export default function Compras() {
         onPayDebt={(amount) => setPagarModalAmount(amount || 0.01)}
       />
 
-      <div className="tabs" style={{ marginBottom: 24, display: 'flex', gap: 8, borderBottom: '1px solid var(--line-soft)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'estado' ? 'btn-primary' : ''}`} onClick={() => setTab('estado')}>⚖️ Libro Mayor y Pagos</button>
-        <button className={`btn ${tab === 'ordenes' ? 'btn-primary' : ''}`} onClick={() => setTab('ordenes')}>📦 Órdenes de Compra</button>
+      <div style={{ marginBottom: 24, display: 'flex', gap: 6, background: 'var(--paper-sunk)', padding: 4, borderRadius: 12, width: 'fit-content', border: '1px solid var(--line-soft)' }}>
+        <button
+          className={`btn-small ${tab === 'estado' ? 'btn-primary' : ''}`}
+          style={{
+            minHeight: 36,
+            borderRadius: 8,
+            padding: '6px 16px',
+            background: tab === 'estado' ? 'var(--accent)' : 'transparent',
+            color: tab === 'estado' ? '#fff' : 'var(--ink-soft)',
+            border: 'none',
+            fontWeight: tab === 'estado' ? 800 : 600,
+            fontSize: 13,
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setTab('estado')}
+        >
+          ⚖️ Libro Mayor y Pagos
+        </button>
+        <button
+          className={`btn-small ${tab === 'ordenes' ? 'btn-primary' : ''}`}
+          style={{
+            minHeight: 36,
+            borderRadius: 8,
+            padding: '6px 16px',
+            background: tab === 'ordenes' ? 'var(--accent)' : 'transparent',
+            color: tab === 'ordenes' ? '#fff' : 'var(--ink-soft)',
+            border: 'none',
+            fontWeight: tab === 'ordenes' ? 800 : 600,
+            fontSize: 13,
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setTab('ordenes')}
+        >
+          📦 Órdenes de Compra
+        </button>
       </div>
 
       {tab === 'estado' && (

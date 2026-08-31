@@ -583,29 +583,59 @@ export default function OcTracking() {
       <CashFlowForecastWidget orders={orders} />
 
       {/* Selector de Planta Providencia */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>🏢 PLANTA:</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'var(--paper-sunk)', padding: 4, borderRadius: 12, border: '1px solid var(--line-soft)' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--ink-soft)', paddingLeft: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🏢 PLANTA:</span>
           <button
             className={`btn-small ${plantFilter === 'ALL' ? 'btn-primary' : ''}`}
             onClick={() => setPlantFilter('ALL')}
-            style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700 }}
+            style={{
+              minHeight: 34,
+              borderRadius: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: plantFilter === 'ALL' ? 800 : 600,
+              background: plantFilter === 'ALL' ? 'var(--accent)' : 'transparent',
+              color: plantFilter === 'ALL' ? '#fff' : 'var(--ink)',
+              border: 'none',
+              transition: 'all 0.15s ease',
+            }}
           >
-            🌟 Ambas Plantas ({allOcGroups.length})
+            🌟 Ambas ({allOcGroups.length})
           </button>
           <button
             className={`btn-small ${plantFilter === 'TH' ? 'btn-primary' : ''}`}
             onClick={() => setPlantFilter('TH')}
-            style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700, borderColor: '#3b82f6', color: plantFilter === 'TH' ? '#fff' : '#3b82f6' }}
+            style={{
+              minHeight: 34,
+              borderRadius: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: plantFilter === 'TH' ? 800 : 600,
+              background: plantFilter === 'TH' ? '#2563eb' : 'transparent',
+              color: plantFilter === 'TH' ? '#fff' : '#2563eb',
+              border: 'none',
+              transition: 'all 0.15s ease',
+            }}
           >
-            🟦 Textil Hogar (TH · Nava) ({allOcGroups.filter(g => inferDepartment(g.order) === 'TH' || (g.order.department?.toUpperCase().includes('TH'))).length})
+            🟦 TH · Nava ({allOcGroups.filter(g => inferDepartment(g.order) === 'TH' || (g.order.department?.toUpperCase().includes('TH'))).length})
           </button>
           <button
             className={`btn-small ${plantFilter === 'GT' ? 'btn-primary' : ''}`}
             onClick={() => setPlantFilter('GT')}
-            style={{ fontSize: 12, padding: '4px 10px', fontWeight: 700, borderColor: '#8b5cf6', color: plantFilter === 'GT' ? '#fff' : '#8b5cf6' }}
+            style={{
+              minHeight: 34,
+              borderRadius: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: plantFilter === 'GT' ? 800 : 600,
+              background: plantFilter === 'GT' ? '#7c3aed' : 'transparent',
+              color: plantFilter === 'GT' ? '#fff' : '#7c3aed',
+              border: 'none',
+              transition: 'all 0.15s ease',
+            }}
           >
-            🟪 Grupo Textil (GT · Evelia) ({allOcGroups.filter(g => inferDepartment(g.order) === 'GT' || (g.order.department?.toUpperCase().includes('GT'))).length})
+            🟪 GT · Evelia ({allOcGroups.filter(g => inferDepartment(g.order) === 'GT' || (g.order.department?.toUpperCase().includes('GT'))).length})
           </button>
         </div>
 
@@ -615,7 +645,14 @@ export default function OcTracking() {
           placeholder="🔍 Buscar OC, folio, cliente, SKU o CR..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ maxWidth: 280, fontSize: 12 }}
+          style={{
+            minHeight: 40,
+            maxWidth: 320,
+            fontSize: 12.5,
+            borderRadius: 10,
+            border: '1px solid var(--line)',
+            padding: '8px 14px',
+          }}
         />
       </div>
 

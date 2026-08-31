@@ -331,12 +331,13 @@ export function FastEntry() {
 
   return (
     <div className="page-container" style={{ padding: '16px 12px', maxWidth: 1200, margin: '0 auto', paddingBottom: 90 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>📥 Recepción & Captura
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.03em' }}>
+            📥 Recepción & Captura Rápida
           </h1>
-          <p style={{ margin: 0, marginTop: 4, color: 'var(--ink-soft)', fontSize: 13 }}>
-            Sube un archivo, pega texto o ingresa los datos manualmente.
+          <p style={{ margin: 0, marginTop: 4, color: 'var(--ink-soft)', fontSize: 13.5 }}>
+            Sube un archivo, pega texto con IA o ingresa pesajes de báscula directamente en patio.
           </p>
         </div>
         {/* Desktop save button */}
@@ -344,10 +345,10 @@ export function FastEntry() {
           className="btn btn-primary"
           onClick={handleSave}
           disabled={saving || (activeTab === 'docs' ? Object.keys(edits).length === 0 : Object.keys(logisticsEdits).length === 0)}
-          style={{ padding: '8px 24px', fontSize: 16, display: 'none' }}
+          style={{ padding: '8px 24px', fontSize: 14, fontWeight: 800, borderRadius: 10, minHeight: 40, display: 'none' }}
           id="desktop-save-btn"
         >
-          {saving ? 'Guardando...' : 'Guardar Todo'}
+          {saving ? 'Guardando...' : '💾 Guardar Todo'}
         </button>
       </div>
 
@@ -371,17 +372,37 @@ export function FastEntry() {
         )}
       </div>
       
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 24, background: 'var(--paper-sunk)', padding: 4, borderRadius: 12, width: 'fit-content', border: '1px solid var(--line-soft)' }}>
         <button 
-          className={`btn ${activeTab === 'logistics' ? 'btn-primary' : ''}`} 
-          style={{ borderRadius: '8px 8px 0 0', borderBottom: activeTab === 'logistics' ? 'none' : '' }}
+          className={`btn-small ${activeTab === 'logistics' ? 'btn-primary' : ''}`} 
+          style={{
+            minHeight: 36,
+            borderRadius: 8,
+            padding: '6px 18px',
+            fontSize: 13,
+            fontWeight: activeTab === 'logistics' ? 800 : 600,
+            background: activeTab === 'logistics' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'logistics' ? '#fff' : 'var(--ink-soft)',
+            border: 'none',
+            transition: 'all 0.15s ease',
+          }}
           onClick={() => setActiveTab('logistics')}
         >
           🚚 Entregas de Andrés
         </button>
         <button 
-          className={`btn ${activeTab === 'docs' ? 'btn-primary' : ''}`} 
-          style={{ borderRadius: '8px 8px 0 0', borderBottom: activeTab === 'docs' ? 'none' : '' }}
+          className={`btn-small ${activeTab === 'docs' ? 'btn-primary' : ''}`} 
+          style={{
+            minHeight: 36,
+            borderRadius: 8,
+            padding: '6px 18px',
+            fontSize: 13,
+            fontWeight: activeTab === 'docs' ? 800 : 600,
+            background: activeTab === 'docs' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'docs' ? '#fff' : 'var(--ink-soft)',
+            border: 'none',
+            transition: 'all 0.15s ease',
+          }}
           onClick={() => setActiveTab('docs')}
         >
           📄 Facturas y Contrarecibos
