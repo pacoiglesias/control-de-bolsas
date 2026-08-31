@@ -288,6 +288,17 @@ export interface PurchaseOrder {
   updatedAt?: Timestamp | null;
   aiError?: string;
   isClosedShort?: boolean;
+  /** Metadatos de auditoría criptográfica y trazabilidad */
+  audit?: AuditMetadata;
+}
+
+export interface AuditMetadata {
+  createdAt?: Timestamp | null;
+  createdBy?: string;
+  updatedAt?: Timestamp | null;
+  updatedBy?: string;
+  sha256Signature?: string;
+  source?: 'web' | 'mobile' | 'pwa' | 'portal_maquilador' | 'excel_sync' | 'migration';
 }
 
 export interface Expense {
