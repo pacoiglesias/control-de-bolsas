@@ -1,4 +1,17 @@
 
+### Iteración 74: Conmutación y Respuesta Háptica en Calendario de Flujo de Efectivo Semanal (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/Cobranza/CashFlowForecastWidget.tsx`
+Problema: En el widget de proyección semanal de flujo de efectivo (`CashFlowForecastWidget`), al seleccionar un cubo semanal de facturas no era posible deseleccionarlo (toggle off) para contraer la vista detallada, y la conmutación de plantas (`TH`, `GT`, `Ambas`) no ofrecía respuesta háptica.
+Impacto: Rigidez en la exploración de facturas amparadas en pantallas compactas.
+Solución: Se integró selección alternable `setSelectedWeek(prev => (prev === b.weekKey ? null : b.weekKey))` y retroalimentación táctil `triggerHaptic('light')` en filtros de planta y cubos semanales.
+Riesgo: 🟢 Cero.
+Commit: `feat(cobranza): add toggle selection and haptics to CashFlowForecastWidget`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 3 (Rendimiento) y OKR 5 (UX & Exploración Directiva).
+
+---
+
 ### Iteración 73: Integración de Motor Háptico y Guardas Preventivas en Facturación Rápida (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`

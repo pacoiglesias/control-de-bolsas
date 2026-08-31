@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { money, toDate } from '../../lib/format';
 import { inferDepartment, round2 } from '../../lib/finance';
+import { triggerHaptic } from '../../lib/hapticEngine';
 
 interface WeeklyBucket {
   weekKey: string;
@@ -195,7 +196,10 @@ export function CashFlowForecastWidget({ orders }: { orders: PurchaseOrder[] }) 
         <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>Planta:</span>
         <button
           type="button"
-          onClick={() => setPlantFilter('ALL')}
+          onClick={() => {
+            triggerHaptic('light');
+            setPlantFilter('ALL');
+          }}
           style={{
             fontSize: 11,
             padding: '3px 10px',
@@ -211,7 +215,10 @@ export function CashFlowForecastWidget({ orders }: { orders: PurchaseOrder[] }) 
         </button>
         <button
           type="button"
-          onClick={() => setPlantFilter('TH')}
+          onClick={() => {
+            triggerHaptic('light');
+            setPlantFilter('TH');
+          }}
           style={{
             fontSize: 11,
             padding: '3px 10px',
@@ -227,7 +234,10 @@ export function CashFlowForecastWidget({ orders }: { orders: PurchaseOrder[] }) 
         </button>
         <button
           type="button"
-          onClick={() => setPlantFilter('GT')}
+          onClick={() => {
+            triggerHaptic('light');
+            setPlantFilter('GT');
+          }}
           style={{
             fontSize: 11,
             padding: '3px 10px',
@@ -257,7 +267,10 @@ export function CashFlowForecastWidget({ orders }: { orders: PurchaseOrder[] }) 
             <button
               key={b.weekKey}
               type="button"
-              onClick={() => setSelectedWeek(b.weekKey)}
+              onClick={() => {
+                triggerHaptic('light');
+                setSelectedWeek(prev => (prev === b.weekKey ? null : b.weekKey));
+              }}
               style={{
                 background: isSelected 
                   ? 'linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(59,130,246,0.18) 100%)'
