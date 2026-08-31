@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.64 Sprint de Optimización Staff: Flujo Granular, Rendimiento y 3-Way Match Universal',
+    date: '31 de Agosto de 2026',
+    time: '06:30 PM',
+    summary: 'Consolidación de las optimizaciones del sprint de auditoría Staff Engineer: filtro por planta en flujo de caja, estabilización de renderizado en órdenes, tipado estricto AuditMetadata y 3-way match universal.',
+    highlights: [
+      '🎯 Flujo Granular por Planta: Filtro dinámico TH / GT / Todas en proyección de flujo de efectivo semanal.',
+      '⚡ 60 FPS en Catálogo: Memoización de ordenamiento y contrarecibos con useCallback.',
+      '🔒 Metadatos de Auditoría: Tipado estricto de trazabilidad y firmas SHA-256 en PurchaseOrder.',
+      '⚖️ 3-Way Match Universal: Compatibilidad total con contrarecibos de plantas dinámicas.',
+    ],
+  },
+  {
     version: 'v8.9.63 Calendario de Flujo Semanal (Cash Flow) y Recibos Oficiales de Andrés',
     date: '31 de Agosto de 2026',
     time: '04:35 PM',
