@@ -1,4 +1,17 @@
 
+### Iteración 82: Unificación de Tipado Estricto de Fechas y Eliminación de Casting 'any' (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/types.ts`, `src/lib/format.ts`
+Problema: En `format.ts` la función `toDate` aceptaba tipos `any`, permitiendo posibles deslices de tipado en conversiones de fechas de Firestore Timestamp, Date, milisegundos y cadenas ISO.
+Impacto: Riesgo de runtime errors silenciosos en el formateo de fechas del ciclo de crédito o facturas.
+Solución: Se creó y exportó la unión canónica `AnyFirestoreDate` en `src/lib/types.ts` y se tiparon estrictamente todas las funciones de formateo (`toDate`, `fmtDate`, `fmtDayAndDate`, `fmtDateFull`, `fmtDateTime`, `fmtDateTimeFull`, `toInputDate`) eliminando el casting inseguro.
+Riesgo: 🟢 Cero.
+Commit: `refactor(types): unify strict AnyFirestoreDate and eliminate any casting in formatters`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 3 (Estabilidad & Tipado Estricto).
+
+---
+
 ### Iteración 81: Independencia Estricta de Prefacturas de Excel por Expediente (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/lib/deliveries.ts`, `src/lib/__tests__/xlsxSafety.test.ts`

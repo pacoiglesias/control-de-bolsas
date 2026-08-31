@@ -1,5 +1,15 @@
 import type { Timestamp } from 'firebase/firestore';
 
+/** Tipo unificado para manejo seguro de fechas de Firestore, JavaScript, cadenas o números */
+export type AnyFirestoreDate =
+  | Timestamp
+  | Date
+  | string
+  | number
+  | { seconds: number; nanoseconds?: number; toDate?: () => Date; toMillis?: () => number }
+  | null
+  | undefined;
+
 export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review';
 
 export interface FinancialConfig {
