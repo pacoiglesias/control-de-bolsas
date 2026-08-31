@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.2 Enterprise: Generador Oficial de Prefacturas Excel y Calibración 3,700 kg',
+    date: '31 de Agosto de 2026',
+    time: '10:10 PM',
+    summary: 'Incorporación del generador y descargador oficial de Prefacturas en Excel (.xlsx) con la plantilla física para el facturador, y calibración de la OC oficial de Evelia en 3,700.00 kg.',
+    highlights: [
+      '📊 Prefacturas Excel (.xlsx) en 1 Clic: Generación y descarga instantánea con plantilla idéntica para el facturador.',
+      '🎯 Calibración Canónica de Evelia: OC 12026439713 fijada exactamente en 3,700.00 kg con partida de 1.20x1.60m en 700 kg.',
+      '🧾 Desglose de Patio Automatizado: Carga instantánea de los 2,945.20 kg de Nava (14115) y 1,972.20 kg de Evelia (9714).',
+    ],
+  },
+  {
     version: 'v9.0.1 Enterprise: Haptics de Alta Precisión y Conmutación de Flujo',
     date: '31 de Agosto de 2026',
     time: '07:05 PM',
