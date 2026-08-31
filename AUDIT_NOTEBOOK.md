@@ -1,4 +1,17 @@
 
+### Iteración 75: Restauración de los Kilos Oficiales Canónicos de Evelia (3,700.00 kg) (COMPLETADO)
+[2026-08-31]
+Archivo: `src/context/OrdersContext.tsx`
+Problema: En `OrdersContext.tsx`, la partida #3 de la OC `12026439713` (Evelia / Planta 4) había sido alterada erróneamente a 955.20 kg elevando el total ficticio a 3,955.20 kg, distorsionando el balance oficial de Providencia.
+Impacto: Desfase en el cálculo de avance de la orden de compra y confusión en el remanente real por surtir.
+Solución: Se restauró la partida #3 (`EGBO000017-SC`) a sus **`700.00 kg`** oficiales ($30,100.00) y el total canónico de la OC a **`3,700.00 kg`** ($159,100.00 subtotal).
+Riesgo: 🟢 Cero.
+Commit: `fix(orders): restore canonical Evelia OC to official 3,700 kg`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 4 (Integridad de Órdenes).
+
+---
+
 ### Iteración 74: Conmutación y Respuesta Háptica en Calendario de Flujo de Efectivo Semanal (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/Cobranza/CashFlowForecastWidget.tsx`

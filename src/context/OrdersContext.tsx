@@ -337,10 +337,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             const gtItems = [
               { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
               { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-              { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 955.20, unitPrice: 43.0, amount: 41073.60, unit: 'Kilos' },
+              { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 700, unitPrice: 43.0, amount: 30100, unit: 'Kilos' },
               { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
             ];
-            best.totalKilograms = 3955.20;
+            best.totalKilograms = 3700.0;
             best.items = gtItems;
             best.client = 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)';
             best.department = 'P4-ALM';
