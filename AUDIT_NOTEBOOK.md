@@ -1,4 +1,17 @@
 
+### Iteración 64: Selector y Filtro Dinámico Multi-Planta en Calendario de Flujo de Efectivo (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/Cobranza/CashFlowForecastWidget.tsx`
+Problema: El calendario semanal de flujo de efectivo calculaba el total consolidado sin permitir aislar la cobranza específica por planta (Textil Hogar vs Grupo Textil Providencia).
+Impacto: Dificultaba la planeación de cobranza departamental para pagos a proveedores y flujo de caja independiente por cliente/planta.
+Solución: Se implementó un selector y filtro dinámico de planta (`🌟 Ambas Plantas`, `🟦 Textil Hogar TH`, `🟩 Grupo Textil GT`) que recalcula en tiempo real los cubos semanales, facturas amparadas y depósitos netos esperados.
+Riesgo: 🟢 Cero.
+Commit: `feat(cobranza): dynamic plant filter in weekly cash flow forecast widget`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 5 (UX & Control Directivo).
+
+---
+
 ### Iteración 63: Calendario de Flujo de Efectivo Semanal (Cash Flow Forecast) y Comprobantes de Abono a Andrés (COMPLETADO)
 [2026-08-31]
 Archivos:
