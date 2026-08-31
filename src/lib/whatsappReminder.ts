@@ -234,3 +234,48 @@ export function openEmailMessage(subject: string, body: string, to = ''): void {
   window.location.href = url;
 }
 
+/**
+ * Genera el mensaje estructurado de WhatsApp para solicitar el timbrado fiscal de una prefactura al contador.
+ */
+export function generatePrefacturaContadorMessage({
+  oc,
+  client,
+  kilos,
+  subtotal,
+  iva,
+  total,
+  itemsCount,
+}: {
+  oc: string;
+  client: string;
+  kilos: number;
+  subtotal: number;
+  iva: number;
+  total: number;
+  itemsCount: number;
+}): string {
+  return `📄 *SOLICITUD DE FACTURACIÓN (PREFACTURA)*
+
+Estimado Contador, buen día.
+
+Le comparto los datos para el timbrado del CFDI correspondiente a Providencia:
+
+🏢 *Receptor:* GRUPO TEXTIL PROVIDENCIA SA DE CV
+📑 *RFC:* GTP930115PU1
+📍 *Uso CFDI:* G01 - Adquisición de mercancías
+📦 *Orden de Compra:* OC ${oc} (${client})
+⚖️ *Kilos de Báscula:* ${kilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${itemsCount} partida${itemsCount === 1 ? '' : 's'})
+
+💵 *Subtotal:* $${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+🏛️ *IVA (16%):* $${iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+🧾 *TOTAL FACTURA:* $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+
+📋 *Condiciones Fiscales:*
+• Método de Pago: PPD
+• Forma de Pago: 99 por definir
+• Clave SAT: 24141500 | Unidad: KGM
+• Nota en Factura: OC ${oc}
+
+Le adjunto el archivo de Excel oficial (.xlsx). Quedo atento al envío del PDF y XML timbrados. ¡Muchas gracias!`;
+}
+

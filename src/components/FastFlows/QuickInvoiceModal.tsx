@@ -14,6 +14,7 @@ import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
 import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
+import { generatePrefacturaContadorMessage } from '../../lib/whatsappReminder';
 
 // Subcomponentes modulares de Facturación Rápida
 import { InvoiceProgressBar } from './InvoiceProgressBar';
@@ -454,6 +455,38 @@ export function QuickInvoiceModal({
     toast(`📊 Prefactura Excel descargada para OC ${ocNum}`, 'ok');
   };
 
+  const handleWhatsAppContador = () => {
+    if (!selectedOrder) {
+      toast('⚠️ Selecciona un expediente primero', 'bad');
+      return;
+    }
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      toast('⚠️ Selecciona al menos una partida para la prefactura', 'bad');
+      return;
+    }
+
+    triggerHaptic('success');
+    const ocNum = selectedOrder.oc || selectedOrder.folio || 'S/N';
+    const msg = generatePrefacturaContadorMessage({
+      oc: ocNum,
+      client: nombreClienteVisible(selectedOrder.client),
+      kilos: kilosToInvoice,
+      subtotal: subtotalEstimado,
+      iva: ivaEstimado,
+      total: totalEstimadoConIva,
+      itemsCount: selectedRows.length,
+    });
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(msg);
+      toast('📲 Mensaje copiado al portapapeles. ¡Pégalo en WhatsApp junto con el Excel!', 'ok');
+    }
+
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+  };
+
   return (
     <Modal title="🧾 Facturación Rápida Multi-Concepto" onClose={onClose} wide>
       <style>{`
@@ -608,6 +641,7 @@ export function QuickInvoiceModal({
               onInvoice={handleInvoice}
               onClose={onClose}
               onDownloadPrefactura={handleDownloadPrefactura}
+              onWhatsAppContador={handleWhatsAppContador}
               selectedRowsCount={selectedRows.length}
               guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}
             />

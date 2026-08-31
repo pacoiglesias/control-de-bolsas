@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.7 Enterprise: Integración de Envío por WhatsApp para Contador con Prefactura',
+    date: '31 de Agosto de 2026',
+    time: '11:25 PM',
+    summary: 'Botón y asistente integrado de WhatsApp para copiar y enviar de inmediato la solicitud formal de timbrado de prefactura a los contadores junto con el archivo Excel.',
+    highlights: [
+      '📲 WhatsApp Contador en 1 Clic: Genera el texto estructurado con datos del receptor, RFC, partidas, kilos, subtotal, IVA y nota de OC.',
+      '📋 Portapapeles y Apertura Inmediata: Copia el mensaje al portapapeles y abre WhatsApp listo para adjuntar el archivo .xlsx.',
+      '🛡️ Cero Fricción en Facturación: Los contadores reciben todo masticado para timbrar en 2 minutos sin errores.',
+    ],
+  },
+  {
     version: 'v9.0.6 Enterprise: Blindaje Forense Total y Despliegue de Producción Cuadrado',
     date: '31 de Agosto de 2026',
     time: '11:20 PM',

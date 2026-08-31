@@ -17,6 +17,7 @@ interface InvoiceFinancialCardProps {
   onInvoice: () => void;
   onClose: () => void;
   onDownloadPrefactura?: () => void;
+  onWhatsAppContador?: () => void;
   selectedRowsCount: number;
   guardrail?: InvoiceGuardrailResult | null;
 }
@@ -37,6 +38,7 @@ export function InvoiceFinancialCard({
   onInvoice,
   onClose,
   onDownloadPrefactura,
+  onWhatsAppContador,
   selectedRowsCount,
   guardrail,
 }: InvoiceFinancialCardProps) {
@@ -154,6 +156,31 @@ export function InvoiceFinancialCard({
             >
               <span>📊</span>
               <span>Descargar Prefactura Excel</span>
+            </button>
+          )}
+          {onWhatsAppContador && (
+            <button
+              type="button"
+              className="btn"
+              onClick={onWhatsAppContador}
+              disabled={saving || kilosToInvoice <= 0}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: 'rgba(37,211,102,0.12)',
+                color: '#16a34a',
+                border: '1.5px solid rgba(37,211,102,0.4)',
+                fontWeight: 800,
+                fontSize: 13,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+              title="Copiar mensaje oficial de WhatsApp para solicitar la factura al contador"
+            >
+              <span>📲</span>
+              <span>WhatsApp Contador</span>
             </button>
           )}
           <button
