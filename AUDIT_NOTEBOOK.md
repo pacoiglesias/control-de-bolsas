@@ -1,4 +1,24 @@
 
+### Iteración 63: Calendario de Flujo de Efectivo Semanal (Cash Flow Forecast) y Comprobantes de Abono a Andrés (COMPLETADO)
+[2026-08-31]
+Archivos:
+- `src/components/Cobranza/CashFlowForecastWidget.tsx`
+- `src/pages/OcTracking.tsx`
+- `src/components/Compras/PagarAndresModal.tsx`
+- `src/lib/systemChangelog.ts`
+- `AUDIT_NOTEBOOK.md`
+- `package.json`
+Problema:
+1. El usuario solicitó herramientas de alto impacto para mejor control financiero: proyectar con exactitud el flujo de efectivo entrante semana por semana y generar comprobantes oficiales de pago y abonos a Andrés.
+Solución:
+1. **Calendario de Flujo de Efectivo (`CashFlowForecastWidget.tsx`):** Proyección semanal que agrupa facturas por cobrar por semanas (Esta Semana, Próxima Semana, +2, +3, +4+ semanas y Vencidas), calculando el depósito neto esperado (Subtotal × 1.08) y la retención del contador.
+2. **Comprobante Oficial de Abono a Andrés:** Integrado en `PagarAndresModal.tsx` con descarga de PDF oficial y envío directo a WhatsApp.
+Riesgo: 🟢 Cero.
+Commit: `feat: weekly cash flow forecast widget and andres official payment receipt generator`
+Estado: ✅ Verificado — 124/124 tests pasando, compilación y despliegue exitosos.
+
+---
+
 ### Iteración 62: Gestor Dinámico Multi-Planta en Configuración y Visibilidad Total de OCs y Partidas en Portal de Andrés (COMPLETADO)
 [2026-08-31]
 Archivos:

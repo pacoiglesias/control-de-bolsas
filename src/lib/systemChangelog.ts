@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.63 Calendario de Flujo Semanal (Cash Flow) y Recibos Oficiales de Andrés',
+    date: '31 de Agosto de 2026',
+    time: '04:35 PM',
+    summary: 'Nuevo widget de proyección de flujo de efectivo semanal en Seguimiento/Cobranza y suite de recibos oficiales de pago a Andrés en PDF y WhatsApp.',
+    highlights: [
+      '📅 Calendario de Flujo Semanal: Proyecta ingresos netos semana a semana según vencimientos de contrarecibos.',
+      '🧾 Recibos Oficiales de Andrés: Genera comprobante formal de abonos en PDF con saldo anterior y restante.',
+      '💬 Compartir por WhatsApp: Envío de comprobantes de pago en 1 clic.',
+    ],
+  },
+  {
     version: 'v8.9.62 Gestor Dinámico Multi-Planta y Desglose de OCs en Portal Andrés',
     date: '31 de Agosto de 2026',
     time: '03:55 PM',

@@ -12,6 +12,7 @@ import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/fina
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
 import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
+import { CashFlowForecastWidget } from '../components/Cobranza/CashFlowForecastWidget';
 import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder, Invoice, Delivery } from '../lib/types';
 
@@ -577,6 +578,9 @@ export default function OcTracking() {
           </div>
         </div>
       </div>
+
+      {/* WIDGET DE PROYECCIÓN SEMANAL DE FLUJO DE EFECTIVO */}
+      <CashFlowForecastWidget orders={orders} />
 
       {/* Selector de Planta Providencia */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
