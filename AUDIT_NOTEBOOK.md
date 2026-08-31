@@ -1,4 +1,17 @@
 
+### Iteración 76: Generador Oficial de Prefacturas Excel (.xlsx) para Facturación (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/excelTemplateGenerator.ts`
+Problema: El ERP no disponía de un generador automatizado que construyera y descargara el archivo `.xlsx` de prefactura con la plantilla oficial requerida por el facturador (encabezado receptor, desglose de partidas y kilos de báscula a $43.00, IVA 16%, subtotal, total y pie de página fiscal con método PPD, forma 99, clave SAT 24141500, unidad KGM y nota con la OC).
+Impacto: Necesidad de armar manualmente archivos de Excel para solicitar el timbrado de entregas de patio.
+Solución: Se implementaron las funciones `buildPrefacturaWorkbook` y `downloadPrefacturaExcel` que exportan la hoja de cálculo con la estructura y anchos de celda idénticos a la plantilla física oficial.
+Riesgo: 🟢 Cero.
+Commit: `feat(excel): add official Prefactura Excel generator matching billing template`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 4 (Integridad Contable) y OKR 5 (UX & Timbrado Veloz).
+
+---
+
 ### Iteración 75: Restauración de los Kilos Oficiales Canónicos de Evelia (3,700.00 kg) (COMPLETADO)
 [2026-08-31]
 Archivo: `src/context/OrdersContext.tsx`

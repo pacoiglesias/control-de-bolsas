@@ -205,3 +205,122 @@ export function downloadOfficialExcelTemplate() {
   XLSX.writeFile(wb, fileName);
 }
 
+export interface PrefacturaItem {
+  kilos: number;
+  description: string;
+  unitPrice: number;
+  total?: number;
+}
+
+export interface PrefacturaExcelData {
+  clientName?: string;
+  clientRfc?: string;
+  clientAddress?: string;
+  clientUsoCfdi?: string;
+  oc: string;
+  items: PrefacturaItem[];
+  metodoPago?: string;
+  formaPago?: string;
+  claveSat?: string;
+  unidadSat?: string;
+  notaCondiciones?: string;
+}
+
+/**
+ * Construye un libro de Excel (.xlsx) con la plantilla idéntica a la prefactura oficial enviada al facturador.
+ */
+export function buildPrefacturaWorkbook(data: PrefacturaExcelData): XLSX.WorkBook {
+  const wb = XLSX.utils.book_new();
+
+  // Matriz de celdas AOA
+  const rows: any[][] = [];
+
+  // Fila 1 (vacía)
+  rows.push([]);
+  // Fila 2: DATOS DEL RECEPTOR
+  rows.push(['', 'DATOS DEL RECEPTOR']);
+  // Fila 3: Razón Social
+  rows.push(['', data.clientName || 'GRUPO TEXTIL PROVIDENCIA SA DE CV']);
+  // Fila 4: RFC
+  rows.push(['', data.clientRfc || 'GTP930115PU1']);
+  // Fila 5: Domicilio
+  rows.push(['', data.clientAddress || 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO']);
+  // Fila 6: Uso CFDI
+  rows.push(['', data.clientUsoCfdi || 'Uso CFDI: G01 - Adquisición de mercancias']);
+  // Filas 7 y 8 (espacio)
+  rows.push([]);
+  rows.push([]);
+
+  // Fila 9: Encabezado de tabla (KILOS, DEESCRIPCION, ..., PRECIO, TOTAL)
+  rows.push(['KILOS', 'DEESCRIPCION', '', '', '', '', 'PRECIO', 'TOTAL']);
+
+  let subtotal = 0;
+
+  // Filas de Partidas
+  data.items.forEach((item) => {
+    const itemTotal = Number((item.kilos * item.unitPrice).toFixed(2));
+    subtotal += itemTotal;
+    rows.push([
+      item.kilos,
+      item.description,
+      '',
+      '',
+      '',
+      '',
+      item.unitPrice,
+      itemTotal,
+    ]);
+  });
+
+  subtotal = Number(subtotal.toFixed(2));
+  const iva = Number((subtotal * 0.16).toFixed(2));
+  const total = Number((subtotal + iva).toFixed(2));
+
+  // Fila Subtotal
+  rows.push(['', '', '', '', '', '', '', subtotal]);
+  // Espacio
+  rows.push([]);
+  // Fila IVA
+  rows.push(['', '', '', '', '', '', 'IVA', iva]);
+  // Fila Total
+  rows.push(['', '', '', '', '', '', 'TOTAL', `$ ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`]);
+  // Espacio
+  rows.push([]);
+
+  // Bloque Fiscal en Pie de Página
+  const ocNote = data.notaCondiciones || (data.oc ? (data.oc.toUpperCase().startsWith('OC') ? data.oc : `OC ${data.oc}`) : 'OC 120267114114');
+
+  rows.push(['', '', '', '', '', '', 'METODO DE PAGO', data.metodoPago || 'PPD']);
+  rows.push(['', '', '', '', '', '', 'FORMA DE PAGO', data.formaPago || '99 por definir']);
+  rows.push(['', '', '', '', '', '', 'CLAVE SAT', data.claveSat || '24141500']);
+  rows.push(['', '', '', '', '', '', 'UNIDAD SAT', data.unidadSat || 'KGM']);
+  rows.push(['', '', '', '', '', '', 'AGREGAR NOTA', ocNote]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Anchos de columna
+  ws['!cols'] = [
+    { wch: 10 }, // A: Kilos
+    { wch: 62 }, // B: Descripción
+    { wch: 4 },  // C
+    { wch: 4 },  // D
+    { wch: 4 },  // E
+    { wch: 4 },  // F
+    { wch: 18 }, // G: Precio / Etiquetas
+    { wch: 22 }, // H: Total / Valores
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Prefactura');
+  return wb;
+}
+
+/**
+ * Genera y descarga el archivo .xlsx de Prefactura oficial para enviar al facturador.
+ */
+export function downloadPrefacturaExcel(data: PrefacturaExcelData, customFileName?: string) {
+  const wb = buildPrefacturaWorkbook(data);
+  const cleanOc = (data.oc || 'OC').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = customFileName || `Prefactura_${cleanOc}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
