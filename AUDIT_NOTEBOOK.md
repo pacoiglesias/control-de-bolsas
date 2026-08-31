@@ -1,4 +1,17 @@
 
+### Iteración 85: Accesibilidad WCAG AA y Área de Toque Táctil en KeyboardShortcutsModal (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/Navigation/KeyboardShortcutsModal.tsx`
+Problema: El modal de atajos de teclado carecía de atributos semánticos ARIA (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`) y el botón de cierre no cumplía el área táctil mínima recomendada para dispositivos móviles (≥ 44px).
+Impacto: Dificultades de accesibilidad para lectores de pantalla y posibles toques erróneos en pantallas táctiles pequeñas.
+Solución: Se añadieron roles y etiquetas ARIA estándar, `aria-hidden="true"` en iconos decorativos y se amplió el botón a 44x44px con etiqueta accesible explícita.
+Riesgo: 🟢 Cero.
+Commit: `accessibility(shortcuts): add WCAG AA dialog semantics and 44px mobile touch targets`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 5 (UX Operativa, Accesibilidad & Móvil).
+
+---
+
 ### Iteración 84: Tipado Estricto y Coerción Robusta en Funciones de Conciliación Financiera (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/finance.ts`

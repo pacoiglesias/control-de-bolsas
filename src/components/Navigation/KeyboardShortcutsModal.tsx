@@ -105,6 +105,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         onClick={onClose}
       >
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcuts-modal-title"
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -136,6 +139,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div
+                aria-hidden="true"
                 style={{
                   width: 40,
                   height: 40,
@@ -151,7 +155,10 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
                 ⌨️
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>
+                <h3
+                  id="shortcuts-modal-title"
+                  style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}
+                >
                   Atajos de Teclado & Teclas Rápidas
                 </h3>
                 <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--ink-soft)' }}>
@@ -164,17 +171,25 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               type="button"
               onClick={onClose}
               className="btn"
+              aria-label="Cerrar ventana de atajos de teclado"
               style={{
-                padding: '6px 10px',
-                borderRadius: 8,
+                minHeight: 44,
+                minWidth: 44,
+                padding: '8px 14px',
+                borderRadius: 10,
                 background: 'var(--paper-sunk)',
                 border: '1px solid var(--line)',
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: 700,
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
               }}
             >
-              Cerrar (Esc)
+              <span>✕</span>
+              <span>Cerrar (Esc)</span>
             </button>
           </div>
 
