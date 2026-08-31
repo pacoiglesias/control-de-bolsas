@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.1 Enterprise: Haptics de Alta Precisión y Conmutación de Flujo',
+    date: '31 de Agosto de 2026',
+    time: '07:05 PM',
+    summary: 'Actualización táctil y operativa para la Generación 9.0 Enterprise: integración universal de vibraciones hápticas en captura acelerada y facturación rápida, y vista colapsable en flujo de efectivo.',
+    highlights: [
+      '📳 Haptics Universal: Retroalimentación táctil en captura acelerada FastEntry y timbrado QuickInvoice.',
+      '🔄 Conmutación de Flujo: Posibilidad de alternar y contraer la vista de facturas amparadas en Cash Flow.',
+      '🛡️ Guardas de Colisión: Alerta táctil y visual preventiva ante duplicados de folios o contrarecibos.',
+    ],
+  },
+  {
     version: 'v9.0.0 Enterprise — Bolsas Elemental Master Edition',
     date: '31 de Agosto de 2026',
     time: '06:50 PM',
