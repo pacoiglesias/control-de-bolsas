@@ -878,7 +878,7 @@ export function evaluateThreeWayMatch(
   const hasInvoice = !!inv && (Number(inv.kilos) > 0 || (inv.folio && inv.folio.trim().length > 0));
   
   const cr = extractCr(inv, order).trim().toUpperCase();
-  const hasCr = cr.length > 0 && (cr.startsWith('TH') || cr.startsWith('GT'));
+  const hasCr = cr.length > 0 && !cr.startsWith('SIN') && !cr.startsWith('PEND') && (cr.includes('-') || cr.startsWith('TH') || cr.startsWith('GT') || /^\d+$/.test(cr));
 
   const invoiceKg = round2(Number(inv?.kilos) || 0);
   const deliveryKg = totalDeliveredKg;

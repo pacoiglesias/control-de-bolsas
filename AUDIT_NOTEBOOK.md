@@ -1,4 +1,17 @@
 
+### Iteración 67: Generalización Universal de Detección de Contrarecibos en 3-Way Match (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/finance.ts`
+Problema: En `audit3WayMatch`, la detección de contrarecibos oficiales (`hasCr`) estaba acotada rígidamente a los prefijos hardcodeados `TH` y `GT`, lo cual causaba falsos positivos de "PENDING_CR" si un usuario configuraba una planta dinámica adicional (ej. `P3-102` o `CR-500`).
+Impacto: Las plantas personalizadas registradas en el nuevo gestor multi-planta no alcanzaban el estatus `MATCH_PERFECT` en la conciliación tripartita de báscula.
+Solución: Se flexibilizó la guarda `hasCr` para reconocer cualquier contrarecibo formal no pendiente/nulo que contenga guion divisor, prefijo de planta o folio numérico sin alterar la precedencia de `TH` y `GT`.
+Riesgo: 🟢 Cero.
+Commit: `refactor(finance): universalize contrarecibo detection in audit3WayMatch`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 5 (Escalabilidad Multi-Planta).
+
+---
+
 ### Iteración 66: Definición de Tipado Estricto de Metadatos de Auditoría y Trazabilidad Criptográfica (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/types.ts`
