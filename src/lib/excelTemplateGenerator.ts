@@ -255,9 +255,11 @@ export function buildPrefacturaWorkbook(data: PrefacturaExcelData): XLSX.WorkBoo
   rows.push(['KILOS', 'DEESCRIPCION', '', '', '', '', 'PRECIO', 'TOTAL']);
 
   let subtotal = 0;
+  const startItemRow = 10; // 1-based index in Excel
 
-  // Filas de Partidas
-  data.items.forEach((item) => {
+  // Filas de Partidas con fórmula dinámica (=A{row}*G{row})
+  data.items.forEach((item, idx) => {
+    const rowNum = startItemRow + idx;
     const itemTotal = Number((item.kilos * item.unitPrice).toFixed(2));
     subtotal += itemTotal;
     rows.push([
@@ -268,22 +270,26 @@ export function buildPrefacturaWorkbook(data: PrefacturaExcelData): XLSX.WorkBoo
       '',
       '',
       item.unitPrice,
-      itemTotal,
+      { t: 'n', f: `A${rowNum}*G${rowNum}`, v: itemTotal },
     ]);
   });
 
+  const lastItemRow = startItemRow + data.items.length - 1;
   subtotal = Number(subtotal.toFixed(2));
   const iva = Number((subtotal * 0.16).toFixed(2));
   const total = Number((subtotal + iva).toFixed(2));
 
-  // Fila Subtotal
-  rows.push(['', '', '', '', '', '', '', subtotal]);
+  const subtotalRowNum = lastItemRow + 1;
+  const ivaRowNum = subtotalRowNum + 2;
+
+  // Fila Subtotal con fórmula =SUM(H{start}:H{end})
+  rows.push(['', '', '', '', '', '', '', { t: 'n', f: `SUM(H${startItemRow}:H${lastItemRow})`, v: subtotal }]);
   // Espacio
   rows.push([]);
-  // Fila IVA
-  rows.push(['', '', '', '', '', '', 'IVA', iva]);
-  // Fila Total
-  rows.push(['', '', '', '', '', '', 'TOTAL', `$ ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`]);
+  // Fila IVA con fórmula =ROUND(H{subtotal}*0.16, 2)
+  rows.push(['', '', '', '', '', '', 'IVA', { t: 'n', f: `ROUND(H${subtotalRowNum}*0.16, 2)`, v: iva }]);
+  // Fila Total con fórmula =H{subtotal}+H{iva}
+  rows.push(['', '', '', '', '', '', 'TOTAL', { t: 'n', f: `H${subtotalRowNum}+H${ivaRowNum}`, v: total }]);
   // Espacio
   rows.push([]);
 

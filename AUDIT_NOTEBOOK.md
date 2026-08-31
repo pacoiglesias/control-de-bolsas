@@ -1,4 +1,17 @@
 
+### Iteración 86: Fórmulas Dinámicas de Excel en Prefacturas de Facturación (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/excelTemplateGenerator.ts`
+Problema: Los archivos Excel (.xlsx) generados para la prefactura a contadores contenían únicamente valores calculados estáticos; si el usuario o contador editaba los kilos o el precio unitario en una fila, los subtotales, IVA y Total general no se recalculaban en la hoja de cálculo.
+Impacto: Falta de interactividad y riesgo de inconsistencias manuales al ajustar borradores en Excel.
+Solución: Se inyectaron fórmulas reales de Excel (`{ t: 'n', f: '=A*G', v: ... }`, `=SUM(H10:H...)`, `=ROUND(H...*0.16, 2)`, `=H...+H...`) permitiendo que cualquier cambio en celdas de kilos o precio actualice instantáneamente todos los totales en Microsoft Excel / Google Sheets / LibreOffice.
+Riesgo: 🟢 Cero.
+Commit: `feat(excel): inject live Excel formulas (=A*G, =SUM, =ROUND, =H+H) in prefactura workbooks`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 5 (Interoperabilidad & Experiencia de Usuario).
+
+---
+
 ### Iteración 85: Accesibilidad WCAG AA y Área de Toque Táctil en KeyboardShortcutsModal (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/Navigation/KeyboardShortcutsModal.tsx`
