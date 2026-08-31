@@ -1,4 +1,17 @@
 
+### Iteración 87: Optimización Táctil de Cobranza y Normalización de Fechas en InvoiceDrawer (COMPLETADO)
+[2026-09-01]
+Archivo: `src/components/Cobranza/InvoiceDrawer.tsx`
+Problema: Los botones de acciones rápidas de cobranza (Copiar folio, WhatsApp, Email y Solicitar REP al Contador) no contaban con el área táctil mínima recomendada para móviles (≥ 44-52px) ni con etiquetas accesibles `aria-label`, y la manipulación de fechas usaba conversiones con `any`.
+Impacto: Dificultad ergonómica para activar recordatorios de cobro y pedir complementos de pago desde smartphones en patio o almacén.
+Solución: Se ampliaron las áreas táctiles a 52px de altura mínima, se asignaron `aria-label` descriptivos y se unificó la lectura de fechas usando la función estándar `toDate`.
+Riesgo: 🟢 Cero.
+Commit: `style(cobranza): optimize mobile touch targets (52px) and normalize dates in InvoiceDrawer`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 5 (UX Operativa Móvil & Accesibilidad).
+
+---
+
 ### Iteración 86: Fórmulas Dinámicas de Excel en Prefacturas de Facturación (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/excelTemplateGenerator.ts`

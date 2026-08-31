@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Drawer, Field, Card } from '../ui';
-import { money, toInputDate, fmtDate } from '../../lib/format';
+import { money, toInputDate, fmtDate, toDate } from '../../lib/format';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { Timestamp } from 'firebase/firestore';
@@ -341,9 +341,10 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             <button
               type="button"
               onClick={handleCopyFolio}
+              aria-label="Copiar folio de la factura al portapapeles"
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 4, padding: '10px 6px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                gap: 4, padding: '10px 6px', minHeight: 52, borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700,
                 background: waCopied ? 'rgba(5,150,105,0.1)' : 'var(--paper-sunk)',
                 border: waCopied ? '1px solid rgba(5,150,105,0.35)' : '1px solid var(--line-soft)',
                 color: waCopied ? '#059669' : 'var(--ink)', transition: 'all 0.2s',
@@ -357,9 +358,10 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             <button
               type="button"
               onClick={handleWhatsApp}
+              aria-label="Abrir recordatorio de cobro por WhatsApp"
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 4, padding: '10px 6px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                gap: 4, padding: '10px 6px', minHeight: 52, borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700,
                 background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.3)', color: '#128c7e',
               }}
             >
@@ -371,9 +373,10 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             <button
               type="button"
               onClick={handleEmail}
+              aria-label="Abrir borrador institucional de correo electrónico"
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 4, padding: '10px 6px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                gap: 4, padding: '10px 6px', minHeight: 52, borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700,
                 background: 'rgba(37,99,235,0.07)', border: '1px solid rgba(37,99,235,0.25)', color: '#2563eb',
               }}
             >
@@ -396,6 +399,7 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             style={{
               width: '100%',
               marginTop: 10,
+              minHeight: 44,
               background: 'linear-gradient(135deg, rgba(37,211,102,0.12) 0%, rgba(22,163,74,0.18) 100%)',
               color: '#15803d',
               border: '1.5px solid rgba(34,197,94,0.4)',
@@ -442,7 +446,7 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
                     className="btn-small"
                     style={{ fontSize: 10.5, padding: '2px 6px', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: '1px solid #3b82f6', fontWeight: 700 }}
                     onClick={() => {
-                      const base = localInvoice.creditCycle.issueDate ? (typeof (localInvoice.creditCycle.issueDate as any).toDate === 'function' ? (localInvoice.creditCycle.issueDate as any).toDate() : new Date(localInvoice.creditCycle.issueDate as any)) : new Date();
+                      const base = toDate(localInvoice.creditCycle.issueDate) || new Date();
                       const d = new Date(base);
                       d.setDate(d.getDate() + 30);
                       updateField(['creditCycle', 'dueDate'], Timestamp.fromDate(d));
