@@ -1,4 +1,17 @@
 
+### Iteración 83: Optimización de Rendimiento y Memoización en QuickInvoiceModal (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`
+Problema: Cada pulsación de tecla en los campos de texto (ej. folio o búsqueda) recalculaba innecesariamente las derivaciones financieras (`ivaEstimado`, `costoEstimado`, `gananciaEstimada`, `pctAmparado`) y generaba nuevas instancias de funciones (`toggleRowSelect`, `updateRowField`, etc.) provocando re-renders masivos de la tabla de 50 partidas.
+Impacto: Caída de fluidez en dispositivos móviles y laptops al escribir rápidamente.
+Solución: Se envolvieron los manejadores de tabla con `useCallback` estables y se memoizaron los cálculos de IVA, costos y márgenes con `useMemo`.
+Riesgo: 🟢 Cero.
+Commit: `perf(invoice): memoize financial derivations and table callbacks in QuickInvoiceModal`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 5 (Rendimiento & UX Fluida).
+
+---
+
 ### Iteración 82: Unificación de Tipado Estricto de Fechas y Eliminación de Casting 'any' (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/types.ts`, `src/lib/format.ts`

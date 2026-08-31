@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
@@ -215,35 +215,35 @@ export function QuickInvoiceModal({
     toast(`📦 ${rows.length} partidas de la plantilla cargadas`, 'ok');
   };
 
-  const toggleRowSelect = (index: number) => {
+  const toggleRowSelect = useCallback((index: number) => {
     setConceptRows((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], selected: !next[index].selected };
       return next;
     });
-  };
+  }, []);
 
-  const updateRowField = <K extends keyof ConceptRow>(index: number, field: K, val: ConceptRow[K]) => {
+  const updateRowField = useCallback(<K extends keyof ConceptRow>(index: number, field: K, val: ConceptRow[K]) => {
     setConceptRows((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: val };
       return next;
     });
-  };
+  }, []);
 
-  const fillRowMax = (index: number) => {
+  const fillRowMax = useCallback((index: number) => {
     setConceptRows((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], quantity: next[index].maxAvailable || next[index].quantity, selected: true };
       return next;
     });
-  };
+  }, []);
 
-  const selectAllRows = (select: boolean) => {
+  const selectAllRows = useCallback((select: boolean) => {
     setConceptRows((prev) => prev.map((r) => ({ ...r, selected: select })));
-  };
+  }, []);
 
-  const addNewCustomRow = () => {
+  const addNewCustomRow = useCallback(() => {
     setConceptRows((prev) => [
       ...prev,
       {
@@ -262,11 +262,11 @@ export function QuickInvoiceModal({
         maxAvailable: availableKilos,
       },
     ]);
-  };
+  }, [currentSellPrice, availableKilos]);
 
-  const removeRow = (index: number) => {
+  const removeRow = useCallback((index: number) => {
     setConceptRows((prev) => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
   // Cálculos en tiempo real basados en los conceptos seleccionados
   const selectedRows = useMemo(() => conceptRows.filter((r) => r.selected), [conceptRows]);
@@ -285,13 +285,14 @@ export function QuickInvoiceModal({
   }, [selectedRows, currentSellPrice]);
 
   const ivaRate = config?.ivaRate || 0.16;
-  const ivaEstimado = round2(subtotalEstimado * ivaRate);
-  const totalEstimadoConIva = round2(subtotalEstimado + ivaEstimado);
+  const ivaEstimado = useMemo(() => round2(subtotalEstimado * ivaRate), [subtotalEstimado, ivaRate]);
+  const totalEstimadoConIva = useMemo(() => round2(subtotalEstimado + ivaEstimado), [subtotalEstimado, ivaEstimado]);
 
-  const costoEstimado = kilosToInvoice * currentCostPrice;
-  const gananciaEstimada = subtotalEstimado - costoEstimado;
-  const pctAmparado =
-    availableKilos > 0 ? Math.min(100, Math.round((kilosToInvoice / availableKilos) * 100)) : 0;
+  const costoEstimado = useMemo(() => round2(kilosToInvoice * currentCostPrice), [kilosToInvoice, currentCostPrice]);
+  const gananciaEstimada = useMemo(() => round2(subtotalEstimado - costoEstimado), [subtotalEstimado, costoEstimado]);
+  const pctAmparado = useMemo(() => {
+    return availableKilos > 0 ? Math.min(100, Math.round((kilosToInvoice / availableKilos) * 100)) : 0;
+  }, [kilosToInvoice, availableKilos]);
 
   // Verificación en tiempo real de factura duplicada
   const duplicateInvoice = useMemo(() => {
