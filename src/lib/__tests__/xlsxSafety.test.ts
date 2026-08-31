@@ -121,7 +121,7 @@ describe('buildPrefacturaWorkbook (Generador Oficial de Prefacturas)', () => {
       items: CANONICAL_GT_ITEMS,
       deliveries: [
         { id: 'dg1', kilos: 1000.0, items: [{ itemId: 'it-gt-2', quantity: 500.0 }, { itemId: 'it-gt-1', quantity: 500.0 }], invoiced: true },
-        { id: 'dg2', kilos: 1972.20, items: [{ itemId: 'it-gt-3', quantity: 998.20 }, { itemId: 'it-gt-4', quantity: 974.0 }], invoiced: false },
+        { id: 'dg2', kilos: 1674.00, items: [{ itemId: 'it-gt-3', quantity: 700.00 }, { itemId: 'it-gt-4', quantity: 974.0 }], invoiced: false },
       ],
       invoices: [
         { id: 'ig1', folio: '6193', kilos: 1000.0, items: [{ id: 'it-gt-2', quantity: 500.0 }, { id: 'it-gt-1', quantity: 500.0 }] },

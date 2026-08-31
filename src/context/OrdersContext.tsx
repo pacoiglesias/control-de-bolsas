@@ -369,13 +369,13 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               {
                 id: 'del-gt-9714',
                 date: Timestamp.fromDate(new Date('2026-08-26T10:00:00Z')),
-                kilos: 1972.20,
+                kilos: 1674.00,
                 items: [
-                  { itemId: 'it-gt-3', quantity: 998.20 },
+                  { itemId: 'it-gt-3', quantity: 700.00 },
                   { itemId: 'it-gt-4', quantity: 974.00 },
                 ],
                 invoiced: false,
-                notes: 'Remisión 9714 (Evelia · Planta 4) — 1,972.20 kg lista para facturar',
+                notes: 'Remisión 9714 (Evelia · Planta 4) — 1,674.00 kg lista para facturar (Tope OC 700 kg en bolsa 120x160)',
                 docType: 'remision',
                 docFolio: '9714',
               },
