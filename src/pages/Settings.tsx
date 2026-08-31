@@ -15,7 +15,7 @@ import { useToast } from '../context/ToastContext';
 import { computeFinancials } from '../lib/finance';
 import { camposInvoices } from '../lib/invoiceOps';
 import { money, percent } from '../lib/format';
-import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
+import { DEFAULT_CONFIG, DEFAULT_DEPARTMENTS, type FinancialConfig, type DepartmentConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
 import { confirmDialog } from '../lib/confirmDialog';
 import { triggerHaptic } from '../lib/hapticEngine';
@@ -325,56 +325,110 @@ export default function Settings() {
             </Field>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-            {/* Planta / Área TH */}
-            <div style={{ background: 'rgba(2, 132, 199, 0.05)', border: '1px solid rgba(2, 132, 199, 0.25)', borderRadius: 14, padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#0284c7', fontWeight: 800 }}>
-                <span>🔵</span>
-                <span>Planta / Área 1 (TH)</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Field label="Código o Prefijo de Cartera">
-                  <input className="input boxed mono" type="text" value={sysForm.deptCodeTH ?? 'TH'}
-                    onChange={(e) => setSysForm({ ...sysForm, deptCodeTH: e.target.value.toUpperCase().trim() })} 
-                    placeholder="Ej. TH" />
-                </Field>
-                <Field label="Nombre Completo del Área / Planta">
-                  <input className="input boxed" type="text" value={sysForm.deptNameTH ?? ''}
-                    onChange={(e) => setSysForm({ ...sysForm, deptNameTH: e.target.value })} 
-                    placeholder="Ej. Textil Hogar / Planta Cobertores" />
-                </Field>
-                <Field label="Persona Responsable / Contacto">
-                  <input className="input boxed" type="text" value={sysForm.managerTH ?? ''}
-                    onChange={(e) => setSysForm({ ...sysForm, managerTH: e.target.value })} 
-                    placeholder="Ej. Lic. Nava" />
-                </Field>
-              </div>
-            </div>
+          {/* GESTOR DINÁMICO DE PLANTAS / DEPARTAMENTOS */}
+          <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>
+              Plantas / Departamentos Registrados ({((form.departmentConfigs || DEFAULT_DEPARTMENTS)).length})
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                const current = form.departmentConfigs || DEFAULT_DEPARTMENTS;
+                const nextNum = current.length + 1;
+                const newDept: DepartmentConfig = {
+                  id: `P${nextNum}`,
+                  name: `Planta / Área ${nextNum}`,
+                  prefix: `P${nextNum}-`,
+                  contact: 'Encargado de Almacén',
+                  active: true,
+                };
+                setForm({ ...form, departmentConfigs: [...current, newDept] });
+                toast(`➕ Planta / Área ${nextNum} agregada al catálogo`, 'ok');
+              }}
+              style={{ fontSize: 12, padding: '6px 12px', fontWeight: 700 }}
+            >
+              ➕ Agregar Planta / Departamento
+            </button>
+          </div>
 
-            {/* Planta / Área GT */}
-            <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.25)', borderRadius: 14, padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#059669', fontWeight: 800 }}>
-                <span>🟢</span>
-                <span>Planta / Área 2 (GT)</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {((form.departmentConfigs || DEFAULT_DEPARTMENTS)).map((dept, idx) => (
+              <div
+                key={dept.id || idx}
+                style={{
+                  background: idx % 2 === 0 ? 'rgba(2, 132, 199, 0.05)' : 'rgba(5, 150, 105, 0.05)',
+                  border: `1px solid ${idx % 2 === 0 ? 'rgba(2, 132, 199, 0.25)' : 'rgba(5, 150, 105, 0.25)'}`,
+                  borderRadius: 14,
+                  padding: 16,
+                  position: 'relative',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: idx % 2 === 0 ? '#0284c7' : '#059669', fontWeight: 800 }}>
+                    <span>{idx % 2 === 0 ? '🔵' : '🟢'}</span>
+                    <span>{dept.name || `Planta ${idx + 1}`} ({dept.id})</span>
+                  </div>
+                  {((form.departmentConfigs || DEFAULT_DEPARTMENTS)).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = form.departmentConfigs || DEFAULT_DEPARTMENTS;
+                        const filtered = current.filter((_, i) => i !== idx);
+                        setForm({ ...form, departmentConfigs: filtered });
+                        toast(`🗑️ Planta eliminada`, 'bad');
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      title="Eliminar planta"
+                    >
+                      ✕ Quitar
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Field label="Código / Prefijo de Cartera (ej. TH, GT, P3)">
+                    <input
+                      className="input boxed mono"
+                      type="text"
+                      value={dept.id}
+                      onChange={(e) => {
+                        const current = [...(form.departmentConfigs || DEFAULT_DEPARTMENTS)];
+                        current[idx] = { ...current[idx], id: e.target.value.toUpperCase().trim(), prefix: `${e.target.value.toUpperCase().trim()}-` };
+                        setForm({ ...form, departmentConfigs: current });
+                      }}
+                      placeholder="Ej. TH, GT, P3"
+                    />
+                  </Field>
+                  <Field label="Nombre Completo del Área / Planta">
+                    <input
+                      className="input boxed"
+                      type="text"
+                      value={dept.name}
+                      onChange={(e) => {
+                        const current = [...(form.departmentConfigs || DEFAULT_DEPARTMENTS)];
+                        current[idx] = { ...current[idx], name: e.target.value };
+                        setForm({ ...form, departmentConfigs: current });
+                      }}
+                      placeholder="Ej. Textil Hogar / Planta Confección"
+                    />
+                  </Field>
+                  <Field label="Persona Responsable / Contacto">
+                    <input
+                      className="input boxed"
+                      type="text"
+                      value={dept.contact || ''}
+                      onChange={(e) => {
+                        const current = [...(form.departmentConfigs || DEFAULT_DEPARTMENTS)];
+                        current[idx] = { ...current[idx], contact: e.target.value };
+                        setForm({ ...form, departmentConfigs: current });
+                      }}
+                      placeholder="Ej. Lic. Nava / Evelia"
+                    />
+                  </Field>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Field label="Código o Prefijo de Cartera">
-                  <input className="input boxed mono" type="text" value={sysForm.deptCodeGT ?? 'GT'}
-                    onChange={(e) => setSysForm({ ...sysForm, deptCodeGT: e.target.value.toUpperCase().trim() })} 
-                    placeholder="Ej. GT" />
-                </Field>
-                <Field label="Nombre Completo del Área / Planta">
-                  <input className="input boxed" type="text" value={sysForm.deptNameGT ?? ''}
-                    onChange={(e) => setSysForm({ ...sysForm, deptNameGT: e.target.value })} 
-                    placeholder="Ej. Grupo Textil / Planta Confección" />
-                </Field>
-                <Field label="Persona Responsable / Contacto">
-                  <input className="input boxed" type="text" value={sysForm.managerGT ?? ''}
-                    onChange={(e) => setSysForm({ ...sysForm, managerGT: e.target.value })} 
-                    placeholder="Ej. Lic. Evelia" />
-                </Field>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </Card>

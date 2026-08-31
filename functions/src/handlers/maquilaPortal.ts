@@ -266,36 +266,28 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
   const activeOrders: any[] = [];
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
-    if (data.isArchived || data.isClosedShort) return;
+    if (data.isArchived || data.isDeleted || data.isClosedShort) return;
 
-    // Si la orden ya cuenta con contrarecibo oficial (a nivel raíz o en cualquiera de sus facturas),
-    // la mercancía ya fue recibida por el cliente y ya NO está en proceso de maquila/producción.
-    const hasCrRoot = Boolean(data.collection?.contrareciboNumber?.trim());
-    const hasCrInvoices = Array.isArray(data.invoices) && data.invoices.length > 0 && data.invoices.some((inv: any) => Boolean(inv.collection?.contrareciboNumber?.trim()));
-    if (hasCrRoot || hasCrInvoices) return;
+    const deliveries = data.deliveries || [];
+    const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + (Number(d.kilos) || 0), 0);
+    const totalKilos = Number(data.totalKilograms) || (data.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+    const pendingKilos = Math.max(0, Math.round((totalKilos - totalDelivered) * 100) / 100);
 
-    const status = data.creditCycle?.status || "pedido";
-    // Solo órdenes en proceso de producción real
-    if (status === "pedido" || status === "manual_review") {
-      const deliveries = data.deliveries || [];
-      const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + (d.kilos || 0), 0);
-      const totalKilos = data.totalKilograms || 0;
-      const pendingKilos = totalKilos - totalDelivered;
-
-      if (pendingKilos > 0) {
-        const dept = data.department || (data.client?.toUpperCase().includes('GT') ? 'GT' : 'TH');
-        activeOrders.push({
-          orderId: doc.id,
-          folio: data.folio || "Sin Folio",
-          productDescription: data.productDescription || "Producto",
-          department: dept,
-          client: data.client || (dept === 'GT' ? 'Grupo Textil Providencia - GT' : 'Grupo Textil Providencia - TH'),
-          totalKilos,
-          pendingKilos,
-          items: data.items || [],
-          deliveries: data.deliveries || [],
-        });
-      }
+    // Si tiene kilos pendientes por entregar físicamente, se muestra en el portal de Andrés
+    if (pendingKilos > 0.01) {
+      const dept = data.department || (data.client?.toUpperCase().includes('GT') ? 'GT' : 'TH');
+      activeOrders.push({
+        orderId: doc.id,
+        folio: data.folio || data.oc || "Sin Folio",
+        productDescription: data.productDescription || (data.items && data.items[0]?.description) || "Bolsa de Polietileno",
+        department: dept,
+        client: data.client || (dept === 'GT' ? 'Grupo Textil Providencia (GT - Evelia / P4)' : 'Textil Hogar (TH - Nava)'),
+        totalKilos,
+        totalDelivered,
+        pendingKilos,
+        items: data.items || [],
+        deliveries: data.deliveries || [],
+      });
     }
   });
 

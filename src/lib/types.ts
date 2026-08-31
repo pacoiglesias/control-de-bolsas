@@ -26,7 +26,35 @@ export interface FinancialConfig {
   /** Identidad Corporativa */
   companyName?: string;
   companyLogoUrl?: string;
+
+  /** Gestor Dinámico de Plantas / Departamentos */
+  departmentConfigs?: DepartmentConfig[];
 }
+
+export interface DepartmentConfig {
+  id: string;          // ej. 'TH', 'GT', 'P3'
+  name: string;        // ej. 'Textil Hogar (TH - Nava)'
+  prefix: string;      // ej. 'TH-', 'GT-', 'P3-'
+  contact?: string;    // ej. 'José Nava Flores / Torre Lamuño'
+  active: boolean;
+}
+
+export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
+  {
+    id: 'TH',
+    name: 'Textil Hogar (TH - Nava)',
+    prefix: 'TH-',
+    contact: 'José Nava Flores / Torre Lamuño',
+    active: true,
+  },
+  {
+    id: 'GT',
+    name: 'Grupo Textil Providencia (GT - Evelia / P4)',
+    prefix: 'GT-',
+    contact: 'Evelia (Planta P4)',
+    active: true,
+  },
+];
 
 export const DEFAULT_CONFIG: FinancialConfig = {
   /** Subtotal por kilo, SIN IVA. Con el 16% da el total que aparece en los
@@ -63,6 +91,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
   satFormaPago: '99',
   companyName: 'Elemental Denim Bolsas',
   companyLogoUrl: '',
+  departmentConfigs: DEFAULT_DEPARTMENTS,
 };
 
 export interface OrderFinancials {

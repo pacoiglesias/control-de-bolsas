@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.62 Gestor Dinámico Multi-Planta y Desglose de OCs en Portal Andrés',
+    date: '31 de Agosto de 2026',
+    time: '03:55 PM',
+    summary: 'Incorporación del gestor dinámico de plantas/departamentos en el panel de control y visibilidad completa de las 2 OCs abiertas con desglose partida por partida en el portal de Andrés.',
+    highlights: [
+      '🏭 Gestor Dinámico Multi-Planta: Agrega, edita o desactiva plantas (TH, GT, P3, etc.) con prefijos de contrarecibo en 1 clic.',
+      '📦 Visibilidad Total en Portal Andrés: Visualización de las 2 OCs abiertas con sus kilos pedidos, entregados y productos pendientes.',
+      '🤝 Sincronización Perfecta: Información cuadrada y homologada al 100% entre Andrés y la administración.',
+    ],
+  },
+  {
     version: 'v8.9.61 Opción B: Silencio Operativo Total (Zero-Noise Health Engine)',
     date: '31 de Agosto de 2026',
     time: '03:50 PM',

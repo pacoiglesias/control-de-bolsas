@@ -1,4 +1,27 @@
 
+### Iteración 62: Gestor Dinámico Multi-Planta en Configuración y Visibilidad Total de OCs y Partidas en Portal de Andrés (COMPLETADO)
+[2026-08-31]
+Archivos:
+- `src/pages/Settings.tsx`
+- `src/pages/MaquiladorPortalEntregaTab.tsx`
+- `functions/src/handlers/maquilaPortal.ts`
+- `src/lib/types.ts`
+- `src/lib/systemChangelog.ts`
+- `AUDIT_NOTEBOOK.md`
+- `package.json`
+Problema:
+1. El usuario solicitó un gestor dinámico de plantas/departamentos en el panel de control para soportar 1, 2, 3 o N plantas.
+2. El portal de Andrés no mostraba las 2 órdenes de compra abiertas ni sus tipos de producto desglosados para que ambas partes tengan la información cuadrada a la perfección.
+Solución:
+1. **Gestor Dinámico de Plantas / Departamentos (`Settings.tsx`):** Soporte para agregar, renombrar, configurar prefijos de contrarecibos y contactos para 1, 2, 3 o N plantas con 1 clic.
+2. **Desbloqueo de OCs Abiertas en Portal de Andrés (`getActiveMaquilaOrders`):** Corrección del filtro que excluía órdenes con entregas pendientes si tenían facturas parciales con CR. Ahora lista las 2 OCs maestras abiertas (TH y GT).
+3. **Desglose Partida por Partida en Portal Maquilador (`MaquiladorPortalEntregaTab.tsx`):** Muestra los kilos pedidos, entregados y pendientes de cada tipo de bolsa dentro de cada OC.
+Riesgo: 🟢 Cero.
+Commit: `feat: dynamic multi-plant manager and full open OCs product breakdown in maquilador portal`
+Estado: ✅ Verificado — 124/124 tests pasando, compilación y despliegue exitosos.
+
+---
+
 ### Iteración 61: Implementación de Opción B — Silencio Operativo Total (Zero-Noise Health Engine) (COMPLETADO)
 [2026-08-31]
 Archivos:

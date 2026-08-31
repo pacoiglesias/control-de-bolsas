@@ -216,9 +216,25 @@ export default function MaquiladorPortalEntregaTab({
                   marginTop: 6,
                 }}
               >
-                <span>{pct}% entregado</span>
+                <span>{pct}% entregado ({o.totalDelivered ? o.totalDelivered.toLocaleString('es-MX') : (o.totalKilos - o.pendingKilos).toLocaleString('es-MX')} kg)</span>
                 <span>{sel ? '✓ Seleccionada' : 'Toca para registrar'}</span>
               </div>
+
+              {/* DESGLOSE DETALLADO DE PARTIDAS Y TIPOS DE PRODUCTO DE LA OC */}
+              {Array.isArray(o.items) && o.items.length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed rgba(255,255,255,0.15)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📦 Partidas / Tipos de Producto ({o.items.length}):</span>
+                    <span style={{ color: '#fbbf24' }}>Kilos Pedidos</span>
+                  </div>
+                  {o.items.map((it: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, background: 'rgba(255,255,255,0.04)', padding: '5px 8px', borderRadius: 6 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>• {it.description || 'Bolsa de Polietileno'}</span>
+                      <span style={{ color: '#a78bfa', fontWeight: 800 }}>{Number(it.quantity || 0).toLocaleString('es-MX')} kg</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.button>
           );
         })}
