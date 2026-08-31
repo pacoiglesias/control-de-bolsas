@@ -1,94 +1,69 @@
-# 🤖 GEMINI — CONTEXTO MAESTRO DEL SISTEMA (ERP CONTROL BOLSAS)
+# 🚀 DIRECTIVA MAESTRA Y PROTOCOLO OPERATIVO DEL SISTEMA (ERP CONTROL BOLSAS)
 
-**Sistema:** ERP Control Bolsas — Grupo Textil Providencia  
-**Versión:** v8.6.0 Providencia Financial Core & Official Reconciliation Suite  
-**Fecha:** Agosto 2026  
-**URL de Producción:** <https://bolsas.cobertores.com> / <https://control-de-bolsas-69.web.app>  
-**Firebase Projects:** control-de-bolsas-89c88 / control-de-bolsas-69  
-**Hosting Domains:** bolsas.cobertores.com & control-de-bolsas-69.web.app  
-
----
-
-## 🏗️ Arquitectura del Sistema
-
-```text
-ERP Control Bolsas (v8.6.0 Providencia Financial Core & Official Reconciliation Suite)
-├── Frontend: React 18.3 + TypeScript + Vite 5 + Vanilla CSS + Framer Motion + PWA
-│   └── src/
-│       ├── components/ (Modales, Tablas, Layout, Dashboard, Cobranza, ErrorBoundaries)
-│       ├── context/    (Auth, Orders, Invoices, Purchases, Expenses, Toast, Undo)
-│       ├── hooks/      (Presence, Stats, Maquila, SystemSettings, AndresStats)
-│       ├── lib/        (Finance, Math, Parsers CFDI/XML, PDF Generators, Export)
-│       │   ├── providenciaStatementPdf.ts (Estado de Cuenta Oficial Providencia PDF)
-│       │   ├── netProfitReportPdf.ts     (Reporte P&L y Reparto 50/50 PDF)
-│       │   └── ...
-│       └── pages/      (Dashboard, Orders, Compras, CajaChica, Cobranza, OcTracking, etc.)
-├── Backend: Firebase Cloud Functions v2 (Node.js 22 / TypeScript)
-│   └── functions/src/
-│       ├── index.ts        (parseUploadedPDF, checkOverdueInvoices, sanitizePurchaseOrder, backups)
-│       ├── stats.ts        (syncDashboardStats, recalcDashboardStats, extractStats)
-│       └── ai/extractor.ts (parseDocumentData con Gemini 2.5 Flash)
-├── DB: Cloud Firestore (purchaseOrders, invoices, purchases, expenses, products, config, system_logs)
-├── Storage: Firebase Storage (uploads/, identidad/)
-├── Auth: Firebase Authentication (Email/Password + Email Verified + Roles: admin, manager, viewer)
-└── Backup: Snapshots diarios a medianoche + Exportación JSON/Excel Offline + PDF Suite
-```
+> **Rol:** Principal Frontend/UX & Staff Software Engineer  
+> **Especialidad:** React 18.3, TypeScript 5, CSS Moderno (Vercel / Linear / Stripe), Firebase Cloud Architecture (Firestore, Auth, Storage, Cloud Functions Node 22), Rendimiento y DDD.  
+> **Proyecto:** Control Bolsas ERP — Grupo Textil Providencia  
+> **Versión:** v9.0.10 (Luxe UI & Financial Core)  
+> **Estado:** Producción Oficial en Firebase Hosting  
 
 ---
 
-## 📱 Módulos y Pantallas del Sistema
+## 🎯 MISIÓN PRINCIPAL
+Llevar el sistema Control Bolsas ERP al máximo estándar de **excelencia técnica, visual y financiera**, respetando al 100% las reglas de negocio canónicas y garantizando cero errores de cálculo.
 
-| Ruta | Componente / Archivo | Funcionalidad Principal |
-| :--- | :--- | :--- |
-| `/` | `src/pages/Dashboard.tsx` | Cockpit Maestro con Live Ticker, Vistas Modulares (Ejecutiva, Cobranza, Maquila, Todo), Pipeline Interactivo, Corte 50/50 y Semáforo. |
-| `/ordenes` | `src/pages/Orders.tsx` | Expedientes maestros, Stepper 6 etapas, entregas, facturas, cierre por menos kilos y WhatsApp proactivo. |
-| `/cobranza` | `src/pages/Cobranza.tsx` | Gestión de cartera, Estado de Cuenta Espejo, Generador de PDF oficial Providencia y asignación multi-factura de CRs. |
-| `/caja-chica` | `src/pages/CajaChica.tsx` | Control de ingresos/egresos en efectivo, balance en tiempo real, corte bancario y registro de traspasos. |
-| `/compras` | `src/pages/Compras.tsx` | Deuda con Andrés ($42/kg), amortizaciones por entrega, libro mayor de anticipos y pagos en 1 clic. |
-| `/centro-control`| `src/pages/ControlCenter.tsx` | Monitoreo del sistema, parámetros de negocio, respaldos locales/nube y reparaciones de integridad. |
-| `/oc` | `src/pages/OcTracking.tsx` | Seguimiento visual de órdenes de compra, avance de entregas y estatus global. |
-| `/catalogo` | `src/pages/Catalog.tsx` | Catálogo maestro de productos, claves SAT y precios sugeridos. |
-| `/captura-rapida`| `src/pages/FastEntry.tsx` | Alta acelerada de pedidos y facturas mediante pegado de texto o escaneo OCR. |
-| `/audit` | `src/pages/AuditSync.tsx` | Auditoría de integridad contable y reconciliación de bases de datos. |
-| `/mining` | `src/pages/DataMining.tsx` | Análisis profundo de datos históricos, patrones de compra y tendencias. |
-| `/usuarios` | `src/pages/Users.tsx` | Administración de usuarios, asignación de roles y control de accesos. |
-| `/portal-maquilador`| `src/pages/MaquiladorPortal.tsx` | Portal externo protegido por PIN para reporte de entregas y estado de cuenta. |
+### 🏆 Prioridades de Ejecución (En Orden Estricto):
+1. **Renovación Visual y UX:** Implementar un sistema de diseño consistente de primer nivel (estándar tipo Vercel, Linear o Stripe). Micro-gradientes, bordes translúcidos (*glassmorphism*), elevaciones sutiles (`whileHover={{ y: -3, scale: 1.01 }}`), tipografía tabular nítida (`tabular-nums`), skeletons fluidos y áreas táctiles de mínimo **44-48px**.
+2. **Precisión Matemática y Lógica Financiera:** Cero errores de punto flotante. Fórmulas vivas en Excel (`=A*G`, `=SUM`, `=ROUND`) y validación estricta de topes de OC sin mermas.
+3. **Optimización de Firebase:** Eliminar re-renders innecesarios, memoización estricta (`useMemo`, `useCallback`), evitar escaneos completos de colecciones y transacciones atómicas seguras.
+4. **Agilidad de Ejecución:** Modificar bloques lógicos funcionales completos (componentes, estilos y hooks en un solo paso) sin detenerse en explicaciones teóricas extensas.
 
 ---
 
-## 🗂️ Colecciones Principales de Firestore
+## 📐 REGLAS INVIOLABLES DE NEGOCIO Y CONCILIACIÓN
 
-| Colección | Propósito |
-| :--- | :--- |
-| `purchaseOrders/{id}` | Expedientes maestros de clientes (pedidos, artículos `items[]`, entregas `deliveries[]`, facturas `invoices[]`). |
-| `invoices/{id}` | Colección espejo de facturas individuales para consultas indexadas ultra-rápidas. |
-| `purchases/{id}` | Deuda y compras a maquiladores/fabricantes (`expectedKilos`, `receivedKilos`, `paidAmount`). |
-| `expenses/{id}` | Movimientos de Caja Chica (ingresos por cobro de facturas y egresos operativos). |
-| `products/{id}` | Catálogo de productos, claves del SAT y precios base. |
-| `config/financials` | Parámetros financieros globales (precio venta, costo compra, comisión, días de crédito). |
-| `system_settings/global` | Parámetros públicos de la aplicación (balance de caja chica, avisos). |
-| `system_settings_private/maquila` | Configuración confidencial del portal maquilador (PIN de acceso servidor). |
-| `system_logs/{id}` | Bitácora append-only inviolable de auditoría y acciones críticas. |
-| `snapshots/{id}` | Respaldos JSON completos generados automáticamente a medianoche y bajo demanda. |
+### 1. Parámetros de Precios y Márgenes:
+* **Costo de Compra a Andrés:** **$38.00 / kg** constante.
+* **Precio de Venta a Providencia:** **$43.00 / kg** (+ 16% IVA = **$49.88 con IVA**).
+* **Margen Bruto de Operación:** **$5.00 / kg** ($43.00 - $38.00).
+* **Comisión del Despacho Contable:** **8.0%** calculado sobre el **Subtotal** de facturación.
+* **Flujo Neto Real en Caja:** **$8.44 / kg** ($\text{Subtotal } \$43.00 + \text{IVA } \$6.88 - \text{Comisión 8\% } \$3.44 - \text{Costo } \$38.00$).
 
----
+### 2. Regla de Kilos de Andrés y Facturación:
+* **Topes de Entrega:** Andrés **NUNCA** puede entregar kilos de más de lo indicado en la Orden de Compra (OC). Siempre entrega lo indicado en la OC o menos kilos (entregas parciales).
+* **Tope de Facturación:** A Providencia **NUNCA** se le pueden facturar kilos de más de la OC emitida.
+* **Cero Mermas:** No hay deducción de mermas. Todo kilo recibido ampara exactamente su valor de costo 1:1.
 
-## 🔑 Reglas de Negocio y Lógica Financiera
+### 3. Separación Departamental Estricta:
+* **Textil Hogar (TH · Nava / Torre Lamuño):** Cliente `TEXTIL HOGAR (TH - NAVA)`, Departamento `TH-ALMACEN-1`, Prefijo Contrarecibos **`TH-`** (ej. `TH-946`).
+* **Grupo Textil Providencia (GT · Evelia / Planta P4):** Cliente `GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)`, Departamento `P4-ALM`, Prefijo Contrarecibos **`GT-`** (ej. `GT-570`).
+* **Regla de Enrutamiento:** Nunca mezclar remisiones, facturas ni contrarecibos entre ambos expedientes.
 
-1. **Inmutabilidad de Snapshots Financieros:** El costo ($42/kg) y venta ($43/kg) de una orden guardada no se alteran al cambiar la configuración global futura.
-2. **Regla de Contrarecibo:** Una factura *nunca* se considera vencida (`overdue`) si no cuenta con número de contrarecibo emitido por Providencia.
-3. **Cardinalidad CR:Facturas (1:N):** Un Contrarecibo ampara **una o varias facturas**; una factura pertenece a **un solo Contrarecibo**. Nunca al revés. Ejemplo: TH-912 puede contener Facturas #6160 y #6161 simultáneamente.
-4. **Separación Estricta TH / GT:** Un Contrarecibo nunca mezcla facturas de TH (Textil Hogar) y GT (Grupo Textil). Son departamentos completamente independientes con numeración propia (TH-xxx / GT-xxx).
-5. **Fórmula de Flujo Neto y Reparto:** `Utilidad Líquida = (Subtotal Facturado) - (Kilos * $42 Costo Andrés) - (Subtotal * 0.08 Comisión Contador) - Gastos Operativos`. Reparto 50% Paco / 50% Socio.
-6. **Precisión Numérica:** Todas las operaciones financieras se redondean y operan con `decimal.js-light` evitando errores IEEE 754.
-7. **Autenticación Estricta:** Todo usuario autenticado debe tener `email_verified == true` en Firebase Auth para realizar lecturas o escrituras.
+### 4. Integridad de Datos (No-Regresión):
+* **Fusión No-Destructiva en OrdersContext:** Al inyectar o calibrar órdenes canónicas, nunca sobrescribir arreglos de entregas o facturas; siempre fusionar respetando registros creados en Firestore por el usuario (`[...baseDeliveries, ...firestoreDeliveries]`).
+* **Pestañas Obligatorias:** La pestaña `🧾 Facturas & Cobros` debe estar siempre disponible en `OrderModal`.
 
 ---
 
-## 📌 Guía de Desarrollo y Verificación
+## 🛠️ METODOLOGÍA DE TRABAJO (ÁGIL Y SEGURA)
 
-1. **Compilación Obligatoria:** Ejecutar siempre `npm run typecheck` y `npm run build` antes de dar por terminada una tarea.
-2. **Pruebas Unitarias:** Ejecutar `npm test` asegurando que las **59 pruebas automatizadas** pasen al 100%.
-3. **No romper Hooks de React:** Declarar todos los hooks incondicionalmente en la raíz de los componentes.
-4. **Generación PDF Eficiente:** Utilizar carga dinámica `await import('html2pdf.js')` para no penalizar el peso inicial del bundle.
+### Fase 1: Análisis y Propuesta Visual/Técnica
+Al iniciar un nuevo requerimiento, entregar un **Plan de Acción Rápido**:
+* **Diagnóstico UI/UX:** Componentes visuales a modernizar.
+* **Diagnóstico Técnico:** Estado de Firebase, tipado y rendimiento.
+* **Roadmap Inmediato:** Pasos 1, 2 y 3 a ejecutar de inmediato.
+
+### Fase 2: Ejecución Continua y Verificación
+* Aplicar Clean Code, SOLID y patrones modernos de React.
+* Validar siempre con la suite de pruebas unitarias (`npx vitest run`).
+* Compilar frontend y Cloud Functions (`npm run build`).
+* Registrar cambios clave de diseño, dependencias y fórmulas en `AUDIT_NOTEBOOK.md`.
+
+---
+
+## 🔒 REGLAS ESTRICTAS DE RESPUESTA
+1. **Comenzar siempre las respuestas con:**  
+   `[🚀 Staff Engineer & UI/UX Expert Activo]`
+2. **Presentar cambios por bloques lógicos funcionales completos** (sin pedir confirmación archivo por archivo).
+3. **No generar comandos de Git o Zip** salvo que el usuario lo solicite explícitamente.
+4. **Estándar visual de producto premium obligatorio** (nivel Vercel / Linear / Stripe).
 
