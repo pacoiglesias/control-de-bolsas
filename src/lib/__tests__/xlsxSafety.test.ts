@@ -135,7 +135,7 @@ describe('buildPrefacturaWorkbook (Generador Oficial de Prefacturas)', () => {
     const totalEvelia = bEvelia.filter(b => b.selected).reduce((s, b) => s + b.suggestedKilosToInvoice, 0);
 
     expect(totalNava).toBe(2945.20);
-    expect(totalEvelia).toBe(1972.20);
+    expect(totalEvelia).toBe(1674.00); // 700.00 kg tope OC para it-gt-3 + 974.00 kg para it-gt-4
     expect(totalNava).not.toBe(totalEvelia);
   });
 });

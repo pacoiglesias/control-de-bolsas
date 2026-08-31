@@ -226,8 +226,9 @@ export function computeItemInvoiceBreakdown(
 
     let suggestedKilos = 0;
     if (hasDeliveries) {
-      // Si la orden tiene entregas en báscula, sugerir ÚNICAMENTE los kilos entregados y no facturados
-      suggestedKilos = uninvoicedDeliveredKilos;
+      // Si la orden tiene entregas en báscula, sugerir ÚNICAMENTE los kilos entregados y no facturados,
+      // respetando el TOPE INVIOLABLE de la OC (nunca facturar a Providencia más de la OC emitida).
+      suggestedKilos = round2(Math.min(uninvoicedDeliveredKilos, remainingOcKilos));
     } else {
       // Si es una orden abierta sin entregas (prefactura sobre OC), sugerir los kilos restantes de la OC
       suggestedKilos = remainingOcKilos;
