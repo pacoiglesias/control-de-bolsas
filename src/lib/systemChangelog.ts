@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.9 Enterprise: Menú Visual de Atajos de Teclado y Teclas Rápidas (?)',
+    date: '31 de Agosto de 2026',
+    time: '11:35 PM',
+    summary: 'Nuevo menú visual de Atajos de Teclado interactivo accesible con la tecla ? o mediante el botón ⌨️ en la barra superior, con guía completa de todas las teclas rápidas del ERP.',
+    highlights: [
+      '⌨️ Menú Interactivo de Atajos (?): Abre la guía visual de teclas agrupada por Operación, Búsqueda y Productividad.',
+      '⚡ Teclas Rápidas Directas: F (Facturar/Prefactura), N (Nueva OC), C (Cobranza), P (Magic Paste), Ctrl+K (Buscador).',
+      '🛡️ Cero Fricción: Integración universal en desktop, laptop y web con tecla Esc para cerrar.',
+    ],
+  },
+  {
     version: 'v9.0.8 Enterprise: Botón REP para Contador y Calibración Universal de Partidas',
     date: '31 de Agosto de 2026',
     time: '11:30 PM',

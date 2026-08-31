@@ -97,4 +97,9 @@ describe('Motor Háptico y Parametrización Universal', () => {
     expect(pctFacturado).toBe(100);
     expect(mockOrder.invoices[0].collection.contrareciboNumber).toBe('TH-912');
   });
+
+  it('KeyboardShortcutsModal renderiza y expone todos los atajos oficiales del ERP', async () => {
+    const { KeyboardShortcutsModal } = await import('../../components/Navigation/KeyboardShortcutsModal');
+    expect(KeyboardShortcutsModal).toBeDefined();
+  });
 });

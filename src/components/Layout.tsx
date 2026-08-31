@@ -18,6 +18,7 @@ import { UninvoicedDeliveriesBanner } from './UninvoicedDeliveriesBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
+import { KeyboardShortcutsModal } from './Navigation/KeyboardShortcutsModal';
 import { OfflineIndicator } from './ui/OfflineIndicator';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileBottomBar } from './Navigation/MobileBottomBar';
@@ -73,19 +74,28 @@ export default function Layout() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
+      } else if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && !isInput) {
+        e.preventDefault();
+        setShortcutsOpen((prev) => !prev);
       }
     };
     const handleOpenCommand = () => setSearchOpen(true);
+    const handleOpenShortcuts = () => setShortcutsOpen(true);
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('open-command-menu', handleOpenCommand);
+    window.addEventListener('open-shortcuts-modal', handleOpenShortcuts);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('open-command-menu', handleOpenCommand);
+      window.removeEventListener('open-shortcuts-modal', handleOpenShortcuts);
     };
   }, []);
 
@@ -234,6 +244,22 @@ export default function Layout() {
             {density === 'compact' ? '📐' : '🔲'}
           </button>
           
+          {/* Botón de Atajos de Teclado */}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setShortcutsOpen(true)}
+            aria-label="Ver Atajos de Teclado (?)"
+            title="Ver Atajos de Teclado & Teclas Rápidas (Presiona ?)"
+            style={{
+              borderRadius: 8,
+              fontSize: 16,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            ⌨️
+          </button>
+          
           <NotificationsCenter />
           <button
             className="icon-btn"
@@ -354,6 +380,7 @@ export default function Layout() {
 
       <MobileBottomBar />
       <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+      <KeyboardShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }
