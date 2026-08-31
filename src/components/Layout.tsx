@@ -254,7 +254,7 @@ export default function Layout() {
               <div className="brand-mark" style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, letterSpacing: '-0.3px' }}>{settings.companyName || 'BOLSAS ELEMENTAL'}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }}></span>
-                <span className="brand-sub" style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>ERP Providencia</span>
+                <span className="brand-sub" style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Bolsas Elemental Enterprise</span>
               </div>
             </div>
           </div>

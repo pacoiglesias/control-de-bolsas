@@ -8,6 +8,16 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.60 Homologación Oficial de Marca: BOLSAS ELEMENTAL',
+    date: '31 de Agosto de 2026',
+    time: '03:45 PM',
+    summary: 'Homologación de la identidad institucional del sistema bajo el nombre corporativo oficial BOLSAS ELEMENTAL en toda la plataforma.',
+    highlights: [
+      '🏷️ Identidad Oficial BOLSAS ELEMENTAL: Corrección y unificación del nombre del ERP en la barra lateral, metadatos y respaldos.',
+      '🌐 Despliegue en Vivo: Actualización en producción sincronizada.',
+    ],
+  },
+  {
     version: 'v8.9.59 Release Maestro Final: Multimodal XML CFDI 4.0, PDF Ingest & Reportes Oficiales',
     date: '31 de Agosto de 2026',
     time: '03:40 PM',
