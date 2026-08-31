@@ -8,6 +8,21 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.0 Enterprise — Bolsas Elemental Master Edition',
+    date: '31 de Agosto de 2026',
+    time: '06:50 PM',
+    summary: 'Lanzamiento oficial de la Generación 9.0 Enterprise: Multi-Planta dinámica, Proyección semanal de flujo de efectivo, Portal Maquilador con desglose total de OCs, Suite de recibos en PDF/WhatsApp, Blindaje de báscula y Motor Háptico a 60 FPS.',
+    highlights: [
+      '👑 Generación 9.0 Enterprise: Transformación arquitectónica integral del ERP con 70 iteraciones auditadas.',
+      '🏢 Gestor Multi-Planta Dinámico: Configuración y aislamiento de 1, 2, 3 o N departamentos en 1 clic.',
+      '📅 Cash Flow Forecast Semanal: Calendario inteligente de cobranza neta esperada por planta.',
+      '📱 Portal Maquilador 360°: Visibilidad completa de OCs abiertas con desglose de partidas y kilos pendientes.',
+      '🧾 Recibos Oficiales de Andrés: Generación de comprobantes ejecutivos en PDF y envío directo a WhatsApp.',
+      '🔒 Blindaje y 3-Way Match: Cero mermas, topes de báscula infranqueables y conciliación tripartita universal.',
+      '📳 Motor Háptico & 60 FPS: Respuesta táctil de precisión y navegación instantánea.',
+    ],
+  },
+  {
     version: 'v8.9.65 Blindaje Matemático de Báscula, Haptics y Renderizado Óptimo',
     date: '31 de Agosto de 2026',
     time: '06:45 PM',
