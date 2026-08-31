@@ -279,3 +279,42 @@ Le comparto los datos para el timbrado del CFDI correspondiente a Providencia:
 Le adjunto el archivo de Excel oficial (.xlsx). Quedo atento al envío del PDF y XML timbrados. ¡Muchas gracias!`;
 }
 
+/**
+ * Genera el mensaje estructurado de WhatsApp para solicitar el Complemento de Pago (REP / CFDI de Pago) al contador.
+ */
+export function generateComplementoPagoContadorMessage({
+  folioFactura,
+  contrarecibo,
+  cliente = 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+  montoPagado,
+  fechaPago = new Date(),
+  formaPago = '03 - Transferencia electrónica de fondos',
+  oc,
+}: {
+  folioFactura: string;
+  contrarecibo?: string;
+  cliente?: string;
+  montoPagado: number;
+  fechaPago?: any;
+  formaPago?: string;
+  oc?: string;
+}): string {
+  const crText = contrarecibo ? `\n📑 *Contrarecibo Liquidado:* ${contrarecibo}` : '';
+  const ocText = oc ? `\n📦 *Orden de Compra:* OC ${oc}` : '';
+  return `📄 *SOLICITUD DE COMPLEMENTO DE PAGO (CFDI DE RECEPCIÓN DE PAGOS - REP)*
+
+Estimado Contador, buen día.
+
+Le informo que Providencia ya realizó el pago de la siguiente factura emitida:
+
+🏢 *Cliente / Receptor:* ${cliente}
+📑 *Factura Pagada:* Factura #${folioFactura}${crText}${ocText}
+💵 *Monto Transferido / Liquidado:* $${montoPagado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+📅 *Fecha de Pago / Abono:* ${fmtDate(fechaPago)}
+💳 *Forma de Pago:* ${formaPago}
+
+Favor de emitir el *Complemento de Pago (REP)* correspondiente y enviarnos el PDF y XML timbrados para hacer la entrega a Providencia.
+
+¡Muchas gracias!`;
+}
+

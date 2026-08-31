@@ -735,5 +735,21 @@ describe('Asistente de Conciliación 3-Way Match', () => {
     expect(match.status).toBe('PENDING_CR');
     expect(match.isPerfect).toBe(false);
   });
+
+  it('genera correctamente el mensaje de solicitud de Complemento de Pago (REP) para el contador', async () => {
+    const { generateComplementoPagoContadorMessage } = await import('../whatsappReminder');
+    const msg = generateComplementoPagoContadorMessage({
+      folioFactura: '6198',
+      contrarecibo: 'TH-990',
+      cliente: 'TEXTIL HOGAR (TH - NAVA)',
+      montoPagado: 98054.60,
+      oc: '120267114114',
+    });
+
+    expect(msg).toContain('SOLICITUD DE COMPLEMENTO DE PAGO');
+    expect(msg).toContain('Factura #6198');
+    expect(msg).toContain('TH-990');
+    expect(msg).toContain('$98,054.60');
+  });
 });
 

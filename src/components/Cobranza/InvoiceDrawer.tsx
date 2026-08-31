@@ -9,6 +9,7 @@ import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 import { useToast } from '../../context/ToastContext';
 import {
   generateCollectionNotice,
+  generateComplementoPagoContadorMessage,
   generateInstitutionalEmailDraft,
   openWhatsAppMessage,
   openInstitutionalEmail,
@@ -195,6 +196,21 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
     setTimeout(() => setWaCopied(false), 2000);
   };
 
+  const handleRequestRep = () => {
+    const msg = generateComplementoPagoContadorMessage({
+      folioFactura: localInvoice.folio || order.folio || 'S/N',
+      contrarecibo: cr,
+      cliente: order.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+      montoPagado: monto,
+      fechaPago: new Date(),
+      formaPago: '03 - Transferencia electrónica de fondos',
+      oc: order.oc || order.folio,
+    });
+    copyToClipboard(msg);
+    toast('📲 Mensaje de solicitud de Complemento de Pago (REP) copiado. ¡Abriendo WhatsApp!', 'ok');
+    openWhatsAppMessage(msg);
+  };
+
   const isLate = localInvoice.creditCycle.status === 'overdue';
 
   return (
@@ -373,6 +389,32 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
             {' · '}<strong className="mono">{money(monto)}</strong>
             {localInvoice.creditCycle.dueDate && <> · Vence: <strong>{fmtDate(localInvoice.creditCycle.dueDate)}</strong></>}
           </div>
+
+          <button
+            type="button"
+            className="btn"
+            style={{
+              width: '100%',
+              marginTop: 10,
+              background: 'linear-gradient(135deg, rgba(37,211,102,0.12) 0%, rgba(22,163,74,0.18) 100%)',
+              color: '#15803d',
+              border: '1.5px solid rgba(34,197,94,0.4)',
+              fontWeight: 800,
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              borderRadius: 8,
+              padding: '8px 12px',
+              cursor: 'pointer',
+            }}
+            onClick={handleRequestRep}
+            title="Generar y enviar mensaje por WhatsApp al contador para solicitar el Complemento de Pago (REP) timbrado"
+          >
+            <span>📲</span>
+            <span>Solicitar Complemento de Pago (REP) al Contador</span>
+          </button>
         </Card>
 
         {/* ── CICLO DE CRÉDITO (edición) ── */}

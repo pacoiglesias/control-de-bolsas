@@ -205,12 +205,12 @@ export interface PurchaseOrderItem {
 }
 
 export const CANONICAL_TH_ITEMS: PurchaseOrderItem[] = [
-  { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-  { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-  { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250 (48+17+17X140)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco (55x126)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250 (80+20+20x160)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
   { id: 'it-th-4', code: 'enbo000006-sc', description: 'BOLSA POLIETILENO 77 CM X 55 CM (55x77) _Sin Color', quantity: 2000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
-  { id: 'it-th-5', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-  { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM', quantity: 500, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
+  { id: 'it-th-5', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM (50x55) _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM (30x40)', quantity: 500, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
 ];
 
 export const CANONICAL_GT_ITEMS: PurchaseOrderItem[] = [

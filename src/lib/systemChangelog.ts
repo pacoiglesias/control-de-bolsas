@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.8 Enterprise: Botón REP para Contador y Calibración Universal de Partidas',
+    date: '31 de Agosto de 2026',
+    time: '11:30 PM',
+    summary: 'Incorporación del botón para solicitar el Complemento de Pago (REP) al contador cuando Providencia liquida un contrarecibo, y calibración canónica de todas las partidas con doble nomenclatura.',
+    highlights: [
+      '📲 Botón REP Contador: Genera y envía por WhatsApp la solicitud de Complemento de Pago (CFDI de Pago) con folio, CR y fecha.',
+      '📦 Partidas 100% Calibradas: Doble nomenclatura idéntica en las 6 partidas de Nava (6,500 kg) y las 4 partidas de Evelia (3,700 kg).',
+      '🛡️ Suite de 127 Pruebas Unitarias: Validación completa de cálculos, tolerancia y mensajes de WhatsApp.',
+    ],
+  },
+  {
     version: 'v9.0.7 Enterprise: Integración de Envío por WhatsApp para Contador con Prefactura',
     date: '31 de Agosto de 2026',
     time: '11:25 PM',
