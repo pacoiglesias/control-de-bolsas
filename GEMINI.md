@@ -68,5 +68,10 @@ Este archivo configura las reglas de operación, compilación, pruebas y desplie
 *   **Visibilidad de Facturación en Expedientes:** La pestaña `🧾 Facturas & Cobros` debe existir siempre en la barra principal de pestañas de `OrderModal` (`TABS`).
 *   **Disponibilidad en Facturación Rápida:** El modal `QuickInvoiceModal` debe listar siempre todas las órdenes activas del ERP para permitir tanto facturar entregas de báscula como prefacturar OCs abiertas.
 
+### 8. Flujo de Prefacturas con Contadores, Liquidación en Efectivo y Complementos REP
+*   **Prefacturas Excel:** La empresa genera el archivo `.xlsx` oficial con el formato exacto del receptor (`GTP930115PU1`, `C.P. 90800`, partidas, precio $43.00, IVA 16%, PPD, 99 por definir, clave SAT `24141500`, unidad `KGM` y nota con la OC) y se lo envía a los contadores por WhatsApp para timbrado fiscal.
+*   **Liquidación en Efectivo:** Al cobrar a Providencia, el pago ingresa a la cuenta bancaria del despacho contable, quienes descuentan su 8% de comisión sobre el subtotal y entregan el remanente en efectivo a la empresa (`Subtotal × 1.08 = Total Cobrado - 8% Subtotal`).
+*   **Complementos de Pago (REP):** En cuanto Providencia liquide un contrarecibo, el sistema asiste en solicitar el CFDI de Recepción de Pagos (REP) timbrado a los contadores con folio, contrarecibo, monto y fecha de abono.
+
 
 

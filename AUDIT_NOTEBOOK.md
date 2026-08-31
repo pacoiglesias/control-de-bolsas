@@ -1,4 +1,30 @@
 
+### Iteración 80: Menú Visual de Atajos de Teclado y Teclas Rápidas (?) (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/Navigation/KeyboardShortcutsModal.tsx`, `src/components/Layout.tsx`
+Problema: Los operadores desconocían cuáles eran todos los atajos de teclado y teclas rápidas disponibles en el ERP (`F`, `N`, `C`, `P`, `Ctrl+K`, `H`, `K`, `Esc`), requiriendo una guía interactiva visible y accesible en cualquier momento.
+Impacto: Subutilización de la velocidad operativa de navegación y captura acelerada del sistema.
+Solución: Se creó el componente `KeyboardShortcutsModal` con interfaz moderna y agrupada por categorías, accesible con la tecla `?` (o `Shift + /`) y con el nuevo botón `⌨️` en la barra superior.
+Riesgo: 🟢 Cero.
+Commit: `feat(shortcuts): add visual keyboard shortcuts modal and toolbar button`
+Estado: ✅ Verificado — 128/128 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 5 (UX Operativa & Productividad).
+
+---
+
+### Iteración 79: Asistente WhatsApp para Contador y Botón de Solicitud de Complemento de Pago (REP) (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/whatsappReminder.ts`, `src/components/FastFlows/InvoiceFinancialCard.tsx`, `src/components/Cobranza/InvoiceDrawer.tsx`
+Problema: Al solicitar el timbrado inicial de prefacturas o el Complemento de Recepción de Pagos (REP / CFDI de Pago) cuando Providencia liquida contrarecibos, el usuario debía redactar manualmente los mensajes con datos fiscales y números de folio para el despacho contable.
+Impacto: Pérdida de tiempo y riesgo de errores al copiar montos o claves fiscales por WhatsApp.
+Solución: Se crearon las funciones generadoras `generatePrefacturaContadorMessage` y `generateComplementoPagoContadorMessage`, y se integraron los botones `📲 WhatsApp Contador` en facturación rápida y `📲 Solicitar Complemento de Pago (REP) al Contador` en cobranza.
+Riesgo: 🟢 Cero.
+Commit: `feat(accounting): add WhatsApp pre-invoice and payment complement REP assistant`
+Estado: ✅ Verificado — 128/128 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 4 (Integridad Contable) y OKR 5 (UX & Timbrado Veloz).
+
+---
+
 ### Iteración 78: Diccionario Universal de Doble Nomenclatura y Cuadratura Forense Final (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/types.ts`, `src/context/OrdersContext.tsx`, `src/components/FastFlows/InvoiceConceptTable.tsx`
