@@ -11,6 +11,7 @@ import { logAction, safeDeleteDoc } from '../../lib/logger';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { round2 } from '../../lib/finance';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { triggerHaptic } from '../../lib/hapticEngine';
 
 export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Purchase, onClose: () => void, costPricePerKg: number }) {
   const { user } = useAuth();
@@ -46,9 +47,11 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
         montoOC: monto
       });
 
+      triggerHaptic('success');
       toast('Orden guardada correctamente', 'ok');
       onClose();
     } catch (e) {
+      triggerHaptic('error');
       toast(`Error: ${(e as Error).message}`, 'bad');
     } finally {
       setBusy(false);
@@ -60,9 +63,11 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
     setBusy(true);
     try {
       await safeDeleteDoc(user?.email, doc(db, PATHS.purchases, purchase.id), purchase);
+      triggerHaptic('medium');
       toast('Borrada', 'ok');
       onClose();
     } catch (e) {
+      triggerHaptic('error');
       toast(`Error: ${(e as Error).message}`, 'bad');
     } finally {
       setBusy(false);
@@ -135,6 +140,7 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
     if (kilosDeEsta <= 0) return toast('Captura al menos una cantidad mayor a cero.', 'bad');
     const kilosRestantesPermitidos = Math.max(0, kilosPedidos - kilosEntregados);
     if (kilosPedidos > 0 && kilosDeEsta > kilosRestantesPermitidos) {
+      triggerHaptic('warning');
       return toast(`⚠️ Andrés no puede entregar más kilos de lo indicado en la OC (${kilosPedidos.toLocaleString('es-MX')} kg). Máximo permitido restante: ${kilosRestantesPermitidos.toLocaleString('es-MX')} kg.`, 'bad');
     }
     setBusy(true);
@@ -167,9 +173,11 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
         costPerKg: order.customCostPrice ?? costPricePerKg,
       });
       
+      triggerHaptic('success');
       toast(`Entrega de ${kilosDeEsta} kg registrada.`, 'ok');
       onClose();
     } catch (e) {
+      triggerHaptic('error');
       toast(`No se pudo registrar: ${(e as Error).message}`, 'bad');
     } finally {
       setBusy(false);

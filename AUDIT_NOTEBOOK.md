@@ -1,4 +1,17 @@
 
+### Iteración 70: Integración de Motor Háptico y Guardas Anti-Doble Envío en Modales de Compras (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/Compras/OrderModals.tsx`
+Problema: Al registrar boletas de pesaje de báscula o anticipos de compra, la interfaz carecía de respuesta táctil (haptics) inmediata ante éxito o advertencias de sobre-kilos, aumentando la incertidumbre visual en dispositivos móviles.
+Impacto: Riesgo de pulsaciones duplicadas en redes con alta latencia o confusión en patio de descarga.
+Solución: Se integró `triggerHaptic` con patrones diferenciados (`success` al guardar, `warning` ante topes excedidos y `error` en fallos) y se blindó el estado de bloqueo `busy` para garantizar envíos únicos e instantáneos.
+Riesgo: 🟢 Cero.
+Commit: `feat(compras): integrate haptic engine and lock guards in OrderModals`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 4 (Integridad Operativa) y OKR 5 (UX & Feedback Táctil).
+
+---
+
 ### Iteración 69: Memoización de Saldo de Caja Chica y Cero Re-cálculos Innecesarios en Dashboard (COMPLETADO)
 [2026-08-31]
 Archivo: `src/pages/Dashboard.tsx`
