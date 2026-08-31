@@ -354,7 +354,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
             const baseGtDeliveries: Delivery[] = [
               {
-                id: 'del-gt-6193',
+                id: 'del-gt-9713',
                 date: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),
                 kilos: 1000.0,
                 items: [
@@ -367,19 +367,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6193',
               },
               {
-                id: 'del-gt-6224',
-                date: Timestamp.fromDate(new Date('2026-08-26T10:33:34Z')),
-                kilos: 983.0,
-                items: [
-                  { itemId: 'it-gt-4', quantity: 983.0 },
-                ],
-                invoiced: true,
-                invoiceId: 'inv-6224',
-                docType: 'factura',
-                docFolio: '6224',
-              },
-              {
-                id: 'del-gt-patio-1972',
+                id: 'del-gt-9714',
                 date: Timestamp.fromDate(new Date('2026-08-26T10:00:00Z')),
                 kilos: 1972.20,
                 items: [
@@ -422,30 +410,6 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 collection: {
                   contrareciboNumber: 'GT-874',
                   contrareciboDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
-                },
-              },
-              {
-                id: 'inv-6224',
-                orderId: best.id,
-                folio: '6224',
-                kilos: 983.0,
-                items: [
-                  { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 983.0, unitPrice: 43.0, amount: 42269.0, unit: 'KGM' },
-                ],
-                financials: {
-                  costPricePerKg: 38,
-                  salePricePerKg: 43,
-                  saleTotal: 42269.0,
-                  invoiceTotal: 49032.04,
-                  costTotal: 37354.0,
-                  commission: 3381.52,
-                  netCashFlow: 8296.52,
-                  tradeMargin: 4915.0,
-                },
-                creditCycle: {
-                  status: 'facturado',
-                  issueDate: Timestamp.fromDate(new Date('2026-08-26T10:33:34Z')),
-                  dueDate: null,
                 },
               },
             ];

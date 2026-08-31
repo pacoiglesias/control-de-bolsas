@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.4 Enterprise: Purga de Folio 6224 y Calibración 100% Real de Remisión 9714',
+    date: '31 de Agosto de 2026',
+    time: '10:20 PM',
+    summary: 'Eliminación del folio de prueba 6224 que distorsionaba 17 kg ficticios, alineando la orden de Evelia con sus 2 únicas remisiones físicas: 9713 (1,000 kg facturados) y 9714 (1,972.20 kg listos para facturar).',
+    highlights: [
+      '🧹 Cero Kilos Ficticios: Eliminación de F-6224; restablecimiento de partidas íntegras de 1.20x1.60m (998.20 kg) y 100x95cm (974.00 kg).',
+      '🎯 Prefactura Evelia Exacta: 1,972.20 kg @ $43.00 = $84,804.60 (+IVA = $98,373.34).',
+      '🎯 Prefactura Nava Exacta: 2,945.20 kg @ $43.00 = $126,643.60 (+IVA = $146,906.58).',
+    ],
+  },
+  {
     version: 'v9.0.3 Enterprise: Desglose Automático de Remisiones 14115 y 9714',
     date: '31 de Agosto de 2026',
     time: '10:18 PM',
