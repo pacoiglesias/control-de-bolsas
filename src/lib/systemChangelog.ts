@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.5 Enterprise: Doble Nomenclatura de Medidas Providencia vs Taller Andrés',
+    date: '31 de Agosto de 2026',
+    time: '11:15 PM',
+    summary: 'Integración visual y documental de la doble nomenclatura de medidas en catálogo, tablas de facturación y hojas de cálculo (ej. 120X125cm Providencia con su equivalente 80+20+20x125cm de taller).',
+    highlights: [
+      '🏷️ Doble Nomenclatura Universal: Código y medida oficial Providencia acompañada de su medida de fuelles de taller.',
+      '📦 Cero Confusión en Patio: 120x125 (80+20+20x125), 1.00x1.15 (60+40x115), 1.20x1.60 (80+40x160) y 100x95 (60+40x95).',
+      '📊 Prefacturas y Manifiestos Sincronizados: Identificación 100% intuitiva para el facturador y para Andrés.',
+    ],
+  },
+  {
     version: 'v9.0.4 Enterprise: Purga de Folio 6224 y Calibración 100% Real de Remisión 9714',
     date: '31 de Agosto de 2026',
     time: '10:20 PM',
