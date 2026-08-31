@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.65 Blindaje Matemático de Báscula, Haptics y Renderizado Óptimo',
+    date: '31 de Agosto de 2026',
+    time: '06:45 PM',
+    summary: 'Consolidación de las mejoras del Sprint 2 Staff: blindaje contra sobrefacturación en sugerencias de báscula, memoización de caja chica y respuesta táctil háptica en compras.',
+    highlights: [
+      '🔒 Techo Matemático Inviolable: Protección estricta en sugerencias de facturación para no rebasar kilos de OC.',
+      '⚡ Aceleración de Dashboard: Memoización de saldoCaja con useMemo para navegación instantánea en móviles.',
+      '📳 Feedback Háptico en Compras: Respuesta táctil diferenciada ante registro exitoso o topes excedidos.',
+    ],
+  },
+  {
     version: 'v8.9.64 Sprint de Optimización Staff: Flujo Granular, Rendimiento y 3-Way Match Universal',
     date: '31 de Agosto de 2026',
     time: '06:30 PM',
