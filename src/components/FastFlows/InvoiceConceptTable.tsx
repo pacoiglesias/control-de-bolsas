@@ -48,6 +48,7 @@ export function InvoiceConceptTable({
   onUpdateField,
   onFillMax,
   onRemoveRow,
+  onDownloadPrefactura,
 }: InvoiceConceptTableProps) {
   return (
     <div
