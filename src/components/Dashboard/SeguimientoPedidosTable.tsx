@@ -56,19 +56,19 @@ export function SeguimientoPedidosTable({
 
     if (s.status === 'collected') return '5_caja';
 
-    // 1. Si tiene contrarecibos activos en crédito, esa orden YA está en cobranza (NO en producción)
+    // 1. Si tiene entregas en báscula pendientes de facturar (Acción prioritaria: emitir CFDI)
+    if (kilosEntregados > kilosFacturados + 0.01) return '2_almacen';
+
+    // 2. Si tiene contrarecibos activos en crédito
     const hasConCr = invoices.some(inv => !!extractCr(inv, o) && inv.creditCycle?.status !== 'collected');
     if (hasConCr) return '4_con_cr';
 
-    // 2. Si faltan kilos por entregar y no está cerrada
-    if (!o.isClosedShort && totalKilos > kilosEntregados + 0.01) return '1_taller';
-
-    // 3. Si tiene entregas en báscula pendientes de facturar
-    if (kilosEntregados > kilosFacturados + 0.01) return '2_almacen';
-
-    // 4. Si tiene facturas sin contrarecibo
+    // 3. Si tiene facturas sin contrarecibo
     const hasSinCr = invoices.some(inv => !extractCr(inv, o) && inv.creditCycle?.status !== 'paid' && inv.creditCycle?.status !== 'collected');
     if (hasSinCr) return '3_sin_cr';
+
+    // 4. Si faltan kilos por entregar y no está cerrada
+    if (!o.isClosedShort && totalKilos > kilosEntregados + 0.01) return '1_taller';
 
     return '5_caja';
   };

@@ -1,4 +1,7 @@
 import React, { useEffect, useRef } from 'react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+import { confirmDialog } from '../../lib/confirmDialog';
 import type { PurchaseOrder } from '../../lib/types';
 import { money } from '../../lib/format';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
@@ -193,6 +196,40 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
       )}
 
       <div style={{ height: 1, background: 'rgba(255, 255, 255, 0.08)', margin: '4px 0' }} />
+
+      <button
+        onClick={async () => {
+          const isClosed = order.isClosedShort;
+          if (isClosed) {
+            const ok = await confirmDialog({
+              message: `¿Deseas reabrir la OC ${order.folio || order.oc} para permitir nuevas entregas?`,
+            });
+            if (!ok) return;
+            try {
+              await updateDoc(doc(db, PATHS.orders, order.id), { isClosedShort: false });
+              toast(`🔓 OC ${order.folio || order.oc} reabierta`, 'ok');
+            } catch (err: any) {
+              toast(`Error al reabrir: ${err.message}`, 'bad');
+            }
+          } else {
+            const ok = await confirmDialog({
+              message: `¿Deseas cerrar definitivamente la OC ${order.folio || order.oc} con los kilos actuales?\n\nEsto quitará la alerta de kilos pendientes por entregar.`,
+            });
+            if (!ok) return;
+            try {
+              await updateDoc(doc(db, PATHS.orders, order.id), { isClosedShort: true });
+              toast(`🔒 OC ${order.folio || order.oc} cerrada exitosamente`, 'ok');
+            } catch (err: any) {
+              toast(`Error al cerrar OC: ${err.message}`, 'bad');
+            }
+          }
+          onClose();
+        }}
+        style={{ ...menuItemStyle, color: order.isClosedShort ? '#38bdf8' : '#fbbf24' }}
+      >
+        <span>{order.isClosedShort ? '🔓' : '🔒'}</span>
+        <span>{order.isClosedShort ? 'Reabrir OC' : 'Cerrar OC (Menos Kilos)'}</span>
+      </button>
 
       <button onClick={handleSendEmail} style={menuItemStyle}>
         <span>✉️</span> <span>Enviar por Correo</span>

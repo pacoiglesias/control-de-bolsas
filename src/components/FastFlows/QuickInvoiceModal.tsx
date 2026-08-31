@@ -99,6 +99,23 @@ export function QuickInvoiceModal({
     };
   }, [selectedOrder]);
 
+  const uninvoicedDeliveriesList = useMemo(() => {
+    const list: { orderId: string; oc: string; client: string; delivery: Delivery }[] = [];
+    validOrders.forEach((o) => {
+      (o.deliveries || []).forEach((d) => {
+        if (!d.invoiced && Number(d.kilos) > 0) {
+          list.push({
+            orderId: o.id,
+            oc: o.oc || o.folio || 'S/N',
+            client: nombreClienteVisible(o.client),
+            delivery: d,
+          });
+        }
+      });
+    });
+    return list;
+  }, [validOrders]);
+
   const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
   const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 38;
 
@@ -447,6 +464,44 @@ export function QuickInvoiceModal({
           {validOrders.length === 0 && (
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ink-soft)' }}>
               ℹ️ No hay expedientes activos pendientes de facturación en este momento.
+            </div>
+          )}
+
+          {/* CHIPS DE ACCIÓN RÁPIDA: ENTREGAS EN PATIO LISTAS PARA FACTURAR */}
+          {uninvoicedDeliveriesList.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                ⚡ Cargar Entrega de Patio en 1 Clic:
+              </span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {uninvoicedDeliveriesList.map((item, idx) => (
+                  <button
+                    key={`${item.orderId}_${idx}`}
+                    type="button"
+                    onClick={() => {
+                      handleSelectOrder(item.orderId);
+                      toast(`⚡ Orden ${item.oc} (${Number(item.delivery.kilos).toLocaleString('es-MX')} kg) cargada lista para facturar`, 'ok');
+                    }}
+                    style={{
+                      background: selectedOrderId === item.orderId ? '#d97706' : 'rgba(217, 119, 6, 0.12)',
+                      color: selectedOrderId === item.orderId ? '#fff' : '#b45309',
+                      border: '1px solid rgba(217, 119, 6, 0.35)',
+                      borderRadius: 8,
+                      padding: '5px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>🚚</span>
+                    <span>{(item.delivery as any).remision || (item.delivery as any).remisionNumber || item.delivery.notes || 'Báscula'}: {Number(item.delivery.kilos).toLocaleString('es-MX')} kg ({item.client})</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -16,11 +16,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
-      // FIX (v8.9.0): 'masked-icon.svg' se listaba aqui pero el archivo nunca
-      // existio en public/ -- referencia muerta desde el template original.
-      // 'favicon.ico' antes tampoco existia (index.html apuntaba directo a
-      // /logo.png); ahora si existe, generado a partir del logo real.
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Control Bolsas ERP',
@@ -44,6 +40,9 @@ export default defineConfig({
         ]
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
         runtimeCaching: [
           {

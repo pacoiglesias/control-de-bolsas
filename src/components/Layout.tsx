@@ -89,30 +89,27 @@ export default function Layout() {
     };
   }, []);
 
-  const clientLabel = settings.clientShortName || 'Providencia';
-  const providerLabel = settings.providerName || 'Andrés';
-
   const navItems = useMemo<NavItem[]>(() => [
-    { type: 'link', to: '/', icon: '📊', label: 'Centro de Mando / KPIs', end: true, roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },
     
     { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes de Pedido', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes (OCs)', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: '📥', label: 'Recepción & Captura Rápida', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de Partidas / SKUs', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de SKUs', roles: ['admin', 'manager'] },
 
     { type: 'group', label: 'FINANZAS & TESORERÍA', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: '🧾', label: `Cuentas por Cobrar (${clientLabel})`, roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: '🏭', label: `Cuentas por Pagar (${providerLabel})`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Caja Chica & Tesorería', roles: ['admin'] },
+    { type: 'link', to: '/cobranza', icon: '🧾', label: `Cobranza Providencia`, roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: '🏭', label: `Compras & Andrés`, roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Caja Chica & Efectivo', roles: ['admin'] },
 
-    { type: 'group', label: 'AUDITORÍA & SISTEMA', roles: ['admin'] },
-    { type: 'link', to: '/audit', icon: '⚖️', label: 'Balanza & Conciliación', roles: ['admin'] },
-    { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocio (BI)', roles: ['admin'] },
-    { type: 'link', to: '/portal-maquilador', icon: '🚛', label: 'Portal Báscula / Maquila', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración del ERP', roles: ['admin'] },
-    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios y Accesos', roles: ['admin'] },
-  ], [clientLabel, providerLabel]);
+    { type: 'group', label: 'GOBIERNO & AUDITORÍA', roles: ['admin'] },
+    { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Centinela', roles: ['admin'] },
+    { type: 'link', to: '/mining', icon: '📈', label: 'Minería & BI', roles: ['admin'] },
+    { type: 'link', to: '/portal-maquilador', icon: '🚛', label: 'Portal del Maquilador', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios & Accesos', roles: ['admin'] },
+  ], []);
 
   const handleDownloadLocalBackup = () => {
     try {
@@ -153,18 +150,21 @@ export default function Layout() {
     }
   }, [isOnline]);
 
-  // Los badges leen el mismo estatus derivado que la tabla de Ordenes. Antes
-  // usaban el campo viejo de la raiz y podian quedarse en cero teniendo
-  // facturas realmente vencidas.
-  const { overdue, review } = useMemo(() => {
+  // Badges inteligentes en tiempo real
+  const { overdue, review, unbilledOrdersCount } = useMemo(() => {
     let overdue = 0;
     let review = 0;
+    let unbilledOrdersCount = 0;
     for (const o of orders) {
-      const st = getOrderSummary(o).status;
+      const summary = getOrderSummary(o);
+      const st = summary.status;
       if (st === 'overdue') overdue++;
       else if (st === 'manual_review') review++;
+      if (summary.kilosDelivered > summary.kilosInvoiced + 0.01 && !o.isClosedShort) {
+        unbilledOrdersCount++;
+      }
     }
-    return { overdue, review };
+    return { overdue, review, unbilledOrdersCount };
   }, [orders]);
 
   return (
@@ -248,11 +248,14 @@ export default function Layout() {
 
       <div className="app-shell">
         <aside className={`sidebar no-print ${navOpen ? 'open' : ''}`}>
-          <div className="brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 16px' }}>
-            <img src={settings.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 80, height: 80, objectFit: 'contain', borderRadius: 8, background: '#fff', padding: 4 }} />
+          <div className="brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '20px 14px' }}>
+            <img src={settings.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 10, background: '#fff', padding: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} />
             <div style={{ textAlign: 'center' }}>
-              <div className="brand-mark" style={{ fontSize: 16, lineHeight: 1.2 }}>{settings.companyName || 'BOLSAS ELEMENTAL'}</div>
-              <div className="brand-sub">ERP · v{__APP_VERSION__} ({typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'Local'})</div>
+              <div className="brand-mark" style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, letterSpacing: '-0.3px' }}>{settings.companyName || 'BOLSAS ELEMENTAL'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }}></span>
+                <span className="brand-sub" style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>ERP Providencia</span>
+              </div>
             </div>
           </div>
           <nav className="nav">
@@ -275,41 +278,62 @@ export default function Layout() {
                     setNavOpen(false);
                   }}
                 >
-                  <span className="nav-num" style={{ fontSize: '16px' }}>{it.icon}</span>
-                  <span>{it.label}</span>
+                  <span className="nav-num" style={{ fontSize: '15px' }}>{it.icon}</span>
+                  <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.label}</span>
                   {it.to === '/cobranza' && overdue > 0 ? (
-                    <span className="nav-badge">{overdue}</span>
+                    <span className="nav-badge" title={`${overdue} facturas vencidas`}>{overdue}</span>
                   ) : null}
-                  {it.to === '/ordenes' && review > 0 ? (
+                  {it.to === '/ordenes' && unbilledOrdersCount > 0 ? (
+                    <span className="nav-badge soft" title={`${unbilledOrdersCount} órdenes con entregas por facturar`}>{unbilledOrdersCount} fac</span>
+                  ) : it.to === '/ordenes' && review > 0 ? (
                     <span className="nav-badge soft">{review}</span>
                   ) : null}
                 </NavLink>
               );
             })}
           </nav>
-          <div className="sidebar-foot">
+          <div className="sidebar-foot" style={{ marginTop: 'auto', paddingTop: 14 }}>
             <button
               type="button"
               onClick={handleDownloadLocalBackup}
               title="Descargar copia de seguridad completa a tu dispositivo"
               style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#fff',
-                border: 'none',
-                fontWeight: 700,
-                borderRadius: 8,
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.25) 100%)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                fontWeight: 800,
+                borderRadius: 10,
                 padding: '8px 12px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
                 cursor: 'pointer',
+                fontSize: 11.5,
               }}
             >
               💾 Respaldo Local (1 Clic)
             </button>
-            <span className="who">{user?.email}</span>
-            <button onClick={() => void signOut()}>⏻ Cerrar sesión</button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 2px', gap: 6 }}>
+              <span className="who" style={{ fontSize: 10.5, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                {user?.email}
+              </span>
+              <button
+                onClick={() => void signOut()}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#f87171',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                }}
+                title="Cerrar sesión"
+              >
+                ⏻ Salir
+              </button>
+            </div>
           </div>
         </aside>
 

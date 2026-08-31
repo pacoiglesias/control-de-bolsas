@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { money, kilos as fmtKilos, nombreClienteVisible, toDate } from '../../lib/format';
-import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
+import { computeCommissionFromInvoiceTotal, getOrderSummary, round2 } from '../../lib/finance';
 import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
 
 interface ActionRadarProps {
@@ -38,15 +38,15 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
     orders.forEach((o) => {
       if (o.isClosedShort) return;
       const clientName = nombreClienteVisible(o.client) || 'Providencia';
-      const deliveries = o.deliveries || [];
-      const kilosEntregados = deliveries.reduce((a: number, d: any) => a + (d.kilos || 0), 0);
+      const summary = getOrderSummary(o);
+      const kilosEntregados = summary.kilosDelivered;
+      const kilosFacturados = summary.kilosInvoiced;
       const invoices = o.invoices || [];
-      const kilosFacturados = invoices.reduce((a: number, i: any) => a + (i.kilos || 0), 0);
 
       // 1. Entregas en Providencia sin Facturar
       if (kilosEntregados > kilosFacturados + 0.01) {
-        const faltanKg = kilosEntregados - kilosFacturados;
-        const montoEstimado = faltanKg * saleKg * (1 + ivaRate);
+        const faltanKg = round2(kilosEntregados - kilosFacturados);
+        const montoEstimado = round2(faltanKg * saleKg * (1 + ivaRate));
         list.push({
           id: `sin_fac_${o.id}`,
           type: 'sin_facturar',

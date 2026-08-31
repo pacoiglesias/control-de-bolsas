@@ -23,9 +23,6 @@ import { getRentabilidadHtml } from './DashboardReports';
 // Componentes Modulares del Dashboard
 import { DashboardLiveTicker } from '../components/Dashboard/DashboardLiveTicker';
 import { DashboardHeaderToolbar } from '../components/Dashboard/DashboardHeaderToolbar';
-import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
-import { ProvidenciaHubWidget } from '../components/Dashboard/ProvidenciaHubWidget';
-import { ActionRadar } from '../components/Dashboard/ActionRadar';
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
 import { DashboardViewModeTabs, type DashboardViewMode } from '../components/Dashboard/DashboardViewModeTabs';
 import { DashboardExecutiveView } from '../components/Dashboard/views/DashboardExecutiveView';
@@ -214,40 +211,6 @@ export default function Dashboard() {
     return count;
   }, [seguimientoOrders]);
 
-  const pendingDeliveryKg = useMemo(() => {
-    return round2(seguimientoOrders.reduce((acc, o) => {
-      if (o.isClosedShort) return acc;
-      const s = getOrderSummary(o);
-      const totalKg = Number(o.totalKilograms || 0);
-      const faltan = Math.max(0, totalKg - s.kilosDelivered);
-      return acc + faltan;
-    }, 0));
-  }, [seguimientoOrders]);
-
-  const deliveredPendingInvoiceKg = useMemo(() => {
-    return round2(seguimientoOrders.reduce((acc, o) => {
-      if (o.isClosedShort) return acc;
-      const s = getOrderSummary(o);
-      const ready = Math.max(0, s.kilosDelivered - s.kilosInvoiced);
-      return acc + ready;
-    }, 0));
-  }, [seguimientoOrders]);
-
-  const invoicesWithoutCrCount = useMemo(() => {
-    let count = 0;
-    seguimientoOrders.forEach(o => {
-      if (o.isClosedShort) return;
-      (o.invoices || []).forEach(inv => {
-        const cr = (inv.collection?.contrareciboNumber || '').trim();
-        const st = inv.creditCycle?.status;
-        if (st !== 'collected' && st !== 'paid' && !cr) {
-          count++;
-        }
-      });
-    });
-    return count;
-  }, [seguimientoOrders]);
-
   const contrarecibosVencidosCount = useMemo(() => {
     const ahora = Date.now();
     let n = 0;
@@ -405,49 +368,6 @@ export default function Dashboard() {
         config={config}
         shareRentabilidad={shareRentabilidad}
         printRentabilidad={printRentabilidad}
-      />
-
-      {/* 1.2. Centro de Flujo Operativo Rápido (1-Tap Workflow Hub) */}
-      <QuickActionsBar
-        onNewOrder={() => nav('/ordenes?nueva=1')}
-        onQuickDelivery={() => {
-          setSelectedDeliveryOrderId(null);
-          setShowQuickDelivery(true);
-        }}
-        onQuickInvoice={() => {
-          setSelectedInvoiceOrderId(null);
-          setShowQuickInvoice(true);
-        }}
-        onQuickCollection={() => setShowQuickCollection(true)}
-        onQuickPay={() => setShowQuickPay(true)}
-        onOpenMagicPaste={() => setShowMagicPaste(true)}
-        onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-        onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-        onOpenCorteMensual={() => setShowCorteMensual(true)}
-        onOpenCorteSemanal={() => setShowCorteSemanal(true)}
-        onOpenBalanza={() => setShowBalanza(true)}
-        role={role}
-        activeOrdersCount={seguimientoOrders.filter(o => !o.isClosedShort).length}
-        pendingDeliveryKg={pendingDeliveryKg}
-        deliveredPendingInvoiceKg={deliveredPendingInvoiceKg}
-        invoicesWithoutCrCount={invoicesWithoutCrCount}
-        saldoAndres={k.deudaAndres ?? 0}
-        saldoCaja={saldoCaja}
-      />
-
-      {/* 1.5. Hub Operativo Providencia (Textil Hogar vs Grupo Textil en Vivo) */}
-      <ProvidenciaHubWidget />
-
-      {/* 1.8. Radar de Acciones Operativas y Facturación de Entregas */}
-      <ActionRadar
-        orders={globalOrders}
-        purchases={purchases}
-        config={config as any}
-        nav={nav}
-        onOpenOrder={(o) => {
-          setSelectedInvoiceOrderId(o.id);
-          setShowQuickInvoice(true);
-        }}
       />
 
       {/* 2. Hero Suite de 4 Pilares Financieros */}

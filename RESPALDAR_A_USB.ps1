@@ -28,7 +28,8 @@ try {
         $pkg = Get-Content $pkgPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($pkg.version) { $VersionProyecto = $pkg.version }
     }
-} catch {}
+}
+catch {}
 
 Write-Host ""
 Write-Host "==============================================================================" -ForegroundColor Cyan
@@ -43,14 +44,16 @@ Write-Host "[1/5] Buscando memorias USB y unidades de almacenamiento externas...
 $usbDrives = @()
 try {
     $usbDrives = Get-CimInstance -ClassName Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 }
-} catch {
+}
+catch {
     $usbDrives = @()
 }
 
 $allOtherDrives = @()
 try {
     $allOtherDrives = Get-CimInstance -ClassName Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 -and $_.DeviceID -ne 'C:' }
-} catch {
+}
+catch {
     $allOtherDrives = @()
 }
 
@@ -58,7 +61,8 @@ $selectedDrive = ""
 
 if ($TargetDrive -and (Test-Path $TargetDrive)) {
     $selectedDrive = $TargetDrive
-} elseif ($usbDrives.Count -eq 1) {
+}
+elseif ($usbDrives.Count -eq 1) {
     $drive = $usbDrives[0]
     $freeGB = [math]::Round($drive.FreeSpace / 1GB, 2)
     $volName = if ($drive.VolumeName) { $drive.VolumeName } else { "Sin Nombre" }
@@ -88,21 +92,25 @@ if (-not $selectedDrive) {
         
         if ($inputChoice -match "^\d+$" -and [int]$inputChoice -ge 1 -and [int]$inputChoice -le $allDrives.Count) {
             $selectedDrive = $allDrives[[int]$inputChoice - 1].DeviceID
-        } else {
+        }
+        else {
             $cleaned = $inputChoice.Trim().ToUpper()
             if ($cleaned -match "^[A-Z]:?$") {
                 $selectedDrive = if ($cleaned.EndsWith(":")) { $cleaned } else { "$cleaned`:" }
-            } else {
+            }
+            else {
                 $selectedDrive = $cleaned
             }
         }
-    } else {
+    }
+    else {
         Write-Host "  [!] No se encontraron memorias USB conectadas." -ForegroundColor Yellow
         $inputChoice = Read-Host "  Por favor conecta tu memoria USB e ingresa la letra de unidad (ej. D:, E:, F:)"
         $cleaned = $inputChoice.Trim().ToUpper()
         if ($cleaned -match "^[A-Z]:?$") {
             $selectedDrive = if ($cleaned.EndsWith(":")) { $cleaned } else { "$cleaned`:" }
-        } else {
+        }
+        else {
             $selectedDrive = $cleaned
         }
     }
@@ -163,7 +171,8 @@ $rcExit = $LASTEXITCODE
 
 if ($rcExit -ge 8) {
     Write-Host "[X] Advertencia en robocopy (código $rcExit). Verificando copia..." -ForegroundColor Yellow
-} else {
+}
+else {
     Write-Host "  -> [OK] Código fuente copiado íntegramente y limpio." -ForegroundColor Green
 }
 
@@ -268,7 +277,8 @@ try {
     $zipItem = Get-Item $ZipFile
     $zipMB = [math]::Round($zipItem.Length / 1MB, 2)
     Write-Host "  -> [OK] Archivo ZIP creado: $ZipFile ($zipMB MB)" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "  -> [!] No se pudo generar el ZIP: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 

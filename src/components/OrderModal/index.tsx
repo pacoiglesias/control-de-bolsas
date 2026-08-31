@@ -131,15 +131,57 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
         wide
         title={
           /* ── Cabecera de identidad: PED · OC · CR siempre visibles sin duplicados ── */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {order.folio && order.folio !== order.oc ? (
-                <DocBadge type="ped" value={order.folio} />
-              ) : !order.oc ? (
-                <DocBadge type="ped" value={order.folio ?? `#${order.id?.slice(0,6)}`} />
-              ) : null}
-              {order.oc && <DocBadge type="oc" value={order.oc} />}
-              {crs.map(cr => <DocBadge key={cr} type="cr" value={cr} />)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {order.folio && order.folio !== order.oc ? (
+                  <DocBadge type="ped" value={order.folio} />
+                ) : !order.oc ? (
+                  <DocBadge type="ped" value={order.folio ?? `#${order.id?.slice(0,6)}`} />
+                ) : null}
+                {order.oc && <DocBadge type="oc" value={order.oc} />}
+                {crs.map(cr => <DocBadge key={cr} type="cr" value={cr} />)}
+              </div>
+
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const isClosed = form.isClosedShort;
+                    if (isClosed) {
+                      const ok = await confirmDialog({
+                        message: '¿Deseas reabrir esta OC para permitir nuevas entregas de material?',
+                      });
+                      if (!ok) return;
+                      form.isClosedShort = false;
+                      save();
+                    } else {
+                      const ok = await confirmDialog({
+                        message: '¿Deseas cerrar definitivamente esta OC con los kilos entregados hasta ahora?\n\nEsto quitará la alerta de kilos pendientes por entregar.',
+                      });
+                      if (!ok) return;
+                      form.isClosedShort = true;
+                      save();
+                    }
+                  }}
+                  style={{
+                    background: form.isClosedShort ? 'rgba(59, 130, 246, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                    color: form.isClosedShort ? '#2563eb' : '#d97706',
+                    border: `1px solid ${form.isClosedShort ? 'rgba(59, 130, 246, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                    borderRadius: 8,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                  title={form.isClosedShort ? 'Clic para reabrir OC' : 'Clic para cerrar OC por menos kilos'}
+                >
+                  <span>{form.isClosedShort ? '🔓 OC Cerrada (Reabrir)' : '🔒 Cerrar OC (Menos Kilos)'}</span>
+                </button>
+              )}
             </div>
             <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500 }}>
               {nombreClienteVisible(order.client)}

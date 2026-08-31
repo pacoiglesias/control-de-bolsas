@@ -37,20 +37,20 @@ export function AuditCentinelaModal({
   const getSeverityBadge = (sev: AuditAnomaly['severity']) => {
     if (sev === 'critical') {
       return (
-        <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+        <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: 4, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
           🚨 CRÍTICA
         </span>
       );
     }
     if (sev === 'warning') {
       return (
-        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: 4, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
           ⚠️ ATENCIÓN
         </span>
       );
     }
     return (
-      <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+      <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: 4, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
         💡 SUGERENCIA
       </span>
     );
@@ -97,37 +97,36 @@ export function AuditCentinelaModal({
 
   return (
     <Modal title="🛡️ Diagnóstico Centinela" onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        
-        {/* 1. Resumen Ejecutivo Compacto */}
+      {/* El modal-body base ya tiene overflow-y: auto y padding. Solo ponemos flex column. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* 1. Resumen Ejecutivo */}
         <div
           style={{
             background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: 12,
-            padding: '14px 16px',
+            padding: '12px 14px',
             color: '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12,
+            gap: 10,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 borderRadius: 10,
                 background: getScoreColor(report.score),
                 color: '#fff',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: 16,
-                lineHeight: 1,
+                fontSize: 15,
                 boxShadow: `0 0 12px ${getScoreColor(report.score)}50`,
                 flexShrink: 0,
               }}
@@ -135,16 +134,15 @@ export function AuditCentinelaModal({
               {report.score}%
             </div>
             <div>
-              <div style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: '-0.2px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '-0.2px' }}>
                 {report.score === 100 ? 'ERP Blindado y Conciliado' : 'Auditoría en Vivo'}
               </div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                Báscula, Facturación SAT, Andrés y Caja Chica
+              <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
+                Báscula · Facturación SAT · Andrés · Caja Chica
               </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
             {report.criticalCount > 0 && (
               <span style={{ background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
                 {report.criticalCount} Críticas
@@ -155,6 +153,11 @@ export function AuditCentinelaModal({
                 {report.warningCount} Alertas
               </span>
             )}
+            {report.infoCount > 0 && (
+              <span style={{ background: '#0ea5e9', color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
+                {report.infoCount} Info
+              </span>
+            )}
             {report.criticalCount === 0 && report.warningCount === 0 && (
               <span style={{ background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
                 ✓ 100% OK
@@ -163,45 +166,46 @@ export function AuditCentinelaModal({
           </div>
         </div>
 
-        {/* 2. Radar Compacto de Subsistemas */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+        {/* 2. Radar de 5 Subsistemas — siempre en una fila */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
           {Object.entries(report.subsystemHealth).map(([key, sub]) => {
             const iconMap: Record<string, string> = {
               bascula: '⚖️ Báscula',
-              facturacion: '🧾 Facturación',
-              cobranza: '📑 Providencia',
+              facturacion: '🧾 Facturas',
+              cobranza: '📑 Cobranza',
               maquilaAndres: '🏭 Andrés',
               tesoreriaCaja: '💵 Caja',
             };
             const isOk = sub.status === 'ok';
+            const isWarn = sub.status === 'warning';
             return (
               <div
                 key={key}
                 style={{
-                  background: isOk ? 'rgba(16, 185, 129, 0.08)' : sub.status === 'warning' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                  border: `1px solid ${isOk ? 'rgba(16, 185, 129, 0.25)' : sub.status === 'warning' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                  background: isOk ? 'rgba(16, 185, 129, 0.08)' : isWarn ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                  border: `1px solid ${isOk ? 'rgba(16, 185, 129, 0.25)' : isWarn ? 'rgba(245, 158, 11, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
                   borderRadius: 8,
-                  padding: '6px 8px',
+                  padding: '6px 4px',
                   textAlign: 'center',
                 }}
               >
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink)' }}>{iconMap[key] || key}</div>
-                <div style={{ fontSize: 9.5, fontWeight: 700, color: isOk ? '#059669' : sub.status === 'warning' ? '#d97706' : '#dc2626', marginTop: 2 }}>
-                  {isOk ? '✓ Óptimo' : `${sub.score}%`}
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>{iconMap[key] || key}</div>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: isOk ? '#059669' : isWarn ? '#d97706' : '#dc2626', marginTop: 3 }}>
+                  {isOk ? '✓ OK' : `${sub.score}%`}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* 3. Lista de Observaciones / Diagnóstico */}
+        {/* 3. Lista de Anomalías */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-soft)' }}>
-              Detalles ({report.totalAnomalies})
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink-soft)' }}>
+              {report.totalAnomalies === 0 ? 'Sin observaciones' : `${report.totalAnomalies} observaciones`}
             </span>
             {report.totalAnomalies > 0 && (
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 3 }}>
                 {(['all', 'critical', 'warning', 'info'] as const).map((f) => (
                   <button
                     key={f}
@@ -216,36 +220,62 @@ export function AuditCentinelaModal({
                       fontSize: 10,
                       fontWeight: 700,
                       cursor: 'pointer',
+                      minHeight: 'auto',
                     }}
                   >
-                    {f === 'all' ? 'Todas' : f}
+                    {f === 'all' ? 'Todas' : f === 'critical' ? 'Críticas' : f === 'warning' ? 'Alertas' : 'Info'}
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {filteredAnomalies.length === 0 ? (
-            <div
-              style={{
-                background: 'rgba(16, 185, 129, 0.08)',
-                border: '1px solid rgba(16, 185, 129, 0.2)',
-                borderRadius: 10,
-                padding: '18px 12px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: 24, marginBottom: 4 }}>🛡️</div>
-              <div style={{ fontSize: 13, color: '#065f46', fontWeight: 700 }}>
-                ¡Todo el Sistema en Perfecto Balance!
-              </div>
-              <div style={{ fontSize: 11, color: '#047857', marginTop: 2 }}>
-                Cero descuadres contables o entregas huérfanas detectadas.
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {filteredAnomalies.map((a) => (
+          {/* Lista — scroll solo si hay más de 4 items */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              maxHeight: filteredAnomalies.length > 4 ? 240 : 'none',
+              overflowY: filteredAnomalies.length > 4 ? 'auto' : 'visible',
+            }}
+          >
+            {filteredAnomalies.length === 0 ? (
+              report.totalAnomalies === 0 ? (
+                <div
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    borderRadius: 10,
+                    padding: '20px 12px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>🛡️</div>
+                  <div style={{ fontSize: 13, color: '#065f46', fontWeight: 700 }}>
+                    ¡Sistema en Perfecto Balance!
+                  </div>
+                  <div style={{ fontSize: 11, color: '#047857', marginTop: 2 }}>
+                    Sin descuadres contables ni entregas huérfanas.
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: 'var(--paper-raised)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 10,
+                    padding: '20px 12px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600 }}>
+                    No hay observaciones en esta categoría
+                  </div>
+                </div>
+              )
+            ) : (
+              filteredAnomalies.map((a) => (
                 <div
                   key={a.id}
                   style={{
@@ -253,13 +283,10 @@ export function AuditCentinelaModal({
                     border: `1px solid ${a.severity === 'critical' ? 'rgba(239, 68, 68, 0.35)' : 'var(--line)'}`,
                     borderRadius: 8,
                     padding: '8px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, flexWrap: 'wrap' }}>
                       {getSeverityBadge(a.severity)}
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{a.title}</span>
                     </div>
@@ -268,38 +295,27 @@ export function AuditCentinelaModal({
                       className="btn btn-primary"
                       disabled={busyAnomalyId === a.id}
                       onClick={() => handleExecuteAction(a)}
-                      style={{
-                        fontSize: 10.5,
-                        padding: '2px 8px',
-                        fontWeight: 700,
-                        flexShrink: 0,
-                      }}
+                      style={{ fontSize: 10.5, padding: '3px 10px', fontWeight: 700, flexShrink: 0, minHeight: 'auto' }}
                     >
                       {busyAnomalyId === a.id ? '...' : a.autoFixLabel || 'Ir'}
                     </button>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.3 }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.4, marginTop: 5 }}>
                     {a.description}
                   </div>
                   {a.financialImpact?.amount && (
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-soft)' }}>
-                      Monto: <strong style={{ color: a.severity === 'critical' ? '#dc2626' : '#d97706' }}>{money(a.financialImpact.amount)}</strong>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-soft)', marginTop: 4 }}>
+                      Impacto: <strong style={{ color: a.severity === 'critical' ? '#dc2626' : '#d97706' }}>{money(a.financialImpact.amount)}</strong>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 4. Footer con botón de cerrar claro */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-          <button type="button" className="btn btn-secondary" onClick={onClose} style={{ fontWeight: 700, padding: '6px 16px', fontSize: 11.5 }}>
-            ✕ Cerrar
-          </button>
+              ))
+            )}
+          </div>
         </div>
 
       </div>
     </Modal>
   );
 }
+

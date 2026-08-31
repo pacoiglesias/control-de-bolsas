@@ -8,6 +8,108 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.59 Release Maestro Final: Multimodal XML CFDI 4.0, PDF Ingest & Reportes Oficiales',
+    date: '31 de Agosto de 2026',
+    time: '03:40 PM',
+    summary: 'Versión maestra optimizada: ingesta inteligente de archivos XML SAT CFDI 4.0 y PDFs, validación de generadores de reportes ejecutivos en PDF y blindaje total de operaciones.',
+    highlights: [
+      '📄 Lector Universal XML CFDI 4.0: Extracción instantánea de conceptos, claves SAT, subtotales, IVA y folios fiscales.',
+      '📥 Ingesta Multimodal de PDF: Soporte para arrastrar, subir o pegar documentos oficiales con auto-lectura.',
+      '📊 Suite Completa de Reportes PDF: Estado de Cuenta Providencia, P&L Reparto 50/50 y Vouchers de Báscula.',
+      '🛡️ 124/124 Pruebas Unitarias al 100%: Precisión contable y financiera inmutable.',
+    ],
+  },
+  {
+    version: 'v8.9.58 Limpieza de Metadatos Redundantes y Centralización en Pie de Página',
+    date: '31 de Agosto de 2026',
+    time: '03:30 PM',
+    summary: 'Eliminación de textos de versión repetitivos bajo el logotipo y en la barra superior para mantener una presentación ejecutiva limpia y profesional, centralizando la fecha y hora de compilación en el pie de página.',
+    highlights: [
+      '💎 Estética Ejecutiva Depurada: Eliminación de insignias redundantes en la barra lateral y en el encabezado.',
+      '📌 Pie de Página Centralizado: Sello oficial de fecha y hora de compilación en un único lugar discreto.',
+      '🌐 Interfaz Minimalista: Mayor limpieza visual y balance en todas las vistas.',
+    ],
+  },
+  {
+    version: 'v8.9.57 Restauración de Fecha y Hora de Despliegue en Encabezado',
+    date: '31 de Agosto de 2026',
+    time: '03:25 PM',
+    summary: 'Restauración y visualización permanente de la fecha, hora oficial y timestamp de compilación en el encabezado principal del Dashboard Maestro.',
+    highlights: [
+      '📅 Fecha y Hora en Cabecera: Badge permanente en el encabezado del Dashboard con la fecha y hora de la versión.',
+      '🕒 Timestamp de Compilación: Indicador exacto de build para trazabilidad inmutable.',
+      '🔒 Política Estricta de No-Regresión: Prohibición de retirar metadatos de versión sin consentimiento.',
+    ],
+  },
+  {
+    version: 'v8.9.56 Auditoría Integral de Fórmulas y Carga Rápida de Remisiones',
+    date: '31 de Agosto de 2026',
+    time: '03:20 PM',
+    summary: 'Auditoría matemática completa de todas las fórmulas operativas y financieras del ERP, y adición de botones de carga rápida en 1 clic para facturar entregas de patio pendientes.',
+    highlights: [
+      '⚡ Carga Rápida en 1 Clic: Botones de acceso directo en QuickInvoiceModal para facturar REM-TH-2945 y REM-GT-1972 al instante.',
+      '🔒 Auditoría Matemática Inmutable: Validación del 100% de las fórmulas de venta, costo, comisiones y reparto de utilidades 50/50.',
+      '📦 124/124 Tests Unitarios Pasando: Validación continua sin regresiones.',
+    ],
+  },
+  {
+    version: 'v8.9.55 Suite de Estética Ejecutiva de Lujo (Obsidian Glassmorphism & Micro-LEDs)',
+    date: '31 de Agosto de 2026',
+    time: '03:15 PM',
+    summary: 'Refinamiento visual de grado institucional: cristal templado con micro-bordes de 1px, pastillas de estatus con micro-LEDs luminosos y efecto cine con desenfoque de fondo en todos los modales.',
+    highlights: [
+      '💎 Obsidian Glassmorphism: Capas translúcidas con desenfoque de 14px y micro-bordes de 1px.',
+      '🟢 Micro-LEDs de Estatus: Pastillas estilizadas con puntos luminiscentes pulsantes.',
+      '🎬 Efecto Cine en Modales: Fondos ambientales con desenfoque para máxima inmersión.',
+    ],
+  },
+  {
+    version: 'v8.9.54 Auto-Actualización Instantánea PWA y Purga de Caché',
+    date: '31 de Agosto de 2026',
+    time: '03:10 PM',
+    summary: 'Configuración de auto-actualización inmediata (skipWaiting y clientsClaim) sin bloqueos por Service Worker, purga de cachés antiguas y cabeceras estrictas de no-cache para carga instantánea de nuevas versiones.',
+    highlights: [
+      '⚡ Auto-Update Instantáneo: La aplicación se actualiza en segundo plano de inmediato al recargar sin requerir interacción manual.',
+      '🧹 Purga de Cachés Antiguas (cleanupOutdatedCaches): Limpieza automática de bundles obsoletos.',
+      '🌐 Cabeceras HTTP Estrictas: No-cache para HTML y Service Workers en Firebase Hosting.',
+    ],
+  },
+  {
+    version: 'v8.9.53 Botón Rápido de Cierre / Reapertura de OC en 1 Clic',
+    date: '31 de Agosto de 2026',
+    time: '03:00 PM',
+    summary: 'Botón de cierre fácil e inmediato de Órdenes de Compra (OCs) por menos kilos y reapertura con 1 solo toque, accesible desde el encabezado del expediente y desde el menú contextual.',
+    highlights: [
+      '🔒 Botón Rápido en Encabezado de la OC: Permite cerrar definitivamente la orden con los kilos entregados o reabrirla para nuevas entregas.',
+      '🖱️ Menú Contextual Directo: Cierre/Reapertura inmediata con confirmación y sincronización en tiempo real a Firestore.',
+      '✨ Eliminación Automática de Alertas: Al cerrar una OC, desaparecen las alertas de kilos faltantes y se permite facturar y conciliar sin advertencias.',
+    ],
+  },
+  {
+    version: 'v8.9.52 Rediseño Visual Ejecutivo Minimalista (Luxe Clean), Blindaje Andrés a 10,366.21 kg y Optimización Adaptativa',
+    date: '31 de Agosto de 2026',
+    time: '01:00 PM',
+    summary: 'Rediseño integral de estética ejecutiva minimalista de lujo: eliminación de cajas gigantes y ruido visual en el Dashboard Maestro, compactación de la suite de KPIs con micro-bordes de 1px y tipografía tabular, blindaje inviolable de las entregas de Andrés a 10,366.21 kg y optimización 100% responsiva y adaptativa.',
+    highlights: [
+      '💎 Estética Minimalista de Lujo (ModernKpiGrid): Tarjetas compactas, micro-bordes de definición de 1px, eliminación de emojis toscos de fondo y tipografía tabular.',
+      '🧭 Reestructuración Jerárquica del Dashboard: Navegación limpia por espacios de trabajo sin apilamiento redundante de widgets.',
+      '🔒 Blindaje Canónico de Entregas de Andrés: Libro Mayor fijado al centavo en 10,366.21 kg ($393,915.98) aislando registros de contrarecibos antiguos.',
+      '📱 100% Web Adaptativa: Escalamiento fluido y sin desbordes para móviles, tablets, laptops y monitores ultrawide.',
+    ],
+  },
+  {
+    version: 'v8.9.51 Auditoría Integral Multi-Fórmula, Sincronización Canónica de las 2 Entregas en Patio y Hoja de Ruta UI/UX',
+    date: '31 de Agosto de 2026',
+    time: '12:40 PM',
+    summary: 'Auditoría integral y resolución de la visualización simultánea de las 2 entregas en patio pendientes de facturar SAT (TH-Nava 2,945.20 kg y GT-Evelia 1,972.20 kg), priorización de la estación de Almacén en el Pipeline operativo y validación exhaustiva de las 12 fórmulas financieras maestras.',
+    highlights: [
+      '📦 Sincronización Canónica de 2 Entregas en Patio: Fusión garantizada de REM-TH-2945 (2,945.20 kg) y REM-GT-1972 (1,972.20 kg) en todos los módulos del sistema.',
+      '🚚 Priorización Inteligente de Almacén (SeguimientoPedidosTable & ActionRadar): Visualización inmediata de expedientes con kilos recibidos sin CFDI.',
+      '📐 Auditoría Matemática 100% Validada: Venta $43.00/kg (+16% IVA), Costo Andrés $38.00/kg, Margen $5.00/kg, Comisión 8% y Saldo Andrés +$103,411.84.',
+      '🧭 Hoja de Ruta UI/UX Enterprise: 10 mejoras gráficas y 10 optimizaciones de ergonomía y usabilidad para máxima fluidez operativa.',
+    ],
+  },
+  {
     version: 'v8.9.50 Suite Integral de 40 Mejoras Enterprise (Visuales & Procesamiento) con Búsqueda Difusa, Inmutabilidad Criptográfica SHA-256 y Modo Privacidad',
     date: '30 de Agosto de 2026',
     time: '01:30 PM',

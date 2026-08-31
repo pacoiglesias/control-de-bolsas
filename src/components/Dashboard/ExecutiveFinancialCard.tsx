@@ -188,7 +188,7 @@ Generado automáticamente desde el ERP.`;
               </span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8' }}>
-              Utilidad neta, comisión contable (8%), costo maquila ($42) y división a socios.
+              Utilidad neta, comisión contable (8%), costo maquila ($38/kg) y división a socios.
             </p>
           </div>
         </div>
@@ -255,7 +255,7 @@ Generado automáticamente desde el ERP.`;
               {/* 2. Costo Maquila Andrés */}
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: 14, borderRadius: 14, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                  2. Costo {provName} ($42/kg)
+                  2. Costo {provName} ($38/kg)
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: '#f87171', margin: '4px 0' }}>
                   - <ResponsiveMoney value={financials.costoAndres} />

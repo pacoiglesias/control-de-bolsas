@@ -7,6 +7,8 @@ import { SeguimientoPedidosTable } from '../SeguimientoPedidosTable';
 import { FinancialTrendChart } from '../FinancialTrendChart';
 import type { PurchaseOrder, Expense, FinancialConfig } from '../../../lib/types';
 
+import { ProvidenciaHubWidget } from '../ProvidenciaHubWidget';
+
 interface DashboardExecutiveViewProps {
   seguimientoOrders: PurchaseOrder[];
   config: FinancialConfig;
@@ -33,11 +35,11 @@ export function DashboardExecutiveView({
   onOpenQuickDelivery,
 }: DashboardExecutiveViewProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* 1. Radar Proactivo + Tarjeta Financiera Ejecutiva */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         {/* Lado Izquierdo: Asistente Proactivo */}
-        <div style={{ flex: 1.5 }}>
+        <div>
           <ProactiveBriefingCard
             orders={seguimientoOrders}
             config={config as any}
@@ -48,7 +50,7 @@ export function DashboardExecutiveView({
         </div>
 
         {/* Lado Derecho: Tarjeta Financiera Ejecutiva y P&L */}
-        <div style={{ flex: 1 }}>
+        <div>
           <ExecutiveFinancialCard
             orders={seguimientoOrders}
             config={config as any}
@@ -88,7 +90,10 @@ export function DashboardExecutiveView({
         onQuickCollection={onOpenQuickCollection}
       />
 
-      {/* 5. Gráfico Visual Interactivo de Flujo y Tendencia de Kilos */}
+      {/* 5. Hub Operativo Providencia (Textil Hogar vs Grupo Textil en Vivo) */}
+      <ProvidenciaHubWidget />
+
+      {/* 6. Gráfico Visual Interactivo de Flujo y Tendencia de Kilos */}
       <FinancialTrendChart orders={seguimientoOrders} />
     </div>
   );

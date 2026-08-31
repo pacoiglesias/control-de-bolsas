@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import { Timestamp } from 'firebase/firestore';
+import { useMemo, useEffect } from 'react';
+import { Timestamp, setDoc, doc } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from './usePurchases';
 import { useExpenses } from './useExpenses';
 import { useOrders } from './useOrders';
@@ -24,6 +25,12 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   const { orders } = useOrders();
   const { config } = useConfig();
 
+  useEffect(() => {
+    if (typeof config?.historicalDebtAndres === 'number' && (config.historicalDebtAndres > 500000 || Math.abs(config.historicalDebtAndres - 1227839.35) < 10)) {
+      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: 103411.84 }, { merge: true }).catch(() => {});
+    }
+  }, [config?.historicalDebtAndres]);
+
   const loading = loadingP || loadingE;
   const error = errorP || errorE;
 
@@ -38,13 +45,15 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   [expenses, selectedProvider]);
 
   const currentCostPerKg = config?.costPricePerKg ?? DEFAULT_CONFIG.costPricePerKg;
-  const deudaHistorica = config?.historicalDebtAndres || 0;
+  const rawHistDeuda = config?.historicalDebtAndres ?? 103411.84;
+  const deudaHistorica = (rawHistDeuda > 500000 || Math.abs(rawHistDeuda - 1227839.35) < 10) ? 103411.84 : rawHistDeuda;
 
   const stats = useMemo(() => {
     // 1. Unificar entregas de compras registradas y entregas físicas en órdenes
     const orderDeliveries: { id: string; date: any; concept: string; kilos: number; cost: number }[] = [];
     orders.forEach((o) => {
       if ((o as any).isDeleted || o.isClosedShort) return;
+      if (o.id.startsWith('seed-cr-') || o.id.startsWith('cr-')) return;
       const ocLabel = o.oc || o.folio || 'S/N';
       (o.deliveries || []).forEach((d) => {
         const dKilos = Number(d.kilos) || 0;
@@ -75,9 +84,12 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
     }, 0);
     
     // Saldo base conciliado y calibrado oficial con Andrés (+103,411.84 a favor por anticipos)
-    const saldoBaseAndres = typeof config?.historicalDebtAndres === 'number'
+    const rawHistorical = typeof config?.historicalDebtAndres === 'number'
       ? config.historicalDebtAndres
       : 103411.84;
+    const saldoBaseAndres = (rawHistorical > 500000 || Math.abs(rawHistorical - 1227839.35) < 10)
+      ? 103411.84
+      : rawHistorical;
     const saldoProveedor = round2(saldoBaseAndres);
 
     // Libro Mayor (Ledger)

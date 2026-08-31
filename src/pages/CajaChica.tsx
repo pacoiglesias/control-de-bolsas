@@ -6,15 +6,15 @@ import { useOrders } from '../hooks/useOrders';
 import { Skeleton } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { usePurchases } from '../hooks/usePurchases';
 import { useConfig } from '../hooks/useConfig';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { useToast } from '../context/ToastContext';
 import { fmtDate, exportToCsv, shareHtmlAsPdf, money } from '../lib/format';
-import { computeCommissionFromInvoiceTotal, normalizarTexto, round2 } from '../lib/finance';
+import { computeCommissionFromInvoiceTotal, round2 } from '../lib/finance';
 import { triggerHaptic } from '../lib/hapticEngine';
 import { promptDialog } from '../lib/promptDialog';
 import type { Expense } from '../lib/types';
+import { useAndresStats } from '../hooks/useAndresStats';
 
 // Subcomponentes modulares de Caja Chica
 import { CajaChicaKpis } from '../components/CajaChica/CajaChicaKpis';
@@ -26,7 +26,6 @@ export default function CajaChica() {
   const { role } = useAuth();
   const { expenses, loading, error } = useExpenses();
   const { orders } = useOrders();
-  const { purchases: allPurchases } = usePurchases();
   const { config } = useConfig();
   const { settings } = useSystemSettings();
   const toast = useToast();
@@ -103,33 +102,9 @@ export default function CajaChica() {
     [filteredExpenses]
   );
 
-  const provPurchases = useMemo(
-    () => allPurchases.filter((p) => normalizarTexto(p.provider) === normalizarTexto(provName)),
-    [allPurchases, provName]
-  );
-  const totalReceivedKilos = useMemo(
-    () => provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0),
-    [provPurchases]
-  );
-  const currentCostPerKg = config?.costPricePerKg || 38;
-  const totalPurchasesCost = round2(totalReceivedKilos * currentCostPerKg);
-
-  const provExpenses = useMemo(
-    () => expenses.filter((e) => normalizarTexto(e.provider) === normalizarTexto(provName)),
-    [expenses, provName]
-  );
-  const totalPagado = useMemo(() => {
-    return round2(
-      provExpenses.reduce((acc, e) => {
-        if (e.type === 'egreso') return acc + e.amount;
-        if (e.type === 'ingreso') return acc - e.amount;
-        return acc;
-      }, 0)
-    );
-  }, [provExpenses]);
-
-  const deudaHistorica = config?.historicalDebtAndres || 0;
-  const saldoProveedor = round2(totalPagado - totalPurchasesCost + deudaHistorica);
+  // Saldo con proveedor: se obtiene del hook oficial con blindaje de 500k
+  const { stats: andresStats } = useAndresStats(provName);
+  const saldoProveedor = andresStats.saldoProveedor;
 
   // Desglose de dinero en tránsito (estatus 'paid')
   const { totalBrutoCobrado, totalComisionContador, dineroEnTransito } = useMemo(() => {
