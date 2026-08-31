@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.10 Enterprise: Independencia Estricta y Sincronización Reactiva de Prefacturas Excel',
+    date: '31 de Agosto de 2026',
+    time: '11:40 PM',
+    summary: 'Corrección crítica en el selector de expedientes de facturación rápida: sincronización reactiva inmediata para garantizar que la prefactura de Evelia (1,972.20 kg) y la de Nava (2,945.20 kg) descarguen sus partidas y kilos exactos e independientes.',
+    highlights: [
+      '🎯 Sincronización Reactiva Forzada: Al cambiar de expediente, se reconstruyen al vuelo las partidas de la orden elegida.',
+      '📦 Báscula Real por Partida: Sugiere fielmente los 1,972.20 kg de Evelia y los 2,945.20 kg de Nava sin truncamientos.',
+      '🧪 129 Pruebas Unitarias: Test cruzado automatizado que comprueba la total independencia de prefacturas.',
+    ],
+  },
+  {
     version: 'v9.0.9 Enterprise: Menú Visual de Atajos de Teclado y Teclas Rápidas (?)',
     date: '31 de Agosto de 2026',
     time: '11:35 PM',

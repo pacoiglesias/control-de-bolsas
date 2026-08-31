@@ -89,5 +89,54 @@ describe('buildPrefacturaWorkbook (Generador Oficial de Prefacturas)', () => {
     expect(wb).not.toBeNull();
     expect(wb.SheetNames).toContain('Prefactura');
   });
+
+  it('valida que la descomposición de facturación de Evelia y Nava produzca cantidades y partidas totalmente distintas', async () => {
+    const { computeItemInvoiceBreakdown } = await import('../deliveries');
+    const { CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS } = await import('../types');
+
+    // Orden Nava (TH)
+    const orderNava: any = {
+      id: 'ord-th',
+      folio: '120267114114',
+      oc: '120267114114',
+      client: 'TEXTIL HOGAR (TH - NAVA)',
+      items: CANONICAL_TH_ITEMS,
+      deliveries: [
+        { id: 'd1', kilos: 1965.81, items: [{ itemId: 'it-th-1', quantity: 990.16 }, { itemId: 'it-th-3', quantity: 975.65 }], invoiced: true },
+        { id: 'd2', kilos: 1500.0, items: [{ itemId: 'it-th-2', quantity: 1000.0 }, { itemId: 'it-th-4', quantity: 500.0 }], invoiced: true },
+        { id: 'd3', kilos: 2945.20, items: [{ itemId: 'it-th-4', quantity: 1445.20 }, { itemId: 'it-th-6', quantity: 500.0 }, { itemId: 'it-th-5', quantity: 1000.0 }], invoiced: false },
+      ],
+      invoices: [
+        { id: 'i1', folio: '6198', kilos: 1965.81, items: [{ id: 'it-th-1', quantity: 990.16 }, { id: 'it-th-3', quantity: 975.65 }] },
+        { id: 'i2', folio: '6200', kilos: 1500.0, items: [{ id: 'it-th-2', quantity: 1000.0 }, { id: 'it-th-4', quantity: 500.0 }] },
+      ],
+    };
+
+    // Orden Evelia (GT)
+    const orderEvelia: any = {
+      id: 'ord-gt',
+      folio: '12026439713',
+      oc: '12026439713',
+      client: 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)',
+      items: CANONICAL_GT_ITEMS,
+      deliveries: [
+        { id: 'dg1', kilos: 1000.0, items: [{ itemId: 'it-gt-2', quantity: 500.0 }, { itemId: 'it-gt-1', quantity: 500.0 }], invoiced: true },
+        { id: 'dg2', kilos: 1972.20, items: [{ itemId: 'it-gt-3', quantity: 998.20 }, { itemId: 'it-gt-4', quantity: 974.0 }], invoiced: false },
+      ],
+      invoices: [
+        { id: 'ig1', folio: '6193', kilos: 1000.0, items: [{ id: 'it-gt-2', quantity: 500.0 }, { id: 'it-gt-1', quantity: 500.0 }] },
+      ],
+    };
+
+    const bNava = computeItemInvoiceBreakdown(orderNava, 43);
+    const bEvelia = computeItemInvoiceBreakdown(orderEvelia, 43);
+
+    const totalNava = bNava.filter(b => b.selected).reduce((s, b) => s + b.suggestedKilosToInvoice, 0);
+    const totalEvelia = bEvelia.filter(b => b.selected).reduce((s, b) => s + b.suggestedKilosToInvoice, 0);
+
+    expect(totalNava).toBe(2945.20);
+    expect(totalEvelia).toBe(1972.20);
+    expect(totalNava).not.toBe(totalEvelia);
+  });
 });
 

@@ -122,23 +122,15 @@ export function QuickInvoiceModal({
   const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
   const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 38;
 
-  // Auto-cargar conceptos al montar o cambiar orden seleccionada
-  useEffect(() => {
-    if (selectedOrderId) {
-      handleSelectOrder(selectedOrderId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedOrderId]);
-
-  const handleSelectOrder = (oId: string) => {
-    setSelectedOrderId(oId);
-    const order = validOrders.find((o) => o.id === oId);
+  const loadRowsForOrder = (oId: string, ordersList: PurchaseOrder[]) => {
+    const order = ordersList.find((o) => o.id === oId);
     if (!order) {
       setConceptRows([]);
       return;
     }
 
-    const breakdown = computeItemInvoiceBreakdown(order, currentSellPrice);
+    const sellPrice = order.customSellPrice || config?.salePricePerKg || 43;
+    const breakdown = computeItemInvoiceBreakdown(order, sellPrice);
 
     if (breakdown.length > 0) {
       const rows: ConceptRow[] = breakdown.map((b) => ({
@@ -167,7 +159,7 @@ export function QuickInvoiceModal({
           code: '24141500',
           description: 'Bolsa de Polietileno (Venta General)',
           unit: 'KGM',
-          unitPrice: currentSellPrice,
+          unitPrice: sellPrice,
           selected: defaultQty > 0,
           quantity: defaultQty,
           ocQuantity: defaultQty,
@@ -179,6 +171,23 @@ export function QuickInvoiceModal({
         },
       ]);
     }
+  };
+
+  // Auto-cargar conceptos al montar o cambiar orden seleccionada o lista de órdenes
+  useEffect(() => {
+    if (selectedOrderId) {
+      loadRowsForOrder(selectedOrderId, validOrders);
+    } else if (validOrders.length > 0) {
+      const firstId = validOrders[0].id;
+      setSelectedOrderId(firstId);
+      loadRowsForOrder(firstId, validOrders);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOrderId, validOrders]);
+
+  const handleSelectOrder = (oId: string) => {
+    setSelectedOrderId(oId);
+    loadRowsForOrder(oId, validOrders);
   };
 
   const applyTemplate = (items: PurchaseOrderItem[]) => {

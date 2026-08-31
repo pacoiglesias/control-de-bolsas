@@ -1,4 +1,17 @@
 
+### Iteración 81: Independencia Estricta de Prefacturas de Excel por Expediente (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/lib/deliveries.ts`, `src/lib/__tests__/xlsxSafety.test.ts`
+Problema: En el modal de facturación rápida, al alternar entre expedientes (Nava vs Evelia), los conceptos quedaban desfasados o no se refrescaban en tiempo real con las entregas de báscula sin facturar de cada orden, produciendo prefacturas idénticas o truncadas.
+Impacto: Las prefacturas de Excel podían exportar datos incorrectos al no distinguir las 3 partidas de Nava (2,945.20 kg) de las 2 partidas de Evelia (1,972.20 kg).
+Solución: Se implementó la recarga reactiva forzada `loadRowsForOrder` al cambiar de orden, y se ajustó `computeItemInvoiceBreakdown` para sugerir fielmente la entrega total de báscula de cada ítem entregado.
+Riesgo: 🟢 Cero.
+Commit: `fix(prefactura): strict per-order reactive item breakdown and accurate scale suggested kilos`
+Estado: ✅ Verificado — 129/129 tests pasando, pruebas unitarias cruzadas entre Nava y Evelia validadas.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 4 (Integridad Contable).
+
+---
+
 ### Iteración 80: Menú Visual de Atajos de Teclado y Teclas Rápidas (?) (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/Navigation/KeyboardShortcutsModal.tsx`, `src/components/Layout.tsx`

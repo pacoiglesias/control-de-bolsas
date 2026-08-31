@@ -225,12 +225,11 @@ export function computeItemInvoiceBreakdown(
     const remainingOcKilos = round2(Math.max(0, ocQty - itemInvoiced));
 
     let suggestedKilos = 0;
-    if (hasDeliveries) {
-      // Si hay entregas en la orden, sugerir SOLO los kilos recibidos en báscula que NO han sido facturados
-      // y con tope estricto a los kilos restantes de la OC (Regla Inviolable 4)
-      suggestedKilos = round2(Math.min(uninvoicedDeliveredKilos, remainingOcKilos));
+    if (hasDeliveries && uninvoicedDeliveredKilos > 0.001) {
+      // Si hay entregas de báscula sin facturar para este ítem, sugerir exactamente los kilos entregados
+      suggestedKilos = uninvoicedDeliveredKilos;
     } else {
-      // Si es una orden abierta sin báscula, sugerir los kilos restantes de la OC
+      // Si es prefactura de orden abierta o sin entregas pendientes, sugerir los kilos restantes de la OC
       suggestedKilos = remainingOcKilos;
     }
 
