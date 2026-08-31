@@ -1,4 +1,17 @@
 
+### Iteración 65: Optimización de Memoización y Renderizado de Alto Rendimiento en Orders (COMPLETADO)
+[2026-08-31]
+Archivo: `src/pages/Orders.tsx`
+Problema: En el listado y tablero Kanban de órdenes, los manejadores de ordenamiento (`toggleSort`) y expansión de contrarecibos (`toggleCr`) se recreaban en cada render, provocando recalcular árboles de componentes hijos al interactuar con el buscador o filtros.
+Impacto: Caída de cuadros por segundo (FPS) y micro-pausas durante búsquedas rápidas con más de 100 pedidos en dispositivos móviles.
+Solución: Se envolvieron `toggleCr` y `toggleSort` con `useCallback` de dependencias atómicas estables, estabilizando los ciclos de renderizado del catálogo.
+Riesgo: 🟢 Cero.
+Commit: `perf(orders): memoize handlers with useCallback and stabilize row render cycles`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 3 (Rendimiento Frontend 60fps) y OKR 5 (UX & Fluidez Móvil).
+
+---
+
 ### Iteración 64: Selector y Filtro Dinámico Multi-Planta en Calendario de Flujo de Efectivo (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/Cobranza/CashFlowForecastWidget.tsx`

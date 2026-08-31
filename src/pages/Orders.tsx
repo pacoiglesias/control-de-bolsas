@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
@@ -94,11 +94,6 @@ export default function Orders() {
     }
   }, [params, setParams]);
 
-  // Vinculo cruzado Andres <-> Providencia (2026-08-11): permite abrir un
-  // expediente especifico desde fuera de esta pantalla (ej. el boton "Ver
-  // orden en Providencia" del modulo de Compras) sin tener que buscarlo a
-  // mano en la lista. Espera a que `orders` este cargado porque el id
-  // llega por URL antes de que la suscripcion de Firestore resuelva.
   useEffect(() => {
     const abrirId = params.get('abrir');
     if (!abrirId || orders.length === 0) return;
@@ -111,32 +106,33 @@ export default function Orders() {
     }
   }, [params, orders, setParams]);
 
-  // El resumen de cada expediente se calcula UNA vez y se reutiliza en el
-  // filtro, en los contadores, en la tabla y en los totales. Antes
-  // getOrderSummary corria ~10 veces por renglon en cada tecla escrita.
   const conResumen = useMemo(
     () => (orders || []).filter(Boolean).map((o) => ({ o, s: getOrderSummary(o) })),
     [orders],
   );
 
   const [sortBy, setSortBy] = useState<'folio' | 'client' | 'deuda' | null>(null);
-  // La celda de CR mostraba TODOS los contrarecibos de un expediente como
-  // un solo parrafo de texto separado por comas -- con 12, se vuelve
-  // ilegible de un vistazo. Se compacta a los primeros 3 + un contador,
-  // expandible por fila individualmente.
   const [crExpandido, setCrExpandido] = useState<Set<string>>(new Set());
-  const toggleCr = (orderId: string) => {
+  
+  const toggleCr = useCallback((orderId: string) => {
     setCrExpandido(prev => {
       const next = new Set(prev);
       if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
       return next;
     });
-  };
+  }, []);
+
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const toggleSort = (campo: 'folio' | 'client' | 'deuda') => {
-    if (sortBy === campo) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(campo); setSortDir('asc'); }
-  };
+  const toggleSort = useCallback((campo: 'folio' | 'client' | 'deuda') => {
+    setSortBy(prev => {
+      if (prev === campo) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return prev;
+      }
+      setSortDir('asc');
+      return campo;
+    });
+  }, []);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
