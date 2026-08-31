@@ -26,21 +26,20 @@ export function AuditCentinelaBadge() {
   const isPerfect = report.score === 100 && report.totalAnomalies === 0;
   const hasCritical = report.criticalCount > 0;
 
-  const badgeColor = isPerfect
-    ? '#10b981' // Verde esmeralda
-    : hasCritical
+  // Opción B: Silencio Operativo — Si todo está 100% en orden, no genera ruido visual
+  if (isPerfect || (report.criticalCount === 0 && report.warningCount === 0)) {
+    return null;
+  }
+
+  const badgeColor = hasCritical
     ? '#ef4444' // Rojo
     : '#f59e0b'; // Ámbar
 
-  const badgeBg = isPerfect
-    ? 'rgba(16, 185, 129, 0.12)'
-    : hasCritical
+  const badgeBg = hasCritical
     ? 'rgba(239, 68, 68, 0.15)'
     : 'rgba(245, 158, 11, 0.15)';
 
-  const badgeBorder = isPerfect
-    ? 'rgba(16, 185, 129, 0.35)'
-    : hasCritical
+  const badgeBorder = hasCritical
     ? 'rgba(239, 68, 68, 0.4)'
     : 'rgba(245, 158, 11, 0.4)';
 

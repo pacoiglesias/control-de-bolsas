@@ -8,6 +8,16 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v8.9.61 Opción B: Silencio Operativo Total (Zero-Noise Health Engine)',
+    date: '31 de Agosto de 2026',
+    time: '03:50 PM',
+    summary: 'Implementación del principio de Gestión por Excepción: los indicadores de salud operan en silencio e invisibles cuando todo está en orden al 100%, activándose discretamente solo ante anomalías reales.',
+    highlights: [
+      '🤫 Silencio Operativo: Pantalla 100% limpia sin letreros innecesarios de "TODO OK".',
+      '🚨 Gestión por Excepción: Alerta únicamente si existe una discrepancia que requiera atención.',
+    ],
+  },
+  {
     version: 'v8.9.60 Homologación Oficial de Marca: BOLSAS ELEMENTAL',
     date: '31 de Agosto de 2026',
     time: '03:45 PM',
