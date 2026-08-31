@@ -54,6 +54,7 @@ export default function Layout() {
     return (localStorage.getItem('cb_table_density') as any) || 'normal';
   });
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
 
