@@ -16,6 +16,7 @@ interface InvoiceFinancialCardProps {
   saving: boolean;
   onInvoice: () => void;
   onClose: () => void;
+  onDownloadPrefactura?: () => void;
   selectedRowsCount: number;
   guardrail?: InvoiceGuardrailResult | null;
 }
@@ -35,6 +36,7 @@ export function InvoiceFinancialCard({
   saving,
   onInvoice,
   onClose,
+  onDownloadPrefactura,
   selectedRowsCount,
   guardrail,
 }: InvoiceFinancialCardProps) {
@@ -128,7 +130,32 @@ export function InvoiceFinancialCard({
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {onDownloadPrefactura && (
+            <button
+              type="button"
+              className="btn"
+              onClick={onDownloadPrefactura}
+              disabled={saving || kilosToInvoice <= 0}
+              style={{
+                padding: '10px 16px',
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.25) 100%)',
+                color: '#059669',
+                border: '1.5px solid rgba(16,185,129,0.4)',
+                fontWeight: 800,
+                fontSize: 13,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+              title="Descargar archivo Excel (.xlsx) con la plantilla oficial para el facturador"
+            >
+              <span>📊</span>
+              <span>Descargar Prefactura Excel</span>
+            </button>
+          )}
           <button
             type="button"
             className="btn"

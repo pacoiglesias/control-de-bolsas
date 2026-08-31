@@ -1,4 +1,17 @@
 
+### Iteración 77: Integración de Botón y Descarga de Prefactura Excel en QuickInvoiceModal (COMPLETADO)
+[2026-08-31]
+Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`
+Problema: En el modal de facturación rápida, los operadores no contaban con un botón directo para generar y descargar la prefactura en formato Excel `.xlsx` oficial para enviarla a timbrado contable con las partidas de báscula cuadradas contra la OC.
+Impacto: Pérdida de agilidad en la gestión de prefacturación entre la empresa y el facturador.
+Solución: Se integró el botón `📊 Descargar Prefactura Excel` en la tarjeta financiera `InvoiceFinancialCard` y se conectó con `downloadPrefacturaExcel` para generar el archivo de forma instantánea al seleccionar el expediente (Nava o Evelia).
+Riesgo: 🟢 Cero.
+Commit: `feat(fastflows): add Excel prefactura download button in QuickInvoiceModal`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 4 (Integridad Contable) y OKR 5 (UX & Timbrado Veloz).
+
+---
+
 ### Iteración 76: Generador Oficial de Prefacturas Excel (.xlsx) para Facturación (COMPLETADO)
 [2026-08-31]
 Archivo: `src/lib/excelTemplateGenerator.ts`

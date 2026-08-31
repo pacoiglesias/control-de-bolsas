@@ -13,6 +13,7 @@ import { useConfig } from '../../hooks/useConfig';
 import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
 import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
 import { triggerHaptic } from '../../lib/hapticEngine';
+import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
 
 // Subcomponentes modulares de Facturación Rápida
 import { InvoiceProgressBar } from './InvoiceProgressBar';
@@ -413,6 +414,41 @@ export function QuickInvoiceModal({
     });
   }, [selectedOrder]);
 
+  const handleDownloadPrefactura = () => {
+    if (!selectedOrder) {
+      toast('⚠️ Selecciona un expediente primero', 'bad');
+      return;
+    }
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      toast('⚠️ Selecciona al menos una partida para la prefactura', 'bad');
+      return;
+    }
+
+    triggerHaptic('success');
+    const ocNum = selectedOrder.oc || selectedOrder.folio || 'S/N';
+
+    downloadPrefacturaExcel({
+      clientName: selectedOrder.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+      clientRfc: 'GTP930115PU1',
+      clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
+      clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
+      oc: ocNum,
+      notaCondiciones: `OC ${ocNum}`,
+      items: selectedRows.map((r) => ({
+        kilos: Number(r.quantity) || 0,
+        description: `${r.code ? r.code + ' ' : ''}${r.description}`,
+        unitPrice: Number(r.unitPrice) || currentSellPrice,
+      })),
+      metodoPago: 'PPD',
+      formaPago: '99 por definir',
+      claveSat: '24141500',
+      unidadSat: 'KGM',
+    });
+
+    toast(`📊 Prefactura Excel descargada para OC ${ocNum}`, 'ok');
+  };
+
   return (
     <Modal title="🧾 Facturación Rápida Multi-Concepto" onClose={onClose} wide>
       <style>{`
@@ -565,6 +601,7 @@ export function QuickInvoiceModal({
               saving={saving}
               onInvoice={handleInvoice}
               onClose={onClose}
+              onDownloadPrefactura={handleDownloadPrefactura}
               selectedRowsCount={selectedRows.length}
               guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}
             />
