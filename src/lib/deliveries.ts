@@ -225,11 +225,11 @@ export function computeItemInvoiceBreakdown(
     const remainingOcKilos = round2(Math.max(0, ocQty - itemInvoiced));
 
     let suggestedKilos = 0;
-    if (hasDeliveries && uninvoicedDeliveredKilos > 0.001) {
-      // Si hay entregas de báscula sin facturar para este ítem, sugerir exactamente los kilos entregados
+    if (hasDeliveries) {
+      // Si la orden tiene entregas en báscula, sugerir ÚNICAMENTE los kilos entregados y no facturados
       suggestedKilos = uninvoicedDeliveredKilos;
     } else {
-      // Si es prefactura de orden abierta o sin entregas pendientes, sugerir los kilos restantes de la OC
+      // Si es una orden abierta sin entregas (prefactura sobre OC), sugerir los kilos restantes de la OC
       suggestedKilos = remainingOcKilos;
     }
 
@@ -245,7 +245,7 @@ export function computeItemInvoiceBreakdown(
       uninvoicedDeliveredKilos,
       remainingOcKilos,
       suggestedKilosToInvoice: suggestedKilos,
-      selected: suggestedKilos > 0.01,
+      selected: suggestedKilos > 0.001,
     };
   });
 }
