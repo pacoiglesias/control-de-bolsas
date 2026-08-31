@@ -10,6 +10,7 @@ import { getOrderSummary } from '../lib/finance';
 import { camposInvoices } from '../lib/invoiceOps';
 import { SmartDocumentDropzone, ExtractedDocumentData } from '../components/Recepcion/SmartDocumentDropzone';
 import { DocumentAutoAssigner } from '../components/Recepcion/DocumentAutoAssigner';
+import { triggerHaptic } from '../lib/hapticEngine';
 
 interface IncompleteInvoice {
   orderId: string;
@@ -151,6 +152,7 @@ export function FastEntry() {
       if (!orderInfo) continue;
       
       if (orderInfo.entregados + k > orderInfo.pedidos) {
+        triggerHaptic('warning');
         toast(`Error: La entrega de ${k} kg para la OC ${orderInfo.order.oc || orderInfo.order.folio} supera lo permitido. Faltante real: ${orderInfo.faltante} kg. El portal de Providencia rechazará esto.`, 'bad');
         return;
       }
@@ -189,10 +191,12 @@ export function FastEntry() {
         });
       });
 
+      triggerHaptic('success');
       toast(`Entregas registradas exitosamente.`, 'ok');
       setLogisticsEdits({});
     } catch (e: any) {
       console.error(e);
+      triggerHaptic('error');
       toast('Error guardando las entregas: ' + e.message, 'bad');
     } finally {
       setSaving(false);
@@ -222,20 +226,24 @@ export function FastEntry() {
       const isGT = targetOrder?.department === 'GT' || (targetOrder?.client || '').toUpperCase().includes('GT');
       
       if (isFactura && allExistingFolios.includes(valLower)) {
+        triggerHaptic('warning');
         toast(`El folio de factura ${val} ya existe en otra orden.`, 'bad');
         return;
       }
       if (!isFactura) {
         const valUpper = val.toUpperCase();
         if (isTH && valUpper.startsWith('GT-')) {
+          triggerHaptic('warning');
           toast(`⚠️ Separación Estricta: La factura de ${targetOrder?.client || 'TH'} no puede llevar un contrarecibo GT (${valUpper}).`, 'bad');
           return;
         }
         if (isGT && valUpper.startsWith('TH-')) {
+          triggerHaptic('warning');
           toast(`⚠️ Separación Estricta: La factura de ${targetOrder?.client || 'GT'} no puede llevar un contrarecibo TH (${valUpper}).`, 'bad');
           return;
         }
         if (allExistingCRs.includes(valLower)) {
+          triggerHaptic('warning');
           toast(`El contrarecibo ${val} ya existe en otra orden.`, 'bad');
           return;
         }
@@ -292,10 +300,12 @@ export function FastEntry() {
         });
       });
 
+      triggerHaptic('success');
       toast(`¡Registros guardados exitosamente!`, 'ok');
       setEdits({});
     } catch (e: any) {
       console.error(e);
+      triggerHaptic('error');
       toast('Error guardando los registros: ' + e.message, 'bad');
     } finally {
       setSaving(false);
