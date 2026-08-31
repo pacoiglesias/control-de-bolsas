@@ -1,4 +1,20 @@
 
+### Iteración 89: Modernización de Compras, Cobranza por OC y Captura de Báscula (COMPLETADO)
+[2026-09-01]
+Archivo: `src/components/Compras/ComprasKpiGrid.tsx`, `src/pages/Compras.tsx`, `src/pages/OcTracking.tsx`, `src/pages/FastEntry.tsx`
+Problema: La vista de compras a Andrés, el seguimiento por OC y el formulario de captura en báscula contaban con botones y pestañas con ergonomía desigual y estilos genéricos.
+Impacto: Dificultad visual al filtrar entre plantas (Nava TH vs Evelia GT) y menor agilidad en el registro táctil de patio.
+Solución:
+1. **Compras & Andrés (`ComprasKpiGrid.tsx` & `Compras.tsx`):** Tarjetas con línea de acento superior estilo Stripe, elevación al hover, botones de liquidación de pasivo/anticipo de 44-48px de altura y barra de herramientas con selector en píldora.
+2. **Seguimiento por OC (`OcTracking.tsx`):** Selector de plantas segmentado (`🌟 Ambas`, `🟦 TH · Nava`, `🟪 GT · Evelia`) dentro de un contenedor en relieve y buscador reactivo de 40px.
+3. **Captura Rápida (`FastEntry.tsx`):** Pestañas ergonómicas para alternar entre Entregas de Báscula y Facturas/CRs con respuesta háptica.
+Riesgo: 🟢 Cero.
+Commit: `style(ux): modernize Compras KPIs, OcTracking timeline filters, and FastEntry tabs (Linear/Stripe standard)`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build y deploy exitosos.
+OKRs afectados: OKR 5 (Excelencia Visual & UX Móvil Fluida).
+
+---
+
 ### Iteración 88: Modernización Visual Integral (Estándar Vercel / Linear / Stripe) (COMPLETADO)
 [2026-09-01]
 Archivo: `src/components/Layout.tsx`, `src/components/Dashboard/ModernKpiGrid.tsx`, `src/pages/Orders.tsx`
