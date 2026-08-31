@@ -257,12 +257,17 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               },
               {
                 id: 'del-th-patio-2945',
-                date: Timestamp.fromDate(new Date('2026-08-30T10:00:00Z')),
+                date: Timestamp.fromDate(new Date('2026-08-25T10:00:00Z')),
                 kilos: 2945.20,
+                items: [
+                  { itemId: 'it-th-4', quantity: 1445.20 },
+                  { itemId: 'it-th-6', quantity: 500.00 },
+                  { itemId: 'it-th-5', quantity: 1000.00 },
+                ],
                 invoiced: false,
-                notes: 'Entrega en Báscula Almacén TH (Nava) — 2,945.20 kg pendiente de desglose y facturación SAT',
+                notes: 'Remisión 14115 (Ahmed · Nava) — 2,945.20 kg lista para facturar',
                 docType: 'remision',
-                docFolio: 'REM-TH-2945',
+                docFolio: '14115',
               },
             ];
             best.deliveries = baseDeliveries;
@@ -375,12 +380,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               },
               {
                 id: 'del-gt-patio-1972',
-                date: Timestamp.fromDate(new Date('2026-08-30T10:00:00Z')),
+                date: Timestamp.fromDate(new Date('2026-08-26T10:00:00Z')),
                 kilos: 1972.20,
+                items: [
+                  { itemId: 'it-gt-3', quantity: 998.20 },
+                  { itemId: 'it-gt-4', quantity: 974.00 },
+                ],
                 invoiced: false,
-                notes: 'Entrega en Báscula Almacén P4 (Evelia) — 1,972.20 kg pendiente de desglose y facturación SAT',
+                notes: 'Remisión 9714 (Evelia · Planta 4) — 1,972.20 kg lista para facturar',
                 docType: 'remision',
-                docFolio: 'REM-GT-1972',
+                docFolio: '9714',
               },
             ];
             best.deliveries = baseGtDeliveries;

@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.3 Enterprise: Desglose Automático de Remisiones 14115 y 9714',
+    date: '31 de Agosto de 2026',
+    time: '10:18 PM',
+    summary: 'Alineación automática de las entregas de patio con sus desgloses exactos por partida: 2,945.20 kg de Nava (Remisión 14115) y 1,972.20 kg de Evelia (Remisión 9714).',
+    highlights: [
+      '🚚 Carga Exacta de Remisión 14115: 1,445.20 kg (55x77), 500 kg (30x40), 1,000 kg (50x55) = 2,945.20 kg ($146,906.58).',
+      '🚚 Carga Exacta de Remisión 9714: 998.20 kg (1.20x1.60m), 974.00 kg (100x95cm) = 1,972.20 kg ($98,373.34).',
+      '📊 Botones Duales de Prefactura Excel: Descarga inmediata con un solo toque desde la tabla de partidas o el resumen.',
+    ],
+  },
+  {
     version: 'v9.0.2 Enterprise: Generador Oficial de Prefacturas Excel y Calibración 3,700 kg',
     date: '31 de Agosto de 2026',
     time: '10:10 PM',
