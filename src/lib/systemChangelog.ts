@@ -8,6 +8,17 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.0.6 Enterprise: Blindaje Forense Total y Despliegue de Producción Cuadrado',
+    date: '31 de Agosto de 2026',
+    time: '11:20 PM',
+    summary: 'Versión consolidada y auditada con las 5 órdenes de entrega físicas originales: prefacturas oficiales en Excel, purga de folios obsoletos, y equivalencias 1:1 entre taller y Providencia.',
+    highlights: [
+      '✅ 100% Cuadrado con Papeles Físicos: Remisiones 9713 (1,000 kg), 9714 (1,972.20 kg), 14114 (3,465.81 kg), 14115 (2,945.20 kg) y 114014 (2,964.16 kg).',
+      '📊 Prefacturas Excel con 1 Clic: Generación instantánea para Nava ($146,906.58) y Evelia ($98,373.34).',
+      '🛡️ 124 Tests Unitarios: Integridad matemática, fiscal y de flujo de caja garantizada.',
+    ],
+  },
+  {
     version: 'v9.0.5 Enterprise: Doble Nomenclatura de Medidas Providencia vs Taller Andrés',
     date: '31 de Agosto de 2026',
     time: '11:15 PM',

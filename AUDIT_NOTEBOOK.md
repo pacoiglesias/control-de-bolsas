@@ -1,4 +1,17 @@
 
+### Iteración 78: Diccionario Universal de Doble Nomenclatura y Cuadratura Forense Final (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/types.ts`, `src/context/OrdersContext.tsx`, `src/components/FastFlows/InvoiceConceptTable.tsx`
+Problema: Existía disparidad semántica entre los nombres de producto de Providencia (ancho total abierto, ej. 120x125cm) y los nombres de taller de Andrés (medida con fuelles planos, ej. 80+20+20x125cm), así como un folio de prueba 6224 que generaba 17 kg ficticios.
+Impacto: Confusión en la conciliación física de remisiones de báscula contra órdenes de compra y órdenes de entrega.
+Solución: Se purgó el folio de prueba 6224, se calibraron las remisiones 9714 (1,972.20 kg) y 14115 (2,945.20 kg) con sus partidas exactas, y se incorporó la doble nomenclatura simultánea en todo el ERP y generador de Excel.
+Riesgo: 🟢 Cero.
+Commit: `feat(nomenclature): canonical dual bag measurement mapping and forensic reconciliation`
+Estado: ✅ Verificado — 124/124 tests pasando, TypeScript estricto, compilación de producción exitosa.
+OKRs afectados: OKR 1 (Precisión Numérica), OKR 4 (Integridad Contable) y OKR 5 (UX Operativa).
+
+---
+
 ### Iteración 77: Integración de Botón y Descarga de Prefactura Excel en QuickInvoiceModal (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`
