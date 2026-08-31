@@ -466,49 +466,96 @@ export default function Orders() {
           style={{ margin: '8px 16px 0 16px' }}
         />
 
-        <div className="card-head no-print">
-          <div className="chip-row">
+        <div className="card-head no-print" style={{ gap: 10, flexWrap: 'wrap', padding: '12px 16px' }}>
+          <div className="chip-row" style={{ flex: 1, minWidth: 260 }}>
             {FILTERS.map((f) => (
               <button
                 key={f.key}
                 className={`chip ${filter === f.key ? 'active' : ''}`}
                 onClick={() => setParams(f.key === 'all' ? {} : { filtro: f.key })}
+                style={{
+                  minHeight: 34,
+                  padding: '6px 12px',
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: filter === f.key ? 700 : 600,
+                  transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
               >
                 {f.label} ({counts[f.key] ?? 0})
               </button>
             ))}
           </div>
-          <span className="spacer" />
-          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-body)', padding: 4, borderRadius: 8, marginRight: 12 }}>
-            <button 
-              className={`btn-small ${viewMode === 'radar' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'radar' ? '#d97706' : 'transparent', color: viewMode === 'radar' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 700 }}
-              onClick={() => setViewMode('radar')}
-            >
-              ⚡ Acciones Hoy
-            </button>
-            <button 
-              className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'kanban' ? 'var(--brand)' : 'transparent', color: viewMode === 'kanban' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
-              onClick={() => setViewMode('kanban')}
-            >
-              ◫ Tablero
-            </button>
-            <button 
-              className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
-              style={{ background: viewMode === 'list' ? 'var(--brand)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)', border: 'none', fontWeight: 600 }}
-              onClick={() => setViewMode('list')}
-            >
-              ☰ Lista
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 2, background: 'var(--paper-sunk)', padding: 3, borderRadius: 10, border: '1px solid var(--line-soft)' }}>
+              <button 
+                className={`btn-small ${viewMode === 'radar' ? 'btn-primary' : ''}`} 
+                style={{
+                  minHeight: 32,
+                  borderRadius: 8,
+                  padding: '4px 10px',
+                  background: viewMode === 'radar' ? '#d97706' : 'transparent',
+                  color: viewMode === 'radar' ? '#fff' : 'var(--ink-soft)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: 11.5,
+                  transition: 'all 0.15s ease',
+                }}
+                onClick={() => setViewMode('radar')}
+              >
+                ⚡ Acciones Hoy
+              </button>
+              <button 
+                className={`btn-small ${viewMode === 'kanban' ? 'btn-primary' : ''}`} 
+                style={{
+                  minHeight: 32,
+                  borderRadius: 8,
+                  padding: '4px 10px',
+                  background: viewMode === 'kanban' ? 'var(--accent)' : 'transparent',
+                  color: viewMode === 'kanban' ? '#fff' : 'var(--ink-soft)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: 11.5,
+                  transition: 'all 0.15s ease',
+                }}
+                onClick={() => setViewMode('kanban')}
+              >
+                ◫ Tablero
+              </button>
+              <button 
+                className={`btn-small ${viewMode === 'list' ? 'btn-primary' : ''}`} 
+                style={{
+                  minHeight: 32,
+                  borderRadius: 8,
+                  padding: '4px 10px',
+                  background: viewMode === 'list' ? 'var(--accent)' : 'transparent',
+                  color: viewMode === 'list' ? '#fff' : 'var(--ink-soft)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: 11.5,
+                  transition: 'all 0.15s ease',
+                }}
+                onClick={() => setViewMode('list')}
+              >
+                ☰ Lista
+              </button>
+            </div>
+            <input
+              className="search-input"
+              type="search"
+              placeholder="Buscar folio, cliente, archivo…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                minHeight: 36,
+                borderRadius: 10,
+                border: '1px solid var(--line)',
+                padding: '6px 14px',
+                fontSize: 12.5,
+                width: 240,
+              }}
+            />
           </div>
-          <input
-            className="search-input"
-            type="search"
-            placeholder="Buscar folio, cliente, archivo…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
         </div>
 
         {viewMode === 'radar' ? (

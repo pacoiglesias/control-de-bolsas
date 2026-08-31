@@ -183,10 +183,17 @@ export default function Layout() {
       <div className={`nav-scrim ${navOpen ? 'open' : ''}`} onClick={() => setNavOpen(false)} />
 
       <header className="topbar no-print">
-        <button className="icon-btn" onClick={() => setNavOpen((v) => !v)} aria-label="Abrir menú">
+        <button
+          className="icon-btn"
+          onClick={() => setNavOpen((v) => !v)}
+          aria-label="Abrir menú"
+          style={{ minHeight: 44, minWidth: 44, borderRadius: 10 }}
+        >
           ☰
         </button>
-        <span className="t-title">{settings.companyName || 'Bolsas Elemental'}</span>
+        <span className="t-title" style={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+          {settings.companyName || 'Bolsas Elemental'}
+        </span>
 
         {/* Barra de Búsqueda Rápida Universal */}
         <button
@@ -194,16 +201,21 @@ export default function Layout() {
           className="topbar-search-btn"
           onClick={() => window.dispatchEvent(new CustomEvent('open-command-menu'))}
           title="Buscar cualquier orden, factura o contrarecibo (Ctrl + K)"
+          style={{
+            minHeight: 40,
+            borderRadius: 10,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
         >
           <span>🔍</span>
-          <span className="search-label">Buscar...</span>
-          <kbd className="search-kbd">Ctrl K</kbd>
+          <span className="search-label" style={{ fontWeight: 600 }}>Buscar...</span>
+          <kbd className="search-kbd" style={{ borderRadius: 6, fontWeight: 700 }}>Ctrl K</kbd>
         </button>
 
         <span className="spacer" />
         <AuditCentinelaBadge />
         <OnlineUsers />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, marginLeft: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 6, marginLeft: 6 }}>
           <OfflineIndicator />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -215,12 +227,14 @@ export default function Layout() {
             aria-label={isPrivate ? "Modo Discreto Activo (Clic para mostrar cifras)" : "Modo Visible (Clic para ocultar cifras)"}
             title={isPrivate ? "Modo Discreto Activo: Las cifras sensibles están ocultas en público. Clic para mostrar." : "Modo Visible: Clic para ocultar cifras sensibles en público."}
             style={{
+              minHeight: 40,
+              minWidth: 40,
               background: isPrivate ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
               color: isPrivate ? '#f59e0b' : 'inherit',
-              border: isPrivate ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent',
-              borderRadius: 8,
+              border: isPrivate ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--line-soft)',
+              borderRadius: 10,
               fontSize: 16,
-              transition: 'all 0.2s ease',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             {isPrivate ? '🙈' : '👁️'}
@@ -234,12 +248,14 @@ export default function Layout() {
             aria-label="Alternar Densidad SAP"
             title={density === 'compact' ? "Modo Alta Densidad SAP Activo. Clic para modo cómodo." : "Modo Cómodo Activo. Clic para modo compacto SAP."}
             style={{
+              minHeight: 40,
+              minWidth: 40,
               background: density === 'compact' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
               color: density === 'compact' ? '#3b82f6' : 'inherit',
-              border: density === 'compact' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
-              borderRadius: 8,
+              border: density === 'compact' ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid var(--line-soft)',
+              borderRadius: 10,
               fontSize: 15,
-              transition: 'all 0.2s ease',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             {density === 'compact' ? '📐' : '🔲'}
@@ -253,9 +269,12 @@ export default function Layout() {
             aria-label="Ver Atajos de Teclado (?)"
             title="Ver Atajos de Teclado & Teclas Rápidas (Presiona ?)"
             style={{
-              borderRadius: 8,
+              minHeight: 40,
+              minWidth: 40,
+              borderRadius: 10,
+              border: '1px solid var(--line-soft)',
               fontSize: 16,
-              transition: 'all 0.2s ease',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             ⌨️
@@ -267,6 +286,13 @@ export default function Layout() {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label="Cambiar tema"
             title="Cambiar tema Claro / Oscuro"
+            style={{
+              minHeight: 40,
+              minWidth: 40,
+              borderRadius: 10,
+              border: '1px solid var(--line-soft)',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
           >
             ◐
           </button>
@@ -276,7 +302,7 @@ export default function Layout() {
       <div className="app-shell">
         <aside className={`sidebar no-print ${navOpen ? 'open' : ''}`}>
           <div className="brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '20px 14px' }}>
-            <img src={settings.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 10, background: '#fff', padding: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} />
+            <img src={settings.companyLogoUrl || '/logo.png'} alt="Logo" style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 12, background: '#fff', padding: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }} />
             <div style={{ textAlign: 'center' }}>
               <div className="brand-mark" style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, letterSpacing: '-0.3px' }}>{settings.companyName || 'BOLSAS ELEMENTAL'}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
