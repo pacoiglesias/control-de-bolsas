@@ -1,4 +1,17 @@
 
+### Iteración 84: Tipado Estricto y Coerción Robusta en Funciones de Conciliación Financiera (COMPLETADO)
+[2026-08-31]
+Archivo: `src/lib/finance.ts`
+Problema: `extractCr` y `evaluateThreeWayMatch` utilizaban firmas relajadas y coerciones implícitas que podían retornar valores no booleanos en `hasInvoice` o causar discrepancias de tipos al conciliar facturas y contrarecibos.
+Impacto: Pérdida de predictibilidad en la validación del 3-Way Match contable.
+Solución: Se tiparon estrictamente `extractCr` y `evaluateThreeWayMatch`, asegurando coerción booleana rigurosa en `hasInvoice` (`Boolean(...)`) y soporte seguro para objetos parciales o documentos de Firestore.
+Riesgo: 🟢 Cero.
+Commit: `refactor(finance): strict typing and robust boolean coercion in 3-way match reconciliation`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1 (Precisión Numérica) y OKR 3 (Estabilidad & Tipado Estricto).
+
+---
+
 ### Iteración 83: Optimización de Rendimiento y Memoización en QuickInvoiceModal (COMPLETADO)
 [2026-08-31]
 Archivo: `src/components/FastFlows/QuickInvoiceModal.tsx`

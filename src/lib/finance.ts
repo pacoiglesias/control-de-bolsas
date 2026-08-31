@@ -28,16 +28,19 @@ export type {
   DynamicFinancialsResult,
 } from '../../functions/src/shared/finance.core';
 
-export function extractCr(inv: any, o?: any): string {
+export function extractCr(
+  inv?: Partial<Invoice> | Partial<PurchaseOrder> | Record<string, any> | null,
+  o?: Partial<PurchaseOrder> | Record<string, any> | null
+): string {
   // 1. Si se pasa una factura individual explícita
-  if (inv && (inv.id !== o?.id || inv.folio !== o?.folio || inv.kilos !== undefined)) {
-    const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim();
+  if (inv && (inv.id !== o?.id || (inv as any).folio !== o?.folio || (inv as any).kilos !== undefined)) {
+    const invCr = ((inv as any)?.collection?.contrareciboNumber || (inv as any)?.contrarecibo || '').trim();
     if (invCr) return invCr;
-    const f1 = (inv?.folio || '').trim().toUpperCase();
+    const f1 = ((inv as any)?.folio || '').trim().toUpperCase();
     if (f1.startsWith('TH-') || f1.startsWith('GT-')) return f1;
     // Si la orden raíz no tiene array de facturas (documento legacy único), puede revisar la orden
     if (!o?.invoices || o.invoices.length <= 1) {
-      const oCr = (o?.collection?.contrareciboNumber || '').trim();
+      const oCr = (o?.collection?.contrareciboNumber || (o as any)?.contrarecibo || '').trim();
       if (oCr) return oCr;
       const f2 = (o?.folio || '').trim().toUpperCase();
       if (f2.startsWith('TH-') || f2.startsWith('GT-')) return f2;
@@ -46,7 +49,7 @@ export function extractCr(inv: any, o?: any): string {
   }
 
   // 2. Si no hay factura o se evalúa el documento raíz de la orden
-  const target = inv || o;
+  const target = (inv || o) as any;
   let cr = (target?.collection?.contrareciboNumber || target?.contrarecibo || '').trim();
   if (!cr) {
     const f = (target?.folio || '').trim().toUpperCase();
@@ -866,16 +869,16 @@ export interface ThreeWayMatchEvaluation {
 }
 
 export function evaluateThreeWayMatch(
-  order: PurchaseOrder | any,
-  invoice?: any,
-  deliveriesList?: any[]
+  order: PurchaseOrder | Partial<PurchaseOrder> | Record<string, any> | null | undefined,
+  invoice?: Invoice | Partial<Invoice> | Record<string, any> | null,
+  deliveriesList?: Delivery[]
 ): ThreeWayMatchEvaluation {
   const deliveries = deliveriesList || order?.deliveries || [];
-  const totalDeliveredKg = round2(deliveries.reduce((acc: number, d: any) => acc + (Number(d.kilos) || 0), 0));
+  const totalDeliveredKg = round2(deliveries.reduce((acc: number, d: Delivery) => acc + (Number(d.kilos) || 0), 0));
   
   const inv = invoice || (Array.isArray(order?.invoices) && order.invoices.length > 0 ? order.invoices[0] : null);
   const hasDelivery = totalDeliveredKg > 0.01;
-  const hasInvoice = !!inv && (Number(inv.kilos) > 0 || (inv.folio && inv.folio.trim().length > 0));
+  const hasInvoice = !!inv && (Number(inv.kilos) > 0 || Boolean(inv.folio && String(inv.folio).trim().length > 0));
   
   const cr = extractCr(inv, order).trim().toUpperCase();
   const hasCr = cr.length > 0 && !cr.startsWith('SIN') && !cr.startsWith('PEND') && (cr.includes('-') || cr.startsWith('TH') || cr.startsWith('GT') || /^\d+$/.test(cr));
