@@ -13,14 +13,6 @@ export function KilosProgressBar({ deliveredKg, totalKg, compact = false }: Kilo
   const isComplete = pct >= 100 || (safeTotal > 0 && safeDelivered >= safeTotal);
   const faltanKg = Math.max(0, safeTotal - safeDelivered);
 
-  const barColor = isComplete
-    ? '#10b981'
-    : pct >= 50
-    ? 'linear-gradient(90deg, #3b82f6 0%, #10b981 100%)'
-    : pct > 0
-    ? 'linear-gradient(90deg, #f59e0b 0%, #3b82f6 100%)'
-    : 'var(--line-soft)';
-
   if (compact) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%', minWidth: 120 }}>
@@ -45,10 +37,11 @@ export function KilosProgressBar({ deliveredKg, totalKg, compact = false }: Kilo
           }}
         >
           <div
+            className={isComplete ? 'liquid-gradient-complete' : pct > 0 ? 'liquid-gradient-delivered' : ''}
             style={{
               height: '100%',
               width: `${pct}%`,
-              background: barColor,
+              background: pct === 0 ? 'var(--line-soft)' : undefined,
               borderRadius: 6,
               transition: 'width 0.4s ease',
             }}
@@ -93,10 +86,11 @@ export function KilosProgressBar({ deliveredKg, totalKg, compact = false }: Kilo
         }}
       >
         <div
+          className={isComplete ? 'liquid-gradient-complete' : pct > 0 ? 'liquid-gradient-delivered' : ''}
           style={{
             height: '100%',
             width: `${pct}%`,
-            background: barColor,
+            background: pct === 0 ? 'var(--line-soft)' : undefined,
             borderRadius: 8,
             transition: 'width 0.5s ease',
           }}

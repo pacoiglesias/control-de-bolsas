@@ -95,15 +95,15 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         {/* POD 1: TEXTIL HOGAR (NAVA) - 1,500 KG POR FACTURAR */}
         <motion.div
           whileHover={{ y: -2 }}
+          className="pulse-aura-amber"
           style={{
-            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(180, 83, 9, 0.08) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.35)',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(180, 83, 9, 0.08) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.45)',
             borderRadius: 16,
             padding: '16px 18px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.08)',
           }}
         >
           <div>

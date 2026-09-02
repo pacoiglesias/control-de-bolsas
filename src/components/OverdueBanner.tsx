@@ -96,20 +96,20 @@ export function OverdueBanner() {
   return (
     <>
       <div
+        className="pulse-aura-urgent"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 12,
           flexWrap: 'wrap',
-          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(185, 28, 28, 0.08) 100%)',
-          border: '1px solid rgba(239, 68, 68, 0.4)',
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.14) 0%, rgba(185, 28, 28, 0.09) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.45)',
           color: '#f87171',
           borderRadius: 14,
           padding: '12px 18px',
           margin: '0 0 16px 0',
           fontSize: 13,
           fontWeight: 600,
-          boxShadow: '0 4px 14px rgba(239, 68, 68, 0.12)',
         }}
       >
         <span>

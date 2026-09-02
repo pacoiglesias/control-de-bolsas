@@ -6,6 +6,8 @@ import { downloadBackupJsonFile } from '../../lib/cloudBackup';
 import { downloadMasterExcelWorkbook } from '../../lib/masterExcelExporter';
 import { downloadExecutiveOnePagerPdf } from '../../lib/executiveOnePagerPdf';
 import { OfflineExcelSyncModal } from '../Offline/OfflineExcelSyncModal';
+import { motion } from 'framer-motion';
+import { triggerHaptic } from '../../lib/hapticEngine';
 import type { NavigateFunction } from 'react-router-dom';
 import type { PurchaseOrder } from '../../lib/types';
 
@@ -404,11 +406,16 @@ export function DashboardHeaderToolbar({
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'var(--paper-sunk)', padding: 4, borderRadius: 12 }}>
+          {/* Opción 1: TODA LA EMPRESA */}
           <button
             type="button"
-            onClick={() => setDeptFilter('ALL')}
+            onClick={() => {
+              triggerHaptic('light');
+              setDeptFilter('ALL');
+            }}
             style={{
+              position: 'relative',
               borderRadius: 10,
               padding: '7px 14px',
               fontSize: 13,
@@ -416,30 +423,53 @@ export function DashboardHeaderToolbar({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: deptFilter === 'ALL' ? '1px solid var(--accent)' : '1px solid var(--line)',
-              background: deptFilter === 'ALL' ? 'var(--accent-tint)' : 'var(--paper)',
-              color: deptFilter === 'ALL' ? 'var(--accent-deep)' : 'var(--ink)',
+              border: 'none',
+              background: 'transparent',
+              color: deptFilter === 'ALL' ? 'var(--accent-deep)' : 'var(--ink-soft)',
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              outline: 'none',
+              transition: 'color 0.2s ease',
             }}
           >
-            <span>🏢 Toda la Empresa</span>
-            <span style={{
-              background: deptFilter === 'ALL' ? 'var(--accent)' : 'var(--paper-sunk)',
-              color: deptFilter === 'ALL' ? '#fff' : 'var(--ink-soft)',
-              fontSize: 11,
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: 999,
-            }}>
-              {money(deptPorCobrar.all)}
+            {deptFilter === 'ALL' && (
+              <motion.div
+                layoutId="activeDeptFilterPill"
+                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: 10,
+                  background: 'var(--paper-raised)',
+                  border: '1px solid var(--accent)',
+                  boxShadow: '0 2px 8px rgba(217, 119, 6, 0.15)',
+                  zIndex: 1,
+                }}
+              />
+            )}
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🏢 Toda la Empresa</span>
+              <span style={{
+                background: deptFilter === 'ALL' ? 'var(--accent)' : 'var(--paper-sunk)',
+                color: deptFilter === 'ALL' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.all)}
+              </span>
             </span>
           </button>
 
+          {/* Opción 2: TH · NAVA */}
           <button
             type="button"
-            onClick={() => setDeptFilter('TH')}
+            onClick={() => {
+              triggerHaptic('light');
+              setDeptFilter('TH');
+            }}
             style={{
+              position: 'relative',
               borderRadius: 10,
               padding: '7px 14px',
               fontSize: 13,
@@ -447,31 +477,54 @@ export function DashboardHeaderToolbar({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: deptFilter === 'TH' ? '1px solid #0284c7' : '1px solid var(--line)',
-              background: deptFilter === 'TH' ? '#e0f2fe' : 'var(--paper)',
-              color: deptFilter === 'TH' ? '#0369a1' : 'var(--ink)',
+              border: 'none',
+              background: 'transparent',
+              color: deptFilter === 'TH' ? '#0369a1' : 'var(--ink-soft)',
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              outline: 'none',
+              transition: 'color 0.2s ease',
             }}
             title={`${settings.deptNameTH || 'Textil Hogar'} — Responsable: ${settings.managerTH || 'Lic. Nava'}`}
           >
-            <span>🔵 TH · {settings.managerTH || 'Nava'}</span>
-            <span style={{
-              background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
-              color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
-              fontSize: 11,
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: 999,
-            }}>
-              {money(deptPorCobrar.th)}
+            {deptFilter === 'TH' && (
+              <motion.div
+                layoutId="activeDeptFilterPill"
+                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: 10,
+                  background: 'var(--paper-raised)',
+                  border: '1px solid #0284c7',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.15)',
+                  zIndex: 1,
+                }}
+              />
+            )}
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🔵 TH · {settings.managerTH || 'Nava'}</span>
+              <span style={{
+                background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
+                color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.th)}
+              </span>
             </span>
           </button>
 
+          {/* Opción 3: GT · EVELIA */}
           <button
             type="button"
-            onClick={() => setDeptFilter('GT')}
+            onClick={() => {
+              triggerHaptic('light');
+              setDeptFilter('GT');
+            }}
             style={{
+              position: 'relative',
               borderRadius: 10,
               padding: '7px 14px',
               fontSize: 13,
@@ -479,24 +532,42 @@ export function DashboardHeaderToolbar({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: deptFilter === 'GT' ? '1px solid #16a34a' : '1px solid var(--line)',
-              background: deptFilter === 'GT' ? '#dcfce7' : 'var(--paper)',
-              color: deptFilter === 'GT' ? '#15803d' : 'var(--ink)',
+              border: 'none',
+              background: 'transparent',
+              color: deptFilter === 'GT' ? '#15803d' : 'var(--ink-soft)',
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              outline: 'none',
+              transition: 'color 0.2s ease',
             }}
             title={`${settings.deptNameGT || 'Grupo Textil'} — Responsable: ${settings.managerGT || 'Lic. Evelia'}`}
           >
-            <span>🟢 GT · {settings.managerGT || 'Evelia'}</span>
-            <span style={{
-              background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
-              color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',
-              fontSize: 11,
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: 999,
-            }}>
-              {money(deptPorCobrar.gt)}
+            {deptFilter === 'GT' && (
+              <motion.div
+                layoutId="activeDeptFilterPill"
+                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: 10,
+                  background: 'var(--paper-raised)',
+                  border: '1px solid #16a34a',
+                  boxShadow: '0 2px 8px rgba(22, 163, 74, 0.15)',
+                  zIndex: 1,
+                }}
+              />
+            )}
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🟢 GT · {settings.managerGT || 'Evelia'}</span>
+              <span style={{
+                background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
+                color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}>
+                {money(deptPorCobrar.gt)}
+              </span>
             </span>
           </button>
         </div>

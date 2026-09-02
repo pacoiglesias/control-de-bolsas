@@ -1,9 +1,11 @@
+import { motion } from 'framer-motion';
+import { sound } from '../../lib/sounds';
+
 export type DashboardViewMode = 'executive' | 'orders' | 'collection' | 'production' | 'pnl' | 'all';
 
 /**
- * FIX (v8.9.8, split de pages/Dashboard.tsx — ~1460 lineas): selector de
- * espacio de trabajo (pestañas de alta densidad) extraido tal cual como
- * componente presentacional puro, sin cambiar logica ni estilos.
+ * Selector de espacio de trabajo con Pastilla Magnética Deslizante (Spring Physics)
+ * y respuesta táctil háptica.
  */
 export function DashboardViewModeTabs({
   viewMode,
@@ -16,6 +18,15 @@ export function DashboardViewModeTabs({
   seguimientoOrdersCount: number;
   providerName: string;
 }) {
+  const tabs: { key: DashboardViewMode; icon: string; label: string; activeColor: string }[] = [
+    { key: 'executive', icon: '🌟', label: 'Resumen Ejecutivo', activeColor: 'var(--accent)' },
+    { key: 'orders', icon: '📁', label: `Expedientes & OCs (${seguimientoOrdersCount})`, activeColor: 'var(--accent)' },
+    { key: 'collection', icon: '📆', label: 'Centro de Cobranza', activeColor: '#0284c7' },
+    { key: 'production', icon: '🏭', label: `Compras & ${providerName || 'Andrés'}`, activeColor: '#7c3aed' },
+    { key: 'pnl', icon: '⚖️', label: 'Corte & P&L (50/50)', activeColor: '#059669' },
+    { key: 'all', icon: '👁️', label: 'Ver Todo', activeColor: 'var(--ink)' },
+  ];
+
   return (
     <div
       style={{
@@ -29,161 +40,65 @@ export function DashboardViewModeTabs({
         overflowX: 'auto',
       }}
     >
-      <button
-        type="button"
-        onClick={() => setViewMode('executive')}
-        style={{
-          flex: 1,
-          minWidth: 150,
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: 'none',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          background: viewMode === 'executive' ? 'var(--paper-raised)' : 'transparent',
-          color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
-          boxShadow: viewMode === 'executive' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-        }}
-      >
-        <span>🌟</span>
-        <span>Resumen Ejecutivo</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setViewMode('orders')}
-        style={{
-          flex: 1,
-          minWidth: 150,
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: 'none',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          background: viewMode === 'orders' ? 'var(--paper-raised)' : 'transparent',
-          color: viewMode === 'orders' ? 'var(--accent)' : 'var(--ink-soft)',
-          boxShadow: viewMode === 'orders' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-        }}
-      >
-        <span>📁</span>
-        <span>Expedientes & OCs ({seguimientoOrdersCount})</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setViewMode('collection')}
-        style={{
-          flex: 1,
-          minWidth: 150,
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: 'none',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          background: viewMode === 'collection' ? 'var(--paper-raised)' : 'transparent',
-          color: viewMode === 'collection' ? '#0284c7' : 'var(--ink-soft)',
-          boxShadow: viewMode === 'collection' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-        }}
-      >
-        <span>📆</span>
-        <span>Centro de Cobranza</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setViewMode('production')}
-        style={{
-          flex: 1,
-          minWidth: 150,
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: 'none',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          background: viewMode === 'production' ? 'var(--paper-raised)' : 'transparent',
-          color: viewMode === 'production' ? '#7c3aed' : 'var(--ink-soft)',
-          boxShadow: viewMode === 'production' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-        }}
-      >
-        <span>🏭</span>
-        <span>Compras & {providerName || 'Andrés'}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setViewMode('pnl')}
-        style={{
-          flex: 1,
-          minWidth: 150,
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: 'none',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          background: viewMode === 'pnl' ? 'var(--paper-raised)' : 'transparent',
-          color: viewMode === 'pnl' ? '#059669' : 'var(--ink-soft)',
-          boxShadow: viewMode === 'pnl' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-        }}
-      >
-        <span>⚖️</span>
-        <span>Corte & P&L (50/50)</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setViewMode('all')}
-        style={{
-          flex: 1,
-          minWidth: 110,
-          padding: '10px 14px',
-          borderRadius: 12,
-          border: 'none',
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: 'pointer',
-          background: viewMode === 'all' ? 'var(--paper-raised)' : 'transparent',
-          color: viewMode === 'all' ? 'var(--ink)' : 'var(--ink-soft)',
-          boxShadow: viewMode === 'all' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-        }}
-      >
-        <span>👁️</span>
-        <span>Ver Todo</span>
-      </button>
+      {tabs.map((t) => {
+        const isActive = viewMode === t.key;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => {
+              sound.playPop();
+              setViewMode(t.key);
+            }}
+            style={{
+              position: 'relative',
+              flex: t.key === 'all' ? undefined : 1,
+              minWidth: t.key === 'all' ? 110 : 150,
+              padding: '10px 16px',
+              borderRadius: 12,
+              border: 'none',
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+              background: 'transparent',
+              color: isActive ? t.activeColor : 'var(--ink-soft)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              outline: 'none',
+              transition: 'color 0.2s ease',
+            }}
+          >
+            {isActive && (
+              <motion.div
+                layoutId="activeDashboardTabPill"
+                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: 12,
+                  background: 'var(--paper-raised)',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04)',
+                  zIndex: 1,
+                }}
+              />
+            )}
+            <span
+              style={{
+                position: 'relative',
+                zIndex: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
+

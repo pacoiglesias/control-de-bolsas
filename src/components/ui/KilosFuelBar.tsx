@@ -83,20 +83,18 @@ export const KilosFuelBar: React.FC<KilosFuelBarProps> = ({
           boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
         }}
       >
-        {/* Capa 1: Entregas (Base) */}
+        {/* Capa 1: Entregas (Base con Gradiente Líquido Flotante) */}
         <div
+          className={isComplete ? 'liquid-gradient-complete' : 'liquid-gradient-delivered'}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
             bottom: 0,
             width: `${pctDelivered}%`,
-            background: isComplete
-              ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
-              : 'linear-gradient(90deg, #0284c7 0%, #38bdf8 100%)',
             borderRadius: 999,
             transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: isComplete ? '0 0 8px rgba(16, 185, 129, 0.5)' : '0 0 8px rgba(56, 189, 248, 0.4)',
+            boxShadow: isComplete ? '0 0 10px rgba(16, 185, 129, 0.6)' : '0 0 10px rgba(56, 189, 248, 0.5)',
           }}
         />
 
