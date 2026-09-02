@@ -141,6 +141,66 @@ export function DashboardHeaderToolbar({
             <span>Nuevo Expediente</span>
           </button>
 
+          {/* BOTÓN FRONT-ROW: AUTO-SANAR & REPARAR DATOS */}
+          {onAutoHeal && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 13,
+                padding: '9px 16px',
+                borderRadius: 12,
+                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                cursor: isHealing ? 'wait' : 'pointer',
+              }}
+              onClick={() => {
+                triggerHaptic('medium');
+                onAutoHeal();
+              }}
+              disabled={isHealing}
+              title="Auto-Sanar y Purgar: repara duplicados, sincroniza contrarecibos y sana Firestore"
+            >
+              <span style={{ fontSize: 15 }}>{isHealing ? '⏳' : '🛡️'}</span>
+              <span>{isHealing ? 'Reparando...' : 'Reparar Datos'}</span>
+            </button>
+          )}
+
+          {/* BOTÓN FRONT-ROW: ACTUALIZAR DATOS */}
+          <button
+            type="button"
+            className="btn"
+            style={{
+              background: 'var(--paper-raised)',
+              border: '1px solid var(--line)',
+              color: 'var(--ink)',
+              fontWeight: 800,
+              fontSize: 13,
+              padding: '9px 14px',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+            onClick={() => {
+              triggerHaptic('light');
+              toast('🔄 Sincronizando datos del ERP en vivo...', 'info');
+              window.location.reload();
+            }}
+            title="Recargar y sincronizar datos en tiempo real"
+          >
+            <span>🔄</span>
+            <span>Actualizar</span>
+          </button>
+
           {/* DROPDOWN 1: REPORTES & BALANZA */}
           <div className="dropdown-container" style={{ position: 'relative' }}>
             <button
