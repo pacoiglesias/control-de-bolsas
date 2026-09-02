@@ -8,6 +8,18 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.1.0 Enterprise: Consolidación de UI/UX, Centinela Anti-Duplicados y Motor Háptico Sensorial',
+    date: '2 de Septiembre de 2026',
+    time: '05:30 PM',
+    summary: 'Actualización mayor de arquitectura y experiencia de usuario: centinela de deduplicación de folios canónicos en Pipeline y Cobranza, unificación del Speed Hub flotante (GlobalSpeedFab), eliminación del modo SAP confuso, y fusión del motor de audio Web Audio API con vibración háptica en teléfonos inteligentes.',
+    highlights: [
+      '🛡️ Centinela Anti-Duplicados en Pipeline: Eliminación de doble conteo de contrarecibos ($675,839.76 exactos en 8 cuentas en lugar de 17).',
+      '⚡ Botón Flotante Único (Single Source of Truth): Consolidación de acciones rápidas (OC, Báscula, XML, WhatsApp, Calculadora, Excel) en un solo FAB táctil.',
+      '📳 Motor Háptico Sensorial Móvil: Micro-vibraciones hápticas sincronizadas con la síntesis Web Audio en cada cobro, entrega y confirmación.',
+      '🧭 Reorganización Departamental: Nomenclatura intuitiva en Sidebar (Operaciones & Báscula, Finanzas & Liquidez, Control & Auditoría).',
+    ],
+  },
+  {
     version: 'v9.0.10 Enterprise: Independencia Estricta y Sincronización Reactiva de Prefacturas Excel',
     date: '31 de Agosto de 2026',
     time: '11:40 PM',

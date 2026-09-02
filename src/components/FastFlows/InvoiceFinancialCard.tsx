@@ -17,6 +17,7 @@ interface InvoiceFinancialCardProps {
   onInvoice: () => void;
   onClose: () => void;
   onDownloadPrefactura?: () => void;
+  onDownloadXmlDraft?: () => void;
   onWhatsAppContador?: () => void;
   selectedRowsCount: number;
   guardrail?: InvoiceGuardrailResult | null;
@@ -38,6 +39,7 @@ export function InvoiceFinancialCard({
   onInvoice,
   onClose,
   onDownloadPrefactura,
+  onDownloadXmlDraft,
   onWhatsAppContador,
   selectedRowsCount,
   guardrail,
@@ -104,35 +106,35 @@ export function InvoiceFinancialCard({
         </div>
       </div>
 
-      {/* Captura de Folio y Botón de Emisión */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, alignItems: 'flex-end' }}>
-        <div>
-          <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 4 }}>
-            Folio de la Factura (SAT) *
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>
+            Folio Fiscal de la Factura (Opcional si es Prefactura)
           </label>
           <input
             type="text"
+            className="input mono"
+            placeholder="Ej: 6200, 6266"
             value={folio}
             onChange={(e) => setFolio(e.target.value)}
-            placeholder="Ej. 6205, A-1044..."
-            className="input boxed mono"
+            disabled={saving}
             style={{
               width: '100%',
-              fontSize: 15,
-              fontWeight: 800,
+              fontSize: 14,
+              fontWeight: 700,
               padding: '10px 14px',
               borderRadius: 10,
-              border: duplicateInvoice ? '2px solid var(--bad)' : undefined,
+              borderColor: duplicateInvoice ? 'var(--bad)' : undefined,
             }}
           />
           {duplicateInvoice && (
-            <div style={{ color: 'var(--bad)', fontSize: 11.5, fontWeight: 700, marginTop: 4 }}>
-              🚨 Folio duplicado: ya existe en la OC #{duplicateInvoice.orderFolio}
+            <div style={{ color: 'var(--bad)', fontSize: 11, fontWeight: 700, marginTop: 4 }}>
+              ⚠️ El folio ya existe en el expediente {duplicateInvoice.orderFolio}.
             </div>
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {onDownloadPrefactura && (
             <button
               type="button"
@@ -140,11 +142,37 @@ export function InvoiceFinancialCard({
               onClick={onDownloadPrefactura}
               disabled={saving || kilosToInvoice <= 0}
               style={{
-                padding: '10px 16px',
+                padding: '10px 14px',
                 borderRadius: 10,
-                background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.25) 100%)',
-                color: '#059669',
-                border: '1.5px solid rgba(16,185,129,0.4)',
+                background: 'linear-gradient(135deg, #107c41 0%, #185a30 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 800,
+                fontSize: 13,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(16, 124, 65, 0.25)',
+              }}
+              title="Descargar archivo Excel (.xlsx) con la plantilla oficial para el facturador"
+            >
+              <span>📊</span>
+              <span>Prefactura Excel (.xlsx)</span>
+            </button>
+          )}
+          {onDownloadXmlDraft && (
+            <button
+              type="button"
+              className="btn"
+              onClick={onDownloadXmlDraft}
+              disabled={saving || kilosToInvoice <= 0}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: 'rgba(59, 130, 246, 0.12)',
+                color: '#2563eb',
+                border: '1.5px solid rgba(59, 130, 246, 0.4)',
                 fontWeight: 800,
                 fontSize: 13,
                 display: 'inline-flex',
@@ -152,10 +180,10 @@ export function InvoiceFinancialCard({
                 gap: 6,
                 cursor: 'pointer',
               }}
-              title="Descargar archivo Excel (.xlsx) con la plantilla oficial para el facturador"
+              title="Descargar borrador XML CFDI 4.0 estructurado para importar al sistema contable"
             >
-              <span>📊</span>
-              <span>Descargar Prefactura Excel</span>
+              <span>📄</span>
+              <span>Borrador XML CFDI 4.0</span>
             </button>
           )}
           {onWhatsAppContador && (

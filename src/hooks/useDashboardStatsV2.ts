@@ -122,7 +122,7 @@ export function useDashboardStats(
     const now = Date.now();
 
     activeOrders.forEach(o => {
-      if (!o || o.isClosedShort) return;
+      if (!o) return;
       (o.invoices || []).forEach(inv => {
         if (!inv) return;
         const stStatus = inv.creditCycle?.status;

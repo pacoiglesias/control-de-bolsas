@@ -121,4 +121,32 @@ describe('PDF Generators Financial & Data Building Tests', () => {
     expect(data.saldoCajaChica).toBe(15000);
     expect(data.invoices).toHaveLength(2);
   });
+
+  it('generateDeliveryRemissionPdf genera un documento PDF válido para remisiones de báscula', async () => {
+    const { generateDeliveryRemissionPdf } = await import('../deliveryRemissionPdf');
+    const doc = generateDeliveryRemissionPdf({
+      folioRemision: 'REM-1001',
+      oc: '5373',
+      client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+      department: 'TH-ALMACEN-1',
+      date: new Date('2026-08-20'),
+      providerName: 'Andrés',
+      driverName: 'Juan Pérez',
+      truckPlates: 'XB-1234',
+      totalBags: 40,
+      totalKilograms: 1000,
+      notes: 'Entrega completa en báscula #1',
+      items: [
+        {
+          code: 'BOL-50X70',
+          description: 'Bolsa 50x70 Calibre 200',
+          bags: 40,
+          quantity: 1000,
+        },
+      ],
+    });
+
+    expect(doc).toBeDefined();
+    expect(doc.internal.pageSize.getWidth()).toBeGreaterThan(0);
+  });
 });

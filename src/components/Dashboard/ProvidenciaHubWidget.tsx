@@ -8,6 +8,7 @@ import type { PurchaseOrder } from '../../lib/types';
 import { RegistrarEntregaModal } from '../Compras/OrderModals';
 import { QuickCrModal } from '../QuickCrModal';
 import OrderModal from '../OrderModal';
+import { QuickInvoiceModal } from '../FastFlows/QuickInvoiceModal';
 import { useConfig } from '../../hooks/useConfig';
 
 export function ProvidenciaHubWidget() {
@@ -21,6 +22,7 @@ export function ProvidenciaHubWidget() {
   const [entregaOrder, setEntregaOrder] = useState<PurchaseOrder | null>(null);
   const [crOrder, setCrOrder] = useState<{ order: PurchaseOrder; inv?: any } | null>(null);
   const [viewOrder, setViewOrder] = useState<PurchaseOrder | null>(null);
+  const [quickInvoiceOrderId, setQuickInvoiceOrderId] = useState<string | null>(null);
 
   // 1. Filtrar todas las órdenes de compra reales pertenecientes a Providencia
   const providenciaOrders = useMemo(() => {
@@ -112,13 +114,16 @@ export function ProvidenciaHubWidget() {
 
       const dept = inferDepartment(o) || (o.department?.toUpperCase().includes('TH') ? 'TH' : o.department?.toUpperCase().includes('GT') ? 'GT' : 'TH');
       const summary = getOrderSummary(o);
+      const isClosedOrInvoiced = Boolean(o.isClosedShort) || (summary.kilosInvoiced >= summary.kilosDelivered - 0.05 && summary.kilosInvoiced > 0);
       const itemsSum = o.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || 0;
-      const totalKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0);
+      const totalKg = isClosedOrInvoiced 
+        ? summary.kilosDelivered 
+        : (itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0));
       const deliveredKg = summary.kilosDelivered || 0;
       const invoicedKg = summary.kilosInvoiced || 0;
-      const remainingKg = Math.max(0, totalKg - deliveredKg);
+      const remainingKg = isClosedOrInvoiced ? 0 : Math.max(0, totalKg - deliveredKg);
       const unInvoicedKg = Math.max(0, deliveredKg - invoicedKg);
-      const progress = totalKg > 0 ? Math.min(100, Math.round((deliveredKg / totalKg) * 100)) : 0;
+      const progress = totalKg > 0 ? Math.min(100, Math.round((deliveredKg / totalKg) * 100)) : 100;
       const invoices = o.invoices || [];
       const hasPendingCr = invoices.some(inv => !inv.collection?.contrareciboNumber && !o.collection?.contrareciboNumber);
       
@@ -551,6 +556,30 @@ export function ProvidenciaHubWidget() {
 
                   {/* Acciones Rápidas */}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {unInvoicedKg > 0 && (
+                      <button
+                        onClick={() => setQuickInvoiceOrderId(o.id)}
+                        style={{
+                          flex: 1,
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.35)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <span>⚡</span> Facturar {unInvoicedKg.toLocaleString('es-MX')} kg
+                      </button>
+                    )}
+
                     {remainingKg > 0 && (
                       <button
                         onClick={() => setEntregaOrder(o)}
@@ -727,6 +756,15 @@ export function ProvidenciaHubWidget() {
           order={viewOrder}
           onClose={() => setViewOrder(null)}
           config={config}
+        />
+      )}
+
+      {/* MODAL 4: FACTURACIÓN RÁPIDA (1-CLIC PREFACTURA EXCEL / XML) */}
+      {quickInvoiceOrderId && (
+        <QuickInvoiceModal
+          orders={orders}
+          initialOrderId={quickInvoiceOrderId}
+          onClose={() => setQuickInvoiceOrderId(null)}
         />
       )}
     </>

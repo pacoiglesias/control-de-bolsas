@@ -68,6 +68,22 @@ const SHORTCUTS: ShortcutItem[] = [
 
   // 🛠️ Productividad & Privacidad
   {
+    keys: ['Ctrl', 'E'],
+    actionName: 'Base de Datos Maestra Excel (.xlsx)',
+    description: 'Descarga instantánea de todo el ERP en 1 archivo Excel con 5 hojas consolidadas.',
+    category: '🛠️ Productividad & Privacidad',
+    badge: 'Nuevo',
+    badgeTone: 'ok',
+  },
+  {
+    keys: ['Ctrl', 'Shift', 'P'],
+    actionName: 'Resumen Ejecutivo One-Pager (PDF)',
+    description: 'Descarga el corte directivo oficial membretado en 1 sola página.',
+    category: '🛠️ Productividad & Privacidad',
+    badge: 'Directivo',
+    badgeTone: 'info',
+  },
+  {
     keys: ['H'],
     actionName: 'Modo Privacidad (Ocultar Montos)',
     description: 'Oculta o desenfoca los importes en dinero si hay personas cerca de tu pantalla.',

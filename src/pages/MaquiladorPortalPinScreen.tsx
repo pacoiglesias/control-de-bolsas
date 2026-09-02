@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { motion } from 'framer-motion';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { glass, STORAGE_PIN_KEY } from './MaquiladorPortal.shared';
+import { triggerHaptic } from '../lib/hapticEngine';
 
 // Extraido de MaquiladorPortal.tsx (~190 lineas de las 1796 originales).
 // Pantalla de PIN numerico con memoria opcional -- no depende de nada del
@@ -21,7 +22,10 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
   const provName = settings?.providerName || 'Andrés';
   const toast = useToast();
 
-  const del = () => setDigits((prev) => prev.slice(0, -1));
+  const del = () => {
+    triggerHaptic('light');
+    setDigits((prev) => prev.slice(0, -1));
+  };
 
   const tryLogin = useCallback(async (pinToTry: string, silent = false) => {
     if (pinToTry.length < 4) return;
@@ -34,8 +38,10 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
       } else {
         localStorage.removeItem(STORAGE_PIN_KEY);
       }
+      triggerHaptic('success');
       onSuccess(pinToTry, (res.data as any[]) || []);
     } catch (err: any) {
+      triggerHaptic('error');
       if (silent) {
         localStorage.removeItem(STORAGE_PIN_KEY);
       } else {
@@ -45,8 +51,6 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
         if (err?.code === 'functions/permission-denied') {
           toast('PIN incorrecto', 'bad');
         } else if (err?.code === 'functions/resource-exhausted') {
-          // FIX (v8.9.2): mensaje real del bloqueo por intentos fallidos,
-          // en vez del generico "Error de conexión" que no explicaba nada.
           toast(err?.message || 'Demasiados intentos fallidos. Espera unos minutos.', 'bad');
         } else if (err?.code === 'functions/failed-precondition') {
           toast(err?.message || 'El PIN del portal no está configurado.', 'bad');
@@ -59,6 +63,16 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
     }
   }, [rememberMe, onSuccess, toast]);
 
+  const handleDigit = (d: string) => {
+    if (digits.length >= 6 || loading) return;
+    triggerHaptic('light');
+    const next = digits + d;
+    setDigits(next);
+    if (next.length === 4) {
+      void tryLogin(next);
+    }
+  };
+
   // Auto-login si hay PIN guardado
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_PIN_KEY);
@@ -66,14 +80,6 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
       void tryLogin(saved, true);
     }
   }, [tryLogin]);
-
-  const handleDigit = (d: string) => {
-    const next = digits + d;
-    if (next.length <= 4) {
-      setDigits(next);
-      if (next.length >= 4) tryLogin(next);
-    }
-  };
 
   const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 

@@ -4,6 +4,7 @@ import { useOrderModal } from './OrderModalContext';
 import { Field, StatusBadge } from '../ui';
 import { PasteTextModal } from '../PasteTextModal';
 import { OCPreviewModal } from '../OCPreviewModal';
+import { WhatsAppCommandHubModal } from '../WhatsApp/WhatsAppCommandHubModal';
 import { fromInputDate, money, toInputDate, kilos } from '../../lib/format';
 import { Timestamp } from 'firebase/firestore';
 import { confirmDialog } from '../../lib/confirmDialog';
@@ -15,6 +16,7 @@ export default function TabResumen() {
   const nav = useNavigate();
   const { purchases } = usePurchases();
   const [pegandoOC, setPegandoOC] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [preview, setPreview] = useState<ParsedOC | null>(null);
   if (!ctx) return null;
   const {
@@ -76,22 +78,46 @@ export default function TabResumen() {
           marginBottom: 16,
         }}
       >
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setPegandoOC(true)}
-          style={{
-            background: 'var(--accent)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: 12.5,
-            padding: '7px 12px',
-            border: 'none',
-            borderRadius: 8,
-          }}
-        >
-          📋 Pegar Texto de OC (Autollenado)
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setPegandoOC(true)}
+            style={{
+              background: 'var(--accent)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 12.5,
+              padding: '7px 12px',
+              border: 'none',
+              borderRadius: 8,
+            }}
+          >
+            📋 Pegar Texto de OC (Autollenado)
+          </button>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setShowWhatsAppModal(true)}
+            style={{
+              background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 12.5,
+              padding: '7px 14px',
+              border: 'none',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)',
+            }}
+          >
+            <span>💬</span>
+            <span>WhatsApp Hub</span>
+          </button>
+        </div>
 
         {form.invoices.length > 0 && (() => {
           const conteo = { overdue: 0, pending: 0, paid: 0, collected: 0 };
@@ -481,6 +507,67 @@ export default function TabResumen() {
           )}
         </div>
       </div>
+
+      {/* Bloque 4: Partidas / Conceptos de la OC */}
+      {form.items && form.items.length > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            background: 'var(--glass-bg, var(--paper))',
+            border: '1px solid var(--card-border, var(--line))',
+            borderRadius: 14,
+            padding: '14px 16px',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--ink-soft)' }}>
+              📦 Artículos / Partidas de la OC ({form.items.length})
+            </span>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: 11, padding: '3px 10px', background: 'var(--paper-sunk)', border: '1px solid var(--line)' }}
+              onClick={() => setTab('productos')}
+            >
+              ✏️ Gestionar Artículos →
+            </button>
+          </div>
+          <div className="table-scroll" style={{ maxHeight: 220, overflowY: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th className="num">Cantidad</th>
+                  <th className="num">Precio Unit.</th>
+                  <th className="num">Importe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.items.map((it: any, idx: number) => (
+                  <tr key={it.id || idx}>
+                    <td className="mono" style={{ fontWeight: 800, color: 'var(--accent)' }}>{it.code}</td>
+                    <td>{it.description}</td>
+                    <td className="num mono" style={{ fontWeight: 700 }}>{kilos(it.quantity)}</td>
+                    <td className="num mono">{money(it.unitPrice || fallbackSale || 43)}</td>
+                    <td className="num mono" style={{ fontWeight: 800 }}>
+                      {money(it.amount || (it.quantity * (it.unitPrice || fallbackSale || 43)))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showWhatsAppModal && (
+        <WhatsAppCommandHubModal
+          order={order}
+          onClose={() => setShowWhatsAppModal(false)}
+          toast={toast}
+        />
+      )}
     </>
   );
 }

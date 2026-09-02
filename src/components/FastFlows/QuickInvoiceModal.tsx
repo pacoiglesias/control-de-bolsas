@@ -14,6 +14,7 @@ import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
 import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
+import { downloadCfdi40DraftXmlFile } from '../../lib/cfdiXmlGenerator';
 import { generatePrefacturaContadorMessage } from '../../lib/whatsappReminder';
 
 // Subcomponentes modulares de Facturación Rápida
@@ -465,6 +466,45 @@ export function QuickInvoiceModal({
     toast(`📊 Prefactura Excel descargada para OC ${ocNum}`, 'ok');
   };
 
+  const handleDownloadXmlDraft = () => {
+    if (!selectedOrder) {
+      toast('⚠️ Selecciona un expediente primero', 'bad');
+      return;
+    }
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      toast('⚠️ Selecciona al menos una partida para el borrador XML', 'bad');
+      return;
+    }
+
+    triggerHaptic('success');
+    const ocNum = selectedOrder.oc || selectedOrder.folio || 'S/N';
+
+    downloadCfdi40DraftXmlFile({
+      ocNumber: ocNum,
+      clientName: selectedOrder.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+      clientRfc: 'GTP930115PU1',
+      clientPostalCode: '90800',
+      clientRegimen: '601',
+      clientUsoCfdi: 'G01',
+      items: selectedRows.map((r) => {
+        const sub = round2((Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice));
+        const iva = round2(sub * 0.16);
+        return {
+          code: r.code || 'BOLSA',
+          description: r.description,
+          quantity: Number(r.quantity) || 0,
+          unitPrice: Number(r.unitPrice) || currentSellPrice,
+          subtotal: sub,
+          iva,
+          total: round2(sub + iva),
+        };
+      }),
+    });
+
+    toast(`📄 Borrador XML CFDI 4.0 descargado para OC ${ocNum}`, 'ok');
+  };
+
   const handleWhatsAppContador = () => {
     if (!selectedOrder) {
       toast('⚠️ Selecciona un expediente primero', 'bad');
@@ -651,6 +691,7 @@ export function QuickInvoiceModal({
               onInvoice={handleInvoice}
               onClose={onClose}
               onDownloadPrefactura={handleDownloadPrefactura}
+              onDownloadXmlDraft={handleDownloadXmlDraft}
               onWhatsAppContador={handleWhatsAppContador}
               selectedRowsCount={selectedRows.length}
               guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}

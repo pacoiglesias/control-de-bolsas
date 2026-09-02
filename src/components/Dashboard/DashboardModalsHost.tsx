@@ -9,6 +9,7 @@ import { QuickDeliveryModal } from '../FastFlows/QuickDeliveryModal';
 import { PagarAndresModal } from '../Compras/PagarAndresModal';
 import { MagicPasteModal } from '../MagicPasteModal';
 import { SincronizadorOficialModal } from '../Cobranza/SincronizadorOficialModal';
+import { UniversalDocumentUploadModal } from './UniversalDocumentUploadModal';
 import { downloadBackupJsonFile } from '../../lib/cloudBackup';
 import type { PurchaseOrder, Expense, Purchase, FinancialConfig } from '../../lib/types';
 import type { LiveLogEntry } from '../../pages/Dashboard';
@@ -52,6 +53,8 @@ export interface DashboardModalsHostProps {
   setShowMagicPaste: (v: boolean) => void;
   showSincronizador: boolean;
   setShowSincronizador: (v: boolean) => void;
+  showUniversalUpload?: boolean;
+  setShowUniversalUpload?: (v: boolean) => void;
 
   seguimientoOrders: PurchaseOrder[];
   activeOrders: PurchaseOrder[];
@@ -85,6 +88,7 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
     showLiveLogsModal, setShowLiveLogsModal,
     showMagicPaste, setShowMagicPaste,
     showSincronizador, setShowSincronizador,
+    showUniversalUpload, setShowUniversalUpload,
     seguimientoOrders, activeOrders, globalOrders,
     expenses, purchases, config, settings, saldoCaja,
     cloudBackups, backupBusy, handleCreateBackup, handleRestoreBackup,
@@ -119,27 +123,28 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
 
       {showQuickInvoice && (
         <QuickInvoiceModal
-          orders={seguimientoOrders}
+          orders={globalOrders}
           initialOrderId={selectedInvoiceOrderId}
-          onClose={() => setShowQuickInvoice(false)}
-        />
-      )}
-
-      {showQuickDelivery && setShowQuickDelivery && (
-        <QuickDeliveryModal
-          orders={seguimientoOrders}
-          initialOrderId={selectedDeliveryOrderId}
-          onClose={() => setShowQuickDelivery(false)}
-          onOpenInvoice={(orderId) => {
-            setShowQuickDelivery(false);
-            if (setSelectedInvoiceOrderId) setSelectedInvoiceOrderId(orderId);
-            setShowQuickInvoice(true);
+          onClose={() => {
+            setShowQuickInvoice(false);
+            if (setSelectedInvoiceOrderId) setSelectedInvoiceOrderId(null);
           }}
         />
       )}
 
+      {showQuickDelivery && (
+        <QuickDeliveryModal
+          orders={globalOrders}
+          initialOrderId={selectedDeliveryOrderId}
+          onClose={() => setShowQuickDelivery && setShowQuickDelivery(false)}
+        />
+      )}
+
       {showQuickCollection && (
-        <QuickCollectionModal orders={seguimientoOrders} onClose={() => setShowQuickCollection(false)} />
+        <QuickCollectionModal
+          orders={globalOrders}
+          onClose={() => setShowQuickCollection(false)}
+        />
       )}
 
       {showQuickPay && (
@@ -149,35 +154,35 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
       <Suspense fallback={null}>
         {showCorteMensual && (
           <CorteMensualModal
-            onClose={() => setShowCorteMensual(false)}
-            orders={activeOrders}
+            orders={globalOrders}
             expenses={expenses}
             purchases={purchases}
             config={config}
             settings={settings}
+            onClose={() => setShowCorteMensual(false)}
           />
         )}
 
         {showCorteSemanal && (
           <CorteSemanalModal
-            onClose={() => setShowCorteSemanal(false)}
-            orders={activeOrders}
-            expenses={expenses}
+            orders={globalOrders}
             purchases={purchases}
+            expenses={expenses}
             config={config}
             settings={settings}
+            onClose={() => setShowCorteSemanal(false)}
           />
         )}
 
         {showBalanza && (
           <BalanzaComprobacionModal
-            onClose={() => setShowBalanza(false)}
-            orders={activeOrders}
-            expenses={expenses}
+            orders={globalOrders}
             purchases={purchases}
+            expenses={expenses}
             config={config}
             settings={settings}
             saldoCajaSistema={saldoCaja}
+            onClose={() => setShowBalanza(false)}
           />
         )}
 
@@ -209,6 +214,10 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
             orders={globalOrders}
             onClose={() => setShowSincronizador(false)}
           />
+        )}
+
+        {showUniversalUpload && setShowUniversalUpload && (
+          <UniversalDocumentUploadModal onClose={() => setShowUniversalUpload(false)} />
         )}
       </Suspense>
     </>

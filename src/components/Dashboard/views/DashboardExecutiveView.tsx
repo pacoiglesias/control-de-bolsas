@@ -1,13 +1,12 @@
 import type { NavigateFunction } from 'react-router-dom';
-import { ProactiveBriefingCard } from '../ProactiveBriefingCard';
+import { ExecutivePriorityAlerts } from '../ExecutivePriorityAlerts';
+import { MorningBriefingWidget } from '../MorningBriefingWidget';
+import { CashFlowSimulatorWidget } from '../CashFlowSimulatorWidget';
 import { ExecutiveFinancialCard } from '../ExecutiveFinancialCard';
 import { ActiveOrdersMobileCards } from '../ActiveOrdersMobileCards';
 import { MoneyFlowPipeline, type PipelineStageKey } from '../MoneyFlowPipeline';
 import { SeguimientoPedidosTable } from '../SeguimientoPedidosTable';
-import { FinancialTrendChart } from '../FinancialTrendChart';
 import type { PurchaseOrder, Expense, FinancialConfig } from '../../../lib/types';
-
-import { ProvidenciaHubWidget } from '../ProvidenciaHubWidget';
 
 interface DashboardExecutiveViewProps {
   seguimientoOrders: PurchaseOrder[];
@@ -20,6 +19,7 @@ interface DashboardExecutiveViewProps {
   onOpenQuickInvoice: (orderId?: string | null) => void;
   onOpenQuickCollection: () => void;
   onOpenQuickDelivery: (orderId?: string | null) => void;
+  onOpenUniversalUpload?: () => void;
 }
 
 export function DashboardExecutiveView({
@@ -33,31 +33,38 @@ export function DashboardExecutiveView({
   onOpenQuickInvoice,
   onOpenQuickCollection,
   onOpenQuickDelivery,
+  onOpenUniversalUpload,
 }: DashboardExecutiveViewProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 1. Radar Proactivo + Tarjeta Financiera Ejecutiva */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        {/* Lado Izquierdo: Asistente Proactivo */}
-        <div>
-          <ProactiveBriefingCard
-            orders={seguimientoOrders}
-            config={config as any}
-            onOpenQuickInvoice={() => onOpenQuickInvoice(null)}
-            onOpenQuickCollection={onOpenQuickCollection}
-            onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-          />
-        </div>
+      {/* 0. Asistente Matutino de 3 Tareas Clave */}
+      <MorningBriefingWidget
+        orders={seguimientoOrders}
+        config={config}
+        onOpenQuickCollection={onOpenQuickCollection}
+        onOpenUniversalUpload={onOpenUniversalUpload}
+      />
 
-        {/* Lado Derecho: Tarjeta Financiera Ejecutiva y P&L */}
-        <div>
-          <ExecutiveFinancialCard
-            orders={seguimientoOrders}
-            config={config as any}
-            saldoCaja={saldoCaja}
-          />
-        </div>
-      </div>
+      {/* 1. Radar Ejecutivo de Atención Prioritaria (Nava 1500kg, Evelia Esperando OC, Cobranza) */}
+      <ExecutivePriorityAlerts
+        orders={seguimientoOrders}
+        config={config}
+        onOpenQuickInvoice={onOpenQuickInvoice}
+        onOpenQuickCollection={onOpenQuickCollection}
+      />
+
+      {/* 1.5 Simulador de Flujo Semanal & Capacidad de Compra */}
+      <CashFlowSimulatorWidget
+        orders={seguimientoOrders}
+        config={config}
+      />
+
+      {/* 2. Tarjeta Financiera Ejecutiva y Resumen P&L */}
+      <ExecutiveFinancialCard
+        orders={seguimientoOrders}
+        config={config as any}
+        saldoCaja={saldoCaja}
+      />
 
       {/* 2. Vista Móvil de Tarjetas de OCs Activas con Acciones Directas */}
       <div className="mobile-cards-list">
@@ -89,12 +96,6 @@ export function DashboardExecutiveView({
         onQuickInvoice={() => onOpenQuickInvoice(null)}
         onQuickCollection={onOpenQuickCollection}
       />
-
-      {/* 5. Hub Operativo Providencia (Textil Hogar vs Grupo Textil en Vivo) */}
-      <ProvidenciaHubWidget />
-
-      {/* 6. Gráfico Visual Interactivo de Flujo y Tendencia de Kilos */}
-      <FinancialTrendChart orders={seguimientoOrders} />
     </div>
   );
 }

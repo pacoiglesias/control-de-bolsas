@@ -13,6 +13,8 @@ import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
 import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
 import { CashFlowForecastWidget } from '../components/Cobranza/CashFlowForecastWidget';
+import { generateDeliveryRemissionPdf } from '../lib/deliveryRemissionPdf';
+import { triggerHaptic } from '../lib/hapticEngine';
 import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder, Invoice, Delivery } from '../lib/types';
 
@@ -120,9 +122,9 @@ export default function OcTracking() {
       const itemsKg = (mergedOrder.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
       const kilosPedidos = itemsKg > 0 ? itemsKg : (Number(mergedOrder.totalKilograms ?? 0) || Number(summary.kilosDelivered ?? 0));
       const kilosEntregados = Number(summary.kilosDelivered ?? 0);
-      const kilosFaltantes = Math.max(0, kilosPedidos - kilosEntregados);
+      const kilosFaltantes = mergedOrder.isClosedShort ? 0 : Math.max(0, kilosPedidos - kilosEntregados);
       const kilosFacturados = Number(summary.kilosInvoiced ?? 0);
-      const kilosPendientesFacturar = Math.max(0, kilosEntregados - kilosFacturados);
+      const kilosPendientesFacturar = (mergedOrder.isClosedShort && kilosFacturados >= kilosEntregados - 0.05) ? 0 : Math.max(0, kilosEntregados - kilosFacturados);
 
       const invoices = (mergedOrder.invoices ?? []).map(inv => {
         const st = inv.creditCycle?.status ?? 'pending';
@@ -139,15 +141,14 @@ export default function OcTracking() {
       });
 
       const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
-      const isCollectedRoot = summary.status === 'collected' || summary.status === 'paid' || mergedOrder.creditCycle?.status === 'collected' || mergedOrder.creditCycle?.status === 'paid' || Boolean(mergedOrder.isClosedShort);
       const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
       const allDelivered = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
-      const isCompleted = isCollectedRoot || (allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01));
+      const isCompleted = (summary.status === 'collected' || summary.status === 'paid') && allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01 || Boolean(mergedOrder.isClosedShort));
 
-      let statusCategory: OcGroup['statusCategory'] = 'completada';
+      let statusCategory: OcGroup['statusCategory'] = 'en_cobranza';
       if (isCompleted) {
         statusCategory = 'completada';
-      } else if (kilosFaltantes > 0.01) {
+      } else if (kilosFaltantes > 0.01 && !mergedOrder.isClosedShort) {
         statusCategory = 'por_entregar';
       } else if (kilosPendientesFacturar > 0.01) {
         statusCategory = 'pendiente_factura';
@@ -532,9 +533,36 @@ export default function OcTracking() {
   }
 
   async function shareManifiesto() {
+    triggerHaptic('light');
     const html = getManifiestoHtml(filteredGroups);
     toast('Generando PDF, por favor espera...', 'ok');
     await shareHtmlAsPdf(html, `Manifiesto_Logistica_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
+
+  function handleDownloadValePdf(group: OcGroup, delivery: Delivery) {
+    triggerHaptic('success');
+    const pdfDoc = generateDeliveryRemissionPdf({
+      folioRemision: delivery.id || `REM-${group.oc}`,
+      oc: group.oc,
+      client: nombreClienteVisible(group.order.client) || 'Grupo Textil Providencia SA de CV',
+      department: group.order.department || 'Planta P4 / Almacén',
+      date: delivery.date ? toDate(delivery.date) : new Date(),
+      providerName: settings.providerName || 'Andrés',
+      driverName: (delivery as any).driverName || 'Transporte Especializado',
+      truckPlates: (delivery as any).truckPlates || 'Placas en Tránsito',
+      totalBags: (delivery as any).bags,
+      totalKilograms: delivery.kilos,
+      notes: delivery.notes,
+      items: (group.order.items || []).map((it) => ({
+        code: it.code,
+        description: it.description || 'Bolsa de Polietileno',
+        quantity: delivery.kilos,
+        bags: (delivery as any).bags,
+      })),
+    });
+
+    pdfDoc.save(`Vale_Bascula_OC_${group.oc}_${delivery.kilos}kg.pdf`);
+    toast('📄 Vale de Báscula generado en PDF', 'ok');
   }
 
   if (loading) {
@@ -982,6 +1010,63 @@ export default function OcTracking() {
                                   </tr>
                                 );
                               })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Tabla de Entregas en Báscula & Vales */}
+                      {(group.order.deliveries || []).length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', marginBottom: 6 }}>
+                            ⚖️ Pesajes & Entregas en Báscula ({(group.order.deliveries || []).length}):
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: 'var(--paper)', borderRadius: 8, overflow: 'hidden' }}>
+                            <thead>
+                              <tr style={{ background: 'var(--bg-inset)' }}>
+                                <th style={{ padding: '6px 12px', textAlign: 'left' }}>Fecha</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Kilos Netos</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'right' }}>Bultos</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'left' }}>Notas / Remisión</th>
+                                <th style={{ padding: '6px 12px', textAlign: 'center' }}>Vale de Báscula</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(group.order.deliveries || []).map((del, dIdx) => (
+                                <tr key={del.id || dIdx} style={{ borderTop: '1px solid var(--line-soft)' }}>
+                                  <td style={{ padding: '8px 12px' }}>{del.date ? fmtDate(toDate(del.date)) : '—'}</td>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
+                                    {(del.kilos || 0).toLocaleString('es-MX')} kg
+                                  </td>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--ink-soft)' }}>
+                                    {(del as any).bags || '—'}
+                                  </td>
+                                  <td style={{ padding: '8px 12px', color: 'var(--ink-soft)' }}>
+                                    {del.notes || 'Entrega física en planta'}
+                                  </td>
+                                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                    <button
+                                      className="btn"
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '4px 8px',
+                                        background: 'rgba(56, 189, 248, 0.12)',
+                                        color: '#0284c7',
+                                        border: '1px solid #38bdf8',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownloadValePdf(group, del);
+                                      }}
+                                      title="Descargar Vale de Báscula Oficial en PDF"
+                                    >
+                                      📄 Vale PDF
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
                             </tbody>
                           </table>
                         </div>

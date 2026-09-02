@@ -52,27 +52,6 @@ export default function Orders() {
   const pageSize = 30;
   const observerTarget = useRef(null);
 
-  // Estadísticas proactivas de facturas en espera de Contrarecibo
-  const sinCrStats = useMemo(() => {
-    let count = 0;
-    let totalMoney = 0;
-    orders.forEach(o => {
-      if ((o as any).isDeleted || o.isClosedShort) return;
-      (o.invoices || []).forEach(inv => {
-        const cr = extractCr(inv, o);
-        const st = inv.creditCycle?.status;
-        const total = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-        const paid = inv.collection?.paidAmount || 0;
-        const isPaid = st === 'paid' || st === 'collected' || (paid >= total && total > 0);
-        if (!cr && !isPaid) {
-          count++;
-          totalMoney += total;
-        }
-      });
-    });
-    return { count, totalMoney };
-  }, [orders]);
-
   useEffect(() => {
     const q = params.get('q');
     if (q !== null && q !== search) setSearch(q);
@@ -152,7 +131,7 @@ export default function Orders() {
       if (filter === 'pedido') {
         if (s.kilosDelivered <= s.kilosInvoiced) return false;
       } else if (filter === 'sin_cr') {
-        if (o.client === 'MIGRACION' || o.isClosedShort) return false;
+        if (o.client === 'MIGRACION') return false;
         if (o.creditCycle?.status === 'collected') return false;
         if (s.invoices.length === 0) return false;
         const faltaCr = s.invoices.some((i: any) => {
@@ -355,7 +334,7 @@ export default function Orders() {
         totalCarteraDeuda={totals.deuda}
         totalCobrado={totals.cobrado}
         onOpenFastInvoice={() => window.dispatchEvent(new CustomEvent('open-fast-invoice'))}
-        onOpenFastCr={() => window.dispatchEvent(new CustomEvent('open-fast-cr-collection'))}
+        onOpenFastCr={() => setShowCrHubModal(true)}
         onOpenFastDelivery={() => window.dispatchEvent(new CustomEvent('open-fast-delivery'))}
       />
 
@@ -406,59 +385,6 @@ export default function Orders() {
         title="Listado"
         hint={`${rows.length} de ${orders.length}`}
       >
-        {/* Banner Proactivo de Contrarecibos Pendientes */}
-        {sinCrStats.count > 0 && (
-          <div
-            className="no-print"
-            style={{
-              background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.08) 100%)',
-              border: '1px solid #f59e0b',
-              borderRadius: 12,
-              padding: '12px 18px',
-              margin: '12px 16px 4px 16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 12,
-              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
-              flexWrap: 'wrap',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 24 }}>📋</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#d97706' }}>
-                  {sinCrStats.count === 1 ? '1 Factura emitida espera Contrarecibo en Providencia' : `${sinCrStats.count} Facturas emitidas esperan Contrarecibo en Providencia`} ({money(sinCrStats.totalMoney)})
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
-                  Ingresa los números sellados por Cuentas por Pagar o usa el pegado inteligente (Ctrl + V).
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{
-                background: '#d97706',
-                borderColor: '#b45309',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 12,
-                padding: '6px 16px',
-                borderRadius: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-              }}
-              onClick={() => setShowCrHubModal(true)}
-            >
-              ⚡ Capturar Contrarecibos Pendientes ({sinCrStats.count})
-            </button>
-          </div>
-        )}
 
         <SavedViewsBar
           currentFilter={filter}
@@ -665,7 +591,7 @@ export default function Orders() {
                         {!o.oc && !o.folio && (
                           <div className="hint" style={{ fontSize: '0.85em' }}>Ref: #{o.id.slice(0, 6)}</div>
                         )}
-                        {!o.isClosedShort && o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected' && summary.invoices.length > 0 && summary.invoices.some((i: any) => {
+                        {o.client !== 'MIGRACION' && o.creditCycle?.status !== 'collected' && summary.invoices.length > 0 && summary.invoices.some((i: any) => {
                           const cr = extractCr(i, o);
                           const sti = i.creditCycle?.status;
                           const totalInv = i.financials?.invoiceTotal ?? i.financials?.saleTotal ?? 0;

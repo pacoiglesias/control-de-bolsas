@@ -19,6 +19,7 @@ import {
   type OfflineDeliveryItem,
 } from '../lib/offlineMaquilaDb';
 import { PulsingBadge } from '../components/ui/PulsingBadge';
+import { triggerHaptic } from '../lib/hapticEngine';
 
 // Subcomponentes Modulares del Portal
 import MaquiladorPortalEntregaTab from './MaquiladorPortalEntregaTab';
@@ -313,6 +314,7 @@ export default function MaquiladorPortal() {
   };
 
   const handleTabChange = (t: 'entrega' | 'estado' | 'historial') => {
+    triggerHaptic('light');
     setTab(t);
     if (t === 'estado' && !statement) {
       loadStatement();
@@ -321,6 +323,7 @@ export default function MaquiladorPortal() {
 
   const handleDownloadPdf = () => {
     if (!statement) return;
+    triggerHaptic('success');
     const html = getStatementHtml(statement, provName, clientName);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -329,6 +332,7 @@ export default function MaquiladorPortal() {
   };
 
   const handleDownloadDeliveryTicket = (h: any) => {
+    triggerHaptic('success');
     const html = getDeliveryTicketHtml(h, provName, clientName);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);

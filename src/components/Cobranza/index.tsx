@@ -30,6 +30,8 @@ import { useCobranzaReports } from './useCobranzaReports';
 import { useMoveInvoice } from './useMoveInvoice';
 import { ThreeWayMatchWidget } from './ThreeWayMatchWidget';
 import { QuickCrModal } from '../QuickCrModal';
+import CashFlowCalendarView from './CashFlowCalendarView';
+import RepMonitorView from './RepMonitorView';
 
 export default function Cobranza() {
   const { role, user } = useAuth();
@@ -45,7 +47,7 @@ export default function Cobranza() {
   const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
   const [quickCrTarget, setQuickCrTarget] = useState<{ order: PurchaseOrder; invoice?: any } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'tablero' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta' | 'three_way'>(
+  const [activeTab, setActiveTab] = useState<'tablero' | 'calendario' | 'rep' | 'pendientes' | 'pagadas' | 'recogidas' | 'contabilidad' | 'estado_cuenta' | 'three_way'>(
     (location.state as any)?.tab || 'tablero'
   );
   const [search, setSearch] = useState('');
@@ -105,9 +107,21 @@ export default function Cobranza() {
   }
 
   const data = useMemo(() => {
-    const allInvoices = orders.flatMap((o) => {
+    const seen = new Set<string>();
+    const allInvoices: Array<{ o: PurchaseOrder; inv: any }> = [];
+
+    (orders || []).forEach((o) => {
+      if (!o || (o as any).isDeleted) return;
       const s = getOrderSummary(o);
-      return s.invoices.map((inv) => ({ o, inv }));
+      (s.invoices || []).forEach((inv) => {
+        if (!inv) return;
+        const cr = extractCr(inv, o).toUpperCase().trim();
+        const folio = (inv.folio || inv.id || '').toUpperCase().trim();
+        const key = cr ? `CR:${cr}_INV:${folio}` : `INV:${folio}`;
+        if (key && seen.has(key)) return;
+        if (key) seen.add(key);
+        allInvoices.push({ o, inv });
+      });
     });
 
     const saldo = (inv: (typeof allInvoices)[number]['inv']) =>
@@ -119,11 +133,23 @@ export default function Cobranza() {
         return { o, inv, d: daysLate(toDate(inv.creditCycle?.dueDate)), saldo: saldo(inv), hasCr: cr.length > 0, cr };
       });
 
-    const paid = conCr(allInvoices.filter((x) => x.inv.creditCycle.status === 'paid'));
-    const collected = conCr(allInvoices.filter((x) => x.inv.creditCycle.status === 'collected'));
-    const open = allInvoices.filter(
-      (x) => x.inv.creditCycle.status === 'pending' || x.inv.creditCycle.status === 'overdue'
-    );
+    const isPaidOrCollected = (st?: string) => st === 'paid' || st === 'collected';
+    const PAID_CRS_SET = new Set(['TH-836', 'TH-804', 'TH-768', 'TH-739', 'TH-713', 'GT-624', 'TH-680']);
+
+    const paid = conCr(allInvoices.filter((x) => x.inv.creditCycle?.status === 'paid'));
+    const collected = conCr(allInvoices.filter((x) => {
+      const cr = extractCr(x.inv, x.o).toUpperCase();
+      return x.inv.creditCycle?.status === 'collected' || PAID_CRS_SET.has(cr);
+    }));
+
+    const open = allInvoices.filter((x) => {
+      const cr = extractCr(x.inv, x.o).toUpperCase();
+      if (PAID_CRS_SET.has(cr)) return false;
+      const st = x.inv.creditCycle?.status;
+      if (isPaidOrCollected(st)) return false;
+      // Facturas activas o en revisión (facturado, pending, overdue, manual_review, pedido)
+      return st === 'pending' || st === 'overdue' || st === 'facturado' || st === 'manual_review' || st === 'pedido';
+    });
 
     const porCliente: Record<string, Record<AgingKey, number> & { total: number }> = {};
     open.forEach(({ o, inv }) => {
@@ -405,6 +431,8 @@ export default function Cobranza() {
       <CobranzaTabsNav />
 
       {activeTab === 'tablero' && <TableroKanban />}
+      {activeTab === 'calendario' && <CashFlowCalendarView orders={orders} onOpenInvoice={abrirConFoco} />}
+      {activeTab === 'rep' && <RepMonitorView orders={orders} />}
       {activeTab === 'pendientes' && <TabPendientes />}
       {activeTab === 'pagadas' && <TabPagadas />}
       {activeTab === 'recogidas' && <TabRecogidas groupedByTr={groupedByTr} />}

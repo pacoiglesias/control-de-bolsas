@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
 import { getOrderSummary, inferDepartment } from '../lib/finance';
 import { kilos as fmtKilos } from '../lib/format';
 import type { PurchaseOrder } from '../lib/types';
 import { RegistrarEntregaModal } from './Compras/OrderModals';
 import { useConfig } from '../hooks/useConfig';
 import { DEFAULT_CONFIG } from '../lib/types';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { useToast } from '../context/ToastContext';
 
 /**
  * Aviso logístico detallado: pedidos activos con entregas en curso, mostrando
@@ -13,6 +17,7 @@ import { DEFAULT_CONFIG } from '../lib/types';
  */
 export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
   const nav = useNavigate();
+  const toast = useToast();
   const { config } = useConfig();
   const currentCostPerKg = config?.costPricePerKg ?? DEFAULT_CONFIG.costPricePerKg;
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -22,12 +27,22 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
   const pendientes = useMemo(() => {
     return (orders || [])
       .filter((o) => {
-        if (!o || (o as any).isDeleted || o.isClosedShort) return false;
+        const orderStatus = (o as any).status || o.creditCycle?.status;
+        if (o.isClosedShort) return false;
+        // Si el expediente ya está facturado, en revisión de contrarecibo o completado, la fase de entrega concluyó
+        if (orderStatus === 'facturado' || orderStatus === 'completado' || orderStatus === 'revision' || orderStatus === 'cancelado') return false;
+        
         const s = getOrderSummary(o);
-        if (s.status === 'collected') return false;
+        if (s.status === 'collected' || s.status === 'paid' || s.status === 'facturado') return false;
+        
         const total = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 0;
+        
+        // Si las facturas ya cubren el total o cubren lo entregado y la orden ya no es un pedido abierto
+        if (s.kilosInvoiced >= total - 0.05 && s.kilosInvoiced > 0) return false;
+        if (s.kilosInvoiced >= s.kilosDelivered - 0.05 && s.kilosInvoiced > 0 && orderStatus !== 'pedido') return false;
+
         const faltante = total - s.kilosDelivered;
-        return faltante > 0.01;
+        return faltante > 0.05;
       })
       .map((o) => {
         const s = getOrderSummary(o);
@@ -56,6 +71,21 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
   const dismiss = () => {
     localStorage.setItem('cb-delivery-banner-dismissed', todayKey);
     setDismissedDay(todayKey);
+  };
+
+  const handleCloseShort = async (e: React.MouseEvent, order: PurchaseOrder) => {
+    e.stopPropagation();
+    triggerHaptic('light');
+    try {
+      await updateDoc(doc(db, PATHS.orders, order.id), {
+        isClosedShort: true,
+        status: (order.invoices && order.invoices.length > 0) ? 'facturado' : 'completado',
+      });
+      triggerHaptic('success');
+      toast(`OC ${order.folio || order.oc} marcada como entrega concluida`, 'ok');
+    } catch (err: any) {
+      toast('Error al actualizar estatus', 'bad');
+    }
   };
 
   const totalKilosFaltantes = pendientes.reduce((acc, p) => acc + p.faltante, 0);
@@ -148,6 +178,22 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
                   OC: {p.oc || p.folio}
                 </strong>
               </div>
+              <button
+                type="button"
+                className="btn"
+                title="Concluir entrega parcial sin remanente"
+                style={{
+                  background: 'transparent',
+                  color: '#64748b',
+                  border: '1px solid #e2e8f0',
+                  fontSize: 10.5,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                }}
+                onClick={(e) => handleCloseShort(e, p.order)}
+              >
+                ✓ Concluir
+              </button>
             </div>
 
             {/* Fila intermedia: Kilos faltantes vs entregados */}
@@ -208,5 +254,3 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
     </div>
   );
 }
-
-

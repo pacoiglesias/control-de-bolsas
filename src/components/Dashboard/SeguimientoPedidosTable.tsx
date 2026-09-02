@@ -39,17 +39,6 @@ export function SeguimientoPedidosTable({
   const getOrderStage = (o: PurchaseOrder): PipelineStageKey => {
     const s = getOrderSummary(o);
     const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || s.kilosDelivered;
-    // FIX: antes esta funcion volvia a sumar o.deliveries/o.invoices "a mano"
-    // en vez de reusar lo que getOrderSummary() ya calculo (la MISMA fuente
-    // que alimenta la barra "✅ 100% Surtido" de abajo). Eso las
-    // desincronizaba en dos casos: (1) entregas capturadas con desglose por
-    // items[] en vez de un campo `kilos` plano se sumaban como 0 aqui, y (2)
-    // expedientes viejos sin o.deliveries capturadas -- donde getOrderSummary
-    // sintetiza una entrega a partir de lo facturado -- daban 0 kilos
-    // entregados aqui aunque ya estuvieran 100% facturados. Resultado real:
-    // ordenes ya facturadas y con Contrarecibo asignado se quedaban
-    // etiquetadas "🏭 En Producción" en vez de avanzar a "Sin CR"/"En
-    // Crédito", aunque la propia barra de progreso ya mostraba 100% Surtido.
     const kilosEntregados = s.kilosDelivered;
     const invoices = s.invoices;
     const kilosFacturados = s.kilosInvoiced;
@@ -59,13 +48,13 @@ export function SeguimientoPedidosTable({
     // 1. Si tiene entregas en báscula pendientes de facturar (Acción prioritaria: emitir CFDI)
     if (kilosEntregados > kilosFacturados + 0.01) return '2_almacen';
 
-    // 2. Si tiene contrarecibos activos en crédito
-    const hasConCr = invoices.some(inv => !!extractCr(inv, o) && inv.creditCycle?.status !== 'collected');
-    if (hasConCr) return '4_con_cr';
-
-    // 3. Si tiene facturas sin contrarecibo
+    // 2. Si tiene facturas sin contrarecibo
     const hasSinCr = invoices.some(inv => !extractCr(inv, o) && inv.creditCycle?.status !== 'paid' && inv.creditCycle?.status !== 'collected');
     if (hasSinCr) return '3_sin_cr';
+
+    // 3. Si tiene contrarecibos activos en crédito
+    const hasConCr = invoices.some(inv => !!extractCr(inv, o) && inv.creditCycle?.status !== 'collected');
+    if (hasConCr) return '4_con_cr';
 
     // 4. Si faltan kilos por entregar y no está cerrada
     if (!o.isClosedShort && totalKilos > kilosEntregados + 0.01) return '1_taller';
@@ -135,18 +124,15 @@ export function SeguimientoPedidosTable({
   };
 
   const getStageBadge = (stage: PipelineStageKey, isClosedShort?: boolean) => {
-    if (isClosedShort) {
-      return <span className="chip" style={{ background: 'rgba(59,130,246,0.1)', color: '#1d4ed8', borderColor: '#3b82f6', fontWeight: 700, fontSize: 11 }}>🔒 Concluido</span>;
-    }
     switch (stage) {
       case '1_taller':
         return <span className="chip" style={{ background: 'rgba(139,92,246,0.1)', color: '#7c3aed', borderColor: '#8b5cf6', fontWeight: 700, fontSize: 11 }}>🏭 En Producción</span>;
       case '2_almacen':
         return <span className="chip" style={{ background: 'rgba(245,158,11,0.1)', color: '#d97706', borderColor: '#f59e0b', fontWeight: 700, fontSize: 11 }}>🚚 Por Facturar</span>;
       case '3_sin_cr':
-        return <span className="chip" style={{ background: 'rgba(239,68,68,0.1)', color: '#dc2626', borderColor: '#ef4444', fontWeight: 700, fontSize: 11 }}>🧾 Sin CR</span>;
+        return <span className="chip" style={{ background: 'rgba(239,68,68,0.1)', color: '#dc2626', borderColor: '#ef4444', fontWeight: 700, fontSize: 11 }}>🧾 Sin CR {isClosedShort ? '· Cerrada' : ''}</span>;
       case '4_con_cr':
-        return <span className="chip" style={{ background: 'rgba(14,165,233,0.1)', color: '#0284c7', borderColor: '#0ea5e9', fontWeight: 700, fontSize: 11 }}>⏳ En Crédito</span>;
+        return <span className="chip" style={{ background: 'rgba(14,165,233,0.1)', color: '#0284c7', borderColor: '#0ea5e9', fontWeight: 700, fontSize: 11 }}>⏳ En Crédito {isClosedShort ? '· Cerrada' : ''}</span>;
       case '5_caja':
         return <span className="chip" style={{ background: 'rgba(16,185,129,0.1)', color: '#059669', borderColor: '#10b981', fontWeight: 700, fontSize: 11 }}>💵 En Caja</span>;
       default:
@@ -375,9 +361,11 @@ export function SeguimientoPedidosTable({
                         <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
                           {f.kilosEntregados === 0 
                             ? `🏭 ${f.kilosPedidos.toLocaleString('es-MX')} kg en producción` 
-                            : f.kilosEntregados < f.kilosPedidos 
-                              ? `🚚 ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (${(f.kilosPedidos - f.kilosEntregados).toLocaleString('es-MX')} kg en prod.)` 
-                              : `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados`
+                            : f.isClosedShort
+                              ? `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (Entrega concluida)`
+                              : f.kilosEntregados < f.kilosPedidos 
+                                ? `🚚 ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (${(f.kilosPedidos - f.kilosEntregados).toLocaleString('es-MX')} kg en prod.)` 
+                                : `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados`
                           }
                         </span>
                       </div>

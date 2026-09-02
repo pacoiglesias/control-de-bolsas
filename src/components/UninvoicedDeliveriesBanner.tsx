@@ -28,11 +28,17 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
     }[] = [];
 
     (orders || []).forEach((o) => {
-      if (!o || (o as any).isDeleted || o.isClosedShort) return;
+      if (!o || (o as any).isDeleted) return;
+      if (o.isClosedShort) return;
+      const orderStatus = (o as any).status || o.creditCycle?.status;
+      if (orderStatus === 'facturado' || orderStatus === 'completado' || orderStatus === 'revision') return;
+
       const s = getOrderSummary(o);
+      if (s.status === 'collected' || s.status === 'paid' || s.status === 'facturado') return;
+
       const readyKg = s.kilosDelivered - s.kilosInvoiced;
 
-      if (readyKg > 0.01) {
+      if (readyKg > 0.05) {
         const dept = inferDepartment(o) || (o.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
         const amount = readyKg * salePrice * (1 + ivaRate);
         list.push({

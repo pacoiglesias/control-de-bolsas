@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { money, kilos as fmtKilos, nombreClienteVisible, toDate } from '../../lib/format';
+import { money, kilos as fmtKilos, nombreClienteVisible } from '../../lib/format';
 import { getOrderSummary, round2 } from '../../lib/finance';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 
@@ -43,9 +43,12 @@ export function ProactiveBriefingCard({
 
     // 1. Entregas recibidas listas para facturar
     const unbilledOrders = (orders || []).filter(o => {
-      if (!o || o.isClosedShort) return false;
+      if (!o || (o as any).isDeleted) return false;
+      if (o.isClosedShort) return false;
+      const orderStatus = (o as any).status || o.creditCycle?.status;
+      if (orderStatus === 'facturado' || orderStatus === 'completado' || orderStatus === 'revision') return false;
       const s = getOrderSummary(o);
-      return s.kilosDelivered > s.kilosInvoiced + 0.01;
+      return s.kilosDelivered > s.kilosInvoiced + 0.05;
     });
 
     if (unbilledOrders.length > 0) {
@@ -60,7 +63,7 @@ export function ProactiveBriefingCard({
         badge: '⚡ LISTO PARA FACTURAR',
         badgeColor: '#f59e0b',
         title: `Hay ${fmtKilos(pendingKg)} kg entregados sin factura (${client})`,
-        description: `OC ${topOrder.oc || topOrder.folio || 'S/N'} ampara aprox. ${money(estTotal)} con IVA. Emite la factura para acelerar el contrarecibo.`,
+        description: `OC ${topOrder.oc || topOrder.folio || 'S/N'} ampara aprox. ${money(estTotal)} con IVA. Descarga la prefactura para timbrar con los contadores.`,
         actionLabel: 'Facturar Entregas',
         actionColor: '#f59e0b',
         actionIcon: '📝',
@@ -96,58 +99,21 @@ export function ProactiveBriefingCard({
       });
     }
 
-    // 3. Facturas con Contrarecibo vencido o por vencer hoy
-    const urgentInvoices: { order: PurchaseOrder; folio: string; cr: string; amount: number; isOverdue: boolean }[] = [];
+    // 3. Facturas emitidas esperando número de Contrarecibo
+    const inReviewInvoices: { order: PurchaseOrder; folio: string; amount: number }[] = [];
     (orders || []).forEach(o => {
-      if (!o) return;
+      if (!o || (o as any).isDeleted) return;
       (o.invoices || []).forEach(inv => {
         if (!inv) return;
         const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
         const st = inv.creditCycle?.status;
-        if ((st === 'pending' || st === 'overdue' || st === 'facturado') && cr) {
-          const due = toDate(inv.creditCycle?.dueDate);
-          const dueTime = due ? due.getTime() : null;
-
-          const isOverdue = st === 'overdue' || (dueTime !== null && dueTime <= today.getTime());
-          if (isOverdue) {
-            urgentInvoices.push({
-              order: o,
-              folio: inv.folio || o.folio || 'S/F',
-              cr,
-              amount: round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate))),
-              isOverdue,
-            });
-          }
-        }
-      });
-    });
-
-    if (urgentInvoices.length > 0) {
-      const topUrgent = urgentInvoices[0];
-      items.push({
-        id: `cr_due_${topUrgent.cr}`,
-        badge: '🔴 COBRO VENCIDO HOY',
-        badgeColor: '#ef4444',
-        title: `Contrarecibo ${topUrgent.cr} listo para cobrar (${money(topUrgent.amount)})`,
-        description: `Factura #${topUrgent.folio} (${nombreClienteVisible(topUrgent.order.client)}). Contacta a tesorería o al contador para conciliar el pago.`,
-        actionLabel: 'Ver en Cobranza',
-        actionColor: '#ef4444',
-        actionIcon: '📲',
-        onExecute: () => onOpenOrder(topUrgent.order),
-      });
-    }
-
-    // 4. Facturas en revisión (in_review) esperando Contrarecibo
-    const inReviewInvoices: { order: PurchaseOrder; folio: string; amount: number }[] = [];
-    (orders || []).forEach(o => {
-      if (!o) return;
-      (o.invoices || []).forEach(inv => {
-        if (!inv) return;
-        if (inv.creditCycle?.status === 'in_review') {
+        const totalInv = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
+        const isPaid = st === 'paid' || st === 'collected';
+        if (!cr && !isPaid && totalInv > 0) {
           inReviewInvoices.push({
             order: o,
             folio: inv.folio || o.folio || 'S/F',
-            amount: round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate))),
+            amount: round2(totalInv),
           });
         }
       });
@@ -159,11 +125,11 @@ export function ProactiveBriefingCard({
         id: 'in_review_cr',
         badge: '🔵 ESPERANDO CONTRARECIBO',
         badgeColor: '#2563eb',
-        title: `${inReviewInvoices.length} factura(s) en revisión por Providencia (${money(totalInReview)})`,
-        description: `Enviadas y en espera de que Providencia emita el Contrarecibo. Folios: ${inReviewInvoices.slice(0, 3).map(x => '#' + x.folio).join(', ')}${inReviewInvoices.length > 3 ? ' ...' : ''}. Dale seguimiento para acelerar el CR.`,
-        actionLabel: 'Ver Cobranza',
+        title: `${inReviewInvoices.length} factura(s) esperan Contrarecibo en Providencia (${money(totalInReview)})`,
+        description: `Facturas emitidas: ${inReviewInvoices.map(x => '#' + x.folio).join(', ')}. Tramita los contrarecibos para iniciar los 30 días de crédito.`,
+        actionLabel: 'Ver Facturas sin CR',
         actionColor: '#2563eb',
-        actionIcon: '🔵',
+        actionIcon: '📑',
         onExecute: onOpenQuickCollection,
       });
     }

@@ -165,6 +165,50 @@ export default function TabEntregas() {
         )}
       </div>
 
+      {kilosFaltantes > 0.01 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.12) 100%)',
+          border: '1px solid #3b82f6',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#1d4ed8', fontSize: 13.5 }}>
+              ⚖️ Entrega Parcial: Faltan {kilosFaltantes.toLocaleString('es-MX')} kg para completar la OC
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              {form.isClosedShort ? '✅ Esta OC está marcada como Entrega Final Parcial (Concluida sin más entregas)' : 'El 80% de las órdenes concluyen con menos kilos. Si ya no habrá más entregas de Andrés, ciérrala aquí.'}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            style={{
+              background: form.isClosedShort ? '#10b981' : '#3b82f6',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 12,
+              padding: '6px 14px',
+              borderRadius: 8,
+            }}
+            onClick={() => {
+              triggerHaptic('success');
+              setForm((f: any) => ({ ...f, isClosedShort: !f.isClosedShort }));
+              toast(form.isClosedShort ? 'OC reabierta para más entregas' : 'OC marcada como entrega final concluida', 'ok');
+            }}
+          >
+            {form.isClosedShort ? '✓ Concluida (Reabrir)' : '🏁 Concluir como Entrega Final'}
+          </button>
+        </div>
+      )}
+
       {ctx.kilosPendientesDeFacturar > 0 && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(217,119,6,0.15) 100%)',

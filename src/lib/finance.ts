@@ -373,12 +373,15 @@ export function getOrderSummary(o: PurchaseOrder) {
     }
   }
 
-  const kilosDelivered = round2(deliveries.reduce((a, d) => {
+  const rawDelivered = deliveries.reduce((a, d) => {
     if (d.items && d.items.length > 0) {
       return a + d.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
     }
     return a + Number(d.kilos || 0);
-  }, 0));
+  }, 0);
+
+  const totalInvoicedKilos = invoices.reduce((acc, i) => acc + Number(i.kilos || 0), 0);
+  const kilosDelivered = round2(Math.max(rawDelivered, totalInvoicedKilos));
   
   let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
   let tradeMargin = new Decimal(0), realizedProfit = new Decimal(0);

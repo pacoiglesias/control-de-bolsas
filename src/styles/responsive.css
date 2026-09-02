@@ -243,10 +243,27 @@
   .mobile-cards-list { display: block; }
   .desktop-table     { display: none; }
   .show-mobile       { display: inline; }
-  .hide-mobile       { display: none; }
-
   .page-container { padding-bottom: 100px !important; }
   #desktop-save-btn { display: none !important; }
+}
+
+/* Floating Action Button (FAB) Mobile Safe Area & Offset */
+.global-speed-fab-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9990;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .global-speed-fab-container {
+    bottom: calc(76px + env(safe-area-inset-bottom, 12px)) !important;
+    right: 16px !important;
+  }
 }
 
 @media print {

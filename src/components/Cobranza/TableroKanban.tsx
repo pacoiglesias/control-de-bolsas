@@ -48,38 +48,44 @@ export default function TableroKanban() {
       if (x) colCaja.push(x);
     });
 
-    colPorCobrar.sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
-
     const FOLIOS_PLACEHOLDER = new Set(['s/n', 'sin folio', '']);
-    const marcarDuplicados = (arr: any[]) => {
-      const contador: Record<string, number> = {};
+    const deduplicarColumna = (arr: any[]) => {
+      const seen = new Map<string, any>();
       arr.forEach((x) => {
-        const folioValido = !FOLIOS_PLACEHOLDER.has((x.inv.folio || '').trim().toLowerCase());
-        const clave = x.cr || (folioValido ? x.inv.folio : '') || '';
-        if (clave) contador[clave] = (contador[clave] || 0) + 1;
+        const folioValido = !FOLIOS_PLACEHOLDER.has((x.inv?.folio || '').trim().toLowerCase());
+        const clave = (x.cr || (folioValido ? x.inv?.folio : '') || x.o?.id || '').trim().toUpperCase();
+        if (!clave) return;
+        if (!seen.has(clave)) {
+          seen.set(clave, { ...x, _posibleDuplicado: false });
+        } else {
+          const prev = seen.get(clave);
+          if ((x.saldo || 0) > (prev.saldo || 0) || (x.inv?.kilos || 0) > (prev.inv?.kilos || 0)) {
+            seen.set(clave, { ...x, _posibleDuplicado: false });
+          }
+        }
       });
-      arr.forEach((x) => {
-        const folioValido = !FOLIOS_PLACEHOLDER.has((x.inv.folio || '').trim().toLowerCase());
-        const clave = x.cr || (folioValido ? x.inv.folio : '') || '';
-        x._posibleDuplicado = clave && contador[clave] > 1;
-      });
+      return Array.from(seen.values());
     };
-    [colRevision, colPorCobrar, colContador, colCaja].forEach(marcarDuplicados);
+
+    const cleanRevision = deduplicarColumna(colRevision);
+    const cleanPorCobrar = deduplicarColumna(colPorCobrar).sort((a, b) => (b.d ?? -999) - (a.d ?? -999));
+    const cleanContador = deduplicarColumna(colContador);
+    const cleanCaja = deduplicarColumna(colCaja);
 
     const sumaSaldo = (arr: any[]) => arr.reduce((acc, x) => acc + (x.saldo ?? 0), 0);
     const montoFactura = (x: any) => x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0;
     const sumaMonto = (arr: any[]) => arr.reduce((acc, x) => acc + montoFactura(x), 0);
 
     return {
-      colRevision,
-      colPorCobrar,
-      colContador,
-      colCaja,
+      colRevision: cleanRevision,
+      colPorCobrar: cleanPorCobrar,
+      colContador: cleanContador,
+      colCaja: cleanCaja,
       totales: {
-        colRevision: sumaSaldo(colRevision),
-        colPorCobrar: sumaSaldo(colPorCobrar),
-        colContador: sumaMonto(colContador),
-        colCaja: sumaMonto(colCaja),
+        colRevision: sumaSaldo(cleanRevision),
+        colPorCobrar: sumaSaldo(cleanPorCobrar),
+        colContador: sumaMonto(cleanContador),
+        colCaja: sumaMonto(cleanCaja),
       },
     };
   }, [data]);

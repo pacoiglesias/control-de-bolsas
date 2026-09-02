@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, limit, onSnapshot, orderBy, query, getDocs, writeBatch } from 'firebase/firestore';
+import { motion } from 'framer-motion';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -8,6 +9,7 @@ import CierreMesModal from '../components/CierreMesModal';
 import { fmtDateTime } from '../lib/format';
 import { useToast } from '../context/ToastContext';
 import { confirmDialog } from '../lib/confirmDialog';
+import { triggerHaptic } from '../lib/hapticEngine';
 
 interface LogEntry {
   id: string;
@@ -35,30 +37,33 @@ export default function Logs() {
     if (role !== 'admin') return;
 
     const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(500));
-    
-    // Monitoreo Live (Real-Time) de la bitácora
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setLogs(
-        snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            user: data.user ?? '—',
-            action: data.action ?? '—',
-            details: data.details ?? null,
-            timestamp: data.timestamp?.toDate?.() ?? null,
-          };
-        }),
-      );
-      setLoading(false);
-    }, (err) => {
-      setError(
-        (err as { code?: string }).code === 'permission-denied'
-          ? 'Firestore rechazó la lectura de la bitácora. Revisa tu rol en admins/{uid}.'
-          : (err as Error).message,
-      );
-      setLoading(false);
-    });
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setLogs(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              user: data.user ?? '—',
+              action: data.action ?? '—',
+              details: data.details ?? null,
+              timestamp: data.timestamp?.toDate?.() ?? null,
+            };
+          })
+        );
+        setLoading(false);
+      },
+      (err) => {
+        setError(
+          (err as { code?: string }).code === 'permission-denied'
+            ? 'Firestore rechazó la lectura de la bitácora. Revisa tu rol en admins/{uid}.'
+            : (err as Error).message
+        );
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [role]);
@@ -78,7 +83,7 @@ export default function Logs() {
   }, [logs, search, actionFilter]);
 
   function exportCSV() {
-    // Excel ejecuta como formula cualquier celda que empiece con = + - @.
+    triggerHaptic('light');
     const seguroCSV = (v: unknown) => {
       const txt = String(v ?? '');
       return /^[=+\-@\t\r]/.test(txt) ? `'${txt}` : txt;
@@ -99,33 +104,35 @@ export default function Logs() {
     a.download = `bitacora-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    triggerHaptic('success');
+    toast('📄 Bitácora CSV descargada con éxito', 'ok');
   }
 
   async function clearLogs() {
-    if (!(await confirmDialog({ message: '¿Estás seguro de que deseas borrar TODA la bitácora? Esto no se puede deshacer.', danger: true }))) return;
+    triggerHaptic('warning');
+    const confirmed = await confirmDialog({
+      message: '¿Estás seguro de que deseas borrar TODA la bitácora de auditoría? Esto no se puede deshacer.',
+      danger: true,
+    });
+    if (!confirmed) return;
+
     setClearing(true);
     try {
-      // FIX: antes solo borraba UN lote de 500 (el maximo de un batch de
-      // Firestore) y decia "limpiada con exito" sin importar cuantos
-      // registros quedaran. Si la bitacora tenia mas de 500, se borraban
-      // 500 al azar y el resto se quedaba ahi con el mensaje diciendo que
-      // ya estaba vacia. Ahora repite en lotes hasta que ya no queden
-      // documentos.
       let totalBorrados = 0;
-      // Tope de seguridad (200 lotes = 100k registros) para no crear un
-      // bucle infinito si algo mas sigue escribiendo logs al mismo tiempo.
       for (let i = 0; i < 200; i++) {
         const q = query(collection(db, 'system_logs'), limit(500));
         const snap = await getDocs(q);
         if (snap.empty) break;
         const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
+        snap.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
         totalBorrados += snap.docs.length;
         if (snap.docs.length < 500) break;
       }
+      triggerHaptic('success');
       toast(`Bitácora limpiada con éxito (${totalBorrados.toLocaleString('es-MX')} registros borrados)`, 'ok');
     } catch (e) {
+      triggerHaptic('error');
       toast(`Error al limpiar: ${(e as Error).message}`, 'bad');
     } finally {
       setClearing(false);
@@ -139,99 +146,215 @@ export default function Logs() {
   const visible = filtered.slice(0, visibleCount);
 
   return (
-    <>
-      <div className="page-head">
-        <h1>Bitácora del sistema</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <p style={{ flex: 1 }}>
-            Quién hizo qué y cuándo: subidas, expedientes, compras, caja chica, configuración y
-            respaldos. Cada acción sensible queda aquí, ordenada de la más reciente a la más vieja.
-          </p>
-          <button className="btn btn-primary" onClick={() => setShowCierre(true)}>
-            📦 Cierre de Mes (ZIP)
-          </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div
+        className="page-head"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div>
+          <h1>BITÁCORA FORENSE & AUDITORÍA EN VIVO</h1>
+          <p>Trazabilidad completa en tiempo real de operaciones, cobros, facturación, compras y cambios de sistema.</p>
         </div>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="btn btn-primary"
+          style={{ minHeight: 40, fontWeight: 800 }}
+          onClick={() => {
+            triggerHaptic('light');
+            setShowCierre(true);
+          }}
+        >
+          📦 Cierre de Mes (ZIP)
+        </motion.button>
       </div>
 
       <Card
-        title="Movimientos"
-        hint={`${filtered.length} de ${logs.length}`}
+        title="Historial de Movimientos"
+        hint={`${filtered.length} de ${logs.length} eventos registrados`}
         actions={
-          <>
-            <button className="btn" style={{ color: 'var(--bad)', borderColor: 'var(--bad)' }} onClick={clearLogs} disabled={clearing || logs.length === 0}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn"
+              style={{ color: 'var(--bad, #ef4444)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+              onClick={clearLogs}
+              disabled={clearing || logs.length === 0}
+            >
               {clearing ? 'Borrando...' : '🗑️ Limpiar'}
-            </button>
-            <button className="btn" onClick={exportCSV}>⭳ CSV</button>
-          </>
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn"
+              onClick={exportCSV}
+            >
+              ⭳ CSV
+            </motion.button>
+          </div>
         }
       >
-        <div className="card-head no-print">
-          <div className="chip-row">
-            <button
-              className={`chip ${actionFilter === 'TODAS' ? 'active' : ''}`}
-              onClick={() => setActionFilter('TODAS')}
+        <div style={{ padding: 18 }}>
+          {/* Barra de Filtros y Búsqueda */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                padding: 4,
+                background: 'var(--paper-sunk, rgba(0,0,0,0.25))',
+                borderRadius: 12,
+                border: '1px solid var(--border, rgba(255,255,255,0.08))',
+                overflowX: 'auto',
+                maxWidth: '100%',
+              }}
             >
-              Todas ({logs.length})
-            </button>
-            {actionTypes.map((a) => (
               <button
-                key={a}
-                className={`chip ${actionFilter === a ? 'active' : ''}`}
-                onClick={() => setActionFilter(a)}
+                className={`chip ${actionFilter === 'TODAS' ? 'active' : ''}`}
+                style={{
+                  background: actionFilter === 'TODAS' ? '#3b82f6' : 'transparent',
+                  color: actionFilter === 'TODAS' ? '#fff' : 'var(--ink-soft)',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActionFilter('TODAS');
+                }}
               >
-                {a} ({logs.filter((l) => l.action === a).length})
+                Todas ({logs.length})
               </button>
-            ))}
-          </div>
-          <span className="spacer" />
-          <input
-            className="search-input"
-            type="search"
-            placeholder="Buscar usuario, acción, detalle…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+              {actionTypes.slice(0, 8).map((a) => {
+                const isActive = actionFilter === a;
+                const count = logs.filter((l) => l.action === a).length;
+                return (
+                  <button
+                    key={a}
+                    style={{
+                      background: isActive ? '#3b82f6' : 'transparent',
+                      color: isActive ? '#fff' : 'var(--ink-soft)',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setActionFilter(a);
+                    }}
+                  >
+                    {a} ({count})
+                  </button>
+                );
+              })}
+            </div>
 
-        {filtered.length === 0 ? (
-          <Empty>No hay movimientos con este filtro.</Empty>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Fecha y hora</th>
-                  <th>Usuario</th>
-                  <th>Acción</th>
-                  <th>Detalles</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((log) => (
-                  <tr key={log.id}>
-                    <td className="mono">{log.timestamp ? fmtDateTime(log.timestamp) : '—'}</td>
-                    <td>{log.user}</td>
-                    <td><strong>{log.action}</strong></td>
-                    <td className="mono" style={{ color: 'var(--ink-soft)', whiteSpace: 'normal' }}>
-                      {log.details ? JSON.stringify(log.details) : '—'}
-                    </td>
+            <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
+              <input
+                className="search-input"
+                type="search"
+                placeholder="Buscar usuario, acción o folio..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ width: '100%', borderRadius: 10 }}
+              />
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <Empty>No hay eventos que coincidan con la búsqueda.</Empty>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--paper-sunk, rgba(0,0,0,0.2))' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--ink-soft)' }}>Fecha y Hora</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--ink-soft)' }}>Usuario</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--ink-soft)' }}>Acción</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--ink-soft)' }}>Detalles</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {visible.map((log) => (
+                    <tr
+                      key={log.id}
+                      style={{
+                        borderBottom: '1px solid var(--border, rgba(255,255,255,0.05))',
+                      }}
+                    >
+                      <td className="mono" style={{ padding: '10px 12px', fontSize: 12, color: '#38bdf8' }}>
+                        {log.timestamp ? fmtDateTime(log.timestamp) : '—'}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 600 }}>{log.user}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: 'rgba(59, 130, 246, 0.15)',
+                            color: '#60a5fa',
+                          }}
+                        >
+                          {log.action}
+                        </span>
+                      </td>
+                      <td
+                        className="mono"
+                        style={{
+                          padding: '10px 12px',
+                          color: 'var(--ink-soft)',
+                          fontSize: 12,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {log.details ? JSON.stringify(log.details) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {visibleCount < filtered.length && (
-          <div style={{ padding: 14, textAlign: 'center' }}>
-            <button className="btn" onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}>
-              Ver {Math.min(PAGE_SIZE, filtered.length - visibleCount)} más
-            </button>
-          </div>
-        )}
+          {visibleCount < filtered.length && (
+            <div style={{ padding: '16px 0 0', textAlign: 'center' }}>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="btn"
+                onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+              >
+                Ver {Math.min(PAGE_SIZE, filtered.length - visibleCount)} más
+              </motion.button>
+            </div>
+          )}
+        </div>
       </Card>
-      
+
       {showCierre && <CierreMesModal onClose={() => setShowCierre(false)} />}
-    </>
+    </div>
   );
 }
+

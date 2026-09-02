@@ -60,8 +60,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
 
         // 🛡️ DEDUPLICACIÓN CANÓNICA GLOBAL:
-        // Conservar exclusivamente los 11 Contrarecibos Oficiales del Portal y las 2 OCs Maestras.
-        const OFFICIAL_VALID_CRS = ['TH-946', 'TH-912', 'TH-879', 'TH-836', 'GT-742', 'TH-804', 'GT-713', 'GT-651', 'TH-768', 'GT-624', 'GT-597'];
+        // Conservar exclusivamente los 8 Contrarecibos Oficiales Vivos del Portal y las 2 OCs Maestras.
+        const OFFICIAL_VALID_CRS = ['GT-874', 'TH-990', 'TH-946', 'TH-912', 'TH-879', 'GT-742', 'GT-713', 'GT-651'];
         const ocMap = new Map<string, PurchaseOrder[]>();
 
         for (const doc of rawDocs) {
@@ -70,7 +70,6 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
 
           const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
-          const isSeedCrDoc = (doc.id.startsWith('seed-cr-') || doc.id.startsWith('cr-')) && (!doc.items || doc.items.length === 0);
 
           // 🛡️ Ignorar documentos dummy de prueba o seeds obsoletos (ANDRES-PEND, 120267114014)
           if (
@@ -86,18 +85,19 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          // Si es un documento seed mock que no está en la lista oficial de 11, ignorarlo
-          if (isSeedCrDoc) {
-            const matchesOfficial = OFFICIAL_VALID_CRS.some(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c)));
-            if (!matchesOfficial) {
-              continue;
-            }
+          const isMasterOc = canonicalKey === '120267114114' || canonicalKey === '12026439713' || doc.id === 'oc-120267114114' || doc.id === 'oc-12026439713';
+          const crMatch = OFFICIAL_VALID_CRS.find(c => 
+            canonicalKey.includes(c) || 
+            crNum.includes(c) || 
+            (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c))
+          );
+
+          // Si no es una de las 2 OCs maestras ni uno de los 8 Contrarecibos Oficiales, ignorar
+          if (!isMasterOc && !crMatch) {
+            continue;
           }
 
-          // Si el documento pertenece a un contrarecibo oficial pero no a las OCs abiertas, unificarlo bajo el nombre del CR
-          const isExplicitOc = canonicalKey === '120267114114' || canonicalKey === '12026439713';
-          const crMatch = !isExplicitOc ? OFFICIAL_VALID_CRS.find(c => canonicalKey.includes(c) || crNum.includes(c) || (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c))) : null;
-          if (crMatch) {
+          if (crMatch && !isMasterOc) {
             canonicalKey = crMatch;
           }
 
@@ -228,7 +228,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.department = 'TH-ALMACEN-1';
             best.folio = '120267114114';
             best.oc = '120267114114';
-            const baseDeliveries: Delivery[] = [
+            best.isClosedShort = true;
+            (best as any).status = 'facturado';
+            // 🎯 Reconciliación Canónica de Entregas TH (Total Físico Real: 6,411.01 kg)
+            const reconciledThDeliveries: Delivery[] = [
               {
                 id: 'del-th-6198',
                 date: best.processedAt || null,
@@ -243,34 +246,20 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6198',
               },
               {
-                id: 'del-th-6200',
-                date: best.processedAt || null,
-                kilos: 1500.0,
-                items: [
-                  { itemId: 'it-th-2', quantity: 1000.0 },
-                  { itemId: 'it-th-4', quantity: 500.0 },
-                ],
-                invoiced: true,
-                invoiceId: 'inv-6200',
-                docType: 'factura',
-                docFolio: '6200',
-              },
-              {
-                id: 'del-th-patio-2945',
+                id: 'del-th-6266',
                 date: Timestamp.fromDate(new Date('2026-08-25T10:00:00Z')),
-                kilos: 2945.20,
+                kilos: 1445.20,
                 items: [
                   { itemId: 'it-th-4', quantity: 1445.20 },
-                  { itemId: 'it-th-6', quantity: 500.00 },
-                  { itemId: 'it-th-5', quantity: 1000.00 },
                 ],
-                invoiced: false,
-                notes: 'Remisión 14115 (Ahmed · Nava) — 2,945.20 kg lista para facturar',
-                docType: 'remision',
-                docFolio: '14115',
+                invoiced: true,
+                invoiceId: 'inv-6266',
+                docType: 'factura',
+                docFolio: '6266',
+                notes: 'Entrega física amparada por Factura XML #6266 (1,445.20 kg)',
               },
             ];
-            best.deliveries = baseDeliveries;
+            best.deliveries = reconciledThDeliveries;
 
             const baseInvoices: Invoice[] = [
               {
@@ -279,8 +268,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 folio: '6198',
                 kilos: 1965.81,
                 items: [
-                  { id: 'it-th-3', code: 'egbo000103-sc', description: 'egbo000103-sc BULTO 80 X 20 +20 X 160 *250', quantity: 975.65, unitPrice: 43.0, amount: 41952.95, unit: 'KGM' },
-                  { id: 'it-th-1', code: 'egbo000107-sc', description: 'egbo000107-sc BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 990.16, unitPrice: 43.0, amount: 42576.88, unit: 'KGM' },
+                  { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM', quantity: 990.16, unitPrice: 43.0, amount: 42576.88, unit: 'KGM' },
+                  { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250', quantity: 975.65, unitPrice: 43.0, amount: 41952.95, unit: 'KGM' },
                 ],
                 financials: {
                   costPricePerKg: 38,
@@ -289,54 +278,62 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   invoiceTotal: 98054.60,
                   costTotal: 74700.78,
                   commission: 6762.39,
-                  netCashFlow: 16591.44,
+                  netCashFlow: 16591.43,
                   tradeMargin: 9829.05,
-                },
-                creditCycle: {
-                  status: 'pending',
-                  issueDate: Timestamp.fromDate(new Date('2026-08-20T09:34:40Z')),
-                  dueDate: Timestamp.fromDate(new Date('2026-09-23T00:00:00Z')),
                 },
                 collection: {
                   contrareciboNumber: 'TH-990',
                   contrareciboDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
                 },
+                creditCycle: {
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-09-23T00:00:00Z')),
+                },
               },
               {
-                id: 'inv-6200',
+                id: 'inv-6266',
                 orderId: best.id,
-                folio: '6200',
-                kilos: 1500.0,
+                folio: '6266',
+                uuid: 'D053F7B5-5913-404D-8441-67D4A3E5EB9C',
+                kilos: 1445.20,
                 items: [
-                  { id: 'it-th-4', code: 'enbo000006-sc', description: 'enbo000006-sc BOLSA POLIETILENO 77 CM X 55 CM _Sin Color', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
-                  { id: 'it-th-2', code: 'enbo000167-bl', description: 'enbo000167-bl BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000.0, unitPrice: 43.0, amount: 43000.0, unit: 'KGM' },
+                  { id: 'it-th-4', code: 'enbo000006-sc', description: 'enbo000006-sc BOLSA POLIETILENO 77 CM X 55 CM', quantity: 1445.20, unitPrice: 43.0, amount: 62143.60, unit: 'KGM' },
                 ],
                 financials: {
                   costPricePerKg: 38,
                   salePricePerKg: 43,
-                  saleTotal: 64500.0,
-                  invoiceTotal: 74820.0,
-                  costTotal: 57000.0,
-                  commission: 5160.0,
-                  netCashFlow: 12660.0,
-                  tradeMargin: 7500.0,
+                  saleTotal: 62143.60,
+                  invoiceTotal: 72086.58,
+                  costTotal: 54917.60,
+                  commission: 4971.49,
+                  netCashFlow: 12197.49,
+                  tradeMargin: 7226.00,
                 },
                 creditCycle: {
                   status: 'facturado',
-                  issueDate: Timestamp.fromDate(new Date('2026-08-24T10:06:14Z')),
+                  issueDate: Timestamp.fromDate(new Date('2026-09-01T13:36:29Z')),
                   dueDate: null,
                 },
               },
             ];
-            const mergedThInvoices: Invoice[] = [...baseInvoices];
-            const seenInvIds = new Set(baseInvoices.map(i => i.id || i.folio || ''));
-            for (const inv of (best.invoices || [])) {
-              const k = inv.id || inv.folio || '';
-              if (k && !seenInvIds.has(k)) {
-                seenInvIds.add(k);
-                mergedThInvoices.push(inv);
+            const mergedThInvoices = baseInvoices.map(baseInv => {
+              const existing = (best.invoices || []).find((i: any) => (i.folio || i.id) === (baseInv.folio || baseInv.id));
+              if (existing) {
+                return {
+                  ...baseInv,
+                  collection: {
+                    ...(baseInv.collection || {}),
+                    ...(existing.collection || {}),
+                  },
+                  creditCycle: {
+                    ...(baseInv.creditCycle || {}),
+                    ...(existing.creditCycle || {}),
+                  },
+                };
               }
-            }
+              return baseInv;
+            });
             best.invoices = mergedThInvoices;
           } else if (canonicalKey === '12026439713' || canonicalKey.includes('43/9713') || canonicalKey.includes('43-9713')) {
             const gtItems = [
@@ -351,8 +348,11 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.department = 'P4-ALM';
             best.folio = '12026439713';
             best.oc = '12026439713';
+            best.isClosedShort = true;
+            (best as any).status = 'facturado';
 
-            const baseGtDeliveries: Delivery[] = [
+            // 🎯 Reconciliación Canónica de Entregas GT (Total Físico Real: 2,674.00 kg)
+            const reconciledGtDeliveries: Delivery[] = [
               {
                 id: 'del-gt-9713',
                 date: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),
@@ -367,20 +367,33 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docFolio: '6193',
               },
               {
-                id: 'del-gt-9714',
+                id: 'del-gt-6267',
                 date: Timestamp.fromDate(new Date('2026-08-26T10:00:00Z')),
-                kilos: 1674.00,
+                kilos: 700.00,
                 items: [
                   { itemId: 'it-gt-3', quantity: 700.00 },
+                ],
+                invoiced: true,
+                invoiceId: 'inv-6267',
+                docType: 'factura',
+                docFolio: '6267',
+                notes: 'Entrega física amparada por Factura XML #6267 (700.00 kg)',
+              },
+              {
+                id: 'del-gt-6268',
+                date: Timestamp.fromDate(new Date('2026-08-26T10:00:00Z')),
+                kilos: 974.00,
+                items: [
                   { itemId: 'it-gt-4', quantity: 974.00 },
                 ],
-                invoiced: false,
-                notes: 'Remisión 9714 (Evelia · Planta 4) — 1,674.00 kg lista para facturar (Tope OC 700 kg en bolsa 120x160)',
-                docType: 'remision',
-                docFolio: '9714',
+                invoiced: true,
+                invoiceId: 'inv-6268',
+                docType: 'factura',
+                docFolio: '6268',
+                notes: 'Entrega física amparada por Factura XML #6268 (974.00 kg)',
               },
             ];
-            best.deliveries = baseGtDeliveries;
+            best.deliveries = reconciledGtDeliveries;
 
             const baseGtInvoices: Invoice[] = [
               {
@@ -389,8 +402,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 folio: '6193',
                 kilos: 1000.0,
                 items: [
-                  { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'EGBO000018-SC BOLSA POLIETILENO 1.00 M X 1.15 M (60+40x115)', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
-                  { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'EGBO000095-SC BOLSA POLIETILENO 120X 125 CM (80+20+20X125)', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                  { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                  { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
                 ],
                 financials: {
                   costPricePerKg: 38,
@@ -402,26 +415,84 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                   netCashFlow: 8440.0,
                   tradeMargin: 5000.0,
                 },
-                creditCycle: {
-                  status: 'pending',
-                  issueDate: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),
-                  dueDate: Timestamp.fromDate(new Date('2026-09-23T00:00:00Z')),
-                },
                 collection: {
                   contrareciboNumber: 'GT-874',
                   contrareciboDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
                 },
+                creditCycle: {
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-08-24T00:00:00Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-09-23T00:00:00Z')),
+                },
+              },
+              {
+                id: 'inv-6267',
+                orderId: best.id,
+                folio: '6267',
+                uuid: 'DAE3F1F3-D102-417F-8DD1-6C148ECED945',
+                kilos: 700.0,
+                items: [
+                  { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'EGBO000017-SC BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 700.0, unitPrice: 43.0, amount: 30100.0, unit: 'KGM' },
+                ],
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 30100.0,
+                  invoiceTotal: 34916.0,
+                  costTotal: 26600.0,
+                  commission: 2408.0,
+                  netCashFlow: 5908.0,
+                  tradeMargin: 3500.0,
+                },
+                creditCycle: {
+                  status: 'facturado',
+                  issueDate: Timestamp.fromDate(new Date('2026-09-01T13:37:42Z')),
+                  dueDate: null,
+                },
+              },
+              {
+                id: 'inv-6268',
+                orderId: best.id,
+                folio: '6268',
+                uuid: 'DB2F9D04-C4FC-49C7-B9AB-66D1F94F4D71',
+                kilos: 974.0,
+                items: [
+                  { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM (60+40x95)', quantity: 974.0, unitPrice: 43.0, amount: 41882.0, unit: 'KGM' },
+                ],
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 41882.0,
+                  invoiceTotal: 48583.12,
+                  costTotal: 37012.0,
+                  commission: 3350.56,
+                  netCashFlow: 8220.56,
+                  tradeMargin: 4870.0,
+                },
+                creditCycle: {
+                  status: 'facturado',
+                  issueDate: Timestamp.fromDate(new Date('2026-09-01T13:40:04Z')),
+                  dueDate: null,
+                },
               },
             ];
-            const mergedGtInvoices: Invoice[] = [...baseGtInvoices];
-            const seenGtInvIds = new Set(baseGtInvoices.map(i => i.id || i.folio || ''));
-            for (const inv of (best.invoices || [])) {
-              const k = inv.id || inv.folio || '';
-              if (k && !seenGtInvIds.has(k)) {
-                seenGtInvIds.add(k);
-                mergedGtInvoices.push(inv);
+            const mergedGtInvoices = baseGtInvoices.map(baseInv => {
+              const existing = (best.invoices || []).find((i: any) => (i.folio || i.id) === (baseInv.folio || baseInv.id));
+              if (existing) {
+                return {
+                  ...baseInv,
+                  collection: {
+                    ...(baseInv.collection || {}),
+                    ...(existing.collection || {}),
+                  },
+                  creditCycle: {
+                    ...(baseInv.creditCycle || {}),
+                    ...(existing.creditCycle || {}),
+                  },
+                };
               }
-            }
+              return baseInv;
+            });
             best.invoices = mergedGtInvoices;
           }
 

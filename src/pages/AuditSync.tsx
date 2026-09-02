@@ -34,17 +34,23 @@ const ESTATUS_VALIDOS: { value: OrderStatus; label: string }[] = [
 ];
 
 const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: string }> = {
+  // 8 Contrarecibos Oficiales Activos ($675,839.76 MXN)
+  'GT-874': { total: 49880.00, issueDate: '2026-08-24', dueDate: '2026-09-23' },
+  'TH-990': { total: 98054.60, issueDate: '2026-08-24', dueDate: '2026-09-23' },
   'TH-946': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
   'TH-912': { total: 79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
   'TH-879': { total: 136300.00, issueDate: '2026-08-03', dueDate: '2026-09-02' },
-  'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
   'GT-742': { total: 54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
-  'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
   'GT-713': { total: 69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
   'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+  // 7 Contrarecibos Históricos Pagados ($765,068.26 MXN)
+  'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
+  'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
   'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
+  'TH-739': { total: 109040.00, issueDate: '2026-07-06', dueDate: '2026-08-05' },
+  'TH-713': { total: 108647.46, issueDate: '2026-06-29', dueDate: '2026-07-29' },
   'GT-624': { total: 98136.00, issueDate: '2026-06-22', dueDate: '2026-07-22' },
-  'GT-597': { total: 107420.76, issueDate: '2026-06-15', dueDate: '2026-07-15' },
+  'TH-680': { total: 80970.38, issueDate: '2026-06-22', dueDate: '2026-07-22' },
 };
 
 type ModeTab = 'grid' | 'paste' | 'batch' | 'excel';

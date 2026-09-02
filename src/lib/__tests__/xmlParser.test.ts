@@ -70,4 +70,16 @@ describe('xmlParser', () => {
     expect(parsed.complementoPago?.doctosRelacionados[0].idDocumento).toBe('89468773-640E-4FFE-B558-BECD65043164');
     expect(parsed.complementoPago?.doctosRelacionados[0].impPagado).toBe(108647.46);
   });
+
+  it('valida la ingesta íntegra de la Factura 6268 (GT Evelia 974 kg) y 6266 (TH Nava 1,445.20 kg)', () => {
+    const XML_6268 = `<?xml version="1.0" encoding="utf-8"?><cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Folio="6268" Fecha="2026-09-01T13:40:04" SubTotal="41882.00" Total="48583.12" CondicionesDePago="OC 12026439713"><cfdi:Emisor Rfc="EDE1902136T2" Nombre="ELEMENTAL DENIM" /><cfdi:Receptor Rfc="GTP930115PU1" Nombre="GRUPO TEXTIL PROVIDENCIA" /><cfdi:Conceptos><cfdi:Concepto ClaveProdServ="24141500" Cantidad="974.00" ClaveUnidad="KGM" Descripcion="EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM" ValorUnitario="43.00" Importe="41882.00" /></cfdi:Conceptos><cfdi:Complemento><tfd:TimbreFiscalDigital UUID="DB2F9D04-C4FC-49C7-B9AB-66D1F94F4D71" /></cfdi:Complemento></cfdi:Comprobante>`;
+    
+    const parsed6268 = parseXmlInvoice(XML_6268);
+    expect(parsed6268.folio).toBe('6268');
+    expect(parsed6268.ocNumber).toBe('12026439713');
+    expect(parsed6268.uuid).toBe('DB2F9D04-C4FC-49C7-B9AB-66D1F94F4D71');
+    expect(parsed6268.conceptos[0].cantidad).toBe(974);
+    expect(parsed6268.subTotal).toBe(41882);
+    expect(parsed6268.total).toBe(48583.12);
+  });
 });

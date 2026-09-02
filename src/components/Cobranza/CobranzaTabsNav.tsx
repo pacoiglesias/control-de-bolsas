@@ -14,6 +14,12 @@ export default function CobranzaTabsNav() {
       <button className={`tab ${activeTab === 'tablero' ? 'active' : ''}`} onClick={() => setActiveTab('tablero')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <IconClipboardList size={16} /> Tablero (Kanban)
       </button>
+      <button className={`tab ${activeTab === 'calendario' ? 'active' : ''}`} onClick={() => setActiveTab('calendario')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: activeTab === 'calendario' ? '#059669' : undefined }}>
+        📅 Calendario de Cobro
+      </button>
+      <button className={`tab ${activeTab === 'rep' ? 'active' : ''}`} onClick={() => setActiveTab('rep')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: activeTab === 'rep' ? '#d97706' : undefined }}>
+        🏦 Monitor REP / Fiscal
+      </button>
       <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <IconClock size={16} /> Pendientes de Cobro ({data.open.length})
       </button>

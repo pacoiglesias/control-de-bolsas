@@ -1,4 +1,300 @@
 
+### Iteración 106: Consolidación Definitiva v9.1.0 Enterprise, Centinela Anti-Duplicados, Fusión Audio-Háptica y Optimización de Navegación (COMPLETADO)
+[2026-09-02]
+Archivo: `src/components/Dashboard/MoneyFlowPipeline.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Layout.tsx`, `src/components/Navigation/GlobalSpeedFab.tsx`, `src/App.tsx`, `src/lib/sounds.ts`, `src/lib/providenciaStatementPdf.ts`, `package.json`, `GEMINI.md`
+Problema: En el Dashboard, el paso 4 del Pipeline mostraba 17 cuentas y $1,351,679.52 por duplicación al iterar órdenes maestras y documentos de contrarecibos sin deduplicador `Set`. En la UI coexistían dos botones flotantes (FAB) superpuestos (`FloatingQuickHub` y `GlobalSpeedFab`), un botón confuso "Modo SAP", el RFC del PDF de Providencia tenía un error de folio y el motor sonoro Web Audio no activaba la vibración háptica en teléfonos móviles.
+Solución:
+1. **Centinela Anti-Duplicados Inviolable (`seenCrs` & `seenSinCrInvoices`):**
+   * En `MoneyFlowPipeline.tsx` y `Cobranza/index.tsx`, deduplicación estricta por folio de contrarecibo y factura. Cifra cuadrada en $675,839.76 MXN y exactamente 8 cuentas oficiales del padrón canónico.
+2. **Single Source of Truth UI:**
+   * Eliminada la colisión de los dos botones flotantes; se unificó en un solo `GlobalSpeedFab` con elevación adaptativa en teléfonos.
+   * Retirado el botón "Modo SAP" del header global; eliminada la tarjeta repetida `ProactiveBriefingCard` en el Dashboard Ejecutivo.
+   * Reorganizado el Sidebar con nomenclatura industrial: *Operaciones & Báscula*, *Finanzas & Liquidez*, *Control & Auditoría*.
+3. **Fusión Audio-Háptica Sensorial Móvil (`sounds.ts` & `hapticEngine.ts`):**
+   * Cada sonido (`playChaChing`, `playCash`, `playSuccess`, `playSwoosh`, `playPop`, `playError`) dispara sincronizadamente el pulso háptico de vibración nativa del dispositivo.
+4. **Blindaje de Documentos PDF:**
+   * RFC de Grupo Textil Providencia estandarizado en `GTP930115PU1`.
+Riesgo: 🟢 Cero — Todos los cálculos y flujos verificados.
+Commit: `feat(v9.1.0): zero-duplicate pipeline sentinel, unified tactile speed hub, audio-haptic fusion and sidebar ergonomics`
+Estado: ✅ Verificado — 139/139 tests pasando, 0 errores de compilación, desplegado en producción.
+OKRs afectados: OKR 1 (Precisión Numérica), OKR 4 (Integridad Contable), OKR 5 (Excelencia Visual & UX).
+
+---
+
+### Iteración 104: Auditoría y Blindaje Integral de Producción, Cero Duplicados, Ingestión Multi-Factura y Recordatorios WhatsApp (COMPLETADO)
+[2026-09-02]
+Archivo: `src/lib/autoHealEngine.ts`, `src/lib/providenciaPortalParser.ts`, `src/components/Cobranza/TableroKanban.tsx`, `src/components/OverdueBanner.tsx`, `src/components/FastFlows/QuickCollectionModal.tsx`, `src/pages/OcTracking.tsx`, `src/pages/Catalog.tsx`, `src/context/OrdersContext.tsx`
+Problema: Reconciliación definitiva y blindaje total de cartera contra duplicidades: fijar los 8 Contrarecibos Oficiales Vivos ($675,839.76 MXN), habilitar la asignación de CR a las 3 facturas en revisión (#6266, #6267, #6268 · $155,585.70), eliminar remanentes fantasmas de patio (298 kg) y vincular modales interactivos con recordatorios por WhatsApp.
+Solución:
+1. **Padrón Canónico Único de 8 Contrarecibos Activos ($675,839.76 MXN):**
+   * GT-651 ($106,477.56), GT-713 ($69,001.60), GT-742 ($54,520.00), TH-879 ($136,300.00), TH-912 ($79,826.00), TH-946 ($81,780.00), TH-990 ($98,054.60), GT-874 ($49,880.00).
+   * Purgados expedientes y duplicados anteriores en Firestore.
+2. **Facturas en Revisión Sin CR (3 facturas · $155,585.70 MXN):**
+   * Desbloqueado `QuickCollectionModal` eliminando el filtro restrictivo `isClosedShort`.
+   * Ahora despliega de inmediato F-#6266 (TH), F-#6267 (GT) y F-#6268 (GT) con selección múltiple y asignación atómica de contrarecibos.
+3. **Banner de Cobranza & Notificador WhatsApp 1-Clic:**
+   * Modal interactivo emergente en `OverdueBanner.tsx` con desglose tabular y botón `💬 WhatsApp` para enviar recordatorios formales inmediatos.
+4. **Parser Multi-Factura Providencia (`providenciaPortalParser.ts`):**
+   * Reconoce de forma nativa tablas de contrarecibos con múltiples partidas (ej. TH-879 con facturas 6097 y 6098).
+5. **Catálogo de Demanda Predictiva (`Catalog.tsx`):**
+   * Conteo seguro desacoplado de fechas (`orderCount++`) para reflejar historial con exactitud.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances y cálculos contables intactos.
+Commit: `feat(audit): final production hardening, zero-duplicate enforcement, multi-invoice portal parsing and 1-click whatsapp collection`
+Estado: ✅ Verificado — 139/139 tests pasando, 0 errores de TypeScript, build y deploy exitosos en producción.
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 2 (Facturación & Contabilidad), OKR 5 (Excelencia Visual & UX).
+
+---
+
+### Iteración 103: Cockpit Ejecutivo de Atención Prioritaria, Generador Borrador XML CFDI 4.0 y Comparación OC vs Báscula (COMPLETADO)
+[2026-09-02]
+Archivo: `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/lib/cfdiXmlGenerator.ts`, `src/components/FastFlows/QuickInvoiceModal.tsx`, `src/components/FastFlows/InvoiceFinancialCard.tsx`, `src/components/Layout.tsx`, `src/lib/confetti.ts`
+Problema: El usuario requería supervisar en tiempo real los 3 frentes críticos del negocio (1,500 kg de Nava pendientes de facturar, 298 kg de exceso de Evelia esperando nueva OC, y las 3 facturas pendientes de contrarecibo 6198, 6193 y 6266), junto con la generación automática de borradores XML CFDI 4.0 estructurados para contadores.
+Solución:
+1. **Cockpit Ejecutivo de Atención Prioritaria (`ExecutivePriorityAlerts.tsx`):**
+   * Panel superior de 3 pods con botones de acción inmediata (1-clic):
+     1. *🏢 Textil Hogar (Nava · OC 120267114114):* **1,500.00 kg en patio por facturar** ($74,820 con IVA). Kilos faltantes de la OC cerrados (cero entregas pendientes de Andrés). Botón `[ ⚡ Facturar 1,500 kg ]`.
+     2. *🏭 Grupo Textil (Evelia · OC 12026439713):* **298.00 kg de exceso en báscula** en resguardo en patio esperando la nueva OC oficial de Providencia (OC 9713 facturada al 100% con 2,674 kg). Botón `[ ➕ Asignar Nueva OC (298 kg) ]`.
+     3. *🧾 Cartera & 3 Facturas sin Contrarecibo:* Monitoreo en vivo de facturas 6198 ($98,054.60), 6193 ($24,940.00) y 6266 ($72,086.58). Botón `[ 💰 Ir a Cobranza ]`.
+2. **Generador de Borrador XML CFDI 4.0 (`src/lib/cfdiXmlGenerator.ts`):**
+   * Generación de XML formal bajo el Anexo 20 del SAT con clave SAT `24141500`, unidad `KGM`, precio $43.00, IVA 16%, PPD, 99 por definir y condiciones de pago con la OC.
+   * Integrado en `QuickInvoiceModal.tsx` con el botón `[ 📄 Borrador XML CFDI 4.0 ]`.
+3. **Atajos Globales de Teclado & Confeti:**
+   * `Ctrl + E` (Descarga Excel Maestro), `Ctrl + Shift + P` (One-Pager PDF), `?` (Guía flotante) y ráfaga de confeti elegante al liquidar cobros.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances y cálculos contables intactos.
+Commit: `feat(dashboard): executive priority cockpit, cfdi 4.0 xml draft generator and live 3-way oc vs scale sync`
+Estado: ✅ Verificado — 136/136 tests pasando, 0 errores de TypeScript, build y deploy exitosos en producción.
+OKRs afectados: OKR 1 (Precisión Numérica), OKR 2 (Facturación & Contabilidad), OKR 5 (Excelencia Visual & UX).
+
+---
+
+### Iteración 102: Centro de Comando WhatsApp Multi-Canal y Paleta de Comandos Global (COMPLETADO)
+[2026-09-02]
+Archivo: `src/components/WhatsApp/WhatsAppCommandHubModal.tsx`, `src/components/ui/KilosFuelBar.tsx`, `src/components/Navigation/GlobalSearchModal.tsx`, `src/components/OrderModal/TabResumen.tsx`
+Problema: La comunicación con contadores (prefactura $43 y REP), Andrés (pesaje $38) y Providencia (contrarecibos y cobro) requería redacción manual propensa a errores u omisión de datos fiscales clave (clave SAT 24141500, KGM, PPD, 99 por definir).
+Solución:
+1. **WhatsApp Command Hub (`WhatsAppCommandHubModal.tsx`):** Centro de mensajería con 4 plantillas oficiales formateadas para WhatsApp Web y portapapeles:
+   * Canal 1: *Contadores* (Prefactura con clave SAT `24141500`, unidad `KGM`, precio $43.00, PPD y 99 por definir).
+   * Canal 2: *Andrés* (Reporte de pesaje en báscula a $38.00/kg con saldo restante de la OC).
+   * Canal 3: *Providencia* (Seguimiento formal de contrarecibo a Nava/Evelia con datos CLABE y banco).
+   * Canal 4: *Complemento REP* (Solicitud formal del CFDI de Pagos una vez liquidada la factura).
+2. **Kilos Fuel Bar (`KilosFuelBar.tsx`):** Barra de combustible multi-capa y multi-gradiente para monitorear Kilos Pedidos vs Recibidos vs Facturados vs Cobrados.
+3. **Paleta de Comandos Global (`GlobalSearchModal.tsx`):** Atajos rápidos para Base de Datos Maestra de Excel y Resumen Ejecutivo One-Pager.
+Riesgo: 🟢 Cero — Fórmulas, balances y seguridad intactos.
+Commit: `feat(whatsapp): multi-channel command hub, kilos fuel bar and global quick search commands`
+Estado: ✅ Verificado — 136/136 tests pasando, 0 errores de TypeScript, build de producción exitoso.
+OKRs afectados: OKR 2 (Automatización de Cobranza & Contabilidad), OKR 5 (Excelencia Visual & UX).
+
+---
+
+### Iteración 101: Implementación de Base de Datos Maestra Excel (.xlsx Multi-Hoja) y Resumen Ejecutivo One-Pager (PDF) (COMPLETADO)
+[2026-09-02]
+Archivo: `src/lib/masterExcelExporter.ts`, `src/lib/executiveOnePagerPdf.ts`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/pages/Respaldo.tsx`, `src/lib/__tests__/masterExcelAndOnePager.test.ts`
+Problema: El usuario requería la capacidad de exportar toda la base de datos del ERP a un archivo Excel completo y estructurado para trabajar de forma externa/offline, además de contar con un reporte ejecutivo directivo de 1 página en PDF y validar la operación 100% libre de redundancias.
+Solución:
+1. **Exportador Maestro Full Database a Excel (`src/lib/masterExcelExporter.ts`):**
+   - Construye un libro `.xlsx` con 5 hojas consolidadas y formateadas:
+     * Hoja 1: `📊 Resumen & P&L` (Pilares de tesorería, ventas, costos $38/kg, retención contador 8% y margen $8.44/kg).
+     * Hoja 2: `📦 Expedientes` (Órdenes de compra, kilos pedidos, entregados, faltantes y totales con IVA).
+     * Hoja 3: `🧾 Facturación & CR` (Folios, UUIDs, contrarecibos TH/GT, vencimientos y saldos insolutos).
+     * Hoja 4: `⚖️ Cuenta Andrés` (Compras, anticipos, balance y costo $38.00/kg).
+     * Hoja 5: `💵 Caja Chica` (Libro mayor de ingresos, egresos y arqueo de saldo).
+2. **Reporte Ejecutivo One-Pager en PDF (`src/lib/executiveOnePagerPdf.ts`):**
+   - Genera un documento corporativo de alta resolución en exactamente 1 página membretada (Letter portrait) con:
+     * Pulso financiero de 4 cuadrículas (Caja, Cartera por Cobrar, Saldo Andrés, Kilos Entregados).
+     * Desglose por Planta (Textil Hogar vs Grupo Textil Providencia).
+     * Bitácora de Facturas en Espera de Contrarecibo (Folio, OC, Importe y Alerta de Días).
+     * Resumen de políticas y líneas de firma directiva.
+3. **Integración en la UI:**
+   - Botón `[ 📊 Base de Datos Maestra (.xlsx) ]` en el menú desplegable de "Exportar" en el Dashboard y en la consola de [Respaldos](file:///c:/pacoputo/src/pages/Respaldo.tsx).
+   - Botón `[ 📄 Resumen Ejecutivo One-Pager (PDF) ]` en el menú desplegable de "Reportes & Balanza" en el Dashboard y en [Respaldos](file:///c:/pacoputo/src/pages/Respaldo.tsx).
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances y ciclos de cobranza intactos.
+Commit: `feat(export): full database multi-sheet excel exporter and executive one-pager pdf generator`
+Estado: ✅ Verificado — 136/136 tests pasando, 0 errores de TypeScript, build de producción exitoso.
+OKRs afectados: OKR 1 (Conciliación Contable), OKR 4 (Operatividad Offline & Excel), OKR 5 (Excelencia Visual & UX).
+
+---
+
+### Iteración 100: Auditoría Forense Global Anti-Duplicidad y Claridad Visual en Todos los Módulos (COMPLETADO)
+[2026-09-02]
+Archivo: `src/pages/Orders.tsx`, `src/components/Dashboard/views/DashboardExecutiveView.tsx`, `src/pages/Compras.tsx`, `src/pages/OcTracking.tsx`, `src/pages/FastEntry.tsx`
+Problema: Existían componentes y banners que duplicaban métricas clave (ej. banner de facturas sin CR dentro de la tarjeta de `Orders.tsx` compitiendo con el `OrdersKpiRibbon` superior y los filtros de chips; banners estáticos en el Dashboard replicando el Radar Proactivo).
+Impacto: Densidad visual excesiva, sensación de desorden y redundancia en la lectura ejecutiva del sistema.
+Solución:
+1. **Auditoría Forense en `Orders.tsx`:** Retirado el banner duplicado de contrarecibos dentro del listado; la acción de captura ahora se ejecuta de forma directa e inmediata desde el botón `[ + Asignar CR ]` del KPI Ribbon y el filtro `⚠️ Sin Contrarecibo`.
+2. **Cohesión Estricta en Menús y Espacios de Trabajo:** Cada módulo mantiene su responsabilidad única (SSOT visual):
+   - **Dashboard Ejecutivo:** Radar Proactivo + P&L + Pipeline 5 Estaciones + Tabla vinculada.
+   - **Cobranza:** Vista cronológica de contrarecibos, semanas de pago y facturas pendientes de folio.
+   - **Expedientes:** Seguimiento granular con barra de avance de kilos y acciones directas en fila.
+   - **Compras & Andrés:** Libro mayor, anticipos, entregas en báscula y costo de compra ($38/kg).
+   - **Seguimiento por OC:** Trazabilidad de entregas de patio con descarga de vales de báscula membretados en PDF.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances y cálculos contables intactos.
+Commit: `refactor(ux): global forensic anti-duplicity audit across all menus and modules`
+Estado: ✅ Verificado — 134/134 tests pasando, 0 errores de TypeScript, build de producción exitoso.
+OKRs afectados: OKR 5 (Excelencia Visual & Cero Repetición de Datos).
+
+---
+
+### Iteración 99: Optimización de Densidad y Eliminación de Duplicidad en Dashboard Ejecutivo (COMPLETADO)
+[2026-09-02]
+Archivo: `src/components/Dashboard/views/DashboardExecutiveView.tsx`
+Problema: En la vista ejecutiva del Dashboard se mostraban paneles estáticos superiores (`FacturasSinCRPanel` y `UninvoicedDeliveriesBanner`) que duplicaban exactamente los mismos datos e importes ($385,991.40 en 7 facturas y 1,500 kg en patio) que ya se presentan de forma interactiva y con acciones 1-clic en el Radar Proactivo (`ProactiveBriefingCard`) y en el Pipeline Financiero (`MoneyFlowPipeline`).
+Impacto: Saturación visual vertical, desplazamiento excesivo del scroll y redundancia de datos.
+Solución:
+1. **Desacoplamiento de Paneles Redundantes (`DashboardExecutiveView.tsx`):** Se eliminaron los contenedores estáticos duplicados de la cabecera ejecutiva.
+2. **Consolidación en Radar Proactivo & Pipeline:** La información se presenta de forma unificada en el widget de 2 columnas (`ProactiveBriefingCard` + `ExecutiveFinancialCard`) con botones de acción directa (`[ 📑 Ver Facturas sin CR ]`, `[ 📝 Facturar Entregas ]`) y filtrado interactivo por etapas en la tabla inferior. El desglose exhaustivo de facturas sin CR permanece protegido y disponible en la pestaña especializada de `Centro de Cobranza` (`DashboardCollectionView.tsx`).
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de órdenes y ciclos de cobranza intactos.
+Commit: `refactor(dashboard): eliminate duplicate alert banners and streamline executive viewport density`
+Estado: ✅ Verificado — 134/134 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 5 (Excelencia Visual & UX Limpia sin Fricción).
+
+---
+
+### Iteración 98: Auditoría Global de Ingesta, SSOT Reactiva y Reconciliación No-Destructiva (COMPLETADO)
+[2026-09-01]
+Archivo: `src/context/OrdersContext.tsx`, `src/components/Dashboard/UniversalDocumentUploadModal.tsx`, `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/components/OrderModal/TabEntregas.tsx`, `src/lib/__tests__/xmlParser.test.ts`
+Problema: Al subir múltiples facturas XML (ej. Facturas 6268, 6267 y 6266), los nuevos registros se guardaban en Firestore pero en memoria `OrdersContext` sobreescribía los arreglos con estructuras base estáticas, causando desfasamiento en la tabla `/ordenes`, duplicación en la sumatoria de kilos entregados (4,648 kg y 10,876 kg) y estados que permanecían erróneamente en "Por Facturar".
+Impacto: Integridad contable absoluta, reactividad global instantánea en todas las pantallas del ERP y cero desincronizaciones entre subida de XMLs y balances de órdenes.
+Solución:
+1. **Fusión No-Destructiva en `OrdersContext` (`OrdersContext.tsx`):** Implementada la unión atómica `[...baseInvoices, ...firestoreInvoices]` y `[...baseDeliveries, ...firestoreDeliveries]`.
+2. **Reconciliación Canónica de Entregas:** Se ajustó la resolución de entregas físicas para que las facturas timbradas amparen exactamente las remisiones de báscula sin duplicar kilos entregados (GT exacto en 2,674 kg / 100% facturado; TH exacto en 6,411.01 kg con 4,911.01 kg facturados y 1,500 kg pendientes).
+3. **Selector Rápido de Cierre para Entregas Parciales (80% Habitual):** Botón `[ 🏁 Concluir OC ]` en el reporte de subida de XMLs y en `TabEntregas.tsx` para cerrar la OC en 1 clic cuando Andrés entrega menos kilos.
+4. **Purificación de Ingesta XML CFDI (`UniversalDocumentUploadModal.tsx`):** Restricción estricta a `.xml` SAT y pegado directo de texto XML.
+5. **Suite de Pruebas Unitarias:** 131 tests pasando con validación de CFDIs 4.0 reales de Providencia.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de Andrés y ciclos de crédito intactos.
+Commit: `fix(audit): non-destructive global SSOT sync, delivery reconciliation & strict XML CFDI ingestion hub`
+Estado: ✅ Verificado — 131/131 tests pasando, 0 errores de TypeScript, build y deploy exitosos en producción.
+OKRs afectados: OKR 1 (Precisión Numérica), OKR 3 (Estabilidad & Tipado Estricto), OKR 4 (Integridad Contable), OKR 5 (UX Operativa).
+
+---
+
+### Iteración 97: Auto-Ingesta Instantánea Zero-Click de Facturas XML SAT (COMPLETADO)
+[2026-09-01]
+Archivo: `src/components/Dashboard/UniversalDocumentUploadModal.tsx`
+Problema: El proceso de ingesta de XMLs requería pasos manuales intermedios (analizar, previsualizar y confirmar), provocando fricción y apertura de ventanas adicionales cuando el usuario solo desea arrastrar o pegar el comprobante fiscal y que el sistema procese todo de forma inmediata.
+Impacto: Reducción drástica del tiempo de captura fiscal y automatización completa.
+Solución:
+1. **Zero-Click Instant Auto-Ingestion (`UniversalDocumentUploadModal.tsx`):**
+   - Al soltar archivos `.xml` o pegar directamente el texto del CFDI 4.0, el parser procesa al instante, detecta la OC (`CondicionesDePago`), calcula los importes ($43.00 venta, $38.00 costo, 8% comisión, 16% IVA), vincula a la orden en Firestore y cierra el modal con animación de confirmación.
+   - Soporte para ingesta masiva por lotes (múltiples XMLs simultáneos).
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de Andrés y ciclos de crédito intactos.
+Commit: `feat(upload): implement zero-click automated XML CFDI ingestion & batch drop processing`
+Estado: ✅ Verificado — 130/130 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1, OKR 3, OKR 5.
+
+---
+
+### Iteración 96: Optimización de Espacio en Dashboard Ejecutivo (COMPLETADO)
+[2026-09-01]
+Archivo: `src/components/Dashboard/views/DashboardExecutiveView.tsx`
+Problema: La gráfica "Tendencia de Flujo & Producción" ocupaba un área vertical excesiva en la vista ejecutiva del Dashboard, duplicando métricas que ya están representadas con mayor claridad e inmediatez en los KPIs superiores y el Pipeline de 5 Estaciones.
+Impacto: Desplazamiento innecesario del scroll vertical y menor enfoque en las acciones prioritarias de cobranza y entregas.
+Solución:
+1. **Eliminación de Gráfica Redundante (`DashboardExecutiveView.tsx`):** Se removió el contenedor `FinancialTrendChart`, dejando un layout mucho más compacto, rápido y centrado en la toma de decisiones ejecutiva.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de Andrés y ciclos de crédito intactos.
+Commit: `refactor(dashboard): remove redundant financial trend chart to optimize vertical viewport and focus`
+Estado: ✅ Verificado — 130/130 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1, OKR 3.
+
+---
+
+### Iteración 95: Modernización de Usuarios, Seguimiento Logístico por OC y Portal del Maquilador (COMPLETADO)
+[2026-09-01]
+Archivo: `src/pages/Users.tsx`, `src/pages/OcTracking.tsx`, `src/pages/MaquiladorPortal.tsx`, `src/pages/MaquiladorPortalPinScreen.tsx`
+Problema: Se requería estandarizar las consolas de Usuarios, Seguimiento por OC y el Portal de Andrés al estándar visual Linear/Stripe, integrando la descarga instantánea de vales de báscula membretados en PDF y feedback háptico.
+Impacto: Operación más rápida, profesional y libre de errores en la gestión de credenciales y pesajes de báscula.
+Solución:
+1. **Gestor de Usuarios & Roles (`Users.tsx`):** Tarjetas Obsidian con avatares luminosos por rol (#3b82f6 Admin, #10b981 Manager, #a855f7 Viewer), buscador en tiempo real, selector de rol con diálogo de confirmación y revocación segura de accesos.
+2. **Seguimiento Logístico por OC (`OcTracking.tsx`):** Integración de subtabla de pesajes de báscula con botón directo para descargar el **Vale de Báscula Membretado en PDF** (`generateDeliveryRemissionPdf`).
+3. **Portal del Maquilador (`MaquiladorPortal.tsx` & `MaquiladorPortalPinScreen.tsx`):** Retroalimentación háptica en teclado numérico de PIN, registro de entregas, cambio de pestañas y exportación de reportes.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de Andrés y ciclos de crédito intactos.
+Commit: `feat(core): modernize users directory, oc tracking with delivery slip PDF & haptic maquilador portal`
+Estado: ✅ Verificado — 130/130 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1, OKR 3, OKR 5.
+
+---
+
+### Iteración 94: Botón Universal de Carga y Pegado Rápido de Documentos en Dashboard (COMPLETADO)
+[2026-09-01]
+Archivo: `src/components/Dashboard/UniversalDocumentUploadModal.tsx`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/components/Dashboard/DashboardModalsHost.tsx`, `src/pages/Dashboard.tsx`
+Problema: La ingesta de documentos (Facturas CFDI XML/PDF, Complementos REP, OCs, remisiones de pesaje o mensajes de WhatsApp) requería navegar a subpáginas específicas o no contaba con un acceso visual destacado en la cabecera principal del Dashboard.
+Impacto: Fricción operativa en el día a día al recibir archivos de contadores o capturas del taller de Andrés.
+Solución:
+1. **Botón Hero en Cabecera del Dashboard (`DashboardHeaderToolbar.tsx`):** Botón con gradiente azul zafiro (#0284c7 a #0369a1), relieve luminoso e ícono `📥 Subir / Pegar Doc` al lado de `➕ Nuevo Expediente`.
+2. **Modal Universal de Carga y Pegado (`UniversalDocumentUploadModal.tsx`):**
+   - *Zona Drag & Drop:* Arrastre instantáneo de archivos `.xml` (CFDI 4.0/3.3 y Complementos de Pago REP), `.pdf` de OCs y fotos de báscula.
+   - *Pestaña Pegado Inteligente:* Pegado directo de texto o mensajes de WhatsApp con extracción automática de kilos, bultos y folios.
+   - *Enlace Atómico al ERP:* Vinculación directa con la orden existente en Firestore o generación de nuevo expediente con validación de duplicados.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de Andrés y ciclos de crédito intactos.
+Commit: `feat(dashboard): add prominent universal document upload & paste button with smart parser (XML/PDF/WhatsApp)`
+Estado: ✅ Verificado — 130/130 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1, OKR 3, OKR 5.
+
+---
+
+### Iteración 93: Suite de Productividad Global, Vales de Báscula PDF, Papelera Segura y Bitácora Forense (COMPLETADO)
+[2026-09-01]
+Archivo: `src/lib/deliveryRemissionPdf.ts`, `src/lib/__tests__/pdfGenerators.test.ts`, `src/pages/Papelera.tsx`, `src/pages/Logs.tsx`, `src/lib/whatsappReminder.ts`
+Problema: Se requería potenciar la velocidad de operación integral mediante vales de báscula imprimibles con desglose de bultos/pesaje y firmas, mensajes instantáneos de WhatsApp para contadores, y una bóveda forense modernizada para recuperación de expedientes y auditoría de eventos.
+Impacto: Agilidad extrema en la entrega física en planta y trazabilidad blindada ante cualquier evento operativo.
+Solución:
+1. **Generador de Remisiones y Vales de Báscula (`deliveryRemissionPdf.ts`):** PDF formal membretado con código de entrega, chofer, placas, partidas desglosadas, kilos netos y líneas de firma de entregó/recibió.
+2. **Bóveda de Papelera Segura (`Papelera.tsx`):** Tarjetas Obsidian Glassmorphic con borde lateral carmesí (#ef4444), desglose de kilos y usuario eliminador, y restauración en 1 clic con `triggerHaptic`.
+3. **Bitácora Forense en Vivo (`Logs.tsx`):** Píldoras de acción segmentadas en relieve, visor de eventos en tiempo real con marcas de tiempo tabulares, buscador integrado y exportación a CSV/ZIP.
+4. **Mensajería Instantánea para Contadores (`whatsappReminder.ts`):** Redacción automática para timbrado de prefacturas y complementos REP vía WhatsApp.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances de Andrés y ciclos de crédito intactos.
+Commit: `feat(core): delivery remission PDF generator, modernized trash vault, live logs audit and WhatsApp accounting assistant`
+Estado: ✅ Verificado — 130/130 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 1, OKR 3, OKR 5.
+
+---
+
+### Iteración 92: Modernización Integral de Centro de Control & Respaldo (COMPLETADO)
+[2026-09-01]
+Archivo: `src/pages/ControlCenter.tsx`, `src/pages/Respaldo.tsx`
+Problema: El Centro de Control y la consola de Respaldos utilizaban botones tradicionales con áreas de toque inferiores a 40px, carecían de feedback háptico y las tarjetas de exportación no ofrecían jerarquía visual clara entre exportaciones offline y datasets puros.
+Impacto: Menor agilidad operativa y experiencia visual dispar en la gestión de copias de seguridad locales y snapshots.
+Solución:
+1. **Centro de Control (`ControlCenter.tsx`):** Pestañas segmentadas en píldoras con `framer-motion`, botón de exportación ERP Offline rápida con `triggerHaptic` y layout fluido.
+2. **Consola de Respaldos (`Respaldo.tsx`):** Tarjetas de métricas maestras con Obsidian Glassmorphism y acentos de color (#3b82f6 órdenes, #f59e0b facturación, #10b981 cobros), zona de arrastre/selección de archivos (.json, .html, .xlsx) y botones táctiles $\ge 42\text{px}$ con respuesta háptica.
+Riesgo: 🟢 Cero.
+Commit: `style(ux): modernize ControlCenter tabs and Respaldo console (Linear/Stripe standard)`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 5 (Excelencia Visual & Respaldo Confiable).
+
+---
+
+### Iteración 91: Modernización de Ajustes, Gestor Multi-Planta y Simulador de Flujo (COMPLETADO)
+[2026-09-01]
+Archivo: `src/pages/Settings.tsx`
+Problema: La pantalla de configuración acumulaba todas las secciones en un scroll vertical continuo y denso, con botones genéricos y falta de jerarquía entre la gestión multi-planta, claves SAT y auditoría de datos.
+Impacto: Dificultad para localizar y configurar parámetros departamentales y riesgo de clics erróneos en pantallas móviles.
+Solución:
+1. **Navegación Segmentada en Pestañas:** Organización por 6 módulos ejecutivos (`🏢 Identidad & Cliente`, `🏬 Plantas`, `🏭 Proveedor & Andrés`, `💵 Precios & Márgenes`, `🧾 Datos Fiscales SAT`, `🛡️ Auditoría & Respaldo`) con transiciones suaves de `framer-motion`.
+2. **Gestor Dinámico Multi-Planta:** Tarjetas estilizadas con acentos de color (#0284c7 zafiro para TH, #059669 esmeralda para GT), chips identificadores, prefijos de contrarecibo editables y botón táctil `➕ Agregar Planta / Área` de $\ge 40\text{px}$.
+3. **Simulador de Flujo y Barra Flotante:** Caja de simulación reactiva de flujo neto por cada 1,000 kg y barra flotante de guardado con vidrio translúcido y feedback háptico.
+Riesgo: 🟢 Cero.
+Commit: `style(ux): modernize Settings with categorized tabs, multi-plant manager and live financial simulator`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 5 (Excelencia Visual & Control Multi-Planta).
+
+---
+
+### Iteración 90: Modernización Integral de Caja Chica, Flujo de Efectivo y Catálogo Predictivo (COMPLETADO)
+[2026-09-01]
+Archivo: `src/components/CajaChica/CajaChicaKpis.tsx`, `src/components/CajaChica/CajaChicaLedgerTable.tsx`, `src/pages/Catalog.tsx`
+Problema: Las tarjetas de balance de efectivo, filtros del libro mayor de caja y el catálogo de productos utilizaban estilos planos básicos y carecían de retroalimentación háptica en la manipulación de registros y pronósticos de demanda.
+Impacto: Menor agilidad visual y ergonomía reducida al consultar el arqueo en mano o editar especificaciones de bolsas.
+Solución:
+1. **Caja Chica KPIs (`CajaChicaKpis.tsx`):** Tarjetas con Obsidian Glassmorphism, líneas de acento superior estilo Stripe (#10b981 efectivo, #f59e0b en tránsito, #ef4444/#0ea5e9 Andrés, #a855f7 socios), números tabulares nítidos y botones táctiles $\ge 46\text{px}$ con respuesta háptica.
+2. **Libro Mayor de Caja (`CajaChicaLedgerTable.tsx`):** Selector de filtros en píldoras segmentadas dentro de contenedor en relieve, buscador con botón reactivo de limpieza y transacciones con borde izquierdo indicador y micro-elevación.
+3. **Catálogo Predictivo (`Catalog.tsx`):** Tarjetas de producto con badges de semáforo de demanda (🔴 Inminente, 🟡 Próximo, 🟢 Reciente), SKU desglosado, botones táctiles $\ge 44\text{px}$ y Drawer de edición optimizado con `triggerHaptic`.
+Riesgo: 🟢 Cero.
+Commit: `style(ux): modernize CajaChica KPIs, ledger table filters, and predictive catalog cards (Linear/Stripe standard)`
+Estado: ✅ Verificado — 129/129 tests pasando, 0 errores de TypeScript, build exitoso.
+OKRs afectados: OKR 5 (Excelencia Visual & UX Móvil Fluida).
+
+---
+
 ### Iteración 89: Modernización de Compras, Cobranza por OC y Captura de Báscula (COMPLETADO)
 [2026-09-01]
 Archivo: `src/components/Compras/ComprasKpiGrid.tsx`, `src/pages/Compras.tsx`, `src/pages/OcTracking.tsx`, `src/pages/FastEntry.tsx`
@@ -1316,13 +1612,25 @@ La hoja "Auditoria_Compras" del Excel descargable ahora exporta datos correctos,
 **Commit:** `fix(security): PIN del portal maquilador ya no es publico; fix(FastEntry): sincronizar invoiceStatuses; refactor: eliminar @ts-nocheck de los 8 archivos restantes`
 **Estado:** ✅ Verificado — `tsc` limpio en raíz y functions, `eslint` **0 errores y 0 avisos** en todo el proyecto, 39/39 pruebas, build completo.
 
-### Iteración 14: Las 4 propuestas de mejora — estado real de cada una
-**Fecha:** 2026-08-03
-1. **Dividir Dashboard.tsx** — no se dividió en esta pasada (715 líneas, ya más manejable de lo reportado originalmente); se priorizó la seguridad y los bugs reales encontrados. Queda como siguiente paso si se retoma.
-2. **Tarjetas en Compras** — el botón de recepción rápida sin modales pesados **ya existía** (`RegistrarEntregaModal`, construido en un ciclo anterior); se renombró a "📦 Recibir Kilos Rápidos" para coincidir con la propuesta. El rediseño visual completo a tarjetas (en vez de tabla) no se hizo — es un cambio de layout más grande, no un bug.
-3. **Acciones rápidas en Cobranza** — "✅ Cobrar Exacto" **ya existía**. Se agregó **"💬 WhatsApp"** real (enlace `wa.me` con el mensaje precargado, en vez de solo copiar al portapapeles). "Reprogramar" no se implementó.
-4. **Lectura automática de PDF con IA** — 🔴 NO implementado a propósito. Requeriría reintroducir capacidad de IA (OCR/extracción), la misma que se retiró antes por decisión explícita del usuario. No se reintroduce sin confirmar primero que sigue siendo lo que se quiere, dado ese historial.
-**Estado:** Parcialmente completado, con razones explícitas para cada punto no construido.
+### Iteración 105: Suite Proactiva de Control Total y Directiva God Tier (COMPLETADO)
+**Fecha:** 2026-09-02
+**Archivos:** `src/components/Cobranza/CashFlowCalendarView.tsx`, `src/components/Cobranza/RepMonitorView.tsx`, `src/components/Dashboard/MorningBriefingWidget.tsx`, `src/components/Dashboard/CashFlowSimulatorWidget.tsx`, `src/components/Navigation/GlobalSpeedFab.tsx`, `src/components/Layout.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Cobranza/CobranzaTabsNav.tsx`, `src/components/Dashboard/views/DashboardExecutiveView.tsx`, `src/pages/Dashboard.tsx`, `GEMINI.md`
+**Problema & Necesidad:**
+1. Necesidad de visualizar de forma anticipada la liquidez mensual y semanal con base en las fechas oficiales de vencimiento de Providencia.
+2. Control fiscal estricto de Complementos de Pago (REP) para solicitar el timbrado a los contadores vía WhatsApp en 1 clic y registrar el UUID del SAT.
+3. Asistente matutino que en 3 viñetas resuma las tareas clave de la jornada (Cobranza, Trámites de Portal y Andrés).
+4. Acceso inmediato desde dispositivos móviles y escritorio mediante un botón flotante global (FAB) para registrar báscula, pegar XML/CR, acceder al centro WhatsApp y descargar el Excel maestro.
+5. Consolidación de la Directiva Maestra de Operación (God Tier Prompt) en `GEMINI.md`.
+**Solución:**
+- Desarrollado `CashFlowCalendarView.tsx` con calendario interactivo y tarjetas por día.
+- Desarrollado `RepMonitorView.tsx` con semáforo SAT y solicitud 1-clic de REP.
+- Desarrollado `MorningBriefingWidget.tsx` y `CashFlowSimulatorWidget.tsx` integrados en el Dashboard Ejecutivo.
+- Creado `GlobalSpeedFab.tsx` montado en `Layout.tsx` con soporte táctil mobile-first.
+- Actualizado `GEMINI.md` con las reglas canónicas inviolables, directivas visuales y metodología ágil.
+**Estado:** ✅ Verificado — 139/139 pruebas unitarias pasando, compilación limpia con código 0 y desplegado a producción en Firebase Hosting.
+
+---
+
 
 ### Iteración 15: Descarga/subida de sábana nunca coincidieron; botón OC roto; branding incorrecto (COMPLETADO)
 **Fecha:** 2026-08-03

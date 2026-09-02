@@ -8,13 +8,13 @@ import { useConfig } from '../hooks/useConfig';
 import { useToast } from '../context/ToastContext';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { usePrivacy } from '../context/PrivacyContext';
-import { getOrderSummary } from '../lib/finance';
+import { getOrderSummary, round2 } from '../lib/finance';
 import { sound } from '../lib/sounds';
 import { downloadBackupJsonFile } from '../lib/cloudBackup';
+import { downloadMasterExcelWorkbook } from '../lib/masterExcelExporter';
+import { downloadExecutiveOnePagerPdf } from '../lib/executiveOnePagerPdf';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
-import { DeliveryDueBanner } from './DeliveryDueBanner';
-import { UninvoicedDeliveriesBanner } from './UninvoicedDeliveriesBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
@@ -23,6 +23,7 @@ import { OfflineIndicator } from './ui/OfflineIndicator';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileBottomBar } from './Navigation/MobileBottomBar';
 import { AuditCentinelaBadge } from './Audit/AuditCentinelaBadge';
+import { GlobalSpeedFab } from './Navigation/GlobalSpeedFab';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -50,28 +51,10 @@ export default function Layout() {
   const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
-  const [density, setDensity] = useState<'normal' | 'compact'>(() => {
-    return (localStorage.getItem('cb_table_density') as any) || 'normal';
-  });
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
-
-  useEffect(() => {
-    if (density === 'compact') {
-      document.body.classList.add('density-compact');
-    } else {
-      document.body.classList.remove('density-compact');
-    }
-  }, [density]);
-
-  const toggleDensity = () => {
-    const next = density === 'normal' ? 'compact' : 'normal';
-    setDensity(next);
-    localStorage.setItem('cb_table_density', next);
-    toast(next === 'compact' ? '📐 Modo SAP / Alta Densidad activado' : '🔲 Modo Cómodo activado', 'ok');
-  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -81,6 +64,27 @@ export default function Layout() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e' && !isInput) {
+        e.preventDefault();
+        try {
+          downloadMasterExcelWorkbook({ orders, purchases, expenses, config, settings });
+          sound.playSuccess();
+          toast('📊 Base de Datos Maestra exportada a Excel (.xlsx)', 'ok');
+        } catch (err: any) {
+          toast(`Error al exportar: ${err.message}`, 'bad');
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'p' && e.shiftKey) && !isInput) {
+        e.preventDefault();
+        try {
+          const saldoCaja = round2(
+            (expenses || []).reduce((acc: number, exp: any) => acc + (exp?.type === 'ingreso' ? Number(exp.amount) || 0 : -(Number(exp.amount) || 0)), 0)
+          );
+          downloadExecutiveOnePagerPdf({ orders, expenses, config, settings, saldoCaja });
+          sound.playSuccess();
+          toast('📄 Resumen Ejecutivo One-Pager descargado en PDF', 'ok');
+        } catch (err: any) {
+          toast(`Error al generar PDF: ${err.message}`, 'bad');
+        }
       } else if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && !isInput) {
         e.preventDefault();
         setShortcutsOpen((prev) => !prev);
@@ -103,23 +107,23 @@ export default function Layout() {
   const navItems = useMemo<NavItem[]>(() => [
     { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },
     
-    { type: 'group', label: 'OPERACIÓN & VENTAS', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes (OCs)', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'group', label: 'OPERACIONES & BÁSCULA', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: '⚡', label: 'Captura Rápida', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/captura-rapida', icon: '⚖️', label: 'Báscula & Entregas', roles: ['admin', 'manager'] },
     { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de SKUs', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/portal-maquilador', icon: '🚛', label: 'Portal del Maquilador', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'FINANZAS & TESORERÍA', roles: ['admin', 'manager'] },
+    { type: 'group', label: 'FINANZAS & LIQUIDEZ', roles: ['admin', 'manager'] },
     { type: 'link', to: '/cobranza', icon: '🧾', label: `Cobranza Providencia`, roles: ['admin', 'manager'] },
     { type: 'link', to: '/compras', icon: '🏭', label: `Compras & Andrés`, roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Caja Chica & Efectivo', roles: ['admin'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
 
-    { type: 'group', label: 'GOBIERNO & AUDITORÍA', roles: ['admin'] },
-    { type: 'link', to: '/audit', icon: '⚖️', label: 'Auditoría & Centinela', roles: ['admin'] },
-    { type: 'link', to: '/mining', icon: '📈', label: 'Minería & BI', roles: ['admin'] },
-    { type: 'link', to: '/portal-maquilador', icon: '🚛', label: 'Portal del Maquilador', roles: ['admin', 'manager'] },
+    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
+    { type: 'link', to: '/audit', icon: '🛡️', label: 'Centinela & Auditoría', roles: ['admin'] },
+    { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocios BI', roles: ['admin'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin'] },
-    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios & Accesos', roles: ['admin'] },
+    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios & Permisos', roles: ['admin'] },
   ], []);
 
   const handleDownloadLocalBackup = () => {
@@ -238,27 +242,6 @@ export default function Layout() {
             }}
           >
             {isPrivate ? '🙈' : '👁️'}
-          </button>
-
-          {/* Botón de Densidad de Tablas SAP */}
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={toggleDensity}
-            aria-label="Alternar Densidad SAP"
-            title={density === 'compact' ? "Modo Alta Densidad SAP Activo. Clic para modo cómodo." : "Modo Cómodo Activo. Clic para modo compacto SAP."}
-            style={{
-              minHeight: 40,
-              minWidth: 40,
-              background: density === 'compact' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-              color: density === 'compact' ? '#3b82f6' : 'inherit',
-              border: density === 'compact' ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid var(--line-soft)',
-              borderRadius: 10,
-              fontSize: 15,
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-          >
-            {density === 'compact' ? '📐' : '🔲'}
           </button>
           
           {/* Botón de Atajos de Teclado */}
@@ -394,8 +377,6 @@ export default function Layout() {
           <OfflineBanner />
           <div className="content">
             <OverdueBanner />
-            <DeliveryDueBanner orders={orders} />
-            <UninvoicedDeliveriesBanner orders={orders} />
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>
@@ -406,6 +387,7 @@ export default function Layout() {
       </div>
 
       <MobileBottomBar />
+      <GlobalSpeedFab />
       <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <KeyboardShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>

@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { money, monthLabel } from '../../lib/format';
+import { round2 } from '../../lib/finance';
 import { exportToExcel } from '../../lib/export';
 import { downloadBackupJsonFile } from '../../lib/cloudBackup';
+import { downloadMasterExcelWorkbook } from '../../lib/masterExcelExporter';
+import { downloadExecutiveOnePagerPdf } from '../../lib/executiveOnePagerPdf';
 import { OfflineExcelSyncModal } from '../Offline/OfflineExcelSyncModal';
 import type { NavigateFunction } from 'react-router-dom';
 import type { PurchaseOrder } from '../../lib/types';
@@ -38,6 +41,9 @@ export function DashboardHeaderToolbar({
   config,
   shareRentabilidad,
   printRentabilidad,
+  onOpenUniversalUpload,
+  onAutoHeal,
+  isHealing,
 }: {
   nav: NavigateFunction;
   toast: (msg: string, tone?: 'info' | 'ok' | 'bad') => void;
@@ -62,6 +68,9 @@ export function DashboardHeaderToolbar({
   config: any;
   shareRentabilidad: () => void;
   printRentabilidad: () => void;
+  onOpenUniversalUpload?: () => void;
+  onAutoHeal?: () => void;
+  isHealing?: boolean;
 }) {
   const [showOfflineModal, setShowOfflineModal] = useState(false);
 
@@ -81,7 +90,33 @@ export function DashboardHeaderToolbar({
         </div>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* BOTÓN HERO: NUEVO EXPEDIENTE */}
+          {/* BOTÓN HERO 1: SUBIR / PEGAR DOCUMENTO */}
+          {onOpenUniversalUpload && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 13.5,
+                padding: '9px 18px',
+                borderRadius: 12,
+                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+              }}
+              onClick={onOpenUniversalUpload}
+            >
+              <span style={{ fontSize: 16 }}>📥</span>
+              <span>Subir / Pegar Doc</span>
+            </button>
+          )}
+
+          {/* BOTÓN HERO 2: NUEVO EXPEDIENTE */}
           <button
             className="btn btn-primary"
             style={{
@@ -154,6 +189,30 @@ export function DashboardHeaderToolbar({
               >
                 <button
                   className="btn"
+                  style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#0284c7', padding: '8px 12px', borderRadius: 8 }}
+                  onClick={() => {
+                    setShowReportsMenu(false);
+                    try {
+                      const saldoCaja = round2(
+                        (expenses || []).reduce((acc: number, e: any) => acc + (e?.type === 'ingreso' ? Number(e.amount) || 0 : -(Number(e.amount) || 0)), 0)
+                      );
+                      downloadExecutiveOnePagerPdf({
+                        orders: globalOrders,
+                        expenses,
+                        config,
+                        settings,
+                        saldoCaja,
+                      });
+                      toast('📄 Reporte Ejecutivo One-Pager generado en PDF', 'ok');
+                    } catch (e: any) {
+                      toast(`Error generando PDF: ${e.message}`, 'bad');
+                    }
+                  }}
+                >
+                  📄 Resumen Ejecutivo One-Pager (PDF)
+                </button>
+                <button
+                  className="btn"
                   style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
                   onClick={() => { setShowReportsMenu(false); onOpenCorteMensual(); }}
                 >
@@ -181,6 +240,16 @@ export function DashboardHeaderToolbar({
                 >
                   ⚡ Sincronizar Contrarecibos
                 </button>
+                {onAutoHeal && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#059669', padding: '8px 12px', borderRadius: 8 }}
+                    disabled={isHealing}
+                    onClick={() => { setShowReportsMenu(false); onAutoHeal(); }}
+                  >
+                    {isHealing ? '⏳ Auto-Sanando...' : '✨ Auto-Sanar Base de Datos'}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -226,13 +295,35 @@ export function DashboardHeaderToolbar({
                   border: '1px solid var(--line)',
                   borderRadius: 14,
                   padding: 6,
-                  minWidth: 230,
+                  minWidth: 260,
                   boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4,
                 }}
               >
+                <button
+                  className="btn"
+                  style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#059669', padding: '8px 12px', borderRadius: 8 }}
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    try {
+                      downloadMasterExcelWorkbook({
+                        orders: globalOrders,
+                        purchases,
+                        expenses,
+                        config,
+                        settings,
+                      });
+                      toast('📊 Base de Datos Maestra exportada a Excel (.xlsx multi-hoja)', 'ok');
+                    } catch (e: any) {
+                      toast(`Error al exportar Excel maestro: ${e.message}`, 'bad');
+                    }
+                  }}
+                >
+                  📊 Base de Datos Maestra (.xlsx)
+                </button>
+
                 <button
                   className="btn"
                   style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
@@ -247,7 +338,7 @@ export function DashboardHeaderToolbar({
                     }
                   }}
                 >
-                  📊 Sábana Excel en Vivo
+                  📈 Sábana Excel en Vivo
                 </button>
 
                 <button

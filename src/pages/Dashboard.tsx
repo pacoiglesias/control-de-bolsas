@@ -19,6 +19,10 @@ import type { PurchaseOrder } from '../lib/types';
 import { useDashboardStats } from '../hooks/useDashboardStatsV2';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { getRentabilidadHtml } from './DashboardReports';
+import { autoHealAndPurgeErpDatabase } from '../lib/autoHealEngine';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { sound } from '../lib/sounds';
+import confetti from 'canvas-confetti';
 
 // Componentes Modulares del Dashboard
 import { DashboardLiveTicker } from '../components/Dashboard/DashboardLiveTicker';
@@ -89,6 +93,7 @@ export default function Dashboard() {
   const [showBalanza, setShowBalanza] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
+  const [showUniversalUpload, setShowUniversalUpload] = useState(false);
   const [showReportsMenu, setShowReportsMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showQuickEdit, setShowQuickEdit] = useState(false);
@@ -156,7 +161,7 @@ export default function Dashboard() {
   }, [globalOrders, deptFilter]);
 
   const activeOrders = useMemo(() => {
-    return globalOrders.filter(o => !o.isClosedShort);
+    return globalOrders.filter(o => !(o as any).isDeleted);
   }, [globalOrders]);
 
   // Métricas financieras departamentales en vivo para los botones de filtrado
@@ -166,7 +171,7 @@ export default function Dashboard() {
     let gt = 0;
 
     globalOrders.forEach(o => {
-      if (o.isClosedShort) return;
+      if ((o as any).isDeleted) return;
       (o.invoices || []).forEach(inv => {
         const st = inv.creditCycle?.status;
         const paidAmt = inv.collection?.paidAmount || 0;
@@ -195,9 +200,12 @@ export default function Dashboard() {
 
   const pendingInvoicesCount = useMemo(() => {
     return seguimientoOrders.filter(o => {
+      if ((o as any).isDeleted) return false;
       if (o.isClosedShort) return false;
+      const orderStatus = (o as any).status || o.creditCycle?.status;
+      if (orderStatus === 'facturado' || orderStatus === 'completado' || orderStatus === 'revision') return false;
       const s = getOrderSummary(o);
-      return s.kilosDelivered > s.kilosInvoiced + 0.01;
+      return s.kilosDelivered > s.kilosInvoiced + 0.05;
     }).length;
   }, [seguimientoOrders]);
 
@@ -320,6 +328,23 @@ export default function Dashboard() {
     }
   };
 
+  const [isHealing, setIsHealing] = useState(false);
+
+  const handleAutoHeal = async () => {
+    setIsHealing(true);
+    triggerHaptic('medium');
+    try {
+      const res = await autoHealAndPurgeErpDatabase();
+      sound.playChaChing();
+      confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+      toast(`✨ ${res.message}`, 'ok');
+    } catch (e: any) {
+      toast(`❌ Error en auto-sanación: ${e.message}`, 'bad');
+    } finally {
+      setIsHealing(false);
+    }
+  };
+
   if (loadingGlobalOrders || loadingExp) {
     return (
       <div style={{ padding: '0 0 40px' }}>
@@ -364,6 +389,9 @@ export default function Dashboard() {
         onOpenCorteSemanal={() => setShowCorteSemanal(true)}
         onOpenBalanza={() => setShowBalanza(true)}
         onOpenSincronizador={() => setShowSincronizador(true)}
+        onOpenUniversalUpload={() => setShowUniversalUpload(true)}
+        onAutoHeal={handleAutoHeal}
+        isHealing={isHealing}
         globalOrders={globalOrders}
         purchases={purchases}
         expenses={expenses}
@@ -411,6 +439,7 @@ export default function Dashboard() {
               if (orderId) setSelectedDeliveryOrderId(orderId);
               setShowQuickDelivery(true);
             }}
+            onOpenUniversalUpload={() => setShowUniversalUpload(true)}
           />
         )}
 
@@ -505,6 +534,8 @@ export default function Dashboard() {
         setShowMagicPaste={setShowMagicPaste}
         showSincronizador={showSincronizador}
         setShowSincronizador={setShowSincronizador}
+        showUniversalUpload={showUniversalUpload}
+        setShowUniversalUpload={setShowUniversalUpload}
         seguimientoOrders={seguimientoOrders}
         activeOrders={activeOrders}
         globalOrders={globalOrders}

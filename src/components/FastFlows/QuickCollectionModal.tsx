@@ -40,8 +40,9 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
   // Facturas pendientes (sin CR asignado y vivas)
   const pendingInvoices = useMemo<PendingInvoiceItem[]>(() => {
     const list: PendingInvoiceItem[] = [];
-    orders.forEach(o => {
-      if (!o || o.isClosedShort) return;
+    const sourceOrders = (allOrders && allOrders.length > 0) ? allOrders : (orders || []);
+    sourceOrders.forEach(o => {
+      if (!o || (o as any).isDeleted) return;
       if (o.creditCycle?.status === 'collected') return;
 
       (o.invoices || []).forEach(inv => {
@@ -68,7 +69,7 @@ export function QuickCollectionModal({ orders, onClose }: { orders: PurchaseOrde
       });
     });
     return list;
-  }, [orders]);
+  }, [allOrders, orders]);
 
   // Selección múltiple de facturas para un mismo contrarecibo
   const [selectedInvIds, setSelectedInvIds] = useState<Set<string>>(() => {

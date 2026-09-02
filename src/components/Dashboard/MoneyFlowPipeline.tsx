@@ -42,22 +42,15 @@ export function MoneyFlowPipeline({
     let montoEnCreditoCR = 0;
     let countConCr = 0;
 
+    const seenCrs = new Set<string>();
+    const seenSinCrInvoices = new Set<string>();
+
     (orders || []).forEach((o) => {
       if (!o || o.creditCycle?.status === 'collected') return;
 
       const orderCostKg = Number(o.customCostPrice) || o.invoices?.[0]?.financials?.costPricePerKg || costKg;
       const orderSaleKg = Number(o.customSellPrice) || o.invoices?.[0]?.financials?.salePricePerKg || saleKg;
 
-      // FIX: kilosEntregados/kilosFacturados se recalculaban aqui sumando
-      // o.deliveries/o.invoices "a mano", igual que en SeguimientoPedidosTable
-      // (mismo bug, mismo sitio corregido). No sumaban entregas con desglose
-      // por items[] ni aplicaban el fallback de getOrderSummary que sintetiza
-      // una entrega/factura para expedientes viejos sin o.deliveries
-      // capturadas -- asi que ordenes ya facturadas y con CR se contaban aqui
-      // como "Fabricando" (kilosFabricando/montoFabricandoAndres), inflando
-      // ese KPI y sub-contando "Sin CR"/"En Crédito". Ahora se reusa
-      // getOrderSummary(o), la misma fuente que ya usan OcTracking.tsx y
-      // SemaforoDelDia.tsx.
       const summary = getOrderSummary(o);
       const totalKilos = Number(o.totalKilograms) || (o.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0) || summary.kilosDelivered;
       const kilosEntregados = summary.kilosDelivered;
@@ -81,7 +74,7 @@ export function MoneyFlowPipeline({
         countAlmacen++;
       }
 
-      // 3 y 4. Facturas emitidas (Sin CR vs Con CR)
+      // 3 y 4. Facturas emitidas (Sin CR vs Con CR) con deduplicación estricta de folios
       invoices.forEach((inv) => {
         if (!inv) return;
         const invSalePrice = inv.financials?.salePricePerKg ?? orderSaleKg;
@@ -94,11 +87,19 @@ export function MoneyFlowPipeline({
         if (saldoFactura <= 0 || st === 'collected') return;
 
         if (!cr) {
+          const invKey = (inv.folio || inv.uuid || inv.id || '').toUpperCase().trim();
+          if (invKey && seenSinCrInvoices.has(invKey)) return;
+          if (invKey) seenSinCrInvoices.add(invKey);
+
           if (st === 'facturado' || st === 'manual_review' || st === 'pending' || (inv.folio && inv.folio.trim().length > 0)) {
             montoSinContrarecibo += saldoFactura;
             countSinCr++;
           }
         } else {
+          const crKey = cr.toUpperCase().trim();
+          if (seenCrs.has(crKey)) return;
+          seenCrs.add(crKey);
+
           if (st === 'pending' || st === 'overdue' || st === 'facturado') {
             montoEnCreditoCR += saldoFactura;
             countConCr++;

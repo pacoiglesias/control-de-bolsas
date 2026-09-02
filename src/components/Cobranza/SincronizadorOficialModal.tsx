@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../ui';
 import { money, fmtDate } from '../../lib/format';
 import { doc, setDoc, updateDoc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
-import { round2 } from '../../lib/finance';
+import { round2, computeFinancials } from '../../lib/finance';
 import { db, PATHS, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { camposInvoices } from '../../lib/invoiceOps';
@@ -10,7 +10,7 @@ import { logAction } from '../../lib/logger';
 import { useToast } from '../../context/ToastContext';
 import { sound } from '../../lib/sounds';
 import confetti from 'canvas-confetti';
-import type { PurchaseOrder } from '../../lib/types';
+import type { PurchaseOrder, Invoice } from '../../lib/types';
 
 export interface OfficialCrRecord {
   no: number;
@@ -20,18 +20,103 @@ export interface OfficialCrRecord {
   total: number;
   status: string;
   department: 'TH' | 'GT';
+  invoicesDetails?: { folio: string; controlInterno?: string; amount: number }[];
 }
 
 export const OFFICIAL_CRS: OfficialCrRecord[] = [
-  { no: 1, cr: 'GT-874', issueDate: '2026-08-24', dueDate: '2026-09-23', total: 49880.00, status: 'GENERADO', department: 'GT' },
-  { no: 2, cr: 'TH-990', issueDate: '2026-08-24', dueDate: '2026-09-23', total: 98054.60, status: 'GENERADO', department: 'TH' },
-  { no: 3, cr: 'TH-946', issueDate: '2026-08-17', dueDate: '2026-09-16', total: 81780.00, status: 'GENERADO', department: 'TH' },
-  { no: 4, cr: 'TH-912', issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, status: 'GENERADO', department: 'TH' },
-  { no: 5, cr: 'TH-879', issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, status: 'GENERADO', department: 'TH' },
-  { no: 6, cr: 'TH-836', issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, status: 'GENERADO', department: 'TH' },
-  { no: 7, cr: 'GT-742', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, status: 'GENERADO', department: 'GT' },
-  { no: 8, cr: 'GT-713', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, status: 'GENERADO', department: 'GT' },
-  { no: 9, cr: 'GT-651', issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, status: 'GENERADO', department: 'GT' },
+  {
+    no: 1,
+    cr: 'GT-874',
+    issueDate: '2026-08-24',
+    dueDate: '2026-09-23',
+    total: 49880.00,
+    status: 'GENERADO',
+    department: 'GT',
+    invoicesDetails: [{ folio: '6224', controlInterno: '2 / 280', amount: 49880.00 }],
+  },
+  {
+    no: 2,
+    cr: 'TH-990',
+    issueDate: '2026-08-24',
+    dueDate: '2026-09-23',
+    total: 98054.60,
+    status: 'GENERADO',
+    department: 'TH',
+    invoicesDetails: [{ folio: '6198', controlInterno: '8 / 655', amount: 98054.60 }],
+  },
+  {
+    no: 3,
+    cr: 'TH-946',
+    issueDate: '2026-08-17',
+    dueDate: '2026-09-16',
+    total: 81780.00,
+    status: 'GENERADO',
+    department: 'TH',
+    invoicesDetails: [{ folio: '6173', controlInterno: '8 / 645', amount: 81780.00 }],
+  },
+  {
+    no: 4,
+    cr: 'TH-912',
+    issueDate: '2026-08-10',
+    dueDate: '2026-09-09',
+    total: 79826.00,
+    status: 'GENERADO',
+    department: 'TH',
+    invoicesDetails: [{ folio: '6159', controlInterno: '8 / 630', amount: 79826.00 }],
+  },
+  {
+    no: 5,
+    cr: 'TH-879',
+    issueDate: '2026-08-03',
+    dueDate: '2026-09-02',
+    total: 136300.00,
+    status: 'GENERADO',
+    department: 'TH',
+    invoicesDetails: [
+      { folio: '6097', controlInterno: '8 / 611', amount: 109040.00 },
+      { folio: '6098', controlInterno: '8 / 612', amount: 27260.00 },
+    ],
+  },
+  {
+    no: 6,
+    cr: 'GT-742',
+    issueDate: '2026-07-20',
+    dueDate: '2026-08-19',
+    total: 54520.00,
+    status: 'GENERADO',
+    department: 'GT',
+    invoicesDetails: [{ folio: '6073', controlInterno: '2 / 260', amount: 54520.00 }],
+  },
+  {
+    no: 7,
+    cr: 'GT-713',
+    issueDate: '2026-07-13',
+    dueDate: '2026-08-12',
+    total: 69001.60,
+    status: 'GENERADO',
+    department: 'GT',
+    invoicesDetails: [{ folio: '6053', controlInterno: '2 / 249', amount: 69001.60 }],
+  },
+  {
+    no: 8,
+    cr: 'GT-651',
+    issueDate: '2026-06-29',
+    dueDate: '2026-07-29',
+    total: 106477.56,
+    status: 'GENERADO',
+    department: 'GT',
+    invoicesDetails: [{ folio: '5971', controlInterno: '2 / 228', amount: 106477.56 }],
+  },
+];
+
+export const OFFICIAL_PAID_CRS: OfficialCrRecord[] = [
+  { no: 1, cr: 'TH-836', issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, status: 'PAGADO', department: 'TH' },
+  { no: 2, cr: 'TH-804', issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, status: 'PAGADO', department: 'TH' },
+  { no: 3, cr: 'TH-768', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, status: 'PAGADO', department: 'TH' },
+  { no: 4, cr: 'TH-739', issueDate: '2026-07-06', dueDate: '2026-08-05', total: 109040.00, status: 'PAGADO', department: 'TH' },
+  { no: 5, cr: 'TH-713', issueDate: '2026-06-29', dueDate: '2026-07-29', total: 108647.46, status: 'PAGADO', department: 'TH' },
+  { no: 6, cr: 'GT-624', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00,  status: 'PAGADO', department: 'GT' },
+  { no: 7, cr: 'TH-680', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 80970.38,  status: 'PAGADO', department: 'TH' },
 ];
 
 export const OFFICIAL_IN_REVIEW = [
@@ -85,43 +170,34 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         }
       }
 
-      // 1. Sincronizar los 10 Contrarecibos
+      // 1. Sincronizar los Contrarecibos
       for (const item of OFFICIAL_CRS) {
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
 
-        // Buscar si ya existe una orden con este CR
-        const matchingOrder = orders.find(o => 
-          (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
-          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr)
-        );
+        const buildInvoices = (orderId: string): Invoice[] => {
+          const cfg = {
+            salePricePerKg: 43,
+            costPricePerKg: 38,
+            commissionRate: 0.08,
+            commissionBase: 'subtotal' as const,
+            ivaRate: 0.16,
+            creditDays: 30,
+          };
 
-        if (matchingOrder) {
-          // Actualizar orden existente
-          const updatedInvoices: any[] = (matchingOrder.invoices && matchingOrder.invoices.length > 0)
-            ? matchingOrder.invoices.map(inv => ({
-                ...inv,
-                creditCycle: {
-                  ...inv.creditCycle,
-                  issueDate: issueTs,
-                  dueDate: dueTs,
-                  status: 'pending',
-                },
-                collection: {
-                  ...inv.collection,
-                  contrareciboNumber: item.cr,
-                  contrareciboDate: issueTs,
-                },
-                financials: {
-                  ...inv.financials,
-                  invoiceTotal: item.total,
-                }
-              }))
-            : [{
-                id: `inv-${item.cr.toLowerCase()}`,
-                orderId: matchingOrder.id,
-                folio: matchingOrder.folio || item.cr,
-                kilos: Math.round(item.total / (43 * 1.16)),
+          if (item.invoicesDetails && item.invoicesDetails.length > 0) {
+            return item.invoicesDetails.map((inv, idx) => {
+              const kEst = Math.round(inv.amount / (43 * 1.16));
+              const fin = computeFinancials(kEst, cfg);
+              fin.invoiceTotal = inv.amount;
+              fin.saleTotal = round2(inv.amount / 1.16);
+
+              return {
+                id: `inv-${item.cr.toLowerCase()}-${inv.folio || idx}`,
+                orderId,
+                folio: inv.folio,
+                notes: inv.controlInterno ? `Control Interno: ${inv.controlInterno}` : undefined,
+                kilos: kEst,
                 creditCycle: {
                   status: 'pending',
                   issueDate: issueTs,
@@ -132,10 +208,45 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                   contrareciboDate: issueTs,
                   paidAmount: 0,
                 },
-                financials: {
-                  invoiceTotal: item.total,
-                } as any,
-              }];
+                financials: fin,
+              };
+            });
+          }
+          const kilosEst = Math.round(item.total / (43 * 1.16));
+          const fin = computeFinancials(kilosEst, cfg);
+          fin.invoiceTotal = item.total;
+          fin.saleTotal = round2(item.total / 1.16);
+
+          return [
+            {
+              id: `inv-${item.cr.toLowerCase()}`,
+              orderId,
+              folio: item.cr,
+              kilos: kilosEst,
+              creditCycle: {
+                status: 'pending',
+                issueDate: issueTs,
+                dueDate: dueTs,
+              },
+              collection: {
+                contrareciboNumber: item.cr,
+                contrareciboDate: issueTs,
+                paidAmount: 0,
+              },
+              financials: fin,
+            },
+          ];
+        };
+
+        // Buscar si ya existe una orden con este CR
+        const matchingOrder = orders.find(o => 
+          (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
+          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr)
+        );
+
+        if (matchingOrder) {
+          // Actualizar orden existente respetando los folios de factura
+          const updatedInvoices = buildInvoices(matchingOrder.id);
 
           const ref = doc(db, PATHS.orders, matchingOrder.id);
           await updateDoc(ref, {
@@ -147,11 +258,12 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             updatedAt: serverTimestamp(),
           });
 
-          addLog(`✅ CR ${item.cr} (${money(item.total)}): Actualizado en orden existente (${matchingOrder.folio || matchingOrder.id}).`);
+          addLog(`✅ CR ${item.cr} (${money(item.total)}): Sincronizado con folios [${updatedInvoices.map(i => i.folio).join(', ')}].`);
         } else {
           // Crear expediente nuevo para este Contrarecibo Oficial
           const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
           const kilosEst = Math.round(item.total / (43 * 1.16));
+          const newInvoices = buildInvoices(newId);
           const newOrderDoc: any = {
             id: newId,
             folio: item.cr,
@@ -159,30 +271,10 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
             department: item.department,
             totalKilograms: kilosEst,
-            invoices: [
-              {
-                id: `inv-${item.cr.toLowerCase()}`,
-                orderId: newId,
-                folio: item.cr,
-                kilos: kilosEst,
-                creditCycle: {
-                  status: 'pending',
-                  issueDate: issueTs,
-                  dueDate: dueTs,
-                },
-                collection: {
-                  contrareciboNumber: item.cr,
-                  contrareciboDate: issueTs,
-                  paidAmount: 0,
-                },
-                financials: {
-                  invoiceTotal: item.total,
-                  saleTotal: item.total / 1.16,
-                  ivaTotal: item.total - (item.total / 1.16),
-                },
-              }
-            ],
+            invoices: newInvoices,
             invoiceStatuses: ['pending'],
+            invoiceFolios: newInvoices.map(i => i.folio),
+            invoiceUuids: [],
             collection: {
               contrareciboNumber: item.cr,
               contrareciboDate: issueTs,
@@ -203,7 +295,72 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         }
       }
 
-      // 2. Sincronizar Facturas en Revisión por Orden de Compra
+      // 2. Sincronizar los 7 Contrarecibos Históricos Pagados (Saldo $0.00 / 100% Cobrado)
+      for (const item of OFFICIAL_PAID_CRS) {
+        const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
+        const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
+        const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        const kilosEst = Math.round(item.total / (43 * 1.16));
+        const paidDoc: any = {
+          id: newId,
+          folio: item.cr,
+          oc: item.cr,
+          client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+          department: item.department,
+          totalKilograms: kilosEst,
+          invoices: [
+            {
+              id: `inv-${item.cr.toLowerCase()}`,
+              orderId: newId,
+              folio: item.cr,
+              kilos: kilosEst,
+              creditCycle: {
+                status: 'collected',
+                issueDate: issueTs,
+                dueDate: dueTs,
+              },
+              collection: {
+                contrareciboNumber: item.cr,
+                contrareciboDate: issueTs,
+                paidAmount: item.total,
+                paidAt: dueTs,
+                collectedAt: dueTs,
+              },
+              financials: {
+                invoiceTotal: item.total,
+                saleTotal: round2(item.total / 1.16),
+                costTotal: round2(kilosEst * 38),
+                commission: round2((item.total / 1.16) * 0.08),
+                netCashFlow: round2((item.total / 1.16) * 1.08 - (kilosEst * 38)),
+                salePricePerKg: 43,
+                costPricePerKg: 38,
+              },
+            }
+          ],
+          invoiceStatuses: ['collected'],
+          invoiceFolios: [item.cr],
+          collection: {
+            contrareciboNumber: item.cr,
+            contrareciboDate: issueTs,
+            paidAmount: item.total,
+            paidAt: dueTs,
+            collectedAt: dueTs,
+          },
+          creditCycle: {
+            status: 'collected',
+            issueDate: issueTs,
+            dueDate: dueTs,
+          },
+          status: 'collected',
+          createdAt: issueTs,
+          updatedAt: serverTimestamp(),
+        };
+
+        await setDoc(doc(db, PATHS.orders, newId), paidDoc, { merge: true });
+        addLog(`💰 CR Pagado ${item.cr} (${money(item.total)}): Registrado como liquidado al 100% en caja.`);
+      }
+
+      // 3. Sincronizar Facturas en Revisión por Orden de Compra
       if (Array.isArray(OFFICIAL_IN_REVIEW)) {
         // Agrupar facturas por OC
         const ocGroupsMap = new Map<string, typeof OFFICIAL_IN_REVIEW>();

@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useExpensesContext } from '../context/ExpensesContext';
 import { useInvoicesContext } from '../context/InvoicesContext';
 import { generateOfflineHTML } from '../lib/exportOfflineHTML';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { useToast } from '../context/ToastContext';
 
-// Importamos las vistas administrativas antiguas
+// Importamos las vistas administrativas
 import Settings from './Settings';
 import Users from './Users';
 import Respaldo from './Respaldo';
@@ -21,21 +24,24 @@ export default function ControlCenter() {
   const { orders } = useOrdersContext();
   const { expenses } = useExpensesContext();
   const { invoices } = useInvoicesContext();
+  const toast = useToast();
 
   const handleExportHTML = () => {
-    // Calculamos algunos KPIs básicos para el snapshot
-    const totalPorCobrar = invoices.filter(i => i.creditCycle.status !== 'collected').reduce((sum, i) => sum + (i.financials?.invoiceTotal || 0), 0);
-    
+    triggerHaptic('light');
+    const totalPorCobrar = invoices
+      .filter((i) => i.creditCycle.status !== 'collected')
+      .reduce((sum, i) => sum + (i.financials?.invoiceTotal || 0), 0);
+
     const snapshotData = {
       orders,
       expenses,
       kpis: {
         porCobrar: totalPorCobrar,
-        cajaChica: 0, // Placeholder
-        enTransito: 0 // Placeholder
-      }
+        cajaChica: 0,
+        enTransito: 0,
+      },
     };
-    
+
     const htmlString = generateOfflineHTML(snapshotData);
     const blob = new Blob([htmlString], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -44,69 +50,111 @@ export default function ControlCenter() {
     a.download = `ERP-Offline-Snapshot-${new Date().toISOString().split('T')[0]}.html`;
     a.click();
     URL.revokeObjectURL(url);
+    triggerHaptic('success');
+    toast('🌐 ERP Portátil (.html) descargado con éxito', 'ok');
   };
 
   if (role !== 'admin') {
     return <Navigate to="/" replace />;
   }
 
+  const tabsConfig = [
+    { key: 'settings', label: '⚙️ Ajustes & Precios' },
+    { key: 'users', label: '👥 Usuarios' },
+    { key: 'backup', label: '💾 Respaldos' },
+    { key: 'logs', label: '📝 Auditoría (Logs)' },
+    { key: 'papelera', label: '🗑️ Papelera' },
+  ] as const;
+
   return (
     <>
-      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div
+        className="page-head"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
         <div>
-          <h1>Centro de Control</h1>
-          <p>Administración unificada del sistema, usuarios, respaldos y auditoría.</p>
+          <h1>CENTRO DE CONTROL & GOBERNANZA</h1>
+          <p>Administración unificada del sistema, usuarios, respaldos de base de datos y auditoría forense.</p>
         </div>
-        <button className="btn btn-primary" onClick={handleExportHTML}>
-          ⬇️ Exportar ERP a HTML (Portátil)
-        </button>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="btn btn-primary"
+          style={{ minHeight: 42, padding: '0 18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}
+          onClick={handleExportHTML}
+        >
+          ⬇️ Exportar ERP Offline (.html)
+        </motion.button>
       </div>
 
-      <div className="tabs" style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '16px' }}>
-        <button 
-          className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('settings')}
-          style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'settings' ? '2px solid var(--brand)' : '2px solid transparent', cursor: 'pointer', fontWeight: activeTab === 'settings' ? 600 : 400, color: activeTab === 'settings' ? 'var(--brand)' : 'var(--text-light)' }}
-        >
-          ⚙️ Ajustes y Precios
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('users')}
-          style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'users' ? '2px solid var(--brand)' : '2px solid transparent', cursor: 'pointer', fontWeight: activeTab === 'users' ? 600 : 400, color: activeTab === 'users' ? 'var(--brand)' : 'var(--text-light)' }}
-        >
-          👥 Usuarios
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'backup' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('backup')}
-          style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'backup' ? '2px solid var(--brand)' : '2px solid transparent', cursor: 'pointer', fontWeight: activeTab === 'backup' ? 600 : 400, color: activeTab === 'backup' ? 'var(--brand)' : 'var(--text-light)' }}
-        >
-          💾 Respaldos
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'logs' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('logs')}
-          style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'logs' ? '2px solid var(--brand)' : '2px solid transparent', cursor: 'pointer', fontWeight: activeTab === 'logs' ? 600 : 400, color: activeTab === 'logs' ? 'var(--brand)' : 'var(--text-light)' }}
-        >
-          📝 Auditoría (Logs)
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'papelera' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('papelera')}
-          style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'papelera' ? '2px solid var(--brand)' : '2px solid transparent', cursor: 'pointer', fontWeight: activeTab === 'papelera' ? 600 : 400, color: activeTab === 'papelera' ? 'var(--brand)' : 'var(--text-light)' }}
-        >
-          🗑️ Papelera
-        </button>
+      {/* Selector de Pestañas Segmentadas */}
+      <div
+        style={{
+          display: 'inline-flex',
+          gap: 4,
+          padding: 5,
+          background: 'var(--paper-sunk, rgba(0, 0, 0, 0.25))',
+          borderRadius: 14,
+          border: '1px solid var(--border, rgba(255, 255, 255, 0.08))',
+          marginBottom: 24,
+          flexWrap: 'wrap',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        }}
+      >
+        {tabsConfig.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <motion.button
+              key={tab.key}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => {
+                triggerHaptic('light');
+                setActiveTab(tab.key);
+              }}
+              style={{
+                background: isActive ? 'var(--accent, #3b82f6)' : 'transparent',
+                color: isActive ? '#fff' : 'var(--ink-soft, #94a3b8)',
+                border: 'none',
+                borderRadius: 10,
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: isActive ? 800 : 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: isActive ? '0 4px 12px rgba(59, 130, 246, 0.35)' : 'none',
+              }}
+            >
+              {tab.label}
+            </motion.button>
+          );
+        })}
       </div>
 
-      <div className="tab-content" style={{ padding: '0 8px' }}>
-        {activeTab === 'settings' && <Settings />}
-        {activeTab === 'users' && <Users />}
-        {activeTab === 'backup' && <Respaldo />}
-        {activeTab === 'logs' && <Logs />}
-        {activeTab === 'papelera' && <Papelera />}
-      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.18 }}
+          style={{ padding: '0 2px' }}
+        >
+          {activeTab === 'settings' && <Settings />}
+          {activeTab === 'users' && <Users />}
+          {activeTab === 'backup' && <Respaldo />}
+          {activeTab === 'logs' && <Logs />}
+          {activeTab === 'papelera' && <Papelera />}
+        </motion.div>
+      </AnimatePresence>
     </>
   );
 }
+

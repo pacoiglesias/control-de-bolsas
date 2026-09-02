@@ -1,9 +1,18 @@
+import { triggerHaptic } from './hapticEngine';
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private muted = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('cb_sound_muted');
+        if (stored !== null) {
+          this.muted = stored === 'true';
+        }
+      } catch { /* ignore storage errors */ }
+
       const unlock = () => {
         if (!this.ctx) {
           this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -32,6 +41,11 @@ class SoundEngine {
 
   setMuted(m: boolean) {
     this.muted = m;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('cb_sound_muted', String(m));
+      }
+    } catch { /* ignore */ }
   }
 
   isMuted() {
@@ -39,6 +53,7 @@ class SoundEngine {
   }
 
   playSuccess() {
+    triggerHaptic('success');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -61,6 +76,7 @@ class SoundEngine {
   }
 
   playChaChing() {
+    triggerHaptic('cash');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -88,6 +104,7 @@ class SoundEngine {
   }
 
   playSwoosh() {
+    triggerHaptic('light');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -123,6 +140,7 @@ class SoundEngine {
   }
 
   playError() {
+    triggerHaptic('error');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -145,6 +163,7 @@ class SoundEngine {
   }
 
   playNotify() {
+    triggerHaptic('medium');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -168,6 +187,7 @@ class SoundEngine {
   }
 
   playPop() {
+    triggerHaptic('light');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();
@@ -181,8 +201,7 @@ class SoundEngine {
       osc.frequency.setValueAtTime(400, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.05);
       
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
       
       osc.start();
@@ -191,6 +210,7 @@ class SoundEngine {
   }
 
   playCash() {
+    triggerHaptic('cash');
     if (this.muted) return;
     try {
       const ctx = this.getCtx();

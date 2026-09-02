@@ -82,6 +82,26 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         },
       },
       {
+        id: 'cmd-master-excel',
+        category: 'Comandos Rápidos',
+        title: '📊 Descargar Base de Datos Maestra (.xlsx)',
+        subtitle: 'Exportar todas las hojas del ERP a un archivo Excel multi-hoja',
+        onSelect: () => {
+          navigate('/respaldo');
+          onClose();
+        },
+      },
+      {
+        id: 'cmd-one-pager',
+        category: 'Comandos Rápidos',
+        title: '📄 Reporte Ejecutivo One-Pager (PDF)',
+        subtitle: 'Descargar resumen directivo oficial en 1 sola página',
+        onSelect: () => {
+          navigate('/respaldo');
+          onClose();
+        },
+      },
+      {
         id: 'cmd-settings',
         category: 'Comandos Rápidos',
         title: '⚙️ Ajustes & Configuración del Sistema',
