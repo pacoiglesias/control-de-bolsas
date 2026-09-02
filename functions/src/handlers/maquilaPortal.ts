@@ -101,7 +101,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     return await procesarRegistroEntregaMaquila(db, request.data);
   }
 
-  if (action === 'ledger') {
+  if (action === 'ledger' || action === 'getStatement') {
     const configSnap = await db.collection('config').doc('financials').get();
     const costPricePerKg = configSnap.data()?.costPricePerKg || 38;
     const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
@@ -226,7 +226,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     }
     ledger.reverse();
 
-    return {
+    const statement = {
       totalReceivedKilos,
       totalPurchasesCost,
       totalPagado,
@@ -237,6 +237,12 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
         registrosGastos: provExpenses.length,
         proveedoresParecidosNoCapturados: Array.from(proveedoresParecidosNoCapturados),
       },
+    };
+
+    return {
+      success: true,
+      statement,
+      ...statement,
     };
   }
 

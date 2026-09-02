@@ -81,6 +81,25 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
     }
   }, [tryLogin]);
 
+  // Soporte de Teclado Físico (0-9, Backspace, Enter)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (loading) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        del();
+      } else if (e.key === 'Enter' && digits.length >= 4) {
+        e.preventDefault();
+        void tryLogin(digits);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [digits, loading, tryLogin]);
+
   const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 
   return (
@@ -93,6 +112,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
         justifyContent: 'center',
         padding: 24,
         fontFamily: 'system-ui, -apple-system, sans-serif',
+        position: 'relative',
       }}
     >
       <motion.div
@@ -105,6 +125,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
           flexDirection: 'column',
           alignItems: 'center',
           gap: 28,
+          position: 'relative',
         }}
       >
         {/* Logo / Header */}
@@ -124,8 +145,41 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
           </p>
         </div>
 
-        {/* Dots de PIN */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        {/* Input invisible para enfocar teclado físico o móvil */}
+        <input
+          type="tel"
+          pattern="[0-9]*"
+          maxLength={6}
+          value={digits}
+          onChange={(e) => {
+            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+            setDigits(val);
+            if (val.length === 4) {
+              void tryLogin(val);
+            }
+          }}
+          autoFocus
+          style={{
+            position: 'absolute',
+            opacity: 0,
+            width: 1,
+            height: 1,
+            top: 0,
+            left: 0,
+            pointerEvents: 'none',
+          }}
+          aria-label="Ingresa el PIN de 4 dígitos"
+        />
+
+        {/* Dots de PIN (Clickables para abrir teclado) */}
+        <div
+          onClick={() => {
+            const input = document.querySelector('input[type="tel"]') as HTMLInputElement;
+            if (input) input.focus();
+          }}
+          style={{ display: 'flex', gap: 16, alignItems: 'center', cursor: 'pointer' }}
+          title="Toca para escribir en el teclado"
+        >
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}

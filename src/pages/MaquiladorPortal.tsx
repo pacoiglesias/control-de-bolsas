@@ -139,15 +139,42 @@ export default function MaquiladorPortal() {
     }
   }, [isOnline, pin, syncOfflineQueue]);
 
-  // Cargar historial guardado
+  // Cargar historial guardado (filtrando folios obsoletos de prueba como 120267114014)
   const [historial, setHistorial] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_DELIVERIES_KEY);
-      return saved ? JSON.parse(saved) : [];
+      const list = saved ? JSON.parse(saved) : [];
+      if (Array.isArray(list)) {
+        const filtered = list.filter((h) => h?.folio !== '120267114014' && h?.orderId !== 'oc-120267114014');
+        if (filtered.length !== list.length) {
+          localStorage.setItem(STORAGE_DELIVERIES_KEY, JSON.stringify(filtered));
+        }
+        return filtered;
+      }
+      return [];
     } catch {
       return [];
     }
   });
+
+  const handleDeleteHistoryItem = (index: number) => {
+    triggerHaptic('medium');
+    const updated = historial.filter((_, i) => i !== index);
+    setHistorial(updated);
+    try {
+      localStorage.setItem(STORAGE_DELIVERIES_KEY, JSON.stringify(updated));
+      toast('Entrega eliminada del historial', 'info');
+    } catch {}
+  };
+
+  const handleClearHistory = () => {
+    triggerHaptic('warning');
+    setHistorial([]);
+    try {
+      localStorage.removeItem(STORAGE_DELIVERIES_KEY);
+      toast('Historial de entregas limpiado', 'ok');
+    } catch {}
+  };
 
   const handleSuccess = (p: string, orders: any[]) => {
     setPin(p);
@@ -300,14 +327,16 @@ export default function MaquiladorPortal() {
   const loadStatement = async () => {
     setLoadingStatement(true);
     try {
-      const res: any = await maquilaServiceFn({ action: 'getStatement', pin });
-      if (res.data.success) {
-        setStatement(res.data.statement);
+      const res: any = await maquilaServiceFn({ action: 'ledger', pin });
+      const data = res?.data;
+      const stmt = data?.statement || (data?.saldoProveedor !== undefined ? data : null);
+      if (stmt) {
+        setStatement(stmt);
       } else {
-        toast(`Error: ${res.data.error}`, 'bad');
+        toast(`Error: ${data?.error || 'No se pudo obtener el estado de cuenta'}`, 'bad');
       }
     } catch (e: any) {
-      toast(`Error al consultar estado de cuenta: ${e.message}`, 'bad');
+      toast(`Error al consultar estado de cuenta: ${e.message || e}`, 'bad');
     } finally {
       setLoadingStatement(false);
     }
@@ -681,6 +710,8 @@ export default function MaquiladorPortal() {
           <MaquiladorPortalHistorialTab
             historial={historial}
             handleDownloadDeliveryTicket={handleDownloadDeliveryTicket}
+            onDeleteDelivery={handleDeleteHistoryItem}
+            onClearHistorial={handleClearHistory}
           />
         )}
 

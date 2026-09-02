@@ -3,24 +3,54 @@ import { glass } from './MaquiladorPortal.shared';
 interface MaquiladorPortalHistorialTabProps {
   historial: any[];
   handleDownloadDeliveryTicket: (h: any) => void;
+  onDeleteDelivery?: (index: number) => void;
+  onClearHistorial?: () => void;
 }
 
 export default function MaquiladorPortalHistorialTab({
   historial,
   handleDownloadDeliveryTicket,
+  onDeleteDelivery,
+  onClearHistorial,
 }: MaquiladorPortalHistorialTabProps) {
   return (
     <div style={{ ...glass, padding: 22 }}>
       <div
         style={{
-          fontSize: 13,
-          color: 'rgba(255,255,255,0.6)',
-          fontWeight: 800,
-          textTransform: 'uppercase',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: 16,
         }}
       >
-        Registro Reciente de Entregas ({historial.length})
+        <div
+          style={{
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.6)',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+          }}
+        >
+          Registro Reciente de Entregas ({historial.length})
+        </div>
+        {historial.length > 0 && onClearHistorial && (
+          <button
+            type="button"
+            onClick={onClearHistorial}
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#f87171',
+              borderRadius: 8,
+              padding: '4px 10px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            🧹 Limpiar Todo
+          </button>
+        )}
       </div>
 
       {historial.length === 0 ? (
@@ -73,26 +103,44 @@ export default function MaquiladorPortalHistorialTab({
               >
                 {h.status === 'pending_approval' ? '⏳ Pendiente Aprobación' : '✓ Registrado'}
               </span>
-              <button
-                onClick={() => handleDownloadDeliveryTicket(h)}
-                title="Descargar Remisión Oficial de esta entrega en PDF"
-                style={{
-                  background: 'rgba(167, 139, 250, 0.15)',
-                  border: '1px solid rgba(167, 139, 250, 0.3)',
-                  borderRadius: 8,
-                  padding: '4px 8px',
-                  color: '#c4b5fd',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  marginTop: 2,
-                }}
-              >
-                <span>📄</span> Remisión PDF
-              </button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+                <button
+                  onClick={() => handleDownloadDeliveryTicket(h)}
+                  title="Descargar Remisión Oficial de esta entrega en PDF"
+                  style={{
+                    background: 'rgba(167, 139, 250, 0.15)',
+                    border: '1px solid rgba(167, 139, 250, 0.3)',
+                    borderRadius: 8,
+                    padding: '4px 8px',
+                    color: '#c4b5fd',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span>📄</span> Remisión PDF
+                </button>
+                {onDeleteDelivery && (
+                  <button
+                    onClick={() => onDeleteDelivery(i)}
+                    title="Eliminar esta entrega del historial local"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: 8,
+                      padding: '4px 8px',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))
