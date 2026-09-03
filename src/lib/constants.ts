@@ -77,7 +77,7 @@ export const CARTERA_OFICIAL = [
   { cr: 'TH-946', monto:  81780.00, factura: 'F-6173', dept: DEPT_TH },
   { cr: 'TH-990', monto:  98054.60, factura: 'F-6198', dept: DEPT_TH },
   { cr: 'GT-874', monto:  49880.00, factura: 'F-6193', dept: DEPT_GT },
-  { cr: 'GT-904', monto:  49032.04, factura: 'PENDIENTE', dept: DEPT_GT },
+  { cr: 'GT-904', monto:  49032.04, factura: 'F-6224', dept: DEPT_GT },
   { cr: 'TH-1030', monto: 74820.00, factura: 'F-6200', dept: DEPT_TH },
 ] as const;
 
