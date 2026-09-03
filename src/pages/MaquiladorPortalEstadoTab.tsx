@@ -83,8 +83,8 @@ export default function MaquiladorPortalEstadoTab({
         <div
           style={{
             ...kpiCard(
-              statement.saldoProveedor < 0 ? '#34d399' : '#fbbf24',
-              statement.saldoProveedor < 0
+              statement.saldoProveedor >= 0 ? '#34d399' : '#fbbf24',
+              statement.saldoProveedor >= 0
                 ? 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.2) 100%)'
                 : 'linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(217,119,6,0.2) 100%)'
             ),
@@ -93,7 +93,7 @@ export default function MaquiladorPortalEstadoTab({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 800, textTransform: 'uppercase' }}>
-              {statement.saldoProveedor < 0 ? '✅ Saldo a tu Favor' : '⚠️ Anticipo Pendiente'}
+              {statement.saldoProveedor >= 0 ? '✅ Saldo a tu Favor (Anticipos)' : '⚠️ Saldo por Cobrar a tu Favor'}
             </span>
             <span style={{ fontSize: 12, color: '#a78bfa', fontWeight: 600 }}>En tiempo real</span>
           </div>
@@ -101,17 +101,17 @@ export default function MaquiladorPortalEstadoTab({
             style={{
               fontSize: 34,
               fontWeight: 900,
-              color: statement.saldoProveedor < 0 ? '#34d399' : '#fbbf24',
+              color: statement.saldoProveedor >= 0 ? '#34d399' : '#fbbf24',
               letterSpacing: '-1px',
             }}
           >
-            {statement.saldoProveedor < 0 ? '+' : '-'}
+            {statement.saldoProveedor >= 0 ? '+' : '-'}
             {money(Math.abs(statement.saldoProveedor))}
           </span>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-            {statement.saldoProveedor < 0
-              ? 'Monto total pendiente de transferirte'
-              : 'Anticipo en mano por cubrir con entregas'}
+            {statement.saldoProveedor >= 0
+              ? 'Anticipo disponible amparado por Bolsas Elemental para cubrir con entregas'
+              : 'Monto total pendiente de transferirte por entregas de material'}
           </span>
         </div>
       </div>

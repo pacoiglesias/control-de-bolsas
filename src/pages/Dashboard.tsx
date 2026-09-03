@@ -38,6 +38,7 @@ import { DashboardSystemStatusFooter } from '../components/Dashboard/DashboardSy
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
+import { AdminFloatingButton } from '../components/Dashboard/AdminFloatingButton';
 import type { PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
 
 export interface LiveLogEntry {
@@ -583,23 +584,7 @@ export default function Dashboard() {
       {/* 8. Panel de Edición Rápida Flotante (Admin) */}
       {role === 'admin' && (
         <>
-          <button
-            onClick={() => setShowQuickEdit(true)}
-            title="Edición Rápida del Sistema"
-            style={{
-              position: 'fixed', bottom: 88, right: 20, zIndex: 900,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: '#fff', border: 'none', borderRadius: '50%',
-              width: 52, height: 52, fontSize: 22,
-              cursor: 'pointer', boxShadow: '0 8px 24px rgba(99,102,241,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
-            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            ⚡
-          </button>
+          <AdminFloatingButton onClick={() => setShowQuickEdit(true)} />
           <AdminQuickEditPanel
             open={showQuickEdit}
             onClose={() => setShowQuickEdit(false)}

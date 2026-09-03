@@ -1,3 +1,15 @@
+### Iteración 107: Alertas Dinámicas de Dashboard y Actualización Canónica de Cartera ($799,691.80)
+[2026-09-03]
+Archivo: `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/lib/constants.ts`
+Problema: El Dashboard (ExecutivePriorityAlerts) tenía pods hardcodeados con información estática. No mostraba en tiempo real el progreso de OCs, el exceso de GT, los totales de Cartera reales, y tampoco mostraba automáticamente las nuevas OCs subidas vía PDF.
+Solución:
+1. **Pods de Alertas Data-Driven:** `ExecutivePriorityAlerts.tsx` fue reescrito completamente para leer en tiempo real las entregas, facturas y progreso desde `navaOrder` y `eveliaOrder`.
+2. **Padrón Oficial Actualizado:** Se agregaron al padrón canónico `GT-904` ($49,032.04) y `TH-1030` ($74,820.00). El monto total oficial es ahora $799,691.80 en 10 contrarecibos.
+3. **Pod Dinámico de Nuevas OCs:** Se implementó un Pod 5 que se auto-renderiza mostrando las nuevas OCs escaneadas (`status: 'pedido'`) que no son maestras, permitiendo verlas en "Por surtir" instantáneamente.
+Riesgo: 🟢 Cero — El componente solo lee datos, los datos maestros se rigen por constantes y validaciones estrictas.
+Commit: `feat(dashboard): dynamic executive alerts derived from real firestore data, padded official debt register with 10 CRs`
+Estado: ✅ Verificado — 139/139 tests pasando, código compilado y listo para deploy.
+OKR afectados: OKR 1 (Precisión Numérica), OKR 5 (Excelencia Visual & UX).
 
 ### Iteración 106: Consolidación Definitiva v9.1.0 Enterprise, Centinela Anti-Duplicados, Fusión Audio-Háptica y Optimización de Navegación (COMPLETADO)
 [2026-09-02]

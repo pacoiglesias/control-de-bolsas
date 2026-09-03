@@ -103,22 +103,24 @@ export async function autoHealAndPurgeErpDatabase(): Promise<AutoHealResult> {
   let purgedCount = 0;
   let healedCount = 0;
 
-  const activeCrKeys = new Set(OFFICIAL_ACTIVE_CRS.map(x => x.cr));
-
   for (const d of snap.docs) {
     const data = d.data() as any;
     let canonicalKey = (data.oc || data.folio || d.id).trim().toUpperCase();
     if (canonicalKey.startsWith('SEED-')) canonicalKey = canonicalKey.replace('SEED-', '');
     if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
 
-    const crNum = (data.collection?.contrareciboNumber || data.contrarecibo || '').trim().toUpperCase();
+    // 🛡️ PURGA SEGURA: Solo eliminar documentos que son semillas/dummies conocidos.
+    // NUNCA borrar OCs nuevas con status 'pedido' — pueden ser expedientes reales recién creados.
+    const SEED_PATTERNS = [
+      'ANDRES-PEND', '120267114014', '71/14014', '71-14014',
+      'SEED-', 'DUMMY-', 'TEST-'
+    ];
+    const isSeed = (val: string) => SEED_PATTERNS.some(p => val.toUpperCase().includes(p.toUpperCase()));
+    const isNewValidOc = data.status === 'pedido' || data.status === 'en_produccion';
+    const isKnownSeed = isSeed(d.id) || isSeed(data.oc || '') || isSeed(data.folio || '');
 
-    const isMasterTh = canonicalKey === '120267114114' || canonicalKey.includes('14114');
-    const isMasterGt = canonicalKey === '12026439713' || canonicalKey.includes('9713');
-    const isActiveCr = Array.from(activeCrKeys).some(k => canonicalKey.includes(k) || crNum.includes(k));
-
-    // Purgar todo lo que no sea una de las 8 CRs activas o una de las 2 OCs maestras
-    if (!isMasterTh && !isMasterGt && !isActiveCr) {
+    // Solo purgar si es un seed conocido (nunca si es OC nueva válida)
+    if (isKnownSeed && !isNewValidOc) {
       batch.delete(doc(db, PATHS.orders, d.id));
       purgedCount++;
     }
@@ -185,7 +187,11 @@ export async function autoHealAndPurgeErpDatabase(): Promise<AutoHealResult> {
       updatedAt: serverTimestamp(),
     };
 
-    batch.set(doc(db, PATHS.orders, docId), docData, { merge: true });
+    // Usar merge:true para NO sobreescribir campos ya existentes
+    // Se excluyen status y creditCycle para no revertir CRs ya cobrados a 'pending'
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { status: _s, creditCycle: _cc, invoices: _inv, collection: _col, ...safeDocData } = docData;
+    batch.set(doc(db, PATHS.orders, docId), safeDocData, { merge: true });
     healedCount++;
   }
 

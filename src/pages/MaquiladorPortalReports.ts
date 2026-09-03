@@ -31,10 +31,10 @@ export function getStatementHtml(statement: any, provName: string, clientName: s
               <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Pagado</div>
               <div style="font-size: 20px; font-weight: 800; color: #047857; margin-top: 4px;">${money(statement.totalPagado)}</div>
             </div>
-            <div style="background: #f8fafc; padding: 14px; border-radius: 10px; border-left: 4px solid ${statement.saldoProveedor < 0 ? '#10b981' : '#f59e0b'};">
-              <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">${statement.saldoProveedor < 0 ? 'Saldo a Favor' : 'Anticipo Pendiente'}</div>
-              <div style="font-size: 20px; font-weight: 800; color: ${statement.saldoProveedor < 0 ? '#047857' : '#b45309'}; margin-top: 4px;">
-                ${statement.saldoProveedor < 0 ? '+' : '-'}${money(Math.abs(statement.saldoProveedor))}
+            <div style="background: #f8fafc; padding: 14px; border-radius: 10px; border-left: 4px solid ${statement.saldoProveedor >= 0 ? '#10b981' : '#f59e0b'};">
+              <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">${statement.saldoProveedor >= 0 ? 'Saldo a tu Favor (Anticipos)' : 'Saldo por Cobrar'}</div>
+              <div style="font-size: 20px; font-weight: 800; color: ${statement.saldoProveedor >= 0 ? '#047857' : '#b45309'}; margin-top: 4px;">
+                ${statement.saldoProveedor >= 0 ? '+' : '-'}${money(Math.abs(statement.saldoProveedor))}
               </div>
             </div>
           </div>

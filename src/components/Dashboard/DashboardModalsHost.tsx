@@ -6,10 +6,8 @@ import { SeguimientoPedidosTable } from './SeguimientoPedidosTable';
 import { QuickInvoiceModal } from '../FastFlows/QuickInvoiceModal';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
 import { QuickDeliveryModal } from '../FastFlows/QuickDeliveryModal';
-import { PagarAndresModal } from '../Compras/PagarAndresModal';
 import { MagicPasteModal } from '../MagicPasteModal';
 import { SincronizadorOficialModal } from '../Cobranza/SincronizadorOficialModal';
-import { UniversalDocumentUploadModal } from './UniversalDocumentUploadModal';
 import { downloadBackupJsonFile } from '../../lib/cloudBackup';
 import type { PurchaseOrder, Expense, Purchase, FinancialConfig } from '../../lib/types';
 import type { LiveLogEntry } from '../../pages/Dashboard';
@@ -20,6 +18,9 @@ const ChangelogModalComponent = lazy(() => import('./ChangelogFeed').then(m => (
 const CorteMensualModal = lazy(() => import('./CorteMensualModal').then(m => ({ default: m.CorteMensualModal })));
 const CorteSemanalModal = lazy(() => import('./CorteSemanalModal').then(m => ({ default: m.CorteSemanalModal })));
 const BalanzaComprobacionModal = lazy(() => import('./BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
+// 🚀 Lazy loading de módulos pesados (72KB + 53KB → excluidos del bundle inicial)
+const UniversalDocumentUploadModal = lazy(() => import('./UniversalDocumentUploadModal').then(m => ({ default: m.UniversalDocumentUploadModal })));
+const PagarAndresModal = lazy(() => import('../Compras/PagarAndresModal').then(m => ({ default: m.PagarAndresModal })));
 
 export interface DashboardModalsHostProps {
   showContrarecibosDrawer: boolean;

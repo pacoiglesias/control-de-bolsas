@@ -110,6 +110,24 @@ export function SeguimientoPedidosTable({
       });
   }, [orders]);
 
+  // Conteo atómico por estación para los badges de la barra de segmentación
+  const stageCounts = useMemo(() => {
+    const counts = {
+      ALL: allRows.length,
+      '1_taller': 0,
+      '2_almacen': 0,
+      '3_sin_cr': 0,
+      '4_con_cr': 0,
+      '5_caja': 0,
+    };
+    for (const r of allRows) {
+      if (counts[r.stage] !== undefined) {
+        counts[r.stage]++;
+      }
+    }
+    return counts;
+  }, [allRows]);
+
   // Filtrado reactivo por Pipeline Stage o Chip
   const filteredRows = useMemo(() => {
     const currentFilter = filterStage || (activeChip !== 'ALL' ? activeChip : null);
@@ -124,17 +142,63 @@ export function SeguimientoPedidosTable({
   };
 
   const getStageBadge = (stage: PipelineStageKey, isClosedShort?: boolean) => {
+    const badgeStyle: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '4px 10px',
+      borderRadius: 9999,
+      fontSize: 11.5,
+      fontWeight: 700,
+      letterSpacing: '0.2px',
+      whiteSpace: 'nowrap',
+    };
+
+    const dotStyle = (color: string): React.CSSProperties => ({
+      width: 6,
+      height: 6,
+      borderRadius: '50%',
+      backgroundColor: color,
+      boxShadow: `0 0 6px ${color}`,
+      flexShrink: 0,
+    });
+
     switch (stage) {
       case '1_taller':
-        return <span className="chip" style={{ background: 'rgba(139,92,246,0.1)', color: '#7c3aed', borderColor: '#8b5cf6', fontWeight: 700, fontSize: 11 }}>🏭 En Producción</span>;
+        return (
+          <span style={{ ...badgeStyle, background: 'rgba(139, 92, 246, 0.12)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+            <span style={dotStyle('#a78bfa')} />
+            🏭 En Producción
+          </span>
+        );
       case '2_almacen':
-        return <span className="chip" style={{ background: 'rgba(245,158,11,0.1)', color: '#d97706', borderColor: '#f59e0b', fontWeight: 700, fontSize: 11 }}>🚚 Por Facturar</span>;
+        return (
+          <span style={{ ...badgeStyle, background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+            <span style={dotStyle('#fbbf24')} />
+            🚚 Por Facturar
+          </span>
+        );
       case '3_sin_cr':
-        return <span className="chip" style={{ background: 'rgba(239,68,68,0.1)', color: '#dc2626', borderColor: '#ef4444', fontWeight: 700, fontSize: 11 }}>🧾 Sin CR {isClosedShort ? '· Cerrada' : ''}</span>;
+        return (
+          <span style={{ ...badgeStyle, background: 'rgba(239, 68, 68, 0.12)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+            <span style={dotStyle('#f87171')} />
+            🧾 Sin CR {isClosedShort ? '· Cerrada' : ''}
+          </span>
+        );
       case '4_con_cr':
-        return <span className="chip" style={{ background: 'rgba(14,165,233,0.1)', color: '#0284c7', borderColor: '#0ea5e9', fontWeight: 700, fontSize: 11 }}>⏳ En Crédito {isClosedShort ? '· Cerrada' : ''}</span>;
+        return (
+          <span style={{ ...badgeStyle, background: 'rgba(14, 165, 233, 0.12)', color: '#38bdf8', border: '1px solid rgba(14, 165, 233, 0.3)' }}>
+            <span style={dotStyle('#38bdf8')} />
+            ⏳ En Crédito {isClosedShort ? '· Cerrada' : ''}
+          </span>
+        );
       case '5_caja':
-        return <span className="chip" style={{ background: 'rgba(16,185,129,0.1)', color: '#059669', borderColor: '#10b981', fontWeight: 700, fontSize: 11 }}>💵 En Caja</span>;
+        return (
+          <span style={{ ...badgeStyle, background: 'rgba(16, 185, 129, 0.12)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <span style={dotStyle('#34d399')} />
+            💵 En Caja
+          </span>
+        );
       default:
         return null;
     }
@@ -220,68 +284,88 @@ export function SeguimientoPedidosTable({
     ];
   };
 
+  const STATIONS_CONFIG = [
+    { key: 'ALL', label: 'Todas', icon: '⚡' },
+    { key: '1_taller', label: 'En Producción', icon: '🏭' },
+    { key: '2_almacen', label: 'Por Facturar', icon: '🚚' },
+    { key: '3_sin_cr', label: 'Sin CR', icon: '🧾' },
+    { key: '4_con_cr', label: 'En Crédito', icon: '⏳' },
+    { key: '5_caja', label: 'En Caja', icon: '💵' },
+  ];
+
   return (
     <Card title={`🚚 Seguimiento Interactivo de Pedidos — OC, Entregas y Cobranza (${filteredRows.length}${filteredRows.length !== allRows.length ? ` de ${allRows.length}` : ''})`}>
-      {/* Barra de Filtros Rápidos por Estación */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', marginRight: 4 }}>
-          Filtrar Estación:
-        </span>
-        <button
-          type="button"
-          className={`chip ${(!filterStage && activeChip === 'ALL') ? 'active' : ''}`}
-          onClick={() => handleChipClick('ALL')}
-          style={{ fontSize: 12, cursor: 'pointer' }}
-        >
-          ⚡ Todas ({allRows.length})
-        </button>
-        <button
-          type="button"
-          className={`chip ${(filterStage === '1_taller' || activeChip === '1_taller') ? 'active' : ''}`}
-          onClick={() => handleChipClick('1_taller')}
-          style={{ fontSize: 12, cursor: 'pointer' }}
-        >
-          🏭 En Producción
-        </button>
-        <button
-          type="button"
-          className={`chip ${(filterStage === '2_almacen' || activeChip === '2_almacen') ? 'active' : ''}`}
-          onClick={() => handleChipClick('2_almacen')}
-          style={{ fontSize: 12, cursor: 'pointer' }}
-        >
-          🚚 Por Facturar
-        </button>
-        <button
-          type="button"
-          className={`chip ${(filterStage === '3_sin_cr' || activeChip === '3_sin_cr') ? 'active' : ''}`}
-          onClick={() => handleChipClick('3_sin_cr')}
-          style={{ fontSize: 12, cursor: 'pointer' }}
-        >
-          🧾 Sin CR
-        </button>
-        <button
-          type="button"
-          className={`chip ${(filterStage === '4_con_cr' || activeChip === '4_con_cr') ? 'active' : ''}`}
-          onClick={() => handleChipClick('4_con_cr')}
-          style={{ fontSize: 12, cursor: 'pointer' }}
-        >
-          ⏳ Con CR
-        </button>
-        <button
-          type="button"
-          className={`chip ${(filterStage === '5_caja' || activeChip === '5_caja') ? 'active' : ''}`}
-          onClick={() => handleChipClick('5_caja')}
-          style={{ fontSize: 12, cursor: 'pointer' }}
-        >
-          💵 En Caja
-        </button>
+      {/* Barra de Filtros Segmentada Estilo Linear / Vercel */}
+      <div 
+        role="tablist"
+        aria-label="Filtrar por estación del pipeline"
+        style={{ 
+          display: 'flex', 
+          gap: 6, 
+          marginBottom: 18, 
+          flexWrap: 'wrap', 
+          alignItems: 'center',
+          background: 'var(--paper-sunk, rgba(0,0,0,0.25))',
+          padding: 6,
+          borderRadius: 14,
+          border: '1px solid var(--border, rgba(255,255,255,0.08))',
+        }}
+      >
+        {STATIONS_CONFIG.map((st) => {
+          const isActive = (!filterStage && activeChip === 'ALL' && st.key === 'ALL') ||
+                           (filterStage === st.key || activeChip === st.key);
+          const count = stageCounts[st.key as keyof typeof stageCounts] || 0;
+
+          return (
+            <button
+              key={st.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => handleChipClick(st.key)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 14px',
+                minHeight: 44,
+                borderRadius: 10,
+                border: isActive ? '1px solid var(--accent, #7c3aed)' : '1px solid transparent',
+                background: isActive 
+                  ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(109, 40, 217, 0.35) 100%)' 
+                  : 'transparent',
+                color: isActive ? '#fff' : 'var(--ink-soft, rgba(255,255,255,0.65))',
+                fontSize: 12.5,
+                fontWeight: isActive ? 800 : 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>{st.icon}</span>
+              <span>{st.label}</span>
+              <span 
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  padding: '2px 7px',
+                  borderRadius: 9999,
+                  background: isActive ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  color: isActive ? '#fff' : 'var(--ink-faint, rgba(255,255,255,0.45))',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {filteredRows.length === 0 ? (
         <Empty>No hay órdenes en esta estación del pipeline.</Empty>
       ) : (
         <div className="table-scroll">
-          <table className="data-table" style={{ width: '100%' }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 2px' }}>
             <thead>
               <tr>
                 <th className="sticky-col">Folio OC</th>
@@ -290,67 +374,76 @@ export function SeguimientoPedidosTable({
                 <th>Contrarecibo (CR)</th>
                 <th>Cliente</th>
                 <th>Fecha</th>
-                <th className="num" style={{ minWidth: 140 }}>Kilos y Avance</th>
+                <th className="num" style={{ minWidth: 150 }}>Kilos y Avance</th>
                 <th className="num">Total Facturado</th>
                 <th className="num">Cobrado</th>
-                <th style={{ width: 80, textAlign: 'center' }}>Acción</th>
+                <th style={{ width: 88, textAlign: 'center' }}>Acción</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((f) => {
+                const isTH = f.department === 'TH';
+                const isGT = f.department === 'GT';
+
                 return (
                   <tr 
                     key={f.id}
                     onClick={() => onOpenOrder?.(f.order)}
-                    style={{ cursor: onOpenOrder ? 'pointer' : 'default' }}
+                    style={{ 
+                      cursor: onOpenOrder ? 'pointer' : 'default',
+                      transition: 'background 0.15s ease',
+                    }}
                     title="Haz clic para abrir el expediente completo"
                   >
-                    <td className="mono sticky-col" style={{ fontWeight: 800 }}>
-                      {f.folio}
-                      {f.department ? (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            background: f.department === 'TH' ? '#e0f2fe' : f.department === 'GT' ? '#dcfce7' : 'var(--paper-sunk)',
-                            color: f.department === 'TH' ? '#0369a1' : f.department === 'GT' ? '#15803d' : 'var(--ink-soft)',
-                            padding: '2px 6px',
-                            borderRadius: 4,
-                          }}
-                          title={f.department === 'TH' ? `${deptNameTH} — Responsable: ${managerTH}` : f.department === 'GT' ? `${deptNameGT} — Responsable: ${managerGT}` : f.department}
-                        >
-                          {f.department === 'TH' ? `TH · ${managerTH}` : f.department === 'GT' ? `GT · ${managerGT}` : f.department}
-                        </span>
-                      ) : null}
+                    <td className="mono sticky-col" style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+                        <span>{f.folio}</span>
+                        {f.department ? (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              background: isTH ? 'rgba(2, 132, 199, 0.15)' : isGT ? 'rgba(16, 185, 129, 0.15)' : 'var(--paper-sunk)',
+                              color: isTH ? '#38bdf8' : isGT ? '#34d399' : 'var(--ink-soft)',
+                              border: `1px solid ${isTH ? 'rgba(2, 132, 199, 0.35)' : isGT ? 'rgba(16, 185, 129, 0.35)' : 'transparent'}`,
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              letterSpacing: '0.2px',
+                            }}
+                            title={isTH ? `${deptNameTH} — Responsable: ${managerTH}` : isGT ? `${deptNameGT} — Responsable: ${managerGT}` : f.department}
+                          >
+                            {isTH ? `TH · ${managerTH}` : isGT ? `GT · ${managerGT}` : f.department}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       {getStageBadge(f.stage, f.isClosedShort)}
                     </td>
-                    <td className="mono" style={{ fontSize: 11.5 }}>
+                    <td className="mono" style={{ fontSize: 11.5, fontVariantNumeric: 'tabular-nums' }}>
                       {f.facturas.length > 0 ? (
                         f.facturas.map((fac, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', background: 'var(--paper-sunk)', padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>
+                          <span key={idx} style={{ display: 'inline-block', background: 'var(--paper-sunk, rgba(255,255,255,0.06))', border: '1px solid var(--border, rgba(255,255,255,0.1))', padding: '2px 7px', borderRadius: 6, marginRight: 4, fontWeight: 700 }}>
                             #{fac}
                           </span>
                         ))
                       ) : (
-                        <span style={{ color: 'var(--ink-faint)' }}>Pendiente</span>
+                        <span style={{ color: 'var(--ink-faint, rgba(255,255,255,0.3))', fontSize: 11 }}>Pendiente</span>
                       )}
                     </td>
-                    <td className="mono" style={{ fontSize: 11.5 }}>
+                    <td className="mono" style={{ fontSize: 11.5, fontVariantNumeric: 'tabular-nums' }}>
                       {f.contrarecibos.length > 0 ? (
                         f.contrarecibos.map((cr, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginRight: 4 }}>
+                          <span key={idx} style={{ display: 'inline-block', background: 'rgba(217, 119, 6, 0.15)', border: '1px solid rgba(217, 119, 6, 0.35)', color: '#fbbf24', fontWeight: 800, padding: '2px 7px', borderRadius: 6, marginRight: 4 }}>
                             {cr}
                           </span>
                         ))
                       ) : (
-                        <span style={{ color: 'var(--ink-faint)' }}>Sin CR</span>
+                        <span style={{ color: 'var(--ink-faint, rgba(255,255,255,0.3))', fontSize: 11 }}>Sin CR</span>
                       )}
                     </td>
-                    <td>{f.cliente}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(f.fecha)}</td>
+                    <td style={{ fontSize: 12 }}>{f.cliente}</td>
+                    <td style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums' }}>{fmtDate(f.fecha)}</td>
                     <td className="num">
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                         <KilosProgressBar
@@ -358,20 +451,20 @@ export function SeguimientoPedidosTable({
                           totalKg={f.kilosPedidos}
                           compact
                         />
-                        <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
+                        <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           {f.kilosEntregados === 0 
                             ? `🏭 ${f.kilosPedidos.toLocaleString('es-MX')} kg en producción` 
                             : f.isClosedShort
-                              ? `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (Entrega concluida)`
+                              ? `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (Concluida)`
                               : f.kilosEntregados < f.kilosPedidos 
-                                ? `🚚 ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (${(f.kilosPedidos - f.kilosEntregados).toLocaleString('es-MX')} kg en prod.)` 
+                                ? `🚚 ${f.kilosEntregados.toLocaleString('es-MX')} kg (${(f.kilosPedidos - f.kilosEntregados).toLocaleString('es-MX')} kg faltan)` 
                                 : `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados`
                           }
                         </span>
                       </div>
                     </td>
-                    <td className="num mono" style={{ fontWeight: 700 }}>{money(f.total)}</td>
-                    <td className="num mono" style={{ fontWeight: 800, color: f.cobrado > 0 ? '#047857' : 'inherit' }}>
+                    <td className="num mono" style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{money(f.total)}</td>
+                    <td className="num mono" style={{ fontWeight: 800, color: f.cobrado > 0 ? '#34d399' : 'inherit', fontVariantNumeric: 'tabular-nums' }}>
                       {money(f.cobrado)}
                     </td>
                     <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
@@ -379,9 +472,17 @@ export function SeguimientoPedidosTable({
                         <button
                           type="button"
                           className="btn"
-                          style={{ fontSize: 11, padding: '4px 8px', fontWeight: 700 }}
+                          style={{ 
+                            minWidth: 44, 
+                            minHeight: 36, 
+                            fontSize: 13, 
+                            padding: '4px 8px', 
+                            fontWeight: 800,
+                            borderRadius: 8,
+                          }}
                           onClick={() => onOpenOrder?.(f.order)}
-                          title="Abrir expediente"
+                          title="Abrir expediente completo"
+                          aria-label={`Abrir expediente ${f.folio}`}
                         >
                           👁️
                         </button>

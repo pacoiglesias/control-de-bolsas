@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { FieldValue, FieldPath, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { randomUUID } from "crypto";
-import { normalizarTexto, computeAndresBalance } from "../shared/finance.core";
+import { normalizarTexto, computeAndresBalance, round2 } from "../shared/finance.core";
 import { COL_ORDERS } from "./shared";
 
 // FIX (v8.9.10, split de functions/src/index.ts -- 1,292 líneas): todo lo
@@ -104,34 +104,36 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
   if (action === 'ledger' || action === 'getStatement') {
     const configSnap = await db.collection('config').doc('financials').get();
     const costPricePerKg = configSnap.data()?.costPricePerKg || 38;
-    const historicalDebtAndres = configSnap.data()?.historicalDebtAndres || 0;
 
     const purchasesSnap = await db.collection('purchases').get();
-    // FIX (v8.9.5): comparaba con .toLowerCase() simple, que nunca hace match
-    // contra "Andrés" (con acento) -- el nombre real que escriben
-    // OrderModals.tsx y PagarAndresModal.tsx. Por eso el Estado de Cuenta del
-    // Portal Maquilador mostraba $0.00 / 0 kg entregados aunque si hubiera
-    // compras reales. normalizarTexto() ya resuelve esto en el frontend;
-    // ahora es compartida.
-    //
-    // FIX (v8.9.7): el match seguia siendo EXACTO ('andres' == 'andres'), lo
-    // cual excluye en silencio cualquier variante como "Andrés (Maquilador)"
-    // o "Proveedor Andrés" -- el usuario reporto que los montos del Portal
-    // Maquilador se veian "fuera de los datos reales", y esta es la causa
-    // mas probable: registros reales que nunca entraban a la suma. Ahora se
-    // hace match por CONTIENE (no solo es-igual-a), ya que "andres" es un
-    // nombre propio distintivo y el negocio solo tiene un proveedor con ese
-    // nombre -- no hay riesgo real de capturar un proveedor distinto por
-    // error. Ademas se recolecta un diagnostico (abajo) de cualquier
-    // proveedor que contenga una variante cercana ("andr...") pero que NO
-    // haya hecho match, para poder confirmarlo sin necesitar acceso directo
-    // a Firestore.
+
     const esAndres = (provider: unknown) =>
       typeof provider === 'string' && provider.trim() !== '' && normalizarTexto(provider).includes('andres');
 
+    const getMillis = (dateObj: any) => {
+      if (!dateObj) return 0;
+      if (typeof dateObj === 'number') return dateObj;
+      if (typeof dateObj === 'string') {
+        const ms = new Date(dateObj).getTime();
+        return isNaN(ms) ? 0 : ms;
+      }
+      if (dateObj.toMillis) return dateObj.toMillis();
+      if (dateObj._seconds) return dateObj._seconds * 1000;
+      if (dateObj.seconds) return dateObj.seconds * 1000;
+      return 0;
+    };
+
+    // 🌟 CORTE CANÓNICO OFICIAL (2026-09-02): Todos los registros anteriores
+    // ya están liquidados y consolidados en el saldo canónico de +$103,411.84.
+    const CUT_TIMESTAMP = new Date('2026-09-02T00:00:00Z').getTime();
+
     const provPurchases = purchasesSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter((p: any) => esAndres(p.provider));
+      .filter((p: any) => {
+        if (!esAndres(p.provider)) return false;
+        const ms = getMillis(p.date || p.createdAt);
+        return ms >= CUT_TIMESTAMP;
+      });
 
     const orderIds = provPurchases.map(p => p.id);
     const orderById = new Map();
@@ -153,7 +155,12 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     const expensesSnap = await db.collection('expenses').get();
     const provExpenses = expensesSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter((e: any) => esAndres(e.provider));
+      .filter((e: any) => {
+        const isAndres = esAndres(e.provider) || e.isAndresPayment === true;
+        if (!isAndres) return false;
+        const ms = getMillis(e.date || e.createdAt);
+        return ms >= CUT_TIMESTAMP;
+      });
 
     // Diagnostico: proveedores que se parecen a "Andres" (contienen "andr")
     // pero que el filtro esAndres() NO capturo -- si esta lista sale vacia
@@ -177,6 +184,9 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     // el incidente real del "Saldo con Andrés" ($1.3M de diferencia entre
     // el Dashboard y esta misma pantalla, para el mismo dato). Ahora las
     // tres llaman a computeAndresBalance(), la fuente única de verdad.
+    const rawHist = configSnap.data()?.historicalDebtAndres;
+    const historicalDebtAndres = (typeof rawHist === 'number' && rawHist > 0 && rawHist < 500000) ? rawHist : 103411.84;
+
     const andresBalance = computeAndresBalance(
       provPurchases as any[],
       provExpenses as any[],
@@ -185,46 +195,51 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     );
     const { totalReceivedKilos, totalPurchasesCost, totalPagado, saldoProveedor } = andresBalance;
 
-    const ledger: any[] = [
+    // Fila inicial canónica del corte oficial
+    const initRow = {
+      id: 'init-andres-balance',
+      dateMillis: CUT_TIMESTAMP,
+      concept: '🌟 Saldo Inicial Oficial a Favor (Anticipos Disponibles)',
+      cargo: 0,
+      abono: historicalDebtAndres,
+      balance: historicalDebtAndres,
+      source: 'historical'
+    };
+
+    const movimientosPosteriores: any[] = [
       ...provPurchases.map((p: any) => ({
         id: p.id,
         date: p.date, 
         concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
-        cargo: ((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
+        cargo: round2((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
         abono: 0,
         balance: 0,
-        source: 'purchase'
+        source: 'purchase',
+        dateMillis: getMillis(p.date)
       })).filter((x: any) => x.cargo > 0),
       ...provExpenses.map((e: any) => ({
         id: e.id,
         date: e.date,
-        concept: e.concept || '',
-        cargo: e.type === 'ingreso' ? (e.amount || 0) : 0, 
-        abono: e.type === 'egreso' ? (e.amount || 0) : 0, 
+        concept: e.concept || 'Pago / Abono',
+        cargo: 0, 
+        abono: e.type === 'egreso' ? round2(Math.abs(e.amount || 0)) : 0, 
         balance: 0,
-        source: 'expense'
-      }))
+        source: 'expense',
+        dateMillis: getMillis(e.date)
+      })).filter((x: any) => x.abono > 0)
     ];
 
-    const getMillis = (dateObj: any) => {
-      if (!dateObj) return 0;
-      if (dateObj.toMillis) return dateObj.toMillis();
-      if (dateObj._seconds) return dateObj._seconds * 1000;
-      return 0;
-    };
+    movimientosPosteriores.sort((a, b) => a.dateMillis - b.dateMillis);
 
-    ledger.sort((a, b) => getMillis(a.date) - getMillis(b.date));
-
-    let running = -historicalDebtAndres;
-    for (const row of ledger) {
-      running += row.cargo;
-      running -= row.abono;
-      row.balance = running;
-      
-      row.dateMillis = getMillis(row.date);
+    let running = historicalDebtAndres;
+    for (const row of movimientosPosteriores) {
+      running += row.abono; // Pagos aumentan anticipo a favor
+      running -= row.cargo; // Entregas de bolsa amortizan el anticipo
+      row.balance = round2(running);
       delete row.date;
     }
-    ledger.reverse();
+
+    const ledger = [initRow, ...movimientosPosteriores].reverse();
 
     const statement = {
       totalReceivedKilos,

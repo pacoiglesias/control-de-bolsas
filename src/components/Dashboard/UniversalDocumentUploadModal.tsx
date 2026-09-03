@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
@@ -286,6 +286,127 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         parsedData: xmlData,
       };
     }
+  };
+
+  // 🛡️ Procesador Canónico de Órdenes de Compra (OCs)
+  const processPurchaseOrderDocument = async (ocr: any, originName: string, text: string): Promise<ProcessedResultItem> => {
+    const ocNumber = (ocr.ocNumber || ocr.folio || '').trim();
+    if (!ocNumber) {
+      return {
+        id: `err-oc-${Date.now()}`,
+        fileName: originName,
+        folio: 'Sin OC',
+        oc: 'N/A',
+        kilos: ocr.kilos || 0,
+        total: ocr.total || 0,
+        status: 'warning',
+        message: 'No se detectó número de Orden de Compra en el documento.',
+      };
+    }
+
+    const kilosVal = Number(ocr.kilos) || 0;
+    // Reglas canónicas de clasificación departamental:
+    // · TH (Textil Hogar / Nava): OC empieza con 1202671... o texto menciona NAVA / TEXTIL HOGAR
+    // · GT (Evelia / P4): OC empieza con 1202643... o cualquier otro
+    const ocPrefix = ocNumber.replace(/[^0-9]/g, '');
+    const isTH = (ocr.receptorNombre || '').toUpperCase().includes('TEXTIL HOGAR') ||
+                 text.toUpperCase().includes('TEXTIL HOGAR') ||
+                 text.toUpperCase().includes('NAVA') ||
+                 ocPrefix.startsWith('1202671') ||  // TH: prefijo canónico
+                 ocNumber.includes('14114');        // alias histórico TH
+
+    const clientName = isTH ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)';
+    const deptName = isTH ? 'TH' : 'GT';
+    const deptAlm = isTH ? 'TH-ALMACEN-1' : 'P4-ALM';
+
+    // 1. Buscar si ya existe la OC en el sistema
+    const match = orders.find((o) => isMatchingOc(o, ocNumber));
+
+    if (match) {
+      const updates: any = { updatedAt: serverTimestamp() };
+      let changed = false;
+
+      if (kilosVal > 0 && (!match.totalKilograms || match.totalKilograms === 0)) {
+        updates.totalKilograms = kilosVal;
+        changed = true;
+      }
+
+      // Si fue creada accidentalmente como facturado sin facturas reales, recuperar a 'pedido'
+      const hasRealInvoices = (match.invoices || []).some((i) => i.uuid || (i.folio && i.folio.startsWith('F-')));
+      if (!hasRealInvoices && ((match as any).status === 'facturado' || match.creditCycle?.status === 'facturado')) {
+        updates.status = 'pedido';
+        updates.isClosedShort = false;
+        updates.creditCycle = { ...(match.creditCycle || {}), status: 'pedido' };
+        changed = true;
+      }
+
+      if (changed) {
+        await updateDoc(doc(db, PATHS.orders, match.id), updates);
+      }
+
+      return {
+        id: `oc-exist-${Date.now()}`,
+        fileName: originName,
+        folio: ocNumber,
+        oc: ocNumber,
+        kilos: kilosVal || Number(match.totalKilograms) || 0,
+        total: (kilosVal || Number(match.totalKilograms) || 0) * 43 * 1.16,
+        status: 'success',
+        message: `✅ Orden de Compra ${ocNumber} sincronizada y activa (${(kilosVal || match.totalKilograms || 0).toLocaleString('es-MX')} kg) — visible en Dashboard como 🏭 En Producción`,
+        orderId: match.id,
+      };
+    }
+
+    // 2. Crear el nuevo expediente de OC con status: 'pedido'
+    const items = ocr.conceptos && ocr.conceptos.length > 0 ? ocr.conceptos.map((c: any, idx: number) => ({
+      id: `item-${idx + 1}`,
+      code: c.codigo || 'S/C',
+      description: c.descripcion || 'Bolsa de Polietileno',
+      quantity: Number(c.cantidad) || kilosVal || 0,
+      unitPrice: Number(c.valorUnitario) || 43,
+      amount: Number(c.importe) || ((kilosVal || 0) * 43),
+      unit: 'Kilos',
+    })) : [{
+      id: 'item-1',
+      code: 'S/C',
+      description: ocr.product || 'Bolsa de Polietileno',
+      quantity: kilosVal,
+      unitPrice: 43,
+      amount: kilosVal * 43,
+      unit: 'Kilos',
+    }];
+
+    const docRef = await addDoc(collection(db, PATHS.orders), {
+      folio: ocNumber,
+      oc: ocNumber,
+      client: clientName,
+      department: deptName,
+      departmentLocation: deptAlm,
+      totalKilograms: kilosVal,
+      status: 'pedido',
+      creditCycle: { status: 'pedido' },
+      isClosedShort: false,
+      notes: `OC importada desde ${originName}`,
+      invoices: [],
+      deliveries: [],
+      items,
+      processedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    });
+
+    await logAction(user?.email, 'OC Creada desde Documento', { folio: ocNumber, kilos: kilosVal, origin: originName });
+
+    return {
+      id: `oc-new-${Date.now()}`,
+      fileName: originName,
+      folio: ocNumber,
+      oc: ocNumber,
+      kilos: kilosVal,
+      total: kilosVal * 43 * 1.16,
+      status: 'success',
+      message: `✅ Nueva Orden de Compra ${ocNumber} (${kilosVal.toLocaleString('es-MX')} kg) creada exitosamente — visible en Dashboard como 🏭 En Producción`,
+      orderId: docRef.id,
+    };
   };
 
   // Procesador Oficial de Detalle de Pagos de Providencia
@@ -713,9 +834,21 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
           const folio = ocr.folio || file.name.replace('.pdf', '');
           const kilosVal = ocr.kilos || 0;
           const totalVal = ocr.total || (kilosVal * 43 * 1.16);
-          const isFiscalInvoice = Boolean(ocr.uuid || (ocr.folio && ocr.total && ocr.total > 0));
 
-          if (isFiscalInvoice) {
+          // 2. Detección Inteligente: ¿Es Factura SAT o es Orden de Compra (OC)?
+          const isFiscalInvoice = Boolean(ocr.uuid || (/cfdi|comprobante\s*fiscal|sello\s*digital|folio\s*fiscal/i.test(text) && ocr.total && ocr.total > 0));
+          // Una OC de Providencia puede llegar sin la frase exacta "orden de compra";
+          // basta con detectar el patrón numérico canónico 12026XXXXXXX o que el
+          // OCR haya extraído un ocNumber sin que sea una factura fiscal.
+          const isPurchaseOrder = !ocr.uuid && !isFiscalInvoice && (
+            /orden\s*(?:de)?\s*compra|purchase\s*order|pedido|condiciones\s*de\s*pago\s*oc|\b12026[0-9]{5,11}\b/i.test(text) ||
+            Boolean(ocr.ocNumber && ocr.ocNumber.trim().length >= 7 && !/factura|cfdi|comprobante\s*fiscal/i.test(text))
+          );
+
+          if (isPurchaseOrder) {
+            const res = await processPurchaseOrderDocument(ocr, file.name, text);
+            results.push(res);
+          } else if (isFiscalInvoice) {
             const parsedInvoiceFromPdf: ParsedInvoiceData = {
               folio: ocr.folio || 'S/F',
               uuid: ocr.uuid || '',
@@ -775,35 +908,94 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                 orderId: match.id,
               });
             } else {
-              results.push({
-                id: `pdf-${Date.now()}-${i}`,
-                fileName: file.name,
-                folio: folio,
-                oc: ocr.ocNumber || 'Sin OC',
-                kilos: kilosVal,
-                total: totalVal,
-                status: 'warning',
-                message: `Documento PDF analizado (${kilosVal > 0 ? `${kilosVal.toLocaleString('es-MX')} kg` : 'sin kilos detectados'}). Listo para asignar.`,
-                parsedData: {
-                  folio: folio,
-                  uuid: ocr.uuid || '',
-                  ocNumber: ocr.ocNumber || ocr.folio,
-                  fecha: new Date().toISOString(),
-                  subTotal: ocr.subTotal || (kilosVal * 43),
+              // 🛡️ Auto-crear expediente si el OCR detectó número de OC
+              const detectedOc = (ocr.ocNumber || '').trim();
+              const alreadyExists = detectedOc && orders.some(o =>
+                (o.oc || '').trim().toUpperCase() === detectedOc.toUpperCase() ||
+                (o.folio || '').trim().toUpperCase() === detectedOc.toUpperCase()
+              );
+
+              if (detectedOc && !alreadyExists) {
+                const isTHOc = (ocr.receptorNombre || '').toUpperCase().includes('TEXTIL HOGAR') ||
+                               detectedOc.includes('1202671');
+                const docRef = await addDoc(collection(db, PATHS.orders), {
+                  folio: detectedOc,
+                  oc: detectedOc,
+                  client: isTHOc ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)',
+                  department: isTHOc ? 'TH' : 'GT',
+                  totalKilograms: kilosVal || 0,
+                  status: 'pedido',
+                  isClosedShort: false,
+                  notes: `OC importada automáticamente desde PDF: ${file.name}`,
+                  invoices: [],
+                  deliveries: [],
+                  items: ocr.conceptos ? ocr.conceptos.map((c, idx) => ({
+                    id: `item-${idx + 1}`,
+                    code: c.codigo || 'S/C',
+                    description: c.descripcion || 'Bolsa de Polietileno',
+                    quantity: Number(c.cantidad) || 0,
+                    unitPrice: Number(c.valorUnitario) || 43,
+                    amount: Number(c.importe) || 0,
+                    unit: 'Kilos',
+                  })) : [],
+                  processedAt: serverTimestamp(),
+                  createdAt: serverTimestamp(),
+                });
+                await logAction(user?.email, 'OC Creada desde PDF', { folio: detectedOc, kilos: kilosVal, fileName: file.name });
+                results.push({
+                  id: `oc-new-${Date.now()}-${i}`,
+                  fileName: file.name,
+                  folio: detectedOc,
+                  oc: detectedOc,
+                  kilos: kilosVal,
                   total: totalVal,
-                  emisorRfc: 'EDE1902136T2',
-                  emisorNombre: 'ELEMENTAL DENIM',
-                  receptorRfc: 'GTP930115PU1',
-                  receptorNombre: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-                  conceptos: ocr.conceptos || [{
-                    codigo: 'S/C',
-                    descripcion: ocr.product || 'Bolsa de Polietileno',
-                    cantidad: kilosVal,
-                    valorUnitario: 43,
-                    importe: kilosVal * 43,
-                  }],
-                },
-              });
+                  status: 'success',
+                  message: `✅ OC ${detectedOc} creada como expediente activo — aparecerá en el Dashboard como 🏭 En Producción (${kilosVal > 0 ? `${kilosVal.toLocaleString('es-MX')} kg pedidos` : 'kilos pendientes de configurar'})`,
+                  orderId: docRef.id,
+                });
+              } else if (detectedOc && alreadyExists) {
+                results.push({
+                  id: `pdf-dup-${Date.now()}-${i}`,
+                  fileName: file.name,
+                  folio: folio,
+                  oc: detectedOc,
+                  kilos: kilosVal,
+                  total: totalVal,
+                  status: 'warning',
+                  message: `La OC ${detectedOc} ya existe en el sistema. Usa el botón Asignar para vincular este documento.`,
+                });
+              } else {
+                // Sin número de OC detectado — mantener flujo de asignación manual
+                results.push({
+                  id: `pdf-${Date.now()}-${i}`,
+                  fileName: file.name,
+                  folio: folio,
+                  oc: ocr.ocNumber || 'Sin OC',
+                  kilos: kilosVal,
+                  total: totalVal,
+                  status: 'warning',
+                  message: `Documento PDF analizado (${kilosVal > 0 ? `${kilosVal.toLocaleString('es-MX')} kg` : 'sin kilos detectados'}). No se detectó número de OC — usa el botón Asignar para vincularlo.`,
+                  parsedData: {
+                    folio: folio,
+                    uuid: ocr.uuid || '',
+                    ocNumber: ocr.ocNumber || ocr.folio,
+                    fecha: new Date().toISOString(),
+                    subTotal: ocr.subTotal || (kilosVal * 43),
+                    total: totalVal,
+                    emisorRfc: 'EDE1902136T2',
+                    emisorNombre: 'ELEMENTAL DENIM',
+                    receptorRfc: 'GTP930115PU1',
+                    receptorNombre: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+                    conceptos: ocr.conceptos || [{
+                      codigo: 'S/C',
+                      descripcion: ocr.product || 'Bolsa de Polietileno',
+                      cantidad: kilosVal,
+                      valorUnitario: 43,
+                      importe: kilosVal * 43,
+                    }],
+                  },
+                });
+              }
             }
           }
         } catch (e: any) {
@@ -897,35 +1089,74 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                 orderId: match.id,
               });
             } else {
-              results.push({
-                id: `img-${Date.now()}-${i}`,
-                fileName: file.name,
-                folio: folio,
-                oc: ocr.ocNumber || 'Sin OC',
-                kilos: kilosVal,
-                total: totalVal,
-                status: 'warning',
-                message: `Foto analizada (${kilosVal > 0 ? `${kilosVal.toLocaleString('es-MX')} kg` : 'sin kilos detectados'}). Listo para asignar.`,
-                parsedData: {
-                  folio: folio,
-                  uuid: ocr.uuid || '',
-                  ocNumber: ocr.ocNumber || ocr.folio,
-                  fecha: new Date().toISOString(),
-                  subTotal: ocr.subTotal || (kilosVal * 43),
+              // 🛡️ Auto-crear expediente si el OCR detectó número de OC en imagen
+              const detectedOcImg = (ocr.ocNumber || '').trim();
+              const alreadyExistsImg = detectedOcImg && orders.some(o =>
+                (o.oc || '').trim().toUpperCase() === detectedOcImg.toUpperCase() ||
+                (o.folio || '').trim().toUpperCase() === detectedOcImg.toUpperCase()
+              );
+
+              if (detectedOcImg && !alreadyExistsImg) {
+                const isTHImg = (ocr.receptorNombre || '').toUpperCase().includes('TEXTIL HOGAR') ||
+                                detectedOcImg.includes('1202671');
+                const docRef = await addDoc(collection(db, PATHS.orders), {
+                  folio: detectedOcImg,
+                  oc: detectedOcImg,
+                  client: isTHImg ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)',
+                  department: isTHImg ? 'TH' : 'GT',
+                  totalKilograms: kilosVal || 0,
+                  status: 'pedido',
+                  isClosedShort: false,
+                  notes: `OC importada automáticamente desde imagen: ${file.name}`,
+                  invoices: [],
+                  deliveries: [],
+                  items: [],
+                  processedAt: serverTimestamp(),
+                  createdAt: serverTimestamp(),
+                });
+                await logAction(user?.email, 'OC Creada desde Imagen', { folio: detectedOcImg, kilos: kilosVal, fileName: file.name });
+                results.push({
+                  id: `oc-img-new-${Date.now()}-${i}`,
+                  fileName: file.name,
+                  folio: detectedOcImg,
+                  oc: detectedOcImg,
+                  kilos: kilosVal,
                   total: totalVal,
-                  emisorRfc: 'EDE1902136T2',
-                  emisorNombre: 'ELEMENTAL DENIM',
-                  receptorRfc: 'GTP930115PU1',
-                  receptorNombre: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-                  conceptos: ocr.conceptos || [{
-                    codigo: 'S/C',
-                    descripcion: ocr.product || 'Bolsa de Polietileno',
-                    cantidad: kilosVal,
-                    valorUnitario: 43,
-                    importe: kilosVal * 43,
-                  }],
-                },
-              });
+                  status: 'success',
+                  message: `✅ OC ${detectedOcImg} creada como expediente activo — aparecerá en el Dashboard como 🏭 En Producción`,
+                  orderId: docRef.id,
+                });
+              } else {
+                results.push({
+                  id: `img-${Date.now()}-${i}`,
+                  fileName: file.name,
+                  folio: folio,
+                  oc: ocr.ocNumber || 'Sin OC',
+                  kilos: kilosVal,
+                  total: totalVal,
+                  status: 'warning',
+                  message: `Foto analizada (${kilosVal > 0 ? `${kilosVal.toLocaleString('es-MX')} kg` : 'sin kilos detectados'}). No se detectó número de OC — usa el botón Asignar para vincularlo.`,
+                  parsedData: {
+                    folio: folio,
+                    uuid: ocr.uuid || '',
+                    ocNumber: ocr.ocNumber || ocr.folio,
+                    fecha: new Date().toISOString(),
+                    subTotal: ocr.subTotal || (kilosVal * 43),
+                    total: totalVal,
+                    emisorRfc: 'EDE1902136T2',
+                    emisorNombre: 'ELEMENTAL DENIM',
+                    receptorRfc: 'GTP930115PU1',
+                    receptorNombre: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+                    conceptos: ocr.conceptos || [{
+                      codigo: 'S/C',
+                      descripcion: ocr.product || 'Bolsa de Polietileno',
+                      cantidad: kilosVal,
+                      valorUnitario: 43,
+                      importe: kilosVal * 43,
+                    }],
+                  },
+                });
+              }
             }
           }
         } catch (e: any) {
@@ -1129,9 +1360,19 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         const kilosVal = ocr.kilos || 0;
         const totalVal = ocr.total || kilosVal * 43 * 1.16;
         const folio = ocr.folio || 'REM-PEGADA';
-        const isFiscalInvoice = Boolean(ocr.uuid || (ocr.folio && ocr.total && ocr.total > 0));
 
-        if (isFiscalInvoice) {
+        const isFiscalInvoice = Boolean(ocr.uuid || (/cfdi|comprobante\s*fiscal|sello\s*digital|folio\s*fiscal/i.test(text) && ocr.total && ocr.total > 0));
+        const isPurchaseOrder = !ocr.uuid && !isFiscalInvoice && (
+          /orden\s*(?:de)?\s*compra|purchase\s*order|pedido|condiciones\s*de\s*pago\s*oc|\b12026[0-9]{5,11}\b/i.test(text) ||
+          Boolean(ocr.ocNumber && ocr.ocNumber.trim().length >= 7 && !/factura|cfdi|comprobante\s*fiscal/i.test(text))
+        );
+
+        if (isPurchaseOrder) {
+          const res = await processPurchaseOrderDocument(ocr, 'Texto Pegado', text);
+          setBatchResults([res]);
+          triggerHaptic(res.status === 'error' ? 'error' : 'success');
+          toast(res.status === 'error' ? res.message : res.message, res.status === 'error' ? 'bad' : 'ok');
+        } else if (isFiscalInvoice) {
           const parsedInvoiceFromPdf: ParsedInvoiceData = {
             folio: ocr.folio || 'S/F',
             uuid: ocr.uuid || '',
@@ -1192,37 +1433,79 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
             triggerHaptic('success');
             toast(`✅ Entrega de ${kilosVal.toLocaleString('es-MX')} kg registrada en OC ${match.folio || match.oc}`, 'ok');
           } else {
-            const res: ProcessedResultItem = {
-              id: `txt-${Date.now()}`,
-              fileName: 'Texto Pegado',
-              folio: folio,
-              oc: ocr.ocNumber || 'Sin OC',
-              kilos: kilosVal,
-              total: totalVal,
-              status: 'warning',
-              message: `Texto analizado (${kilosVal.toLocaleString('es-MX')} kg). Asigna la OC correspondiente.`,
-              parsedData: {
-                folio: folio,
-                uuid: ocr.uuid || '',
-                ocNumber: ocr.ocNumber || ocr.folio,
-                fecha: new Date().toISOString(),
-                subTotal: kilosVal * 43,
+            // 🛡️ Auto-crear expediente si el OCR detectó número de OC en texto pegado
+            const detectedOcTxt = (ocr.ocNumber || '').trim();
+            const alreadyExistsTxt = detectedOcTxt && orders.some(o =>
+              (o.oc || '').trim().toUpperCase() === detectedOcTxt.toUpperCase() ||
+              (o.folio || '').trim().toUpperCase() === detectedOcTxt.toUpperCase()
+            );
+
+            if (detectedOcTxt && !alreadyExistsTxt) {
+              const isTHTxt = (ocr.receptorNombre || '').toUpperCase().includes('TEXTIL HOGAR') ||
+                              detectedOcTxt.includes('1202671');
+              const docRef = await addDoc(collection(db, PATHS.orders), {
+                folio: detectedOcTxt,
+                oc: detectedOcTxt,
+                client: isTHTxt ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)',
+                department: isTHTxt ? 'TH' : 'GT',
+                totalKilograms: kilosVal || 0,
+                status: 'pedido',
+                isClosedShort: false,
+                notes: `OC importada automáticamente desde texto pegado`,
+                invoices: [],
+                deliveries: [],
+                items: [],
+                processedAt: serverTimestamp(),
+                createdAt: serverTimestamp(),
+              });
+              await logAction(user?.email, 'OC Creada desde Texto Pegado', { folio: detectedOcTxt, kilos: kilosVal });
+              const res: ProcessedResultItem = {
+                id: `oc-txt-new-${Date.now()}`,
+                fileName: 'Texto Pegado',
+                folio: detectedOcTxt,
+                oc: detectedOcTxt,
+                kilos: kilosVal,
                 total: totalVal,
-                emisorRfc: 'EDE1902136T2',
-                emisorNombre: 'ELEMENTAL DENIM',
-                receptorRfc: 'GTP930115PU1',
-                receptorNombre: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-                conceptos: ocr.conceptos || [{
-                  codigo: 'S/C',
-                  descripcion: ocr.product || 'Bolsa de Polietileno',
-                  cantidad: kilosVal,
-                  valorUnitario: 43,
-                  importe: kilosVal * 43,
-                }],
-              },
-            };
-            setBatchResults([res]);
-            triggerHaptic('warning');
+                status: 'success',
+                message: `✅ OC ${detectedOcTxt} creada como expediente activo — aparecerá en el Dashboard como 🏭 En Producción`,
+                orderId: docRef.id,
+              };
+              setBatchResults([res]);
+              triggerHaptic('success');
+              toast(`✅ OC ${detectedOcTxt} registrada en el sistema`, 'ok');
+            } else {
+              const res: ProcessedResultItem = {
+                id: `txt-${Date.now()}`,
+                fileName: 'Texto Pegado',
+                folio: folio,
+                oc: ocr.ocNumber || 'Sin OC',
+                kilos: kilosVal,
+                total: totalVal,
+                status: 'warning',
+                message: `Texto analizado (${kilosVal.toLocaleString('es-MX')} kg). No se detectó número de OC — asigna la OC correspondiente.`,
+                parsedData: {
+                  folio: folio,
+                  uuid: ocr.uuid || '',
+                  ocNumber: ocr.ocNumber || ocr.folio,
+                  fecha: new Date().toISOString(),
+                  subTotal: kilosVal * 43,
+                  total: totalVal,
+                  emisorRfc: 'EDE1902136T2',
+                  emisorNombre: 'ELEMENTAL DENIM',
+                  receptorRfc: 'GTP930115PU1',
+                  receptorNombre: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+                  conceptos: ocr.conceptos || [{
+                    codigo: 'S/C',
+                    descripcion: ocr.product || 'Bolsa de Polietileno',
+                    cantidad: kilosVal,
+                    valorUnitario: 43,
+                    importe: kilosVal * 43,
+                  }],
+                },
+              };
+              setBatchResults([res]);
+              triggerHaptic('warning');
+            }
           }
         }
       } catch (e: any) {
@@ -1300,17 +1583,24 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
   };
 
   // Escuchar Pegado Global (Ctrl+V) dentro del Modal
+  // NOTA: handlePasteChange debe ser un useCallback estable para evitar closure stale con `orders`.
+  // El useEffect se re-registra cada vez que cambia la referencia del handler.
+  const stablePasteHandler = useCallback((text: string) => {
+    handlePasteChange(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, user]);
+
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
       const text = e.clipboardData?.getData('text');
       if (text && text.trim().length > 0) {
         e.preventDefault();
-        handlePasteChange(text);
+        stablePasteHandler(text);
       }
     };
     window.addEventListener('paste', handleGlobalPaste);
     return () => window.removeEventListener('paste', handleGlobalPaste);
-  }, []);
+  }, [stablePasteHandler]);
 
   const totalBatchKilos = (batchResults || []).reduce((acc, r) => acc + (r.kilos || 0), 0);
   const totalBatchMoney = (batchResults || []).reduce((acc, r) => acc + (r.total || 0), 0);

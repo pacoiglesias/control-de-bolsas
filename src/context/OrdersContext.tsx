@@ -3,6 +3,7 @@ import { collection, onSnapshot, query, limit, Timestamp } from 'firebase/firest
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder, Delivery, Invoice } from '../lib/types';
 import { toDate } from '../lib/format';
+import { OFFICIAL_VALID_CRS, isSeedDocument, OC_TH_NAVA, OC_GT_EVELIA, CLIENT_TH, CLIENT_GT, DEPT_TH_ALMACEN, DEPT_GT_ALMACEN } from '../lib/constants';
 
 /**
  * Suscripción ÚNICA a purchaseOrders.
@@ -60,8 +61,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
 
         // 🛡️ DEDUPLICACIÓN CANÓNICA GLOBAL:
-        // Conservar exclusivamente los 8 Contrarecibos Oficiales Vivos del Portal y las 2 OCs Maestras.
-        const OFFICIAL_VALID_CRS = ['GT-874', 'TH-990', 'TH-946', 'TH-912', 'TH-879', 'GT-742', 'GT-713', 'GT-651'];
+        // Agrupa documentos por clave canónica (OC/Folio) para eliminar duplicados reales.
+        // IMPORTANTE: NO excluye OCs nuevas — solo filtra seeds/dummies obsoletos y
+        // normaliza las 2 OCs Maestras y los 8 CRs Oficiales cuando aparecen como variantes.
         const ocMap = new Map<string, PurchaseOrder[]>();
 
         for (const doc of rawDocs) {
@@ -69,34 +71,25 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           if (canonicalKey.startsWith('SEED-')) canonicalKey = canonicalKey.replace('SEED-', '');
           if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
 
-          const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
-
-          // 🛡️ Ignorar documentos dummy de prueba o seeds obsoletos (ANDRES-PEND, 120267114014)
-          if (
-            canonicalKey.includes('ANDRES-PEND') || 
-            doc.id.includes('ANDRES-PEND') || 
-            canonicalKey === '120267114014' || 
-            canonicalKey.includes('71/14014') || 
-            canonicalKey.includes('71-14014') || 
-            doc.id.includes('14014') ||
-            (doc.folio || '').includes('14014') ||
-            (doc.oc || '').includes('14014')
-          ) {
+          // 🛡️ Ignorar documentos dummy de prueba o seeds obsoletos
+          if (isSeedDocument(canonicalKey) || isSeedDocument(doc.id) ||
+              isSeedDocument(doc.folio || '') || isSeedDocument(doc.oc || '')) {
             continue;
           }
 
-          const isMasterOc = canonicalKey === '120267114114' || canonicalKey === '12026439713' || doc.id === 'oc-120267114114' || doc.id === 'oc-12026439713';
-          const crMatch = OFFICIAL_VALID_CRS.find(c => 
-            canonicalKey.includes(c) || 
-            crNum.includes(c) || 
+          // 🎯 Normalizar clave canónica — crNum debe declararse ANTES de usarse en crMatch
+          const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
+          const isMasterOc = canonicalKey === OC_TH_NAVA || canonicalKey === OC_GT_EVELIA ||
+                             doc.id === `oc-${OC_TH_NAVA}` || doc.id === `oc-${OC_GT_EVELIA}`;
+          const crMatch = OFFICIAL_VALID_CRS.find(c =>
+            canonicalKey.includes(c) ||
+            crNum.includes(c) ||
             (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c))
           );
 
-          // Si no es una de las 2 OCs maestras ni uno de los 8 Contrarecibos Oficiales, ignorar
-          if (!isMasterOc && !crMatch) {
-            continue;
-          }
-
+          // Normalizar la clave para que los documentos del mismo CR/OC se agrupen juntos.
+          // ⚡ FIX CRÍTICO: ya NO descartamos documentos que no estén en la lista canónica.
+          // Cualquier OC nueva es válida y debe aparecer en el dashboard.
           if (crMatch && !isMasterOc) {
             canonicalKey = crMatch;
           }
@@ -107,25 +100,25 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         }
 
         // 🛡️ Garantizar que ambas OCs Maestras de Providencia (TH y GT) existan siempre
-        if (!ocMap.has('120267114114')) {
-          ocMap.set('120267114114', [{
-            id: 'oc-120267114114',
-            oc: '120267114114',
-            folio: '120267114114',
-            client: 'TEXTIL HOGAR (TH - NAVA)',
-            department: 'TH-ALMACEN-1',
+        if (!ocMap.has(OC_TH_NAVA)) {
+          ocMap.set(OC_TH_NAVA, [{
+            id: `oc-${OC_TH_NAVA}`,
+            oc: OC_TH_NAVA,
+            folio: OC_TH_NAVA,
+            client: CLIENT_TH,
+            department: DEPT_TH_ALMACEN,
             totalKilograms: 6411.01,
             creditCycle: { status: 'facturado' },
             processedAt: Timestamp.fromDate(new Date('2026-08-20T09:34:40Z')),
           } as PurchaseOrder]);
         }
-        if (!ocMap.has('12026439713')) {
-          ocMap.set('12026439713', [{
-            id: 'oc-12026439713',
-            oc: '12026439713',
-            folio: '12026439713',
-            client: 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)',
-            department: 'P4-ALM',
+        if (!ocMap.has(OC_GT_EVELIA)) {
+          ocMap.set(OC_GT_EVELIA, [{
+            id: `oc-${OC_GT_EVELIA}`,
+            oc: OC_GT_EVELIA,
+            folio: OC_GT_EVELIA,
+            client: CLIENT_GT,
+            department: DEPT_GT_ALMACEN,
             totalKilograms: 3955.20,
             creditCycle: { status: 'facturado' },
             processedAt: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),

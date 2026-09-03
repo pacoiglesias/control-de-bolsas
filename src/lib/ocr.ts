@@ -70,10 +70,13 @@ export function parseOcrData(text: string): OcrResult {
     result.folio = facMatch[1].trim();
   }
 
-  // 2. Parse OC Number (ej. CONDICIONES DE PAGO OC 12026439713 o OC 120267114114)
-  const ocMatch = text.match(/CONDICIONES DE PAGO\s*(?:OC|O\.C\.|ORDEN)?\s*[:#]?\s*([0-9]{7,15})/i) ||
-                  text.match(/(?:OC|Orden de Compra|O\.C\.|Pedido|Orden)\s*[:#]?\s*([0-9]{7,15})/i) ||
-                  text.match(/\b(12026[0-9]{6,10})\b/);
+  // 2. Parse OC Number — captura: CONDICIONES DE PAGO OC XXXXXXX, OC XXXXXXX, Orden XXXXXXX,
+  //    o el patrón canónico de Providencia 12026XXXXXXX (11-13 dígitos).
+  //    También detecta números largos de OC pegados solos en el texto.
+  const ocMatch = text.match(/CONDICIONES\s*DE\s*PAGO\s*(?:OC|O\.C\.|ORDEN)?\s*[:#]?\s*([0-9]{7,15})/i) ||
+                  text.match(/(?:OC|Orden\s*de\s*Compra|O\.C\.|Pedido|Orden)\s*[:#]?\s*([0-9]{7,15})/i) ||
+                  text.match(/\b(12026[0-9]{5,11})\b/) ||
+                  text.match(/\b([0-9]{10,15})\b/);  // Número largo genérico como último recurso
   if (ocMatch && ocMatch[1]) {
     result.ocNumber = ocMatch[1].trim();
   }
