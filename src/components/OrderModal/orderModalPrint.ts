@@ -1,7 +1,7 @@
 import { escapeHtml, toDate, fmtDate } from '../../lib/format';
 import { round2, computeFinancials } from '../../lib/finance';
 
-export function openPrintHtml(html: string) {
+export function openPrintHtml(html: string): boolean {
   // 1. Intentar abrir ventana de impresión directamente
   const printWindow = window.open('', '_blank');
   if (printWindow) {
@@ -9,7 +9,7 @@ export function openPrintHtml(html: string) {
       printWindow.document.open();
       printWindow.document.write(html);
       printWindow.document.close();
-      return;
+      return true;
     } catch (e) {
       console.warn('Error escribiendo en ventana de impresión, usando iframe:', e);
     }
@@ -46,8 +46,13 @@ export function openPrintHtml(html: string) {
         }, 120_000);
       }
     }, 300);
+    return true;
   }
+
+  // Si ni popup ni iframe funcionaron (popup bloqueado y sin iframe disponible)
+  return false;
 }
+
 
 export function printRemision({ folio, oc, client, department, items, deliveredByItem, kilosNum, config, provName }: any) {
   const rawItems = items && items.length > 0 ? items : [];
@@ -294,7 +299,7 @@ export function printSingleDeliveryRemision({
       </body>
     </html>
   `;
-  openPrintHtml(html);
+  return openPrintHtml(html);
 }
 
 export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynamicConfig, provName }: any) {

@@ -114,6 +114,85 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
     }
   }
 
+  // Si no se encontraron items en renglones contiguos, analizar formato multi-línea (PDF vertical)
+  if (items.length === 0 && text) {
+    const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let i = 0;
+    while (i < rawLines.length) {
+      const line = rawLines[i];
+      const isItemNum = /^\d{1,2}$/.test(line);
+      const isProductCode = /^(?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+$/i.test(line) ||
+                            /^[a-zA-Z]{2,6}[0-9]{3,8}-[a-zA-Z0-9]+$/i.test(line);
+
+      let code = '';
+      let desc = '';
+
+      if (isItemNum && i + 1 < rawLines.length && (
+        /^(?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+$/i.test(rawLines[i + 1]) ||
+        /^[a-zA-Z]{2,6}[0-9]{3,8}-[a-zA-Z0-9]+$/i.test(rawLines[i + 1])
+      )) {
+        code = rawLines[i + 1];
+        i += 2;
+      } else if (isProductCode) {
+        code = line;
+        i += 1;
+      } else {
+        i++;
+        continue;
+      }
+
+      // Extraer descripción
+      const descLines: string[] = [];
+      while (i < rawLines.length) {
+        const cur = rawLines[i];
+        if (/^(?:cantidad|p\.?\s*u\.?|dtos|importe|articulo)$/i.test(cur) ||
+            /^[\d,]+(?:\.\d+)?$/.test(cur) ||
+            /^\d{1,2}$/.test(cur) ||
+            /^(?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+$/i.test(cur)) {
+          break;
+        }
+        descLines.push(cur);
+        i++;
+      }
+      desc = descLines.join(' ').trim();
+
+      // Recolectar números subsiguientes (saltando encabezados como Cantidad, P.U., Dtos, Importe)
+      const numbers: number[] = [];
+      while (i < rawLines.length && numbers.length < 4) {
+        const cur = rawLines[i];
+        if (/^(?:cantidad|p\.?\s*u\.?|dtos|importe)$/i.test(cur)) {
+          i++;
+          continue;
+        }
+        const numMatch = cur.match(/^([\d,]+(?:\.\d+)?)$/);
+        if (numMatch) {
+          numbers.push(Number(numMatch[1].replace(/,/g, '')));
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      if (numbers.length > 0) {
+        const quantity = numbers[0];
+        const unitPrice = numbers.length > 1 ? numbers[1] : 43;
+        const amount = numbers.length >= 4 ? numbers[3] : quantity * unitPrice;
+
+        if (quantity > 0) {
+          items.push({
+            id: 'item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            code: code.trim().toUpperCase(),
+            description: desc || 'Bolsa de Polietileno',
+            quantity,
+            unitPrice,
+            amount,
+            unit: 'Kilos',
+          });
+        }
+      }
+    }
+  }
+
   // Extraer folio, OC y proveedor
   const ocMatch = text?.match(/CDB\s*OC:\s*([\w/]+)/i) || text?.match(/Orden\s*de\s*Compra\s*\n\s*(\d{8,14})/i);
   const folioMatch = text?.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\s\n\r]+)/i);
@@ -135,12 +214,13 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
   }
 
   let estimatedDeliveryDate: Date | null = null;
-  const fechaMatch = text?.match(/Fecha\s*Entrega:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{4})/i)
-    || text?.match(/Fecha\s*Pedido:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{4})/i);
+  const fechaMatch = text?.match(/Fecha\s*Entrega:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{2,4})/i)
+    || text?.match(/Fecha\s*Pedido:\s*(\d{1,2})-([a-záéíóúA-ZÁÉÍÓÚ]+)-(\d{2,4})/i);
   if (fechaMatch) {
     const dia = Number(fechaMatch[1]);
     const mes = MESES[fechaMatch[2].toLowerCase()];
-    const anio = Number(fechaMatch[3]);
+    let anio = Number(fechaMatch[3]);
+    if (anio < 100) anio += 2000;
     if (!isNaN(dia) && mes !== undefined && !isNaN(anio)) {
       estimatedDeliveryDate = new Date(anio, mes, dia, 12, 0, 0);
     }

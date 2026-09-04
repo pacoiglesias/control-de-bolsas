@@ -6,7 +6,7 @@ import { toInputDate, fromInputDate, money, nombreClienteVisible } from '../../l
 import { useInvoiceActions } from './useInvoiceActions';
 import { useToast } from '../../context/ToastContext';
 import type { PurchaseOrder, Invoice, FinancialConfig, PurchaseOrderItem } from '../../lib/types';
-import { CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS } from '../../lib/types';
+import { CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS, CANONICAL_GT_ITEMS_439753 } from '../../lib/types';
 import { computeItemInvoiceBreakdown } from '../../lib/deliveries';
 import { printConsolidatedPackage } from './orderModalPrint';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
@@ -100,7 +100,22 @@ export function EmitirFacturaModal({
 
   // --- Conceptos / Partidas cargados de la OC usando el motor de conciliación ---
   const [conceptItems, setConceptItems] = useState<ConceptRowItem[]>(() => {
-    const breakdown = computeItemInvoiceBreakdown(order, precio);
+    // ── Guardia OC 439753: si Firestore tiene items incompletos (< 4 códigos),
+    //    inyectar el canónico completo para que el breakdown reciba los 4 artículos.
+    const ocText = `${order.oc || ''} ${order.folio || ''}`.toUpperCase();
+    const isOC9753 = ocText.includes('439753') || ocText.includes('9753') || ocText.includes('12026439753');
+    const REQUIRED_9753 = ['EGBO000095-SC', 'EGBO000093-SC', 'EGBO000018-SC', 'EGBO000094-SC'];
+    let effectiveOrder = order;
+    if (isOC9753) {
+      const existingCodes = (order.items || []).map(it => (it.code || '').toUpperCase());
+      const allPresent = REQUIRED_9753.every(c => existingCodes.includes(c));
+      if (!allPresent) {
+        // [AUDIT][EmitirFacturaModal] OC 9753: items incompletos en Firestore → forzando CANONICAL_GT_ITEMS_439753
+        effectiveOrder = { ...order, items: CANONICAL_GT_ITEMS_439753 };
+      }
+    }
+
+    const breakdown = computeItemInvoiceBreakdown(effectiveOrder, precio);
     if (breakdown.length > 0) {
       return breakdown.map((b) => ({
         id: b.id,
@@ -114,7 +129,7 @@ export function EmitirFacturaModal({
         uninvoicedDeliveredKilos: b.uninvoicedDeliveredKilos,
         remainingOcKilos: b.remainingOcKilos,
         unitPrice: b.unitPrice || precio,
-        selected: b.selected,
+        selected: b.selected || b.remainingOcKilos > 0,  // mostrar todos los ítems con OC pendiente
       }));
     }
 
@@ -447,10 +462,21 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                       type="button"
                       onClick={() => setConceptItems(mapItemsToConcepts(CANONICAL_GT_ITEMS))}
                       style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 6, border: '1px solid #16a34a', background: 'rgba(22,163,74,0.08)', color: '#15803d', cursor: 'pointer', fontWeight: 700 }}
-                      title="Cargar las 4 partidas de Grupo Textil"
+                      title="Cargar las 4 partidas estándar de Grupo Textil"
                     >
                       🏷️ Plantilla GT (4)
                     </button>
+                    {/* Botón especial para OC 43/9753 con los 4 artículos exactos */}
+                    {(order.oc?.includes('439753') || order.oc?.includes('12026439753') || order.folio?.includes('9753')) && (
+                      <button
+                        type="button"
+                        onClick={() => setConceptItems(mapItemsToConcepts(CANONICAL_GT_ITEMS_439753))}
+                        style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 6, border: '1px solid #d97706', background: 'rgba(217,119,6,0.08)', color: '#b45309', cursor: 'pointer', fontWeight: 700 }}
+                        title="Cargar los 4 artículos exactos de la OC 43/9753: EGBO000095, EGBO000093, EGBO000018, EGBO000094"
+                      >
+                        🔖 OC 43/9753 (4 art.)
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => toggleSelectAll(true)}

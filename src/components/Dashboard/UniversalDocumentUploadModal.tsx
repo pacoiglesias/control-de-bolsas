@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { parseXmlInvoice, type ParsedInvoiceData } from '../../lib/xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from '../../lib/ocr';
+import { parseOrdenDeCompra } from '../../lib/ocParser';
 import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml, type ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
 import { parseBankTransferReceipt, type ParsedBankTransfer } from '../../lib/bankReceiptParser';
 import { useOrdersContext } from '../../context/OrdersContext';
@@ -319,15 +320,26 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
     const deptName = isTH ? 'TH' : 'GT';
     const deptAlm = isTH ? 'TH-ALMACEN-1' : 'P4-ALM';
 
+    const parsedFromOC = parseOrdenDeCompra(text);
+    const parsedItems = parsedFromOC.items && parsedFromOC.items.length > 0 ? parsedFromOC.items : null;
+    const finalKilos = (parsedItems && parsedFromOC.totalKilograms > 0) ? parsedFromOC.totalKilograms : (kilosVal || 0);
+    const realFolio = parsedFromOC.folio || ocNumber;
+    const realOc = parsedFromOC.oc || ocNumber;
+
     // 1. Buscar si ya existe la OC en el sistema
-    const match = orders.find((o) => isMatchingOc(o, ocNumber));
+    const match = orders.find((o) => isMatchingOc(o, realOc) || isMatchingOc(o, realFolio) || isMatchingOc(o, ocNumber));
 
     if (match) {
       const updates: any = { updatedAt: serverTimestamp() };
       let changed = false;
 
-      if (kilosVal > 0 && (!match.totalKilograms || match.totalKilograms === 0)) {
-        updates.totalKilograms = kilosVal;
+      if (finalKilos > 0 && (!match.totalKilograms || match.totalKilograms === 0 || Math.abs((Number(match.totalKilograms) || 0) - finalKilos) > 1)) {
+        updates.totalKilograms = finalKilos;
+        changed = true;
+      }
+
+      if (parsedItems && (!match.items || match.items.length === 0)) {
+        updates.items = parsedItems;
         changed = true;
       }
 
@@ -344,45 +356,81 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         await updateDoc(doc(db, PATHS.orders, match.id), updates);
       }
 
+      // Auto-registrar productos nuevos en el catálogo de Firestore
+      if (parsedItems) {
+        for (const it of parsedItems) {
+          if (it.code && it.code !== 'S/C' && it.code !== '24141500') {
+            try {
+              await setDoc(doc(db, PATHS.products, it.code.toUpperCase().trim()), {
+                code: it.code.toUpperCase().trim(),
+                description: it.description.trim(),
+                unit: it.unit || 'Kilos',
+                defaultPrice: it.unitPrice || 43,
+                lastOrderDate: serverTimestamp(),
+              }, { merge: true });
+            } catch (err) {
+              console.warn('Error saving product to catalog:', err);
+            }
+          }
+        }
+      }
+
       return {
         id: `oc-exist-${Date.now()}`,
         fileName: originName,
-        folio: ocNumber,
-        oc: ocNumber,
-        kilos: kilosVal || Number(match.totalKilograms) || 0,
-        total: (kilosVal || Number(match.totalKilograms) || 0) * 43 * 1.16,
+        folio: realFolio,
+        oc: realOc,
+        kilos: finalKilos || Number(match.totalKilograms) || 0,
+        total: (finalKilos || Number(match.totalKilograms) || 0) * 43 * 1.16,
         status: 'success',
-        message: `✅ Orden de Compra ${ocNumber} sincronizada y activa (${(kilosVal || match.totalKilograms || 0).toLocaleString('es-MX')} kg) — visible en Dashboard como 🏭 En Producción`,
+        message: `✅ Orden de Compra ${realOc} (${realFolio}) sincronizada con ${parsedItems ? parsedItems.length : (match.items?.length || 0)} partidas (${(finalKilos || match.totalKilograms || 0).toLocaleString('es-MX')} kg) — visible en Dashboard como 🏭 En Producción`,
         orderId: match.id,
       };
     }
 
     // 2. Crear el nuevo expediente de OC con status: 'pedido'
-    const items = ocr.conceptos && ocr.conceptos.length > 0 ? ocr.conceptos.map((c: any, idx: number) => ({
+    const items = parsedItems || (ocr.conceptos && ocr.conceptos.length > 0 ? ocr.conceptos.map((c: any, idx: number) => ({
       id: `item-${idx + 1}`,
       code: c.codigo || 'S/C',
       description: c.descripcion || 'Bolsa de Polietileno',
-      quantity: Number(c.cantidad) || kilosVal || 0,
+      quantity: Number(c.cantidad) || finalKilos || 0,
       unitPrice: Number(c.valorUnitario) || 43,
-      amount: Number(c.importe) || ((kilosVal || 0) * 43),
+      amount: Number(c.importe) || ((finalKilos || 0) * 43),
       unit: 'Kilos',
     })) : [{
       id: 'item-1',
       code: 'S/C',
       description: ocr.product || 'Bolsa de Polietileno',
-      quantity: kilosVal,
+      quantity: finalKilos,
       unitPrice: 43,
-      amount: kilosVal * 43,
+      amount: finalKilos * 43,
       unit: 'Kilos',
-    }];
+    }]);
+
+    // Auto-registrar productos nuevos en el catálogo de Firestore
+    for (const it of items) {
+      if (it.code && it.code !== 'S/C' && it.code !== '24141500') {
+        try {
+          await setDoc(doc(db, PATHS.products, it.code.toUpperCase().trim()), {
+            code: it.code.toUpperCase().trim(),
+            description: it.description.trim(),
+            unit: it.unit || 'Kilos',
+            defaultPrice: it.unitPrice || 43,
+            lastOrderDate: serverTimestamp(),
+          }, { merge: true });
+        } catch (err) {
+          console.warn('Error saving product to catalog:', err);
+        }
+      }
+    }
 
     const docRef = await addDoc(collection(db, PATHS.orders), {
-      folio: ocNumber,
-      oc: ocNumber,
+      folio: realFolio,
+      oc: realOc,
       client: clientName,
       department: deptName,
       departmentLocation: deptAlm,
-      totalKilograms: kilosVal,
+      totalKilograms: finalKilos,
       status: 'pedido',
       creditCycle: { status: 'pedido' },
       isClosedShort: false,
@@ -394,17 +442,17 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
       createdAt: serverTimestamp(),
     });
 
-    await logAction(user?.email, 'OC Creada desde Documento', { folio: ocNumber, kilos: kilosVal, origin: originName });
+    await logAction(user?.email, 'OC Creada desde Documento', { folio: realFolio, oc: realOc, kilos: finalKilos, origin: originName });
 
     return {
       id: `oc-new-${Date.now()}`,
       fileName: originName,
-      folio: ocNumber,
-      oc: ocNumber,
-      kilos: kilosVal,
-      total: kilosVal * 43 * 1.16,
+      folio: realFolio,
+      oc: realOc,
+      kilos: finalKilos,
+      total: finalKilos * 43 * 1.16,
       status: 'success',
-      message: `✅ Nueva Orden de Compra ${ocNumber} (${kilosVal.toLocaleString('es-MX')} kg) creada exitosamente — visible en Dashboard como 🏭 En Producción`,
+      message: `✅ Nueva Orden de Compra ${realOc} (${realFolio}) con ${items.length} partidas (${finalKilos.toLocaleString('es-MX')} kg) creada exitosamente — visible en Dashboard como 🏭 En Producción`,
       orderId: docRef.id,
     };
   };

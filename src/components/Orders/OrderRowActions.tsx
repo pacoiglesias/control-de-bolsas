@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { PurchaseOrder } from '../../lib/types';
 import { triggerHaptic } from '../../lib/hapticEngine';
 
@@ -6,6 +7,8 @@ interface OrderRowActionsProps {
   kilosPendientesDeFacturar: number;
   hasSinCr: boolean;
   onOpenModal: () => void;
+  /** Llamado directo al QuickCrModal — ya no necesita pasar por custom event */
+  onFastCr?: () => void;
 }
 
 export function OrderRowActions({
@@ -13,7 +16,10 @@ export function OrderRowActions({
   kilosPendientesDeFacturar,
   hasSinCr,
   onOpenModal,
+  onFastCr,
 }: OrderRowActionsProps) {
+  const [crPulse, setCrPulse] = useState(false);
+
   const handleFastInvoice = (e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic('medium');
@@ -28,8 +34,15 @@ export function OrderRowActions({
 
   const handleFastCr = (e: React.MouseEvent) => {
     e.stopPropagation();
-    triggerHaptic('medium');
-    window.dispatchEvent(new CustomEvent('open-fast-quick-cr', { detail: { order } }));
+    triggerHaptic('heavy');
+    if (onFastCr) {
+      onFastCr();
+    } else {
+      // Fallback legacy: custom event
+      window.dispatchEvent(new CustomEvent('open-fast-quick-cr', { detail: { order } }));
+    }
+    setCrPulse(true);
+    setTimeout(() => setCrPulse(false), 600);
   };
 
   return (
@@ -44,7 +57,37 @@ export function OrderRowActions({
         border: '1px solid var(--line-soft)',
       }}
     >
-      {/* 1. Facturar */}
+      {/* 1. Contrarecibo — ACCIÓN PRIORITARIA cuando falta CR */}
+      {hasSinCr && (
+        <button
+          type="button"
+          onClick={handleFastCr}
+          style={{
+            background: crPulse
+              ? 'rgba(124, 58, 237, 0.3)'
+              : 'rgba(124, 58, 237, 0.15)',
+            color: '#6d28d9',
+            border: '1.5px solid rgba(124, 58, 237, 0.5)',
+            borderRadius: 6,
+            padding: '3px 9px',
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            // Glow proactivo para indicar acción pendiente urgente
+            boxShadow: '0 0 0 2px rgba(124,58,237,0.15)',
+            transition: 'all 0.15s ease',
+            animation: 'crPulseAnim 2s ease-in-out infinite',
+          }}
+          title="⚡ Acción requerida: Capturar número de Contrarecibo (CR)"
+        >
+          <span>📑</span> + Asignar CR
+        </button>
+      )}
+
+      {/* 2. Facturar */}
       <button
         type="button"
         onClick={handleFastInvoice}
@@ -66,7 +109,7 @@ export function OrderRowActions({
         <span>🧾</span> Facturar
       </button>
 
-      {/* 2. Entrega de Báscula */}
+      {/* 3. Entrega de Báscula */}
       <button
         type="button"
         onClick={handleFastDelivery}
@@ -87,30 +130,6 @@ export function OrderRowActions({
       >
         <span>🚚</span> Entrega
       </button>
-
-      {/* 3. Contrarecibo */}
-      {hasSinCr && (
-        <button
-          type="button"
-          onClick={handleFastCr}
-          style={{
-            background: 'rgba(124, 58, 237, 0.12)',
-            color: '#6d28d9',
-            border: '1px solid rgba(124, 58, 237, 0.3)',
-            borderRadius: 6,
-            padding: '2px 6px',
-            fontSize: 10.5,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3,
-          }}
-          title="Capturar Contrarecibo oficial"
-        >
-          <span>📑</span> +CR
-        </button>
-      )}
 
       {/* 4. Ver Ficha */}
       <button

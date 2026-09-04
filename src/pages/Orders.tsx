@@ -46,7 +46,7 @@ export default function Orders() {
   const [showCrHubModal, setShowCrHubModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
-  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('list');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('radar');
   
   const [page, setPage] = useState(1);
   const pageSize = 30;
@@ -318,11 +318,49 @@ export default function Orders() {
     <>
       <div className="page-head">
         <h1>Expedientes</h1>
-        <p>
-          Una fila por expediente, con filtros por estatus de cobro. Haz clic en cualquier renglón
-          para abrir la ficha, corregir datos o registrar el cobro. ¿Buscas ver el avance de una
-          Orden de Compra con todas sus facturas juntas? Esa vista está en <strong>Por Orden de Compra</strong>.
+        <p style={{ marginBottom: counts.sin_cr > 0 ? 0 : undefined }}>
+          Vista de acción por expediente. Usa <strong>⚡ Acciones Hoy</strong> para ver qué hacer primero,
+          o <strong>☰ Lista</strong> para el detalle completo.
         </p>
+        {/* Banner proactivo: expedientes sin CR */}
+        {counts.sin_cr > 0 && (
+          <div style={{
+            marginTop: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            background: 'rgba(124,58,237,0.08)',
+            border: '1.5px solid rgba(124,58,237,0.3)',
+            borderRadius: 10,
+            padding: '10px 16px',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 18 }}>📑</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, color: '#6d28d9' }}>
+                {counts.sin_cr} {counts.sin_cr === 1 ? 'factura espera' : 'facturas esperan'} número de Contrarecibo
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 1 }}>
+                Captura el CR que te dio Providencia para avanzar el ciclo de cobro.
+              </div>
+            </div>
+            <button
+              onClick={() => setParams({ filtro: 'sin_cr' })}
+              style={{
+                background: '#7c3aed',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '7px 14px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Ver sin CR →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* KPI Ribbon de Métricas en Tiempo Real */}
@@ -540,14 +578,13 @@ export default function Orders() {
                   <th onClick={() => toggleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                     Cliente {sortBy === 'client' && (sortDir === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th>Prov.</th>
-                  <th className="num">Kilos Pedidos</th><th className="num">Kilos Entregados</th><th className="num">Kilos Pendientes</th><th className="num">Kilos Facturados</th>
+                  <th className="num" style={{ minWidth: 160 }}>Progreso kg</th>
                   <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
                   <th className="num" onClick={() => toggleSort('deuda')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Deuda Restante {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
+                    Deuda {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th>Estado</th>
-                  <th style={{ width: 150, textAlign: 'center' }}>Acciones</th>
+                  <th>Estado / Próxima Acción</th>
+                  <th style={{ width: 200, textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -719,48 +756,38 @@ export default function Orders() {
                           })()}
                         </div>
                       </td>
-                      <td>{o.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(o.provider) ? o.provider : '—'}</td>
+                      {/* Columna compacta: Progreso kg (barra + texto en una sola celda) */}
                       {(() => {
                         const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
                         const orderTotalKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0);
                         const faltanKg = Math.max(0, orderTotalKg - summary.kilosDelivered);
                         const isSurtido = orderTotalKg > 0 && summary.kilosDelivered >= orderTotalKg;
-
+                        const provText = o.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(o.provider) ? o.provider : null;
                         return (
-                          <>
-                            <td className="num mono" style={{ minWidth: 140 }}>
-                              <KilosProgressBar
-                                compact
-                                deliveredKg={summary.kilosDelivered}
-                                totalKg={orderTotalKg}
-                              />
-                            </td>
-                            <td className="num mono">
-                              {summary.kilosDelivered > 0 ? kilos(summary.kilosDelivered) : '—'}
-                              {isSurtido && (
-                                <span style={{ display: 'block', fontSize: '0.75em', color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
+                          <td className="num" style={{ minWidth: 160 }}>
+                            <KilosProgressBar compact deliveredKg={summary.kilosDelivered} totalKg={orderTotalKg} />
+                            <div style={{ fontSize: '0.78em', color: 'var(--ink-soft)', marginTop: 3, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              {isSurtido ? (
+                                <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
+                              ) : faltanKg > 0.01 ? (
+                                <span style={{ color: '#d97706', fontWeight: 700 }}>⏳ {kilos(faltanKg)} pend.</span>
+                              ) : null}
+                              {summary.kilosInvoiced > 0 && (
+                                <span title="Kilos facturados">🧾 {kilos(summary.kilosInvoiced)}</span>
                               )}
-                            </td>
-                            <td className="num mono">
-                              {faltanKg > 0.01 ? (
-                                <span style={{ color: '#d97706', fontWeight: 700 }}>
-                                  ⏳ {kilos(faltanKg)}
-                                </span>
-                              ) : orderTotalKg > 0 ? (
-                                <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.85em' }}>
-                                  🟢 0 kg (Al día)
-                                </span>
-                              ) : '—'}
-                            </td>
-                          </>
+                              {provText && (
+                                <span title={`Proveedor: ${provText}`} style={{ opacity: 0.6 }}>· {provText}</span>
+                              )}
+                            </div>
+                          </td>
                         );
                       })()}
-                      <td className="num mono">{summary.kilosInvoiced > 0 ? kilos(summary.kilosInvoiced) : '—'}</td>
                       <td className="num mono">{money(summary.invoiceTotal)}</td>
                       <td className="num mono">{money(summary.paidAmount)}</td>
                       <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
+                      {/* Columna Estado + Próxima Acción fusionadas */}
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start', minWidth: 175 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start', minWidth: 195 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             {st === 'overdue' ? (
                               <PulsingBadge label="🚨 Vencida" tone="red" pulse />
@@ -769,10 +796,37 @@ export default function Orders() {
                             )}
                             {summary.maxDaysLate !== null && (st === 'overdue' || st === 'pending') && (
                               <span style={{ fontSize: '0.8em', color: summary.maxDaysLate > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                                {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate} días` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)} días`}
+                                {summary.maxDaysLate > 0 ? `Vencido ${summary.maxDaysLate}d` : summary.maxDaysLate === 0 ? 'Vence hoy' : `Faltan ${Math.abs(summary.maxDaysLate)}d`}
                               </span>
                             )}
                           </div>
+                          {/* Próxima Acción proactiva inline */}
+                          {hasSinCr && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setQuickCrOrder(o); }}
+                              style={{
+                                background: 'rgba(124,58,237,0.1)',
+                                color: '#6d28d9',
+                                border: '1px dashed rgba(124,58,237,0.4)',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                width: '100%',
+                              }}
+                            >
+                              📑 Capturar número de CR
+                            </button>
+                          )}
+                          {!hasSinCr && unbilledKilos > 0.01 && (
+                            <div style={{ fontSize: 10.5, color: '#b45309', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              🧾 Facturar {kilos(unbilledKilos)}
+                            </div>
+                          )}
                           <OrderLifecycleSemaphore order={o} summary={summary} compact />
                         </div>
                       </td>
@@ -782,6 +836,7 @@ export default function Orders() {
                           kilosPendientesDeFacturar={unbilledKilos}
                           hasSinCr={hasSinCr}
                           onOpenModal={() => { setInitialModalTab('resumen'); setSelected(o); }}
+                          onFastCr={() => setQuickCrOrder(o)}
                         />
                       </td>
                     </tr>
@@ -790,11 +845,10 @@ export default function Orders() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={3}>Totales de la vista</td>
-                  <td className="num">{kilos(totals.kilos)}</td>
-                  <td className="num">{kilos(totals.kilosEntregados)}</td>
-                  <td className="num">{kilos(totals.kilosPendientes)}</td>
-                  <td className="num">{kilos(totals.kilosFacturados)}</td>
+                  <td colSpan={2}>Totales de la vista ({rows.length} expedientes)</td>
+                  <td className="num mono" style={{ fontSize: '0.85em' }}>
+                    {kilos(totals.kilosEntregados)} / {kilos(totals.kilos)}
+                  </td>
                   <td className="num">{money(totals.venta)}</td>
                   <td className="num">{money(totals.cobrado)}</td>
                   <td className="num">{money(totals.deuda)}</td>

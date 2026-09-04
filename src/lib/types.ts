@@ -230,11 +230,37 @@ export const CANONICAL_GT_ITEMS: PurchaseOrderItem[] = [
   { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM (60+40x95) _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
 ];
 
+export const CANONICAL_GT_ITEMS_439753: PurchaseOrderItem[] = [
+  { id: 'it-gt-9753-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM  _Sin Color', quantity: 1500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+  { id: 'it-gt-9753-2', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM  _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-gt-9753-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-gt-9753-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM  _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+];
+
 export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOrderItem[] {
   if (!order) return [];
-  if (order.items && order.items.length > 0) return order.items;
-  
+
   const text = `${order.department || ''} ${order.client || ''} ${order.oc || ''} ${order.folio || ''}`.toUpperCase();
+  const is9753 = text.includes('43/9753') || text.includes('439753') || text.includes('12026439753') || text.includes('9753');
+
+  // Para la OC 439753: verificar que los items guardados estén completos (los 4 artículos).
+  // Si faltan códigos del canónico (ej. EGBO000094-SC no fue guardado en la sesión anterior),
+  // se retorna el canónico completo para garantizar que la facturación rápida no quede trunca.
+  if (is9753) {
+    const REQUIRED_CODES_9753 = ['EGBO000095-SC', 'EGBO000093-SC', 'EGBO000018-SC', 'EGBO000094-SC'];
+    const existingCodes = (order.items || []).map(it => (it.code || '').toUpperCase());
+    const allPresent = REQUIRED_CODES_9753.every(c => existingCodes.includes(c));
+    if (!allPresent) {
+      // [AUDIT][getEffectiveOrderItems] OC 439753: items incompletos en Firestore, usando canónico completo.
+      return CANONICAL_GT_ITEMS_439753;
+    }
+    // Si están todos, respetar los items del documento (pueden tener deliveredQuantity ya anotada).
+    if (order.items && order.items.length > 0) return order.items;
+    return CANONICAL_GT_ITEMS_439753;
+  }
+
+  if (order.items && order.items.length > 0) return order.items;
+
   if (text.includes('TH') || text.includes('TEXTIL HOGAR') || text.includes('NAVA') || text.includes('LAMU') || text.includes('14114')) {
     return CANONICAL_TH_ITEMS;
   }

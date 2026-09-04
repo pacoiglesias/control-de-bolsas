@@ -183,4 +183,68 @@ TOTAL $ 98,054.60
     expect(items[1].code).toBe('egbo000107-sc');
     expect(items[1].amount).toBe(42576.88);
   });
+
+  const OC_12026439753_MULTILINE_TEXT = `
+CDB OC: 12026439753
+No. Ord. de Compra: 43/9753
+Fecha Pedido: 02-septiembre-20
+Fecha Entrega: 11-septiembre-2026
+CREDITO A 30 DIAS
+Articulo
+1
+EGBO000095-SC
+BOLSA POLIETILENO 120X 125 CM  _Sin Color
+Cantidad
+1,500.0000
+P. U.
+43.0000
+Dtos
+0.0000
+Importe
+64,500.0000
+2
+EGBO000093-SC
+BOLSA POLIETILENO 100 X 95 CM  _Sin Color
+1,000.0000
+43.0000
+0.0000
+43,000.0000
+3
+EGBO000018-SC
+BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color
+1,000.0000
+43.0000
+0.0000
+43,000.0000
+4
+EGBO000094-SC
+BOLSA POLIETILENO 100 X 125 CM  _Sin Color
+1,000.0000
+43.0000
+0.0000
+43,000.0000
+`;
+
+  it('extrae correctamente las 4 partidas en formato multi-línea de OC 12026439753 incluyendo EGBO000094-SC', () => {
+    const parsed = parseOrdenDeCompra(OC_12026439753_MULTILINE_TEXT);
+    expect(parsed.oc).toBe('12026439753');
+    expect(parsed.folio).toBe('43/9753');
+    expect(parsed.items.length).toBe(4);
+    expect(parsed.totalKilograms).toBe(4500);
+
+    expect(parsed.items[0].code).toBe('EGBO000095-SC');
+    expect(parsed.items[0].quantity).toBe(1500);
+    expect(parsed.items[0].amount).toBe(64500);
+
+    expect(parsed.items[1].code).toBe('EGBO000093-SC');
+    expect(parsed.items[1].quantity).toBe(1000);
+
+    expect(parsed.items[2].code).toBe('EGBO000018-SC');
+    expect(parsed.items[2].quantity).toBe(1000);
+
+    expect(parsed.items[3].code).toBe('EGBO000094-SC');
+    expect(parsed.items[3].description).toContain('100 X 125 CM');
+    expect(parsed.items[3].quantity).toBe(1000);
+    expect(parsed.items[3].amount).toBe(43000);
+  });
 });

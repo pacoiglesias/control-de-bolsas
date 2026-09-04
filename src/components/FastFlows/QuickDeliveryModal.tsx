@@ -11,6 +11,7 @@ import { triggerHaptic } from '../../lib/hapticEngine';
 import { sound } from '../../lib/sounds';
 import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
 import { findDuplicateRemision } from '../../lib/duplicateGuards';
+import { getEffectiveOrderItems } from '../../lib/types';
 
 interface QuickDeliveryModalProps {
   orders: PurchaseOrder[];
@@ -169,12 +170,15 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
   const handlePrintRemisionBtn = () => {
     if (!completedDelivery) return;
     triggerHaptic();
-    printSingleDeliveryRemision({
+    // Usar getEffectiveOrderItems para garantizar que los conceptos estén completos
+    // (incluye el canónico 439753 aunque order.items en Firestore sea incompleto)
+    const effectiveItems = getEffectiveOrderItems(completedDelivery.order);
+    const result = printSingleDeliveryRemision({
       folio: completedDelivery.order.folio,
       oc: completedDelivery.order.oc,
       client: completedDelivery.order.client,
       department: completedDelivery.order.department,
-      items: completedDelivery.order.items,
+      items: effectiveItems.length > 0 ? effectiveItems : completedDelivery.order.items,
       delivery: {
         date: new Date(completedDelivery.dateStr),
         kilos: completedDelivery.kilos,
@@ -185,6 +189,10 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
       },
       provName: completedDelivery.driver || 'Andrés',
     });
+    // Feedback si el popup fue bloqueado
+    if (result === false) {
+      toast('⚠️ Permite las ventanas emergentes en tu navegador para imprimir la remisión. O usa el botón de impresión dentro del expediente.', 'bad');
+    }
   };
 
   const handleWhatsAppShare = () => {
