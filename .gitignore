@@ -30,6 +30,10 @@ diff.txt
 .env
 .env.local
 .env.*.local
+.env.development
+.env.staging
+.env.production
+!.env.example
 .firebase
 
 # Sistema

@@ -31,10 +31,10 @@ jobs:
             echo "❌ Archivos .ps1 encontrados en la raíz"
             exit 1
           fi
-          # Verificar conteo de archivos en raíz (< 15)
+          # Verificar conteo de archivos en raíz (< 20 — incluye .env.example)
           root_files=$(find . -maxdepth 1 -type f | wc -l)
-          if [ "$root_files" -gt 15 ]; then
-            echo "❌ Demasiados archivos en la raíz ($root_files > 15)"
+          if [ "$root_files" -gt 20 ]; then
+            echo "❌ Demasiados archivos en la raíz ($root_files > 20)"
             exit 1
           fi
           echo "✅ Auditoría de estructura completada exitosamente ($root_files archivos en raíz)"
@@ -46,6 +46,33 @@ jobs:
             exit 1
           fi
           echo "✅ Sin archivos .log residuales en el repositorio"
+
+      - name: Audit modular structure (Cloud Functions)
+        run: |
+          echo "🔍 Verificando estructura modular de Cloud Functions..."
+          for mod in compras cobranza facturacion maquila sistema; do
+            if [ ! -f "functions/src/modules/$mod/handlers.ts" ]; then
+              echo "❌ Falta functions/src/modules/$mod/handlers.ts"
+              exit 1
+            fi
+            if [ ! -f "functions/src/modules/$mod/index.ts" ]; then
+              echo "❌ Falta functions/src/modules/$mod/index.ts"
+              exit 1
+            fi
+          done
+          for mw in auth errorHandler validation; do
+            if [ ! -f "functions/src/middleware/$mw.ts" ]; then
+              echo "❌ Falta functions/src/middleware/$mw.ts"
+              exit 1
+            fi
+          done
+          for ut in firebase logging helpers; do
+            if [ ! -f "functions/src/utils/$ut.ts" ]; then
+              echo "❌ Falta functions/src/utils/$ut.ts"
+              exit 1
+            fi
+          done
+          echo "✅ Estructura modular de Cloud Functions verificada"
 
       # ── 3. Node.js y Dependencias ────────────────────────────────────────────
       - name: Setup Node.js 22
@@ -70,16 +97,23 @@ jobs:
       # ── 5. Pruebas unitarias ─────────────────────────────────────────────────
       - name: Tests (vitest run)
         run: npm test
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'ci-placeholder' }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'ci-placeholder.firebaseapp.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'ci-placeholder' }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'ci-placeholder.appspot.com' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:000000000000:web:ci-placeholder' }}
 
       - name: Cobertura de código (≥80%)
         run: npm run test:coverage
         env:
-          VITE_FIREBASE_API_KEY: ci-placeholder
-          VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: ci-placeholder
-          VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
-          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
-          VITE_FIREBASE_APP_ID: 1:000000000000:web:ci-placeholder
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'ci-placeholder' }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'ci-placeholder.firebaseapp.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'ci-placeholder' }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'ci-placeholder.appspot.com' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:000000000000:web:ci-placeholder' }}
 
       # ── 6. Lint ───────────────────────────────────────────────────────────────
       - name: Lint (ESLint)
@@ -89,9 +123,9 @@ jobs:
       - name: Build completo (Frontend + Functions)
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ci-placeholder
-          VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: ci-placeholder
-          VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
-          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
-          VITE_FIREBASE_APP_ID: 1:000000000000:web:ci-placeholder
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'ci-placeholder' }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'ci-placeholder.firebaseapp.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'ci-placeholder' }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'ci-placeholder.appspot.com' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:000000000000:web:ci-placeholder' }}
