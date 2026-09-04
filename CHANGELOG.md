@@ -1,5 +1,20 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.2.3] - 4 Septiembre 2026 (Calibración Canónica de Patio Nava, Exceso GT 298 kg, Facturación Rápida y Sincronización Inmediata)
+
+### 🏢 Calibración Ejecutiva Nava (TH · OC 120267114114)
+- **Patio al Día (0 kg pendientes):** Reconciliación matemática que aclara que el 100% de lo entregado a Textil Hogar está debidamente amparado por facturas (F-6198 con CR TH-990, F-6200 con CR TH-1030 y F-6266 en revisión).
+- **Saldo Remanente de OC:** Se visualiza con precisión el remanente abierto de 1,588.99 kg pendientes de programar entrega en la OC de 6,500 kg.
+
+### 🏭 Calibración Ejecutiva Evelia (GT · OC 12026439713)
+- **Exceso Real Físico de 298 kg:** Incorporación formal de la entrega física en planta P4 (298.00 kg) en espera de solicitar una nueva Orden de Compra oficial a Evelia para su facturación.
+
+### ⚡ Facturación Rápida y Edición Universal en Tiempo Real
+- **Edición, Corrección y Borrado Inmediato:** Sincronización instantánea con Firestore al editar conceptos, facturas o contrarecibos desde cualquier vista (Orders, OrderModal, InvoiceWidget) sin necesidad de recargar la página.
+- **Visualización Integral de Partidas:** Diseño ampliado para evitar truncamiento de códigos y descripciones en la tabla multi-concepto.
+
+---
+
 ## [v9.2.2] - 4 Septiembre 2026 (Sincronización Universal de Cartera, Saneamiento OC 12026439753 y Corrección UTF-8/PDF)
 
 ### 📊 Unificación y Consistencia de Contrarecibos en Cobranza y Órdenes
