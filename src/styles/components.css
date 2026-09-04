@@ -387,10 +387,10 @@
   border: none;
   background: transparent;
   color: var(--ink-soft);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
-  font-size: 16px;
+  font-size: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1128,4 +1128,126 @@ textarea.input {
   align-items: center;
   justify-content: center;
   box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
+}
+
+/* =========================================================================
+   OrderRowActions Toolbar (ora-*) — Design System Tokens, 44px touch targets
+   Sustituye los ~100 líneas de estilos inline hardcodeados anteriores.
+   ========================================================================= */
+.ora-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--paper-sunk);
+  padding: 3px 5px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-soft);
+}
+
+/* Base de todos los botones de la toolbar */
+.ora-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 36px;         /* 36px en tabla; hover sube shadow en lugar de height */
+  min-width: 36px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Área de toque extendida a 44px vía pseudo-elemento (no altera layout) */
+  position: relative;
+}
+.ora-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.ora-btn:active {
+  transform: scale(0.95);
+  transition-duration: 0.08s;
+}
+.ora-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Variante: Asignar CR — prioridad máxima, violeta pulsante */
+.ora-btn--cr {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+  border-color: rgba(124, 58, 237, 0.4);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+  animation: crPulseAnim 2.2s ease-in-out infinite;
+  font-size: 11.5px;
+}
+.ora-btn--cr:hover {
+  background: rgba(124, 58, 237, 0.22);
+  border-color: rgba(124, 58, 237, 0.65);
+  transform: translateY(-1px);
+  animation: none;
+}
+.ora-btn--cr-pulse {
+  background: rgba(124, 58, 237, 0.32) !important;
+  animation: none !important;
+}
+
+@keyframes crPulseAnim {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12); }
+  50%       { box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.28); }
+}
+
+/* Variante: Facturas emitidas — azul cobalto */
+.ora-btn--invoices {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--info);
+  border-color: rgba(37, 99, 235, 0.22);
+}
+.ora-btn--invoices:hover {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.45);
+  color: var(--info-deep);
+  transform: translateY(-1px);
+}
+
+/* Variante: Facturar con kilos pendientes — ámbar urgente */
+.ora-btn--invoice-pending {
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--accent-deep);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+.ora-btn--invoice-pending:hover {
+  background: rgba(217, 119, 6, 0.2);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Variante: Ghost — acción secundaria discreta */
+.ora-btn--ghost {
+  color: var(--ink-soft);
+}
+.ora-btn--ghost:hover {
+  background: var(--paper-sunk);
+  color: var(--ink);
+  border-color: var(--line-soft);
+}
+
+/* Variante: Ver expediente — icono solo, marca de acento */
+.ora-btn--view {
+  color: var(--accent-deep);
+  font-size: 14px;
+  padding: 0 6px;
+}
+.ora-btn--view:hover {
+  background: var(--accent-tint);
+  border-color: rgba(217, 119, 6, 0.35);
+  transform: scale(1.1);
 }

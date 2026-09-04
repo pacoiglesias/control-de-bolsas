@@ -85,6 +85,12 @@
   --info-deep: #1d4ed8;
   --blur-radius: 20px;
   --accent-sunk: var(--accent-tint);
+
+  /* Identidad Departamental Oficial Providencia (light mode) */
+  --dept-th-primary: #2563EB;
+  --dept-th-bg: rgba(37, 99, 235, 0.08);
+  --dept-gt-primary: #059669;
+  --dept-gt-bg: rgba(5, 150, 105, 0.08);
 }
 
 :root[data-theme="dark"] {

@@ -4,12 +4,17 @@ import { toDate } from '../lib/format';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
 import { DEFAULT_CONFIG } from '../lib/types';
 
+/** Forma mínima del documento kpis/ que Firestore puede devolver */
+interface StatsDocShape {
+  kpis?: Record<string, number>;
+}
+
 export function useDashboardStats(
-  statsDoc: any, 
-  activeOrders: PurchaseOrder[], 
-  monthFilter: string, 
-  config: FinancialConfig, 
-  purchases: Purchase[], 
+  statsDoc: StatsDocShape | null | undefined,
+  activeOrders: PurchaseOrder[],
+  monthFilter: string,
+  config: FinancialConfig,
+  purchases: Purchase[],
   expenses: Expense[],
   allDepartmentOrders?: PurchaseOrder[],
   deptFilter?: string
@@ -105,11 +110,6 @@ export function useDashboardStats(
     });
 
     const porRecibir: any[] = [];
-    const criticos30: any[] = [];
-    const urgentes15: any[] = [];
-    const recientes1: any[] = [];
-    const vencidas: any[] = [];
-    const proximas: any[] = [];
 
     let effectiveFacturasEmitidas = 0;
     const seenFacturasEmitidas = new Set<string>();
@@ -260,11 +260,6 @@ export function useDashboardStats(
       meses: mesesObjEffective,
       mesesKeys,
       maxMes,
-      criticos30,
-      urgentes15,
-      recientes1,
-      vencidas,
-      proximas,
       deudaTotalProvidencia,
       comisionContable,
       dineroRealARecibir,
