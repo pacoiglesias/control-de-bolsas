@@ -110,5 +110,25 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      reportsDirectory: './coverage',
+      // Archivos a analizar para cobertura
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/*.d.ts',
+        'src/vite-env.d.ts',
+        'src/main.tsx',        // bootstrap — no tiene lógica testeable
+        'src/routes/**',       // rutas lazy — dependen del DOM de React
+      ],
+      thresholds: {
+        lines: 80,
+        statements: 80,
+        branches: 80,
+        functions: 80,
+      },
+    },
   },
 });
