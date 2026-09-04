@@ -1,4 +1,4 @@
-import { CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS, type PurchaseOrderItem } from '../../lib/types';
+import { CANONICAL_TH_ITEMS, CANONICAL_GT_ITEMS, getEffectiveOrderItems, type PurchaseOrderItem, type PurchaseOrder } from '../../lib/types';
 import { money } from '../../lib/format';
 
 export interface ConceptRow {
@@ -24,7 +24,9 @@ interface InvoiceConceptTableProps {
   kilosToInvoice: number;
   pctAmparado: number;
   currentSellPrice: number;
+  selectedOrder?: PurchaseOrder | null;
   onApplyTemplate: (items: PurchaseOrderItem[]) => void;
+  onReloadOrderItems?: () => void;
   onSelectAll: (select: boolean) => void;
   onAddNewRow: () => void;
   onToggleRow: (index: number) => void;
@@ -41,7 +43,9 @@ export function InvoiceConceptTable({
   kilosToInvoice,
   pctAmparado,
   currentSellPrice,
+  selectedOrder,
   onApplyTemplate,
+  onReloadOrderItems,
   onSelectAll,
   onAddNewRow,
   onToggleRow,
@@ -50,6 +54,8 @@ export function InvoiceConceptTable({
   onRemoveRow,
   onDownloadPrefactura,
 }: InvoiceConceptTableProps) {
+  const effectiveOcItems = selectedOrder ? getEffectiveOrderItems(selectedOrder) : [];
+
   return (
     <div
       style={{
@@ -71,6 +77,33 @@ export function InvoiceConceptTable({
         </div>
 
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {selectedOrder && effectiveOcItems.length > 0 && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                background: 'rgba(217, 119, 6, 0.12)',
+                color: '#b45309',
+                border: '1.5px solid #d97706',
+                fontWeight: 800,
+                borderRadius: 8,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                if (onReloadOrderItems) onReloadOrderItems();
+                else onApplyTemplate(effectiveOcItems);
+              }}
+              title="Restaurar las partidas completas registradas en esta Orden de Compra"
+            >
+              <span>🎯</span>
+              <span>Partidas de esta OC ({effectiveOcItems.length})</span>
+            </button>
+          )}
           <button
             type="button"
             className="btn"
@@ -92,23 +125,25 @@ export function InvoiceConceptTable({
           <button
             type="button"
             className="btn"
-            style={{ fontSize: 10.5, padding: '3px 7px', background: 'var(--paper)', border: '1px solid var(--line)' }}
+            style={{ fontSize: 10.5, padding: '3px 8px', background: 'var(--paper)', border: '1px solid var(--line)', fontWeight: 600 }}
             onClick={() => onSelectAll(true)}
+            title="Marcar todas las partidas y asignar su saldo disponible"
           >
             ⚡ Todos
           </button>
           <button
             type="button"
             className="btn"
-            style={{ fontSize: 10.5, padding: '3px 7px', background: 'var(--paper)', border: '1px solid var(--line)' }}
+            style={{ fontSize: 10.5, padding: '3px 8px', background: 'var(--paper)', border: '1px solid var(--line)' }}
             onClick={() => onSelectAll(false)}
+            title="Desmarcar todas"
           >
             Ninguno
           </button>
           <button
             type="button"
             className="btn btn-primary"
-            style={{ fontSize: 10.5, padding: '3px 10px' }}
+            style={{ fontSize: 10.5, padding: '3px 10px', fontWeight: 700 }}
             onClick={onAddNewRow}
           >
             + Fila
@@ -153,7 +188,7 @@ export function InvoiceConceptTable({
           <span className="mono" style={{ fontWeight: 700, color: '#2563eb' }}>
             {availableKilos.toLocaleString('es-MX')} kg listos de báscula
           </span>
-          <span className="badge" style={{ background: pctAmparado === 100 ? '#059669' : '#2563eb', fontSize: 10 }}>
+          <span className="badge" style={{ background: pctAmparado === 100 ? '#059669' : '#2563eb', fontSize: 10, color: '#fff', padding: '2px 7px', borderRadius: 6 }}>
             {pctAmparado}%
           </span>
         </div>
@@ -161,23 +196,23 @@ export function InvoiceConceptTable({
 
       {conceptRows.length > 0 ? (
         <>
-          {/* TABLA Desktop */}
+          {/* TABLA Desktop: minWidth garantizado para que ninguna columna se comprima */}
           <div className="qim-concept-table">
-            <div className="table-scroll" style={{ maxHeight: 320, overflowY: 'auto' }}>
-              <table className="data-table" style={{ margin: 0, fontSize: 12 }}>
+            <div className="table-scroll" style={{ maxHeight: 380, overflowY: 'auto', overflowX: 'auto' }}>
+              <table className="data-table" style={{ margin: 0, fontSize: 12, minWidth: 1060 }}>
                 <thead style={{ position: 'sticky', top: 0, background: 'var(--paper-sunk)', zIndex: 2 }}>
                   <tr>
-                    <th style={{ width: 36, textAlign: 'center' }}>Inc.</th>
-                    <th style={{ width: 90 }}>SAT</th>
-                    <th>Descripción / Partida</th>
-                    <th style={{ width: 80, textAlign: 'right' }}>Total OC</th>
-                    <th style={{ width: 80, textAlign: 'right' }}>Ya Fact.</th>
+                    <th style={{ width: 40, textAlign: 'center' }}>Inc.</th>
+                    <th style={{ width: 145, minWidth: 140 }}>Código / Clave</th>
+                    <th style={{ minWidth: 260 }}>Descripción / Partida</th>
+                    <th style={{ width: 85, textAlign: 'right' }}>Total OC</th>
+                    <th style={{ width: 85, textAlign: 'right' }}>Ya Fact.</th>
                     <th style={{ width: 85, textAlign: 'right' }}>Falta Fact.</th>
                     <th style={{ width: 85, textAlign: 'right' }}>Báscula</th>
-                    <th style={{ width: 135, textAlign: 'right' }}>A Facturar (kg)</th>
-                    <th style={{ width: 95, textAlign: 'right' }}>P. Unit</th>
+                    <th style={{ width: 140, textAlign: 'right' }}>A Facturar (kg)</th>
+                    <th style={{ width: 90, textAlign: 'right' }}>P. Unit</th>
                     <th style={{ width: 110, textAlign: 'right' }}>Importe</th>
-                    <th style={{ width: 32, textAlign: 'center' }}>✕</th>
+                    <th style={{ width: 34, textAlign: 'center' }}>✕</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -191,9 +226,10 @@ export function InvoiceConceptTable({
                           background: isFullyInvoiced
                             ? 'rgba(0,0,0,0.02)'
                             : r.selected
-                            ? 'rgba(5,150,105,0.04)'
+                            ? 'rgba(5,150,105,0.05)'
                             : 'transparent',
-                          opacity: isFullyInvoiced ? 0.6 : r.selected ? 1 : 0.5,
+                          opacity: isFullyInvoiced ? 0.6 : r.selected ? 1 : 0.65,
+                          transition: 'background 0.15s ease, opacity 0.15s ease',
                         }}
                       >
                         <td style={{ textAlign: 'center' }}>
@@ -202,32 +238,56 @@ export function InvoiceConceptTable({
                             checked={r.selected}
                             onChange={() => onToggleRow(i)}
                             style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--ok)' }}
+                            title={r.selected ? 'Desmarcar partida' : 'Incluir en factura'}
                           />
                         </td>
-                        <td>
+                        <td style={{ width: 145, minWidth: 140 }}>
                           <input
                             type="text"
                             value={r.code}
                             onChange={(e) => onUpdateField(i, 'code', e.target.value)}
                             className="input mono"
-                            style={{ fontSize: 11, padding: '3px 5px', width: '100%', borderRadius: 6 }}
-                            placeholder="24141500"
+                            style={{
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              padding: '5px 7px',
+                              width: '100%',
+                              minWidth: 125,
+                              borderRadius: 6,
+                              background: 'var(--paper-sunk)',
+                              border: '1px solid var(--line-soft)',
+                              color: '#2563eb',
+                            }}
+                            placeholder="EGBO... / 24141500"
+                            title={`Código oficial: ${r.code}`}
                           />
                         </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={r.description}
-                            onChange={(e) => onUpdateField(i, 'description', e.target.value)}
-                            className="input"
-                            style={{ fontSize: 12, padding: '3px 6px', width: '100%', borderRadius: 6, fontWeight: 600 }}
-                            placeholder="Descripción de la bolsa"
-                          />
-                          {isFullyInvoiced && (
-                            <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'block', marginTop: 2 }}>
-                              ✓ 100% Facturado
-                            </span>
-                          )}
+                        <td style={{ minWidth: 260 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <input
+                              type="text"
+                              value={r.description}
+                              onChange={(e) => onUpdateField(i, 'description', e.target.value)}
+                              className="input"
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                padding: '5px 8px',
+                                width: '100%',
+                                minWidth: 240,
+                                borderRadius: 6,
+                                background: 'var(--paper)',
+                                border: '1px solid var(--line-soft)',
+                              }}
+                              placeholder="Descripción de la bolsa"
+                              title={r.description}
+                            />
+                            {isFullyInvoiced && (
+                              <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, display: 'block' }}>
+                                ✓ 100% Facturado
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ textAlign: 'right', color: 'var(--ink-soft)' }} className="mono">
                           {r.ocQuantity > 0 ? `${r.ocQuantity.toLocaleString('es-MX')} kg` : '—'}
@@ -257,17 +317,18 @@ export function InvoiceConceptTable({
                                 fontSize: 12,
                                 fontWeight: 800,
                                 textAlign: 'right',
-                                padding: '4px 6px',
+                                padding: '5px 6px',
                                 width: 85,
                                 borderRadius: 6,
                                 color: r.selected ? '#059669' : 'inherit',
+                                border: r.selected ? '1.5px solid #059669' : '1px solid var(--line-soft)',
                               }}
                             />
                             {r.maxAvailable > 0 && r.quantity !== r.maxAvailable && (
                               <button
                                 type="button"
                                 className="btn"
-                                style={{ fontSize: 9, padding: '2px 4px', background: 'var(--paper-sunk)', border: '1px solid var(--line)' }}
+                                style={{ fontSize: 9.5, padding: '3px 5px', background: 'var(--paper-sunk)', border: '1px solid var(--line)', fontWeight: 700 }}
                                 onClick={() => onFillMax(i)}
                                 title={`Llenar al disponible (${r.maxAvailable.toLocaleString('es-MX')} kg)`}
                               >
@@ -286,7 +347,7 @@ export function InvoiceConceptTable({
                               value={r.unitPrice || ''}
                               onChange={(e) => onUpdateField(i, 'unitPrice', parseFloat(e.target.value) || 0)}
                               className="input mono"
-                              style={{ fontSize: 11.5, textAlign: 'right', padding: '3px 5px', width: 58, borderRadius: 6 }}
+                              style={{ fontSize: 11.5, textAlign: 'right', padding: '4px 5px', width: 58, borderRadius: 6 }}
                             />
                           </div>
                         </td>
@@ -311,7 +372,7 @@ export function InvoiceConceptTable({
             </div>
           </div>
 
-          {/* VISTA MÓVIL (Cards) */}
+          {/* VISTA MÓVIL (Cards) con visualización completa del código y descripción */}
           <div className="qim-concept-cards" style={{ flexDirection: 'column', gap: 10 }}>
             {conceptRows.map((r, i) => {
               const rowSubtotal = (Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice);
@@ -322,7 +383,7 @@ export function InvoiceConceptTable({
                     background: r.selected ? 'rgba(5,150,105,0.04)' : 'var(--paper-sunk)',
                     border: r.selected ? '1px solid rgba(5,150,105,0.3)' : '1px solid var(--line-soft)',
                     borderRadius: 10,
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -333,31 +394,56 @@ export function InvoiceConceptTable({
                         onChange={() => onToggleRow(i)}
                         style={{ width: 18, height: 18, accentColor: 'var(--ok)' }}
                       />
-                      <input
-                        type="text"
-                        value={r.description}
-                        onChange={(e) => onUpdateField(i, 'description', e.target.value)}
-                        className="input"
-                        style={{ fontSize: 12.5, fontWeight: 700, padding: '4px 6px', borderRadius: 6, flex: 1 }}
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span className="mono badge" style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb', fontWeight: 700, fontSize: 11 }}>
+                            {r.code || 'S/C'}
+                          </span>
+                          {r.unit && <span style={{ fontSize: 10, color: 'var(--ink-soft)' }}>({r.unit})</span>}
+                          {r.alreadyInvoiced >= r.ocQuantity && r.ocQuantity > 0 && (
+                            <span style={{ fontSize: 10, color: '#059669', fontWeight: 700 }}>✓ 100% Facturado</span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={r.description}
+                          onChange={(e) => onUpdateField(i, 'description', e.target.value)}
+                          className="input"
+                          style={{ fontSize: 12.5, fontWeight: 700, padding: '5px 7px', borderRadius: 6, width: '100%' }}
+                          placeholder="Descripción de la bolsa"
+                        />
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => onRemoveRow(i)}
-                      style={{ background: 'none', border: 'none', color: 'var(--bad)', fontSize: 16 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--bad)', fontSize: 16, cursor: 'pointer', padding: 4 }}
+                      title="Eliminar partida"
                     >
                       ✕
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
-                    <div>OC: <strong style={{ color: 'var(--ink)' }}>{r.ocQuantity.toLocaleString('es-MX')} kg</strong></div>
-                    <div>Ya Facturado: <strong style={{ color: '#7c3aed' }}>{r.alreadyInvoiced.toLocaleString('es-MX')} kg</strong></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8, background: 'var(--paper)', padding: '6px 8px', borderRadius: 6 }}>
+                    <div>Total OC: <strong style={{ color: 'var(--ink)' }}>{r.ocQuantity.toLocaleString('es-MX')} kg</strong></div>
+                    <div>Ya Fact.: <strong style={{ color: '#7c3aed' }}>{r.alreadyInvoiced.toLocaleString('es-MX')} kg</strong></div>
+                    <div>Báscula: <strong style={{ color: '#2563eb' }}>{r.uninvoicedDeliveredKilos.toLocaleString('es-MX')} kg</strong></div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <div>
-                      <label style={{ fontSize: 10, color: 'var(--ink-soft)', display: 'block', marginBottom: 2 }}>Kilos a facturar</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                        <label style={{ fontSize: 10, color: 'var(--ink-soft)' }}>Kilos a facturar</label>
+                        {r.maxAvailable > 0 && r.quantity !== r.maxAvailable && (
+                          <button
+                            type="button"
+                            onClick={() => onFillMax(i)}
+                            style={{ fontSize: 9.5, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                          >
+                            Máx ({r.maxAvailable} kg)
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="number"
                         min="0"
@@ -393,7 +479,7 @@ export function InvoiceConceptTable({
         </>
       ) : (
         <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink-soft)', fontSize: 13 }}>
-          No hay conceptos configurados. Haz clic en "Agregar" o carga una plantilla.
+          No hay conceptos configurados. Haz clic en "Partidas de esta OC" o carga una plantilla.
         </div>
       )}
     </div>

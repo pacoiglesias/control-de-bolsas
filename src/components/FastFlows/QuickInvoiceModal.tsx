@@ -219,7 +219,11 @@ export function QuickInvoiceModal({
   const toggleRowSelect = useCallback((index: number) => {
     setConceptRows((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], selected: !next[index].selected };
+      const willBeSelected = !next[index].selected;
+      const currentQty = next[index].quantity;
+      const maxAvail = next[index].maxAvailable;
+      const newQty = willBeSelected && currentQty <= 0 && maxAvail > 0 ? maxAvail : currentQty;
+      next[index] = { ...next[index], selected: willBeSelected, quantity: newQty };
       return next;
     });
   }, []);
@@ -241,7 +245,12 @@ export function QuickInvoiceModal({
   }, []);
 
   const selectAllRows = useCallback((select: boolean) => {
-    setConceptRows((prev) => prev.map((r) => ({ ...r, selected: select })));
+    setConceptRows((prev) =>
+      prev.map((r) => {
+        const newQty = select && r.quantity <= 0 && r.maxAvailable > 0 ? r.maxAvailable : r.quantity;
+        return { ...r, selected: select, quantity: newQty };
+      })
+    );
   }, []);
 
   const addNewCustomRow = useCallback(() => {
@@ -540,11 +549,11 @@ export function QuickInvoiceModal({
   return (
     <Modal title="🧾 Facturación Rápida Multi-Concepto" onClose={onClose} wide>
       <style>{`
-        @media (max-width: 600px) {
+        @media (max-width: 680px) {
           .qim-concept-table { display: none !important; }
           .qim-concept-cards { display: flex !important; }
         }
-        @media (min-width: 601px) {
+        @media (min-width: 681px) {
           .qim-concept-table { display: block !important; }
           .qim-concept-cards { display: none !important; }
         }
@@ -664,6 +673,13 @@ export function QuickInvoiceModal({
               kilosToInvoice={kilosToInvoice}
               pctAmparado={pctAmparado}
               currentSellPrice={currentSellPrice}
+              selectedOrder={selectedOrder}
+              onReloadOrderItems={() => {
+                if (selectedOrderId) {
+                  loadRowsForOrder(selectedOrderId, validOrders);
+                  toast('🎯 Conceptos sincronizados con la OC activa', 'ok');
+                }
+              }}
               onApplyTemplate={applyTemplate}
               onSelectAll={selectAllRows}
               onAddNewRow={addNewCustomRow}
