@@ -1,32 +1,57 @@
-# ERP Control Universal - Control de Bolsas
+# ERP Control Bolsas — Bolsas Elemental / Grupo Textil Providencia
 
-> La versión vigente del sistema es la de `package.json` (campo `version`). No repitas el número aquí: los documentos de `docs/` llegaron a tener 5 números de versión distintos y contradictorios al mismo tiempo (auditoría 2026-09-03). Si necesitas saber la versión exacta, revisa `package.json` o el `CHANGELOG.md`.
+**Versión:** `v9.2.3`  
+**Estado:** Producción Activa  
+**URLs Oficiales:**
+- 🌐 Dominio Principal: [https://bolsas.cobertores.com](https://bolsas.cobertores.com)
+- ⚡ Mirror Firebase Hosting: [https://control-de-bolsas-69.web.app](https://control-de-bolsas-69.web.app)
+- ☁️ Respaldo Firebase Hosting: [https://control-de-bolsas-89c88.web.app](https://control-de-bolsas-89c88.web.app)
 
-Este es el repositorio oficial del ERP de compras, maquila, entregas, facturación, cobranza, flujo de efectivo y prefacturas SAT con parametrización multi-empresa.
+---
 
-## 🚀 Estado del Sistema
-- **URL de Producción:** https://control-de-bolsas-69.web.app
-- **URL Secundaria:** https://control-de-bolsas-89c88.web.app
-- **Compilación:** PWA + Vite + React 18.3 + Cloud Functions Node 22 (100% limpia)
-- **Suite de Lujo:** Spotlight Universal (`Ctrl+K`), Smart Quick-Peek Drawer, Floating Quick Hub (`⚡`), Modo Privacidad Instantáneo (`Ctrl+H`) y clases de resplandor ambiental.
-- **Motor Háptico & Web Audio:** Síntesis sonora nativa offline y respuesta háptica en 0 dependencias externas.
-- **Parametrización Universal:** Configurable para cualquier empresa, cliente, taller maquilador y departamentos.
-- **Pruebas Unitarias:** 72/72 pruebas aprobadas al 100% en Vitest.
+## 🚀 Resumen del Sistema
+Sistema ERP especializado en la intermediación, conciliación de remisiones físicas de báscula, facturación CFDI multi-concepto, control de contrarecibos oficiales (`TH-` y `GT-`) y auditoría de maquila con el taller de Andrés y el cliente Grupo Textil Providencia (Plantas TH-ALMACEN-1 y P4-ALM).
 
-## 🚀 Despliegue y CI/CD
-El sistema cuenta con **Integración Continua (GitHub Actions)**. 
-Cada vez que haces un push a la rama `main`, los servidores de GitHub compilan automáticamente el código React (Vite) y las Cloud Functions, y despliegan los cambios a Firebase Hosting y Firebase Functions en vivo.
+- **Stack:** React 18 + TypeScript 5 + Vite PWA + Firebase Cloud Functions (Node 22) + Cloud Firestore
+- **Pruebas Automatizadas:** 148 pruebas unitarias matemáticas y financieras en Vitest (`npm test`)
 
-**URL de Producción:** https://control-de-bolsas-69.web.app
+---
 
-## 📖 Arquitectura y Reglas del Sistema
-Para entender cómo están estructuradas las bases de datos de Firebase, cómo funciona la **Inmutabilidad de los Snapshots Financieros**, y cómo la **Inteligencia Artificial (Google Gemini)** procesa los PDFs y los XML del SAT de forma bi-funcional, consulta el documento principal:
+## 📚 Documentación Centralizada
 
-👉 **[SISTEMA_ACTUAL.md](./docs/SISTEMA_ACTUAL.md)**
+Toda la documentación técnica, arquitectónica y operativa se encuentra organizada en [`docs/`](./docs/README.md):
 
-Allí también encontrarás el **Prompt de Auto-Auditoría** para solicitar a cualquier IA que optimice este código en el futuro.
+- 📖 **[Arquitectura y Reglas del Sistema](./docs/SISTEMA_ACTUAL.md)**
+- 📐 **[Manual Técnico y Fórmulas Financieras](./docs/MANUAL_TECNICO.md)**
+- 👥 **[Instrucciones de Uso y Operación](./docs/INSTRUCCIONES_USO.md)**
+- 📜 **[Historial de Versiones (Changelog)](./docs/CHANGELOG.md)**
+- 🛡️ **[Políticas de Seguridad y Firestore Rules](./docs/SECURITY.md)**
+- 🤖 **[Prompt Maestro del Sistema](./docs/PROMPT_SISTEMA.md)**
+- 🧠 **[Configuración de Gemini](./docs/GEMINI.md)**
+- 📋 **[Bitácora de Auditoría](./docs/AUDIT_NOTEBOOK.md)**
 
-## 📜 Historial de Cambios
-Las notas de lanzamiento y el track de versiones (hasta la actual Fase 7 Enterprise) se encuentran documentadas en:
+---
 
-👉 **[CHANGELOG.md](./CHANGELOG.md)**
+## 🛠️ Scripts Operativos Unificados
+
+Los scripts de mantenimiento y despliegue están centralizados en `scripts/`:
+
+```bash
+# Instalación limpia y verificación de tipos
+sh scripts/install.sh
+
+# Ejecución de auditoría y pruebas unitarias
+sh scripts/audit.sh
+
+# Compilación y despliegue en producción
+sh scripts/deploy.sh
+
+# Creación de respaldo comprimido seguro (.zip)
+sh scripts/backup.sh
+
+# Sincronización y commit automático en Git
+sh scripts/git-helper.sh "Mensaje de commit"
+
+# Limpieza de cachés temporales
+sh scripts/utils.sh clean
+```

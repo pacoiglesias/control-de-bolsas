@@ -58,7 +58,7 @@ export function extractInvoiceItemsFromText(text: string, defaultPrice: number =
       code = stuckCode[1];
       description = stuckCode[2].trim();
     } else {
-      const codeSplit = firstLine.match(/^([a-zA-Z0-9_\-]+)\s+(.+)$/);
+      const codeSplit = firstLine.match(/^([a-zA-Z0-9_-]+)\s+(.+)$/);
       if (codeSplit) {
         code = codeSplit[1];
         description = codeSplit[2].trim();
@@ -230,7 +230,7 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       amount: c.importe || ((c.cantidad || 0) * (c.valorUnitario || 43)),
     }));
 
-    let totalKilos = xmlItems.reduce((s, it) => s + (it.quantity || 0), 0);
+    const totalKilos = xmlItems.reduce((s, it) => s + (it.quantity || 0), 0);
     const subtotal = data.subTotal || xmlItems.reduce((s, it) => s + it.amount, 0);
     const total = data.total || (subtotal * 1.16);
 

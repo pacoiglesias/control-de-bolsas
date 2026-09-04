@@ -164,7 +164,9 @@ export default function MaquiladorPortal() {
     try {
       localStorage.setItem(STORAGE_DELIVERIES_KEY, JSON.stringify(updated));
       toast('Entrega eliminada del historial', 'info');
-    } catch {}
+    } catch {
+      // Ignorar error de cuota o restricción en localStorage
+    }
   };
 
   const handleClearHistory = () => {
@@ -173,7 +175,9 @@ export default function MaquiladorPortal() {
     try {
       localStorage.removeItem(STORAGE_DELIVERIES_KEY);
       toast('Historial de entregas limpiado', 'ok');
-    } catch {}
+    } catch {
+      // Ignorar error en localStorage
+    }
   };
 
   const handleSuccess = (p: string, orders: any[]) => {

@@ -6,15 +6,15 @@
   "description": "ERP Control Bolsas — Master Track. React + Vite + Firebase.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && npm --prefix functions run build",
+    "build": "tsc && vite build && npm --prefix functions run build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
-    "deploy": "npm run build && firebase deploy",
-    "deploy:hosting": "npm run build && firebase deploy --only hosting,firestore,storage",
-    "deploy:functions": "firebase deploy --only functions",
-    "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "lint": "eslint . --report-unused-disable-directives",
+    "typecheck": "tsc --noEmit",
+    "clean": "sh scripts/utils.sh clean",
+    "audit": "sh scripts/audit.sh",
+    "deploy": "sh scripts/deploy.sh",
+    "backup": "sh scripts/backup.sh"
   },
   "dependencies": {
     "@types/file-saver": "^2.0.7",

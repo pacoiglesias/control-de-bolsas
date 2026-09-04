@@ -1,9 +1,8 @@
 {
   "projects": {
     "default": "control-de-bolsas-89c88",
-    "Bolsas": "control-de-bolsas-89c88",
-    "bolsas": "control-de-bolsas-89c88"
-  },
-  "targets": {},
-  "etags": {}
+    "dev": "control-de-bolsas-dev",
+    "staging": "control-de-bolsas-staging",
+    "prod": "control-de-bolsas-89c88"
+  }
 }

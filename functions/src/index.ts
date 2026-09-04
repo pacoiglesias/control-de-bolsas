@@ -28,6 +28,15 @@ export {
   reprocessOrder,
 } from "./handlers/uploadProcessing";
 
+// Módulos desacoplados y middlewares del sistema ERP
+export * as ComprasModule from "./modules/compras";
+export * as FacturacionModule from "./modules/facturacion";
+export * as MaquilaModule from "./modules/maquila";
+export * as CobranzaModule from "./modules/cobranza";
+export * from "./middleware/errorHandler";
+export * from "./middleware/validation";
+export * from "./utils/logging";
+
 initializeApp();
 
 // Configuración global apuntando a us-east1 para que coincida con tu Storage

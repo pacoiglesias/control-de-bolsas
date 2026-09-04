@@ -7,18 +7,32 @@ functions/lib
 vite.config.ts.timestamp-*
 *.mjs
 
-# Secretos y configuración local
+# Logs
+*.log
+*.tmp
+DEPLOY_LOG*.txt
+BACKUP_LOG.md
+
+# Respaldos
+Respaldos/
+backups/
+backup-*.zip
+*.zip
+_respaldo_*/
+
+# Archivos temporales
+scratch/
+_ARCHIVO_OBSOLETO/
+*.bak
+diff.txt
+
+# Entornos
 .env
 .env.local
+.env.*.local
 .firebase
 
-# Respaldos y paquetes temporales
-_respaldo_*/
-Respaldos/Temp/
-*.zip
-
-# Sistema y logs
-*.log
+# Sistema
 .DS_Store
 Thumbs.db
 src/hooks/useDashboardStats.ts
@@ -28,7 +42,3 @@ public/*.json
 !public/manifest.json
 contrarecibos.json
 facturas_pendientes_contrarecibo.json
-
-# Archivos temporales de edición
-*.bak
-diff.txt

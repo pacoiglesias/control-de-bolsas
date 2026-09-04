@@ -48,7 +48,7 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
 
       // Formato A: {No.} {Codigo} {Cantidad} {Descripcion} {P.U.} {Dtos} {Importe}
       // Ej: "1 EGBO000095-SC 1,000.0000 BOLSA POLIETILENO 120X 125 CM _Sin Color 43.0000 0.0000 43,000.0000"
-      const matchA = line.match(/^\s*\d+\s+([a-zA-Z0-9_\-]+)\s+([\d,]+\.\d+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
+      const matchA = line.match(/^\s*\d+\s+([a-zA-Z0-9_-]+)\s+([\d,]+\.\d+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
       if (matchA) {
         const [, code, cantidadStr, descRaw, puStr, , importeStr] = matchA;
         const desc = descRaw.trim();
@@ -69,7 +69,7 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
 
       // Formato B: {No.} {Codigo} {Descripcion} {Cantidad} {P.U.} {Dtos} {Importe}
       // Ej: "1 egbo000107-sc BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250 1,000.0000 43.0000 0.0000 43,000.0000"
-      const matchB = line.match(/^\s*\d+\s+([a-zA-Z0-9_\-]+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
+      const matchB = line.match(/^\s*\d+\s+([a-zA-Z0-9_-]+)\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s*$/);
       if (matchB) {
         const [, code, descRaw, cantidadStr, puStr, , importeStr] = matchB;
         const desc = descRaw.trim();
@@ -96,7 +96,7 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
         const quantity = Number(cantidadStr.replace(/,/g, ''));
         if (quantity > 0 && !/subtotal/i.test(desc)) {
           // Extraer posible código al inicio de la descripción si existe
-          const codeMatch = desc.match(/^([a-zA-Z0-9_\-]+)\s+(.+)$/);
+          const codeMatch = desc.match(/^([a-zA-Z0-9_-]+)\s+(.+)$/);
           const finalCode = codeMatch ? codeMatch[1] : '';
           const finalDesc = codeMatch ? codeMatch[2] : desc;
           items.push({

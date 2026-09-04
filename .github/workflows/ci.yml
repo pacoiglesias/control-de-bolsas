@@ -1,16 +1,15 @@
-name: CI — Validación de calidad
+name: CI — Validación de calidad y auditoría de repositorio
 
-# Se ejecuta en todos los PRs y en cada push a main.
-# No despliega nada: su único propósito es ser una barrera de calidad.
+# Se ejecuta en todos los PRs y en cada push a main o ramas activas
 on:
   push:
-    branches: [main]
+    branches: [main, master, "audit/**"]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
   validate:
-    name: Deps · Typecheck · Tests · Lint · Build
+    name: Auditoría Estructural · Deps · Typecheck · Tests · Lint · Build
     runs-on: ubuntu-latest
 
     steps:
@@ -18,48 +17,71 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ── 2. Auditoría Estructural Automática ──────────────────────────────────
+      - name: Audit project structure
+        run: |
+          echo "🔍 Verificando archivos obsoletos en raíz..."
+          # Verificar que no haya archivos .bat en raíz
+          if [ $(find . -maxdepth 1 -name "*.bat" | wc -l) -gt 0 ]; then
+            echo "❌ Archivos .bat encontrados en la raíz"
+            exit 1
+          fi
+          # Verificar que no haya archivos .ps1 en raíz
+          if [ $(find . -maxdepth 1 -name "*.ps1" | wc -l) -gt 0 ]; then
+            echo "❌ Archivos .ps1 encontrados en la raíz"
+            exit 1
+          fi
+          # Verificar conteo de archivos en raíz (< 15)
+          root_files=$(find . -maxdepth 1 -type f | wc -l)
+          if [ "$root_files" -gt 15 ]; then
+            echo "❌ Demasiados archivos en la raíz ($root_files > 15)"
+            exit 1
+          fi
+          echo "✅ Auditoría de estructura completada exitosamente ($root_files archivos en raíz)"
+
+      - name: Verify no logs in repo
+        run: |
+          if [ $(find . -name "*.log" | wc -l) -gt 0 ]; then
+            echo "❌ Archivos .log encontrados en el repositorio"
+            exit 1
+          fi
+          echo "✅ Sin archivos .log residuales en el repositorio"
+
+      # ── 3. Node.js y Dependencias ────────────────────────────────────────────
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      # ── 2. Dependencias ──────────────────────────────────────────────────────
       - name: Instalar dependencias (raíz)
         run: npm ci
 
       - name: Instalar dependencias (functions)
         run: npm --prefix functions ci
 
-      # ── 3. Typecheck ─────────────────────────────────────────────────────────
+      # ── 4. Typecheck ─────────────────────────────────────────────────────────
       - name: Typecheck raíz (tsc --noEmit)
         run: npm run typecheck
 
       - name: Typecheck functions (tsc --noEmit)
         run: npm --prefix functions run typecheck
 
-      # ── 4. Pruebas unitarias ─────────────────────────────────────────────────
+      # ── 5. Pruebas unitarias ─────────────────────────────────────────────────
       - name: Tests (vitest run)
         run: npm test
 
-      # ── 5. Lint ───────────────────────────────────────────────────────────────
+      # ── 6. Lint ───────────────────────────────────────────────────────────────
       - name: Lint (ESLint)
         run: npm run lint
 
-      # ── 6. Build (smoke-test — sin variables de entorno reales) ──────────────
-      # El objetivo es verificar que el código compila, no producir un bundle
-      # desplegable. Las variables VITE_FIREBASE_* se inyectan solo en deploy.yml.
-      - name: Build raíz (tsc -b + vite build)
+      # ── 7. Build (smoke-test) ────────────────────────────────────────────────
+      - name: Build completo (Frontend + Functions)
         run: npm run build
         env:
-          # Valores ficticios para que Vite no sustituya por `undefined`.
-          # El bundle resultante NO es apto para producción.
           VITE_FIREBASE_API_KEY: ci-placeholder
           VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: ci-placeholder
           VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
           VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
           VITE_FIREBASE_APP_ID: 1:000000000000:web:ci-placeholder
-
-      - name: Build functions (tsc)
-        run: npm --prefix functions run build

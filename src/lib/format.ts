@@ -70,9 +70,9 @@ export function nombreClienteVisible(client: string | null | undefined): string 
   if (client === 'MIGRACION') return 'Histórico (sin cliente registrado)';
   
   // Limpiar sufijos accidentales de proveedor propio o códigos de proveedor pegados de la OC
-  let cleaned = client
-    .replace(/[·\-]?\s*N0321\s*[-–]?\s*ELEMENTAL\s*DENIM/gi, '')
-    .replace(/[·\-]?\s*ELEMENTAL\s*DENIM/gi, '')
+  const cleaned = client
+    .replace(/[·-]?\s*N0321\s*[-–]?\s*ELEMENTAL\s*DENIM/gi, '')
+    .replace(/[·-]?\s*ELEMENTAL\s*DENIM/gi, '')
     .trim();
 
   return cleaned || client || '—';

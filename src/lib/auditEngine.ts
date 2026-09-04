@@ -339,7 +339,7 @@ export function runContinuousAutoAudit({
   });
 
   // Cálculo ponderado de salud
-  let rawScore = 100 - (criticalCount * 25) - (warningCount * 8) - (infoCount * 2);
+  const rawScore = 100 - (criticalCount * 25) - (warningCount * 8) - (infoCount * 2);
   const score = Math.max(0, Math.min(100, rawScore));
 
   const getSubsystemStatus = (crit: number, warn: number): 'ok' | 'warning' | 'critical' => {

@@ -72,7 +72,7 @@ export const ExcelDragDropModal: React.FC<ExcelDragDropModalProps> = ({ isOpen, 
     }
     const str = String(val).trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-    const slashMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    const slashMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
     if (slashMatch) {
       const d = slashMatch[1].padStart(2, '0');
       const m = slashMatch[2].padStart(2, '0');
@@ -145,7 +145,7 @@ export const ExcelDragDropModal: React.FC<ExcelDragDropModalProps> = ({ isOpen, 
         const precioCosto = Number(rowMap['preciocostoandreskg'] || rowMap['preciocosto'] || rowMap['costo'] || 38.00);
         const kilosEntregados = Number(rowMap['kilosentregadosbascula'] || rowMap['kilosentregados'] || rowMap['entregado'] || 0);
         const folioFactura = String(rowMap['foliofacturacfdi'] || rowMap['foliofactura'] || rowMap['factura'] || '').trim();
-        let contrarecibo = String(rowMap['contrarecibocr'] || rowMap['contrarecibo'] || rowMap['cr'] || '').trim().toUpperCase();
+        const contrarecibo = String(rowMap['contrarecibocr'] || rowMap['contrarecibo'] || rowMap['cr'] || '').trim().toUpperCase();
 
         const fechaEmision = parseExcelDate(rowMap['fechaemisionyyyy_mm_dd'] || rowMap['fechaemision'] || rowMap['fecha']);
         const fechaVencimiento = parseExcelDate(rowMap['fechavencimientoyyyy_mm_dd'] || rowMap['fechavencimiento'] || rowMap['vencimiento']);

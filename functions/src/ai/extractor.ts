@@ -142,7 +142,7 @@ function sanitizeExtractedData(data: any): any {
   const toFiniteNumberOrUndefined = (val: unknown): number | undefined => {
     if (typeof val === "number" && Number.isFinite(val)) return val;
     if (typeof val === "string") {
-      const cleaned = val.replace(/[^0-9.\-]/g, "");
+      const cleaned = val.replace(/[^0-9.-]/g, "");
       const n = Number(cleaned);
       if (Number.isFinite(n) && cleaned.length > 0) return n;
     }

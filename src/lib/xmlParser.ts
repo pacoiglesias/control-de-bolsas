@@ -115,7 +115,7 @@ export function parseXmlInvoice(xmlString: string): ParsedInvoiceData {
       codigo = stuckCode[1];
       cleanDesc = stuckCode[2].trim();
     } else {
-      const codeSplit = rawDesc.match(/^([a-zA-Z0-9_\-]+)\s+(.+)$/);
+      const codeSplit = rawDesc.match(/^([a-zA-Z0-9_-]+)\s+(.+)$/);
       if (codeSplit) {
         codigo = codeSplit[1];
         cleanDesc = codeSplit[2].trim();
