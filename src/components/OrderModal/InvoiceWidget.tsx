@@ -69,9 +69,9 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (invToSave: Invoice = localInvoice) => {
     try {
-      await saveInvoice(order, localInvoice, dynamicConfig);
+      await saveInvoice(order, invToSave, dynamicConfig);
     } catch {
       // toast already handled in useInvoiceActions
     }
@@ -152,11 +152,25 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
 
               {!readOnly && (
                 <>
-                  {hasChanges && (
-                    <button className="btn btn-primary" onClick={handleSave} style={{ padding: '4px 12px', fontSize: 13 }}>
-                      💾 Guardar Cambios
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleSave()}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      background: hasChanges ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'rgba(16,185,129,0.12)',
+                      color: hasChanges ? '#fff' : '#047857',
+                      border: hasChanges ? '1.5px solid #2563eb' : '1px solid #10b981',
+                      boxShadow: hasChanges ? '0 2px 10px rgba(37,99,235,0.35)' : 'none',
+                      cursor: 'pointer',
+                    }}
+                    title="Guardar de inmediato esta factura en Firebase"
+                  >
+                    {hasChanges ? '⚡ Guardar en Firebase' : '✓ Sincronizado en Firebase'}
+                  </button>
+
                   {localInvoice.creditCycle.status === 'paid' && (
                     <button className="btn" style={{ background: 'var(--ok)', color: '#fff', borderColor: 'var(--ok)', padding: '4px 12px', fontSize: 13 }}
                       onClick={async () => {
@@ -187,14 +201,6 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                             diferencia,
                             createdAt: serverTimestamp(),
                           });
-                          // FIX: aqui se pasaba `{}` como config -- funcionaba
-                          // "de chiripa" solo porque saveInvoice prefiere los
-                          // financials YA guardados en la factura sobre el
-                          // config recibido. Si algun dia una factura llegaba
-                          // aqui sin financials completos (legado/migracion),
-                          // esto habria producido NaN o tronado en
-                          // computeFinancials. Se pasa el dynamicConfig real
-                          // (mismo que ya usa el resto del componente).
                           await saveInvoice(order, { ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: 'collected' }, collection: { ...localInvoice.collection, collectedAt: Timestamp.now() } }, dynamicConfig);
                           if (Math.abs(diferencia) > 0.01) {
                             toast(`💵 $${netReal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} agregado a CAJA. ⚠️ Diferencia vs esperado: ${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 'ok');
@@ -220,26 +226,38 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
             <Field label="Folio">
               <div style={{ display: 'flex', gap: 4 }}>
                 <input className="input boxed mono" value={localInvoice.folio || ''} 
-                  onChange={e => updateField(['folio'], e.target.value.toUpperCase())} disabled={readOnly} />
+                  onChange={e => updateField(['folio'], e.target.value.toUpperCase())}
+                  onBlur={() => { if (hasChanges) handleSave(); }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+                  disabled={readOnly} />
                 {localInvoice.folio && <CopyButton text={localInvoice.folio} />}
               </div>
             </Field>
             <Field label="Kilos Facturados">
               <input className="input boxed mono" type="number" step="0.01" value={localInvoice.kilos} 
-                onChange={e => updateField(['kilos'], Number(e.target.value))} disabled={readOnly} />
+                onChange={e => updateField(['kilos'], Number(e.target.value))}
+                onBlur={() => { if (hasChanges) handleSave(); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+                disabled={readOnly} />
             </Field>
             <Field label="Contrarecibo (CR)">
               <div style={{ display: 'flex', gap: 4 }}>
                 <input className="input boxed mono" value={localInvoice.collection?.contrareciboNumber || ''} 
                   disabled={readOnly}
-                  onChange={e => updateField(['collection', 'contrareciboNumber'], e.target.value.toUpperCase())} />
+                  onChange={e => updateField(['collection', 'contrareciboNumber'], e.target.value.toUpperCase())}
+                  onBlur={() => { if (hasChanges) handleSave(); }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
                 {localInvoice.collection?.contrareciboNumber && <CopyButton text={localInvoice.collection.contrareciboNumber} />}
               </div>
             </Field>
             <Field label="Estado del Contrarecibo">
               <select className="input boxed" value={localInvoice.creditCycle.status}
                 disabled={readOnly}
-                onChange={(e) => updateField(['creditCycle', 'status'], e.target.value as OrderStatus)}>
+                onChange={(e) => {
+                  const nextStatus = e.target.value as OrderStatus;
+                  updateField(['creditCycle', 'status'], nextStatus);
+                  handleSave({ ...localInvoice, creditCycle: { ...localInvoice.creditCycle, status: nextStatus } });
+                }}>
                 <option value="pending">Por cobrar</option>
                   <option value="paid">🟡 Con el contador</option>
                   <option value="collected">✅ Recibida</option>

@@ -679,6 +679,26 @@ export default function Orders() {
                               >
                                 + Asignar CR
                               </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setInitialModalTab('facturas');
+                                  setSelected(o);
+                                }}
+                                title="Editar, corregir o borrar facturas de esta orden"
+                                style={{
+                                  background: 'rgba(217, 119, 6, 0.12)',
+                                  border: '1px solid rgba(217, 119, 6, 0.35)',
+                                  color: '#b45309',
+                                  borderRadius: 6,
+                                  padding: '1px 6px',
+                                  fontSize: '0.75em',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                ✏️ Factura
+                              </button>
                             </div>
                           );
                         })()}
@@ -711,10 +731,21 @@ export default function Orders() {
                                 const estado = ESTADO_LABEL[inv.creditCycle?.status] || ESTADO_LABEL.pending;
                                 const thisCr = extractCr(inv, o);
                                 return (
-                                  <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.8em', padding: '3px 6px', background: 'var(--paper-sunk)', borderRadius: 4 }}>
+                                  <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: '0.8em', padding: '3px 6px', background: 'var(--paper-sunk)', borderRadius: 4 }}>
                                     <span style={{ fontWeight: 700, color: '#047857' }}>{thisCr}</span>
                                     <span className="mono">{money(inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0)}</span>
                                     <span style={{ color: estado.color, fontWeight: 600 }}>{estado.texto}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setInitialModalTab('facturas');
+                                        setSelected(o);
+                                      }}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '0.9em', padding: '0 2px' }}
+                                      title={`Editar Factura #${inv.folio || '(sin folio)'}`}
+                                    >
+                                      ✏️
+                                    </button>
                                   </div>
                                 );
                               })}
@@ -835,7 +866,7 @@ export default function Orders() {
                           order={o}
                           kilosPendientesDeFacturar={unbilledKilos}
                           hasSinCr={hasSinCr}
-                          onOpenModal={() => { setInitialModalTab('resumen'); setSelected(o); }}
+                          onOpenModal={(tab = 'resumen') => { setInitialModalTab(tab); setSelected(o); }}
                           onFastCr={() => setQuickCrOrder(o)}
                         />
                       </td>
@@ -891,8 +922,8 @@ export default function Orders() {
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
-          onOpenOrder={(o) => {
-            setInitialModalTab('resumen');
+          onOpenOrder={(o, targetTab = 'resumen') => {
+            setInitialModalTab(targetTab);
             setSelected(o);
           }}
           onQuickInvoice={(o) => setQuickCrOrder(o)}

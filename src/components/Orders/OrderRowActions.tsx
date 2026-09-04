@@ -6,7 +6,7 @@ interface OrderRowActionsProps {
   order: PurchaseOrder;
   kilosPendientesDeFacturar: number;
   hasSinCr: boolean;
-  onOpenModal: () => void;
+  onOpenModal: (tab?: 'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas') => void;
   /** Llamado directo al QuickCrModal — ya no necesita pasar por custom event */
   onFastCr?: () => void;
 }
@@ -87,7 +87,34 @@ export function OrderRowActions({
         </button>
       )}
 
-      {/* 2. Facturar */}
+      {/* 2. Ver y Editar Facturas */}
+      {(order.invoices || []).length > 0 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenModal('facturas');
+          }}
+          style={{
+            background: 'rgba(37, 99, 235, 0.08)',
+            color: '#1d4ed8',
+            border: '1px solid rgba(37, 99, 235, 0.25)',
+            borderRadius: 6,
+            padding: '2px 6px',
+            fontSize: 10.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 3,
+          }}
+          title={`Ver, editar, corregir o borrar facturas de la OC (${(order.invoices || []).length} emitidas)`}
+        >
+          <span>🧾</span> Facturas ({(order.invoices || []).length})
+        </button>
+      )}
+
+      {/* 3. Facturar */}
       <button
         type="button"
         onClick={handleFastInvoice}
@@ -106,10 +133,10 @@ export function OrderRowActions({
         }}
         title={`Emitir Factura CFDI (${kilosPendientesDeFacturar.toLocaleString('es-MX')} kg listos)`}
       >
-        <span>🧾</span> Facturar
+        <span>⚡</span> Facturar
       </button>
 
-      {/* 3. Entrega de Báscula */}
+      {/* 4. Entrega de Báscula */}
       <button
         type="button"
         onClick={handleFastDelivery}
@@ -131,12 +158,37 @@ export function OrderRowActions({
         <span>🚚</span> Entrega
       </button>
 
-      {/* 4. Ver Ficha */}
+      {/* 5. Conceptos */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onOpenModal();
+          onOpenModal('productos');
+        }}
+        style={{
+          background: 'transparent',
+          color: 'var(--ink-soft)',
+          border: '1px solid transparent',
+          borderRadius: 6,
+          padding: '2px 6px',
+          fontSize: 10.5,
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 3,
+        }}
+        title="Ver y editar partidas / artículos con guardado automático en Firebase"
+      >
+        <span>📦</span> Conceptos
+      </button>
+
+      {/* 6. Ver Ficha */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenModal('resumen');
         }}
         style={{
           background: 'transparent',

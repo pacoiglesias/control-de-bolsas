@@ -14,7 +14,7 @@ interface OrderContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
-  onOpenOrder: (order: PurchaseOrder) => void;
+  onOpenOrder: (order: PurchaseOrder, tab?: 'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas') => void;
   onQuickInvoice?: (order: PurchaseOrder) => void;
 }
 
@@ -129,12 +129,32 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
 
       <button
         onClick={() => {
-          onOpenOrder(order);
+          onOpenOrder(order, 'resumen');
           onClose();
         }}
         style={menuItemStyle}
       >
         <span>👁️</span> <span>Abrir Expediente</span>
+      </button>
+
+      <button
+        onClick={() => {
+          onOpenOrder(order, 'facturas');
+          onClose();
+        }}
+        style={{ ...menuItemStyle, color: '#93c5fd' }}
+      >
+        <span>🧾</span> <span>Ver / Editar / Corregir Facturas</span>
+      </button>
+
+      <button
+        onClick={() => {
+          onOpenOrder(order, 'productos');
+          onClose();
+        }}
+        style={{ ...menuItemStyle, color: '#a7f3d0' }}
+      >
+        <span>📦</span> <span>Editar Artículos / Conceptos</span>
       </button>
 
       {onQuickInvoice && (
