@@ -1,6 +1,7 @@
 # Dependencias y compilados
 node_modules
 dist
+coverage
 functions/node_modules
 functions/lib
 *.tsbuildinfo
