@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinancials, computeDynamicFinancials, configEfectiva, getOrderSummary, round2, extractDashboardAlerts, calculateLiveMargenTotal, normalizarTexto, computeAndresRequirement, getSuggestedNextAction } from '../finance';
+import {
+  computeFinancials,
+  computeDynamicFinancials,
+  configEfectiva,
+  getOrderSummary,
+  round2,
+  extractDashboardAlerts,
+  calculateLiveMargenTotal,
+  normalizarTexto,
+  computeAndresRequirement,
+  getSuggestedNextAction,
+  validateOrderWeightGuardrail,
+  validateInvoiceWeightGuardrail,
+  evaluateThreeWayMatch,
+} from '../finance';
 import { DEFAULT_CONFIG, type OrderStatus, type PurchaseOrder } from '../types';
 
 /**
@@ -36,11 +50,11 @@ describe('computeFinancials', () => {
     const f = computeFinancials(100, cfg);
     expect(f.saleTotal).toBe(4300);
     expect(f.invoiceTotal).toBe(4988);
-    expect(f.costTotal).toBe(4200);
+    expect(f.costTotal).toBe(3800);
     // 8% del subtotal: 4300 x 0.08 = 344.00
     expect(f.commission).toBe(344);
-    // 4300 - 4200 - 344 = -244
-    expect(f.netCashFlow).toBe(-244);
+    // 4300 - 3800 - 344 = +156
+    expect(f.netCashFlow).toBe(156);
   });
 
   it('reproduce al centavo un cobro real del contador', () => {
@@ -203,10 +217,10 @@ describe('Dashboard Extractions', () => {
   });
 
   it('calculateLiveMargenTotal sum correctly', () => {
-    // 100 kilos * 47 sale = 4700. cost = 42. comm = 376. 4700 - 4200 - 376 = 124 margin per invoice
+    // 100 kilos * 43 sale = 4300. cost = 3800. comm = 344. 4300 - 3800 - 344 = 156 margin per invoice (x2 = 312)
     const o = orden({ invoices: [factura('pending'), factura('paid')] });
-    const margin = calculateLiveMargenTotal([o], 42);
-    expect(margin).toBe(-488);
+    const margin = calculateLiveMargenTotal([o], 38);
+    expect(margin).toBe(312);
   });
 });
 
@@ -237,7 +251,7 @@ describe('computeAndresRequirement & getSuggestedNextAction', () => {
     });
     const req = computeAndresRequirement(o, cfg);
     expect(req.kilos).toBe(1000);
-    expect(req.costTotal).toBe(42000);
+    expect(req.costTotal).toBe(38000);
     expect(req.saleTotal).toBe(43000);
     expect(req.invoiceTotal).toBe(49880);
     expect(req.whatsappMessage).toContain('Andrés');
@@ -267,19 +281,19 @@ describe('Casos Numéricos Extremos y Blindaje Financiero (OKR 1)', () => {
   it('maneja cantidades mínimas (0.01 kg) sin pérdidas de redondeo', () => {
     const f = computeFinancials(0.01, cfg);
     expect(f.saleTotal).toBe(0.43);
-    expect(f.costTotal).toBe(0.42);
+    expect(f.costTotal).toBe(0.38);
     expect(f.invoiceTotal).toBe(0.5); // 0.43 * 1.16 = 0.4988 -> 0.50
     expect(f.commission).toBe(0.03); // 0.43 * 0.08 = 0.0344 -> 0.03
-    expect(f.netCashFlow).toBe(-0.02); // 0.43 - 0.42 - 0.03 = -0.02
+    expect(f.netCashFlow).toBe(0.02); // 0.43 - 0.38 - 0.03 = +0.02
   });
 
   it('maneja órdenes masivas de 500,000 kg con exactitud aritmética', () => {
     const f = computeFinancials(500000, cfg);
     expect(f.saleTotal).toBe(21500000);
-    expect(f.costTotal).toBe(21000000);
+    expect(f.costTotal).toBe(19000000);
     expect(f.invoiceTotal).toBe(24940000);
     expect(f.commission).toBe(1720000); // 21,500,000 * 0.08
-    expect(f.netCashFlow).toBe(-1220000); // 21.5M - 21M - 1.72M
+    expect(f.netCashFlow).toBe(780000); // 21.5M - 19M - 1.72M = +780,000
   });
 
   it('reparto 50/50 entre socios no produce centavos fantasma', () => {
@@ -328,17 +342,17 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(orderMatchesDepartment({ client: 'Grupo Textil Providencia - GT' } as any, 'GT')).toBe(true);
   });
 
-  it('Los 10 contrarecibos oficiales suman exactamente $1,019,956.34 ($584,400.42 TH + $435,555.92 GT)', () => {
-    const thCrs = [79826.00, 136300.00, 106720.17, 136300.00, 125254.25];
+  it('Los 11 contrarecibos oficiales suman exactamente $1,101,736.34 ($666,180.42 TH + $435,555.92 GT)', () => {
+    const thCrs = [81780.00, 79826.00, 136300.00, 106720.17, 136300.00, 125254.25];
     const gtCrs = [54520.00, 69001.60, 106477.56, 98136.00, 107420.76];
 
     const sumTh = round2(thCrs.reduce((a, b) => a + b, 0));
     const sumGt = round2(gtCrs.reduce((a, b) => a + b, 0));
     const grandTotal = round2(sumTh + sumGt);
 
-    expect(sumTh).toBe(584400.42);
+    expect(sumTh).toBe(666180.42);
     expect(sumGt).toBe(435555.92);
-    expect(grandTotal).toBe(1019956.34);
+    expect(grandTotal).toBe(1101736.34);
   });
 
   it('filterOrderByDepartment separa estrictamente las facturas de TH y GT dentro de una orden compuesta', async () => {
@@ -385,8 +399,8 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(allFiltered?.invoices).toHaveLength(4);
   });
 
-  it('DEFAULT_CONFIG tiene la deuda real con Andrés calibrada a -102670.27', () => {
-    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(-102670.27);
+  it('DEFAULT_CONFIG tiene el saldo real con Andrés calibrado a 103411.84', () => {
+    expect(DEFAULT_CONFIG.historicalDebtAndres).toBe(103411.84);
   });
 
   it('un contrarecibo puede contener varias facturas (1 CR -> N Facturas), pero nunca mezcla facturas de TH y GT', async () => {
@@ -414,6 +428,34 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
 
     const gtOrder = filterOrderByDepartment(orderConVariasFacturasEnUnCR, 'GT');
     expect(gtOrder).toBeNull();
+  });
+
+  it('extractCr no fuga el contrarecibo de la orden raíz a facturas nuevas pendientes de contrarecibo', async () => {
+    const { extractCr } = await import('../finance');
+
+    const multiInvoiceOrder = {
+      id: 'ord-th-120267114114',
+      oc: '120267114114',
+      folio: '71/14114',
+      collection: { contrareciboNumber: 'TH-946' },
+      invoices: [
+        { id: 'inv-6198', folio: '6198', kilos: 1965.81, collection: { contrareciboNumber: 'TH-946' } },
+        { id: 'inv-6200', folio: '6200', kilos: 1500.00, collection: { contrareciboNumber: '' } }, // En revisión, aún sin CR
+        { id: 'inv-nueva', folio: '', kilos: 1000.00, collection: { contrareciboNumber: '' } },     // Por facturar
+      ],
+    };
+
+    // La factura 6198 tiene su CR asignado
+    expect(extractCr(multiInvoiceOrder.invoices[0], multiInvoiceOrder)).toBe('TH-946');
+
+    // La factura 6200 NO tiene CR asignado, por lo que debe devolver vacío ('') y no heredar TH-946
+    expect(extractCr(multiInvoiceOrder.invoices[1], multiInvoiceOrder)).toBe('');
+
+    // La factura nueva tampoco debe heredar TH-946
+    expect(extractCr(multiInvoiceOrder.invoices[2], multiInvoiceOrder)).toBe('');
+
+    // Si se consulta la orden directamente como expediente global
+    expect(extractCr(undefined, multiInvoiceOrder)).toBe('TH-946');
   });
 
   it('los responsables de área son Nava para Textil Hogar TH y Evelia para Grupo Textil GT', async () => {
@@ -454,6 +496,12 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(inferDepartment({ collection: { contrareciboNumber: 'TH-879' } })).toBe('TH');
     expect(inferDepartment({ collection: { contrareciboNumber: 'GT-651' } })).toBe('GT');
 
+    // Por número de OC de división Providencia (71 = TH Nava, 43 = GT Evelia)
+    expect(inferDepartment({ oc: '120267114014', client: 'Grupo Textil Providencia' })).toBe('TH');
+    expect(inferDepartment({ folio: '71/14014', client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV' })).toBe('TH');
+    expect(inferDepartment({ oc: '12026439713', client: 'Grupo Textil Providencia' })).toBe('GT');
+    expect(inferDepartment({ folio: '43/9713', client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV' })).toBe('GT');
+
     // Por cliente
     expect(inferDepartment({ client: 'Providencia Textil Hogar' })).toBe('TH');
     expect(inferDepartment({ client: 'Providencia Grupo Textil' })).toBe('GT');
@@ -461,8 +509,8 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     expect(inferDepartment({ client: 'Grupo Textil Providencia - GT' })).toBe('GT');
 
     // Aislamiento en filterOrderByDepartment
-    const thOnlyOrder = { id: 'th-1', folio: 'TH-768', totalKilograms: 1000, client: 'Providencia' };
-    const gtOnlyOrder = { id: 'gt-1', folio: 'GT-597', totalKilograms: 2000, client: 'Providencia' };
+    const thOnlyOrder = { id: 'th-1', oc: '120267114014', totalKilograms: 1500, client: 'Grupo Textil Providencia' };
+    const gtOnlyOrder = { id: 'gt-1', oc: '12026439713', totalKilograms: 3700, client: 'Grupo Textil Providencia' };
 
     expect(filterOrderByDepartment(thOnlyOrder, 'TH')).not.toBeNull();
     expect(filterOrderByDepartment(thOnlyOrder, 'GT')).toBeNull();
@@ -497,6 +545,211 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
       deptNameGT: customSettings.deptNameGT,
     });
     expect(customNotice).toContain('Ing. Carlos Nava (Textil Hogar Planta 1)');
+  });
+
+  it('calcula entregas por producto y totales sin desfases entre items y orden', async () => {
+    const { computeDeliveredTotals } = await import('../deliveries');
+    const deliveries = [
+      {
+        id: 'del-1',
+        date: null,
+        kilos: 500,
+        items: [
+          { itemId: 'p1', quantity: 300 },
+          { itemId: 'p2', quantity: 200 },
+        ],
+      },
+      {
+        id: 'del-2',
+        date: null,
+        kilos: 250,
+        items: [
+          { itemId: 'p1', quantity: 250 },
+        ],
+      },
+    ];
+
+    const { deliveredByItem, kilosEntregados } = computeDeliveredTotals(deliveries as any);
+    expect(kilosEntregados).toBe(750);
+    expect(deliveredByItem['p1']).toBe(550);
+    expect(deliveredByItem['p2']).toBe(200);
+  });
+
+  it('fusiona entregas base canónicas con entregas capturadas por el usuario sin pérdida', () => {
+    const baseDeliveries = [
+      { id: 'del-th-6198', kilos: 1965.81 },
+      { id: 'del-th-6200', kilos: 1500.00 },
+    ];
+    const userDeliveries = [
+      { id: 'del-user-new-1', kilos: 850.00 },
+    ];
+
+    const merged = [...baseDeliveries];
+    const seen = new Set(baseDeliveries.map(d => d.id));
+    for (const d of userDeliveries) {
+      if (d.id && !seen.has(d.id)) {
+        seen.add(d.id);
+        merged.push(d);
+      }
+    }
+
+    expect(merged.length).toBe(3);
+    expect(merged.some(d => d.id === 'del-user-new-1')).toBe(true);
+    const totalKilos = merged.reduce((sum, d) => sum + d.kilos, 0);
+    expect(round2(totalKilos)).toBe(4315.81);
+  });
+
+  it('identifica órdenes abiertas y elegibles para facturación rápida', () => {
+    const orders: any[] = [
+      {
+        id: 'ord-1',
+        totalKilograms: 6500,
+        deliveries: [{ id: 'd1', kilos: 3465.81, invoiced: true }],
+        invoices: [{ id: 'i1', kilos: 3465.81 }],
+        creditCycle: { status: 'pedido' },
+      },
+      {
+        id: 'ord-2',
+        totalKilograms: 1000,
+        deliveries: [{ id: 'd2', kilos: 1000, invoiced: true }],
+        invoices: [{ id: 'i2', kilos: 1000, creditCycle: { status: 'collected' } }],
+        creditCycle: { status: 'collected' },
+      }
+    ];
+
+    const valid = orders.filter(o => {
+      if (o.isDeleted) return false;
+      const summary = getOrderSummary(o);
+      const kOrd = Number(o.totalKilograms) || 0;
+      const isPaidAndDelivered = (o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid') && summary.kilosInvoiced >= summary.kilosDelivered - 0.01 && summary.kilosDelivered >= kOrd - 0.01;
+      return !isPaidAndDelivered;
+    });
+
+    expect(valid.length).toBe(1);
+    expect(valid[0].id).toBe('ord-1');
+  });
+});
+
+describe('Guardrails Anti-Sobrecupo y Anti-Sobrefacturación', () => {
+  it('validateOrderWeightGuardrail detecta entregas dentro del límite', () => {
+    const o = orden({ totalKilograms: 1500, deliveries: [{ id: 'd1', kilos: 500 } as any] });
+    const res = validateOrderWeightGuardrail(o, 500);
+    expect(res.totalOrderedKg).toBe(1500);
+    expect(res.alreadyDeliveredKg).toBe(500);
+    expect(res.maxAllowedNewKg).toBe(1000);
+    expect(res.excessKg).toBe(0);
+    expect(res.isOverLimit).toBe(false);
+  });
+
+  it('validateOrderWeightGuardrail detecta y bloquea sobrecupo exacto (+100 kg)', () => {
+    const o = orden({ totalKilograms: 1500, deliveries: [{ id: 'd1', kilos: 1000 } as any] });
+    const res = validateOrderWeightGuardrail(o, 600);
+    expect(res.totalOrderedKg).toBe(1500);
+    expect(res.alreadyDeliveredKg).toBe(1000);
+    expect(res.maxAllowedNewKg).toBe(500);
+    expect(res.excessKg).toBe(100);
+    expect(res.isOverLimit).toBe(true);
+    expect(res.message).toContain('Sobrecupo detectado');
+  });
+
+  it('validateInvoiceWeightGuardrail detecta sobrefacturación vs entregado en báscula', () => {
+    const o = orden({
+      totalKilograms: 1500,
+      deliveries: [{ id: 'd1', kilos: 1000 } as any],
+      invoices: [{ id: 'i1', kilos: 800 } as any],
+    });
+    const res = validateInvoiceWeightGuardrail(o, 300); // 800 + 300 = 1100 vs 1000 entregados
+    expect(res.totalDeliveredKg).toBe(1000);
+    expect(res.alreadyInvoicedKg).toBe(800);
+    expect(res.maxAvailableToInvoice).toBe(200);
+    expect(res.excessVsDelivered).toBe(100);
+    expect(res.isOverDelivered).toBe(true);
+    expect(res.message).toContain('Sobrefacturación en Báscula');
+  });
+});
+
+describe('Asistente de Conciliación 3-Way Match', () => {
+  it('identifica un 3-Way Match perfecto (Báscula = Factura = CR)', () => {
+    const o = orden({
+      totalKilograms: 1000,
+      deliveries: [{ id: 'd1', kilos: 1000, date: null } as any],
+      invoices: [
+        {
+          id: 'i1',
+          folio: '6205',
+          kilos: 1000,
+          financials: { salePricePerKg: 43.0, invoiceTotal: 49880.0 } as any,
+          collection: { contrareciboNumber: 'TH-946' },
+          creditCycle: { status: 'facturado' },
+        } as any,
+      ],
+    });
+
+    const match = evaluateThreeWayMatch(o, o.invoices?.[0]);
+    expect(match.status).toBe('MATCH_PERFECT');
+    expect(match.isPerfect).toBe(true);
+    expect(match.deliveryKg).toBe(1000);
+    expect(match.invoiceKg).toBe(1000);
+    expect(match.crNumber).toBe('TH-946');
+    expect(match.diffKg).toBe(0);
+  });
+
+  it('detecta discrepancia cuando la factura difiere en kilos de la báscula', () => {
+    const o = orden({
+      totalKilograms: 1000,
+      deliveries: [{ id: 'd1', kilos: 950 } as any],
+      invoices: [
+        {
+          id: 'i1',
+          folio: '6205',
+          kilos: 1000,
+          collection: { contrareciboNumber: 'TH-946' },
+        } as any,
+      ],
+    });
+
+    const match = evaluateThreeWayMatch(o, o.invoices?.[0]);
+    expect(match.status).toBe('DISCREPANCY');
+    expect(match.isPerfect).toBe(false);
+    expect(match.diffKg).toBe(50);
+    expect(match.reason).toContain('Discrepancia de peso');
+  });
+
+  it('detecta pendiente de Contrarecibo cuando báscula y factura coinciden', () => {
+    const o = orden({
+      folio: '120267114014',
+      oc: '120267114014',
+      totalKilograms: 1000,
+      deliveries: [{ id: 'd1', kilos: 1000 } as any],
+      invoices: [
+        {
+          id: 'i1',
+          folio: '6205',
+          kilos: 1000,
+          collection: { contrareciboNumber: '' },
+        } as any,
+      ],
+    });
+
+    const match = evaluateThreeWayMatch(o, o.invoices?.[0]);
+    expect(match.status).toBe('PENDING_CR');
+    expect(match.isPerfect).toBe(false);
+  });
+
+  it('genera correctamente el mensaje de solicitud de Complemento de Pago (REP) para el contador', async () => {
+    const { generateComplementoPagoContadorMessage } = await import('../whatsappReminder');
+    const msg = generateComplementoPagoContadorMessage({
+      folioFactura: '6198',
+      contrarecibo: 'TH-990',
+      cliente: 'TEXTIL HOGAR (TH - NAVA)',
+      montoPagado: 98054.60,
+      oc: '120267114114',
+    });
+
+    expect(msg).toContain('SOLICITUD DE COMPLEMENTO DE PAGO');
+    expect(msg).toContain('Factura #6198');
+    expect(msg).toContain('TH-990');
+    expect(msg).toContain('$98,054.60');
   });
 });
 

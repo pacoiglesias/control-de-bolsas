@@ -159,3 +159,162 @@ export function copyToClipboard(text: string): Promise<void> {
     }
   });
 }
+
+export function generateAndresWhatsAppSummary({
+  providerName = 'Andrés',
+  totalPagado,
+  totalPurchasesCost,
+  totalReceivedKilos,
+  saldoProveedor,
+  costPricePerKg = 38,
+}: {
+  providerName?: string;
+  totalPagado: number;
+  totalPurchasesCost: number;
+  totalReceivedKilos: number;
+  saldoProveedor: number;
+  costPricePerKg?: number;
+}): string {
+  const saldoSigno = saldoProveedor >= 0 ? `Saldo a favor de ${providerName} (Anticipos vigentes)` : `Saldo a favor de la Empresa (Deuda pendiente)`;
+  return `📊 *Estado de Cuenta — ${providerName}*
+📅 *Fecha:* ${fmtDate(new Date())}
+
+📦 *Kilos Entregados:* ${totalReceivedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (a $${costPricePerKg.toFixed(2)}/kg)
+💵 *Valor Total Entregas:* ${money(totalPurchasesCost)}
+💳 *Total Anticipos / Pagos Realizados:* ${money(totalPagado)}
+
+⚖️ *Saldo Conciliado:* ${saldoProveedor < 0 ? '-' : '+'}${money(Math.abs(saldoProveedor))}
+📌 *Estatus:* ${saldoSigno}
+
+_Control de Bolsas ERP — Estado de Cuenta Oficial._`;
+}
+
+export function generateAndresEmailDraft({
+  providerName = 'Andrés',
+  totalPagado,
+  totalPurchasesCost,
+  totalReceivedKilos,
+  saldoProveedor,
+  costPricePerKg = 38,
+}: {
+  providerName?: string;
+  totalPagado: number;
+  totalPurchasesCost: number;
+  totalReceivedKilos: number;
+  saldoProveedor: number;
+  costPricePerKg?: number;
+}): InstitutionalEmailDraft {
+  const saldoSigno = saldoProveedor >= 0 ? `Saldo a favor de ${providerName} (Anticipos vigentes)` : `Saldo a favor de la Empresa (Deuda pendiente)`;
+  const subject = `Estado de Cuenta Conciliado — ${providerName} — ${fmtDate(new Date())}`;
+  const body = `Estimado ${providerName},
+
+Adjuntamos el resumen oficial de tu Estado de Cuenta y Maquila al día de hoy ${fmtDate(new Date())}:
+
+• Kilos Totales Entregados: ${totalReceivedKilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (Costo: $${costPricePerKg.toFixed(2)}/kg)
+• Valor Total de Entregas: ${money(totalPurchasesCost)}
+• Anticipos / Pagos Realizados: ${money(totalPagado)}
+--------------------------------------------------
+• Saldo Conciliado: ${saldoProveedor < 0 ? '-' : '+'}${money(Math.abs(saldoProveedor))}
+• Estatus de Saldo: ${saldoSigno}
+
+Quedamos a tus órdenes para cualquier duda o conciliación.
+
+Atentamente,
+Administración — Control de Bolsas ERP`;
+
+  return {
+    to: '',
+    subject,
+    body,
+  };
+}
+
+export function openEmailMessage(subject: string, body: string, to = ''): void {
+  const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = url;
+}
+
+/**
+ * Genera el mensaje estructurado de WhatsApp para solicitar el timbrado fiscal de una prefactura al contador.
+ */
+export function generatePrefacturaContadorMessage({
+  oc,
+  client,
+  kilos,
+  subtotal,
+  iva,
+  total,
+  itemsCount,
+}: {
+  oc: string;
+  client: string;
+  kilos: number;
+  subtotal: number;
+  iva: number;
+  total: number;
+  itemsCount: number;
+}): string {
+  return `📄 *SOLICITUD DE FACTURACIÓN (PREFACTURA)*
+
+Estimado Contador, buen día.
+
+Le comparto los datos para el timbrado del CFDI correspondiente a Providencia:
+
+🏢 *Receptor:* GRUPO TEXTIL PROVIDENCIA SA DE CV
+📑 *RFC:* GTP930115PU1
+📍 *Uso CFDI:* G01 - Adquisición de mercancías
+📦 *Orden de Compra:* OC ${oc} (${client})
+⚖️ *Kilos de Báscula:* ${kilos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${itemsCount} partida${itemsCount === 1 ? '' : 's'})
+
+💵 *Subtotal:* $${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+🏛️ *IVA (16%):* $${iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+🧾 *TOTAL FACTURA:* $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+
+📋 *Condiciones Fiscales:*
+• Método de Pago: PPD
+• Forma de Pago: 99 por definir
+• Clave SAT: 24141500 | Unidad: KGM
+• Nota en Factura: OC ${oc}
+
+Le adjunto el archivo de Excel oficial (.xlsx). Quedo atento al envío del PDF y XML timbrados. ¡Muchas gracias!`;
+}
+
+/**
+ * Genera el mensaje estructurado de WhatsApp para solicitar el Complemento de Pago (REP / CFDI de Pago) al contador.
+ */
+export function generateComplementoPagoContadorMessage({
+  folioFactura,
+  contrarecibo,
+  cliente = 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+  montoPagado,
+  fechaPago = new Date(),
+  formaPago = '03 - Transferencia electrónica de fondos',
+  oc,
+}: {
+  folioFactura: string;
+  contrarecibo?: string;
+  cliente?: string;
+  montoPagado: number;
+  fechaPago?: any;
+  formaPago?: string;
+  oc?: string;
+}): string {
+  const crText = contrarecibo ? `\n📑 *Contrarecibo Liquidado:* ${contrarecibo}` : '';
+  const ocText = oc ? `\n📦 *Orden de Compra:* OC ${oc}` : '';
+  return `📄 *SOLICITUD DE COMPLEMENTO DE PAGO (CFDI DE RECEPCIÓN DE PAGOS - REP)*
+
+Estimado Contador, buen día.
+
+Le informo que Providencia ya realizó el pago de la siguiente factura emitida:
+
+🏢 *Cliente / Receptor:* ${cliente}
+📑 *Factura Pagada:* Factura #${folioFactura}${crText}${ocText}
+💵 *Monto Transferido / Liquidado:* $${montoPagado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+📅 *Fecha de Pago / Abono:* ${fmtDate(fechaPago)}
+💳 *Forma de Pago:* ${formaPago}
+
+Favor de emitir el *Complemento de Pago (REP)* correspondiente y enviarnos el PDF y XML timbrados para hacer la entrega a Providencia.
+
+¡Muchas gracias!`;
+}
+

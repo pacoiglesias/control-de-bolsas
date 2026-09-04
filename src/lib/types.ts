@@ -1,6 +1,16 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'paid' | 'collected' | 'overdue' | 'manual_review';
+/** Tipo unificado para manejo seguro de fechas de Firestore, JavaScript, cadenas o números */
+export type AnyFirestoreDate =
+  | Timestamp
+  | Date
+  | string
+  | number
+  | { seconds: number; nanoseconds?: number; toDate?: () => Date; toMillis?: () => number }
+  | null
+  | undefined;
+
+export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review';
 
 export interface FinancialConfig {
   salePricePerKg: number;
@@ -26,7 +36,35 @@ export interface FinancialConfig {
   /** Identidad Corporativa */
   companyName?: string;
   companyLogoUrl?: string;
+
+  /** Gestor Dinámico de Plantas / Departamentos */
+  departmentConfigs?: DepartmentConfig[];
 }
+
+export interface DepartmentConfig {
+  id: string;          // ej. 'TH', 'GT', 'P3'
+  name: string;        // ej. 'Textil Hogar (TH - Nava)'
+  prefix: string;      // ej. 'TH-', 'GT-', 'P3-'
+  contact?: string;    // ej. 'José Nava Flores / Torre Lamuño'
+  active: boolean;
+}
+
+export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
+  {
+    id: 'TH',
+    name: 'Textil Hogar (TH - Nava)',
+    prefix: 'TH-',
+    contact: 'José Nava Flores / Torre Lamuño',
+    active: true,
+  },
+  {
+    id: 'GT',
+    name: 'Grupo Textil Providencia (GT - Evelia / P4)',
+    prefix: 'GT-',
+    contact: 'Evelia (Planta P4)',
+    active: true,
+  },
+];
 
 export const DEFAULT_CONFIG: FinancialConfig = {
   /** Subtotal por kilo, SIN IVA. Con el 16% da el total que aparece en los
@@ -40,7 +78,7 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    *  los que ya tienen un precio propio en financials.salePricePerKg no
    *  cambian con este ajuste. */
   salePricePerKg: 43,
-  costPricePerKg: 42,
+  costPricePerKg: 38,
   /** Honorario del contador por la gestión de cobro: 8% del SUBTOTAL. */
   commissionRate: 0.08,
   creditDays: 30,
@@ -55,14 +93,15 @@ export const DEFAULT_CONFIG: FinancialConfig = {
    * honorario que cobra el contador por gestionar la cobranza.
    */
   commissionBase: 'subtotal',
-  historicalDebtAndres: -102670.27,
-  // Tomados de una OC real del negocio; editables en Configuracion.
-  satClaveProdServ: '24111500',
+  historicalDebtAndres: 103411.84,
+  // Tomados de los CFDIs oficiales del negocio (CFDI 4.0); editables en Configuración.
+  satClaveProdServ: '24141500',
   satClaveUnidad: 'KGM',
   satMetodoPago: 'PPD',
   satFormaPago: '99',
   companyName: 'Elemental Denim Bolsas',
   companyLogoUrl: '',
+  departmentConfigs: DEFAULT_DEPARTMENTS,
 };
 
 export interface OrderFinancials {
@@ -87,11 +126,14 @@ export interface CreditCycle {
   status: OrderStatus;
 }
 
+export type ContrareciboPortalStatus = 'generado' | 'en_proceso_pago' | 'pagado' | 'sin_numero';
+
 /** Datos de cobranza. El backend no los escribe: los captura el administrador
  *  desde la interfaz conforme avanza el ciclo de cobro. */
 export interface CollectionInfo {
   contrareciboNumber?: string;
   contrareciboDate?: Timestamp | null;
+  contrareciboPortalStatus?: ContrareciboPortalStatus;
   paidAmount?: number;
   paidAt?: Timestamp | null;
   collectedAt?: Timestamp | null;  // Cuando el contador entregó el efectivo
@@ -172,6 +214,62 @@ export interface PurchaseOrderItem {
   amount: number;
 }
 
+export const CANONICAL_TH_ITEMS: PurchaseOrderItem[] = [
+  { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250 (48+17+17X140)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco (55x126)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250 (80+20+20x160)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-4', code: 'enbo000006-sc', description: 'BOLSA POLIETILENO 77 CM X 55 CM (55x77) _Sin Color', quantity: 2000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
+  { id: 'it-th-5', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM (50x55) _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM (30x40)', quantity: 500, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
+];
+
+export const CANONICAL_GT_ITEMS: PurchaseOrderItem[] = [
+  { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM (80+20+20x125) _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M (60+40x115) _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M (80+40x160) _Sin Color', quantity: 700, unitPrice: 43.0, amount: 30100, unit: 'Kilos' },
+  { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM (60+40x95) _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+];
+
+export const CANONICAL_GT_ITEMS_439753: PurchaseOrderItem[] = [
+  { id: 'it-gt-9753-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM  _Sin Color', quantity: 1500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+  { id: 'it-gt-9753-2', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM  _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-gt-9753-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+  { id: 'it-gt-9753-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM  _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+];
+
+export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOrderItem[] {
+  if (!order) return [];
+
+  const text = `${order.department || ''} ${order.client || ''} ${order.oc || ''} ${order.folio || ''}`.toUpperCase();
+  const is9753 = text.includes('43/9753') || text.includes('439753') || text.includes('12026439753') || text.includes('9753');
+
+  // Para la OC 439753: verificar que los items guardados estén completos (los 4 artículos).
+  // Si faltan códigos del canónico (ej. EGBO000094-SC no fue guardado en la sesión anterior),
+  // se retorna el canónico completo para garantizar que la facturación rápida no quede trunca.
+  if (is9753) {
+    const REQUIRED_CODES_9753 = ['EGBO000095-SC', 'EGBO000093-SC', 'EGBO000018-SC', 'EGBO000094-SC'];
+    const existingCodes = (order.items || []).map(it => (it.code || '').toUpperCase());
+    const allPresent = REQUIRED_CODES_9753.every(c => existingCodes.includes(c));
+    if (!allPresent) {
+      // [AUDIT][getEffectiveOrderItems] OC 439753: items incompletos en Firestore, usando canónico completo.
+      return CANONICAL_GT_ITEMS_439753;
+    }
+    // Si están todos, respetar los items del documento (pueden tener deliveredQuantity ya anotada).
+    if (order.items && order.items.length > 0) return order.items;
+    return CANONICAL_GT_ITEMS_439753;
+  }
+
+  if (order.items && order.items.length > 0) return order.items;
+
+  if (text.includes('TH') || text.includes('TEXTIL HOGAR') || text.includes('NAVA') || text.includes('LAMU') || text.includes('14114')) {
+    return CANONICAL_TH_ITEMS;
+  }
+  if (text.includes('GT') || text.includes('GRUPO TEXTIL') || text.includes('EVELIA') || text.includes('P4') || text.includes('439713')) {
+    return CANONICAL_GT_ITEMS;
+  }
+  return [];
+}
+
 export interface PurchaseOrder {
   id: string;
   fileName?: string;
@@ -226,6 +324,17 @@ export interface PurchaseOrder {
   updatedAt?: Timestamp | null;
   aiError?: string;
   isClosedShort?: boolean;
+  /** Metadatos de auditoría criptográfica y trazabilidad */
+  audit?: AuditMetadata;
+}
+
+export interface AuditMetadata {
+  createdAt?: Timestamp | null;
+  createdBy?: string;
+  updatedAt?: Timestamp | null;
+  updatedBy?: string;
+  sha256Signature?: string;
+  source?: 'web' | 'mobile' | 'pwa' | 'portal_maquilador' | 'excel_sync' | 'migration';
 }
 
 export interface Expense {
@@ -237,7 +346,18 @@ export interface Expense {
   notes?: string;
   createdAt: Timestamp | null;
   provider?: string;
+  /**
+   * Marca explícita para pagos a Andrés. Evita depender de normalización de
+   * texto libre en `provider` (frágil a typos: "Andrés", "andres garcia",
+   * "Andres Lopez" todos quedan fuera del cómputo si no cuadran exacto).
+   * Backward compatible: el código existente con normalizarTexto() sigue
+   * funcionando mientras se migra gradualmente a este campo.
+   */
+  isAndresPayment?: boolean;
+  /** Categoría para separar OPEX de pagos a proveedor en el P&L */
+  category?: 'proveedor' | 'opex' | 'nomina' | 'servicios' | 'otro';
 }
+
 
 export type PurchaseStatus = 'pedido' | 'parcial' | 'entregado';
 
@@ -259,17 +379,19 @@ export interface Purchase {
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pedido: 'Pedido',
   facturado: 'Facturado',
-  pending: 'Por cobrar',
-  paid: '🟡 Con el contador',
+  pending: 'Por Cobrar',
+  in_review: '🔵 En Revisión (Esperando CR)',
+  paid: '🟡 Con el Contador',
   collected: '✅ Recibida',
-  overdue: 'Vencida',
-  manual_review: 'Revisión manual',
+  overdue: '🔴 Vencida',
+  manual_review: 'Revisión Manual',
 };
 
 export const STATUS_TONE: Record<OrderStatus, string> = {
   pedido: 'b-info',
   facturado: 'b-warn',
   pending: 'b-info',
+  in_review: 'b-info',
   paid: 'b-warn',
   collected: 'b-ok',
   overdue: 'b-bad',

@@ -76,32 +76,61 @@ export function PromptDialogHost() {
   };
 
   return (
-    <Modal title={state.title ?? 'Ingresa un valor'} onClose={() => settle(null)}>
+    <Modal title={state.title ?? '⚡ Confirmación / Captura Rápida'} onClose={() => settle(null)}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           settle(value);
         }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 320, maxWidth: 520 }}
       >
         {state.message && (
-          <div style={{ color: 'var(--ink-soft)', lineHeight: 1.6, fontSize: 14, whiteSpace: 'pre-line' }}>{state.message}</div>
+          <div
+            style={{
+              background: 'var(--paper-sunk)',
+              border: '1px solid var(--line)',
+              borderRadius: 10,
+              padding: '12px 14px',
+              color: 'var(--ink)',
+              lineHeight: 1.5,
+              fontSize: 13.5,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {state.message}
+          </div>
         )}
-        <input
-          ref={inputRef}
-          type={state.inputType ?? 'text'}
-          className="input boxed"
-          value={value}
-          placeholder={state.placeholder}
-          onChange={(e) => setValue(e.target.value)}
-          style={{ width: '100%' }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-          <button type="button" className="btn" onClick={() => settle(null)}>
+
+        <div>
+          <input
+            ref={inputRef}
+            type={state.inputType ?? 'text'}
+            className="input boxed"
+            value={value}
+            placeholder={state.placeholder}
+            onChange={(e) => setValue(e.target.value)}
+            style={{
+              width: '100%',
+              fontSize: 16,
+              fontWeight: 700,
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '2px solid var(--accent)',
+              boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.12)',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--ink-faint)' }}>
+            <span>💡 Tip: Presiona <kbd style={{ background: 'var(--bg-card)', border: '1px solid var(--line)', borderRadius: 4, padding: '1px 4px' }}>Enter ↵</kbd> para aceptar</span>
+            <span><kbd style={{ background: 'var(--bg-card)', border: '1px solid var(--line)', borderRadius: 4, padding: '1px 4px' }}>Esc</kbd> para cancelar</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+          <button type="button" className="btn" onClick={() => settle(null)} style={{ padding: '8px 16px', fontWeight: 600 }}>
             {state.cancelLabel ?? 'Cancelar'}
           </button>
-          <button type="submit" className="btn btn-primary">
-            {state.confirmLabel ?? 'Aceptar'}
+          <button type="submit" className="btn btn-primary" style={{ padding: '8px 18px', fontWeight: 800 }}>
+            {state.confirmLabel ?? '✓ Aceptar'}
           </button>
         </div>
       </form>

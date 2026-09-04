@@ -1,11 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, onSnapshot, updateDoc, addDoc, Timestamp, serverTimestamp, type QuerySnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { money, shareHtmlAsPdf, monthLabel, fmtDate, toDate } from '../lib/format';
-import { round2 } from '../lib/finance';
-import { exportToExcel } from '../lib/export';
+import { shareHtmlAsPdf } from '../lib/format';
+import { round2, filterOrderByDepartment, inferDepartment, getOrderSummary } from '../lib/finance';
 import { usePurchases } from '../hooks/usePurchases';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useConfig } from '../hooks/useConfig';
@@ -15,34 +14,32 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useToast } from '../context/ToastContext';
 import { Skeleton } from '../components/ui';
 import { confirmDialog } from '../lib/confirmDialog';
-import { createCloudBackup, listCloudBackups, restoreCloudBackup, downloadBackupJsonFile, type CloudSnapshotMeta } from '../lib/cloudBackup';
+import { createCloudBackup, listCloudBackups, restoreCloudBackup, type CloudSnapshotMeta } from '../lib/cloudBackup';
 import type { PurchaseOrder } from '../lib/types';
-import { useDocumentData } from 'react-firebase-hooks/firestore';
-import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
-import { QuickActionsBar } from '../components/Dashboard/QuickActionsBar';
-import { SeguimientoPedidosTable } from '../components/Dashboard/SeguimientoPedidosTable';
-import { BandejaMaquilaWidget } from '../components/Dashboard/BandejaMaquilaWidget';
 import { useDashboardStats } from '../hooks/useDashboardStatsV2';
-import { SYSTEM_CHANGELOG } from '../lib/systemChangelog';
-import { CashflowProjection } from '../components/Dashboard/CashflowProjection';
-import { SmartAlerts } from '../components/Dashboard/SmartAlerts';
-import { FacturasSinCRPanel } from '../components/Dashboard/FacturasSinCRPanel';
-import { SemaforoDelDia } from '../components/Dashboard/SemaforoDelDia';
-import { ExecutiveFinancialCard } from '../components/Dashboard/ExecutiveFinancialCard';
-import { WeeklyCollectionSummary } from '../components/Dashboard/WeeklyCollectionSummary';
-import { MoneyFlowPipeline, type PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
-import { KilosSpeedometer } from '../components/Dashboard/KilosSpeedometer';
-import { ContrarecibosTimeline } from '../components/Dashboard/ContrarecibosTimeline';
-import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
-import { ProactiveBriefingCard } from '../components/Dashboard/ProactiveBriefingCard';
-import { getOrderSummary, filterOrderByDepartment, inferDepartment } from '../lib/finance';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { PorRecibirPanel } from '../components/Dashboard/PorRecibirPanel';
 import { getRentabilidadHtml } from './DashboardReports';
+import { autoHealAndPurgeErpDatabase } from '../lib/autoHealEngine';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { sound } from '../lib/sounds';
+import confetti from 'canvas-confetti';
+
+// Componentes Modulares del Dashboard
+import { DashboardLiveTicker } from '../components/Dashboard/DashboardLiveTicker';
+import { DashboardHeaderToolbar } from '../components/Dashboard/DashboardHeaderToolbar';
+import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
+import { DashboardViewModeTabs, type DashboardViewMode } from '../components/Dashboard/DashboardViewModeTabs';
+import { DashboardExecutiveView } from '../components/Dashboard/views/DashboardExecutiveView';
+import { DashboardOrdersView } from '../components/Dashboard/views/DashboardOrdersView';
+import { DashboardCollectionView } from '../components/Dashboard/views/DashboardCollectionView';
+import { DashboardProductionView } from '../components/Dashboard/views/DashboardProductionView';
+import { DashboardPnlView } from '../components/Dashboard/views/DashboardPnlView';
+import { DashboardSystemStatusFooter } from '../components/Dashboard/DashboardSystemStatusFooter';
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
-
-
-
+import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
+import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
+import { AdminFloatingButton } from '../components/Dashboard/AdminFloatingButton';
+import type { PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
 
 export interface LiveLogEntry {
   id: string;
@@ -51,9 +48,6 @@ export interface LiveLogEntry {
   details?: Record<string, unknown>;
   timestamp: Date | null;
 }
-
-// SYSTEM_CHANGELOG extracted to ChangelogFeed.tsx
-
 
 export default function Dashboard() {
   const { purchases } = usePurchases();
@@ -64,20 +58,35 @@ export default function Dashboard() {
   const { config } = useConfig();
   const nav = useNavigate();
   const toast = useToast();
-  const [health, setHealth] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({ snapshotDate: null, recentLogs: 0, dbStatus: '...' });
+
+  // Estados de Monitoreo y Respaldos
+  const [health] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({
+    snapshotDate: null,
+    recentLogs: 0,
+    dbStatus: 'Conectado',
+  });
   const [showBackupsModal, setShowBackupsModal] = useState(false);
   const [showChangelogModal, setShowChangelogModal] = useState(false);
   const [showLiveLogsModal, setShowLiveLogsModal] = useState(false);
-  const [liveLogs, setLiveLogs] = useState<LiveLogEntry[]>([]);
+  const [liveLogs] = useState<LiveLogEntry[]>([]);
   const [cloudBackups, setCloudBackups] = useState<CloudSnapshotMeta[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [recibiendoId, setRecibiendoId] = useState<string | null>(null);
+
+  // Filtros y Espacios de Trabajo
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [monthFilter, setMonthFilter] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<DashboardViewMode>('executive');
+  const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
+
+  // Estados de Modales y Drawers
   const [showContrarecibosDrawer, setShowContrarecibosDrawer] = useState(false);
   const [showSeguimientoDrawer, setShowSeguimientoDrawer] = useState(false);
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
+  const [selectedInvoiceOrderId, setSelectedInvoiceOrderId] = useState<string | null>(null);
+  const [showQuickDelivery, setShowQuickDelivery] = useState(false);
+  const [selectedDeliveryOrderId, setSelectedDeliveryOrderId] = useState<string | null>(null);
   const [showQuickCollection, setShowQuickCollection] = useState(false);
   const [showQuickPay, setShowQuickPay] = useState(false);
   const [showCorteMensual, setShowCorteMensual] = useState(false);
@@ -85,12 +94,12 @@ export default function Dashboard() {
   const [showBalanza, setShowBalanza] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
-  const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
-  const [viewMode, setViewMode] = useState<'executive' | 'orders' | 'collection' | 'production' | 'pnl' | 'all'>('executive');
+  const [showUniversalUpload, setShowUniversalUpload] = useState(false);
   const [showReportsMenu, setShowReportsMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showQuickEdit, setShowQuickEdit] = useState(false);
 
-  // Cerrar menús al hacer clic fuera o presionar Escape
+  // Cerrar menús desplegables al hacer clic fuera
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -102,6 +111,33 @@ export default function Dashboard() {
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
+
+  // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const k = e.key.toLowerCase();
+      if (k === 'n') {
+        e.preventDefault();
+        nav('/ordenes?nueva=1');
+      } else if (k === 'f') {
+        e.preventDefault();
+        setSelectedInvoiceOrderId(null);
+        setShowQuickInvoice(true);
+      } else if (k === 'c') {
+        e.preventDefault();
+        setShowQuickCollection(true);
+      } else if (k === 'p') {
+        e.preventDefault();
+        setShowMagicPaste(true);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nav]);
 
   const recalcStats = useMemo(() => async () => {
     setRecalcBusy(true);
@@ -118,213 +154,74 @@ export default function Dashboard() {
     }
   }, [toast]);
 
-  // Atajos de Teclado Globales (N = Nueva OC, F = Facturar, C = Cobrar, P = Pegar WhatsApp, R = Recalcular)
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // Filtrado departamental de órdenes
+  const seguimientoOrders = useMemo(() => {
+    return globalOrders
+      .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
+      .filter((o): o is PurchaseOrder => o !== null);
+  }, [globalOrders, deptFilter]);
 
-      const k = e.key.toLowerCase();
-      if (k === 'n') {
-        e.preventDefault();
-        nav('/ordenes?nueva=1');
-      } else if (k === 'f') {
-        e.preventDefault();
-        setShowQuickInvoice(true);
-      } else if (k === 'c') {
-        e.preventDefault();
-        setShowQuickCollection(true);
-      } else if (k === 'p') {
-        e.preventDefault();
-        setShowMagicPaste(true);
-      } else if (k === 'r') {
-        e.preventDefault();
-        void recalcStats();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nav, recalcStats]);
-
-  const [statsDoc, loadingStats, statsError] = useDocumentData(doc(db, 'stats', 'dashboard'));
-  
-  const loading = loadingStats || loadingGlobalOrders || loadingExp;
-  const error = statsError?.message;
-
-  useEffect(() => {
-    if (role !== 'admin') return;
-    const q = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(25));
-    const unsub = onSnapshot(q, (snap: QuerySnapshot) => {
-      const list: LiveLogEntry[] = [];
-      snap.forEach((d: QueryDocumentSnapshot) => {
-        const data = d.data();
-        list.push({
-          id: d.id,
-          user: data.user || 'Sistema',
-          action: data.action || 'Movimiento sin título',
-          details: data.details,
-          timestamp: data.timestamp?.toDate?.() ?? null,
-        });
-      });
-      setLiveLogs(list);
-    });
-  
-return () => unsub();
-    // `role` DEBE estar en las dependencias: llega asincrono desde
-    // AuthContext, asi que en el primer render vale undefined, el efecto sale
-    // por el early return y con el arreglo vacio nunca volvia a ejecutarse.
-    // Resultado: al administrador no le cargaban nunca los logs en vivo.
-  }, [role]);
-
-  useEffect(() => {
-    if (role !== 'admin') return;
-    const fetchHealth = async () => {
-      try {
-        const snap = await getDoc(doc(db, 'snapshots', 'latest'));
-        const snapDate = snap.exists() ? snap.data().createdAt?.toDate() : null;
-        
-        const logsQ = query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(50));
-        const logsSnap = await getDocs(logsQ);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        let logsToday = 0;
-        logsSnap.forEach(d => {
-          if (d.data().timestamp?.toDate() >= today) logsToday++;
-        });
-        
-        setHealth({ snapshotDate: snapDate, recentLogs: logsToday, dbStatus: 'OK' });
-      } catch (e) {
-        console.error('No se pudo leer el estado del sistema:', e);
-        setHealth({ snapshotDate: null, recentLogs: 0, dbStatus: 'Sin conexión' });
-      }
-    };
-    fetchHealth();
-  }, [role]);
-
-  // Auto-calibración preventiva del saldo histórico con Andrés si aún conserva el valor previo obsoleto o undefined
-  useEffect(() => {
-    if (role === 'admin' && config && (config.historicalDebtAndres === -123175.56 || config.historicalDebtAndres === undefined)) {
-      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: -102670.27 }, { merge: true }).catch((err: any) => {
-        console.warn('Auto-calibración config/financials:', err);
-      });
-    }
-  }, [role, config]);
-
-  async function handleCreateBackup() {
-    setBackupBusy(true);
-    try {
-      const ordersSnap = await getDocs(collection(db, PATHS.orders));
-      const allOrders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseOrder));
-      
-      const res = await createCloudBackup(user?.email, allOrders, purchases, expenses, config);
-      setHealth(h => ({ ...h, snapshotDate: new Date() }));
-      toast(`☁ Respaldo guardado en la nube (${res.count}/5 disponibles)`, 'ok');
-    } catch (e) {
-      toast(`No se pudo crear el respaldo: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBackupBusy(false);
-    }
-  }
-
-  async function handleOpenBackupsModal() {
-    setBackupBusy(true);
-    try {
-      const backups = await listCloudBackups();
-      setCloudBackups(backups);
-      setShowBackupsModal(true);
-    } catch (e) {
-      toast(`Error al listar respaldos: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBackupBusy(false);
-    }
-  }
-
-  async function handleRestoreBackup(snap: CloudSnapshotMeta) {
-    if (!(await confirmDialog({ message: `⚠️ ¿Deseas restaurar el respaldo del ${snap.createdAt?.toLocaleString('es-MX')}?\n\nEsto actualizará el estado de la nube con este punto de restauración.`, danger: true }))) {
-      return;
-    }
-    setBackupBusy(true);
-    try {
-      const res = await restoreCloudBackup(user?.email, snap);
-      toast(`✅ ${res.message}`, 'ok');
-      setShowBackupsModal(false);
-      window.location.reload();
-    } catch (e) {
-      toast(`Error al restaurar: ${(e as Error).message}`, 'bad');
-    } finally {
-      setBackupBusy(false);
-    }
-  }
-    // Filter global orders exactly as the original query did, PLUS by department and per-invoice
-    const activeOrders = useMemo(() => {
-      return globalOrders
-        .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
-        .filter((o): o is PurchaseOrder => {
-          if (!o) return false;
-          const passStatus = Boolean(o.invoiceStatuses?.some((s: string) => ['pending', 'overdue', 'manual_review', 'paid'].includes(s)));
-          return passStatus;
-        });
-    }, [globalOrders, deptFilter]);
-
-    // Seguimiento de Pedidos necesita ver el expediente DESDE que se pega la
-    // OC (status 'pedido', invoiceStatuses todavia vacio porque no existe
-    // ninguna factura) -- ahi es justo donde empieza a importar dar
-    // seguimiento a entregas. Con `activeOrders` (que exige invoiceStatuses
-    // con pending/overdue/manual_review/paid) un pedido recien creado era
-    // invisible en esta tabla hasta la primera factura, contradiciendo el
-    // proposito de la pantalla ("OC, Entregas, Pagos y Cobros").
-    const seguimientoOrders = useMemo(() => {
-      return globalOrders
-        .map((o: PurchaseOrder) => filterOrderByDepartment(o, deptFilter))
-        .filter((o): o is PurchaseOrder => o !== null);
-    }, [globalOrders, deptFilter]);
+  const activeOrders = useMemo(() => {
+    return globalOrders.filter(o => !(o as any).isDeleted);
+  }, [globalOrders]);
 
   // Métricas financieras departamentales en vivo para los botones de filtrado
   const deptPorCobrar = useMemo(() => {
     let all = 0;
     let th = 0;
     let gt = 0;
-    let allCount = 0;
-    let thCount = 0;
-    let gtCount = 0;
 
     globalOrders.forEach(o => {
-      if (o.isClosedShort) return;
+      if ((o as any).isDeleted) return;
       (o.invoices || []).forEach(inv => {
         const st = inv.creditCycle?.status;
         const paidAmt = inv.collection?.paidAmount || 0;
         const total = inv.financials?.invoiceTotal ?? (Number(inv.kilos || 0) * (config?.salePricePerKg || 43) * (1 + (config?.ivaRate || 0.16)));
-        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim().toUpperCase();
-
         if (st === 'paid' || st === 'collected' || (paidAmt >= total && total > 0)) return;
         if (total <= 0) return;
 
         all += total;
-        if (cr) allCount++;
-
         const dept = inferDepartment(o, inv);
-        if (dept === 'TH') {
-          th += total;
-          if (cr) thCount++;
-        } else if (dept === 'GT') {
-          gt += total;
-          if (cr) gtCount++;
-        }
+        if (dept === 'TH') th += total;
+        else if (dept === 'GT') gt += total;
       });
     });
 
-    return { all, th, gt, allCount, thCount, gtCount };
+    return { all, th, gt };
   }, [globalOrders, config]);
 
-  const k = useDashboardStats(statsDoc, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
+  const k = useDashboardStats(null, activeOrders, monthFilter, config as any, purchases, expenses, seguimientoOrders, deptFilter);
 
-  // El contador de "Vencido" del agregado del servidor cuenta EXPEDIENTES,
-  // no contrarecibos — correcto casi siempre (un expediente = una factura),
-  // pero incorrecto para cualquier expediente que agrupe varias facturas
-  // (como el de la migracion original). La etiqueta dice "contrarecibo(s)",
-  // asi que el conteo debe ser por factura, no por expediente.
+  const saldoCaja = useMemo(() => {
+    return round2((expenses || []).reduce((acc, e) => {
+      if (!e) return acc;
+      return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
+    }, 0));
+  }, [expenses]);
+
+  const pendingInvoicesCount = useMemo(() => {
+    return seguimientoOrders.filter(o => {
+      if ((o as any).isDeleted) return false;
+      if (o.isClosedShort) return false;
+      const orderStatus = (o as any).status || o.creditCycle?.status;
+      if (orderStatus === 'facturado' || orderStatus === 'completado' || orderStatus === 'revision') return false;
+      const s = getOrderSummary(o);
+      return s.kilosDelivered > s.kilosInvoiced + 0.05;
+    }).length;
+  }, [seguimientoOrders]);
+
+  const pendingCollectionsCount = useMemo(() => {
+    let count = 0;
+    seguimientoOrders.forEach(o => {
+      (o.invoices || []).forEach(inv => {
+        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'in_review' || inv.creditCycle?.status === 'paid') {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [seguimientoOrders]);
+
   const contrarecibosVencidosCount = useMemo(() => {
     const ahora = Date.now();
     let n = 0;
@@ -333,60 +230,14 @@ return () => unsub();
         if (inv.creditCycle?.status !== 'pending' && inv.creditCycle?.status !== 'overdue') continue;
         const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
         if (!cr) continue;
-        const due = toDate(inv.creditCycle?.dueDate);
-        const venc: number | null = due ? due.getTime() : null;
-        if (venc !== null && venc < ahora) n++;
+        const due = inv.creditCycle?.dueDate;
+        const dueMs = due ? (typeof (due as any).toDate === 'function' ? (due as any).toDate().getTime() : new Date(due as any).getTime()) : null;
+        if (dueMs !== null && dueMs < ahora) n++;
       }
     }
     return n;
   }, [activeOrders]);
 
-  const saldoCaja = round2((expenses || []).reduce((acc, e) => {
-    if (!e) return acc;
-    return acc + (e.type === 'ingreso' ? e.amount : -e.amount);
-  }, 0));
-
-  const pendingInvoicesCount = useMemo(() => {
-    return seguimientoOrders.filter(o => {
-      if (o.isClosedShort) return false;
-      const s = getOrderSummary(o);
-      return s.kilosDelivered > s.kilosInvoiced + 0.01;
-    }).length;
-  }, [seguimientoOrders]);
-
-  const pendingCollectionsCount = useMemo(() => {
-    let count = 0;
-    seguimientoOrders.forEach(o => {
-      (o.invoices || []).forEach(inv => {
-        if (inv.creditCycle?.status === 'pending' || inv.creditCycle?.status === 'overdue' || inv.creditCycle?.status === 'paid') {
-          count++;
-        }
-      });
-    });
-    return count;
-  }, [seguimientoOrders]);
-
-  if (loading || loadingExp) {
-    return (
-      <div style={{ padding: '0 0 40px' }}>
-        <div className="page-head">
-          <Skeleton className="skeleton-row" style={{ width: 280, height: 28, marginBottom: 12 }} />
-          <Skeleton className="skeleton-row" style={{ width: '60%', height: 16 }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {[1,2,3,4].map(i => <Skeleton key={i} className="skeleton-card" />)}
-        </div>
-        <div className="kpi-grid">
-          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="skeleton-card" style={{ height: 85 }} />)}
-        </div>
-      </div>
-    );
-  }
-  if (error) return <div className="alert bad">{error}</div>;
-
-  // getRentabilidadHtml (el generador puro de HTML, ~70 lineas de template
-  // literal) se extrajo a DashboardReports.ts. Estas 2 funciones se quedan
-  // aqui porque si tocan cosas del componente (Blob, window, toast).
   function printRentabilidad() {
     const html = getRentabilidadHtml(settings, k, config);
     const blob = new Blob([html], { type: 'text/html' });
@@ -402,18 +253,11 @@ return () => unsub();
   }
 
   async function handleRecibir(r: { orderId: string; invoiceId: string; folio: string; cr: string; invoiceTotal: number; commission: number; net: number }) {
-    // FIX: el boton "Recibir" no se deshabilitaba mientras la operacion
-    // estaba en vuelo (confirmDialog + 2 escrituras a Firestore). En una
-    // conexion lenta, si no se ve nada pasar de inmediato, un segundo tap
-    // sobre la misma factura corria TODO el flujo otra vez -- duplicando
-    // el ingreso en Caja Chica para el mismo dinero. recibiendoId bloquea
-    // la fila especifica mientras esta corriendo esta operacion.
     if (recibiendoId === r.invoiceId) return;
     setRecibiendoId(r.invoiceId);
     try {
       if (!(await confirmDialog(`¿Mover $${r.net.toLocaleString('es-MX', {minimumFractionDigits:2})} de la factura #${r.folio} a Caja Chica?`))) return;
 
-      // 1. Encontrar la orden para actualizar el invoice especifico
       const orderRef = doc(db, PATHS.orders, r.orderId);
       const orderSnap = await getDoc(orderRef);
       if (!orderSnap.exists()) throw new Error("Orden no encontrada");
@@ -428,7 +272,6 @@ return () => unsub();
 
       await updateDoc(orderRef, { invoices });
 
-      // 2. Ingreso a caja chica
       await addDoc(collection(db, PATHS.expenses), {
         date: Timestamp.now(),
         concept: `Cobro factura #${r.folio} (CR: ${r.cr})`,
@@ -446,949 +289,220 @@ return () => unsub();
     }
   }
 
-  // El panel "Por Recibir del Contador" (~100 lineas de JSX) se extrajo a
-  // components/Dashboard/PorRecibirPanel.tsx como componente presentacional
-  // puro. handleRecibir (arriba) se queda aqui porque si toca Firestore.
+  const handleCreateBackup = async () => {
+    setBackupBusy(true);
+    try {
+      await createCloudBackup(user?.email, globalOrders, purchases, expenses, config as any);
+      const updated = await listCloudBackups();
+      setCloudBackups(updated);
+      toast('✅ Respaldo en la nube creado exitosamente.', 'ok');
+    } catch (err) {
+      toast(`❌ Error al crear respaldo: ${(err as Error).message}`, 'bad');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleOpenBackupsModal = async () => {
+    setBackupBusy(true);
+    try {
+      const snaps = await listCloudBackups();
+      setCloudBackups(snaps);
+      setShowBackupsModal(true);
+    } catch (err) {
+      toast(`❌ Error al consultar respaldos: ${(err as Error).message}`, 'bad');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleRestoreBackup = async (snap: any) => {
+    setBackupBusy(true);
+    try {
+      await restoreCloudBackup(user?.email, snap);
+      toast('✅ Respaldo restaurado con éxito.', 'ok');
+      setShowBackupsModal(false);
+    } catch (err) {
+      toast(`❌ Error al restaurar: ${(err as Error).message}`, 'bad');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const [isHealing, setIsHealing] = useState(false);
+
+  const handleAutoHeal = async () => {
+    setIsHealing(true);
+    triggerHaptic('medium');
+    try {
+      const res = await autoHealAndPurgeErpDatabase();
+      sound.playChaChing();
+      confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+      toast(`✨ ${res.message}`, 'ok');
+    } catch (e: any) {
+      toast(`❌ Error en auto-sanación: ${e.message}`, 'bad');
+    } finally {
+      setIsHealing(false);
+    }
+  };
+
+  if (loadingGlobalOrders || loadingExp) {
+    return (
+      <div style={{ padding: '0 0 40px' }}>
+        <div className="page-head">
+          <Skeleton className="skeleton-row" style={{ width: 280, height: 28, marginBottom: 12 }} />
+          <Skeleton className="skeleton-row" style={{ width: '60%', height: 16 }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="skeleton-card" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
-      {/* ─── 0. LIVE FINANCIAL TICKER (FRANJA DE PULSO EN VIVO) ────────────── */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.88) 100%)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: 16,
-          padding: '10px 18px',
-          marginBottom: 20,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 14,
-          boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.25)',
-          color: '#f8fafc',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14 }}>💵</span>
-            <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Efectivo en Caja</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: saldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(saldoCaja)}</div>
-            </div>
-          </div>
+      {/* 0. Franja Superior de Pulso Financiero en Vivo */}
+      <DashboardLiveTicker
+        saldoCaja={saldoCaja}
+        porCobrar={k.porCobrar}
+        deudaAndres={k.deudaAndres}
+        providerName={settings?.providerName || 'Andrés'}
+        kilosTotal={k.kilosTotal}
+      />
 
-          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+      {/* 1. Encabezado Maestro y Filtro Departamental (TH vs GT) */}
+      <DashboardHeaderToolbar
+        nav={nav}
+        toast={toast}
+        deptFilter={deptFilter}
+        setDeptFilter={setDeptFilter}
+        monthFilter={monthFilter}
+        setMonthFilter={setMonthFilter}
+        deptPorCobrar={deptPorCobrar}
+        settings={settings}
+        mesesKeys={k.mesesKeys}
+        showReportsMenu={showReportsMenu}
+        setShowReportsMenu={setShowReportsMenu}
+        showExportMenu={showExportMenu}
+        setShowExportMenu={setShowExportMenu}
+        onOpenCorteMensual={() => setShowCorteMensual(true)}
+        onOpenCorteSemanal={() => setShowCorteSemanal(true)}
+        onOpenBalanza={() => setShowBalanza(true)}
+        onOpenSincronizador={() => setShowSincronizador(true)}
+        onOpenUniversalUpload={() => setShowUniversalUpload(true)}
+        onAutoHeal={handleAutoHeal}
+        isHealing={isHealing}
+        globalOrders={globalOrders}
+        purchases={purchases}
+        expenses={expenses}
+        config={config}
+        shareRentabilidad={shareRentabilidad}
+        printRentabilidad={printRentabilidad}
+      />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14 }}>🏷️</span>
-            <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Por Cobrar (Providencia)</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8' }}>{money(k.porCobrar)}</div>
-            </div>
-          </div>
+      {/* 2. Hero Suite de 4 Pilares Financieros */}
+      <ModernKpiGrid
+        k={k}
+        role={role}
+        saldoCaja={saldoCaja}
+        monthFilter={monthFilter}
+        nav={nav}
+        contrarecibosVencidosCount={contrarecibosVencidosCount}
+        config={config}
+      />
 
-          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
+      {/* 3. Selector de Espacio de Trabajo (Pestañas Modulares) */}
+      <DashboardViewModeTabs
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        seguimientoOrdersCount={seguimientoOrders.length}
+        providerName={settings?.providerName || 'Andrés'}
+      />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14 }}>⚖️</span>
-            <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Saldo con {settings.providerName || 'Andrés'}</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: k.deudaAndres >= 0 ? '#34d399' : '#fbbf24' }}>
-                {money(k.deudaAndres)}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ width: 1, height: 26, background: 'rgba(255, 255, 255, 0.12)' }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14 }}>📦</span>
-            <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Kilos en Proceso</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#c084fc' }}>{k.kilosTotal.toLocaleString('es-MX')} kg</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              borderRadius: 999,
-              padding: '3px 10px',
-              fontSize: 11,
-              fontWeight: 800,
-              color: '#34d399',
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-            En Línea
-          </span>
-        </div>
-      </div>
-
-      {/* ─── 1. ENCABEZADO PRINCIPAL CONSOLIDADO (LIMPIO Y ERGONÓMICO) ──────── */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 14 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
-              <span className="badge" style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 8px' }}>
-                v{__APP_VERSION__} Enterprise
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
-              Control Integral de Compra-Venta, Flujo de Efectivo, Cobranza y Suministro a Providencia.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* BOTÓN HERO: NUEVO EXPEDIENTE */}
-            <button
-              className="btn btn-primary"
-              style={{
-                background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 13.5,
-                padding: '9px 18px',
-                borderRadius: 12,
-                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                cursor: 'pointer',
-              }}
-              onClick={() => nav('/ordenes?nueva=1')}
-            >
-              <span style={{ fontSize: 16 }}>➕</span>
-              <span>Nuevo Expediente</span>
-            </button>
-
-            {/* DROPDOWN 1: REPORTES & BALANZA */}
-            <div className="dropdown-container" style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowReportsMenu((prev) => !prev);
-                  setShowExportMenu(false);
-                }}
-                style={{
-                  background: 'var(--paper-raised)',
-                  border: '1px solid var(--line)',
-                  color: 'var(--ink)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  padding: '9px 14px',
-                  borderRadius: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  cursor: 'pointer',
-                  boxShadow: 'var(--shadow-sm)',
-                }}
-              >
-                <span>📑</span>
-                <span>Reportes & Balanza</span>
-                <span style={{ fontSize: 10, opacity: 0.6 }}>{showReportsMenu ? '▲' : '▼'}</span>
-              </button>
-
-              {showReportsMenu && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '110%',
-                    right: 0,
-                    zIndex: 100,
-                    background: 'var(--paper-raised)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 14,
-                    padding: 6,
-                    minWidth: 240,
-                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                  }}
-                >
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowReportsMenu(false); setShowCorteMensual(true); }}
-                  >
-                    📑 Corte Mensual Contable
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowReportsMenu(false); setShowCorteSemanal(true); }}
-                  >
-                    📅 Corte Semanal (Histórico)
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowReportsMenu(false); setShowBalanza(true); }}
-                  >
-                    ⚖️ Balanza de Comprobación
-                  </button>
-                  <div style={{ height: 1, background: 'var(--line-soft)', margin: '2px 0' }} />
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#7c3aed', padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowReportsMenu(false); setShowSincronizador(true); }}
-                  >
-                    ⚡ Sincronizar 10 Contrarecibos
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* DROPDOWN 2: EXPORTAR & RESPALDO */}
-            <div className="dropdown-container" style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowExportMenu((prev) => !prev);
-                  setShowReportsMenu(false);
-                }}
-                style={{
-                  background: 'var(--paper-raised)',
-                  border: '1px solid var(--line)',
-                  color: 'var(--ink)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  padding: '9px 14px',
-                  borderRadius: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  cursor: 'pointer',
-                  boxShadow: 'var(--shadow-sm)',
-                }}
-              >
-                <span>📥</span>
-                <span>Exportar</span>
-                <span style={{ fontSize: 10, opacity: 0.6 }}>{showExportMenu ? '▲' : '▼'}</span>
-              </button>
-
-              {showExportMenu && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '110%',
-                    right: 0,
-                    zIndex: 100,
-                    background: 'var(--paper-raised)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 14,
-                    padding: 6,
-                    minWidth: 230,
-                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                  }}
-                >
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={async () => {
-                      setShowExportMenu(false);
-                      toast('Generando sábana Excel con los datos actuales...', 'info');
-                      try {
-                        await exportToExcel();
-                        toast('Sábana Excel descargada con éxito', 'ok');
-                      } catch (e) {
-                        toast(`Error al exportar: ${(e as Error).message}`, 'bad');
-                      }
-                    }}
-                  >
-                    📊 Sábana Excel en Vivo
-                  </button>
-
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => {
-                      setShowExportMenu(false);
-                      try {
-                        downloadBackupJsonFile(globalOrders, purchases, expenses, config as any);
-                        toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
-                      } catch (e: any) {
-                        toast(`Error al exportar: ${e.message}`, 'bad');
-                      }
-                    }}
-                  >
-                    💾 Respaldo Local (1 Clic)
-                  </button>
-
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowExportMenu(false); void shareRentabilidad(); }}
-                  >
-                    📄 PDF Resumen de Rentabilidad
-                  </button>
-
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 600, padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowExportMenu(false); printRentabilidad(); }}
-                  >
-                    🖨️ Imprimir Reporte
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* BARRA DE FILTRADO UNIFICADA CON MONTOS EN VIVO */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12,
-            background: 'var(--paper-raised)',
-            padding: '10px 16px',
-            borderRadius: 16,
-            border: '1px solid var(--line-soft)',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setDeptFilter('ALL')}
-              style={{
-                borderRadius: 10,
-                padding: '7px 14px',
-                fontSize: 13,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                border: deptFilter === 'ALL' ? '1px solid var(--accent)' : '1px solid var(--line)',
-                background: deptFilter === 'ALL' ? 'var(--accent-tint)' : 'var(--paper)',
-                color: deptFilter === 'ALL' ? 'var(--accent-deep)' : 'var(--ink)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <span>🏢 Toda la Empresa</span>
-              <span style={{
-                background: deptFilter === 'ALL' ? 'var(--accent)' : 'var(--paper-sunk)',
-                color: deptFilter === 'ALL' ? '#fff' : 'var(--ink-soft)',
-                fontSize: 11,
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: 999,
-              }}>
-                {money(deptPorCobrar.all)}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDeptFilter('TH')}
-              style={{
-                borderRadius: 10,
-                padding: '7px 14px',
-                fontSize: 13,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                border: deptFilter === 'TH' ? '1px solid #0284c7' : '1px solid var(--line)',
-                background: deptFilter === 'TH' ? '#e0f2fe' : 'var(--paper)',
-                color: deptFilter === 'TH' ? '#0369a1' : 'var(--ink)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              title={`${settings.deptNameTH || 'Textil Hogar'} — Responsable: ${settings.managerTH || 'Lic. Nava'}`}
-            >
-              <span>🔵 TH · {settings.managerTH || 'Nava'}</span>
-              <span style={{
-                background: deptFilter === 'TH' ? '#0284c7' : 'var(--paper-sunk)',
-                color: deptFilter === 'TH' ? '#fff' : 'var(--ink-soft)',
-                fontSize: 11,
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: 999,
-              }}>
-                {money(deptPorCobrar.th)}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDeptFilter('GT')}
-              style={{
-                borderRadius: 10,
-                padding: '7px 14px',
-                fontSize: 13,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                border: deptFilter === 'GT' ? '1px solid #16a34a' : '1px solid var(--line)',
-                background: deptFilter === 'GT' ? '#dcfce7' : 'var(--paper)',
-                color: deptFilter === 'GT' ? '#15803d' : 'var(--ink)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              title={`${settings.deptNameGT || 'Grupo Textil'} — Responsable: ${settings.managerGT || 'Lic. Evelia'}`}
-            >
-              <span>🟢 GT · {settings.managerGT || 'Evelia'}</span>
-              <span style={{
-                background: deptFilter === 'GT' ? '#16a34a' : 'var(--paper-sunk)',
-                color: deptFilter === 'GT' ? '#fff' : 'var(--ink-soft)',
-                fontSize: 11,
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: 999,
-              }}>
-                {money(deptPorCobrar.gt)}
-              </span>
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
-              📅 Período P&L:
-            </span>
-            <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 10,
-                border: '1px solid var(--line)',
-                background: 'var(--paper)',
-                fontSize: 13,
-                fontWeight: 700,
-                color: 'var(--ink)',
-                outline: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="ALL">Histórico Global</option>
-              {[...k.mesesKeys].reverse().map((m) => (
-                <option key={m} value={m}>
-                  {monthLabel(m)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── 2. HERO SUITE DE 4 PILARES FINANCIEROS (SIEMPRE VISIBLE) ──────── */}
-      {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-          <Skeleton style={{ height: 150, borderRadius: 20 }} />
-        </div>
-      ) : (
-        <ModernKpiGrid
-          k={k}
-          role={role}
-          saldoCaja={saldoCaja}
-          monthFilter={monthFilter}
-          nav={nav}
-          contrarecibosVencidosCount={contrarecibosVencidosCount}
-          config={config}
-        />
-      )}
-
-      {/* ─── 3. SELECTOR DE ESPACIO DE TRABAJO (PESTAÑAS MODULARES DE ALTA DENSIDAD) ───── */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          marginBottom: 24,
-          background: 'var(--paper-sunk)',
-          padding: 6,
-          borderRadius: 16,
-          border: '1px solid var(--line-soft)',
-          overflowX: 'auto',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setViewMode('executive')}
-          style={{
-            flex: 1,
-            minWidth: 150,
-            padding: '10px 16px',
-            borderRadius: 12,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            background: viewMode === 'executive' ? 'var(--paper-raised)' : 'transparent',
-            color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'executive' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span>🌟</span>
-          <span>Resumen Ejecutivo</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setViewMode('orders')}
-          style={{
-            flex: 1,
-            minWidth: 150,
-            padding: '10px 16px',
-            borderRadius: 12,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            background: viewMode === 'orders' ? 'var(--paper-raised)' : 'transparent',
-            color: viewMode === 'orders' ? 'var(--accent)' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'orders' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span>📁</span>
-          <span>Expedientes & OCs ({seguimientoOrders.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setViewMode('collection')}
-          style={{
-            flex: 1,
-            minWidth: 150,
-            padding: '10px 16px',
-            borderRadius: 12,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            background: viewMode === 'collection' ? 'var(--paper-raised)' : 'transparent',
-            color: viewMode === 'collection' ? '#0284c7' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'collection' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span>📆</span>
-          <span>Centro de Cobranza</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setViewMode('production')}
-          style={{
-            flex: 1,
-            minWidth: 150,
-            padding: '10px 16px',
-            borderRadius: 12,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            background: viewMode === 'production' ? 'var(--paper-raised)' : 'transparent',
-            color: viewMode === 'production' ? '#7c3aed' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'production' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span>🏭</span>
-          <span>Compras & {settings.providerName || 'Andrés'}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setViewMode('pnl')}
-          style={{
-            flex: 1,
-            minWidth: 150,
-            padding: '10px 16px',
-            borderRadius: 12,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            background: viewMode === 'pnl' ? 'var(--paper-raised)' : 'transparent',
-            color: viewMode === 'pnl' ? '#059669' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'pnl' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span>⚖️</span>
-          <span>Corte & P&L (50/50)</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setViewMode('all')}
-          style={{
-            flex: 1,
-            minWidth: 110,
-            padding: '10px 14px',
-            borderRadius: 12,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            background: viewMode === 'all' ? 'var(--paper-raised)' : 'transparent',
-            color: viewMode === 'all' ? 'var(--ink)' : 'var(--ink-soft)',
-            boxShadow: viewMode === 'all' ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span>👁️</span>
-          <span>Ver Todo</span>
-        </button>
-      </div>
-
-      {/* ─── 4. CONTENIDO MODULAR SEGÚN EL ESPACIO DE TRABAJO SELECCIONADO ──── */}
+      {/* 4. Contenido Modular del Espacio de Trabajo Seleccionado */}
       <ErrorBoundary>
-        {/* VISTA 1: RESUMEN EJECUTIVO */}
         {(viewMode === 'executive' || viewMode === 'all') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {/* A. Radar Proactivo + Dock de Comandos Rápidos */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
-              {/* Lado Izquierdo: Asistente Proactivo */}
-              <div style={{ flex: 1.5 }}>
-                <ProactiveBriefingCard
-                  orders={seguimientoOrders}
-                  config={config as any}
-                  onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-                  onOpenQuickCollection={() => setShowQuickCollection(true)}
-                  onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-                />
-              </div>
-
-              {/* Lado Derecho: Acciones Rápidas Ejecutivas */}
-              <div style={{ flex: 1 }}>
-                <QuickActionsBar
-                  role={role}
-                  onNewOrder={() => nav('/ordenes?nueva=1')}
-                  onOpenContrarecibos={() => setShowContrarecibosDrawer(true)}
-                  onOpenSeguimiento={() => setShowSeguimientoDrawer(true)}
-                  onQuickInvoice={() => setShowQuickInvoice(true)}
-                  onQuickCollection={() => setShowQuickCollection(true)}
-                  onQuickPay={() => setShowQuickPay(true)}
-                  onOpenMagicPaste={() => setShowMagicPaste(true)}
-                  onOpenCorteMensual={() => setShowCorteMensual(true)}
-                  onRecalc={() => void recalcStats()}
-                  recalcBusy={recalcBusy}
-                />
-              </div>
-            </div>
-
-            {/* B. Pipeline Financiero de 5 Estaciones */}
-            <MoneyFlowPipeline
-              orders={seguimientoOrders}
-              expenses={expenses}
-              config={config}
-              nav={nav}
-              selectedStage={selectedPipelineStage}
-              onSelectStage={setSelectedPipelineStage}
-            />
-
-            {/* C. Tabla de Órdenes Vinculada al Pipeline */}
-            <SeguimientoPedidosTable
-              orders={seguimientoOrders}
-              filterStage={selectedPipelineStage}
-              onFilterStageChange={setSelectedPipelineStage}
-              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-              onQuickInvoice={() => setShowQuickInvoice(true)}
-              onQuickCollection={() => setShowQuickCollection(true)}
-            />
-
-            {/* D. Panel Ejecutivo de Corte Financiero & Reparto 50/50 */}
-            {role === 'admin' && (
-              <ExecutiveFinancialCard
-                orders={seguimientoOrders}
-                config={config}
-                saldoCaja={saldoCaja}
-              />
-            )}
-          </div>
+          <DashboardExecutiveView
+            seguimientoOrders={seguimientoOrders}
+            config={config as any}
+            saldoCaja={saldoCaja}
+            expenses={expenses}
+            nav={nav}
+            selectedPipelineStage={selectedPipelineStage}
+            onSelectPipelineStage={setSelectedPipelineStage}
+            onOpenQuickInvoice={(orderId) => {
+              if (orderId) setSelectedInvoiceOrderId(orderId);
+              setShowQuickInvoice(true);
+            }}
+            onOpenQuickCollection={() => setShowQuickCollection(true)}
+            onOpenQuickDelivery={(orderId) => {
+              if (orderId) setSelectedDeliveryOrderId(orderId);
+              setShowQuickDelivery(true);
+            }}
+            onOpenUniversalUpload={() => setShowUniversalUpload(true)}
+          />
         )}
 
-        {/* VISTA 2: EXPEDIENTES & OCS */}
         {viewMode === 'orders' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>📁</span>
-              <span>Expedientes, Órdenes de Compra y Entregas en Báscula</span>
-            </div>
-
-            <SeguimientoPedidosTable
-              orders={seguimientoOrders}
-              filterStage={selectedPipelineStage}
-              onFilterStageChange={setSelectedPipelineStage}
-              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-              onQuickInvoice={() => setShowQuickInvoice(true)}
-              onQuickCollection={() => setShowQuickCollection(true)}
-            />
-          </div>
+          <DashboardOrdersView
+            seguimientoOrders={seguimientoOrders}
+            selectedPipelineStage={selectedPipelineStage}
+            onSelectPipelineStage={setSelectedPipelineStage}
+            nav={nav}
+            onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+            onOpenQuickCollection={() => setShowQuickCollection(true)}
+          />
         )}
 
-        {/* VISTA 3: CENTRO DE COBRANZA */}
         {(viewMode === 'collection' || viewMode === 'all') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
-            {viewMode !== 'all' && (
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>📆</span>
-                <span>Centro de Cobranza & Contrarecibos Providencia</span>
-              </div>
-            )}
-
-            <WeeklyCollectionSummary
-              orders={seguimientoOrders}
-              onOpenQuickCollection={() => setShowQuickCollection(true)}
-            />
-
-            <ContrarecibosTimeline orders={seguimientoOrders} nav={nav} />
-
-            <PorRecibirPanel porRecibir={k.porRecibir} totalPorRecibir={k.totalPorRecibir} onRecibir={handleRecibir} recibiendoId={recibiendoId} />
-
-            <FacturasSinCRPanel
-              orders={seguimientoOrders}
-              onOpenOrder={(order) => nav(`/ordenes?abrir=${order.id}`)}
-            />
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-              <SemaforoDelDia
-                orders={seguimientoOrders}
-                purchases={purchases}
-                config={config}
-                nav={nav}
-                onOpenQuickInvoice={() => setShowQuickInvoice(true)}
-                onOpenQuickCollection={() => setShowQuickCollection(true)}
-              />
-              <SmartAlerts orders={activeOrders} />
-              <CashflowProjection orders={activeOrders} />
-            </div>
-          </div>
+          <DashboardCollectionView
+            seguimientoOrders={seguimientoOrders}
+            activeOrders={activeOrders}
+            purchases={purchases}
+            config={config as any}
+            nav={nav}
+            k={k}
+            handleRecibir={handleRecibir}
+            recibiendoId={recibiendoId}
+            onOpenQuickCollection={() => setShowQuickCollection(true)}
+            onOpenQuickInvoice={() => setShowQuickInvoice(true)}
+            viewModeAll={viewMode === 'all'}
+          />
         )}
 
-        {/* VISTA 4: COMPRAS & KILOS PROVEEDOR */}
         {(viewMode === 'production' || viewMode === 'all') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: viewMode === 'all' ? 24 : 0 }}>
-            {viewMode !== 'all' && (
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🏭</span>
-                <span>Compras, Suministro y Kilos de {settings.providerName || 'Andrés'}</span>
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-              <KilosSpeedometer orders={activeOrders} />
-              <BandejaMaquilaWidget />
-            </div>
-          </div>
+          <DashboardProductionView
+            activeOrders={activeOrders}
+            providerName={settings?.providerName || 'Andrés'}
+            viewModeAll={viewMode === 'all'}
+          />
         )}
 
-        {/* VISTA 5: CORTE FINANCIERO & P&L (50/50) */}
         {viewMode === 'pnl' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#059669', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>⚖️</span>
-              <span>Corte Financiero Ejecutivo & Reparto de Utilidades 50/50</span>
-            </div>
-
-            <ExecutiveFinancialCard
-              orders={seguimientoOrders}
-              config={config}
-              saldoCaja={saldoCaja}
-            />
-          </div>
+          <DashboardPnlView
+            seguimientoOrders={seguimientoOrders}
+            config={config as any}
+            saldoCaja={saldoCaja}
+          />
         )}
       </ErrorBoundary>
 
-      {/* ─── 4. MONITOREO DE SISTEMA & ESTADO EN VIVO (FOOTER SUITE) ──────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 32, marginBottom: 32 }}>
-        {role === 'admin' && (
-          <div
-            style={{
-              padding: 16,
-              background: 'var(--paper-raised)',
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--line-soft)',
-              display: 'flex',
-              gap: 12,
-              alignItems: 'center',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                background: 'var(--ok-bg)',
-                color: 'var(--ok)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
-              }}
-            >
-              ⚡
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Último Movimiento</span>
-                <span className="live-status-pill" style={{ fontSize: 10, padding: '2px 6px' }}>● En vivo</span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 700, marginTop: 2 }}>
-                🕒 {liveLogs[0]?.timestamp ? liveLogs[0].timestamp.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }) : 'Esperando movimiento…'}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {liveLogs[0]?.action || 'Sistema iniciado'}
-              </div>
-              <button className="btn btn-primary" onClick={() => setShowLiveLogsModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-                ⚡ Ver Monitor de Eventos
-              </button>
-            </div>
-          </div>
-        )}
+      {/* 5. Pie de Monitoreo, Estado del Sistema y Respaldos */}
+      <DashboardSystemStatusFooter
+        role={role}
+        liveLogs={liveLogs}
+        onOpenLiveLogs={() => setShowLiveLogsModal(true)}
+        onOpenChangelog={() => setShowChangelogModal(true)}
+        health={health}
+        backupBusy={backupBusy}
+        recalcBusy={recalcBusy}
+        onCreateBackup={() => void handleCreateBackup()}
+        onOpenBackupsModal={() => void handleOpenBackupsModal()}
+        onRecalc={() => void recalcStats()}
+      />
 
-        <div
-          style={{
-            padding: 16,
-            background: 'var(--paper-raised)',
-            borderRadius: 'var(--radius)',
-            border: '1px solid var(--line-soft)',
-            display: 'flex',
-            gap: 12,
-            alignItems: 'center',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              background: 'var(--accent-sunk)',
-              color: 'var(--accent-deep)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 22,
-            }}
-          >
-            🚀
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>Versión del ERP</span>
-              <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>v{__APP_VERSION__}</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
-              📅 {SYSTEM_CHANGELOG[0]?.date ?? '—'}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {SYSTEM_CHANGELOG[0]?.summary ?? ''}
-            </div>
-            <button className="btn" onClick={() => setShowChangelogModal(true)} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
-              📜 Bitácora de Versiones
-            </button>
-          </div>
-        </div>
-
-        {role === 'admin' && (
-          <div
-            style={{
-              padding: 16,
-              background: 'var(--paper-raised)',
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--line-soft)',
-              display: 'flex',
-              gap: 12,
-              alignItems: 'center',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                background: 'var(--info-bg)',
-                color: 'var(--info)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
-              }}
-            >
-              🛡️
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 13 }}>Salud & Respaldos</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, marginBottom: 4 }}>
-                BD: <strong>{health.dbStatus}</strong> · Respaldo: {health.snapshotDate ? fmtDate(health.snapshotDate) : 'No detectado'}
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => void handleCreateBackup()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  {backupBusy ? 'Guardando…' : '☁ Respaldar'}
-                </button>
-                <button className="btn" onClick={() => void handleOpenBackupsModal()} disabled={backupBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  📋 5 Máx
-                </button>
-                <button className="btn" onClick={() => void recalcStats()} disabled={recalcBusy} style={{ fontSize: 10, padding: '3px 7px' }}>
-                  {recalcBusy ? '⏳ Recalculando…' : '🔄 Recalcular'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ─── MODALES Y DRAWERS DE CONTROL (MODULARIZADOS) ─────────────────── */}
+      {/* 6. Modales y Drawers Centralizados */}
       <DashboardModalsHost
         showContrarecibosDrawer={showContrarecibosDrawer}
         setShowContrarecibosDrawer={setShowContrarecibosDrawer}
@@ -1396,6 +510,11 @@ return () => unsub();
         setShowSeguimientoDrawer={setShowSeguimientoDrawer}
         showQuickInvoice={showQuickInvoice}
         setShowQuickInvoice={setShowQuickInvoice}
+        selectedInvoiceOrderId={selectedInvoiceOrderId}
+        setSelectedInvoiceOrderId={setSelectedInvoiceOrderId}
+        showQuickDelivery={showQuickDelivery}
+        setShowQuickDelivery={setShowQuickDelivery}
+        selectedDeliveryOrderId={selectedDeliveryOrderId}
         showQuickCollection={showQuickCollection}
         setShowQuickCollection={setShowQuickCollection}
         showQuickPay={showQuickPay}
@@ -1416,6 +535,8 @@ return () => unsub();
         setShowMagicPaste={setShowMagicPaste}
         showSincronizador={showSincronizador}
         setShowSincronizador={setShowSincronizador}
+        showUniversalUpload={showUniversalUpload}
+        setShowUniversalUpload={setShowUniversalUpload}
         seguimientoOrders={seguimientoOrders}
         activeOrders={activeOrders}
         globalOrders={globalOrders}
@@ -1432,24 +553,48 @@ return () => unsub();
         nav={nav}
       />
 
-      {/* La calculadora flotante ahora se monta una sola vez de forma
-          global en App.tsx (junto a CommandPalette/FloatingQuickHub), para
-          que el atajo funcione desde cualquier pantalla y no solo aquí. */}
-
-      {/* Dock Rápido de Acciones Locales en Móvil (1 Toque) */}
+      {/* 7. Dock Rápido en Móviles */}
       <MobileQuickDock
         onNewOrder={() => nav('/ordenes?nueva=1')}
-        onQuickInvoice={() => setShowQuickInvoice(true)}
+        onQuickDelivery={() => {
+          setSelectedDeliveryOrderId(null);
+          setShowQuickDelivery(true);
+        }}
+        onQuickInvoice={() => {
+          setSelectedInvoiceOrderId(null);
+          setShowQuickInvoice(true);
+        }}
         onQuickCollection={() => setShowQuickCollection(true)}
         onQuickPay={() => setShowQuickPay(true)}
+        onFastEntry={() => nav('/recepcion')}
         onMagicPaste={() => setShowMagicPaste(true)}
         onOpenCalculator={() => {
           const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
           if (btn) btn.click();
         }}
+        pendingDeliveriesCount={(seguimientoOrders || []).filter(o => {
+          if (!o || o.isClosedShort) return false;
+          const s = getOrderSummary(o);
+          return s.kilosDelivered < (Number(o.totalKilograms) || 0) - 0.01;
+        }).length}
         pendingInvoicesCount={pendingInvoicesCount}
         pendingCollectionsCount={pendingCollectionsCount}
       />
+
+      {/* 8. Panel de Edición Rápida Flotante (Admin) */}
+      {role === 'admin' && (
+        <>
+          <AdminFloatingButton onClick={() => setShowQuickEdit(true)} />
+          <AdminQuickEditPanel
+            open={showQuickEdit}
+            onClose={() => setShowQuickEdit(false)}
+            config={config as any}
+            saldoAndres={k.deudaAndres ?? 0}
+            totalPagadoAndres={k.totalPagadoAndres ?? 0}
+            totalPurchasesCost={k.totalPurchasesCost ?? 0}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -208,8 +208,8 @@ export function downloadBackupJsonFile(
   const dateTag = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
 
   const data = {
-    app: 'ControlBolsas-ERP Providencia Master',
-    version: '8.3.0',
+    app: 'BolsasElemental-ERP Master',
+    version: '8.9.60',
     exportDate: now.toISOString(),
     formattedDate: now.toLocaleString('es-MX'),
     counts: {

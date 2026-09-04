@@ -7,7 +7,7 @@ import { round2 } from '../../lib/finance';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../../hooks/useConfig';
 
-export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
+export function SmartAlerts({ orders, deudaAndres }: { orders: PurchaseOrder[]; deudaAndres?: number }) {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const nav = useNavigate();
   const { config } = useConfig();
@@ -41,7 +41,7 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
     // financials.saleTotal, calculado por computeFinancials en finance.ts)
     // esté muy por debajo de ese esperado, o sea negativo (pérdida).
     const salePrice = config?.salePricePerKg || 43;
-    const costPrice = config?.costPricePerKg || 42;
+    const costPrice = config?.costPricePerKg || 38;
     const expectedMarginRate = salePrice > 0 ? (salePrice - costPrice) / salePrice : 0;
     let marginAnomalyCount = 0;
     let worstMarginFolio = '';
@@ -126,9 +126,57 @@ export function SmartAlerts({ orders }: { orders: PurchaseOrder[] }) {
         onClick: () => nav('/ordenes')
       });
     }
+    // SPRINT 4 — Saldo anómalo con Andrés
+    // Un saldo absolutamente muy grande (positivo o negativo) generalmente
+    // es señal de que la calibración histórica está mal configurada.
+    const ANDRES_ANOMALY_THRESHOLD = 500_000;
+    if (deudaAndres !== undefined && Math.abs(deudaAndres) > ANDRES_ANOMALY_THRESHOLD) {
+      list.push({
+        id: 'andres_balance_anomaly',
+        type: 'warning' as const,
+        icon: '⚖️',
+        message: deudaAndres > 0
+          ? `El saldo a favor de Andrés es muy alto (${money(deudaAndres)}). ¿Es correcto? Si no, usa ⚡ Edición Rápida para calibrar.`
+          : `La empresa tiene una deuda muy alta con Andrés (${money(deudaAndres)}). Verifica la calibración en ⚡ Edición Rápida.`,
+        action: 'Calibrar',
+        onClick: () => {
+          const btn = document.querySelector<HTMLButtonElement>('[title="Edición Rápida del Sistema"]');
+          if (btn) btn.click();
+        }
+      });
+    }
+
+    // Un folio de factura apareciendo en dos expedientes distintos es una
+    // señal inequívoca de captura errónea (doble entrada, copiar/pegar
+    // mal). Se detecta aquí para que el admin la vea de inmediato.
+    const folioMap = new Map<string, string[]>(); // folio => [orderId, ...]
+    for (const o of (orders || [])) {
+      for (const inv of o.invoices ?? []) {
+        const f = inv.folio?.trim();
+        if (!f) continue;
+        const existing = folioMap.get(f) ?? [];
+        existing.push(o.id || o.oc || 'sin-id');
+        folioMap.set(f, existing);
+      }
+    }
+    const dupFolios = [...folioMap.entries()].filter(([, ids]) => ids.length > 1);
+    if (dupFolios.length > 0) {
+      const sample = dupFolios[0][0];
+      list.push({
+        id: 'duplicate_folios',
+        type: 'warning',
+        icon: '🔁',
+        message: dupFolios.length === 1
+          ? `El folio ${sample} aparece en ${dupFolios[0][1].length} expedientes distintos. Posible captura duplicada.`
+          : `${dupFolios.length} folios de factura están duplicados en varios expedientes (ej. ${sample}). Revisa la captura.`,
+        action: 'Ver Órdenes',
+        onClick: () => nav('/ordenes')
+      });
+    }
 
     return list;
   }, [orders, pendingApprovals, nav, config.salePricePerKg, config.costPricePerKg]);
+
 
   if (alerts.length === 0) return null;
 

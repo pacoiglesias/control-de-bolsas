@@ -2,7 +2,7 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Solo correos concretos de arranque seguro. NUNCA patrones abiertos como "^admin@.*":
+    // Solo correos concretos. NUNCA patrones abiertos como "^admin@.*":
     // cualquiera se registra con admin@loquesea.com contra la API publica
     // de Firebase Auth y queda con control total de los datos.
     function isAllowedOwnerEmail() {
@@ -12,39 +12,24 @@ service firebase.storage {
         && (
           request.auth.token.email == "paco.iglesias@gmail.com"
           || request.auth.token.email == "pacoismael@gmail.com"
+          || request.auth.token.email == "paco@cobertores.com"
         );
-    }
-
-    function hasAdminClaim() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
-    }
-
-    function hasManagerClaim() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && (request.auth.token.role == 'manager' || hasAdminClaim());
     }
 
     function isManagerOrAdmin() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && (
-          hasManagerClaim()
-          || (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
-              && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in ['admin', 'manager'])
+          (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
+           && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in ['admin', 'manager'])
           || isAllowedOwnerEmail()
         );
     }
 
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && (
-          hasAdminClaim()
-          || (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
-              && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+          (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
+           && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')
           || isAllowedOwnerEmail()
         );
     }

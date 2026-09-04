@@ -243,7 +243,7 @@ export function buildNetProfitData(
       const invSubtotal = (inv.financials as any)?.subtotal ?? inv.financials?.saleTotal ?? round2(kg * effectiveSalePrice);
       subtotalFacturado += invSubtotal;
 
-      const effectiveCostPrice = inv.financials?.costPricePerKg ?? (Number(o.customCostPrice) || config?.costPricePerKg || 42);
+      const effectiveCostPrice = inv.financials?.costPricePerKg ?? (Number(o.customCostPrice) || config?.costPricePerKg || 38);
       const invCost = inv.financials?.costTotal ?? round2(kg * effectiveCostPrice);
       costoAndresTotal += invCost;
 

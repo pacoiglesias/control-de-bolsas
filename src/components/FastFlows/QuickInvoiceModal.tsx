@@ -1,175 +1,308 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { doc, Timestamp, runTransaction } from 'firebase/firestore';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { useOrders } from '../../hooks/useOrders';
 import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
-import type { PurchaseOrder, Invoice, PurchaseOrderItem } from '../../lib/types';
-import { money, nombreClienteVisible } from '../../lib/format';
+import type { PurchaseOrder, Invoice, PurchaseOrderItem, Delivery } from '../../lib/types';
+import { round2, getOrderSummary, computeFinancials, validateInvoiceWeightGuardrail } from '../../lib/finance';
+import { nombreClienteVisible } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
-import { computeFinancials, round2, getOrderSummary } from '../../lib/finance';
 import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
+import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
+import { triggerHaptic } from '../../lib/hapticEngine';
+import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
+import { downloadCfdi40DraftXmlFile } from '../../lib/cfdiXmlGenerator';
+import { generatePrefacturaContadorMessage } from '../../lib/whatsappReminder';
 
-interface ConceptRow {
-  id: string;
-  code: string;
-  description: string;
-  unit: string;
-  unitPrice: number;
-  selected: boolean;
-  quantity: number;
-  maxAvailable: number;
-}
+// Subcomponentes modulares de Facturación Rápida
+import { InvoiceProgressBar } from './InvoiceProgressBar';
+import { InvoiceDeliveryHistory } from './InvoiceDeliveryHistory';
+import { InvoiceConceptTable, type ConceptRow } from './InvoiceConceptTable';
+import { InvoiceFinancialCard } from './InvoiceFinancialCard';
 
-export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
+export function QuickInvoiceModal({
+  orders,
+  initialOrderId,
+  onClose,
+}: {
+  orders: PurchaseOrder[];
+  initialOrderId?: string | null;
+  onClose: () => void;
+}) {
   const toast = useToast();
   const { config } = useConfig();
   const { orders: allOrders } = useOrders();
-  
-  // Encontrar órdenes que tienen kilos recibidos sin facturar
+
+  // Encontrar todas las órdenes activas/abiertas del ERP
   const validOrders = useMemo(() => {
-    return orders.filter(o => {
-      if (o.isClosedShort) return false;
+    const list = orders.filter((o) => {
+      if ((o as any).isDeleted) return false;
       const summary = getOrderSummary(o);
-      return summary.kilosDelivered > summary.kilosInvoiced + 0.01;
+      const kOrd = Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      const isPaidAndDelivered =
+        (o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid') &&
+        summary.kilosInvoiced >= summary.kilosDelivered - 0.01 &&
+        summary.kilosDelivered >= kOrd - 0.01;
+      return !isPaidAndDelivered;
+    });
+
+    return list.sort((a, b) => {
+      const sa = getOrderSummary(a);
+      const sb = getOrderSummary(b);
+      const unbilledA = sa.kilosDelivered - sa.kilosInvoiced;
+      const unbilledB = sb.kilosDelivered - sb.kilosInvoiced;
+      if (unbilledA > 0.01 && unbilledB <= 0.01) return -1;
+      if (unbilledB > 0.01 && unbilledA <= 0.01) return 1;
+      const kOrdA = Number(a.totalKilograms) || (a.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      const kOrdB = Number(b.totalKilograms) || (b.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      return kOrdA - sa.kilosDelivered - (kOrdB - sb.kilosDelivered);
     });
   }, [orders]);
 
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(() => {
+    if (initialOrderId && validOrders.some((o) => o.id === initialOrderId)) {
+      return initialOrderId;
+    }
+    return validOrders[0]?.id || '';
+  });
   const [folio, setFolio] = useState('');
   const [saving, setSaving] = useState(false);
   const [conceptRows, setConceptRows] = useState<ConceptRow[]>([]);
 
-  const selectedOrder = validOrders.find(o => o.id === selectedOrderId);
-  
+  const selectedOrder = validOrders.find((o) => o.id === selectedOrderId);
+
   // Kilos disponibles sin facturar de la orden seleccionada
   const availableKilos = useMemo(() => {
     if (!selectedOrder) return 0;
     const summary = getOrderSummary(selectedOrder);
-    return round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+    const unbilledDelivered = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+    if (unbilledDelivered > 0.01) return unbilledDelivered;
+    const kOrd =
+      Number(selectedOrder.totalKilograms) ||
+      (selectedOrder.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+    const unbilledOrdered = round2(Math.max(0, kOrd - summary.kilosInvoiced));
+    return unbilledOrdered > 0 ? unbilledOrdered : kOrd;
   }, [selectedOrder]);
 
-  const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
-  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 42;
+  // Datos para la barra de 4 niveles
+  const progressData = useMemo(() => {
+    if (!selectedOrder) return { kilosOC: 0, kilosDelivered: 0, kilosInvoiced: 0, kilosPending: 0 };
+    const summary = getOrderSummary(selectedOrder);
+    const kilosOC = round2(
+      Number(selectedOrder.totalKilograms) ||
+        (selectedOrder.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+    );
+    return {
+      kilosOC,
+      kilosDelivered: round2(summary.kilosDelivered),
+      kilosInvoiced: round2(summary.kilosInvoiced),
+      kilosPending: round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced)),
+    };
+  }, [selectedOrder]);
 
-  const handleSelectOrder = (oId: string) => {
-    setSelectedOrderId(oId);
-    const order = validOrders.find(o => o.id === oId);
+  const uninvoicedDeliveriesList = useMemo(() => {
+    const list: { orderId: string; oc: string; client: string; delivery: Delivery }[] = [];
+    validOrders.forEach((o) => {
+      (o.deliveries || []).forEach((d) => {
+        if (!d.invoiced && Number(d.kilos) > 0) {
+          list.push({
+            orderId: o.id,
+            oc: o.oc || o.folio || 'S/N',
+            client: nombreClienteVisible(o.client),
+            delivery: d,
+          });
+        }
+      });
+    });
+    return list;
+  }, [validOrders]);
+
+  const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
+  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 38;
+
+  const loadRowsForOrder = (oId: string, ordersList: PurchaseOrder[]) => {
+    const order = ordersList.find((o) => o.id === oId);
     if (!order) {
       setConceptRows([]);
       return;
     }
 
-    const summary = getOrderSummary(order);
-    const pendingKilos = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
-    const uninvoicedDeliveries = (order.deliveries || []).filter(d => !d.invoiced);
+    const sellPrice = order.customSellPrice || config?.salePricePerKg || 43;
+    const breakdown = computeItemInvoiceBreakdown(order, sellPrice);
 
-    if (order.items && order.items.length > 0) {
-      const rows: ConceptRow[] = order.items.map((it, idx) => {
-        // Calcular kilos entregados no facturados para este item específico
-        const deliveredPending = uninvoicedDeliveries.reduce((sum, d) => {
-          const di = (d.items || []).find((x: any) => x.itemId === it.id || x.itemId === it.code);
-          return sum + (di ? Number(di.quantity || 0) : 0);
-        }, 0);
-
-        const maxAvail = deliveredPending > 0 
-          ? round2(deliveredPending)
-          : (order.items && order.items.length === 1 ? pendingKilos : round2(Math.min(it.quantity || 0, pendingKilos)));
-
-        return {
-          id: it.id || `item_${idx}_${Date.now()}`,
-          code: it.code || '24111500',
-          description: it.description || 'Bolsa de Polietileno',
-          unit: it.unit || 'KGM',
-          unitPrice: it.unitPrice || currentSellPrice,
-          selected: maxAvail > 0 || ((order.items?.length ?? 0) === 1),
-          quantity: maxAvail > 0 ? maxAvail : Number(it.quantity || 0),
-          maxAvailable: maxAvail > 0 ? maxAvail : Number(it.quantity || 0),
-        };
-      });
+    if (breakdown.length > 0) {
+      const rows: ConceptRow[] = breakdown.map((b) => ({
+        id: b.id,
+        code: b.code,
+        description: b.description,
+        unit: b.unit,
+        unitPrice: b.unitPrice,
+        selected: b.selected,
+        quantity: b.suggestedKilosToInvoice,
+        ocQuantity: b.ocQuantity,
+        alreadyInvoiced: b.alreadyInvoiced,
+        alreadyDelivered: b.alreadyDelivered,
+        uninvoicedDeliveredKilos: b.uninvoicedDeliveredKilos,
+        remainingOcKilos: b.remainingOcKilos,
+        maxAvailable: b.uninvoicedDeliveredKilos > 0 ? b.uninvoicedDeliveredKilos : b.remainingOcKilos,
+      }));
       setConceptRows(rows);
     } else {
-      setConceptRows([{
-        id: `default_${Date.now()}`,
-        code: '24111500',
-        description: 'Bolsa de Polietileno (Venta General)',
-        unit: 'KGM',
-        unitPrice: currentSellPrice,
-        selected: true,
-        quantity: pendingKilos,
-        maxAvailable: pendingKilos,
-      }]);
+      const summary = getOrderSummary(order);
+      const pendingKilos = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+      const defaultQty = pendingKilos > 0 ? pendingKilos : Number(order.totalKilograms) || 1000;
+      setConceptRows([
+        {
+          id: `default_${Date.now()}`,
+          code: '24141500',
+          description: 'Bolsa de Polietileno (Venta General)',
+          unit: 'KGM',
+          unitPrice: sellPrice,
+          selected: defaultQty > 0,
+          quantity: defaultQty,
+          ocQuantity: defaultQty,
+          alreadyInvoiced: summary.kilosInvoiced,
+          alreadyDelivered: summary.kilosDelivered,
+          uninvoicedDeliveredKilos: pendingKilos,
+          remainingOcKilos: defaultQty,
+          maxAvailable: defaultQty,
+        },
+      ]);
     }
   };
 
-  const toggleRowSelect = (index: number) => {
-    setConceptRows(prev => {
-      const next = [...prev];
-      next[index] = { ...next[index], selected: !next[index].selected };
-      return next;
-    });
+  // Auto-cargar conceptos al montar o cambiar orden seleccionada o lista de órdenes
+  useEffect(() => {
+    if (selectedOrderId) {
+      loadRowsForOrder(selectedOrderId, validOrders);
+    } else if (validOrders.length > 0) {
+      const firstId = validOrders[0].id;
+      setSelectedOrderId(firstId);
+      loadRowsForOrder(firstId, validOrders);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOrderId, validOrders]);
+
+  const handleSelectOrder = (oId: string) => {
+    setSelectedOrderId(oId);
+    loadRowsForOrder(oId, validOrders);
   };
 
-  const updateRowField = <K extends keyof ConceptRow>(index: number, field: K, val: ConceptRow[K]) => {
-    setConceptRows(prev => {
+  const applyTemplate = (items: PurchaseOrderItem[]) => {
+    const totalOcKilos = round2(items.reduce((s, it) => s + Number(it.quantity || 0), 0));
+    const rows: ConceptRow[] = items.map((it, idx) => {
+      const ocQty = Number(it.quantity || 0);
+      const q = availableKilos > 0 && totalOcKilos > 0 ? round2(availableKilos * (ocQty / totalOcKilos)) : ocQty;
+      return {
+        id: it.id || `item_${idx}_${Date.now()}`,
+        code: it.code || '24141500',
+        description: it.description || 'Bolsa de Polietileno',
+        unit: it.unit || 'KGM',
+        unitPrice: it.unitPrice || currentSellPrice,
+        selected: q > 0,
+        quantity: q > 0 ? q : 0,
+        ocQuantity: ocQty,
+        alreadyInvoiced: 0,
+        alreadyDelivered: q,
+        uninvoicedDeliveredKilos: q,
+        remainingOcKilos: ocQty,
+        maxAvailable: q > 0 ? q : ocQty,
+      };
+    });
+    setConceptRows(rows);
+    toast(`📦 ${rows.length} partidas de la plantilla cargadas`, 'ok');
+  };
+
+  const toggleRowSelect = useCallback((index: number) => {
+    setConceptRows((prev) => {
+      const next = [...prev];
+      const willBeSelected = !next[index].selected;
+      const currentQty = next[index].quantity;
+      const maxAvail = next[index].maxAvailable;
+      const newQty = willBeSelected && currentQty <= 0 && maxAvail > 0 ? maxAvail : currentQty;
+      next[index] = { ...next[index], selected: willBeSelected, quantity: newQty };
+      return next;
+    });
+  }, []);
+
+  const updateRowField = useCallback(<K extends keyof ConceptRow>(index: number, field: K, val: ConceptRow[K]) => {
+    setConceptRows((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: val };
       return next;
     });
-  };
+  }, []);
 
-  const fillRowMax = (index: number) => {
-    setConceptRows(prev => {
+  const fillRowMax = useCallback((index: number) => {
+    setConceptRows((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], quantity: next[index].maxAvailable || next[index].quantity, selected: true };
       return next;
     });
-  };
+  }, []);
 
-  const selectAllRows = (select: boolean) => {
-    setConceptRows(prev => prev.map(r => ({ ...r, selected: select })));
-  };
+  const selectAllRows = useCallback((select: boolean) => {
+    setConceptRows((prev) =>
+      prev.map((r) => {
+        const newQty = select && r.quantity <= 0 && r.maxAvailable > 0 ? r.maxAvailable : r.quantity;
+        return { ...r, selected: select, quantity: newQty };
+      })
+    );
+  }, []);
 
-  const addNewCustomRow = () => {
-    setConceptRows(prev => [
+  const addNewCustomRow = useCallback(() => {
+    setConceptRows((prev) => [
       ...prev,
       {
         id: `custom_${Date.now()}`,
-        code: '24111500',
+        code: '24141500',
         description: 'Concepto adicional...',
         unit: 'KGM',
         unitPrice: currentSellPrice,
         selected: true,
         quantity: 0,
+        ocQuantity: 0,
+        alreadyInvoiced: 0,
+        alreadyDelivered: 0,
+        uninvoicedDeliveredKilos: 0,
+        remainingOcKilos: availableKilos,
         maxAvailable: availableKilos,
-      }
+      },
     ]);
-  };
+  }, [currentSellPrice, availableKilos]);
 
-  const removeRow = (index: number) => {
-    setConceptRows(prev => prev.filter((_, i) => i !== index));
-  };
+  const removeRow = useCallback((index: number) => {
+    setConceptRows((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   // Cálculos en tiempo real basados en los conceptos seleccionados
-  const selectedRows = useMemo(() => conceptRows.filter(r => r.selected), [conceptRows]);
+  const selectedRows = useMemo(() => conceptRows.filter((r) => r.selected), [conceptRows]);
 
   const kilosToInvoice = useMemo(() => {
     return round2(selectedRows.reduce((acc, r) => acc + (Number(r.quantity) || 0), 0));
   }, [selectedRows]);
 
   const subtotalEstimado = useMemo(() => {
-    return round2(selectedRows.reduce((acc, r) => acc + ((Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice)), 0));
+    return round2(
+      selectedRows.reduce(
+        (acc, r) => acc + (Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice),
+        0
+      )
+    );
   }, [selectedRows, currentSellPrice]);
 
   const ivaRate = config?.ivaRate || 0.16;
-  const ivaEstimado = round2(subtotalEstimado * ivaRate);
-  const totalEstimadoConIva = round2(subtotalEstimado + ivaEstimado);
+  const ivaEstimado = useMemo(() => round2(subtotalEstimado * ivaRate), [subtotalEstimado, ivaRate]);
+  const totalEstimadoConIva = useMemo(() => round2(subtotalEstimado + ivaEstimado), [subtotalEstimado, ivaEstimado]);
 
-  const costoEstimado = kilosToInvoice * currentCostPrice;
-  const gananciaEstimada = subtotalEstimado - costoEstimado;
-  const pctFacturado = availableKilos > 0 ? Math.min(100, Math.round((kilosToInvoice / availableKilos) * 100)) : 0;
+  const costoEstimado = useMemo(() => round2(kilosToInvoice * currentCostPrice), [kilosToInvoice, currentCostPrice]);
+  const gananciaEstimada = useMemo(() => round2(subtotalEstimado - costoEstimado), [subtotalEstimado, costoEstimado]);
+  const pctAmparado = useMemo(() => {
+    return availableKilos > 0 ? Math.min(100, Math.round((kilosToInvoice / availableKilos) * 100)) : 0;
+  }, [kilosToInvoice, availableKilos]);
 
   // Verificación en tiempo real de factura duplicada
   const duplicateInvoice = useMemo(() => {
@@ -179,15 +312,32 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
 
   const handleInvoice = async () => {
     if (!selectedOrder) return;
-    if (selectedRows.length === 0) return toast('Selecciona al menos un concepto para facturar', 'bad');
-    if (kilosToInvoice <= 0) return toast('Ingresa una cantidad de kilos válida en los conceptos seleccionados', 'bad');
-    if (kilosToInvoice > availableKilos + 0.1) {
-      return toast(`⚠️ Los kilos seleccionados (${kilosToInvoice.toLocaleString('es-MX')} kg) superan los entregados pendientes (${availableKilos.toLocaleString('es-MX')} kg)`, 'bad');
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      return toast('Selecciona al menos un concepto para facturar', 'bad');
     }
-    if (!folio.trim()) return toast('Falta el folio de la factura', 'bad');
+    if (kilosToInvoice <= 0) {
+      triggerHaptic('warning');
+      return toast('Ingresa una cantidad de kilos válida en los conceptos seleccionados', 'bad');
+    }
+    if (kilosToInvoice > availableKilos + 0.1) {
+      triggerHaptic('warning');
+      return toast(
+        `⚠️ Los kilos seleccionados (${kilosToInvoice.toLocaleString('es-MX')} kg) superan los disponibles (${availableKilos.toLocaleString('es-MX')} kg)`,
+        'bad'
+      );
+    }
+    if (!folio.trim()) {
+      triggerHaptic('warning');
+      return toast('Falta el folio de la factura', 'bad');
+    }
 
     if (duplicateInvoice) {
-      return toast(`🚨 La factura #${folio.trim()} ya fue registrada en la OC #${duplicateInvoice.orderFolio}. No se permiten facturas duplicadas.`, 'bad');
+      triggerHaptic('warning');
+      return toast(
+        `🚨 La factura #${folio.trim()} ya fue registrada en la OC #${duplicateInvoice.orderFolio}. No se permiten facturas duplicadas.`,
+        'bad'
+      );
     }
 
     setSaving(true);
@@ -200,10 +350,10 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
       };
 
       const baseFinancials = computeFinancials(kilosToInvoice, effectiveConfig as any);
-      
-      const invoiceItems: PurchaseOrderItem[] = selectedRows.map(r => ({
+
+      const invoiceItems: PurchaseOrderItem[] = selectedRows.map((r) => ({
         id: r.id,
-        code: r.code || '24111500',
+        code: r.code || '24141500',
         description: r.description.trim(),
         quantity: Number(r.quantity) || 0,
         unit: r.unit || 'KGM',
@@ -211,7 +361,9 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
         amount: round2((Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice)),
       }));
 
-      const conceptNotes = invoiceItems.map(it => `${it.description} (${it.quantity.toLocaleString('es-MX')} kg)`).join(' · ');
+      const conceptNotes = invoiceItems
+        .map((it) => `${it.description} (${it.quantity.toLocaleString('es-MX')} kg)`)
+        .join(' · ');
 
       const newInvoice: Invoice = {
         id: newInvoiceId,
@@ -233,374 +385,335 @@ export function QuickInvoiceModal({ orders, onClose }: { orders: PurchaseOrder[]
           paidAmount: 0,
           contrareciboNumber: '',
           notes: conceptNotes ? `Conceptos: ${conceptNotes}` : '',
-        }
+        },
       };
 
-      // FIX (auditoría v8.9.5): antes esto marcaba `deliveries`/`invoices`
-      // partiendo de `selectedOrder` -- una copia capturada al abrir el
-      // modal, potencialmente desactualizada -- y escribía con updateDoc sin
-      // transacción. Un cambio concurrente al mismo expediente (otra entrega
-      // registrada, otra factura emitida desde otra pestaña/usuario) entre
-      // que se abrió el modal y que se guardó esta factura se perdía al
-      // sobrescribir el arreglo completo con la copia vieja. Mismo patrón ya
-      // usado en QuickCollectionModal/QuickPayModal: se relee el expediente
-      // real dentro de una transacción justo antes de escribir.
-      const orderRef = doc(db, PATHS.orders, selectedOrder.id);
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(orderRef);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
-        const liveData = snap.data() as PurchaseOrder;
+      // Vincular entregas de báscula a la factura usando el motor unificado
+      const updatedDeliveries = linkDeliveriesToInvoice(
+        selectedOrder.deliveries || [],
+        newInvoiceId,
+        kilosToInvoice
+      );
 
-        let remainingToInvoice = kilosToInvoice;
-        const updatedDeliveries = (liveData.deliveries || []).map(d => {
-          const dKilos = (d.items && d.items.length > 0)
-            ? d.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0)
-            : Number(d.kilos || 0);
+      const updatedInvoices = [...(selectedOrder.invoices || []), newInvoice];
 
-          if (!d.invoiced && dKilos > 0 && remainingToInvoice > 0) {
-            const inv = Math.min(dKilos, remainingToInvoice);
-            remainingToInvoice -= inv;
-            return { ...d, invoiced: true, invoiceId: newInvoiceId };
-          }
-          return d;
-        });
+      const payload = {
+        deliveries: updatedDeliveries,
+        ...camposInvoices(updatedInvoices),
+      };
 
-        const updatedInvoices = [...(liveData.invoices || []), newInvoice];
+      await updateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);
 
-        tx.update(orderRef, {
-          deliveries: updatedDeliveries,
-          ...camposInvoices(updatedInvoices),
-        });
-      });
-
-      toast('✅ Factura emitida con conceptos desglosados y vinculada exitosamente', 'ok');
+      triggerHaptic('success');
+      toast('✅ Factura emitida con conceptos desglosados y kilos descontados exitosamente', 'ok');
       onClose();
     } catch (e: any) {
+      triggerHaptic('error');
       toast(`Error al facturar: ${e.message}`, 'bad');
     } finally {
       setSaving(false);
     }
   };
 
+  // Entregas de la orden seleccionada
+  const orderDeliveries = useMemo((): Delivery[] => {
+    if (!selectedOrder) return [];
+    return [...(selectedOrder.deliveries || [])].sort((a, b) => {
+      if (!a.invoiced && b.invoiced) return -1;
+      if (a.invoiced && !b.invoiced) return 1;
+      const da = a.date
+        ? typeof (a.date as any).toDate === 'function'
+          ? (a.date as any).toDate().getTime()
+          : new Date(a.date as any).getTime()
+        : 0;
+      const db2 = b.date
+        ? typeof (b.date as any).toDate === 'function'
+          ? (b.date as any).toDate().getTime()
+          : new Date(b.date as any).getTime()
+        : 0;
+      return db2 - da;
+    });
+  }, [selectedOrder]);
+
+  const handleDownloadPrefactura = () => {
+    if (!selectedOrder) {
+      toast('⚠️ Selecciona un expediente primero', 'bad');
+      return;
+    }
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      toast('⚠️ Selecciona al menos una partida para la prefactura', 'bad');
+      return;
+    }
+
+    triggerHaptic('success');
+    const ocNum = selectedOrder.oc || selectedOrder.folio || 'S/N';
+
+    downloadPrefacturaExcel({
+      clientName: selectedOrder.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+      clientRfc: 'GTP930115PU1',
+      clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
+      clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
+      oc: ocNum,
+      notaCondiciones: `OC ${ocNum}`,
+      items: selectedRows.map((r) => {
+        const desc = r.code && !r.description.toLowerCase().includes(r.code.toLowerCase())
+          ? `${r.code} ${r.description}`
+          : r.description;
+        return {
+          kilos: Number(r.quantity) || 0,
+          description: desc,
+          unitPrice: Number(r.unitPrice) || currentSellPrice,
+        };
+      }),
+      metodoPago: 'PPD',
+      formaPago: '99 por definir',
+      claveSat: '24141500',
+      unidadSat: 'KGM',
+    });
+
+    toast(`📊 Prefactura Excel descargada para OC ${ocNum}`, 'ok');
+  };
+
+  const handleDownloadXmlDraft = () => {
+    if (!selectedOrder) {
+      toast('⚠️ Selecciona un expediente primero', 'bad');
+      return;
+    }
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      toast('⚠️ Selecciona al menos una partida para el borrador XML', 'bad');
+      return;
+    }
+
+    triggerHaptic('success');
+    const ocNum = selectedOrder.oc || selectedOrder.folio || 'S/N';
+
+    downloadCfdi40DraftXmlFile({
+      ocNumber: ocNum,
+      clientName: selectedOrder.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+      clientRfc: 'GTP930115PU1',
+      clientPostalCode: '90800',
+      clientRegimen: '601',
+      clientUsoCfdi: 'G01',
+      items: selectedRows.map((r) => {
+        const sub = round2((Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice));
+        const iva = round2(sub * 0.16);
+        return {
+          code: r.code || 'BOLSA',
+          description: r.description,
+          quantity: Number(r.quantity) || 0,
+          unitPrice: Number(r.unitPrice) || currentSellPrice,
+          subtotal: sub,
+          iva,
+          total: round2(sub + iva),
+        };
+      }),
+    });
+
+    toast(`📄 Borrador XML CFDI 4.0 descargado para OC ${ocNum}`, 'ok');
+  };
+
+  const handleWhatsAppContador = () => {
+    if (!selectedOrder) {
+      toast('⚠️ Selecciona un expediente primero', 'bad');
+      return;
+    }
+    if (selectedRows.length === 0) {
+      triggerHaptic('warning');
+      toast('⚠️ Selecciona al menos una partida para la prefactura', 'bad');
+      return;
+    }
+
+    triggerHaptic('success');
+    const ocNum = selectedOrder.oc || selectedOrder.folio || 'S/N';
+    const msg = generatePrefacturaContadorMessage({
+      oc: ocNum,
+      client: nombreClienteVisible(selectedOrder.client),
+      kilos: kilosToInvoice,
+      subtotal: subtotalEstimado,
+      iva: ivaEstimado,
+      total: totalEstimadoConIva,
+      itemsCount: selectedRows.length,
+    });
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(msg);
+      toast('📲 Mensaje copiado al portapapeles. ¡Pégalo en WhatsApp junto con el Excel!', 'ok');
+    }
+
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+  };
+
   return (
     <Modal title="🧾 Facturación Rápida Multi-Concepto" onClose={onClose} wide>
+      <style>{`
+        @media (max-width: 680px) {
+          .qim-concept-table { display: none !important; }
+          .qim-concept-cards { display: flex !important; }
+        }
+        @media (min-width: 681px) {
+          .qim-concept-table { display: block !important; }
+          .qim-concept-cards { display: none !important; }
+        }
+      `}</style>
+
       <div style={{ padding: '4px 0' }}>
-        
         {/* ENCABEZADO EXPLICATIVO */}
-        <div style={{ background: 'linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(59,130,246,0.12) 100%)', border: '1px solid rgba(59,130,246,0.2)', padding: '12px 16px', borderRadius: 12, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(59,130,246,0.12) 100%)',
+            border: '1px solid rgba(59,130,246,0.2)',
+            padding: '12px 16px',
+            borderRadius: 12,
+            marginBottom: 18,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
           <span style={{ fontSize: 22 }}>⚡</span>
           <div style={{ fontSize: 13, color: 'var(--ink)' }}>
-            <strong>Facturación Inteligente por Partidas:</strong> Marca las casillas de los conceptos entregados, ajusta sus kilos y genera la factura con desglose fiscal SAT automático.
+            <strong>Facturación Inteligente por Partidas:</strong> Descuenta automáticamente las entregas y facturas ya emitidas para amparar únicamente los kilos reales pendientes.
           </div>
         </div>
 
         {/* 1. SELECCIÓN DE EXPEDIENTE */}
         <div style={{ marginBottom: 18 }}>
           <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>
-            1. Seleccionar Expediente / OC con Entregas Recibidas
+            1. Seleccionar Expediente / OC
           </label>
-          <select 
-            value={selectedOrderId} 
-            onChange={e => handleSelectOrder(e.target.value)}
+          <select
+            value={selectedOrderId}
+            onChange={(e) => handleSelectOrder(e.target.value)}
             className="input boxed"
             style={{ width: '100%', fontSize: 14, fontWeight: 600, padding: '10px 14px', borderRadius: 10 }}
           >
-            <option value="">-- Selecciona un expediente con entregas por facturar --</option>
-            {validOrders.map(o => {
+            <option value="">-- Selecciona un expediente activo --</option>
+            {validOrders.map((o) => {
               const summary = getOrderSummary(o);
-              const pending = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+              const pendingDelivered = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+              const kOrd =
+                Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+              const pendingOrdered = round2(Math.max(0, kOrd - summary.kilosInvoiced));
+              const label =
+                pendingDelivered > 0.01
+                  ? `${pendingDelivered.toLocaleString('es-MX')} kg listos de báscula`
+                  : `${pendingOrdered.toLocaleString('es-MX')} kg pendientes de OC`;
               return (
                 <option key={o.id} value={o.id}>
-                  {o.folio || o.oc || 'S/N'} · {nombreClienteVisible(o.client)} — ({pending.toLocaleString('es-MX')} kg listos para facturar)
+                  {o.folio || o.oc || 'S/N'} · {nombreClienteVisible(o.client)} — ({label})
                 </option>
               );
             })}
           </select>
           {validOrders.length === 0 && (
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ink-soft)' }}>
-              ℹ️ No hay órdenes con entregas pendientes de facturar en este momento.
+              ℹ️ No hay expedientes activos pendientes de facturación en este momento.
+            </div>
+          )}
+
+          {/* CHIPS DE ACCIÓN RÁPIDA: ENTREGAS EN PATIO LISTAS PARA FACTURAR */}
+          {uninvoicedDeliveriesList.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                ⚡ Cargar Entrega de Patio en 1 Clic:
+              </span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {uninvoicedDeliveriesList.map((item, idx) => (
+                  <button
+                    key={`${item.orderId}_${idx}`}
+                    type="button"
+                    onClick={() => {
+                      handleSelectOrder(item.orderId);
+                      toast(`⚡ Orden ${item.oc} (${Number(item.delivery.kilos).toLocaleString('es-MX')} kg) cargada lista para facturar`, 'ok');
+                    }}
+                    style={{
+                      background: selectedOrderId === item.orderId ? '#d97706' : 'rgba(217, 119, 6, 0.12)',
+                      color: selectedOrderId === item.orderId ? '#fff' : '#b45309',
+                      border: '1px solid rgba(217, 119, 6, 0.35)',
+                      borderRadius: 8,
+                      padding: '5px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>🚚</span>
+                    <span>{(item.delivery as any).remision || (item.delivery as any).remisionNumber || item.delivery.notes || 'Báscula'}: {Number(item.delivery.kilos).toLocaleString('es-MX')} kg ({item.client})</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
         {selectedOrder && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            
-            {/* ─── BARRA DE PROGRESO DE KILOS FACTURADOS ─────────── */}
-            <div style={{ background: 'var(--paper-sunk)', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--line-soft)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5, marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                <div>
-                  Kilos entregados sin factura: <strong className="mono" style={{ fontSize: 14, color: 'var(--ink)' }}>{availableKilos.toLocaleString('es-MX')} kg</strong>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="badge" style={{ background: pctFacturado === 100 ? '#059669' : '#2563eb', fontSize: 11 }}>
-                    {pctFacturado}% amparado ({kilosToInvoice.toLocaleString('es-MX')} kg)
-                  </span>
-                </div>
-              </div>
-              <div style={{ width: '100%', height: 8, background: 'rgba(0,0,0,0.1)', borderRadius: 999, overflow: 'hidden' }}>
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${pctFacturado}%` }}
-                  transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                  style={{ height: '100%', background: pctFacturado === 100 ? '#10b981' : 'linear-gradient(90deg, #3b82f6, #2563eb)', borderRadius: 999 }}
-                />
-              </div>
-            </div>
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
+          >
+            {/* 1. Barra de Progreso de 4 Niveles */}
+            <InvoiceProgressBar {...progressData} />
 
-            {/* ─── SELECTOR INTERACTIVO DE CONCEPTOS Y PARTIDAS ─────────── */}
-            <div style={{ background: 'var(--paper-raised)', padding: 16, borderRadius: 14, border: '1px solid var(--line)', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>📦</span> 2. Conceptos a Incluir ({selectedRows.length} de {conceptRows.length} seleccionados)
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
-                    Marca qué partidas ampara esta factura y define los kilos individuales.
-                  </div>
-                </div>
+            {/* 2. Historial de Entregas de Báscula */}
+            <InvoiceDeliveryHistory deliveries={orderDeliveries} order={selectedOrder} />
 
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{ fontSize: 11.5, padding: '4px 10px', background: 'var(--paper)', border: '1px solid var(--line)' }}
-                    onClick={() => selectAllRows(true)}
-                  >
-                    ⚡ Seleccionar Todos
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{ fontSize: 11.5, padding: '4px 10px', background: 'var(--paper)', border: '1px solid var(--line)' }}
-                    onClick={() => selectAllRows(false)}
-                  >
-                    Deseleccionar
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ fontSize: 11.5, padding: '4px 12px' }}
-                    onClick={addNewCustomRow}
-                  >
-                    ➕ Agregar Concepto
-                  </button>
-                </div>
-              </div>
+            {/* 3. Tabla Interactiva de Partidas */}
+            <InvoiceConceptTable
+              conceptRows={conceptRows}
+              selectedRows={selectedRows}
+              availableKilos={availableKilos}
+              kilosToInvoice={kilosToInvoice}
+              pctAmparado={pctAmparado}
+              currentSellPrice={currentSellPrice}
+              selectedOrder={selectedOrder}
+              onReloadOrderItems={() => {
+                if (selectedOrderId) {
+                  loadRowsForOrder(selectedOrderId, validOrders);
+                  toast('🎯 Conceptos sincronizados con la OC activa', 'ok');
+                }
+              }}
+              onApplyTemplate={applyTemplate}
+              onSelectAll={selectAllRows}
+              onAddNewRow={addNewCustomRow}
+              onToggleRow={toggleRowSelect}
+              onUpdateField={updateRowField}
+              onFillMax={fillRowMax}
+              onRemoveRow={removeRow}
+              onDownloadPrefactura={handleDownloadPrefactura}
+            />
 
-              {conceptRows.length > 0 ? (
-                <div className="table-scroll" style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  <table className="data-table" style={{ fontSize: 12, width: '100%' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: 40, textAlign: 'center' }}>✓</th>
-                        <th style={{ width: 115 }}>Clave SAT</th>
-                        <th>Descripción del Concepto</th>
-                        <th className="num" style={{ width: 145 }}>Kilos Facturar</th>
-                        <th className="num" style={{ width: 100 }}>P. Unitario</th>
-                        <th className="num" style={{ width: 115 }}>Importe</th>
-                        <th style={{ width: 32 }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <AnimatePresence>
-                        {conceptRows.map((row, idx) => {
-                          const rowAmount = round2((Number(row.quantity) || 0) * (Number(row.unitPrice) || currentSellPrice));
-                          return (
-                            <motion.tr 
-                              key={row.id || idx}
-                              layout
-                              initial={{ opacity: 0, y: 4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95 }}
-                              style={{ 
-                                background: row.selected ? 'rgba(37,99,235,0.06)' : 'transparent',
-                                borderLeft: row.selected ? '3px solid #2563eb' : '3px solid transparent',
-                                opacity: row.selected ? 1 : 0.6,
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              <td style={{ textAlign: 'center' }}>
-                                <input 
-                                  type="checkbox" 
-                                  checked={row.selected} 
-                                  onChange={() => toggleRowSelect(idx)}
-                                  style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#2563eb' }}
-                                />
-                              </td>
-                              <td>
-                                <input 
-                                  type="text"
-                                  className="input boxed mono"
-                                  value={row.code}
-                                  onChange={e => updateRowField(idx, 'code', e.target.value)}
-                                  placeholder="24111500"
-                                  style={{ fontSize: 11.5, padding: '4px 6px', fontWeight: 600, color: '#1e40af' }}
-                                  disabled={!row.selected}
-                                />
-                              </td>
-                              <td>
-                                <input 
-                                  type="text"
-                                  className="input boxed"
-                                  value={row.description}
-                                  onChange={e => updateRowField(idx, 'description', e.target.value)}
-                                  placeholder="Descripción del producto..."
-                                  style={{ fontSize: 12, padding: '4px 8px', fontWeight: row.selected ? 700 : 400 }}
-                                  disabled={!row.selected}
-                                />
-                              </td>
-                              <td className="num">
-                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
-                                  <input 
-                                    type="number"
-                                    step="0.01"
-                                    className="input boxed mono"
-                                    value={row.quantity || ''}
-                                    onChange={e => updateRowField(idx, 'quantity', Number(e.target.value))}
-                                    style={{ width: 85, textAlign: 'right', fontWeight: 800, padding: '4px 6px' }}
-                                    disabled={!row.selected}
-                                  />
-                                  {row.maxAvailable > 0 && row.quantity !== row.maxAvailable && (
-                                    <button
-                                      type="button"
-                                      onClick={() => fillRowMax(idx)}
-                                      className="chip"
-                                      style={{ fontSize: 10, padding: '2px 5px', background: 'rgba(37,99,235,0.12)', color: '#1d4ed8', border: 'none', cursor: 'pointer', fontWeight: 800 }}
-                                      title="Llenar máximo disponible"
-                                    >
-                                      Máx
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="num">
-                                <input 
-                                  type="number"
-                                  step="0.01"
-                                  className="input boxed mono"
-                                  value={row.unitPrice || ''}
-                                  onChange={e => updateRowField(idx, 'unitPrice', Number(e.target.value))}
-                                  style={{ width: 75, textAlign: 'right', padding: '4px 6px' }}
-                                  disabled={!row.selected}
-                                />
-                              </td>
-                              <td className="num mono" style={{ fontWeight: 900, color: row.selected ? '#047857' : 'inherit' }}>
-                                {money(rowAmount)}
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => removeRow(idx)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bad)', fontSize: 14, opacity: 0.7 }}
-                                  title="Eliminar fila"
-                                >
-                                  ✕
-                                </button>
-                              </td>
-                            </motion.tr>
-                          );
-                        })}
-                      </AnimatePresence>
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ background: 'var(--paper-sunk)', padding: 16, borderRadius: 10, textAlign: 'center', color: 'var(--ink-soft)' }}>
-                  No hay conceptos cargados. Usa "+ Agregar Concepto" para crear uno.
-                </div>
-              )}
-            </div>
-
-            {/* ─── DATOS FISCALES & RECIBO DIGITAL ────────────────────────────────────── */}
-            <div style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.03) 0%, rgba(30,41,59,0.06) 100%)', border: '1px solid var(--line)', padding: 18, borderRadius: 14 }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
-                {/* Folio */}
-                <div>
-                  <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>
-                    3. Folio Fiscal de la Factura (SAT / CFDI)
-                  </label>
-                  <input 
-                    type="text" 
-                    value={folio} 
-                    onChange={e => setFolio(e.target.value.toUpperCase())}
-                    className="input boxed mono" 
-                    placeholder="Ej. A-1234"
-                    style={{ width: '100%', fontWeight: 900, fontSize: 15, padding: '10px 14px', letterSpacing: '0.05em' }}
-                    autoFocus
-                  />
-                  {duplicateInvoice && (
-                    <div style={{ marginTop: 6, fontSize: 11.5, color: '#dc2626', fontWeight: 800, background: 'rgba(239,68,68,0.1)', padding: '6px 10px', borderRadius: 6 }}>
-                      🚨 Factura #{folio.trim()} ya registrada en la OC #{duplicateInvoice.orderFolio} ({duplicateInvoice.client}).
-                    </div>
-                  )}
-                </div>
-                
-                {/* Resumen Kilos */}
-                <div>
-                  <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>
-                    Total Kilos a Amparar
-                  </label>
-                  <div style={{ padding: '9px 14px', background: 'var(--paper-raised)', borderRadius: 8, border: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="mono" style={{ fontWeight: 900, fontSize: 17, color: 'var(--ink)' }}>
-                      {kilosToInvoice.toLocaleString('es-MX')} kg
-                    </span>
-                    <span style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
-                      de {availableKilos.toLocaleString('es-MX')} kg
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tarjeta de Totales Fiscales */}
-              <div style={{ background: 'var(--paper-raised)', padding: 16, borderRadius: 12, border: '1px solid var(--line)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-                <div>
-                  <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontWeight: 600 }}>Subtotal (sin IVA):</div>
-                  <div className="mono" style={{ fontWeight: 800, fontSize: 16, color: 'var(--ink)', marginTop: 2 }}>{money(subtotalEstimado)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontWeight: 600 }}>IVA ({Math.round(ivaRate * 100)}%):</div>
-                  <div className="mono" style={{ fontWeight: 800, fontSize: 16, color: '#2563eb', marginTop: 2 }}>+{money(ivaEstimado)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11.5, color: '#047857', fontWeight: 800 }}>Total con IVA a Cobrar:</div>
-                  <div className="mono" style={{ fontWeight: 900, fontSize: 19, color: '#047857', marginTop: 2 }}>{money(totalEstimadoConIva)}</div>
-                </div>
-                <div style={{ borderLeft: '1px solid var(--line-soft)', paddingLeft: 12 }}>
-                  <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontWeight: 600 }}>Margen Bruto Est.:</div>
-                  <div className="mono" style={{ fontWeight: 800, fontSize: 15, color: gananciaEstimada >= 0 ? '#059669' : '#dc2626', marginTop: 2 }}>
-                    {money(gananciaEstimada)}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
+            {/* 4. Resumen Financiero y Folio SAT */}
+            <InvoiceFinancialCard
+              kilosToInvoice={kilosToInvoice}
+              subtotalEstimado={subtotalEstimado}
+              ivaEstimado={ivaEstimado}
+              totalEstimadoConIva={totalEstimadoConIva}
+              costoEstimado={costoEstimado}
+              gananciaEstimada={gananciaEstimada}
+              currentSellPrice={currentSellPrice}
+              currentCostPrice={currentCostPrice}
+              folio={folio}
+              setFolio={setFolio}
+              duplicateInvoice={duplicateInvoice}
+              saving={saving}
+              onInvoice={handleInvoice}
+              onClose={onClose}
+              onDownloadPrefactura={handleDownloadPrefactura}
+              onDownloadXmlDraft={handleDownloadXmlDraft}
+              onWhatsAppContador={handleWhatsAppContador}
+              selectedRowsCount={selectedRows.length}
+              guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}
+            />
           </motion.div>
         )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-          <button className="btn" onClick={onClose} disabled={saving} style={{ minHeight: 44, padding: '0 18px' }}>Cancelar</button>
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="btn btn-primary" 
-            onClick={handleInvoice} 
-            disabled={!selectedOrder || saving || !folio.trim() || !!duplicateInvoice || kilosToInvoice <= 0 || selectedRows.length === 0}
-            style={{ 
-              fontWeight: 900, 
-              padding: '12px 24px', 
-              fontSize: 14,
-              minHeight: 46,
-              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-              boxShadow: '0 6px 20px rgba(37,99,235,0.35)',
-              border: 'none',
-            }}
-          >
-            {saving ? 'Facturando…' : `🧾 Emitir Factura (#${folio || '…'}) · ${money(totalEstimadoConIva)}`}
-          </motion.button>
-        </div>
       </div>
     </Modal>
   );

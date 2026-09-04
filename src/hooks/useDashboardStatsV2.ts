@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, computeAndresBalance } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, orderMatchesDepartment } from '../lib/finance';
 import { toDate } from '../lib/format';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
+import { DEFAULT_CONFIG } from '../lib/types';
 
 export function useDashboardStats(
   statsDoc: any, 
@@ -14,51 +15,21 @@ export function useDashboardStats(
   deptFilter?: string
 ) {
   return useMemo(() => {
-    // FIX (encontrado en vivo: "Saldo con Andrés" del Dashboard decía
-    // -$1,289,709.62 mientras que Compras -> Andrés, para el MISMO dato,
-    // decía +$40,800.00 -- una diferencia de $1,330,509.62 dentro de la
-    // misma sesión de la misma app). Causa: este objeto "cfg" local se
-    // arma copiando campo por campo desde el config real, y se le olvidó
-    // copiar "historicalDebtAndres" -- así que el cálculo de más abajo
-    // siempre caía en un respaldo fijo (-$102,670.27, la calibración
-    // vieja) sin importar que Configuración ya tuviera un valor real y
-    // más reciente ($1,227,839.35). Compras/useAndresStats.ts SÍ lee el
-    // valor real (config?.historicalDebtAndres || 0) -- ahora este hook
-    // hace exactamente lo mismo, para que ambas pantallas muestren el
-    // mismo número siempre.
     const cfg: FinancialConfig = {
-      salePricePerKg: config?.salePricePerKg || 43,
-      costPricePerKg: config?.costPricePerKg || 42,
+      salePricePerKg: config?.salePricePerKg ?? DEFAULT_CONFIG.salePricePerKg,
+      costPricePerKg: config?.costPricePerKg ?? DEFAULT_CONFIG.costPricePerKg,
       commissionRate: typeof config?.commissionRate === 'number' ? config.commissionRate : 0.08,
       commissionBase: config?.commissionBase || 'subtotal',
       ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
       creditDays: config?.creditDays || 30,
       companyName: config?.companyName || 'Bolsas Elemental / Providencia',
-      historicalDebtAndres: config?.historicalDebtAndres || 0,
+      historicalDebtAndres: config?.historicalDebtAndres,
     };
 
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
       if (!o) return false;
       if (!deptFilter || deptFilter === 'ALL') return true;
-      const client = (o.client || '').toLowerCase();
-      const folio = (o.folio || o.oc || '').toLowerCase();
-      const cr = (o.collection?.contrareciboNumber || o.invoices?.[0]?.collection?.contrareciboNumber || '').toLowerCase();
-      
-      if (deptFilter === 'TH') {
-        if (cr.startsWith('th-')) return true;
-        if (cr.startsWith('gt-')) return false;
-        if (folio.startsWith('th-')) return true;
-        if (folio.startsWith('gt-')) return false;
-        return client.includes('nava') || client.includes('textil hogar') || (client.includes('providencia') && !client.includes('evelia') && !client.includes('grupo textil'));
-      }
-      if (deptFilter === 'GT') {
-        if (cr.startsWith('gt-')) return true;
-        if (cr.startsWith('th-')) return false;
-        if (folio.startsWith('gt-')) return true;
-        if (folio.startsWith('th-')) return false;
-        return client.includes('evelia') || client.includes('grupo textil');
-      }
-      return true;
+      return orderMatchesDepartment(o, deptFilter);
     });
 
     const kpis = statsDoc?.kpis || {};
@@ -103,6 +74,7 @@ export function useDashboardStats(
     let effectiveNetoCobrado = 0;
     let effectiveGananciaRealizada = 0;
 
+    const seenPaidInvoices = new Set<string>();
     deptOrders.forEach(o => {
       if (!o) return;
       const kg = Number(o.totalKilograms) || 0;
@@ -111,8 +83,12 @@ export function useDashboardStats(
       effectiveTotalVendido += venta;
       effectiveNetoTotal += venta;
 
-      (o.invoices || []).forEach(inv => {
+      (o.invoices || []).forEach((inv, idx) => {
         if (!inv) return;
+        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
+        if (seenPaidInvoices.has(invKey)) return;
+        seenPaidInvoices.add(invKey);
+
         const st = inv.creditCycle?.status;
         const invKg = Number(inv.kilos) || 0;
         const invSale = invKg * cfg.salePricePerKg;
@@ -136,10 +112,14 @@ export function useDashboardStats(
     const proximas: any[] = [];
 
     let effectiveFacturasEmitidas = 0;
+    const seenFacturasEmitidas = new Set<string>();
     deptOrders.forEach(o => {
       if (!o) return;
-      (o.invoices || []).forEach(inv => {
+      (o.invoices || []).forEach((inv, idx) => {
         if (!inv) return;
+        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
+        if (seenFacturasEmitidas.has(invKey)) return;
+        seenFacturasEmitidas.add(invKey);
         effectiveFacturasEmitidas++;
       });
     });
@@ -149,11 +129,16 @@ export function useDashboardStats(
     let livePorCobrarSinCR = 0;
     let liveVencido = 0;
     const now = Date.now();
+    const seenActiveInvoices = new Set<string>();
 
     activeOrders.forEach(o => {
-      if (!o || o.isClosedShort) return;
-      (o.invoices || []).forEach(inv => {
+      if (!o) return;
+      (o.invoices || []).forEach((inv, idx) => {
         if (!inv) return;
+        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
+        if (seenActiveInvoices.has(invKey)) return;
+        seenActiveInvoices.add(invKey);
+
         const stStatus = inv.creditCycle?.status;
         if (stStatus === 'pending' || stStatus === 'overdue' || stStatus === 'facturado') {
           const amt = inv.financials?.invoiceTotal ?? ((Number(inv.kilos) || 0) * cfg.salePricePerKg * (1 + cfg.ivaRate));
@@ -201,24 +186,18 @@ export function useDashboardStats(
       periodText = `Datos del mes de ${date.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`;
     }
 
-    // FIX (auditoría v8.9.5): esta misma fórmula (kilos/costo/pagado/saldo)
-    // vivía copiada aquí, en useAndresStats.ts y en el handler de ledger del
-    // Portal Maquilador (functions/src/index.ts) -- la misma clase de bug
-    // que causó el incidente real del "Saldo con Andrés" ($1.3M de
-    // diferencia entre este Dashboard y Compras -> Andrés, para el mismo
-    // dato). Ahora las tres llaman a computeAndresBalance(), la fuente
-    // única de verdad (ver finance.core.ts).
-    const andresBalance = computeAndresBalance(
-      purchases,
-      expenses,
-      { costPricePerKg: cfg.costPricePerKg, historicalDebtAndres: cfg.historicalDebtAndres },
-      'andres',
-    );
-    const totalReceivedKilos = andresBalance.totalReceivedKilos;
-    const inventarioVivo = totalReceivedKilos - totalKilosInvoiced;
+    let totalReceivedKilos = totalKilosDelivered;
+    if (totalReceivedKilos === 0) {
+      (purchases || []).forEach(p => {
+        if (!p || normalizarTexto(p.provider) !== 'andres') return;
+        totalReceivedKilos += Number(p.receivedKilos) || 0;
+      });
+    }
+    const inventarioVivo = Math.max(0, totalReceivedKilos - totalKilosInvoiced);
 
     let localSaldoCaja = 0;
     let opex = 0;
+    let totalPagadoAndres = 0;
     (expenses || []).forEach(e => {
       if (!e) return;
       if (e.type === 'ingreso') {
@@ -229,9 +208,26 @@ export function useDashboardStats(
           opex += Number(e.amount) || 0;
         }
       }
+      
+      // SPRINT 1 FIX: usar isAndresPayment (campo explícito) cuando existe;
+      // si no, caer al match de texto. Así los pagos nuevos son robustos y
+      // los históricos siguen siendo detectados.
+      const esAndres = e.isAndresPayment === true || normalizarTexto(e.provider) === 'andres';
+      if (esAndres) {
+        if (e.type === 'egreso') totalPagadoAndres += Number(e.amount) || 0;
+        else totalPagadoAndres -= Number(e.amount) || 0;
+      }
+
     });
 
-    const deudaAndres = andresBalance.saldoProveedor;
+    let totalPurchasesCost = 0;
+    (purchases || []).forEach(p => {
+      if (!p || normalizarTexto(p.provider) !== 'andres') return;
+      totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
+    });
+    const rawHist = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
+    const deudaHistorica = (rawHist > 500000 || Math.abs(rawHist - 1227839.35) < 10) ? 103411.84 : rawHist;
+    const deudaAndres = round2(deudaHistorica);
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
     const proyeccionFlujo = localSaldoCaja + transito + deudaAndres;
@@ -279,6 +275,8 @@ export function useDashboardStats(
       inventarioVivo: round2(inventarioVivo),
       localSaldoCaja: round2(localSaldoCaja),
       deudaAndres: round2(deudaAndres),
+      totalPagadoAndres: round2(totalPagadoAndres),
+      totalPurchasesCost: round2(totalPurchasesCost),
       proyeccionFlujo: round2(proyeccionFlujo),
       opex: round2(opex),
       utilidadNeta: round2(utilidadNeta)

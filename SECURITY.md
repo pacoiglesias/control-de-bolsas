@@ -30,11 +30,3 @@
   1. Los costos y comisiones propios del expediente (`customCostPrice`, `customCommissionRate`, función *Costos variables*). Entran en la fórmula de referencia en vez de ser revertidos.
   2. El total de una factura timbrada. Si la factura trae UUID, su `invoiceTotal` viene del CFDI y **no se recalcula**: ese importe es un hecho fiscal, no un resultado de la fórmula.
 - Sale temprano si el arreglo `invoices` no cambió, para no dispararse en cascada sobre sus propias escrituras ni sobre los lotes nocturnos de `checkOverdueInvoices`.
-
-### 6. Cierres de seguridad aplicados (auditoría v8.9.2, 20 Agosto 2026)
-Encontrados y corregidos en una revisión exhaustiva del sistema completo (ver `CHANGELOG.md` v8.9.2 para el detalle técnico):
-- **`isBootstrapOwner()` ya no acepta cualquier correo del dominio corporativo.** Antes cualquier cuenta `@cobertores.com` verificada era super-admin automático e irrevocable (el botón "Revocar Acceso" no podía quitarlo). Ahora solo las 2 cuentas personales del dueño califican; cualquier otra cuenta se da de alta normal desde Usuarios y sí es revocable.
-- **PIN del Portal Maquilador con límite de intentos.** `validarPinMaquila()` (`functions/src/index.ts`) bloquea 15 minutos tras 5 intentos fallidos seguidos, usando una transacción de Firestore para que dos intentos simultáneos no se salten el contador. Ya no existe un PIN de respaldo (`'2468'`) si la configuración no existe — la función falla cerrada en ese caso.
-- **Cerradas dos reglas de Firestore (`expenses`, `error_logs`) que aceptaban cualquier sesión, incluida una anónima creada desde la consola del navegador** con la configuración pública de Firebase (no es secreta, viaja en el propio sitio). Mismo patrón ya cerrado antes para `maquilaDeliveries` (v8.8.9) y `registrarEntregaMaquila`.
-- **El lector de documentos con IA (`parseDocumentData`, Gemini) ahora exige correo verificado y rol `admin`/`manager`**, no solo una sesión cualquiera — mismo criterio que `reprocessOrder`.
-- **Nota de proceso:** ninguno de estos 4 huecos requería credenciales robadas para explotarse — bastaba con conocer la configuración pública de Firebase (que viaja en el propio sitio) y usar `signInAnonymously()` desde la consola del navegador. Por eso se tratan como hallazgos de auditoría normales y no como incidente de seguridad con exposición de datos confirmada.

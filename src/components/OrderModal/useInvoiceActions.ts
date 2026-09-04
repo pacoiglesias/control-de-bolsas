@@ -1,4 +1,4 @@
-import { doc, runTransaction, Timestamp } from 'firebase/firestore';
+import { doc, runTransaction, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
@@ -7,10 +7,14 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { logAction } from '../../lib/logger';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
+import { useOrders } from '../../hooks/useOrders';
+import { linkDeliveriesToInvoice, unmarkDeliveriesByInvoiceId } from '../../lib/deliveries';
 
 export function useInvoiceActions() {
   const toast = useToast();
   const { user } = useAuth();
+  const { orders: allOrders } = useOrders();
 
   async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: FinanceConfigCore) {
     try {
@@ -27,7 +31,7 @@ export function useInvoiceActions() {
 
         const crNum = updatedInvoice.collection?.contrareciboNumber?.trim() || '';
         const folioStr = updatedInvoice.folio?.trim() || '';
-        const finalFolio = (crNum && !folioStr) ? 'S/N' : folioStr;
+        const finalFolio = crNum && !folioStr ? 'S/N' : folioStr;
 
         const finalInv = {
           ...updatedInvoice,
@@ -38,10 +42,12 @@ export function useInvoiceActions() {
             costPricePerKg: updatedInvoice.financials?.costPricePerKg || dynamicConfig.costPricePerKg,
             commissionRate: updatedInvoice.financials?.commissionRate || dynamicConfig.commissionRate,
           }),
-          collection: updatedInvoice.collection ? {
-            ...updatedInvoice.collection,
-            contrareciboNumber: crNum
-          } : undefined,
+          collection: updatedInvoice.collection
+            ? {
+                ...updatedInvoice.collection,
+                contrareciboNumber: crNum,
+              }
+            : undefined,
           orderId: order.id,
           clientId: order.client?.trim() || '',
           oc: order.oc?.trim() || '',
@@ -58,13 +64,27 @@ export function useInvoiceActions() {
 
         // Validate duplicates
         if (finalFolio !== 'S/N') {
-            const upperFolio = finalFolio.toUpperCase();
-            if (currentInvoices.some(x => x.id !== updatedInvoice.id && x.folio?.toUpperCase() === upperFolio)) {
-                throw new Error(`El folio de factura ${finalFolio} ya está en este expediente.`);
-            }
+          const upperFolio = finalFolio.toUpperCase();
+          if (currentInvoices.some((x) => x.id !== updatedInvoice.id && x.folio?.toUpperCase() === upperFolio)) {
+            throw new Error(`El folio de factura ${finalFolio} ya está en este expediente.`);
+          }
+          const globalDup = findDuplicateInvoiceFolio(allOrders || [], finalFolio, updatedInvoice.id);
+          if (globalDup && globalDup.orderFolio !== (order.folio || order.oc)) {
+            throw new Error(
+              `🚨 La factura #${finalFolio} ya está registrada en la OC #${globalDup.orderFolio} (${globalDup.client}).`
+            );
+          }
         }
 
+        // Vincular entregas de báscula a la factura
+        const updatedDeliveries = linkDeliveriesToInvoice(
+          currentOrder.deliveries || [],
+          finalInv.id,
+          finalInv.kilos || 0
+        );
+
         tx.update(orderRef, {
+          deliveries: updatedDeliveries,
           ...camposInvoices(newInvoicesArray),
         });
 
@@ -85,13 +105,15 @@ export function useInvoiceActions() {
   }
 
   async function deleteInvoice(order: PurchaseOrder, invoiceId: string) {
-    const invToDelete = (order.invoices || []).find(i => i.id === invoiceId);
+    const invToDelete = (order.invoices || []).find((i) => i.id === invoiceId);
     const cr = invToDelete?.collection?.contrareciboNumber;
     const isPaid = invToDelete?.creditCycle?.status === 'paid' || invToDelete?.creditCycle?.status === 'collected';
 
     let warningMsg = `¿Estás seguro de que deseas eliminar la Factura #${invToDelete?.folio || '(sin folio)'}?`;
     if (cr || isPaid) {
-      warningMsg = `⚠️ ¡ADVERTENCIA CRÍTICA!\n\nLa Factura #${invToDelete?.folio || '(sin folio)'} ya tiene Contrarecibo (${cr || 'registrado'}) o pagos en caja.\n\nSi la eliminas, alterará las cuentas por cobrar y el historial financiero.\n\nEsta acción quedará registrada en la bitácora de auditoría. ¿Deseas proceder?`;
+      warningMsg = `⚠️ ¡ADVERTENCIA CRÍTICA!\n\nLa Factura #${
+        invToDelete?.folio || '(sin folio)'
+      } ya tiene Contrarecibo (${cr || 'registrado'}) o pagos en caja.\n\nSi la eliminas, alterará las cuentas por cobrar y el historial financiero.\n\nEsta acción quedará registrada en la bitácora de auditoría. ¿Deseas proceder?`;
     }
 
     if (!(await confirmDialog({ message: warningMsg, danger: true }))) return;
@@ -108,9 +130,29 @@ export function useInvoiceActions() {
         const currentInvoices = currentOrder.invoices || [];
         const newInvoicesArray = currentInvoices.filter((i) => i.id !== invoiceId);
 
-        tx.update(orderRef, {
-          ...camposInvoices(newInvoicesArray),
-        });
+        // Desvincular entregas asociadas a la factura eliminada
+        const updatedDeliveries = unmarkDeliveriesByInvoiceId(
+          currentOrder.deliveries || [],
+          invoiceId
+        );
+
+        if (
+          newInvoicesArray.length === 0 &&
+          (!currentOrder.items || currentOrder.items.length === 0 || currentOrder.creditCycle?.status !== 'pedido')
+        ) {
+          tx.update(orderRef, {
+            isDeleted: true,
+            deletedAt: serverTimestamp(),
+            deletedBy: user?.email || 'admin@sistema',
+            deliveries: updatedDeliveries,
+            ...camposInvoices([]),
+          });
+        } else {
+          tx.update(orderRef, {
+            deliveries: updatedDeliveries,
+            ...camposInvoices(newInvoicesArray),
+          });
+        }
 
         tx.delete(invRef);
       });

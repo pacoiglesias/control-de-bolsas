@@ -1,0 +1,106 @@
+PARCHE v5.4 - AUDITORIA SOBRE TUS ULTIMOS CAMBIOS
+==================================================
+
+COMO INSTALAR
+-------------
+  1. Deja juntos en la carpeta del proyecto:
+       parche-v5.4.zip  +  INSTALAR_ACTUALIZACION.bat
+  2. Doble clic en INSTALAR_ACTUALIZACION.bat
+  3. Corre tu CONTROL_MAESTRO.bat -> opcion de desplegar
+
+  Solo son 4 archivos. Todo lo demas de tu version se queda igual.
+
+
+LO QUE HICISTE BIEN (y no toque)
+---------------------------------
+  - El patron abierto "^admin@.*" YA NO ESTA en las reglas. Cerrado.
+  - Los .json de cartera y el Control_Bolsas_v4.2.html: fuera del repo.
+  - La plantilla del respaldo offline: limpia.
+  - Resolviste la ceguera del job de vencidos con un campo desnormalizado
+    (invoiceStatuses). Es MEJOR solucion que la mia: evita recorrer toda
+    la base. La respete y solo le tape los hoyos.
+  - En Users.tsx usaste una instancia secundaria de Firebase para crear
+    usuarios sin cerrar tu propia sesion. Ese es el patron correcto y
+    mucha gente lo hace mal.
+  - CI/CD con GitHub Actions, docs/, CHANGELOG, PWA: buen trabajo.
+
+
+LOS 3 BUGS QUE ENCONTRE
+------------------------
+
+BUG 1 - El job de vencidos se repite todos los dias, para siempre
+  checkOverdueInvoices marcaba invoices[].creditCycle.status = "overdue"
+  pero NO actualizaba el arreglo invoiceStatuses, que seguia diciendo
+  ["pending"]. Como la consulta del dia siguiente usa ese arreglo, el
+  mismo expediente vuelve a salir una y otra vez. Y al reves: una factura
+  ya cobrada con el arreglo desactualizado nunca sale del radar.
+  -> Ahora invoiceStatuses se reescribe junto con las facturas.
+
+BUG 2 - La pantalla de Usuarios no funciona: las reglas la bloquean
+  Users.tsx lista la coleccion admins, crea documentos para OTROS uid,
+  cambia roles ajenos y da de baja. Las reglas decian:
+      read:   solo tu propio documento  -> la lista sale vacia
+      create: solo si uid == tu uid     -> crear usuario falla siempre
+      update: igual                     -> cambiar rol falla siempre
+      delete: if false                  -> dar de baja falla siempre
+  La pantalla se ve bien y no funciona NADA.
+
+  -> Reglas rediseñadas. Ahora un rol 'admin' de verdad puede administrar,
+     PERO sin reabrir el hueco que acabamos de cerrar:
+       * esAdminReal() consulta el rol con get(), no confia en el cliente
+       * nadie puede tocar su PROPIO documento: ni subirse el rol solo,
+         ni borrarse por accidente
+       * los correos dueño conservan el arranque inicial del sistema
+
+BUG 3 - Los expedientes viejos quedan fuera del radar
+  La consulta filtra por invoiceStatuses, campo que solo existe en los
+  documentos creados DESPUES de agregarlo. Los anteriores no lo tienen y
+  array-contains-any los excluye: nunca se marcan vencidos, sin error.
+  -> El job ahora los cuenta y avisa en el log.
+  -> Se agrego migrarInvoiceStatuses(), una funcion que los repara de una
+     pasada. Se corre una sola vez, solo un admin puede ejecutarla.
+
+
+FUGA QUE SEGUIA ABIERTA
+------------------------
+  src/lib/seedData.ts TODAVIA tenia tus 11 contrarecibos reales con
+  montos. Ese archivo se compila DENTRO del JavaScript de la app, y como
+  el proyecto no separa el codigo por rutas, se descarga a cualquiera que
+  abra la pantalla de login, ANTES de meter usuario y contrasena.
+  Tambien quedaron numeros reales en docs/LEEME-PRIMERO.txt.
+  -> Ambos limpiados. Verificado con grep sobre dist/ ya compilado.
+
+
+VERIFICADO ANTES DE ENTREGAR
+----------------------------
+  tsc --noEmit frontend .......... limpio
+  vite build ..................... OK
+  tsc --noEmit functions ......... limpio
+  prueba de carga de functions ... OK, 4 funciones
+      parseUploadedPDF, checkOverdueInvoices,
+      migrarInvoiceStatuses, reprocessOrder
+  grep de datos reales en dist/, src/, public/ ... limpio
+
+
+DOS COSAS QUE TE RECOMIENDO REVISAR
+------------------------------------
+1. .github/workflows/deploy.yml usa w9jds/firebase-action@master.
+   Apuntar a @master significa que si ese repo cambia, tu despliegue
+   cambia sin que tu hagas nada. Conviene fijarlo a una version:
+   por ejemplo w9jds/firebase-action@v13.
+   Ademas despliega en CADA push a main, sin pasar por tu verificacion.
+   Un push con un error va directo a produccion.
+
+2. PROTEGER_CODIGO.bat te pide pegar un token de GitHub en la consola.
+   Con "set /p" el token se ve en pantalla mientras lo escribes y queda
+   en el historial de la ventana. Para algo que se hace una sola vez, es
+   mas seguro el camino que el mismo script sugiere: entrar a GitHub ->
+   Settings -> Danger Zone -> Change visibility.
+
+
+PENDIENTE
+---------
+  Poner el repositorio en privado. Aunque el codigo ya esta limpio, el
+  HISTORIAL DE COMMITS conserva las versiones anteriores con tu cartera
+  completa. Cualquiera puede leerla ahi. Eso solo se cierra con la
+  visibilidad privada.

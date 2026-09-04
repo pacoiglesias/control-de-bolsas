@@ -140,7 +140,7 @@ export function getCarteraVencidaHtml(settings: any, overdueItems: any[], totalV
 
           <div class="kpis">
             <div class="kpi"><div class="kpi-title">TOTAL VENCIDO</div><div class="kpi-val">$${totalVencido.toLocaleString('es-MX', {minimumFractionDigits:2})}</div></div>
-            <div class="kpi"><div class="kpi-title">FACTURAS VENCIDAS</div><div class="kpi-val">${overdueItems.length}</div></div>
+            <div class="kpi"><div class="kpi-title">CONTRARECIBOS VENCIDOS</div><div class="kpi-val">${overdueItems.length}</div></div>
           </div>
 
           <h3>Detalle de Cuentas Atrasadas</h3>

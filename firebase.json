@@ -25,11 +25,20 @@
           ]
         },
         {
+          "source": "@(sw.js|workbox-*.js|manifest.webmanifest)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
           "source": "/index.html",
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache"
+              "value": "no-cache, no-store, must-revalidate"
             }
           ]
         }
@@ -60,11 +69,20 @@
           ]
         },
         {
+          "source": "@(sw.js|workbox-*.js|manifest.webmanifest)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
           "source": "/index.html",
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache"
+              "value": "no-cache, no-store, must-revalidate"
             }
           ]
         }

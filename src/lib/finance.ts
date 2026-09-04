@@ -16,29 +16,44 @@ export {
   computeFinancials,
   computeDynamicFinancials,
   computeCommissionFromInvoiceTotal,
+  computeAndresBalance,
   configEfectiva,
   round2,
   normalizarTexto,
-  computeAndresBalance,
 } from '../../functions/src/shared/finance.core';
 export type {
   FinanceConfigCore,
   FinanceResultCore,
   DynamicFinancialsInput,
   DynamicFinancialsResult,
-  AndresBalanceConfig,
-  AndresPurchaseLike,
-  AndresExpenseLike,
-  AndresBalanceResult,
 } from '../../functions/src/shared/finance.core';
 
-export function extractCr(inv: any, o?: any): string {
-  let cr = (inv?.collection?.contrareciboNumber || o?.collection?.contrareciboNumber || '').trim();
+export function extractCr(
+  inv?: Partial<Invoice> | Partial<PurchaseOrder> | Record<string, any> | null,
+  o?: Partial<PurchaseOrder> | Record<string, any> | null
+): string {
+  // 1. Si se pasa una factura individual explícita
+  if (inv && (inv.id !== o?.id || (inv as any).folio !== o?.folio || (inv as any).kilos !== undefined)) {
+    const invCr = ((inv as any)?.collection?.contrareciboNumber || (inv as any)?.contrarecibo || '').trim();
+    if (invCr) return invCr;
+    const f1 = ((inv as any)?.folio || '').trim().toUpperCase();
+    if (f1.startsWith('TH-') || f1.startsWith('GT-')) return f1;
+    // Si la orden raíz no tiene array de facturas (documento legacy único), puede revisar la orden
+    if (!o?.invoices || o.invoices.length <= 1) {
+      const oCr = (o?.collection?.contrareciboNumber || (o as any)?.contrarecibo || '').trim();
+      if (oCr) return oCr;
+      const f2 = (o?.folio || '').trim().toUpperCase();
+      if (f2.startsWith('TH-') || f2.startsWith('GT-')) return f2;
+    }
+    return '';
+  }
+
+  // 2. Si no hay factura o se evalúa el documento raíz de la orden
+  const target = (inv || o) as any;
+  let cr = (target?.collection?.contrareciboNumber || target?.contrarecibo || '').trim();
   if (!cr) {
-    const f1 = (inv?.folio || '').trim().toUpperCase();
-    const f2 = (o?.folio || '').trim().toUpperCase();
-    if (f1.startsWith('TH-') || f1.startsWith('GT-')) cr = f1;
-    else if (f2.startsWith('TH-') || f2.startsWith('GT-')) cr = f2;
+    const f = (target?.folio || '').trim().toUpperCase();
+    if (f.startsWith('TH-') || f.startsWith('GT-')) cr = f;
   }
   return cr;
 }
@@ -61,16 +76,13 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   // 1. Factura individual explícita
   if (inv?.department && typeof inv.department === 'string') {
     const d = inv.department.trim().toUpperCase();
-    if (d === 'TH' || d === 'GT') return d;
-    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
-    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
+    if (d === 'TH' || d.startsWith('TH-') || d.includes('TEXTIL HOGAR') || d.includes('TH-ALM')) return 'TH';
+    if (d === 'GT' || d.startsWith('GT-') || d.includes('P4') || d.includes('P4-ALM')) return 'GT';
+    if (d.includes('NAVA') || d.includes('LAMUÑO')) return 'TH';
+    if (d.includes('EVELIA')) return 'GT';
   }
 
-  // 2. Contrarecibo en factura O en orden via extractCr
-  // FIX: cada condicion traia 3 clausulas donde 2 eran redundantes --
-  // startsWith('TH-') y === 'TH' ya estan cubiertas por startsWith('TH')
-  // (toda cadena que empieza con "TH-" tambien empieza con "TH", y "TH"
-  // tambien "empieza con" "TH"). Mismo comportamiento, sin la redundancia.
+  // 2. Contrarecibo en factura O en orden
   const invCr = (inv?.collection?.contrareciboNumber || inv?.contrarecibo || '').trim().toUpperCase();
   if (invCr.startsWith('TH')) return 'TH';
   if (invCr.startsWith('GT')) return 'GT';
@@ -87,9 +99,8 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   // 4. Campo explícito en la orden
   if (order?.department && typeof order.department === 'string') {
     const d = order.department.trim().toUpperCase();
-    if (d === 'TH' || d === 'GT') return d;
-    if (d.includes('TEXTIL HOGAR') || d.includes(' TH') || d.endsWith('-TH')) return 'TH';
-    if (d.includes('GRUPO TEXTIL') || d.includes(' GT') || d.endsWith('-GT')) return 'GT';
+    if (d === 'TH' || d.startsWith('TH-') || d.includes('TEXTIL HOGAR') || d.includes('TH-ALM') || d.includes('NAVA')) return 'TH';
+    if (d === 'GT' || d.startsWith('GT-') || d.includes('P4') || d.includes('P4-ALM') || d.includes('EVELIA')) return 'GT';
   }
 
   // 5. Contrarecibo a nivel de orden
@@ -97,43 +108,74 @@ export function inferDepartment(order?: PurchaseOrder | any, inv?: any): 'TH' | 
   if (orderCr.startsWith('TH')) return 'TH';
   if (orderCr.startsWith('GT')) return 'GT';
 
-  // 6. Folio u OC de la orden
-  const orderFolio = (order?.folio || order?.oc || '').trim().toUpperCase();
-  if (orderFolio.startsWith('TH')) return 'TH';
-  if (orderFolio.startsWith('GT')) return 'GT';
+  // 6. Folio u OC de la orden (División 71 = Nava / TH, División 43 = Evelia / GT)
+  const orderFolio = `${order?.folio || ''} ${order?.oc || ''}`.trim().toUpperCase();
+  if (
+    orderFolio.startsWith('TH') ||
+    orderFolio.includes('1202671') ||
+    orderFolio.includes('71/') ||
+    orderFolio.includes('71-') ||
+    orderFolio.includes('14014') ||
+    orderFolio.includes('14114') ||
+    orderFolio.includes('NAVA')
+  ) {
+    return 'TH';
+  }
+  if (
+    orderFolio.startsWith('GT') ||
+    orderFolio.includes('1202643') ||
+    orderFolio.includes('43/') ||
+    orderFolio.includes('43-') ||
+    orderFolio.includes('9713') ||
+    orderFolio.includes('EVELIA')
+  ) {
+    return 'GT';
+  }
 
   // 7. Identificador del documento
   const orderId = (order?.id || '').trim().toLowerCase();
-  if (orderId.includes('cr-th') || orderId.includes('inv-th') || orderId.includes('th-') || orderId.endsWith('-th')) return 'TH';
-  if (orderId.includes('cr-gt') || orderId.includes('inv-gt') || orderId.includes('gt-') || orderId.endsWith('-gt')) return 'GT';
+  if (orderId.includes('cr-th') || orderId.includes('inv-th') || orderId.includes('th-') || orderId.endsWith('-th') || orderId.includes('14014') || orderId.includes('14114')) return 'TH';
+  if (orderId.includes('cr-gt') || orderId.includes('inv-gt') || orderId.includes('gt-') || orderId.endsWith('-gt') || orderId.includes('9713')) return 'GT';
 
   const invId = (inv?.id || '').trim().toLowerCase();
   if (invId.includes('cr-th') || invId.includes('inv-th') || invId.includes('th-') || invId.endsWith('-th')) return 'TH';
   if (invId.includes('cr-gt') || invId.includes('inv-gt') || invId.includes('gt-') || invId.endsWith('-gt')) return 'GT';
 
-  // 8. Nombre del cliente o tags (ej. "Providencia - TH", "Textil Hogar", "Providencia - GT")
+  // 8. Contacto, comprador o notas
+  const orderNotes = `${order?.notes || ''} ${order?.buyer || ''} ${order?.contact || ''} ${order?.requestedBy || ''}`.toUpperCase();
+  if (orderNotes.includes('NAVA') || orderNotes.includes('LAMUÑO') || orderNotes.includes('TH-ALMACEN')) return 'TH';
+  if (orderNotes.includes('EVELIA') || orderNotes.includes('P4')) return 'GT';
+
+  // 9. Nombre del cliente o tags explícitos
   const clientStr = (order?.client || '').trim().toUpperCase();
   if (
-    clientStr === 'TH' ||
-    clientStr.endsWith(' TH') ||
-    clientStr.endsWith('-TH') ||
-    clientStr.includes(' TH ') ||
-    clientStr.includes('-TH-') ||
-    clientStr.includes(' - TH') ||
-    clientStr.includes('TEXTIL HOGAR')
+    clientStr.includes('TEXTIL HOGAR') ||
+    clientStr.includes('(TH') ||
+    clientStr.includes('- TH') ||
+    clientStr.includes('TH -') ||
+    clientStr.includes('TH-') ||
+    clientStr.includes('NAVA') ||
+    clientStr.includes('LAMUÑO')
   ) {
     return 'TH';
   }
   if (
-    clientStr === 'GT' ||
-    clientStr.endsWith(' GT') ||
-    clientStr.endsWith('-GT') ||
-    clientStr.includes(' GT ') ||
-    clientStr.includes('-GT-') ||
-    clientStr.includes(' - GT') ||
-    clientStr.includes('GRUPO TEXTIL')
+    clientStr.includes('EVELIA') ||
+    clientStr.includes('P4') ||
+    clientStr.includes('(GT') ||
+    clientStr.includes('- GT') ||
+    clientStr.includes('GT -') ||
+    clientStr.includes('GT-') ||
+    (clientStr.includes('GRUPO TEXTIL') && !clientStr.includes('TEXTIL HOGAR') && !clientStr.includes('TH'))
   ) {
     return 'GT';
+  }
+
+  // 10. Fallback por análisis de partidas canónicas
+  if (Array.isArray(order?.items) && order.items.length > 0) {
+    const codes = order.items.map((it: any) => (it.code || it.description || '').toUpperCase()).join(' ');
+    if (codes.includes('EGBO000103') || codes.includes('EGBO000107') || codes.includes('ENBO000006') || codes.includes('ENBO000167')) return 'TH';
+    if (codes.includes('EGBO000095') || codes.includes('EGBO000018') || codes.includes('EGBO000017') || codes.includes('EGBO000093')) return 'GT';
   }
 
   return null;
@@ -331,12 +373,15 @@ export function getOrderSummary(o: PurchaseOrder) {
     }
   }
 
-  const kilosDelivered = round2(deliveries.reduce((a, d) => {
+  const rawDelivered = deliveries.reduce((a, d) => {
     if (d.items && d.items.length > 0) {
       return a + d.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
     }
     return a + Number(d.kilos || 0);
-  }, 0));
+  }, 0);
+
+  const totalInvoicedKilos = invoices.reduce((acc, i) => acc + Number(i.kilos || 0), 0);
+  const kilosDelivered = round2(Math.max(rawDelivered, totalInvoicedKilos));
   
   let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
   let tradeMargin = new Decimal(0), realizedProfit = new Decimal(0);
@@ -533,7 +578,7 @@ export function computeAndresRequirement(order: PurchaseOrder, config: Financial
   const itemsKilos = items.reduce((a, it) => a + (Number(it.quantity) || 0), 0);
   const kilos = itemsKilos > 0 ? itemsKilos : (Number(order.totalKilograms) || 0);
 
-  const costPricePerKg = Number(order.customCostPrice ?? config?.costPricePerKg ?? 42);
+  const costPricePerKg = Number(order.customCostPrice ?? config?.costPricePerKg ?? 38);
   const salePricePerKg = Number(order.customSellPrice ?? config?.salePricePerKg ?? 43);
 
   const costTotal = round2(new Decimal(kilos).times(costPricePerKg).toNumber());
@@ -683,6 +728,264 @@ export function getSuggestedNextAction(order: PurchaseOrder, _config?: Financial
     actionLabel: 'Registrar Entrega',
     badgeTone: 'info',
     targetTab: 'entregas',
+  };
+}
+
+/**
+ * =========================================================================
+ * GUARDRAILS ANTI-SOBRECUPO & VALIDACIONES PREVENTIVAS EN TIEMPO REAL
+ * =========================================================================
+ */
+
+export interface WeightGuardrailResult {
+  totalOrderedKg: number;
+  alreadyDeliveredKg: number;
+  maxAllowedNewKg: number;
+  excessKg: number;
+  isOverLimit: boolean;
+  projectedTotalKg: number;
+  pctCapacity: number;
+  message: string;
+}
+
+export function validateOrderWeightGuardrail(
+  order: PurchaseOrder | any,
+  newDeliveryKg: number,
+  currentDeliveryId?: string
+): WeightGuardrailResult {
+  const itemsSum = Array.isArray(order?.items)
+    ? order.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0), 0)
+    : 0;
+  const totalOrderedKg = round2(itemsSum > 0 ? itemsSum : (Number(order?.totalKilograms) || 0));
+
+  const deliveries = Array.isArray(order?.deliveries) ? order.deliveries : [];
+  const alreadyDeliveredKg = round2(
+    deliveries
+      .filter((d: any) => !currentDeliveryId || d.id !== currentDeliveryId)
+      .reduce((s: number, d: any) => s + (Number(d.kilos) || 0), 0)
+  );
+
+  const maxAllowedNewKg = round2(Math.max(0, totalOrderedKg - alreadyDeliveredKg));
+  const projectedTotalKg = round2(alreadyDeliveredKg + (Number(newDeliveryKg) || 0));
+  const excessKg = round2(Math.max(0, projectedTotalKg - totalOrderedKg));
+  const isOverLimit = excessKg > 0.01 && totalOrderedKg > 0;
+  const pctCapacity = totalOrderedKg > 0 ? round2((projectedTotalKg / totalOrderedKg) * 100) : 100;
+
+  let message = 'Dentro del cupo de la Orden de Compra.';
+  if (isOverLimit) {
+    message = `⚠️ Sobrecupo detectado: Excede por +${excessKg.toLocaleString('es-MX')} kg el tope de la OC (${totalOrderedKg.toLocaleString('es-MX')} kg).`;
+  } else if (maxAllowedNewKg <= 0.01) {
+    message = '✅ Esta Orden de Compra ya está surtida al 100%.';
+  }
+
+  return {
+    totalOrderedKg,
+    alreadyDeliveredKg,
+    maxAllowedNewKg,
+    excessKg,
+    isOverLimit,
+    projectedTotalKg,
+    pctCapacity,
+    message,
+  };
+}
+
+export interface InvoiceGuardrailResult {
+  totalOrderedKg: number;
+  totalDeliveredKg: number;
+  alreadyInvoicedKg: number;
+  maxAvailableToInvoice: number;
+  excessVsDelivered: number;
+  excessVsOrdered: number;
+  isOverDelivered: boolean;
+  isOverOrdered: boolean;
+  message: string;
+}
+
+export function validateInvoiceWeightGuardrail(
+  order: PurchaseOrder | any,
+  newInvoiceKg: number,
+  currentInvoiceId?: string
+): InvoiceGuardrailResult {
+  const s = getOrderSummary(order);
+  const totalOrderedKg = round2(Number(order?.totalKilograms) || s.kilosDelivered || 0);
+  const totalDeliveredKg = round2(s.kilosDelivered || 0);
+
+  const invoices = Array.isArray(order?.invoices) ? order.invoices : [];
+  const alreadyInvoicedKg = round2(
+    invoices
+      .filter((i: any) => !currentInvoiceId || (i.id !== currentInvoiceId && i.folio !== currentInvoiceId))
+      .reduce((sum: number, i: any) => sum + (Number(i.kilos) || 0), 0)
+  );
+
+  const maxAvailableToInvoice = round2(Math.max(0, totalDeliveredKg - alreadyInvoicedKg));
+  const projectedInvoicedKg = round2(alreadyInvoicedKg + (Number(newInvoiceKg) || 0));
+  const excessVsDelivered = round2(Math.max(0, projectedInvoicedKg - totalDeliveredKg));
+  const excessVsOrdered = round2(Math.max(0, projectedInvoicedKg - totalOrderedKg));
+
+  const isOverDelivered = excessVsDelivered > 0.01 && totalDeliveredKg > 0;
+  const isOverOrdered = excessVsOrdered > 0.01 && totalOrderedKg > 0;
+
+  let message = 'Kilos listos y amparados para timbrado CFDI.';
+  if (isOverDelivered) {
+    message = `⚠️ Sobrefacturación en Báscula: Se intentan facturar +${excessVsDelivered.toLocaleString('es-MX')} kg más de lo entregado en patio (${totalDeliveredKg.toLocaleString('es-MX')} kg).`;
+  } else if (isOverOrdered) {
+    message = `⚠️ Sobrefacturación en OC: Se intentan facturar +${excessVsOrdered.toLocaleString('es-MX')} kg más del total de la OC (${totalOrderedKg.toLocaleString('es-MX')} kg).`;
+  }
+
+  return {
+    totalOrderedKg,
+    totalDeliveredKg,
+    alreadyInvoicedKg,
+    maxAvailableToInvoice,
+    excessVsDelivered,
+    excessVsOrdered,
+    isOverDelivered,
+    isOverOrdered,
+    message,
+  };
+}
+
+/**
+ * =========================================================================
+ * ASISTENTE DE CONCILIACIÓN "3-WAY MATCH" (Báscula ➔ Factura SAT ➔ Contrarecibo)
+ * =========================================================================
+ */
+
+export type ThreeWayMatchStatus = 'MATCH_PERFECT' | 'PENDING_INVOICE' | 'PENDING_CR' | 'DISCREPANCY';
+
+export interface ThreeWayMatchEvaluation {
+  status: ThreeWayMatchStatus;
+  isPerfect: boolean;
+  hasDelivery: boolean;
+  hasInvoice: boolean;
+  hasCr: boolean;
+  deliveryKg: number;
+  invoiceKg: number;
+  diffKg: number;
+  crNumber: string;
+  unitPrice: number;
+  invoiceTotal: number;
+  expectedTotal: number;
+  diffMoney: number;
+  reason: string;
+}
+
+export function evaluateThreeWayMatch(
+  order: PurchaseOrder | Partial<PurchaseOrder> | Record<string, any> | null | undefined,
+  invoice?: Invoice | Partial<Invoice> | Record<string, any> | null,
+  deliveriesList?: Delivery[]
+): ThreeWayMatchEvaluation {
+  const deliveries = deliveriesList || order?.deliveries || [];
+  const totalDeliveredKg = round2(deliveries.reduce((acc: number, d: Delivery) => acc + (Number(d.kilos) || 0), 0));
+  
+  const inv = invoice || (Array.isArray(order?.invoices) && order.invoices.length > 0 ? order.invoices[0] : null);
+  const hasDelivery = totalDeliveredKg > 0.01;
+  const hasInvoice = !!inv && (Number(inv.kilos) > 0 || Boolean(inv.folio && String(inv.folio).trim().length > 0));
+  
+  const cr = extractCr(inv, order).trim().toUpperCase();
+  const hasCr = cr.length > 0 && !cr.startsWith('SIN') && !cr.startsWith('PEND') && (cr.includes('-') || cr.startsWith('TH') || cr.startsWith('GT') || /^\d+$/.test(cr));
+
+  const invoiceKg = round2(Number(inv?.kilos) || 0);
+  const deliveryKg = totalDeliveredKg;
+  const diffKg = round2(Math.abs(deliveryKg - invoiceKg));
+
+  const unitPrice = round2(inv?.financials?.salePricePerKg || 43.0);
+  const invoiceTotal = round2(inv?.financials?.invoiceTotal || (invoiceKg * unitPrice * 1.16));
+  const expectedTotal = round2(deliveryKg * unitPrice * 1.16);
+  const diffMoney = round2(Math.abs(invoiceTotal - expectedTotal));
+
+  if (!hasDelivery) {
+    return {
+      status: 'DISCREPANCY',
+      isPerfect: false,
+      hasDelivery: false,
+      hasInvoice,
+      hasCr,
+      deliveryKg: 0,
+      invoiceKg,
+      diffKg: invoiceKg,
+      crNumber: cr,
+      unitPrice,
+      invoiceTotal,
+      expectedTotal: 0,
+      diffMoney: invoiceTotal,
+      reason: 'No se han registrado boletas de pesaje en báscula.',
+    };
+  }
+
+  if (!hasInvoice) {
+    return {
+      status: 'PENDING_INVOICE',
+      isPerfect: false,
+      hasDelivery: true,
+      hasInvoice: false,
+      hasCr,
+      deliveryKg,
+      invoiceKg: 0,
+      diffKg: deliveryKg,
+      crNumber: cr,
+      unitPrice,
+      invoiceTotal: 0,
+      expectedTotal,
+      diffMoney: expectedTotal,
+      reason: `Hay ${deliveryKg.toLocaleString('es-MX')} kg en báscula listos para timbrar CFDI.`,
+    };
+  }
+
+  if (diffKg > 0.05) {
+    return {
+      status: 'DISCREPANCY',
+      isPerfect: false,
+      hasDelivery: true,
+      hasInvoice: true,
+      hasCr,
+      deliveryKg,
+      invoiceKg,
+      diffKg,
+      crNumber: cr,
+      unitPrice,
+      invoiceTotal,
+      expectedTotal,
+      diffMoney,
+      reason: `Discrepancia de peso: Báscula marca ${deliveryKg.toLocaleString('es-MX')} kg pero Factura ampara ${invoiceKg.toLocaleString('es-MX')} kg (Diferencia: ${diffKg.toLocaleString('es-MX')} kg).`,
+    };
+  }
+
+  if (!hasCr) {
+    return {
+      status: 'PENDING_CR',
+      isPerfect: false,
+      hasDelivery: true,
+      hasInvoice: true,
+      hasCr: false,
+      deliveryKg,
+      invoiceKg,
+      diffKg: 0,
+      crNumber: '',
+      unitPrice,
+      invoiceTotal,
+      expectedTotal,
+      diffMoney: 0,
+      reason: 'Báscula y Factura coinciden perfectamente. En espera de sello de Contrarecibo en ventanilla Providencia.',
+    };
+  }
+
+  return {
+    status: 'MATCH_PERFECT',
+    isPerfect: true,
+    hasDelivery: true,
+    hasInvoice: true,
+    hasCr: true,
+    deliveryKg,
+    invoiceKg,
+    diffKg: 0,
+    crNumber: cr,
+    unitPrice,
+    invoiceTotal,
+    expectedTotal,
+    diffMoney: 0,
+    reason: `✅ 3-Way Match Perfecto: Báscula (${deliveryKg.toLocaleString('es-MX')} kg) = Factura F-${inv?.folio || ''} ($${invoiceTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}) = Contrarecibo ${cr}.`,
   };
 }
 

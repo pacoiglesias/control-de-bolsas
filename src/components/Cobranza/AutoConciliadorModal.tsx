@@ -83,12 +83,16 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
         }
       }
 
-      // 2. Extraer posibles referencias (ej. CR, folios TH-739, GT-651, TR_3583)
+      // 2. Extraer posibles referencias (ej. CR, folios TH-739, GT-651, TR_3583, 6198)
       const words = line.split(/[\s\t,;|]+/);
       let foundReference = '';
       words.forEach(w => {
         const clean = w.replace(/[$]/g, '').trim().toUpperCase();
-        if (clean.startsWith('TH-') || clean.startsWith('GT-') || clean.startsWith('TR_') || clean.startsWith('CR')) {
+        if (
+          clean.startsWith('TH-') || clean.startsWith('GT-') || clean.startsWith('TR_') || clean.startsWith('TR-') ||
+          clean.startsWith('CR-') || clean.startsWith('TH') || clean.startsWith('GT') ||
+          /^\d{4,5}$/.test(clean)
+        ) {
           foundReference = clean;
         }
       });
@@ -108,6 +112,15 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
           matchedInvoices = crEntry[1].map(x => ({ order: x.order, invoice: x.invoice }));
           matchType = 'exact_cr';
           matchScore = 100;
+        } else {
+          // Coincidencia por Folio de Factura individual
+          const folioMatch = openInvoices.find(x => x.folio === foundReference || (x.folio && foundReference.includes(x.folio)));
+          if (folioMatch) {
+            matchedInvoices = [{ order: folioMatch.order, invoice: folioMatch.invoice }];
+            matchedCr = folioMatch.cr || folioMatch.folio;
+            matchType = 'exact_folio';
+            matchScore = 95;
+          }
         }
       }
 
@@ -198,6 +211,7 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
                 paidAmount: t.paidAmount,
                 paidAt: Timestamp.now(),
                 paymentDocument: t.refDoc,
+                transferRef: t.refDoc.startsWith('TR') ? t.refDoc : inv.collection?.transferRef,
               },
             }));
             if (updated) {
@@ -239,15 +253,32 @@ export default function AutoConciliadorModal({ orders, onClose, onSuccess }: Aut
       <div style={{ maxWidth: 840, width: '100%' }}>
         {step === 'input' ? (
           <div>
-            <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
-              💡 <strong>Instrucciones:</strong> Copia y pega aquí el reporte de depósitos del banco o de Providencia (montos, números de transferencia o contrarecibos). El sistema emparejará cada depósito con su contrarecibo y factura automáticamente.
+            <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 8, marginBottom: 14, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                💡 <strong>Instrucciones:</strong> Copia y pega aquí el reporte de depósitos del banco o de Providencia (montos, números de transferencia `TR_xxxx` o contrarecibos `TH-xxx`).
+              </div>
+              <button
+                type="button"
+                className="btn-small"
+                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', border: '1px solid #3b82f6', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    if (text) setPasteText(text);
+                  } catch {
+                    // Fallback
+                  }
+                }}
+              >
+                📋 Pegar del Portapapeles (Ctrl+V)
+              </button>
             </div>
 
             <textarea
               className="input boxed mono"
               rows={9}
-              style={{ width: '100%', fontSize: 13, resize: 'vertical' }}
-              placeholder={`Ejemplo de texto pegado de Excel o Banco:\nTR_4589  GT-651  $81,780.00  DEPÓSITO EN FIRME\nTR_4590  TH-739  $153,381.00  PAGO FACTURAS PROVIDENCIA\nGT-624  $74,820.00`}
+              style={{ width: '100%', fontSize: 13, resize: 'vertical', border: '2px solid var(--accent)' }}
+              placeholder={`Ejemplo de texto pegado de Excel o Banco:\nPR50823  TR_3640  7/31/2026  80,970.38  MXN\nTR_3620  GT-651  $196,482.30  DEPÓSITO EN FIRME\nTH-768  $125,254.25`}
               value={pasteText}
               onChange={e => setPasteText(e.target.value)}
             />

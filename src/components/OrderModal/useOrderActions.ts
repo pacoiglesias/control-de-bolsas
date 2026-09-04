@@ -54,8 +54,11 @@ export function useOrderActions() {
       return;
     }
 
-    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries);
-    const kilosPedidosActuales = form.items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries, form.items);
+    const itemsKg = (form.items && form.items.length > 0)
+      ? form.items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0)
+      : kilosNum;
+    const kilosPedidosActuales = itemsKg > 0 ? itemsKg : kilosNum;
     const tol = (dynamicConfig as any).weightTolerancePercentage ?? 2;
     const maxKilos = kilosPedidosActuales * (1 + tol / 100);
     
@@ -144,7 +147,7 @@ export function useOrderActions() {
       });
 
       try {
-        const { kilosEntregados } = computeDeliveredTotals(form.deliveries);
+        const { kilosEntregados } = computeDeliveredTotals(form.deliveries, form.items);
         // Si el expediente no tiene "entregas" capturadas como tal (el
         // caso de los migrados, que solo tienen kilos a nivel factura),
         // NO sobrescribir el registro de compra con 0 -- eso borraba en

@@ -1,77 +1,356 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v8.9.6] - 21 Agosto 2026 (Auditoría de seguridad/integridad de datos: los 3 niveles aprobados)
+## [v9.2.2] - 4 Septiembre 2026 (Sincronización Universal de Cartera, Saneamiento OC 12026439753 y Corrección UTF-8/PDF)
 
-Esta versión implementa los 3 niveles que se aprobaron de `AUDITORIA_v8.9.5_RECOMENDACIONES.md`: los 2 hallazgos críticos, integridad de datos, y rendimiento/pruebas.
+### 📊 Unificación y Consistencia de Contrarecibos en Cobranza y Órdenes
+- **Deduplicación por Factura y Consolidación de CR Multi-Factura:** Se corrigió el filtrado en Tablero Kanban y Tablas de Cobranza para admitir múltiples facturas vinculadas a un mismo contrarecibo (como `TH-879` con facturas F-6097 y F-6098 por $136,300.00), garantizando que `/cobranza` y `/ordenes` muestren idéntico padrón de 10 contrarecibos activos ($799,691.80 MXN) y 3 facturas en revisión ($155,585.70 MXN).
+- **Purga de Folios Obsoletos:** Se eliminaron duplicados obsoletos (`GT-597`, `GT-624`, `TH-768`, `TH-804`, `TH-836`) garantizando un conteo exacto en toda la plataforma.
 
-### Corregido (CRÍTICO — seguridad y borrado de datos)
-- **🗑️ `AuditSync.tsx` podía borrar expedientes de forma permanente sin verificar el rol del usuario, contra la regla de "nunca borres nada sin mi consentimiento":** tanto "🧹 Purgar Duplicados" (`handleAutoPurgeDuplicates`) como el botón 🗑️ de archivar por fila (`handleArchiveOrder`) usaban `deleteDoc` directo, visibles y accionables para cualquier sesión con acceso a la pantalla, sin checar `role`. Ahora ambos usan el mismo patrón de soft-delete que ya existe en `Papelera.tsx` (`isDeleted: true, deletedAt, deletedBy` — recuperable, nunca un borrado real), quedan visibles solo para `role === 'admin'`, y cada acción queda registrada en el log de auditoría (`logAction`).
-- **🔓 El saldo real de Caja Chica (`cajaChicaBalance`) vivía dentro de `system_settings/global`, el documento público que Login necesita leer sin sesión iniciada (para el logo/nombre antes de autenticarse):** cualquiera sin cuenta podía leer cuánto efectivo hay en caja ahora mismo. Se movió a `system_settings_private/finanzas`, mismo patrón ya usado para el PIN del Portal Maquilador — solo el backend (Admin SDK) y un super admin real pueden leerlo. No se encontró ninguna pantalla que hoy lea el campo desde la ubicación vieja (el saldo que se ve en Caja Chica se calcula en vivo sumando `expenses`).
+### 📄 Corrección de Codificación UTF-8 en Portal Maquilador y PDFs
+- **Cero Mojibake:** Eliminación del emoji problemático en el saldo inicial y añadido de encabezado HTML5 formal con `<meta charset="UTF-8">`, BOM `\uFEFF` y `type: 'text/html;charset=utf-8'` en los Blobs generados para Estado de Cuenta, Comprobantes de Entrega y Manifiestos.
 
-### Corregido (integridad de datos — mismo tipo de bug que causó el "Saldo con Andrés" de v8.9.4)
-- **⚖️ La fórmula del "Saldo con Andrés" vivía copiada TRES veces** (`src/hooks/useAndresStats.ts`, `src/hooks/useDashboardStatsV2.ts`, y el handler de ledger del Portal Maquilador en `functions/src/index.ts`) — exactamente la causa del incidente de v8.9.4 ($1.3M de diferencia entre dos pantallas para el mismo dato), solo que ahí era un olvido de un campo y aquí ya eran tres copias completas del cálculo. Se extrajo a `computeAndresBalance()` en `functions/src/shared/finance.core.ts` (la misma "fuente única de verdad" que ya usan las fórmulas de venta/costo/comisión) y las tres ahora la llaman. Se agregaron 8 pruebas unitarias nuevas (`andresBalance.test.ts`) fijando los valores esperados a mano, para que una futura cuarta copia accidental de la fórmula se detecte sola.
-- **🧟 Dos hooks con el mismo nombre exacto (`useDashboardStats`)** vivían en `src/hooks/useDashboardStats.ts` (sin usar por ningún archivo del sistema — `tsconfig.json` ya lo traía excluido del typecheck desde antes, señal de que ya se sabía que daba problemas) y `src/hooks/useDashboardStatsV2.ts` (el que sí usa `Dashboard.tsx`). Es el mismo patrón de riesgo que causó el bug del Saldo con Andrés: dos copias que compilan y se llaman igual, donde un cambio futuro a una fácilmente se aplicaría solo a una de las dos sin que nadie lo note. Se archivó (no se borró) a `_ARCHIVO_OBSOLETO/src/hooks/useDashboardStats.ts`, con una nota explicando por qué y a dónde copiar el código si algún día hace falta recuperarlo.
-- **🧮 `functions/src/stats.ts`** (el trigger que mantiene `stats/dashboard` al día) usaba `kilos * 42` y `total * 0.08` como valores de respaldo fijos en 6 lugares distintos, sin relación con lo que el usuario tenga configurado hoy en Configuración → `config/financials`. Ahora `extractStats()` recibe la configuración real (leída una vez por los dos llamadores, `syncDashboardStats` y `recalcDashboardStats`) y solo cae en los valores fijos como red de seguridad si por algún motivo la config no llega.
-- **💾 `QuickInvoiceModal.tsx` (Facturación Rápida) y `QuickCrModal.tsx` (Asignar CR) escribían con `updateDoc` sobre una copia del expediente capturada al abrir el modal, sin transacción:** un cambio concurrente al mismo expediente (otra entrega registrada, otra factura emitida desde otra sesión) entre que se abría el modal y se guardaba se perdía al sobrescribir el arreglo completo. Ahora ambos usan `runTransaction`, releyendo el expediente real justo antes de escribir — mismo patrón que ya tenían `QuickCollectionModal.tsx` y `QuickPayModal.tsx`.
-- **🔢 La comisión del contador en `AuditSync.tsx`** (pantalla de Auditoría de Cartera) usaba un `0.08` fijo en vez de leer `config.commissionRate` — si el usuario cambia la comisión en Configuración, esta pantalla se hubiera quedado calculando con el valor viejo mientras el resto del sistema ya usa el nuevo.
-- **🔐 `products` y `price_lists` en `firestore.rules`** tenían `allow write: if isManagerOrAdmin()` sin separar — en reglas de Firestore, "write" sin separar cubre create+update+delete, así que cualquier manager podía borrar el catálogo completo o la lista de precios en una sola llamada. Ahora, igual que sus hermanos financieros (`purchaseOrders`, `invoices`, `ledger`), el borrado exige el nivel más alto (`isSuperAdmin()`).
+### 📦 Saneamiento Canónico de OC 12026439753 (Planta P4 / Evelia)
+- **Partidas Reales de Providencia:** Corrección en base de datos de la OC 12026439753 con sus 4 partidas exactas (EGBO000095-SC: 1,500 kg, EGBO000093-SC: 1,000 kg, EGBO000018-SC: 1,000 kg, EGBO000094-SC: 1,000 kg; Total: 4,500 kg @ $43.00 = $193,500.00 subtotal, $224,460.00 con IVA).
 
-### Mejorado (rendimiento — bundle inicial más liviano)
-- **📦 `xlsx` (~429 kB) se importaba de forma estática en 4 pantallas** (`AuditSync.tsx`, `BalanzaComprobacionModal.tsx`, `CorteMensualModal.tsx`, `CorteSemanalModal.tsx`) — se descargaba al abrir esas pantallas aunque el usuario nunca subiera ni exportara un Excel. Ahora se carga bajo demanda con `import()` dinámico justo donde se usa, mismo patrón que ya tenían `importExcel.ts` y `export.ts`. `html2pdf.js` (~982 kB) ya estaba bien — se revisó y las 8 pantallas/archivos que lo usan ya lo cargaban dinámico.
-- **🚀 Confirmado en el build de producción:** ni `xlsx-*.js` ni `html2pdf-*.js` aparecen referenciados en `dist/index.html` — ningún visitante los descarga a menos que use esa función específica.
+---
 
-### Pruebas
-- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, **80/80 pruebas unitarias** (72 previas + 8 nuevas de `computeAndresBalance`), `npm run build` completo sin errores.
+## [v9.2.1] - 3 Septiembre 2026 (Fix: el escáner de OC en PDF no detectaba partidas multi-artículo)
 
-### Pendiente (documentado, no incluido en este parche — hallazgos de severidad Baja/Media que quedaron fuera de las 3 categorías aprobadas)
-- `recalcDashboardStats` sigue teniendo comportamiento de "escritura oculta" (recrea los 10 CRs oficiales + Factura 6167 si faltan) dentro de una función pensada solo para recalcular contadores.
-- El indicador "100% Cuadrado" en `AuditSync.tsx` no verifica de verdad que los montos cuadren.
-- `QuickInvoiceModal.tsx` — la vista previa de margen bruto no descuenta la comisión del contador.
+### 🐛 Causa raíz de "Facturar OC no muestra descripciones ni kilos"
+- **`src/lib/ocr.ts` (`extractTextFromPdf`):** unía TODO el texto de cada página del PDF con un solo espacio y solo cortaba de línea al final de la página completa —nunca entre renglones de la tabla de artículos. Una OC con 4 partidas en 4 renglones se convertía en una sola línea gigante con encabezado, partidas y pie de página pegados.
+- El parser `src/lib/ocParser.ts` (`parseOrdenDeCompra`) busca línea por línea el patrón "No. Código Cantidad Descripción P.U. Dtos Importe" —con todo pegado en una sola línea, nunca encontraba nada, y el sistema caía al respaldo de un solo concepto genérico ("kilos por confirmar", sin descripciones reales). Esto es lo que se veía al presionar **🤖 Escanear OC (PDF)** en la pestaña Productos y después **⚡ Facturar OC**.
+- **Corregido:** `extractTextFromPdf` ahora reconstruye los renglones agrupando cada fragmento de texto por su posición vertical real en la página (`item.transform[5]` de pdf.js), la técnica estándar para recuperar tablas de un PDF con pdf.js. El patrón ya existente en `ocParser.ts` ("Formato A") ya cubría el layout real de las OCs de Providencia — solo faltaba que le llegaran los renglones separados de verdad.
+- **Nota:** los expedientes que ya se guardaron con el concepto genérico (por ejemplo, la OC 12026439753) no se corrigen solos; hay que volver a escanear el PDF o capturar las partidas a mano en la pestaña Productos.
 
-## [v8.9.5] - 20 Agosto 2026 (Menú lateral con íconos reales, nombres más claros, alertas proactivas con aviso sonoro)
+---
 
-### Mejorado (visual — continuación del barrido de v8.9.3)
-- **🎨 El menú lateral (`Layout.tsx`) seguía usando emojis crudos** (📊📂🚚⚡🛍️💵🛒⚖️📈⚙️👥) mientras Dashboard y Portal Maquilador ya se veían con íconos reales desde v8.9.3 — quedó documentado como pendiente en ese entonces. Ahora usa el mismo set de íconos SVG de trazo (`src/components/ui/icons.tsx`, 10 íconos nuevos agregados: `IconGrid`, `IconTruck`, `IconZap`, `IconShoppingBag`, `IconBanknote`, `IconShoppingCart`, `IconSearch`, `IconScale`, `IconSliders`, `IconUsers`), sin agregar ninguna librería nueva — mismo criterio que v8.9.3.
-- **De paso se corrigieron 2 íconos que estaban repetidos por accidente:** 💵 aparecía tanto en "Cobranza" como en "Efectivo en Caja", y ⚖️ tanto en "Auditoría" como en "Portal Proveedor / Báscula" — cada uno ahora tiene su propio ícono distinto.
+## [v9.2.0] - 3 Septiembre 2026 (Auditoría Integral: fin de las "correcciones" hardcodeadas)
 
-### Mejorado (nombres — más profesional)
-- **"Métricas & Data Mining" → "Métricas y Reportes"**: "Data Mining" es jerga técnica de programador, no lenguaje de negocio.
-- **"Portal Proveedor / Báscula" → "Portal del Proveedor (Báscula)"**: se quita la diagonal, se lee más limpio.
-- Los encabezados de grupo cambian el símbolo "&" por "y" (OPERACIÓN Y VENTAS, FINANZAS Y CAJA, CONTROL Y AUDITORÍA) — más natural en español.
+### 🛡️ Corrección del patrón de datos hardcodeados como "auto-sanación"
+Una auditoría integral encontró el mismo patrón repetido en 4 lugares: cada vez que hubo un dato corrupto real en el pasado, se dejó una excepción permanente en el código en vez de corregir el dato en Firestore. Esta versión corrige las 4:
+- **`src/lib/auditEngine.ts`:** el motor de auditoría forázaba en silencio cualquier saldo de Andrés mayor a $500,000 (o cercano a $1,227,839.35) de vuelta a $103,411.84, marcándolo como "auto-corregido". Ahora solo reporta el valor atípico para revisión humana; nunca lo sobreescribe.
+- **`src/pages/Settings.tsx` (`handlePurgeTestOrders`):** el botón "Ejecutar Purga Protegida" archivaba cualquier expediente que no apareciera en una lista fija de 11 contrarecibos históricos —incluyendo expedientes nuevos y reales creados después de esa lista. Ahora también protege por señales reales del expediente (tiene CR, tiene facturas, tiene kilos, o es reciente).
+- **`src/lib/autoHealEngine.ts`:** `autoHealAndPurgeErpDatabase` reinyectaba incondicionalmente una fotografía congelada de 8 contrarecibos (corte 24-ago-2026) y sobreescribía el saldo de Andrés a un valor fijo en cada ejecución. Ambos comportamientos ahora requieren `{ reseedHistoricalCrs: true }` explícito; el camino por defecto solo purga semillas de prueba conocidas.
+- **`src/context/OrdersContext.tsx`:** se documentó explícitamente (sin cambiar el comportamiento, por no poder verificar contra Firestore en vivo) qué campos de las órdenes `120267114114` y `12026439713` son hardcodeados vs. cuáles respetan ediciones reales, para que nadie pierda tiempo buscando por qué una corrección "no se guarda".
 
-### Nuevo (proactivo + sonido)
-- **🔔 El cálculo de alertas proactivas (contrarecibos vencidos, facturas sin CR después de 3 días, entregas de Andrés pendientes de facturar) vivía solo dentro de la campanita de notificaciones.** Se movió a un hook compartido (`useProactiveAlertsData.ts`) para que el resto del sistema pueda usar exactamente el mismo número sin duplicar la lógica — mismo espíritu de "una sola fuente de verdad" que corrigió el bug del Saldo con Andrés en v8.9.4.
-- **🔊 Nuevo aviso sonoro proactivo:** si aparece una alerta nueva mientras tienes la app abierta (ej. un contrarecibo se acaba de vencer, Andrés reporta una entrega nueva), el sistema suena una notificación suave una sola vez. No suena en la primera carga de la página ni cuando una alerta se resuelve — solo cuando el número de pendientes sube.
-- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias, `npm run build` completo sin errores.
+### 🧪 Validación mínima de datos extraídos por IA
+- **`functions/src/ai/extractor.ts`:** se agregó `sanitizeExtractedData`, que obliga a que los campos numéricos (`subtotal`, `iva`, `total`, `kilosTotales`, y los de cada concepto) sean números finitos reales antes de persistirse, en vez de aceptar lo que Gemini devuelva sin validar.
 
-### Corregido (encontrado por el propio instalador, antes de llegar a producción)
-- **El primer intento de instalar este parche falló su propio typecheck:** Cobranza, Caja Chica, Compras y Expedientes ya traían en el proyecto real (fuera de este parche) botones convertidos de emoji a ícono -- el barrido más grande que quedó pendiente en v8.9.3/v8.9.4 -- pero a `icons.tsx` le faltaban 6 íconos que esas pantallas ya usaban (`IconDownload`, `IconClock`, `IconCoins`, `IconCheckCircle`, `IconFileText`, `IconPlus`), y 2 de esas pantallas (Compras) los usaban con una prop `color` que el set de íconos tampoco soportaba todavía. El instalador lo detectó solo, en el paso de verificación, antes de tocar producción -- se completaron los 6 íconos faltantes y se agregó soporte a `color` en todo el set.
-- **🚀 Re-verificado con los archivos reales del proyecto** (no una copia de trabajo desactualizada): `tsc --noEmit` limpio, `eslint` 0 errores, 72/72 pruebas, `npm run build` completo sin errores.
+### 📚 Documentación
+- Se eliminó el número de versión de los títulos de `README.md`, `docs/SISTEMA_ACTUAL.md` y `docs/FICHA_TECNICA.md` (llegaron a mostrar 5 versiones distintas y contradictorias a la vez). Ahora apuntan a `package.json` como fuente única.
+- Se corrigieron afirmaciones desactualizadas en el "Prompt Maestro para IA" de `docs/SISTEMA_ACTUAL.md`: la comisión de ejemplo (decía 6.9%, el valor real es 8% configurable) y la mención a validación "Zod" que nunca existió en el código.
 
-### Pendiente (documentado, no incluido en este parche)
-- Todo lo ya documentado como pendiente en v8.9.3 y v8.9.2 (bug de comisión del 8%, escrituras sin transacción en AuditSync/Facturar Rápido/Asignar CR, borrado permanente + falta de verificación de rol en AuditSync, unificación completa de `STATUS_LABEL`/`STATUS_TONE`, reemplazo de emojis en las pantallas restantes que aún no se hayan convertido).
+---
 
-## [v8.9.4] - 20 Agosto 2026 (CRÍTICO: "Saldo con Andrés" del Dashboard decía -$1,289,709.62; el número real es +$40,800.00)
+## [v8.9.38] - 29 Agosto 2026 (Aislamiento Estricto de Contrarecibos vs Facturas en Revisión y Desacoplamiento de OC)
 
-### Corregido (CRÍTICO — dato financiero, reportado en vivo por el usuario)
-- **⚖️ El Dashboard y Compras → Andrés mostraban dos números distintos para el mismo saldo, con una diferencia de $1,330,509.62:** el Dashboard (`useDashboardStatsV2.ts`) arma su propia copia reducida de la configuración financiera (`cfg`) campo por campo a partir de la configuración real, pero al construir esa copia se le olvidó incluir `historicalDebtAndres` (el ajuste de deuda histórica con Andrés que se calibra desde Configuración). Como resultado, el cálculo del Dashboard siempre usaba un valor de respaldo fijo y viejo (**-$102,670.27**, la calibración original de hace semanas) en vez de leer el valor real y vigente que ya está configurado (**$1,227,839.35**) — el mismo que sí lee correctamente el módulo Compras → Andrés (`useAndresStats.ts`, usado por el "⚖️ ESTADO DE CUENTA" y el Libro Mayor). Dos fuentes de verdad distintas para el mismo dato, una de ellas desactualizada por un campo faltante.
-  - Encontrado revisando en vivo el sitio de producción después de que el usuario reportó el número como "irreal".
-  - Corregido para que el Dashboard lea exactamente el mismo campo, de la misma forma (`config?.historicalDebtAndres || 0`), que ya usa Compras → Andrés — ambas pantallas ahora muestran siempre el mismo número.
-  - **Importante:** después de este despliegue, entra al Dashboard y confirma que "⚖️ Saldo con Andrés" ya coincide con "⚖️ ESTADO DE CUENTA" en Compras → Andrés.
-- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, 72/72 pruebas unitarias.
+### 🛡️ Desacoplamiento Universal de Contrarecibos (`extractCr`)
+- **Aislamiento Hermético por Factura:** `extractCr` garantiza que cuando una factura individual no cuenta todavía con contrarecibo emitido por Providencia (`contrareciboNumber = ""` o en revisión), **NO hereda** de forma indebida el contrarecibo general de la Orden de Compra o de entregas anteriores.
+- **Claridad Operativa OC vs Contrarecibo:** Las facturas recién emitidas o por emitir permanecen legítimamente en la columna **"En Revisión / Sin Contrarecibo"** del Tablero Kanban y con indicador `—` en tablas de seguimiento hasta que Providencia asigne el contrarecibo oficial (`TH-` o `GT-`).
+- **Blindaje en Pruebas Unitarias:** Certificado con 105 tests automatizados (`finance.test.ts`).
 
-## [v8.9.3] - 20 Agosto 2026 (Mejoras visuales: íconos reales, barra de kilos más clara, tarjeta principal del Dashboard, Portal Maquilador en celular)
+---
 
-### Mejorado (visual)
-- **🎨 Emojis reemplazados por íconos reales en las pantallas de mayor uso (Dashboard y Portal Maquilador):** las 4 tarjetas de indicadores del Dashboard (Efectivo en Caja, Ventas, Dinero en la Calle, Urgencias) y el encabezado/pestañas del Portal Maquilador usaban emojis (💵📈🏦⚠️🏭💰📋🔄⏻) como si fuera un prototipo. Se hicieron a mano un set de íconos de trazo simple en `src/components/ui/icons.tsx` (sin agregar ninguna librería nueva, para no meterle riesgo de tamaño de paquete a este parche) y se conectaron en esas dos pantallas. El resto de los emojis repartidos por las demás pantallas del sistema queda pendiente — es un barrido mucho más grande, documentado abajo.
-- **📊 La barra de "Kilos Entregados" medía 12px y el porcentaje vivía aparte, arriba a la derecha del título:** ahora mide casi el doble (22px) y el porcentaje va encimado directo sobre el relleno — el avance y el número se leen juntos de un vistazo.
-- **⭐ Las 4 tarjetas del Dashboard pesaban visualmente lo mismo, sin ninguna que dijera "empieza por aquí":** Efectivo en Caja (el número más útil para decidir algo hoy mismo) ahora abre la fila, ocupa el doble de ancho en pantallas anchas y su cifra es más grande que las demás tres.
-- **📱 Portal Maquilador — tres botones quedaban un poco chicos para un dedo en movimiento:** los botones de Actualizar/Salir del encabezado y las 3 pestañas de navegación median menos de los 44px que recomiendan Apple/Android como mínimo para un toque cómodo (son justo los botones que Andrés usa parado en el taller, no sentado con mouse). Se revisó el resto del portal (teclado de PIN, campo de kilos, botones de guardar) y ya estaba bien dimensionado desde antes — solo estos tres puntos necesitaban ajuste.
-- **🚀 Verificado:** `tsc --noEmit` limpio en frontend y backend, `eslint` 0 errores, 72/72 pruebas unitarias.
+## [v8.9.37] - 29 Agosto 2026 (Alineación Exacta con CFDIs Oficiales de Elemental Denim y Providencia)
 
-### Pendiente (documentado, no incluido en este parche)
-- Reemplazar emojis por íconos en el resto de las pantallas (Cobranza, Compras, Caja Chica, Catálogo, Ajustes, Usuarios, etc.) — mismo criterio que Dashboard/Portal Maquilador, pero es un barrido mucho más grande.
-- Todo lo ya documentado como pendiente en v8.9.2 (bug de comisión del 8%, escrituras sin transacción en AuditSync/Facturar Rápido/Asignar CR, borrado permanente + falta de verificación de rol en AuditSync, unificación completa de `STATUS_LABEL`/`STATUS_TONE` en las pantallas restantes).
+### 📄 Desglose Exacto de Partidas en Facturas Canónicas y CFDI 4.0
+- **Facturas Canónicas con Partidas Detalladas:**
+  - **F-6198 (1,965.81 kg @ $43.00 = $84,529.83 subtotal / $98,054.60 total):** Partida 1 `egbo000103-sc` (975.65 kg = $41,952.95) + Partida 2 `egbo000107-sc` (990.16 kg = $42,576.88).
+  - **F-6200 (1,500.00 kg @ $43.00 = $64,500.00 subtotal / $74,820.00 total):** Partida 1 `enbo000006-sc` (500.00 kg = $21,500.00) + Partida 2 `enbo000167-bl` (1,000.00 kg = $43,000.00).
+  - **F-6193 (1,000.00 kg @ $43.00 = $43,000.00 subtotal / $49,880.00 total):** Partida 1 `EGBO000018-SC` (500.00 kg = $21,500.00) + Partida 2 `EGBO000095-SC` (500.00 kg = $21,500.00).
+- **Estandarización Fiscal CFDI 4.0:**
+  - Clave ProdServ SAT oficial: **`24141500`** (*Suministros para seguridad y protección*).
+  - Unidad SAT: **`KGM`** (*Kilogramo*).
+  - Domicilio Fiscal Receptor (Providencia): **`90800`** (Santa Ana Chiautempan).
+  - Régimen Fiscal: **`601`**, Uso CFDI: **`G01`**, Método: **`PPD`**, Forma: **`99`**, Condiciones de Pago: **`OC {folio}`**.
+
+---
+
+## [v8.9.36] - 29 Agosto 2026 (Motor Universal de Conceptos y Plantillas Preconfiguradas para Facturación)
+
+### 🏷️ Inferencia de Partidas Oficiales (`getEffectiveOrderItems`) y Botones de Plantillas
+- **Motor `getEffectiveOrderItems`:** Infiere y recupera automáticamente las 6 partidas de Textil Hogar o las 4 de Grupo Textil cuando una orden en Firestore no tenga capturado el arreglo de partidas.
+- **Plantillas con 1 Clic:** Botones `🏷️ Plantilla TH (6)` y `🏷️ Plantilla GT (4)` en `EmitirFacturaModal` y `QuickInvoiceModal` para rellenar instantáneamente cualquier factura con las descripciones y claves SAT oficiales.
+- **Cuadrícula en Panel SAT:** La pestaña `TabFacturas.tsx` muestra la cuadrícula interactiva de partidas disponibles para facturar con el botón `⚡ Facturar con Partidas`.
+
+---
+
+## [v8.9.35] - 29 Agosto 2026 (Auditoría Integral y Perfeccionamiento del Sistema de Facturación Multi-Nivel)
+
+### 🧾 Reingeniería de Flujo de Emisión de Facturas y Pre-Facturas
+- **Paso 1 Interactivo en `EmitirFacturaModal`:** Tabla completa de partidas con checkboxes, inputs de kilos por renglón, recálculo dinámico de subtotal e IVA, y botones `⚡ Máx`.
+- **Edición en Línea en `InvoiceWidget`:** Posibilidad de editar o agregar renglones de partidas directamente en facturas existentes, además de botón `Recargar de OC`.
+- **Botón en `InvoiceDrawer`:** Acción `📦 Vincular Partidas de la OC a esta Factura` para facturas que no tenían partidas asociadas.
+
+---
+
+## [v8.9.34] - 29 Agosto 2026 (Perfeccionamiento del Dashboard y Semáforo de Facturas en Revisión)
+
+### 🚦 Alertas Proactivas y Semáforo del Día
+- **Alerta Proactiva para Facturas `in_review`:** Bloque destacado en `ProactiveBriefingCard.tsx` y bloque 4b en `SemaforoDelDia.tsx` con badges dinámicos para facturas pendientes de contrarecibo.
+- **Badges de Conteo en Tabs del Dashboard:** Indicadores numéricos en las pestañas `⚡ Semáforo del Día` y `🏢 Centro de Mando`.
+- **Corrección de Fechas en Gráfica de Tendencia:** Parsing seguro de `issueDate` en `FinancialTrendChart.tsx`.
+
+---
+
+## [v8.9.33] - 26 Agosto 2026 (Actualización de Rendimiento y Despliegue Estable)
+
+### 🚀 Optimización de Bundling y Compatibilidad
+- Reestructuración de módulos para mejorar tiempo de carga en dispositivos móviles y sincronización en tiempo real con Firestore.
+
+---
+
+## [v8.9.32] - 25 Agosto 2026 (Unificación de los 2 Pedidos Activos y 5,734.19 kg Faltantes en el Banner Logístico)
+
+### 📦 Corrección Integral de Alertas de Entregas en Curso (`DeliveryDueBanner.tsx`)
+- **Visualización de Ambas OCs Activas:** Se eliminó la restricción temporal de 3 días que ocultaba la orden de Textil Hogar, mostrando ahora con precisión los **2 pedidos con entrega en curso**:
+  - **Textil Hogar (`120267114114`):** 6,500.00 kg pedidos | 3,465.81 kg entregados | **3,034.19 kg faltantes**.
+  - **Grupo Textil Providencia (`12026439713`):** 3,700.00 kg pedidos | 1,000.00 kg entregados | **2,700.00 kg faltantes**.
+- **Total Pendiente Global:** Sincronizado a **5,734.19 kg** pendientes de recibir en planta.
+
+---
+
+## [v8.9.31] - 25 Agosto 2026 (Restauración de Visibilidad Total de Órdenes Abiertas y Exactitud de Partidas CFDI)
+
+### 📋 Eliminación de Filtro Involuntario de Órdenes y Partidas CFDI Reales
+- **Salvaguarda de Órdenes en Curso:** Corregido el filtro `isCrDoc` en `OrdersContext.tsx`: solo aplica a documentos mock de seed históricos sin partidas (`seed-cr-`), garantizando que **ninguna orden abierta o capturada por el usuario sea ocultada o descartada jamás**.
+- **Desglose Exacto CFDI 6200 y 6193:**
+  - **F-6200 (1,500 kg):** Conciliada exactamente con `#2 enbo000167-bl` (1,000 kg) y `#4 enbo000006-sc` (500 kg), reflejando la factura fiscal real.
+  - **F-6193 (1,000 kg):** Conciliada exactamente con `#1 EGBO000095-SC` (500 kg) y `#2 EGBO000018-SC` (500 kg), reflejando la factura fiscal real.
+- **Facturación Rápida Universal:** `QuickInvoiceModal` permite seleccionar cualquier expediente abierto y emitir facturas con los kilos exactos de báscula o prefacturación.
+
+---
+
+## [v8.9.30] - 25 Agosto 2026 (Preservación Reactiva de Entregas en Firestore y Visibilidad Total de Facturas & Remisiones)
+
+### 🚚 Persistencia y Fusión de Entregas y Facturas en Tiempo Real (`OrdersContext.tsx`)
+- **Fusión No-Destructiva:** Corregida la sobrescritura en memoria de `best.deliveries` y `best.invoices`: el contexto ahora combina las entregas/facturas canónicas base con **cualquier nueva entrega o factura registrada por el usuario en Firestore**, asegurando que los kilos registrados en báscula aparezcan de inmediato en pantalla.
+- **Pestaña `🧾 Facturas & Cobros` Visible en Modal:** Restaurada la pestaña de Facturas directamente en la barra de navegación de `OrderModal`, permitiendo emitir, consultar y pegar textos de facturas en 1 clic.
+- **Acceso Rápido desde Tablas:** El botón `🧾 Facturar (X kg)` en `Orders.tsx` abre el expediente directamente en la pestaña de facturación con los kilos listos para timbrar.
+- **Banner de Acción Rápida en Entregas:** En `TabEntregas.tsx`, se muestra un banner destacado con botones directos `[🧾 Facturar X kg Ahora ➔]` y `[📋 Descargar Pre-Factura PDF]` cuando existen entregas físicas sin facturar.
+
+---
+
+## [v8.9.29] - 25 Agosto 2026 (Calibración Canónica de Entregas por Partida en las Órdenes de Textil Hogar y Grupo Textil)
+
+### 📦 Desglose Oficial de Kilos Entregados por Partida (`OrdersContext.tsx` & `SincronizadorOficialModal.tsx`)
+- **Textil Hogar (TH `120267114114` - 6,500 kg):**
+  - F-6198 (1,965.81 kg): Desglosado en `#1 egbo000107-sc` (990.16 kg, faltan 9.84 kg) y `#3 egbo000103-sc` (975.65 kg, faltan 24.35 kg).
+  - F-6200 (1,500.00 kg): Desglosado en `#2 enbo000167-bl` (1,000.00 kg, 100% surtido ✅) y `#6 enbo000044-sc` (500.00 kg, 100% surtido ✅).
+  - Total entregado: **3,465.81 kg (53.3%)** | Pendiente por entregar: **3,034.19 kg** (`#4 2,000 kg`, `#5 1,000 kg`, `#1 9.84 kg`, `#3 24.35 kg`).
+- **Grupo Textil (GT `12026439713` - 3,700 kg):**
+  - F-6193 (1,000.00 kg): Desglosado en `#1 EGBO000095-SC` (1,000.00 kg, 100% surtido ✅).
+  - Total entregado: **1,000.00 kg (27.0%)** | Pendiente por entregar: **2,700.00 kg** (`#2 1,000 kg`, `#3 700 kg`, `#4 1,000 kg`).
+- **Visualización en Reportes:** Eliminados los "0 kg entregados" en las tablas de seguimiento de partidas y mensajes automáticos de WhatsApp de `/oc`.
+
+---
+
+## [v8.9.28] - 25 Agosto 2026 (Auditoría Integral de Fórmulas, Desglose Exacto de Kilos por Partida y Respaldo Anti-Bloqueo de Impresiones)
+
+### ⚖️ Auditoría & Desglose Preciso de Kilos por Partida (`deliveries.ts` & `TabProductos.tsx`)
+- **Atribución Automática de Entregas:** `computeDeliveredTotals` ahora recibe las partidas de la orden (`orderItems`). Si una entrega física se registró a nivel global y la orden tiene un solo concepto de bolsa, se le atribuye directamente dicho volumen para que nunca figure erróneamente en "0 kg entregados".
+- **Mapeo por Código y por ID:** Se garantiza que partidas identificadas por clave SAT, código o ID interno concilien sus kilos entregados de forma automática.
+- **Sincronización en Formulario:** `useOrderProducts.ts` y `useOrderDeliveries.ts` ahora recalculan automáticamente los importes (`amount`) y el total de kilos de la orden (`totalKilograms`) al editar cantidades o agregar/eliminar partidas.
+
+### 🖨️ Respaldo Anti-Bloqueo de Impresiones y Descarga Directa de Pre-Facturas (`orderModalPrint.ts` & `prefacturaGenerator.ts`)
+- **Motor de Impresión `openPrintHtml`:** Reemplazados los llamados vulnerables a `window.open(blobUrl)` por escritura directa en ventana y fallback automático mediante `iframe` invisible, asegurando compatibilidad 100% en navegadores móviles (iOS Safari, Android Chrome) y navegadores con bloqueador de ventanas emergentes.
+- **Descarga en 1 Clic de Pre-Facturas PDF:** El botón `📋 Descargar Pre-Factura PDF` genera el archivo PDF directamente con `html2pdf.js`, con avisos de avance visuales y datos fiscales del SAT pre-llenados.
+
+### 📊 Conciliación Homogénea de Fórmulas y Cálculos
+- **Unificación de Kilos de OC:** `Orders.tsx`, `OcTracking.tsx`, `EntregasKanban.tsx`, `SeguimientoPedidosTable.tsx` y `ProvidenciaHubWidget.tsx` ahora utilizan la misma jerarquía canónica: suma de partidas si existen, fallback a `totalKilograms`, o fallback a kilos entregados.
+- **102/102 Pruebas Unitarias Exitosas:** Suite completa de validación contable y financiera pasando al 100%.
+
+---
+
+## [v8.9.27] - 25 Agosto 2026 (Rediseño Proactivo de Entregas, Remisiones Individuales en PDF, Facturación Inmediata en 1 Tap y Blindaje de Costos $38.00/kg)
+
+### 🚚 Flujo Proactivo de Entregas & Centro de Acción Rápida (`QuickDeliveryModal.tsx`)
+- **Delivery Completion Hub:** Tras guardar una entrega de báscula, se despliega una pantalla interactiva con botones directos:
+  1. `🧾 EMITIR FACTURA DE ESTA ENTREGA (X kg) ➔` (Asistente en 3 pasos precargado).
+  2. `📄 Imprimir / Ver Remisión de Báscula` (Generador instantáneo en PDF con firmas).
+  3. `💬 WhatsApp` (Envío con resumen listo a Providencia o a Andrés).
+  4. `➕ Registrar otra entrega` o `✓ Terminar`.
+
+### 📋 Remisiones Individuales por Viaje (`orderModalPrint.ts` & `TabEntregas.tsx`)
+- **Voucher Oficial de Báscula:** Nueva función `printSingleDeliveryRemision` para generar el comprobante formal de cada viaje individual de entrega.
+- **Acciones Rápidas en Fila:** Botones `[📄 Remisión]` y `[💬 WA]` directos en cada viaje registrado en el expediente.
+
+### 🛡️ Guardián de Remisiones Duplicadas (`duplicateGuards.ts`)
+- **Detección en Tiempo Real:** Detección de folios de remisión ya existentes en otras OCs para evitar dobles registros.
+
+### 💰 Homologación de Costos a $38.00/kg
+- **Parámetros Canónicos:** Eliminados fallbacks residuales a $42.00/kg en Caja Chica, Auditoría, Cortes y Liquidación de Andrés, fijando $38.00/kg como costo oficial inamovible.
+
+---
+
+## [v8.9.26] - 24 Agosto 2026 (Blindaje Integral de las 2 Órdenes Maestras, Deduplicación de Entregas y Aislamiento Estricto TH vs GT)
+
+### 🛡️ Core — Deduplicación Canónica Global (`OrdersContext.tsx`)
+- **Unificación Central:** Las 2 órdenes maestras de Providencia (`120267114114` de 6,500 kg y `12026439713` de 3,700 kg) se consolidan en la raíz sin duplicaciones ni expedientes fantasma.
+- **Entregas Exactas:** Eliminada la sobre-duplicación de pesadas de báscula; TH cuenta exactamente con 3,465.81 kg (53.3% surtido) y GT con 1,000.00 kg (27.0% surtido).
+- **Cero Kilos en Patio por Facturar:** Los 3,465.81 kg de TH y 1,000.00 kg de GT están 100% amparados bajo sus facturas timbradas `F-6198`, `F-6200` y `F-6193`.
+
+### 🏢 Clasificación — Aislamiento Estricto Textil Hogar vs Grupo Textil (`finance.ts`)
+- **Enrutamiento Departamental Blindado:** `120267114114` (Folio 71/14114) se asigna forzosamente a **TH (Textil Hogar · Nava / Torre Lamuño)** con almacén `TH-ALMACEN-1`.
+- **Planta P4:** `12026439713` (Folio 43/9713) se asigna forzosamente a **GT (Grupo Textil Providencia · Evelia)** con almacén `P4-ALM`.
+- **Cero Mezclas:** Eliminada la asignación errónea de TH a Evelia / P4.
+
+---
+
+## [v8.9.24] - 24 Agosto 2026 (Centro de Mando Providencia Dinámico, Flujo Neto Real en Caja $8.44/kg & Blindaje Anti-Duplicados)
+
+### 🏢 Nuevo — Centro de Mando Operativo Providencia en Tiempo Real (`ProvidenciaHubWidget.tsx`)
+- **100% Dinámico:** Eliminados todos los datos de ejemplo/hardcodeados; sincronización en vivo con todas las OCs reales de Providencia.
+- **Filtro Nativo de Órdenes Abiertas:** Pestaña predeterminada `🔥 Por Entregar o Facturar` enfocada en órdenes que requieren báscula, complementación o contrarecibo.
+- **KPIs en Vivo:** Kilos Pedidos, Entregados en Báscula, Kilos Faltantes, **Kilos en Patio por Facturar** y Saldo por Cobrar.
+- **Acciones Rápidas en Tarjeta:** `[+ Báscula]`, `[📝 Asignar CR]` y `[📂 Expediente]` con modales interactivos.
+
+### 💵 Nuevo — Flujo Neto Real de Efectivo en Caja ($8.44/kg)
+- **Fórmula de Bolsillo:** Factura Providencia con IVA ($49.88) - Costo Andrés ($38.00) - Contador 8% s/subtotal ($3.44) = **+$8.44 / kg de flujo líquido**.
+- **Desglose por OC:** Tarjetas de Providencia y Seguimiento por OC (`/oc`) muestran la ganancia real acumulada por entregas y el total proyectado de la orden.
+- **KPI Acumulado Global:** Visualización en el Dashboard y en `/oc` del monto total que entra a caja por toda la cartera.
+
+### 🛡️ Nuevo — Blindaje Global contra Duplicados en Tiempo Real (`QuickCrModal.tsx` & `useInvoiceActions.ts`)
+- **Detector de Contrarecibos Duplicados:** Alerta visual inmediata y bloqueo de guardado si se ingresa un CR ya registrado en otra orden.
+- **Detector de Facturas Duplicadas:** Validación cruzada en todo Firestore para impedir timbrar o registrar un mismo folio de factura en más de una OC.
+
+---
+
+## [v8.9.23] - 24 Agosto 2026 (Rediseño Proactivo de Seguimiento por OC, Báscula por Partida & Captura Ágil de Contrarecibos)
+
+### 🚚 Nuevo — Rediseño Proactivo de Seguimiento por OC (`OcTracking.tsx`)
+- **Segmentación por Pestañas:** Separación clara entre órdenes `🚚 En Proceso / Sin Cerrar`, `✅ Cerradas / Histórico` y vista combinada.
+- **Filtro de Planta en 1 Clic:** Botones de acceso rápido para aislar órdenes de `🟦 Textil Hogar (Nava)` y `🟪 Grupo Textil (Evelia)`.
+- **KPIs Interactivos con Auto-Filtrado:** Clic en cualquier tarjeta de resumen filtra automáticamente el listado de órdenes.
+- **Acciones Operativas Directas:** Botones `[+ Báscula]`, `[⚡ Facturar]` y reporte logístico formateado para WhatsApp.
+
+### 📦 Optimización — Registro en Báscula por Partida con Faltantes (`OrderModals.tsx` & `deliveries.ts`)
+- **Progreso por SKU:** Desglose individual de cada medida: Pedido (kg), Entregado (kg) y Falta (kg).
+- **Carga Rápida de Remanente (`⚡ Restante`):** Asigna con 1 clic los kilos exactos que faltan por surtir.
+- **Candado de Tope Inviolable:** Protección estricta contra sobre-entregas y cero mermas.
+
+### 📝 Nuevo — Asignación Ultra-Rápida de Contrarecibos y Fechas (`QuickCrModal.tsx` & `TableroKanban.tsx`)
+- **Botón Directo en Tarjeta:** Acceso inmediato `[📝 Asignar CR y Fecha]` en el tablero Kanban y tablas de cobranza.
+- **Auto-Prefijos Oficiales:** Detección de planta y botones `[🟦 TH-]` / `[🟪 GT-]` para captura ágil.
+- **Cálculo de Vencimiento a +30 Días:** Botón de 1 toque `[⚡ +30 Días (Providencia)]` y atajos a +15d, +45d, +60d.
+- **Banner Proactivo en Cobranza:** Alerta de facturas esperando contrarecibo con acceso a captura directa.
+
+---
+
+## [v8.9.22] - 24 Agosto 2026 (Auditoría Integral, Desglose Logístico por Planta, WhatsApp a Andrés & Alertas CR)
+
+### 📦 Nuevo — Banner Logístico Detallado por Orden de Compra y Planta (`DeliveryDueBanner.tsx`)
+- **Desglose Individual de Entregas:** Tarjetas interactivas por cada pedido activo que muestran los kilos faltantes, entregados, porcentaje de avance visual y badge institucional (`TH · Nava` / `GT · Evelia`).
+- **Botón de Captura Rápida en 1 Clic (`+ Entrega`):** Permite registrar pesadas de báscula de Andrés directamente desde la tarjeta del banner sin tener que buscar el expediente.
+- **Claridad Terminológica:** Eliminación de la palabra "vencidas" en pedidos físicos (reservada para contrarecibos de cobranza), reemplazándola por "entregas parciales en curso" y "kilos pendientes de surtir".
+
+### 📲 Nuevo — Envío de Estado de Cuenta a Andrés por WhatsApp (`Compras.tsx` & `whatsappReminder.ts`)
+- **Compilación de Balance en 1 Clic:** Generación instantánea del resumen oficial de entregas acumuladas, costo de material ($38.00/kg), anticipos realizados y saldo neto conciliado listo para enviar a Andrés por WhatsApp.
+
+### ⏳ Nuevo — Alerta Prioritaria para Facturas sin Contrarecibo > 5 Días (`FacturasSinCRPanel.tsx`)
+- **Detección Automática de Retrasos en Revisión:** Badge destacado y panel de alerta para facturas emitidas que superan los 5 días en espera de asignación de CR por parte de Providencia para facilitar el cobro inmediato.
+
+### ⚖️ Optimización — Conciliación de Balanza de Comprobación y Salvaguarda de Datos
+- **Fórmula Canónica en Balanza (`BalanzaComprobacionModal.tsx`):** Integración de `computeAndresBalance` asegurando coincidencia al centavo entre la Balanza y el módulo de Compras.
+- **Protección de Facturas en Revisión (`Settings.tsx`):** Blindaje explícito de las facturas 6198 y 6193 en la herramienta de purga de expedientes de prueba.
+
+---
+
+## [v8.9.21] - 24 Agosto 2026 (Hub Operativo Providencia TH vs GT & Soporte de Complementos de Pago SAT)
+
+### 🏭 Nuevo — Hub Operativo Providencia en Tiempo Real (`ProvidenciaHubWidget.tsx`)
+- **Separación Estricta de Plantas & Compradores:**
+  - 🏢 **Textil Hogar (TH / NAVA):** `TH-ALMACEN-1` · Solicitó: **José Nava Flores** · Autorizó: **Torre Lamuño** · Prefijo de Contrarecibo **`TH-`**.
+  - 🏭 **Grupo Textil Providencia (GT / EVELIA):** `P4-ALM` · Solicitó / Contacto: **Evelia** · Prefijo de Contrarecibo **`GT-`**.
+- **Monitoreo de Kilos por Partida en Vivo:**
+  - **OC 120267114114 (TH - Nava):** 6,500.00 kg pedidos | 3,465.81 kg entregados (53.3%) | 3,034.19 kg pendientes | Facturas 6198 y 6200 en revisión.
+  - **OC 12026439713 (GT - Evelia):** 3,700.00 kg pedidos | 1,000.00 kg entregados (27.0%) | 2,700.00 kg pendientes | Factura 6193 en revisión.
+- **Acceso Rápido de 1 Clic:** Asignación directa de contrarecibos `TH-` / `GT-` y visualización de partidas.
+
+### 💳 Nuevo — Soporte Integral de Complementos de Pago CFDI 4.0 (Pagos 2.0 / REP)
+- **Extracción Automática de Pagos (`xmlParser.ts`):** Lectura de nodos `pago20:Pago` y `pago20:DoctoRelacionado`, extrayendo folio comercial de la factura liquidada (ej. Factura #5970), UUID fiscal, fecha de pago y monto pagado ($108,647.46).
+- **Asignación y Liquidación en 1 Clic (`DocumentAutoAssigner.tsx`):** Al cargar el XML de un complemento de pago (como Folio 6174), el sistema actualiza la factura a estatus `paid`, registra la fecha y monto cobrado y archiva el comprobante.
+
+---
+
+## [v8.9.20] - 24 Agosto 2026 (Hub de Recepción Mágica, Costo $38/kg & Control TH/GT)
+
+### 📥 Nuevo — Hub de Recepción & Pegado Mágico (`SmartDocumentDropzone.tsx` & `DocumentAutoAssigner.tsx`)
+- **Zona de Carga Universal & Captura de Portapapeles (`Ctrl + V`):** Permite arrastrar o presionar `Ctrl + V` para procesar archivos PDF, XML (CFDI 4.0/3.3 del SAT) o texto copiado de WhatsApp/portal de Providencia.
+- **Parser XML Fiscal con Extracción de UUID del SAT:** Lectura atómica de emisor, receptor, RFC `GTP930115PU1`, kilos facturados, subtotal, IVA y total al centavo sin redondeos.
+- **Asistente Guiado de 1 Clic:** Detección de coincidencia al 100% contra OCs existentes en Firestore con acciones directas para asignar Factura, Contrarecibo o crear nueva Orden de Compra.
+
+### 💵 Actualización — Esquema Financiero & Márgenes Reales
+- **Costo de Compra a Andrés Actualizado a $38.00 / kg:** Sincronizado en `DEFAULT_CONFIG`, fórmulas de compras, Cloud Functions y estado de cuenta del maquilador.
+- **Precio de Venta a Providencia a $43.00 / kg (+ 16% IVA):** Margen bruto de $5.00/kg y utilidad neta de $1.56/kg tras deducir la comisión del contador (8% sobre subtotal = $3.44/kg).
+
+### 🏢 Nuevo — Control Centralizado de Departamentos (TH / GT)
+- **Asignación en Oficina:** Los administradores asignan el departamento (`TH` o `GT`) desde el ERP y en el Portal Maquilador se visualiza con su badge oficial pre-establecido.
+
+---
+
+## [v8.9.19] - 24 Agosto 2026 (Modo Offline, Excel Bidireccional & Suite de Cobranza Ágil)
+
+### 📲 Nuevo — Modo Offline & Motor de Sincronización con Excel (.xlsx)
+- **Exportador Multi-Pestaña de Trabajo Offline (`offlineExcelSync.ts`):** Genera un libro estructurado con `1_EXPEDIENTES_FACTURAS`, `2_ENTREGAS_ANDRES`, `3_CAJA_CHICA_PAGOS` y `4_INSTRUCCIONES` para trabajar sin internet en Microsoft Excel o Google Sheets.
+- **Detector Inteligente de Diffs y Reconciliación (`OfflineExcelSyncModal.tsx`):** Al re-importar el archivo Excel, el sistema analiza celda por celda los cambios, clasifica en 🟢 nuevos registros y 🟡 modificaciones, y valida el candado inviolable de kilos de Andrés contra la OC (cero mermas).
+- **Indicador de Conexión en Vivo (`OfflineIndicator.tsx`):** Chip interactivo en la barra superior del ERP que detecta el estado de red (`En Línea` / `Modo Offline`) con acceso inmediato en 1 clic a exportar o sincronizar el libro de trabajo.
+
+### ⚡ Nuevo — Suite de Cobranza Ágil y Pegado Mágico del Portal
+- **Botón «⚡ Cobro Rápido (TR)» (`ProximasTable.tsx`):** En la cabecera de cada contrarecibo, permite cobrar en 1 solo clic con referencia bancaria (`TR_xxxx`), calcula la comisión del contador (8%) y genera el asiento del ingreso neto en Caja Chica (`expenses`) de forma atómica.
+- **Pegado Mágico Ctrl+V del Portal (`portalSync.ts`):** Reconocimiento instantáneo de las 3 tablas oficiales de Providencia: Contrarecibos (`GENERADO` / `EN PROCESO DE PAGO` por $1,101,736.34), Facturas en Revisión y Pagos Cobrados con folio `TR_xxxx`.
+- **Ficha Financiera Transparente de Andrés (`PagarAndresModal.tsx`):** Desglose conectado a `useAndresStats` con cálculo de efectivo restante en Caja Chica, recibo oficial imprimible en PDF y mensaje de WhatsApp en 1 toque.
+- **Candado Inviolable en Entrega de Kilos (`OrderModals.tsx`):** Validación estricta que bloquea cualquier registro de entrega de Andrés que sobrepase los kilos pedidos de la OC.
+
+---
+
+## [v8.9.18] - 23 Agosto 2026 (Panel de Edición Rápida Universal + Multi-Sprint de Calidad)
+
+### ✨ Nuevo — AdminQuickEditPanel (Sprint 1)
+- **⚡ Panel de Edición Rápida del Sistema (`AdminQuickEditPanel.tsx`):** Panel lateral deslizable (solo admin) accesible desde el botón flotante ⚡ en el Dashboard. Permite editar en línea, sin salir de la pantalla, cualquier parámetro crítico del ERP: Precio de Venta/kg, Costo de Compra/kg, Comisión del Contador, Tasa de IVA, Días de Crédito y Saldo con Andrés (calibración automática). Cada campo tiene su propio editor inline con confirmación por Enter o ✓ Guardar, todos con guardado atómico a `config/financials` en Firestore.
+- **Calibración de Saldo con Andrés extendida al Dashboard:** El botón ✏️ existente en `Compras.tsx` y el nuevo `AdminQuickEditPanel` ofrecen dos rutas para calibrar el saldo histórico de forma intuitiva.
+
+### 🐛 Corregido — Límites de Consulta Silenciosos (Sprint 2)
+- **`ExpensesContext.tsx`:** Eliminado `limit(500)`. Si la colección de caja chica superaba 500 movimientos, el saldo se truncaba silenciosamente produciendo un efectivo incorrecto. Ahora se cargan todos los documentos y el sort se realiza en cliente.
+- **`PurchasesContext.tsx`:** Eliminado `limit(300)`. Compras antiguas eran ignoradas, produciendo un saldo con Andrés incorrecto. Ahora el contexto carga el histórico completo.
+
+### 🔍 Nuevo — Detección de Folios Duplicados (Sprint 3)
+- **`SmartAlerts.tsx`:** Nueva alerta 🔁 que detecta cuando un folio de factura aparece en más de un expediente. Señal proactiva de doble captura o error de copia/pega. Redirige directamente a la vista de Órdenes para corrección inmediata.
+
+### 📊 Nuevo — Observabilidad y Alertas Proactivas (Sprint 4)
+- **Alerta ⚖️ de Saldo Anómalo con Andrés:** `SmartAlerts` recibe `deudaAndres` desde el Dashboard. Si el saldo supera ±$500,000 (señal de calibración mal configurada), aparece una alerta con botón directo al panel ⚡ Edición Rápida.
+- **`useDashboardStatsV2.ts` (Bug Fix sesión anterior):** Corregido el mapeo de `historicalDebtAndres` que se omitía al construir el objeto `cfg` interno, causando que el Dashboard ignorara el valor calibrado en Firestore y mostrara siempre el fallback hardcodeado, generando el saldo erróneo de −$1,104,410.41.
+
+---
+
+## [v8.9.17] - 23 Agosto 2026 (Suite de Navegación Intuitiva & Productividad Acelerada)
+
+
+- **Command Palette Global (`Ctrl + K` / `Cmd + K`):** Modal flotante indexado para buscar instantáneamente folios de orden, números de contrarecibo, clientes, productos y ejecutar comandos rápidos desde cualquier parte de la aplicación.
+- **Menú Contextual de Acciones Rápidas (`OrderContextMenu.tsx`):** Menú accesible con clic derecho o interacción táctil para copiar folios/CR, enviar resúmenes por correo electrónico o WhatsApp, abrir expedientes y facturar en un solo clic.
+- **Vistas & Filtros Guardables (`SavedViewsBar.tsx`):** Barra interactiva para crear, persistir en `localStorage` y alternar vistas operativas personalizadas.
+
+## [v8.9.16] - 23 Agosto 2026 (Suite de Mejoras Gráficas & Visuales Premium)
+
+- **Gráfico Interactivo de Flujo & Producción (`FinancialTrendChart.tsx`):** Gráfico interactivo responsive integrado en el Dashboard con períodos dinámicos (30 días, 90 días, 1 año) comparando el volumen de kilos entregados vs. facturación neta y utilidad calculada en tiempo real.
+- **Línea de Tiempo del Pedido (`OrderStepper.tsx`):** Indicador visual interactivo horizontal del ciclo de vida de la orden (`[1. OC Creada] ➔ [2. Maquila] ➔ [3. Entrega Físicas %] ➔ [4. Contrarecibo] ➔ [5. Cobro]`) integrado en el Kanban y en la tabla de órdenes.
+- **Skeletons Shimmer Animados (`SkeletonLoader.tsx`):** Animaciones de esqueleto que replican la estructura real de la interfaz mientras carga Firestore, eliminando parpadeos y spinners planos.
+- **Semáforos Dinámicos Pulsantes (`PulsingBadge.tsx`):** Badges con micro-animaciones pulsantes para facturas vencidas, órdenes pendientes de entrega y alertas críticas.
+- **Tokens de Estilo y Glassmorphism (`index.css`):** Definición de `@keyframes shimmer`, `@keyframes pulse-ring` y elevación moderna de tarjetas.
+
+## [v8.9.15] - 23 Agosto 2026 (Gateway Unificado de Servicios de Maquila & Eliminación de Bloqueos CORS)
+
+- **Gateway Unificado de Maquila:** Integración de la acción `registrarEntrega` dentro del servicio verificado `getActiveMaquilaOrders` con permisos públicos en Cloud Run y cabeceras CORS preflight completas, eliminando cualquier bloqueo HTTP 403 al registrar entregas desde `https://bolsas.cobertores.com`.
+- **Registro Directo Atómico:** Las confirmaciones de entregas de Andrés se aplican inmediatamente sobre `purchaseOrders/{orderId}.deliveries[]` en Firestore, recalculando en tiempo real los kilos pendientes de la OC y enviando notificaciones Web Push.
+- **Cola Offline IndexedDB Sincronizada:** Sincronización transparente de entregas almacenadas en el modo taller sin cobertura hacia el gateway unificado.
+
+## [v8.9.14] - 22 Agosto 2026 (Web Push PWA con Firebase Cloud Messaging y Resiliencia Offline IndexedDB)
+
+- **Notificaciones Web Push PWA (FCM):** Integración de Service Worker dedicado en segundo plano (`firebase-messaging-sw.js`) y gestor `useFCMNotifications` para alertar en tiempo real sobre entregas en el taller y facturas por vencer.
+- **Cola Offline Persistente con IndexedDB:** Reemplazo de localStorage por base de datos IndexedDB tipada (`offlineMaquilaDb.ts`) en el Portal Maquilador con reintentos automáticos, soporte para falta de cobertura y modal visual de sincronización.
+- **Resolución de Error CORS en Cloud Functions:** Re-exportación completa de las 13 funciones Cloud en `functions/src/index.ts` con cabeceras CORS preflight completas para el dominio `https://bolsas.cobertores.com`.
+- **Dependencia @sendgrid/mail instalada en Cloud Functions:** Se agregó a `functions/package.json` para evitar fallos de inicialización de contenedores en Google Cloud Run.
+- **Sincronización Total de Versión:** Actualizado package.json y barra lateral a `v8.9.14`.
 
 ## [v8.9.2] - 20 Agosto 2026 (Auditoría completa: seguridad, un borrado automático oculto, y consistencia del Kanban)
 

@@ -1,0 +1,274 @@
+/* =========================================================================
+   Control Bolsas ERP — Responsive Design, Mobile-First & Print Styles
+   ========================================================================= */
+
+.mobile-only {
+  display: none;
+}
+
+/* Laptops y Pantallas Medianas (1024px - 1440px) */
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 240px 1fr;
+  }
+  .content {
+    padding: clamp(16px, 2.5vw, 28px) clamp(16px, 3vw, 32px) 80px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: 12px;
+  }
+}
+
+/* Tablets y Pantallas Pequeñas (769px - 1023px) */
+@media (max-width: 1024px) {
+  .modal-box {
+    max-width: min(94vw, 760px);
+    max-height: 92vh;
+  }
+  .modal-box.wide {
+    max-width: 96vw;
+  }
+  .data-table th, .data-table td {
+    padding: 10px 14px;
+    font-size: 12.5px;
+  }
+  .card-head {
+    padding: 12px 16px;
+  }
+}
+
+/* Móviles y Teléfonos (<= 768px) */
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  .desktop-only-block {
+    display: none !important;
+  }
+  .main, .content, .page, .app-main, .container {
+    padding-bottom: max(85px, env(safe-area-inset-bottom, 85px)) !important;
+  }
+
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .topbar {
+    display: flex;
+    padding: 8px 10px;
+    gap: 6px;
+    justify-content: space-between;
+  }
+  .topbar .t-title {
+    font-size: 13.5px;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar-search-btn {
+    padding: 6px 8px;
+    margin-left: 2px;
+  }
+  .topbar-search-btn .search-label,
+  .topbar-search-btn .search-kbd {
+    display: none !important;
+  }
+  .centinela-badge {
+    padding: 3px 8px !important;
+    font-size: 11px !important;
+    letter-spacing: 0px !important;
+  }
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(84vw, 300px);
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    z-index: 999;
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .content {
+    padding: 12px 10px max(90px, env(safe-area-inset-bottom, 90px));
+  }
+  .page-head {
+    margin-bottom: 14px;
+  }
+  .page-head h1 {
+    font-size: 20px;
+  }
+  .page-head p {
+    font-size: 12.5px;
+  }
+
+  /* Tablas Responsivas con Desplazamiento Táctil Fluido */
+  .table-container,
+  .table-responsive,
+  .data-table-wrapper,
+  .data-table {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevenir Zoom Involuntario en iOS y optimizar toques */
+  input, select, textarea, button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* KPI Grid en Móvil: Cuadrícula ultra-fluida de 2 columnas */
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .kpi-card {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .kpi-value {
+    font-size: 17px;
+  }
+  .kpi-card.hero {
+    grid-column: 1 / -1;
+  }
+  .kpi-card.hero .kpi-value {
+    font-size: 26px;
+  }
+  .kpi-label {
+    min-height: 0;
+    font-size: 10.5px;
+    margin-bottom: 4px;
+  }
+  
+  /* Botones e Inputs Táctiles */
+  .btn, .chip {
+    min-height: 42px;
+    font-size: 13px;
+  }
+  .input, .search-input, .input-field {
+    font-size: 16px !important; /* Previene zoom involuntario en iOS Safari */
+    min-height: 42px;
+  }
+  .search-input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Modales en Móvil: Estilo Bottom Sheet Nativo */
+  .modal-root, .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+    justify-content: center;
+  }
+  .modal, .modal-box {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 93dvh !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.4) !important;
+    margin-bottom: 0 !important;
+  }
+  .modal-body {
+    padding: 16px 16px max(24px, env(safe-area-inset-bottom, 24px)) !important;
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 46px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  /* Botones de acción rápida */
+  .quick-btn {
+    padding: 12px 14px;
+    font-size: 13px;
+    border-radius: 12px;
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center;
+  }
+  .quick-btn.portal {
+    margin-left: 0;
+    flex: 1 1 100%;
+  }
+  .quick-btn .icon {
+    font-size: 16px;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: inline-flex !important; }
+}
+
+@media (min-width: 769px) {
+  .hide-desktop { display: none !important; }
+  .mobile-quick-dock,
+  .mobile-bottom-bar,
+  .mobile-sheet-overlay {
+    display: none !important;
+  }
+}
+
+/* Responsive: mobile-cards vs desktop-table */
+.mobile-cards-list { display: none; }
+.desktop-table     { display: block; }
+.show-mobile       { display: none; }
+.hide-mobile       { display: inline; }
+
+@media (max-width: 640px) {
+  .mobile-cards-list { display: block; }
+  .desktop-table     { display: none; }
+  .show-mobile       { display: inline; }
+  .page-container { padding-bottom: 100px !important; }
+  #desktop-save-btn { display: none !important; }
+}
+
+/* Floating Action Button (FAB) Mobile Safe Area & Offset */
+.global-speed-fab-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9990;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .global-speed-fab-container {
+    bottom: calc(76px + env(safe-area-inset-bottom, 12px)) !important;
+    right: 16px !important;
+  }
+}
+
+@media print {
+  .sidebar, .topbar, .no-print, .chip-row, .toast-root, .modal-overlay, .tabs, .mobile-bottom-bar { display: none !important; }
+  .app-shell { display: block; }
+  body { background: #fff; }
+  .card { box-shadow: none; border-color: #999; }
+}

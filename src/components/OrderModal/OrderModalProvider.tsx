@@ -19,6 +19,7 @@ import { Timestamp } from 'firebase/firestore';
 
 import OrderModalContext from './OrderModalContext';
 import { printRemision, printPreFactura, printConsolidatedPackage } from './orderModalPrint';
+import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 import type { TabName } from './types';
 import { useOrderActions } from './useOrderActions';
 import { useInvoiceActions } from './useInvoiceActions';
@@ -172,21 +173,24 @@ export function OrderModalProvider({
   }, [order.invoices, dynamicConfig]);
 
   const { deliveredByItem, kilosEntregados } = useMemo(
-    () => computeDeliveredTotals(form.deliveries),
-    [form.deliveries]
+    () => computeDeliveredTotals(form.deliveries, form.items),
+    [form.deliveries, form.items]
   );
   
-  const kilosPedidos = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-  const kilosFaltantes = round2(kilosPedidos - kilosEntregados);
+  const itemsSum = (form.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  const kilosPedidos = itemsSum > 0 ? itemsSum : kilosNum;
+  const kilosFaltantes = round2(Math.max(0, kilosPedidos - kilosEntregados));
   const kilosPendientesDeFacturar = round2(Math.max(
-    kilosEntregados - (order.invoices || []).reduce((acc: number, i: any) => acc + (i.kilos || 0), 0),
+    kilosEntregados - (order.invoices || []).reduce((acc: number, i: any) => acc + (Number(i.kilos) || 0), 0),
     0
   ));
 
   async function save() {
     let finalIsClosedShort = form.isClosedShort;
-    const kilosPedidosActuales = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries);
+    const kilosPedidosActuales = (form.items && form.items.length > 0)
+      ? form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0)
+      : kilosNum;
+    const { kilosEntregados: kilosEntregadosActuales } = computeDeliveredTotals(form.deliveries, form.items);
     const tol = (dynamicConfig as any).weightTolerancePercentage ?? 2;
     
     const isUnderLimit = kilosEntregadosActuales >= (kilosPedidosActuales * (1 - tol / 100));
@@ -224,11 +228,36 @@ export function OrderModalProvider({
   }
 
   function handlePrintRemision() {
-    printRemision({ folio: form.folio, client: form.client, department: form.department, kilosNum, config, settings });
+    toast('📄 Abriendo Remisión de Entrega para imprimir...', 'ok');
+    printRemision({
+      folio: form.folio,
+      oc: form.oc,
+      client: form.client,
+      department: form.department,
+      items: form.items,
+      deliveredByItem,
+      kilosNum,
+      config,
+      provName
+    });
   }
 
-  function handlePrintPreFactura() {
-    printPreFactura({ folio: form.folio, items: form.items, deliveredByItem, kilosNum, dynamicConfig, provName });
+  async function handlePrintPreFactura() {
+    try {
+      toast('📄 Generando Pre-Factura en PDF...', 'info');
+      await generatePrefacturaPdf({
+        ...order,
+        ...form,
+        customCostPrice: form.customCostPrice !== '' ? Number(form.customCostPrice) : undefined,
+        customSellPrice: form.customSellPrice !== '' ? Number(form.customSellPrice) : undefined,
+        items: form.items,
+        totalKilograms: kilosNum,
+      } as unknown as PurchaseOrder, null);
+      toast('✅ Pre-Factura descargada con éxito', 'ok');
+    } catch (err: any) {
+      console.error('Error generando prefactura PDF, usando vista de impresión:', err);
+      printPreFactura({ folio: form.folio, items: form.items, deliveredByItem, kilosNum, dynamicConfig, provName });
+    }
   }
 
   function handlePrintConsolidatedPackage() {

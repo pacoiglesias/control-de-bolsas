@@ -3,7 +3,7 @@ import { useOrderModal } from './OrderModalContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useToast } from '../../context/ToastContext';
 import { fromInputDate, toInputDate, fmtDateTime } from '../../lib/format';
-import { round2 } from '../../lib/finance';
+import { round2, validateOrderWeightGuardrail } from '../../lib/finance';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
@@ -35,6 +35,8 @@ function MaquilaDeliveriesSelector({ onSelect, onCancel }: { onSelect: (d: any) 
   );
 }
 
+import { printSingleDeliveryRemision } from './orderModalPrint';
+import { triggerHaptic } from '../../lib/hapticEngine';
 import { FotoRemisionModal } from './FotoRemisionModal';
 
 export default function TabEntregas() {
@@ -47,6 +49,44 @@ export default function TabEntregas() {
 
   const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, setTab } = ctx;
   const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
+
+  const handlePrintSingleDelivery = (d: any) => {
+    triggerHaptic();
+    const k = round2((d.items ?? []).reduce((a: number, x: any) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
+    printSingleDeliveryRemision({
+      folio: form.folio,
+      oc: form.oc,
+      client: form.client,
+      department: form.department,
+      items: form.items,
+      delivery: {
+        date: d.date ? (typeof d.date.toDate === 'function' ? d.date.toDate() : new Date(d.date)) : new Date(),
+        kilos: k,
+        driver: d.driver || provName || 'Andrés',
+        docFolio: d.docFolio,
+        docType: d.docType,
+        notes: d.notes,
+        items: d.items,
+      },
+      provName: d.driver || provName || 'Andrés',
+    });
+  };
+
+  const handleShareDeliveryWA = (d: any) => {
+    triggerHaptic();
+    const k = round2((d.items ?? []).reduce((a: number, x: any) => a + (Number(x.quantity) || 0), 0) || d.kilos || 0);
+    const ocNum = form.oc || form.folio || 'S/N';
+    const text = `🚚 *COMPROBANTE DE ENTREGA EN BÁSCULA*\n\n` +
+      `📦 *OC / Pedido:* #${ocNum}\n` +
+      `🏢 *Cliente:* ${form.client || 'Providencia'}\n` +
+      `⚖️ *Kilos Entregados:* ${k.toLocaleString('es-MX')} kg\n` +
+      `📅 *Fecha:* ${toInputDate(d.date) || 'Hoy'}\n` +
+      `🚛 *Chofer / Entrega:* ${d.driver || provName || 'Andrés'}\n` +
+      (d.docFolio ? `📋 *Folio Remisión:* ${d.docFolio}\n` : '') +
+      (d.notes ? `📝 *Notas:* ${d.notes}\n` : '') +
+      `\n_Registrado desde Sistema ERP Bolsas Elemental_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
 
   const handleImportMaquilaDelivery = async (d: any) => {
     // 1. Encuentra el ítem en la OC actual (buscando por código o por id)
@@ -125,6 +165,92 @@ export default function TabEntregas() {
         )}
       </div>
 
+      {kilosFaltantes > 0.01 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.12) 100%)',
+          border: '1px solid #3b82f6',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#1d4ed8', fontSize: 13.5 }}>
+              ⚖️ Entrega Parcial: Faltan {kilosFaltantes.toLocaleString('es-MX')} kg para completar la OC
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              {form.isClosedShort ? '✅ Esta OC está marcada como Entrega Final Parcial (Concluida sin más entregas)' : 'El 80% de las órdenes concluyen con menos kilos. Si ya no habrá más entregas de Andrés, ciérrala aquí.'}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            style={{
+              background: form.isClosedShort ? '#10b981' : '#3b82f6',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 12,
+              padding: '6px 14px',
+              borderRadius: 8,
+            }}
+            onClick={() => {
+              triggerHaptic('success');
+              setForm((f: any) => ({ ...f, isClosedShort: !f.isClosedShort }));
+              toast(form.isClosedShort ? 'OC reabierta para más entregas' : 'OC marcada como entrega final concluida', 'ok');
+            }}
+          >
+            {form.isClosedShort ? '✓ Concluida (Reabrir)' : '🏁 Concluir como Entrega Final'}
+          </button>
+        </div>
+      )}
+
+      {ctx.kilosPendientesDeFacturar > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(217,119,6,0.15) 100%)',
+          border: '1.5px solid #f59e0b',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#b45309', fontSize: 14 }}>
+              ⚡ Tienes {ctx.kilosPendientesDeFacturar.toLocaleString('es-MX')} kg entregados pendientes de facturar
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              Genera la factura oficial para Providencia o descarga la Pre-Factura PDF para trámite de contrarecibo.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ background: '#fff', color: '#1e293b', fontWeight: 700, borderColor: '#cbd5e1' }}
+              onClick={ctx.printPreFactura}
+            >
+              📋 Descargar Pre-Factura PDF
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#fff', fontWeight: 800, border: 'none' }}
+              onClick={() => setTab('facturas')}
+            >
+              🧾 Facturar {ctx.kilosPendientesDeFacturar.toLocaleString('es-MX')} kg ➔
+            </button>
+          </div>
+        </div>
+      )}
+
       {showFotoModal && (
         <FotoRemisionModal
           onClose={() => setShowFotoModal(false)}
@@ -202,6 +328,35 @@ export default function TabEntregas() {
                 </div>
               );
             })()}
+
+            {/* Guardrail Anti-Sobrecupo */}
+            {(() => {
+              const guardrail = validateOrderWeightGuardrail(form, 0);
+              if (!guardrail.isOverLimit) return null;
+              return (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    background: 'rgba(220, 38, 38, 0.08)',
+                    border: '1.5px solid #dc2626',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ color: '#b91c1c', fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🛡️ Guardrail Activo:</span>
+                    <span>{guardrail.message}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    La suma de boletas de báscula ({kilosEntregados.toLocaleString('es-MX')} kg) supera los kilos amparados por la OC ({kilosPedidos.toLocaleString('es-MX')} kg). Revisa los pesajes capturados.
+                  </div>
+                </div>
+              );
+            })()}
+
             {showPortal && <MaquilaDeliveriesSelector onSelect={handleImportMaquilaDelivery} onCancel={() => setShowPortal(false)} />}
             {form.items.length === 0 ? (
               <p className="hint">Captura primero los productos de la OC en la pestaña Productos.</p>
@@ -283,12 +438,39 @@ export default function TabEntregas() {
                           )}
                           <strong className="mono" style={{ fontSize: 13 }}>{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ fontSize: 11.5, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            onClick={() => handlePrintSingleDelivery(d)}
+                            title="Imprimir o generar PDF de esta remisión individual"
+                          >
+                            <span>📄</span> Remisión
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ fontSize: 11.5, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#047857', borderColor: '#10b981', background: 'rgba(16,185,129,0.08)' }}
+                            onClick={() => handleShareDeliveryWA(d)}
+                            title="Enviar comprobante por WhatsApp"
+                          >
+                            <span>💬</span> WA
+                          </button>
                           {!readOnly && !d.invoiced && kilosDeEsta > 0 && (
-                            <button className="btn btn-primary" onClick={() => facturarEntrega(i)}>🧾 Facturar esta entrega</button>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: 12, padding: '4px 10px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', border: 'none', color: '#fff', fontWeight: 800 }}
+                              onClick={() => facturarEntrega(i)}
+                            >
+                              🧾 Facturar esta entrega
+                            </button>
                           )}
                           {!readOnly && !d.invoiced && (
-                            <button className="btn btn-danger" onClick={() => removeDelivery(i)}>Eliminar</button>
+                            <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 8px' }} onClick={() => removeDelivery(i)}>
+                              Eliminar
+                            </button>
                           )}
                         </div>
                       </div>

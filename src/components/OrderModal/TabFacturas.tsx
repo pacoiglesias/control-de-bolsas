@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { PasteTextModal } from '../PasteTextModal';
-import { Timestamp } from 'firebase/firestore';
-import { addDays } from '../../lib/finance';
 import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
+import { EmitirFacturaModal } from './EmitirFacturaModal';
 import type { Invoice } from '../../lib/types';
+import { getEffectiveOrderItems } from '../../lib/types';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 
 export default function TabFacturas() {
@@ -13,6 +13,7 @@ export default function TabFacturas() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [showEmitirModal, setShowEmitirModal] = useState(false);
 
   const { saveInvoice } = useInvoiceActions();
 
@@ -48,6 +49,9 @@ export default function TabFacturas() {
   };
 
   const addInvoiceLocal = async () => {
+    // Kept as escape hatch for advanced users
+    const { Timestamp } = await import('firebase/firestore');
+    const { addDays } = await import('../../lib/finance');
     const issue = new Date();
     const due = addDays(issue, config.creditDays);
     const nuevoId = Date.now().toString();
@@ -59,8 +63,6 @@ export default function TabFacturas() {
       creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
       collection: { paidAmount: 0, contrareciboNumber: '', notes: '' }
     };
-    
-    // Auto-save immediately using useInvoiceActions
     try {
       await saveInvoice(order, newInv, dynamicConfig);
       setExpandedIds(prev => new Set(prev).add(nuevoId));
@@ -72,6 +74,18 @@ export default function TabFacturas() {
 
   return (
     <>
+      {/* Modal de Emisión Guiada */}
+      {showEmitirModal && (
+        <EmitirFacturaModal
+          order={order}
+          kilosPendientes={kilosPendientesDeFacturar}
+          dynamicConfig={dynamicConfig}
+          config={config}
+          onClose={() => setShowEmitirModal(false)}
+          onCreated={(inv) => setExpandedIds(prev => new Set(prev).add(inv.id))}
+        />
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
@@ -80,7 +94,21 @@ export default function TabFacturas() {
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
-            
+
+            {/* Botón principal: asistente paso a paso */}
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowEmitirModal(true)}
+              style={{ padding: '8px 16px', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              🧾 Emitir Factura
+              {kilosPendientesDeFacturar > 0.01 && (
+                <span style={{ background: 'rgba(255,255,255,0.25)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 900 }}>
+                  {kilosPendientesDeFacturar.toLocaleString('es-MX')} kg
+                </span>
+              )}
+            </button>
+
             <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
             <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
 
@@ -102,12 +130,7 @@ export default function TabFacturas() {
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="btn btn-primary" onClick={addInvoiceLocal}>+ Manual</button>
-              {kilosPendientesDeFacturar > 0.01 && (
-                <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                  Sugerido: {kilosPendientesDeFacturar.toLocaleString('es-MX')} kg
-                </span>
-              )}
+              <button className="btn" onClick={addInvoiceLocal} style={{ fontSize: 12, opacity: 0.7 }} title="Crear factura en blanco sin asistente">+ En Blanco</button>
             </div>
           </div>
         )}
@@ -147,7 +170,7 @@ export default function TabFacturas() {
                 const razon = 'GRUPO TEXTIL PROVIDENCIA';
                 const regimen = '601 - General de Ley Personas Morales';
                 const uso = 'G01 - Adquisición de mercancías';
-                const claveProd = '24111500';
+                const claveProd = '24141500';
                 const claveUnidad = 'KGM';
                 const precio = (dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2);
                 const txt = `RFC: ${rfc}\nNombre: ${razon}\nRégimen: ${regimen}\nUso CFDI: ${uso}\nClave ProdServ: ${claveProd}\nUnidad: ${claveUnidad}\nPrecio Unitario: $${precio}\nObjeto Impuesto: 02 - Sí objeto de impuesto (IVA 16%)\nMétodo de Pago: PPD\nForma de Pago: 99`;
@@ -167,7 +190,7 @@ export default function TabFacturas() {
           </div>
           <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
             <span style={{ color: 'var(--ink-soft)' }}>Clave SAT:</span><br/>
-            <strong>24111500</strong> (Bolsas)
+            <strong>24141500</strong> (Suministros)
           </div>
           <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
             <span style={{ color: 'var(--ink-soft)' }}>Unidad:</span><br/>
@@ -182,6 +205,39 @@ export default function TabFacturas() {
             <strong>IVA 16% · PPD (99)</strong>
           </div>
         </div>
+
+        {/* Partidas de la OC disponibles para facturar */}
+        {(() => {
+          const effectiveItems = getEffectiveOrderItems(order);
+          if (effectiveItems.length === 0) return null;
+          return (
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(2,132,199,0.2)' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>📦 Partidas de la OC ({effectiveItems.length} conceptos disponibles):</span>
+                <button
+                  type="button"
+                  className="btn-small"
+                  style={{ fontSize: 10, padding: '2px 6px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: 700 }}
+                  onClick={() => setShowEmitirModal(true)}
+                >
+                  ⚡ Facturar con Partidas
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 6 }}>
+                {effectiveItems.map((it, idx) => (
+                  <div key={it.id || idx} style={{ background: 'var(--paper)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--line-soft)', fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ minWidth: 0, paddingRight: 6 }}>
+                      <span className="mono" style={{ fontWeight: 800, color: '#2563eb' }}>{it.code || 'S/C'}</span> · <span style={{ fontWeight: 600 }}>{it.description}</span>
+                    </div>
+                    <strong className="mono" style={{ whiteSpace: 'nowrap', fontSize: 11.5 }}>
+                      {(Number(it.quantity) || 0).toLocaleString('es-MX')} kg
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
       
       {invoices.length === 0 ? (
@@ -194,14 +250,22 @@ export default function TabFacturas() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {(() => {
-            const ORDEN_ESTADO: Record<string, number> = { overdue: 0, pending: 0, paid: 1, collected: 2 };
+            const ORDEN_ESTADO: Record<string, number> = { overdue: 0, pending: 0, in_review: 0, paid: 1, collected: 2 };
             const TITULO_SECCION: Record<string, string> = {
-              pending: '🔴 Por Cobrar', overdue: '🔴 Por Cobrar',
-              paid: '🟡 Con el Contador', collected: '✅ Cobradas',
+              pending: '🔴 Por Cobrar',
+              in_review: '🔴 Por Cobrar',
+              overdue: '🔴 Por Cobrar',
+              paid: '🟡 Con el Contador',
+              collected: '✅ Cobradas',
             };
-            const ordenadas = [...invoices].sort(
-              (a, b) => (ORDEN_ESTADO[a.creditCycle.status] ?? 9) - (ORDEN_ESTADO[b.creditCycle.status] ?? 9)
-            );
+            const ordenadas = [...invoices].sort((a, b) => {
+              const ga = ORDEN_ESTADO[a.creditCycle.status] ?? 9;
+              const gb = ORDEN_ESTADO[b.creditCycle.status] ?? 9;
+              if (ga !== gb) return ga - gb;
+              // Orden secundario: vencimiento más próximo primero
+              const toMs = (ts: any) => ts ? (typeof ts.toDate === 'function' ? ts.toDate().getTime() : new Date(ts).getTime()) : Infinity;
+              return toMs(a.creditCycle.dueDate) - toMs(b.creditCycle.dueDate);
+            });
             return ordenadas.map((inv: Invoice, i: number) => {
               const statusActual = inv.creditCycle.status;
               const statusAnterior = i > 0 ? ordenadas[i - 1].creditCycle.status : null;

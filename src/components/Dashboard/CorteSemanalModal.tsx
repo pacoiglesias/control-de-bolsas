@@ -4,10 +4,8 @@ import { money, fmtDate, fmtDayAndDate, getPrintHeaderHtml, shareHtmlAsPdf, esca
 import { round2 } from '../../lib/finance';
 import type { PurchaseOrder, Expense, FinancialConfig, Purchase } from '../../lib/types';
 import type { SystemSettings } from '../../hooks/useSystemSettings';
+import * as XLSX from 'xlsx';
 import { useToast } from '../../context/ToastContext';
-// FIX (auditoría v8.9.5, rendimiento): "xlsx" (~429 kB) se importa bajo
-// demanda dentro de handleExportExcel, no aquí arriba -- así no se descarga
-// al abrir este modal si el usuario nunca pide el Excel.
 
 interface CorteSemanalModalProps {
   onClose: () => void;
@@ -106,14 +104,8 @@ export function CorteSemanalModal({
       (o.deliveries || []).forEach((d) => {
         const dDate = toDate(d.date);
         if (dDate && dDate >= startOfWeek && dDate <= endOfWeek) {
-          // FIX: leer d.kilos directo ignoraba el desglose por producto
-          // (d.items[].quantity) cuando ambos existen y no coinciden --
-          // mismo criterio que ya usan computeDeliveredTotals (lib/deliveries.ts)
-          // y getOrderSummary (lib/finance.ts): si hay desglose por item, ese
-          // manda; si no, se usa el total plano como respaldo.
-          const sumItems = (d.items ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0);
-          const k = sumItems > 0 ? sumItems : (d.kilos || 0);
-          const costo = k * (config.costPricePerKg || 42);
+          const k = d.kilos || 0;
+          const costo = k * (config.costPricePerKg || 38);
           entregas.push({
             folioOC: o.oc || o.folio || '—',
             client: o.client || 'Providencia',
@@ -325,8 +317,7 @@ export function CorteSemanalModal({
     await shareHtmlAsPdf(html, `CorteSemanal_${fmtDate(startOfWeek)}.pdf`);
   };
 
-  const handleExportExcel = async () => {
-    const XLSX = await import('xlsx');
+  const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
 
     // Hoja Cobros

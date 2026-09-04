@@ -1,0 +1,236 @@
+/* =========================================================================
+   Control Bolsas ERP — Design Tokens & Theme Variables (Luxe Edition v8.9.48)
+   ========================================================================= */
+
+:root {
+  /* Fondo y Superficies (Slate Luxe Light) */
+  --bg-body: #F8FAFC;           /* Slate 50 ultra limpio */
+  --paper: #F1F5F9;             /* Slate 100 suave para áreas secundarias */
+  --paper-raised: #FFFFFF;      /* Blanco puro nítido para tarjetas */
+  --paper-sunk: #E2E8F0;        /* Slate 200 para hovers y bordes */
+  
+  /* Textos y Tipografía (Máximo Contraste y Legibilidad) */
+  --ink: #0F172A;               /* Slate 900 profundo */
+  --ink-soft: #475569;          /* Slate 600 balanceado */
+  --ink-faint: #94A3B8;         /* Slate 400 para hints y placeholders */
+  
+  /* Bordes y Líneas Refinadas */
+  --line: #CBD5E1;              /* Slate 300 */
+  --line-soft: #E2E8F0;         /* Slate 200 */
+
+  /* Colores de Marca y Acento (Providencia Royal Amber) */
+  --accent: #D97706;            /* Ámbar dorado vibrante */
+  --accent-deep: #B45309;       /* Ámbar oscuro elegante */
+  --accent-tint: #FEF3C7;       /* Ámbar satinado suave */
+  
+  /* Barra Lateral Ejecutiva (Dark Slate Gradient) */
+  --sidebar: #0B0F19;           /* Midnight Slate 950 */
+  --sidebar-ink: #F8FAFC;       /* Slate 50 */
+  --sidebar-line: rgba(255, 255, 255, 0.08);
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-active: rgba(217, 119, 6, 0.22);
+  
+  /* Controles (Inputs, selects) */
+  --field: #FFFFFF;
+  
+  /* Estados Semánticos de Alta Fidelidad */
+  --ok: #059669; --ok-bg: #ECFDF5;      /* Esmeralda / Cobrado */
+  --info: #2563EB; --info-bg: #EFF6FF;  /* Azul Cobalto / Báscula */
+  --warn: #D97706; --warn-bg: #FFFBEB;  /* Ámbar / En Proceso */
+  --bad: #E11D48; --bad-bg: #FFF1F2;    /* Rosa Carmesí / Vencido */
+  --cash: #0D9488; --cash-bg: #F0FDFA;  /* Teal / Caja Chica */
+  --purple: #7C3AED; --purple-bg: #F5F3FF; /* Violeta / 3-Way Match */
+
+  /* Tableros Kanban */
+  --kanban-review: #EA580C; --kanban-review-bg: #FFF7ED;
+  --kanban-collected: #059669; --kanban-collected-bg: #ECFDF5;
+
+  /* Radios de Curvatura Ergonómicos */
+  --radius: 16px;       /* Tarjetas, modales */
+  --radius-sm: 10px;    /* Botones, inputs */
+  --radius-lg: 24px;    /* Bottom sheets, héroes */
+  
+  /* Sombras Multicapa Refinadas */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-hover: 0 12px 24px -4px rgba(217, 119, 6, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  
+  /* Efectos Glassmorphism Pulidos */
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(226, 232, 240, 0.8);
+  --glass-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.06);
+
+  /* Alias de compatibilidad */
+  --brand: var(--accent);
+  --brand-dark: var(--accent-deep);
+  --brand-light: var(--accent-tint);
+  --border: var(--line);
+  --surface: var(--paper-raised);
+  --bg-card: var(--paper-raised);
+  --bg-faint: var(--paper-sunk);
+  --bg-inset: var(--paper-sunk);
+  --bg-modal: var(--paper-raised);
+  --text: var(--ink);
+  --text-muted: var(--ink-soft);
+  --text-light: var(--ink-faint);
+  --muted: var(--ink-soft);
+  --hint: var(--ink-faint);
+  --base: var(--paper);
+  --layer-2: var(--paper-sunk);
+  --surface-alt: var(--paper-sunk);
+  --surface-sunken: var(--paper-sunk);
+  --ink-muted: var(--ink-soft);
+  --info-deep: #1d4ed8;
+  --blur-radius: 20px;
+  --accent-sunk: var(--accent-tint);
+}
+
+:root[data-theme="dark"] {
+  /* Fondo y Superficies (OLED Midnight Deep Slate) */
+  --bg-body: #080C14;           /* Negro profundo azulado */
+  --paper: #0F172A;             /* Slate 900 */
+  --paper-raised: #1E293B;      /* Slate 800 */
+  --paper-sunk: #334155;        /* Slate 700 */
+  
+  --ink: #F8FAFC;               /* Slate 50 */
+  --ink-soft: #94A3B8;          /* Slate 400 */
+  --ink-faint: #64748B;         /* Slate 500 */
+  
+  --line: #334155;              /* Slate 700 */
+  --line-soft: #1E293B;         /* Slate 800 */
+  
+  --accent: #F59E0B;            /* Ámbar dorado brillante */
+  --accent-deep: #FCD34D;       /* Amarillo dorado */
+  --accent-tint: rgba(245, 158, 11, 0.15);
+  
+  --sidebar: #06090F;           /* Obsidian */
+  --sidebar-line: rgba(255, 255, 255, 0.06);
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+  --sidebar-active: rgba(245, 158, 11, 0.2);
+  
+  --field: #0F172A;
+  
+  --ok: #10B981; --ok-bg: rgba(16, 185, 129, 0.15);
+  --info: #3B82F6; --info-bg: rgba(59, 130, 246, 0.15);
+  --warn: #F59E0B; --warn-bg: rgba(245, 158, 11, 0.15);
+  --bad: #F43F5E; --bad-bg: rgba(244, 63, 94, 0.15);
+  --cash: #14B8A6; --cash-bg: rgba(20, 184, 166, 0.15);
+  --purple: #A78BFA; --purple-bg: rgba(167, 139, 250, 0.15);
+
+  --kanban-review: #FB923C; --kanban-review-bg: rgba(251, 146, 60, 0.15);
+  --kanban-collected: #34D399; --kanban-collected-bg: rgba(52, 211, 153, 0.15);
+
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.6);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.7), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 12px 24px -4px rgba(245, 158, 11, 0.2), 0 4px 8px -2px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
+  
+  --glass: rgba(15, 23, 42, 0.85);
+  --glass-bg: rgba(15, 23, 42, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  /* Mismos alias de compatibilidad */
+  --brand: var(--accent);
+  --brand-dark: var(--accent-deep);
+  --brand-light: var(--accent-tint);
+  --border: var(--line);
+  --surface: var(--paper-raised);
+  --bg-card: var(--paper-raised);
+  --bg-faint: var(--paper-sunk);
+  --bg-inset: var(--paper-sunk);
+  --bg-modal: var(--paper-raised);
+  --text: var(--ink);
+  --text-muted: var(--ink-soft);
+  --text-light: var(--ink-faint);
+  --muted: var(--ink-soft);
+  --hint: var(--ink-faint);
+  --base: var(--paper);
+  --layer-2: var(--paper-sunk);
+  --surface-alt: var(--paper-sunk);
+  --surface-sunken: var(--paper-sunk);
+  --ink-muted: var(--ink-soft);
+  --info-deep: #93C5FD;
+  --blur-radius: 20px;
+  --accent-sunk: var(--accent-tint);
+
+  /* Identidad Departamental Oficial Providencia */
+  --dept-th-primary: #3B82F6;
+  --dept-th-bg: rgba(59, 130, 246, 0.15);
+  --dept-gt-primary: #10B981;
+  --dept-gt-bg: rgba(16, 185, 129, 0.15);
+}
+
+/* =========================================================================
+   Utilidades Globales de Precisión Tabular, Densidad y Privacidad (SAP Grade)
+   ========================================================================= */
+
+/* Tipografía Numérica Tabular de Alta Precisión */
+.tabular-nums, .money-val, .kilo-val, table td, .kpi-value, .stat-value {
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Modo Privacidad (Privacy Blur) */
+body.privacy-mode .money-val,
+body.privacy-mode [data-private="true"],
+body.privacy-mode .private-sensitive {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter 0.25s ease;
+}
+
+body.privacy-mode .money-val:hover,
+body.privacy-mode [data-private="true"]:hover {
+  filter: blur(0px);
+}
+
+/* Modo Densidad Alta (SAP / Excel Mode) */
+body.density-compact .card,
+body.density-compact .stat-card {
+  padding: 12px 14px;
+}
+
+body.density-compact table td,
+body.density-compact table th {
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+body.density-compact .kpi-hero {
+  padding: 14px 18px;
+}
+
+/* Insignias Neón Pulsantes */
+.badge-pulsing-emerald {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+  animation: badgeGlowEmerald 2s infinite ease-in-out;
+}
+
+.badge-pulsing-amber {
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+  animation: badgeGlowAmber 1.8s infinite ease-in-out;
+}
+
+.badge-pulsing-rose {
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.5);
+  animation: badgeGlowRose 1.5s infinite ease-in-out;
+}
+
+@keyframes badgeGlowEmerald {
+  0%, 100% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.65); }
+}
+
+@keyframes badgeGlowAmber {
+  0%, 100% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.65); }
+}
+
+@keyframes badgeGlowRose {
+  0%, 100% { box-shadow: 0 0 6px rgba(244, 63, 94, 0.3); }
+  50% { box-shadow: 0 0 18px rgba(244, 63, 94, 0.75); }
+}
+

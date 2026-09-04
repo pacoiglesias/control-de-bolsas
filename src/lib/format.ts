@@ -1,4 +1,4 @@
-import type { Timestamp } from 'firebase/firestore';
+import type { AnyFirestoreDate } from './types';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -66,8 +66,16 @@ export const percent = (n: number | undefined | null): string => {
  * exacto para excluir estos expedientes de ciertos calculos).
  */
 export function nombreClienteVisible(client: string | null | undefined): string {
+  if (!client) return '—';
   if (client === 'MIGRACION') return 'Histórico (sin cliente registrado)';
-  return client || '—';
+  
+  // Limpiar sufijos accidentales de proveedor propio o códigos de proveedor pegados de la OC
+  let cleaned = client
+    .replace(/[·\-]?\s*N0321\s*[-–]?\s*ELEMENTAL\s*DENIM/gi, '')
+    .replace(/[·\-]?\s*ELEMENTAL\s*DENIM/gi, '')
+    .trim();
+
+  return cleaned || client || '—';
 }
 
 /**
@@ -116,13 +124,13 @@ export function getDepartmentBadgeLabel(
 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-/** Firestore devuelve Timestamp; los formularios y calculos usan Date. */
-export function toDate(ts: Timestamp | Date | null | undefined | any): Date | null {
+/** Firestore devuelve Timestamp; los formularios y cálculos usan Date. */
+export function toDate(ts: AnyFirestoreDate): Date | null {
   if (!ts) return null;
   if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
-  if (typeof ts.toDate === 'function') return ts.toDate();
-  if (typeof ts.toMillis === 'function') return new Date(ts.toMillis());
-  if (typeof ts === 'object' && typeof ts.seconds === 'number') return new Date(ts.seconds * 1000);
+  if (typeof (ts as any).toDate === 'function') return (ts as any).toDate();
+  if (typeof (ts as any).toMillis === 'function') return new Date((ts as any).toMillis());
+  if (typeof ts === 'object' && typeof (ts as any).seconds === 'number') return new Date((ts as any).seconds * 1000);
   if (typeof ts === 'string' || typeof ts === 'number') {
     const d = new Date(ts);
     if (!isNaN(d.getTime())) return d;
@@ -130,20 +138,20 @@ export function toDate(ts: Timestamp | Date | null | undefined | any): Date | nu
   return null;
 }
 
-export function fmtDate(ts: Timestamp | Date | null | undefined): string {
+export function fmtDate(ts: AnyFirestoreDate): string {
   const d = toDate(ts);
   if (!d) return '—';
   return `${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
 }
 
-export function fmtDayAndDate(ts: Timestamp | Date | null | undefined): string {
+export function fmtDayAndDate(ts: AnyFirestoreDate): string {
   const d = toDate(ts);
   if (!d) return '—';
   const diaSem = DIAS_SEMANA[d.getDay()];
   return `${diaSem}, ${String(d.getDate()).padStart(2, '0')}/${MESES[d.getMonth()]}/${d.getFullYear()}`;
 }
 
-export function fmtDateFull(ts: Timestamp | Date | null | undefined): string {
+export function fmtDateFull(ts: AnyFirestoreDate): string {
   const d = toDate(ts);
   if (!d) return '—';
   const DIAS_COMPLETOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -151,13 +159,13 @@ export function fmtDateFull(ts: Timestamp | Date | null | undefined): string {
   return `${DIAS_COMPLETOS[d.getDay()]} ${d.getDate()} de ${MESES_COMPLETOS[d.getMonth()]}, ${d.getFullYear()}`;
 }
 
-export function fmtDateTime(ts: Timestamp | Date | null | undefined): string {
+export function fmtDateTime(ts: AnyFirestoreDate): string {
   const d = toDate(ts);
   if (!d) return '—';
   return d.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export function fmtDateTimeFull(ts: Timestamp | Date | null | undefined): string {
+export function fmtDateTimeFull(ts: AnyFirestoreDate): string {
   const d = toDate(ts);
   if (!d) return '—';
   const fecha = fmtDateFull(d);
@@ -166,7 +174,7 @@ export function fmtDateTimeFull(ts: Timestamp | Date | null | undefined): string
 }
 
 /** yyyy-mm-dd para <input type="date"> en hora local, no UTC. */
-export function toInputDate(ts: Timestamp | Date | null | undefined): string {
+export function toInputDate(ts: AnyFirestoreDate): string {
   const d = toDate(ts);
   if (!d) return '';
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);

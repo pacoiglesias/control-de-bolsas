@@ -57,8 +57,8 @@ export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledge
               <td className="num mono" style={{ color: e.abono ? 'var(--ok)' : 'inherit', fontWeight: e.abono ? 600 : 'normal' }}>
                 {e.abono ? money(e.abono) : '-'}
               </td>
-              <td className="num mono" style={{ color: e.balance > 0 ? 'var(--ok)' : 'var(--bad)', fontWeight: 700 }}>
-                {money(e.balance)}
+              <td className="num mono" style={{ color: e.balance > 0 ? '#047857' : e.balance < 0 ? '#b91c1c' : 'inherit', fontWeight: 800 }}>
+                {e.balance > 0 ? `+${money(e.balance)} (A favor)` : e.balance < 0 ? `-${money(Math.abs(e.balance))} (Deuda)` : '$0.00'}
               </td>
               <td style={{ textAlign: 'center' }}>
                 {e.source === 'expense' && e.abono > 0 ? (

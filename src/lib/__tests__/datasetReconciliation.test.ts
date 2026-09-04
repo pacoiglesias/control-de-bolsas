@@ -3,29 +3,31 @@ import { OFFICIAL_CRS, OFFICIAL_IN_REVIEW } from '../../components/Cobranza/Sinc
 import { round2, computeCommissionFromInvoiceTotal } from '../finance';
 
 describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
-  it('debe sumar exactamente $1,019,956.34 en los 10 Contrarecibos Oficiales', () => {
+  it('debe sumar exactamente $675,839.76 en los 8 Contrarecibos Oficiales Generados', () => {
     const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
-    expect(totalCrs).toBe(1019956.34);
-    expect(OFFICIAL_CRS.length).toBe(10);
+    expect(totalCrs).toBe(675839.76);
+    expect(OFFICIAL_CRS.length).toBe(8);
   });
 
-  it('debe calcular la deuda total de Providencia con Factura 6167 exactamente en $1,101,736.34', () => {
+  it('debe calcular la deuda total de Providencia con las 2 facturas en revisión (F-6224, F-6200) en $799,691.80', () => {
     const totalCrs = OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0);
-    const factura6167 = OFFICIAL_IN_REVIEW.total;
-    const deudaTotal = round2(totalCrs + factura6167);
+    const totalRevision = Array.isArray(OFFICIAL_IN_REVIEW)
+      ? round2(OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0))
+      : 0;
+    const deudaTotal = round2(totalCrs + totalRevision);
 
-    expect(factura6167).toBe(81780.00);
-    expect(deudaTotal).toBe(1101736.34);
+    expect(totalRevision).toBe(123852.04);
+    expect(deudaTotal).toBe(799691.80);
   });
 
   it('debe calcular la comisión contable (8% sobre subtotal) con precisión milimétrica', () => {
-    const totalConIva = 1101736.34;
+    const totalConIva = 675839.76;
     const subtotal = totalConIva / 1.16;
     const comisionEsperada = round2(subtotal * 0.08);
 
     const config = {
       salePricePerKg: 43,
-      costPricePerKg: 42,
+      costPricePerKg: 38,
       commissionRate: 0.08,
       commissionBase: 'subtotal' as const,
       ivaRate: 0.16,
@@ -44,12 +46,6 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
         isDeleted: false,
         invoices: [{ folio: c.cr, financials: { invoiceTotal: c.total }, creditCycle: { status: 'pending' } }],
       })),
-      {
-        id: 'oc-120267114014',
-        folio: '6167',
-        isDeleted: false,
-        invoices: [{ folio: '6167', financials: { invoiceTotal: 81780.00 }, creditCycle: { status: 'facturado' } }],
-      },
       // 17 expedientes de prueba obsoletos simulados
       ...Array.from({ length: 17 }).map((_, i) => ({
         id: `test-orphan-${i}`,
@@ -61,7 +57,7 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
 
     // Filtrado estricto
     const validOrders = mockOrders.filter((o: any) => !o.isDeleted);
-    expect(validOrders.length).toBe(11);
+    expect(validOrders.length).toBe(8);
 
     const sumaValidada = round2(
       validOrders.reduce((sum, o) => {
@@ -70,6 +66,6 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
       }, 0)
     );
 
-    expect(sumaValidada).toBe(1101736.34);
+    expect(sumaValidada).toBe(675839.76);
   });
 });

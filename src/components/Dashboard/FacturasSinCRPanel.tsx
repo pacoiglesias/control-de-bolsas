@@ -27,7 +27,7 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
   const hoy = Date.now();
 
   (orders || []).forEach((o) => {
-    if (!o || o.isClosedShort) return;
+    if (!o) return;
     if (o.creditCycle?.status === 'collected') return;
 
     (o.invoices || []).forEach((inv) => {
@@ -43,7 +43,7 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
       if ((inv.kilos || 0) <= 0 && totalInv <= 0) return;
 
       // Factura emitida genuinamente que aún no recibe CR
-      if (st === 'facturado' || st === 'manual_review' || (inv.folio && inv.folio.trim().length > 0)) {
+      if (st === 'facturado' || st === 'manual_review' || st === 'in_review' || (inv.folio && inv.folio.trim().length > 0)) {
         let dias = 0;
         const dt = toDate(inv.creditCycle?.issueDate || o.estimatedDeliveryDate || o.processedAt);
         if (dt) {
@@ -181,6 +181,30 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
           </div>
         </div>
 
+        {/* Alerta de urgencia si hay facturas de más de 5 días */}
+        {facturasSinCR.some(f => f.dias >= 5) && (
+          <div
+            style={{
+              background: '#fef2f2',
+              border: '1px solid #f87171',
+              borderRadius: 8,
+              padding: '8px 12px',
+              marginBottom: 12,
+              fontSize: 12,
+              color: '#991b1b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontWeight: 600,
+            }}
+          >
+            <span>🚨</span>
+            <div>
+              Hay {facturasSinCR.filter(f => f.dias >= 5).length} factura(s) con 5 o más días sin contrarecibo. Dar seguimiento prioritario con {settings.managerTH || 'Nava'} / {settings.managerGT || 'Evelia'}.
+            </div>
+          </div>
+        )}
+
         {/* Vista Móvil / Cuadrícula de Tarjetas */}
         <div
           style={{
@@ -191,18 +215,20 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
         >
           {facturasSinCR.map(({ order, invoice, dias, issueDateObj }, idx) => {
             const total = invoice.financials?.invoiceTotal ?? invoice.financials?.saleTotal ?? 0;
+            const isOver5Days = dias >= 5;
             return (
               <div
                 key={idx}
                 style={{
-                  background: 'var(--paper)',
-                  border: '1px solid var(--line)',
+                  background: isOver5Days ? '#fffaf0' : 'var(--paper)',
+                  border: isOver5Days ? '1.5px solid #f97316' : '1px solid var(--line)',
                   borderRadius: 12,
                   padding: '12px 14px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   gap: 8,
+                  boxShadow: isOver5Days ? '0 2px 8px rgba(249, 115, 22, 0.12)' : 'none',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -214,8 +240,15 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
                       {order.folio || order.oc || 'S/OC'} • {nombreClienteVisible(order.client)}
                     </div>
                   </div>
-                  <span className={`badge ${dias > 5 ? 'b-bad' : dias > 2 ? 'b-warn' : 'b-info'}`} style={{ fontSize: 10 }}>
-                    {dias === 0 ? 'Hoy' : `${dias} d`}
+                  <span
+                    className={`badge ${isOver5Days ? 'b-bad' : dias > 2 ? 'b-warn' : 'b-info'}`}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: isOver5Days ? 800 : 600,
+                      padding: isOver5Days ? '3px 7px' : undefined,
+                    }}
+                  >
+                    {dias === 0 ? 'Hoy' : isOver5Days ? `🚨 ${dias} d (Urgente)` : `${dias} d`}
                   </span>
                 </div>
 

@@ -33,7 +33,7 @@ export function findDuplicateContrarecibo(
   if (!target || target.length < 2) return null;
 
   for (const o of orders) {
-    if (o.isClosedShort) continue;
+    if ((o as any).isDeleted) continue;
 
     // 1. Revisar en facturas de la orden
     for (const inv of o.invoices || []) {
@@ -84,7 +84,7 @@ export function findDuplicateInvoiceFolio(
   if (!target || target.length < 2) return null;
 
   for (const o of orders) {
-    if (o.isClosedShort) continue;
+    if ((o as any).isDeleted) continue;
     for (const inv of o.invoices || []) {
       if (excludeInvoiceId && inv.id === excludeInvoiceId) continue;
       const f = normalizeFolio(inv.folio);
@@ -118,6 +118,7 @@ export function findDuplicateOrderFolio(
   if (!target || target.length < 2) return null;
 
   for (const o of orders) {
+    if ((o as any).isDeleted) continue;
     if (excludeOrderId && o.id === excludeOrderId) continue;
     const f = normalizeFolio(o.folio || o.oc);
     if (f === target) {
@@ -135,3 +136,37 @@ export function findDuplicateOrderFolio(
 
   return null;
 }
+
+/**
+ * Valida si un Folio de Remisión de Báscula ya existe en cualquier entrega de cualquier orden.
+ */
+export function findDuplicateRemision(
+  orders: PurchaseOrder[],
+  remisionFolio: string,
+  excludeDeliveryId?: string
+): DuplicateMatch | null {
+  const target = normalizeFolio(remisionFolio);
+  if (!target || target.length < 2) return null;
+
+  for (const o of orders) {
+    if ((o as any).isDeleted) continue;
+    for (const d of o.deliveries || []) {
+      if (excludeDeliveryId && d.id === excludeDeliveryId) continue;
+      const f = normalizeFolio(d.docFolio);
+      if (f === target) {
+        const dt = toDate(d.date);
+        return {
+          exists: true,
+          type: 'remision',
+          matchedValue: (d.docFolio || '').trim(),
+          orderFolio: o.folio || o.oc || 'S/OC',
+          client: o.client || 'Providencia',
+          dateStr: dt ? fmtDate(dt) : undefined,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+

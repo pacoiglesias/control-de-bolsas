@@ -1,15 +1,13 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
-import { doc, writeBatch, Timestamp, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, writeBatch, Timestamp, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { useOrdersContext } from '../context/OrdersContext';
-import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../hooks/useConfig';
 import { useExpenses } from '../hooks/useExpenses';
 import { usePurchases } from '../hooks/usePurchases';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { camposInvoices } from '../lib/invoiceOps';
-import { logAction } from '../lib/logger';
 import { round2, extractCr, computeFinancials } from '../lib/finance';
 import { money, fmtDate, toDate } from '../lib/format';
 import { exportToExcel } from '../lib/export';
@@ -18,13 +16,10 @@ import { confirmDialog } from '../lib/confirmDialog';
 import { sound } from '../lib/sounds';
 import confetti from 'canvas-confetti';
 import { type OrderStatus, type PurchaseOrder } from '../lib/types';
-// FIX (auditoría v8.9.5, rendimiento): "xlsx" pesa ~429 kB y antes se
-// importaba de forma estática -- se descargaba en la carga inicial de esta
-// pantalla aunque el usuario nunca suba un Excel. Solo lo usa handleUpload()
-// abajo, así que se carga bajo demanda con import() dinámico justo ahí,
-// mismo patrón ya usado en src/lib/importExcel.ts y src/lib/export.ts.
+import * as XLSX from 'xlsx';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
+import { downloadOfficialExcelTemplate } from '../lib/excelTemplateGenerator';
 
 const BalanzaComprobacionModal = lazy(() => import('../components/Dashboard/BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
 const OrderModal = lazy(() => import('../components/OrderModal'));
@@ -39,18 +34,23 @@ const ESTATUS_VALIDOS: { value: OrderStatus; label: string }[] = [
 ];
 
 const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: string }> = {
+  // 8 Contrarecibos Oficiales Activos ($675,839.76 MXN)
+  'GT-874': { total: 49880.00, issueDate: '2026-08-24', dueDate: '2026-09-23' },
+  'TH-990': { total: 98054.60, issueDate: '2026-08-24', dueDate: '2026-09-23' },
+  'TH-946': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
   'TH-912': { total: 79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
   'TH-879': { total: 136300.00, issueDate: '2026-08-03', dueDate: '2026-09-02' },
-  'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
   'GT-742': { total: 54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
-  'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
   'GT-713': { total: 69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
-  'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
   'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+  // 7 Contrarecibos Históricos Pagados ($765,068.26 MXN)
+  'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
+  'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
+  'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
+  'TH-739': { total: 109040.00, issueDate: '2026-07-06', dueDate: '2026-08-05' },
+  'TH-713': { total: 108647.46, issueDate: '2026-06-29', dueDate: '2026-07-29' },
   'GT-624': { total: 98136.00, issueDate: '2026-06-22', dueDate: '2026-07-22' },
-  'GT-597': { total: 107420.76, issueDate: '2026-06-15', dueDate: '2026-07-15' },
-  '6167': { total: 81780.00, issueDate: '2026-08-10', dueDate: '' },
-  '120267114014': { total: 81780.00, issueDate: '2026-08-10', dueDate: '' },
+  'TH-680': { total: 80970.38, issueDate: '2026-06-22', dueDate: '2026-07-22' },
 };
 
 type ModeTab = 'grid' | 'paste' | 'batch' | 'excel';
@@ -62,20 +62,6 @@ export default function AuditSync() {
   const { expenses } = useExpenses();
   const { purchases } = usePurchases();
   const { settings } = useSystemSettings();
-  // FIX (auditoría v8.9.5): "Purgar Duplicados" y "Archivar" borraban el
-  // documento de Firestore de forma permanente (deleteDoc/batch.delete) sin
-  // revisar el rol de quien hacia clic en el boton. Las reglas de Firestore
-  // (purchaseOrders -> allow delete: if isSuperAdmin()) ya bloqueaban esto
-  // para managers/viewers a nivel de base de datos, pero el boton se
-  // mostraba igual a todos, y quien SI tenia permiso (admin) perdia el
-  // registro para siempre sin poder recuperarlo desde la Papelera -- a
-  // diferencia de como ya se borra un expediente en el resto del sistema
-  // (ver src/pages/Papelera.tsx, que restaura via isDeleted/deletedAt).
-  // Ahora: (1) los botones solo se muestran a role === 'admin', y (2) ya no
-  // se borra el documento, se marca isDeleted igual que el resto del
-  // sistema para que se pueda recuperar desde la Papelera si fue un error.
-  const { user, role } = useAuth();
-  const isAdmin = role === 'admin';
 
   const [mode, setMode] = useState<ModeTab>('grid');
   const [gridFilter, setGridFilter] = useState<string>('');
@@ -100,7 +86,7 @@ export default function AuditSync() {
   // Pestaña Ajustador Masivo
   const [batchTarget] = useState<'all' | 'pending' | 'providencia'>('pending');
   const [batchSalePrice, setBatchSalePrice] = useState<number>(config.salePricePerKg || 43);
-  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg || 42);
+  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg || 38);
 
   // Pestaña Archivo Excel Tradicional
   const [file, setFile] = useState<File | null>(null);
@@ -192,13 +178,7 @@ export default function AuditSync() {
     });
 
     const totalDeuda = round2(totalCrs + totalRevision);
-    // FIX (auditoría v8.9.5): esta comisión estaba escrita a mano (8%) en vez
-    // de leer config.commissionRate -- si algún día cambias el porcentaje en
-    // Ajustes, esta pantalla de auditoría se quedaba mostrando el 8% viejo
-    // mientras el resto del sistema ya usaba el nuevo. El 0.08 como respaldo
-    // solo aplica si config no cargó todavía (mismo valor que DEFAULT_CONFIG).
-    const comisionRate = config?.commissionRate ?? 0.08;
-    const comision8 = round2((totalDeuda / 1.16) * comisionRate);
+    const comision8 = round2((totalDeuda / 1.16) * 0.08);
     const netoCaja = round2(totalDeuda - comision8);
 
     return {
@@ -213,14 +193,9 @@ export default function AuditSync() {
     };
   }, [activeOrders, config]);
 
-  // Purgar duplicados: ya NO borra permanentemente -- archiva (isDeleted)
-  // igual que el resto del sistema, recuperable desde la Papelera.
+  // Purgar duplicados de Firestore permanentemente
   const handleAutoPurgeDuplicates = async () => {
-    if (!isAdmin) {
-      toast('Solo un administrador puede purgar duplicados.', 'bad');
-      return;
-    }
-    const ok = await confirmDialog('¿Deseas escanear Firestore y ARCHIVAR automáticamente los documentos duplicados para dejar únicamente los oficiales? Los que se archiven se pueden recuperar después desde la Papelera.');
+    const ok = await confirmDialog('¿Deseas escanear Firestore y purgar automáticamente documentos duplicados para dejar únicamente los 11 oficiales?');
     if (!ok) return;
 
     takeSnapshot('Purga masiva de documentos duplicados en Firestore');
@@ -238,7 +213,6 @@ export default function AuditSync() {
       });
 
       let purgedCount = 0;
-      const purgedIds: string[] = [];
       const batch = writeBatch(db);
 
       groups.forEach((orderList) => {
@@ -248,13 +222,8 @@ export default function AuditSync() {
           orderList.forEach(o => {
             if (o.id !== canonical.id) {
               const ref = doc(db, PATHS.orders, o.id);
-              batch.update(ref, {
-                isDeleted: true,
-                deletedAt: serverTimestamp(),
-                deletedBy: user?.email || 'auditoria-purga-duplicados',
-              });
+              batch.delete(ref);
               purgedCount++;
-              purgedIds.push(o.id);
             }
           });
         }
@@ -262,10 +231,9 @@ export default function AuditSync() {
 
       if (purgedCount > 0) {
         await batch.commit();
-        logAction(user?.email, 'Purga de Duplicados (Auditoría)', { purgedCount, purgedIds });
         sound.playChaChing();
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-        toast(`🧹 Se archivaron ${purgedCount} documentos duplicados (recuperables en Papelera).`, 'ok');
+        toast(`🧹 Se purgaron ${purgedCount} documentos duplicados. Base de datos 100% limpia.`, 'ok');
       } else {
         toast('No se encontraron documentos duplicados en Firestore.', 'info');
       }
@@ -330,10 +298,7 @@ export default function AuditSync() {
     }[] = [];
 
     const defaultSale = config.salePricePerKg || 43;
-    const defaultCost = config.costPricePerKg || 42;
-    // FIX (auditoría v8.9.5): mismo motivo que arriba -- antes 0.08 estaba
-    // escrito a mano dos veces en este mismo bloque.
-    const comisionRate = config.commissionRate ?? 0.08;
+    const defaultCost = config.costPricePerKg || 38;
     const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
@@ -364,7 +329,7 @@ export default function AuditSync() {
 
         const sub = round2(tot / 1.16);
         const iva = round2(tot - sub);
-        const com = round2(sub * comisionRate);
+        const com = round2(sub * 0.08);
         const neto = round2(tot - com);
 
         const dueStr = (o.collection as any)?.dueDate ? fmtDate((o.collection as any).dueDate) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
@@ -414,7 +379,7 @@ export default function AuditSync() {
 
           const sub = round2(tot / 1.16);
           const iva = round2(tot - sub);
-          const com = round2(sub * comisionRate);
+          const com = round2(sub * 0.08);
           const neto = round2(tot - com);
 
           const issueObj = toDate(inv.creditCycle?.issueDate);
@@ -525,7 +490,7 @@ export default function AuditSync() {
       } else if (field === 'kilos') {
         const numKilos = Math.max(0, Number(value) || 0);
         const pVenta = order.customSellPrice || config.salePricePerKg || 43;
-        const pCosto = order.customCostPrice || config.costPricePerKg || 42;
+        const pCosto = order.customCostPrice || config.costPricePerKg || 38;
 
         if (invoices.length > 0) {
           const updatedInvoices = invoices.map((inv) => {
@@ -603,27 +568,18 @@ export default function AuditSync() {
     }
   };
 
-  // Archivar Expediente -- ya NO es un borrado permanente, ver nota arriba.
+  // Eliminar Expediente Físicamente (Cero Basura Residual)
   const handleArchiveOrder = async (orderId: string, label: string) => {
-    if (!isAdmin) {
-      toast('Solo un administrador puede archivar expedientes desde Auditoría.', 'bad');
-      return;
-    }
-    const ok = await confirmDialog(`¿Deseas ARCHIVAR el expediente "${label}"? Dejará de aparecer en el sistema, pero puedes recuperarlo después desde la Papelera.`);
+    const ok = await confirmDialog(`¿Deseas ELIMINAR PERMANENTEMENTE el expediente "${label}" de la base de datos? Esta acción borrará el registro por completo.`);
     if (!ok) return;
 
-    takeSnapshot(`Archivado de expediente ${label}`);
+    takeSnapshot(`Eliminación permanente de expediente ${label}`);
     try {
-      await updateDoc(doc(db, PATHS.orders, orderId), {
-        isDeleted: true,
-        deletedAt: serverTimestamp(),
-        deletedBy: user?.email || 'auditoria',
-      });
-      logAction(user?.email, 'Expediente Archivado (Auditoría)', { orderId, label });
+      await deleteDoc(doc(db, PATHS.orders, orderId));
       sound.playPop();
-      toast(`🗑️ Expediente ${label} archivado (recuperable en Papelera).`, 'ok');
+      toast(`🗑️ Expediente ${label} eliminado permanentemente de la base de datos (Cero basura).`, 'ok');
     } catch (e: any) {
-      toast(`Error al archivar: ${e.message}`, 'bad');
+      toast(`Error al eliminar: ${e.message}`, 'bad');
     }
   };
 
@@ -757,7 +713,6 @@ export default function AuditSync() {
     takeSnapshot(`Importación de archivo Excel ${uploadedFile.name}`);
 
     try {
-      const XLSX = await import('xlsx');
       const data = await uploadedFile.arrayBuffer();
       const workbook = XLSX.read(data, { cellDates: true });
       const newDiffs: any[] = [];
@@ -851,23 +806,21 @@ export default function AuditSync() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {isAdmin && (
-            <button
-              type="button"
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(185,28,28,0.2) 100%)',
-                border: '1px solid #ef4444',
-                color: '#b91c1c',
-                fontWeight: 800,
-              }}
-              onClick={() => void handleAutoPurgeDuplicates()}
-              disabled={isProcessing}
-              title="Escanear y archivar documentos duplicados (recuperables en Papelera) -- solo administradores"
-            >
-              🧹 Purgar Duplicados
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn"
+            style={{
+              background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(185,28,28,0.2) 100%)',
+              border: '1px solid #ef4444',
+              color: '#b91c1c',
+              fontWeight: 800,
+            }}
+            onClick={() => void handleAutoPurgeDuplicates()}
+            disabled={isProcessing}
+            title="Escanear y eliminar documentos duplicados en Firestore"
+          >
+            🧹 Purgar Duplicados
+          </button>
 
           <button
             type="button"
@@ -1009,6 +962,26 @@ export default function AuditSync() {
           onClick={() => setMode('excel')}
         >
           <span>📁</span> Conciliar Archivo .xlsx
+        </button>
+
+        <span style={{ flex: 1 }} />
+
+        <button
+          type="button"
+          className="btn"
+          style={{
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: '#059669',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          onClick={() => downloadOfficialExcelTemplate()}
+          title="Descargar plantilla oficial prediseñada para captura y sincronización masiva"
+        >
+          <span>📥</span> Descargar Plantilla Excel Oficial (.xlsx)
         </button>
       </div>
 
@@ -1255,17 +1228,15 @@ export default function AuditSync() {
                             >
                               📝 Abrir
                             </button>
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                className="btn"
-                                style={{ fontSize: 10.5, padding: '3px 6px', color: '#b91c1c' }}
-                                onClick={() => void handleArchiveOrder(r.orderId, r.contrarecibo || r.folio || r.oc)}
-                                title="Archivar expediente (recuperable en Papelera)"
-                              >
-                                🗑️
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ fontSize: 10.5, padding: '3px 6px', color: '#b91c1c' }}
+                              onClick={() => void handleArchiveOrder(r.orderId, r.contrarecibo || r.folio || r.oc)}
+                              title="Archivar expediente"
+                            >
+                              🗑️
+                            </button>
                           </div>
                         </td>
                       </tr>

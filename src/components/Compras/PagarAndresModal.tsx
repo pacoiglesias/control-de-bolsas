@@ -5,11 +5,11 @@ import { Modal, Field } from '../ui';
 import { useToast } from '../../context/ToastContext';
 import { useExpenses } from '../../hooks/useExpenses';
 import { useOrders } from '../../hooks/useOrders';
-import { usePurchases } from '../../hooks/usePurchases';
+import { useAndresStats } from '../../hooks/useAndresStats';
 import { useConfig } from '../../hooks/useConfig';
 import { toInputDate, fromInputDate, money } from '../../lib/format';
 import { confirmDialog } from '../../lib/confirmDialog';
-import { computeCommissionFromInvoiceTotal, normalizarTexto } from '../../lib/finance';
+import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
 import { useAuth } from '../../context/AuthContext';
 import { logAction } from '../../lib/logger';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
@@ -25,7 +25,7 @@ export function PagarAndresModal({
 }) {
   const { expenses } = useExpenses();
   const { orders } = useOrders();
-  const { purchases: allPurchases } = usePurchases();
+  const { stats } = useAndresStats('Andres');
   const { config } = useConfig();
   const { user } = useAuth();
   const toast = useToast();
@@ -37,22 +37,8 @@ export function PagarAndresModal({
   }, [expenses]);
 
   const deudaConAndres = useMemo(() => {
-    const provPurchases = allPurchases.filter(p => normalizarTexto(p.provider) === 'andres');
-    const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (p.receivedKilos ?? 0), 0);
-    const currentCostPerKg = config?.costPricePerKg || 42;
-    const totalPurchasesCost = totalReceivedKilos * currentCostPerKg;
-
-    const provExpenses = expenses.filter(e => normalizarTexto(e.provider) === 'andres');
-    const totalPagado = provExpenses.reduce((acc, e) => {
-      if (e.type === 'egreso') return acc + e.amount;
-      if (e.type === 'ingreso') return acc - e.amount;
-      return acc;
-    }, 0);
-
-    const deudaHistorica = config?.historicalDebtAndres || 0;
-    const saldoProveedor = totalPagado - totalPurchasesCost + deudaHistorica;
-    return saldoProveedor < 0 ? Math.abs(saldoProveedor) : 0;
-  }, [allPurchases, expenses, config]);
+    return stats.saldoProveedor < 0 ? Math.abs(stats.saldoProveedor) : 0;
+  }, [stats]);
 
   const dineroConContador = useMemo(() => {
     let neto = 0;
@@ -164,6 +150,31 @@ export function PagarAndresModal({
   return (
     <Modal title="💳 Pagar o Adelantar Dinero a Andrés" onClose={onClose}>
       <form onSubmit={registrarAbono} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Desglose Transparente de la Cuenta con Andrés */}
+        <div style={{ background: 'var(--paper-sunk)', border: '1px solid var(--line)', borderRadius: 12, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, fontSize: 13, borderBottom: '1px solid var(--line-soft)', paddingBottom: 6 }}>
+            <span>📦 Entregas Andrés ({(stats?.totalReceivedKilos ?? 0).toLocaleString('es-MX')} kg):</span>
+            <span className="mono" style={{ color: 'var(--ink)' }}>{money(stats?.totalPurchasesCost ?? 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--ink-soft)' }}>
+            <span>(-) Anticipos/Pagos entregados en Caja:</span>
+            <span className="mono" style={{ color: '#047857', fontWeight: 700 }}>-{money(stats?.totalPagado ?? 0)}</span>
+          </div>
+          {config?.historicalDebtAndres !== undefined && config.historicalDebtAndres !== 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--ink-soft)' }}>
+              <span>(+/-) Saldo histórico inicial configurado:</span>
+              <span className="mono" style={{ color: (config.historicalDebtAndres || 0) < 0 ? '#b91c1c' : '#047857', fontWeight: 700 }}>
+                {(config.historicalDebtAndres || 0) < 0 ? `-${money(Math.abs(config.historicalDebtAndres || 0))}` : `+${money(config.historicalDebtAndres || 0)}`}
+              </span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, fontSize: 14, borderTop: '1px solid var(--line-soft)', paddingTop: 6 }}>
+            <span>⚖️ Saldo Actual con Andrés:</span>
+            <span className="mono" style={{ fontSize: 16, color: deudaConAndres > 0 ? '#b91c1c' : '#047857' }}>
+              {deudaConAndres > 0 ? money(deudaConAndres) : `A favor: ${money(stats?.saldoProveedor ?? 0)}`}
+            </span>
+          </div>
+        </div>
         {/* Panel Informativo de Efectivo en Caja */}
         <div
           style={{
@@ -178,7 +189,7 @@ export function PagarAndresModal({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)' }}>
-              💵 Saldo Disponible en Caja Chica:
+              💵 Efectivo Disponible en Caja:
             </span>
             <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: saldoCaja < 0 ? '#dc2626' : '#059669' }}>
               {money(saldoCaja)}
@@ -268,7 +279,7 @@ export function PagarAndresModal({
         {/* Indicador de Adelanto a Favor de Andrés */}
         {montoNum > deudaConAndres && deudaConAndres > 0 && (
           <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 10, fontSize: 12, color: '#047857', lineHeight: 1.4 }}>
-            ✨ <strong>¡Excelente pago!</strong> Este importe de <strong>{money(montoNum)}</strong> liquida la deuda con Andrés al 100% y le deja un <strong>adelanto a tu favor de {money(montoNum - deudaConAndres)}</strong> (cubriendo ~{Math.round((montoNum - deudaConAndres) / (config?.costPricePerKg || 42)).toLocaleString()} kg de entregas futuras).
+            ✨ <strong>¡Excelente pago!</strong> Este importe de <strong>{money(montoNum)}</strong> liquida la deuda con Andrés al 100% y le deja un <strong>adelanto a tu favor de {money(montoNum - deudaConAndres)}</strong> (cubriendo ~{Math.round((montoNum - deudaConAndres) / (config?.costPricePerKg || 38)).toLocaleString()} kg de entregas futuras).
           </div>
         )}
 
@@ -288,7 +299,7 @@ export function PagarAndresModal({
 
         {/* ─── CÁLCULO AUTOMÁTICO DE KILOS AMPARADOS A PRECIO DE COSTO ─── */}
         {montoNum > 0 && (() => {
-          const currentCost = config?.costPricePerKg || 42;
+          const currentCost = config?.costPricePerKg || 38;
           const currentSale = config?.salePricePerKg || 43;
           const ivaRate = config?.ivaRate || 0.16;
           const kilosAmparados = montoNum / currentCost;

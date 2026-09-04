@@ -40,6 +40,54 @@ export function CommandPalette() {
   const SYSTEM_ACTIONS: PaletteItem[] = useMemo(() => [
     {
       type: 'action',
+      id: 'action-fast-oc',
+      label: '📝 1. Capturar Nueva Orden / OC',
+      desc: 'Crear un nuevo expediente o cargar PDF de OC',
+      val: 'Acción Rápida',
+      badge: 'PROCESO',
+      badgeColor: '#2563eb',
+      action: () => {
+        navigate('/ordenes?nueva=1');
+      },
+    },
+    {
+      type: 'action',
+      id: 'action-fast-delivery',
+      label: '🚚 2. Registrar Entrega de Báscula',
+      desc: 'Capturar remisión de taller o pesaje en báscula',
+      val: 'Acción Rápida',
+      badge: 'PROCESO',
+      badgeColor: '#059669',
+      action: () => {
+        window.dispatchEvent(new CustomEvent('open-fast-delivery'));
+      },
+    },
+    {
+      type: 'action',
+      id: 'action-fast-invoice',
+      label: '🧾 3. Emitir Factura CFDI (Descuento Inteligente)',
+      desc: 'Facturar entregas de báscula u órdenes abiertas con cálculo SAT',
+      val: 'Acción Rápida',
+      badge: 'PROCESO',
+      badgeColor: '#d97706',
+      action: () => {
+        window.dispatchEvent(new CustomEvent('open-fast-invoice'));
+      },
+    },
+    {
+      type: 'action',
+      id: 'action-fast-cr',
+      label: '📑 4. Capturar Contrarecibo',
+      desc: 'Asignar número TH-* o GT-* y fecha de vencimiento a facturas',
+      val: 'Acción Rápida',
+      badge: 'PROCESO',
+      badgeColor: '#7c3aed',
+      action: () => {
+        window.dispatchEvent(new CustomEvent('open-fast-cr-collection'));
+      },
+    },
+    {
+      type: 'action',
       id: 'action-privacy',
       label: isPrivate ? '👁️ Desactivar Modo Privacidad' : '🕶️ Activar Modo Privacidad',
       desc: isPrivate ? 'Mostrar cifras y montos en pantalla' : 'Ocultar cifras y montos (Ctrl+H)',

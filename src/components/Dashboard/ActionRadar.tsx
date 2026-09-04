@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { money, kilos as fmtKilos, nombreClienteVisible, toDate } from '../../lib/format';
-import { computeCommissionFromInvoiceTotal, getOrderSummary } from '../../lib/finance';
+import { computeCommissionFromInvoiceTotal, getOrderSummary, round2 } from '../../lib/finance';
 import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
 
 interface ActionRadarProps {
@@ -29,7 +29,7 @@ export type UrgentAction = {
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
   const actions = useMemo<UrgentAction[]>(() => {
     const saleKg = config?.salePricePerKg || 43;
-    const costKg = config?.costPricePerKg || 42;
+    const costKg = config?.costPricePerKg || 38;
     const ivaRate = config?.ivaRate || 0.16;
     const list: UrgentAction[] = [];
     const today = new Date();
@@ -38,20 +38,15 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
     orders.forEach((o) => {
       if (o.isClosedShort) return;
       const clientName = nombreClienteVisible(o.client) || 'Providencia';
-      // FIX: mismo bug que en SeguimientoPedidosTable/MoneyFlowPipeline --
-      // sumar o.deliveries/o.invoices a mano no captura entregas con desglose
-      // por items[] ni el fallback de getOrderSummary para expedientes viejos
-      // sin o.deliveries. Se reusa getOrderSummary(o) para que esta alerta
-      // ("Entregado sin Facturar") sea consistente con el resto del sistema.
       const summary = getOrderSummary(o);
       const kilosEntregados = summary.kilosDelivered;
-      const invoices = summary.invoices;
       const kilosFacturados = summary.kilosInvoiced;
+      const invoices = o.invoices || [];
 
       // 1. Entregas en Providencia sin Facturar
       if (kilosEntregados > kilosFacturados + 0.01) {
-        const faltanKg = kilosEntregados - kilosFacturados;
-        const montoEstimado = faltanKg * saleKg * (1 + ivaRate);
+        const faltanKg = round2(kilosEntregados - kilosFacturados);
+        const montoEstimado = round2(faltanKg * saleKg * (1 + ivaRate));
         list.push({
           id: `sin_fac_${o.id}`,
           type: 'sin_facturar',

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { money, fmtDate, kilos as fmtKilos } from '../../lib/format';
-import { extractCr, getOrderSummary } from '../../lib/finance';
+import { extractCr } from '../../lib/finance';
 import { usePrivacy } from '../../context/PrivacyContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { playCashSound, playSoftClick, triggerHaptic } from '../../lib/hapticEngine';
@@ -36,21 +36,15 @@ export function QuickPeekDrawer({ order, onClose, onOpenFullOrder, onPayCr }: Qu
     (order.invoices || []).map((inv) => extractCr(inv, order)).find(Boolean) ||
     '').toUpperCase();
 
-  // FIX: kilosEntregados/kilosFacturados se recalculaban aqui a mano igual
-  // que en SeguimientoPedidosTable/MoneyFlowPipeline/ActionRadar (mismo bug,
-  // mismo arreglo): no sumaban entregas con desglose por items[] ni aplicaban
-  // el fallback de getOrderSummary para expedientes sin o.deliveries
-  // capturadas, asi que esta tarjeta rapida podia mostrar "Entregados en
-  // Báscula" muy por debajo del 100% para pedidos que ya estaban totalmente
-  // surtidos y facturados. Se reusa getOrderSummary(order).
-  const summary = getOrderSummary(order);
   const totalKilos = Number(order.totalKilograms) ||
-    (order.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) ||
-    summary.kilosDelivered;
+    (order.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
 
-  const kilosEntregados = summary.kilosDelivered;
+  const kilosEntregados = (order.deliveries || []).reduce(
+    (acc, d) => acc + (Number((d as any).kilos || (d as any).kilograms || (d as any).quantity) || 0),
+    0
+  );
 
-  const kilosFacturados = summary.kilosInvoiced;
+  const kilosFacturados = (order.invoices || []).reduce((acc, inv) => acc + (Number(inv.kilos) || 0), 0);
 
   const pctEntregado = totalKilos > 0 ? Math.min(100, Math.round((kilosEntregados / totalKilos) * 100)) : 0;
   const pctFacturado = totalKilos > 0 ? Math.min(100, Math.round((kilosFacturados / totalKilos) * 100)) : 0;

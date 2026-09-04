@@ -1,0 +1,163 @@
+/* =========================================================================
+   Control Bolsas ERP — Kanban, Data Grids & Spotlight Command Menu
+   ========================================================================= */
+
+.kanban-col-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.kanban-col-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kanban-col-scroll::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 8px;
+}
+.kanban-col-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+
+/* Skeleton Loaders (Glassmorphism) */
+.skeleton {
+  background: linear-gradient(90deg, var(--paper-sunk) 25%, var(--line-soft) 50%, var(--paper-sunk) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: var(--radius-sm);
+  color: transparent !important;
+  pointer-events: none;
+  user-select: none;
+  border: 1px solid var(--glass-border);
+}
+.skeleton * {
+  visibility: hidden;
+}
+.skeleton-row {
+  height: 20px;
+}
+.skeleton-card {
+  height: 100px;
+  border-radius: var(--radius);
+}
+
+/* COMMAND MENU (SPOTLIGHT) */
+.command-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  padding-top: 10vh;
+}
+
+.command-modal {
+  width: 90%;
+  max-width: 600px;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+  border: 1px solid var(--border);
+}
+
+.command-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.command-header input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  outline: none;
+  color: var(--ink);
+}
+
+.command-header input::placeholder {
+  color: var(--ink-soft);
+}
+
+.command-header .esc-hint {
+  font-size: 11px;
+  color: var(--ink-soft);
+  background: var(--bg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.command-results {
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.no-results {
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.command-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.command-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.command-item-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.command-item-main .folio {
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 15px;
+}
+
+.command-item-main .client {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.command-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.command-item-meta .amount {
+  font-weight: 800;
+  font-family: monospace;
+  color: var(--ink);
+}
+
+.command-item-meta .inv-badge {
+  background: var(--blue-bg);
+  color: var(--blue);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}

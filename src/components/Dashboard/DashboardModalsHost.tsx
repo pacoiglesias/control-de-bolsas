@@ -5,7 +5,7 @@ import { ContrarecibosTable } from './ContrarecibosTable';
 import { SeguimientoPedidosTable } from './SeguimientoPedidosTable';
 import { QuickInvoiceModal } from '../FastFlows/QuickInvoiceModal';
 import { QuickCollectionModal } from '../FastFlows/QuickCollectionModal';
-import { PagarAndresModal } from '../Compras/PagarAndresModal';
+import { QuickDeliveryModal } from '../FastFlows/QuickDeliveryModal';
 import { MagicPasteModal } from '../MagicPasteModal';
 import { SincronizadorOficialModal } from '../Cobranza/SincronizadorOficialModal';
 import { downloadBackupJsonFile } from '../../lib/cloudBackup';
@@ -18,6 +18,9 @@ const ChangelogModalComponent = lazy(() => import('./ChangelogFeed').then(m => (
 const CorteMensualModal = lazy(() => import('./CorteMensualModal').then(m => ({ default: m.CorteMensualModal })));
 const CorteSemanalModal = lazy(() => import('./CorteSemanalModal').then(m => ({ default: m.CorteSemanalModal })));
 const BalanzaComprobacionModal = lazy(() => import('./BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
+// 🚀 Lazy loading de módulos pesados (72KB + 53KB → excluidos del bundle inicial)
+const UniversalDocumentUploadModal = lazy(() => import('./UniversalDocumentUploadModal').then(m => ({ default: m.UniversalDocumentUploadModal })));
+const PagarAndresModal = lazy(() => import('../Compras/PagarAndresModal').then(m => ({ default: m.PagarAndresModal })));
 
 export interface DashboardModalsHostProps {
   showContrarecibosDrawer: boolean;
@@ -26,6 +29,11 @@ export interface DashboardModalsHostProps {
   setShowSeguimientoDrawer: (v: boolean) => void;
   showQuickInvoice: boolean;
   setShowQuickInvoice: (v: boolean) => void;
+  selectedInvoiceOrderId?: string | null;
+  setSelectedInvoiceOrderId?: (id: string | null) => void;
+  showQuickDelivery?: boolean;
+  setShowQuickDelivery?: (v: boolean) => void;
+  selectedDeliveryOrderId?: string | null;
   showQuickCollection: boolean;
   setShowQuickCollection: (v: boolean) => void;
   showQuickPay: boolean;
@@ -46,6 +54,8 @@ export interface DashboardModalsHostProps {
   setShowMagicPaste: (v: boolean) => void;
   showSincronizador: boolean;
   setShowSincronizador: (v: boolean) => void;
+  showUniversalUpload?: boolean;
+  setShowUniversalUpload?: (v: boolean) => void;
 
   seguimientoOrders: PurchaseOrder[];
   activeOrders: PurchaseOrder[];
@@ -67,7 +77,8 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
   const {
     showContrarecibosDrawer, setShowContrarecibosDrawer,
     showSeguimientoDrawer, setShowSeguimientoDrawer,
-    showQuickInvoice, setShowQuickInvoice,
+    showQuickInvoice, setShowQuickInvoice, selectedInvoiceOrderId, setSelectedInvoiceOrderId,
+    showQuickDelivery, setShowQuickDelivery, selectedDeliveryOrderId,
     showQuickCollection, setShowQuickCollection,
     showQuickPay, setShowQuickPay,
     showCorteMensual, setShowCorteMensual,
@@ -78,6 +89,7 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
     showLiveLogsModal, setShowLiveLogsModal,
     showMagicPaste, setShowMagicPaste,
     showSincronizador, setShowSincronizador,
+    showUniversalUpload, setShowUniversalUpload,
     seguimientoOrders, activeOrders, globalOrders,
     expenses, purchases, config, settings, saldoCaja,
     cloudBackups, backupBusy, handleCreateBackup, handleRestoreBackup,
@@ -111,11 +123,29 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
       )}
 
       {showQuickInvoice && (
-        <QuickInvoiceModal orders={seguimientoOrders} onClose={() => setShowQuickInvoice(false)} />
+        <QuickInvoiceModal
+          orders={globalOrders}
+          initialOrderId={selectedInvoiceOrderId}
+          onClose={() => {
+            setShowQuickInvoice(false);
+            if (setSelectedInvoiceOrderId) setSelectedInvoiceOrderId(null);
+          }}
+        />
+      )}
+
+      {showQuickDelivery && (
+        <QuickDeliveryModal
+          orders={globalOrders}
+          initialOrderId={selectedDeliveryOrderId}
+          onClose={() => setShowQuickDelivery && setShowQuickDelivery(false)}
+        />
       )}
 
       {showQuickCollection && (
-        <QuickCollectionModal orders={seguimientoOrders} onClose={() => setShowQuickCollection(false)} />
+        <QuickCollectionModal
+          orders={globalOrders}
+          onClose={() => setShowQuickCollection(false)}
+        />
       )}
 
       {showQuickPay && (
@@ -125,35 +155,35 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
       <Suspense fallback={null}>
         {showCorteMensual && (
           <CorteMensualModal
-            onClose={() => setShowCorteMensual(false)}
-            orders={activeOrders}
+            orders={globalOrders}
             expenses={expenses}
             purchases={purchases}
             config={config}
             settings={settings}
+            onClose={() => setShowCorteMensual(false)}
           />
         )}
 
         {showCorteSemanal && (
           <CorteSemanalModal
-            onClose={() => setShowCorteSemanal(false)}
-            orders={activeOrders}
-            expenses={expenses}
+            orders={globalOrders}
             purchases={purchases}
+            expenses={expenses}
             config={config}
             settings={settings}
+            onClose={() => setShowCorteSemanal(false)}
           />
         )}
 
         {showBalanza && (
           <BalanzaComprobacionModal
-            onClose={() => setShowBalanza(false)}
-            orders={activeOrders}
-            expenses={expenses}
+            orders={globalOrders}
             purchases={purchases}
+            expenses={expenses}
             config={config}
             settings={settings}
             saldoCajaSistema={saldoCaja}
+            onClose={() => setShowBalanza(false)}
           />
         )}
 
@@ -185,6 +215,10 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
             orders={globalOrders}
             onClose={() => setShowSincronizador(false)}
           />
+        )}
+
+        {showUniversalUpload && setShowUniversalUpload && (
+          <UniversalDocumentUploadModal onClose={() => setShowUniversalUpload(false)} />
         )}
       </Suspense>
     </>

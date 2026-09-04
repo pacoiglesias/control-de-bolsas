@@ -52,7 +52,7 @@ export async function generateProvidenciaStatementPdf(data: ProvidenciaStatement
   const fechaEmisionExacta = fmtDateTimeFull(new Date());
 
   const client = data.clientName || 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
-  const rfc = data.clientRfc || 'GTP9211049B6';
+  const rfc = data.clientRfc || 'GTP930115PU1';
   const company = data.companyName || 'Bolsas Elemental / Providencia';
 
   const html = `

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { money } from '../../lib/format';
+import { money, kilos, nombreClienteVisible } from '../../lib/format';
 import type { OrderStatus, PurchaseOrder } from '../../lib/types';
 import { KanbanScrollWrapper } from '../ui/KanbanScrollWrapper';
 import { KilosProgressBar } from './KilosProgressBar';
@@ -11,6 +11,7 @@ import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firest
 import { camposInvoices } from '../../lib/invoiceOps';
 import type { Invoice } from '../../lib/types';
 import { confirmDialog } from '../../lib/confirmDialog';
+import { OrderLifecycleSemaphore } from './OrderLifecycleSemaphore';
 
 type OrderWithSummary = {
   o: PurchaseOrder;
@@ -37,7 +38,15 @@ const KANBAN_COLUMNS: { id: OrderStatus; label: string; color: string; bg: strin
   { id: 'collected', label: '✅ Cobrado y Recolectado', color: 'var(--kanban-collected)', bg: 'var(--kanban-collected-bg)' },
 ];
 
-export default function KanbanBoard({ items, onSelect }: { items: OrderWithSummary[], onSelect: (o: PurchaseOrder) => void }) {
+export default function KanbanBoard({
+  items,
+  onSelect,
+  onContextMenu,
+}: {
+  items: OrderWithSummary[];
+  onSelect: (o: PurchaseOrder) => void;
+  onContextMenu?: (o: PurchaseOrder, e: React.MouseEvent) => void;
+}) {
   const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<OrderStatus | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -251,6 +260,10 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
                         sound.playSwoosh();
                         onSelect(item.o);
                       }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        onContextMenu?.(item.o, e);
+                      }}
                       key={item.o.id}
                       style={{
                         background: 'var(--glass-bg)', 
@@ -276,14 +289,46 @@ export default function KanbanBoard({ items, onSelect }: { items: OrderWithSumma
                       </div>
                       
                       <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                        <strong>{item.o.client || 'Sin Cliente'}</strong>
+                        <strong>{nombreClienteVisible(item.o.client)}</strong>
                       </div>
+
+                      {/* Botón directo de facturación si hay kilos listos */}
+                      {item.s.kilosDelivered > item.s.kilosInvoiced + 0.01 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sound.playPop();
+                            onSelect(item.o);
+                          }}
+                          style={{
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                          }}
+                        >
+                          <span>🧾 Facturar listos</span>
+                          <span>{kilos(item.s.kilosDelivered - item.s.kilosInvoiced)} ➔</span>
+                        </button>
+                      )}
 
                       {/* Barra Visual de Avance de Kilos */}
                       <KilosProgressBar
                         deliveredKg={item.s.kilosDelivered}
                         totalKg={item.o.totalKilograms || (item.o.items || []).reduce((acc: number, it: any) => acc + (it.quantity || 0), 0) || item.s.kilosDelivered}
                       />
+
+                      {/* Semáforo Visual de Vida del Pedido */}
+                      <OrderLifecycleSemaphore order={item.o} summary={item.s} compact style={{ marginTop: 4, width: '100%', justifyContent: 'space-between' }} />
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--hint)', borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 2 }}>
                         <div style={{ color: item.s.invoiceTotal - item.s.paidAmount > 0 ? 'var(--bad)' : 'var(--ok)', fontWeight: 700 }}>

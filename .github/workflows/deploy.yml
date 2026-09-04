@@ -1,67 +1,69 @@
-name: Deploy to Firebase Hosting and Functions
+name: Deploy — Producción
 
-# NOTA IMPORTANTE SOBRE ESTE ARCHIVO
-# ==================================
-# La versión anterior compilaba con `npm run build` SIN inyectar las variables
-# VITE_FIREBASE_*, que viven en .env y están (correctamente) fuera del
-# repositorio. Vite sustituye cada variable ausente por `undefined` en tiempo
-# de compilación, así que el bundle salía con la configuración de Firebase
-# vacía y la aplicación arrancaba mostrando "Faltan variables de entorno".
-# Como además el último paso era `firebase deploy` sin `--only`, cada push a
-# main podía sobrescribir un despliegue manual correcto con uno inservible.
-#
-# ANTES DE QUE ESTO FUNCIONE hay que dar de alta seis secretos en
-# GitHub -> Settings -> Secrets and variables -> Actions:
+# SECRETOS REQUERIDOS en GitHub → Settings → Secrets → Actions:
 #   VITE_FIREBASE_API_KEY
 #   VITE_FIREBASE_AUTH_DOMAIN
 #   VITE_FIREBASE_PROJECT_ID
 #   VITE_FIREBASE_STORAGE_BUCKET
 #   VITE_FIREBASE_MESSAGING_SENDER_ID
 #   VITE_FIREBASE_APP_ID
-# Son los mismos valores que ya tienes en tu .env local. No son secretos en el
-# sentido criptográfico (viajan en el bundle del navegador), pero se manejan
-# así para no versionarlos.
+#   FIREBASE_SERVICE_ACCOUNT   ← cuenta de servicio con rol "Firebase Admin"
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  # Permite disparar el deploy manualmente desde la UI de GitHub Actions.
   workflow_dispatch:
 
-# Si llegan dos pushes seguidos, cancela el despliegue anterior en vuelo: dos
-# `firebase deploy` simultáneos sobre el mismo proyecto pueden dejar hosting y
-# functions en versiones distintas.
+# Dos deploys simultáneos al mismo proyecto pueden dejar hosting y functions
+# en versiones distintas. Este bloqueo garantiza serialización.
 concurrency:
   group: deploy-produccion
   cancel-in-progress: true
 
 jobs:
-  build_and_deploy:
+  # ════════════════════════════════════════════════════════════════════════════
+  # JOB 1 — Barrera de calidad (igual que ci.yml pero con secretos reales para
+  #          el build, porque workflow_dispatch puede saltarse el CI pipeline).
+  # ════════════════════════════════════════════════════════════════════════════
+  quality:
+    name: 1 · Deps · Typecheck · Tests · Lint · Build
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install Dependencies (Root)
+      # ── Dependencias ─────────────────────────────────────────────────────────
+      - name: Instalar dependencias (raíz)
         run: npm ci
 
-      - name: Install Dependencies (Functions)
+      - name: Instalar dependencias (functions)
         run: npm --prefix functions ci
 
-      # Barreras de calidad antes de tocar producción. Si los tipos no
-      # compilan o la fórmula financiera cambió de resultado, no se despliega.
-      - name: Typecheck
+      # ── Typecheck ────────────────────────────────────────────────────────────
+      - name: Typecheck raíz (tsc --noEmit)
         run: npm run typecheck
 
-      - name: Tests
+      - name: Typecheck functions (tsc --noEmit)
+        run: npm --prefix functions run typecheck
+
+      # ── Tests unitarios ──────────────────────────────────────────────────────
+      - name: Tests (vitest run)
         run: npm test
 
-      - name: Build Frontend
+      # ── Lint ─────────────────────────────────────────────────────────────────
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      # ── Build ────────────────────────────────────────────────────────────────
+      - name: Build raíz (tsc -b + vite build)
         run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -71,25 +73,110 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
-      # Red de seguridad: si faltó algún secreto, el bundle queda con
-      # `apiKey:void 0`. Vale más detenerse aquí que publicar una app muerta.
-      - name: Verificar que el bundle trae la configuración
+      # Si faltó algún secreto el bundle saldrá con `apiKey:void 0`.
+      # Vale más detener aquí que publicar una app muerta.
+      - name: Verificar bundle lleva configuración Firebase
         run: |
           if grep -rq "apiKey:void 0" dist/assets/ 2>/dev/null; then
             echo "::error::El bundle se compiló sin las variables VITE_FIREBASE_*."
-            echo "::error::Da de alta los seis secretos en Settings > Secrets > Actions."
+            echo "::error::Da de alta los seis secretos en Settings → Secrets → Actions."
             exit 1
           fi
-          echo "Configuración presente en el bundle."
+          echo "✅ Configuración Firebase presente en el bundle."
 
-      - name: Deploy Hosting y Functions
+      - name: Build functions (tsc)
+        run: npm --prefix functions run build
+
+      # Subir el dist/ compilado para que el job de hosting no necesite recompilar.
+      - name: Subir artefacto dist/
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # JOB 2 — Reglas de seguridad + índices (primer despliegue del orden)
+  #
+  # Se despliegan antes que las functions y el hosting para garantizar que
+  # la base de datos esté preparada antes de que el nuevo código la use.
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy_rules:
+    name: 2 · Deploy Reglas + Índices
+    needs: quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Firestore rules, indexes y Storage rules
         uses: w9jds/firebase-action@v14.11.1
         with:
-          args: deploy --only hosting,functions
+          args: deploy --only firestore:rules,firestore:indexes,storage
         env:
-          GCP_SA_KEY: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: control-de-bolsas-89c88
 
-      # Las reglas de seguridad NO se despliegan aquí a propósito. Un cambio
-      # mal hecho deja la base abierta o inaccesible, y eso no debe ocurrir por
-      # un push distraído. Se publican a mano con INSTALL_AND_DEPLOY.bat.
+  # ════════════════════════════════════════════════════════════════════════════
+  # JOB 3 — Cloud Functions (segundo en el orden)
+  #
+  # Las functions deben estar actualizadas antes de que el frontend las llame.
+  # firebase.json tiene `predeploy: npm --prefix functions run build` así que
+  # la Action lo compila automáticamente antes de subir.
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy_functions:
+    name: 3 · Deploy Cloud Functions
+    needs: deploy_rules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Instalar dependencias (functions)
+        run: npm --prefix functions ci
+
+      - name: Deploy Cloud Functions
+        uses: w9jds/firebase-action@v14.11.1
+        with:
+          args: deploy --only functions
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: control-de-bolsas-89c88
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # JOB 4 — Hosting (último en el orden)
+  #
+  # El frontend se sirve cuando la base de datos y las functions ya están
+  # en la versión nueva. Usa el dist/ producido en el job `quality`.
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy_hosting:
+    name: 4 · Deploy Hosting
+    needs: deploy_functions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Recuperar el bundle compilado por el job quality (evita recompilar).
+      - name: Descargar artefacto dist/
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Deploy Hosting
+        uses: w9jds/firebase-action@v14.11.1
+        with:
+          args: deploy --only hosting
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: control-de-bolsas-89c88

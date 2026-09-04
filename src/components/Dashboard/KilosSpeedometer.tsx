@@ -60,6 +60,9 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
         <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>⏱️</span> Tacómetro de Kilos del Mes
         </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: percentage >= 100 ? 'var(--ok)' : 'var(--warn)' }}>
+          {percentage}% de la meta
+        </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -71,11 +74,6 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
             </span>
           </div>
 
-          {/* FIX (v8.9.3): la barra era de 12px y el porcentaje vivía aparte,
-              arriba a la derecha del título -- fácil de no ver de reojo.
-              Ahora la barra mide casi el doble (22px) y el porcentaje va
-              encimado en el propio relleno, así el número y el avance se
-              leen en un solo lugar de un vistazo. */}
           <div
             role="meter"
             aria-valuenow={currentMonthKilos}
@@ -83,9 +81,9 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
             aria-valuemax={targetKilos}
             aria-label={`Progreso de entregas: ${kilos(currentMonthKilos)} de ${kilos(targetKilos)} (${percentage}%)`}
             style={{
-              height: 22,
+              height: 12,
               background: 'var(--paper-sunk)',
-              borderRadius: 8,
+              borderRadius: 6,
               overflow: 'hidden',
               position: 'relative',
               border: '1px solid var(--line-soft)',
@@ -100,25 +98,9 @@ export function KilosSpeedometer({ orders, targetKilos = 50000 }: KilosSpeedomet
                 background: percentage >= 100
                   ? 'var(--ok)'
                   : 'linear-gradient(90deg, var(--warn) 0%, var(--ok) 100%)',
-                borderRadius: 8,
+                borderRadius: 6,
               }}
             />
-            <span
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 800,
-                color: '#fff',
-                textShadow: '0 1px 2px rgba(0,0,0,0.55)',
-                pointerEvents: 'none',
-              }}
-            >
-              {percentage}% de la meta
-            </span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--ink-soft)' }}>

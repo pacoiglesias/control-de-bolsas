@@ -13,10 +13,12 @@ import { confirmDialog } from '../../lib/confirmDialog';
 import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
 import TabEntregas from './TabEntregas';
+import TabFacturas from './TabFacturas';
 import { TabAndresOrder } from './TabAndresOrder';
 import { OrderStepper } from './OrderStepper';
 import { NextActionBanner } from './NextActionBanner';
-import { money } from '../../lib/format';
+import { EmitirFacturaModal } from './EmitirFacturaModal';
+import { money, nombreClienteVisible } from '../../lib/format';
 import { useProducts } from '../../hooks/useProducts';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 
@@ -52,6 +54,8 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     form,
     readOnly,
     config,
+    dynamicConfig,
+    kilosPendientesDeFacturar,
     knownClients,
     knownProviders,
     knownClientEmails,
@@ -71,8 +75,9 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     viabilityWarning,
   } = ctx as any;
 
-  // Estado local: ¿mostrar el modal de Facturas & CR?
+  // Estado local: ¿mostrar el modal de Facturas & CR? o Emitir Factura
   const [showCRModal, setShowCRModal] = useState(initialOpenCR);
+  const [showEmitirFacturaModal, setShowEmitirFacturaModal] = useState(false);
 
   // Antes, cerrar el expediente (X, Escape, clic afuera, o el boton
   // "Cancelar") descartaba SIEMPRE lo escrito sin avisar -- form vive en
@@ -112,11 +117,12 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
   const { settings } = useSystemSettings();
   const provName = settings?.providerName || 'Andrés';
 
-  const TABS: { key: Exclude<TabName, 'facturas'>; label: string; count?: number; alert?: boolean }[] = [
+  const TABS: { key: TabName; label: string; count?: number; alert?: boolean }[] = [
     { key: 'resumen',   label: '📋 Expediente' },
     { key: 'productos', label: '📦 Orden de Compra', count: form.items.length },
     { key: 'andres',    label: `🏭 Pedido a ${provName}` },
     { key: 'entregas',  label: '🚛 Entregas', count: form.deliveries.length, alert: hasUninvoicedDeliveries },
+    { key: 'facturas',  label: '🧾 Facturas & Cobros', count: invoiceCount, alert: hasUninvoicedDeliveries },
   ];
 
   return (
@@ -124,17 +130,67 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
       <Modal
         wide
         title={
-          /* ── Cabecera de identidad: PED · OC · CR siempre visibles ── */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <DocBadge type="ped" value={order.folio ?? `#${order.id?.slice(0,6)}`} />
-              {order.oc && <DocBadge type="oc" value={order.oc} />}
-              {crs.map(cr => <DocBadge key={cr} type="cr" value={cr} />)}
+          /* ── Cabecera de identidad: PED · OC · CR siempre visibles sin duplicados ── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {order.folio && order.folio !== order.oc ? (
+                  <DocBadge type="ped" value={order.folio} />
+                ) : !order.oc ? (
+                  <DocBadge type="ped" value={order.folio ?? `#${order.id?.slice(0,6)}`} />
+                ) : null}
+                {order.oc && <DocBadge type="oc" value={order.oc} />}
+                {crs.map(cr => <DocBadge key={cr} type="cr" value={cr} />)}
+              </div>
+
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const isClosed = form.isClosedShort;
+                    if (isClosed) {
+                      const ok = await confirmDialog({
+                        message: '¿Deseas reabrir esta OC para permitir nuevas entregas de material?',
+                      });
+                      if (!ok) return;
+                      form.isClosedShort = false;
+                      save();
+                    } else {
+                      const ok = await confirmDialog({
+                        message: '¿Deseas cerrar definitivamente esta OC con los kilos entregados hasta ahora?\n\nEsto quitará la alerta de kilos pendientes por entregar.',
+                      });
+                      if (!ok) return;
+                      form.isClosedShort = true;
+                      save();
+                    }
+                  }}
+                  style={{
+                    background: form.isClosedShort ? 'rgba(59, 130, 246, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                    color: form.isClosedShort ? '#2563eb' : '#d97706',
+                    border: `1px solid ${form.isClosedShort ? 'rgba(59, 130, 246, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                    borderRadius: 8,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                  title={form.isClosedShort ? 'Clic para reabrir OC' : 'Clic para cerrar OC por menos kilos'}
+                >
+                  <span>{form.isClosedShort ? '🔓 OC Cerrada (Reabrir)' : '🔒 Cerrar OC (Menos Kilos)'}</span>
+                </button>
+              )}
             </div>
             <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500 }}>
-              {order.client ?? '—'}
-              {order.provider ? <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span> : null}
-              {order.provider ?? ''}
+              {nombreClienteVisible(order.client)}
+              {order.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(order.provider) ? (
+                <>
+                  <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span>
+                  <span>{order.provider}</span>
+                </>
+              ) : null}
             </div>
           </div>
         }
@@ -193,44 +249,70 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
           </div>
         </div>
 
-        {/* ── BOTÓN DESTACADO: Facturas & CR ────────────────────────────────── */}
-        <button
-          onClick={() => { sound.playPop(); setShowCRModal(true); }}
-          style={{
-            width: '100%', marginBottom: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 18px', borderRadius: 10, cursor: 'pointer',
-            background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
-            border: '1px solid #047857', color: '#fff',
-            fontWeight: 700, fontSize: 14, transition: 'opacity 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>💰</span>
-            <span>
-              Facturas &amp; Contrarecibos
-              {invoiceCount > 0 && (
-                <span style={{
-                  marginLeft: 10, background: 'rgba(255,255,255,0.2)',
-                  padding: '1px 8px', borderRadius: 99, fontSize: 12,
-                }}>
-                  {invoiceCount} factura{invoiceCount !== 1 ? 's' : ''}
+        {/* ── BOTONES DE ACCIÓN: EMITIR FACTURA Y FACTURAS/CR ────────────────── */}
+        {(() => {
+          const kilosEntregados = (form.deliveries || []).reduce((sum: number, d: any) => sum + (Number(d.kilos) || 0), 0);
+          const kilosFacturados = (form.invoices || []).reduce((sum: number, inv: any) => sum + (Number(inv.kilos) || 0), 0);
+          const pendingKgToBill = Math.max(0, kilosEntregados - kilosFacturados);
+
+          return (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+              {/* Botón Principal: EMITIR FACTURA */}
+              <button
+                type="button"
+                onClick={() => { sound.playPop(); setShowEmitirFacturaModal(true); }}
+                style={{
+                  flex: '1 1 260px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 18px', borderRadius: 12, cursor: 'pointer',
+                  background: pendingKgToBill > 0 
+                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  border: 'none', color: '#ffffff',
+                  fontWeight: 800, fontSize: 14,
+                  boxShadow: pendingKgToBill > 0 
+                    ? '0 4px 16px rgba(245, 158, 11, 0.4)' 
+                    : '0 4px 16px rgba(37, 99, 235, 0.3)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>🧾</span>
+                  <span>
+                    {pendingKgToBill > 0 
+                      ? `EMITIR FACTURA (${pendingKgToBill.toLocaleString('es-MX')} kg listos)`
+                      : `+ Emitir Factura`}
+                  </span>
                 </span>
-              )}
-              {crs.length > 0 && (
-                <span style={{
-                  marginLeft: 6, background: 'rgba(255,255,255,0.15)',
-                  padding: '1px 8px', borderRadius: 99, fontSize: 12,
-                }}>
-                  CR: {crs.join(' · ')}
+                <span style={{ fontSize: 12.5, background: 'rgba(255,255,255,0.25)', padding: '3px 8px', borderRadius: 6 }}>
+                  Asistente 3 Pasos ➔
                 </span>
-              )}
-            </span>
-          </span>
-          <span style={{ opacity: 0.7 }}>Abrir →</span>
-        </button>
+              </button>
+
+              {/* Botón: Facturas & Contrarecibos (Historial y Cobros) */}
+              <button
+                type="button"
+                onClick={() => { sound.playPop(); setShowCRModal(true); }}
+                style={{
+                  flex: '1 1 200px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 18px', borderRadius: 12, cursor: 'pointer',
+                  background: 'var(--paper-sunk)',
+                  border: '1px solid var(--line)', color: 'var(--ink)',
+                  fontWeight: 700, fontSize: 13.5,
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>💰</span>
+                  <span>
+                    Facturas &amp; CR ({invoiceCount})
+                  </span>
+                </span>
+                <span style={{ color: 'var(--ink-soft)' }}>Ver Historial →</span>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* ── Tabs: SOLO Expediente · OC · Pedido Andrés · Entregas ── */}
         <div style={{
@@ -296,6 +378,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
               {tab === 'productos' && <TabProductos />}
               {tab === 'andres'    && <TabAndresOrder order={order} config={config} customCostPrice={form.customCostPrice} customSellPrice={form.customSellPrice} />}
               {tab === 'entregas'  && <TabEntregas />}
+              {tab === 'facturas'  && <TabFacturas />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -329,9 +412,24 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
               🤖 Reintentar IA
             </button>
           )}
-          <button className="btn" style={{ marginLeft: 8 }} onClick={handlePrintRemision}>📄 Remisión</button>
-          <button className="btn" style={{ marginLeft: 8, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)', fontWeight: 600 }}
-            onClick={handlePrintPreFactura}>📋 Pre-Factura</button>
+          <button
+            type="button"
+            className="btn"
+            style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+            onClick={handlePrintRemision}
+            title="Imprimir o ver Remisión Oficial de Báscula"
+          >
+            <span>📄</span> Remisión de Báscula
+          </button>
+          <button
+            type="button"
+            className="btn"
+            style={{ marginLeft: 8, background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', border: 'none', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            onClick={handlePrintPreFactura}
+            title="Descargar Pre-Factura en formato PDF oficial para facturar en SAT"
+          >
+            <span>📋</span> Descargar Pre-Factura PDF
+          </button>
           <span className="spacer" />
           <button className="btn" onClick={handleClose} disabled={busy}>{readOnly ? 'Cerrar' : 'Cancelar'}</button>
           {!readOnly && (
@@ -345,6 +443,21 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
       {/* ── Modal secundario: Facturas & CR (se monta dentro del Provider) ── */}
       {showCRModal && (
         <FacturasCRModal onClose={() => setShowCRModal(false)} />
+      )}
+
+      {/* ── Modal de Emisión Rápida Asistida de Factura ── */}
+      {showEmitirFacturaModal && (
+        <EmitirFacturaModal
+          order={order}
+          kilosPendientes={kilosPendientesDeFacturar}
+          dynamicConfig={dynamicConfig}
+          config={config}
+          onClose={() => setShowEmitirFacturaModal(false)}
+          onCreated={() => {
+            setShowEmitirFacturaModal(false);
+            sound.playChaChing();
+          }}
+        />
       )}
     </>
   );
@@ -366,10 +479,8 @@ export default function OrderModal({
   initialTab?: TabName;
   focusInvoiceId?: string | null;
 }) {
-  // Si llega con focusInvoiceId o initialTab='facturas' (desde Cobranza),
-  // el CR modal se abre directo sin pasar por el tab de facturas (ya no existe).
-  const openCRDirectly = !!focusInvoiceId || initialTab === 'facturas';
-  const realInitialTab: TabName = openCRDirectly ? 'resumen' : initialTab;
+  const openCRDirectly = !!focusInvoiceId;
+  const realInitialTab: TabName = initialTab;
 
   return (
     <OrderModalProvider

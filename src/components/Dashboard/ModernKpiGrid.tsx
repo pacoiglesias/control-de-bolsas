@@ -1,175 +1,201 @@
 import { motion } from 'framer-motion';
 import { ResponsiveMoney } from '../ui';
 import { kilos as fmtKilos } from '../../lib/format';
-import { Sparkline } from './Sparkline';
-import { IconWallet, IconTrendingUp, IconBank, IconAlertTriangle } from '../ui/icons';
+
+// =========================================================================
+// Tipo estricto del objeto de estadísticas (derivado de useDashboardStatsV2)
+// Elimina el anti-patrón `k: any`
+// =========================================================================
+export interface DashboardStatsResult {
+  ventasTotal?: number;
+  netoTotal?: number;
+  totalVendido?: number;
+  totalKilos?: number;
+  kilosTotal?: number;
+  kilos?: number;
+  porCobrar?: number;
+  dineroRealARecibir?: number;
+  porCobrarSinCR?: number;
+  porCobrarConCR?: number;
+  vencido?: number;
+  cobrado?: number;
+  overdue?: { length: number };
+  pending?: { length: number };
+  [key: string]: unknown;
+}
 
 interface ModernKpiGridProps {
-  k: any;
+  k: DashboardStatsResult;
   role: string | null;
   saldoCaja: number;
-  config: any;
+  config: { salePricePerKg?: number };
   monthFilter: string;
   nav: (path: string) => void;
   contrarecibosVencidosCount?: number;
 }
 
-export function ModernKpiGrid({ k, role, saldoCaja, monthFilter, nav, contrarecibosVencidosCount }: ModernKpiGridProps) {
+// =========================================================================
+// Sub-componente KPI Card — Aplica tokens CSS, no inline styles hardcoded
+// =========================================================================
+function KpiCard({
+  accentGradient,
+  icon,
+  label,
+  children,
+  subContent,
+  onClick,
+  variant,
+}: {
+  accentGradient: string;
+  icon: string;
+  label: string;
+  children: React.ReactNode;
+  subContent: React.ReactNode;
+  onClick?: () => void;
+  variant?: 'default' | 'danger' | 'ok';
+}) {
+  return (
+    <motion.div
+      whileHover={{ y: -3, scale: 1.01 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      onClick={onClick}
+      className={`kpi-card${variant === 'danger' ? ' bad' : variant === 'ok' ? ' ok' : ''}${onClick ? ' clickable' : ''}`}
+      style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+    >
+      {/* Barra de acento superior */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: accentGradient,
+        }}
+      />
+
+      {/* Cabecera: Etiqueta + Ícono */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span className="kpi-label" style={{ minHeight: 'auto', marginBottom: 0 }}>{label}</span>
+        <div className="kpi-icon-badge">{icon}</div>
+      </div>
+
+      {/* Valor principal */}
+      <div className="kpi-value tabular-nums money-val">{children}</div>
+
+      {/* Sub-contenido */}
+      <div className="kpi-sub" style={{ marginTop: 'auto', paddingTop: 6 }}>
+        {subContent}
+      </div>
+    </motion.div>
+  );
+}
+
+// Punto indicador inline reutilizable
+function Dot({ color }: { color: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 7,
+        height: 7,
+        borderRadius: '50%',
+        background: color,
+        marginRight: 5,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+// =========================================================================
+// ModernKpiGrid — Grid principal de 4 KPIs del Dashboard
+// =========================================================================
+export function ModernKpiGrid({
+  k,
+  role,
+  saldoCaja,
+  monthFilter,
+  nav,
+  contrarecibosVencidosCount,
+}: ModernKpiGridProps) {
   const isViewer = role === 'viewer';
-  const vencidos = contrarecibosVencidosCount ?? k.overdue?.length ?? 0;
+  const vencidos = contrarecibosVencidosCount ?? (k.overdue?.length ?? 0);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 32 }}>
+    <div className="kpi-grid">
 
-      {/* FIX (v8.9.3): las 4 tarjetas pesaban visualmente lo mismo -- nada le
-          decía al ojo "empieza por aquí". Efectivo en Caja es el número que
-          más importa para decidir algo HOY (¿alcanza para pagar tal cosa?),
-          así que ahora abre la fila, ocupa el doble de ancho en pantallas
-          anchas (gridColumn: span 2 -- en angostas simplemente vuelve a ser
-          una tarjeta normal de ancho completo, sin romper el responsive) y
-          su cifra es más grande que las demás. */}
-      {/* 1. Efectivo en Caja -- la tarjeta principal */}
+      {/* 1 — Ventas del Mes */}
+      <KpiCard
+        accentGradient="linear-gradient(90deg, #3b82f6, #60a5fa)"
+        icon="📈"
+        label={`Ventas ${monthFilter === 'ALL' ? 'Totales' : 'del Mes'}`}
+        subContent={
+          <span>
+            <Dot color="var(--accent)" />
+            {fmtKilos(k.kilosTotal ?? k.totalKilos ?? 0)} kg amparados
+          </span>
+        }
+      >
+        <ResponsiveMoney value={k.ventasTotal ?? k.netoTotal ?? 0} />
+      </KpiCard>
+
+      {/* 2 — Cartera por Cobrar */}
+      <KpiCard
+        accentGradient="linear-gradient(90deg, #d97706, #fbbf24)"
+        icon="🏦"
+        label="Cartera por Cobrar"
+        onClick={() => nav('/cobranza')}
+        subContent={
+          <span>
+            <Dot color="#d97706" />
+            {(k.porCobrarSinCR ?? 0) > 0 ? 'Facturas + Contrarecibos' : 'Saldo activo'}
+          </span>
+        }
+      >
+        <ResponsiveMoney value={k.porCobrar ?? k.dineroRealARecibir ?? 0} />
+      </KpiCard>
+
+      {/* 3 — Efectivo en Caja (oculto para viewer) */}
       {!isViewer && (
-        <motion.div
-          whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(16,185,129,0.25)' }}
-          transition={{ type: 'spring', stiffness: 300 }}
+        <KpiCard
+          accentGradient="linear-gradient(90deg, #059669, #34d399)"
+          icon="💵"
+          label="Efectivo en Caja"
           onClick={() => nav('/caja-chica')}
-          style={{
-            gridColumn: 'span 2',
-            background: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(5,150,105,0.2) 100%)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid rgba(16,185,129,0.35)',
-            borderRadius: 20,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            overflow: 'hidden',
-            cursor: 'pointer'
-          }}
+          variant="ok"
+          subContent={
+            <span>
+              <Dot color="var(--ok)" />
+              Disponible en Tesorería
+            </span>
+          }
         >
-          <IconWallet size={100} style={{ position: 'absolute', top: -14, right: -14, opacity: 0.1, color: 'var(--ok)' }} />
-          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ok)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
-            Efectivo en Caja
-          </div>
-          <div style={{ fontSize: 40, fontWeight: 900, color: 'var(--ok)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-            <ResponsiveMoney value={saldoCaja} />
-          </div>
-          <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.35, zIndex: 0 }}>
-            <Sparkline data={[50, 60, 55, 70, 80, 75, 90]} width={240} height={40} color="var(--ok)" />
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--ok)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)' }} />
-            Efectivo disponible en mano
-          </div>
-        </motion.div>
+          <ResponsiveMoney value={saldoCaja} />
+        </KpiCard>
       )}
 
-      {/* 2. Ventas del Mes */}
-      <motion.div
-        whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(0,0,0,0.1)' }}
-        transition={{ type: 'spring', stiffness: 300 }}
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: 20,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          overflow: 'hidden'
-        }}
+      {/* 4 — Urgencias / Vencido */}
+      <KpiCard
+        accentGradient={
+          vencidos > 0
+            ? 'linear-gradient(90deg, #ef4444, #f87171)'
+            : 'linear-gradient(90deg, #10b981, #34d399)'
+        }
+        icon={vencidos > 0 ? '🚨' : '✨'}
+        label={vencidos > 0 ? 'Mora / Urgente' : 'Estado de Cartera'}
+        onClick={vencidos > 0 ? () => nav('/cobranza') : undefined}
+        variant={vencidos > 0 ? 'danger' : undefined}
+        subContent={
+          <span>
+            <Dot color={vencidos > 0 ? 'var(--bad)' : '#10b981'} />
+            {vencidos > 0 ? `${vencidos} CRs vencidos` : 'Al corriente sin atrasos'}
+          </span>
+        }
       >
-        <IconTrendingUp size={80} style={{ position: 'absolute', top: -12, right: -12, opacity: 0.08, color: 'var(--accent)' }} />
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
-          Ventas {monthFilter === 'ALL' ? 'Totales' : 'del Mes'}
-        </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-          <ResponsiveMoney value={k.ventasTotal || 0} />
-        </div>
-        <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.3, zIndex: 0 }}>
-          <Sparkline data={[120, 150, 130, 180, 140, 200, 170]} width={240} height={40} color="var(--accent)" />
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
-          📦 Kilos amparados: {fmtKilos(k.kilosTotal || k.totalKilos || k.kilos || 0)} kg
-        </div>
-      </motion.div>
+        <ResponsiveMoney value={k.vencido ?? 0} />
+      </KpiCard>
 
-      {/* 3. Dinero en la calle (Por Cobrar) */}
-      <motion.div
-        whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(0,0,0,0.1)' }}
-        transition={{ type: 'spring', stiffness: 300 }}
-        onClick={() => nav('/cobranza')}
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: 20,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          overflow: 'hidden',
-          cursor: 'pointer'
-        }}
-      >
-        <IconBank size={80} style={{ position: 'absolute', top: -12, right: -12, opacity: 0.08, color: 'var(--warn)' }} />
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
-          Dinero en la Calle
-        </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: (k.porCobrar || k.dineroRealARecibir) > 0 ? 'var(--warn)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-          <ResponsiveMoney value={k.porCobrar || k.dineroRealARecibir || 0} />
-        </div>
-        <div style={{ position: 'absolute', bottom: 10, left: 20, right: 20, opacity: 0.2, zIndex: 0 }}>
-          <Sparkline data={[200, 180, 190, 150, 160, 130, 120]} width={240} height={40} color="var(--warn)" />
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500, zIndex: 1 }}>
-          {k.porCobrarSinCR > 0 ? `Facturas + CR + Por Facturar` : 'Saldo neto esperado'}
-        </div>
-      </motion.div>
-
-      {/* 4. Urgencias / Vencido */}
-      <motion.div 
-        whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(239,68,68,0.25)' }}
-        transition={{ type: 'spring', stiffness: 300 }}
-        onClick={() => vencidos > 0 && nav('/cobranza')}
-        style={{
-          background: vencidos > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(220,38,38,0.18) 100%)' : 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: `1px solid ${vencidos > 0 ? 'rgba(239,68,68,0.35)' : 'var(--glass-border)'}`,
-          borderRadius: 20,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          overflow: 'hidden',
-          cursor: vencidos > 0 ? 'pointer' : 'default'
-        }}
-      >
-        <IconAlertTriangle size={80} style={{ position: 'absolute', top: -12, right: -12, opacity: vencidos === 0 ? 0.06 : 0.12, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)' }} />
-        <div style={{ fontSize: 12, fontWeight: 800, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '1px', zIndex: 1 }}>
-          Urgencias (Vencido)
-        </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink)', margin: '8px 0', letterSpacing: '-1px', zIndex: 1 }}>
-          <ResponsiveMoney value={k.vencido || 0} />
-        </div>
-        <div style={{ fontSize: 13, color: vencidos > 0 ? 'var(--bad)' : 'var(--ink-soft)', fontWeight: 700, zIndex: 1 }}>
-          {/* FIX (v8.9.1): "fuera de fecha" a secas se confundía con el aviso
-              de OverdueBanner ("N se vencieron recientemente"), que cuenta
-              algo distinto (solo lo que cruzó a vencido en el chequeo
-              automático de las últimas horas). Este número de aquí es el
-              acumulado total a hoy -- se aclara explícitamente para que no
-              parezcan el mismo dato cuando no coinciden. */}
-          {vencidos} factura{vencidos === 1 ? '' : 's'} vencida{vencidos === 1 ? '' : 's'} en total (acumulado a hoy)
-        </div>
-      </motion.div>
-      
     </div>
   );
 }

@@ -13,17 +13,13 @@ import { ComprasKanban } from '../components/Compras/ComprasKanban';
 import { exportToCsv, getPrintHeaderHtml, fmtDate, nombreClienteVisible } from '../lib/format';
 import { Skeleton, Empty, Card } from '../components/ui';
 import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
-import {
-  IconScale,
-  IconPlus,
-  IconFileText,
-  IconDownload,
-  IconPackage,
-  IconCheckCircle,
-  IconClock,
-  IconClipboardList,
-} from '../components/ui/icons';
 import type { Purchase, PurchaseOrder } from '../lib/types';
+import { money } from '../lib/format';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, PATHS } from '../lib/firebase';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { promptDialog } from '../lib/promptDialog';
+import { generateAndresWhatsAppSummary, openWhatsAppMessage, generateAndresEmailDraft, openInstitutionalEmail } from '../lib/whatsappReminder';
 
 export default function Compras() {
   const { role } = useAuth();
@@ -53,6 +49,10 @@ export default function Compras() {
   const [view, setView] = useState<'lista' | 'tablero'>('lista');
   const [params, setParams] = useSearchParams();
 
+  // Vinculo cruzado Andres <-> Providencia (2026-08-11): permite abrir la
+  // compra ligada a un expediente especifico desde fuera de esta pantalla
+  // (el boton "Ver compra en Andrés" del expediente en Órdenes) sin tener
+  // que buscarla a mano en la lista.
   useEffect(() => {
     const abrirId = params.get('abrir');
     if (!abrirId || provPurchases.length === 0) return;
@@ -76,11 +76,15 @@ export default function Compras() {
     </div>
   );
 
-  let currentBalance = deudaHistorica;
-  const ledgerWithBalance = ledger.map(e => {
-    currentBalance += (e.cargo - e.abono);
-    return { ...e, balance: currentBalance };
-  });
+  // Ledger calc for printing & rendering
+  // ANTES: `const deudaHistorica = 0` fijo aqui, ignorando el ajuste
+  // historico real configurado (-$123,175.56). El saldo principal (arriba)
+  // SI lo usaba via useAndresStats(), pero esta tabla de movimientos
+  // arrancaba su acumulado en $0 — cada renglon quedaba desfasado por el
+  // monto completo del ajuste historico, sin coincidir con el numero
+  // principal de la pantalla.
+  // El libro mayor (ledger) ya viene ordenado y con su balance acumulado calculado cronológicamente
+  const ledgerWithBalance = ledger;
 
   function exportComprasCsv() {
     const headers = ['Fecha', 'Concepto', 'Cargo (Deuda)', 'Abono (Pago)', 'Origen'];
@@ -97,32 +101,35 @@ export default function Compras() {
 
   function printComprasReport() {
     const html = `
+      <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="UTF-8">
           <title>Estado de Cuenta - ${provName}</title>
           <style>
-            body { font-family: sans-serif; padding: 20px; font-size: 12px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-            th { background: #f4f4f4; }
-            .num { text-align: right; }
+            body { font-family: system-ui, sans-serif; padding: 20px; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 32px; font-size: 12px; border: 1px solid #ccc; }
+            th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ccc; }
+            th { background: #eee; font-weight: bold; }
+            .num { text-align: right; font-family: monospace; }
           </style>
         </head>
         <body>
-          ${getPrintHeaderHtml(settings, `Estado de Cuenta con Proveedor: ${provName}`)}
-          <p>Saldo Actual: <strong>$${saldoProveedor.toFixed(2)}</strong></p>
+          ${getPrintHeaderHtml(settings, "Estado de Cuenta Proveedor")}
+          <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <div>Total Pagado: $${totalPagado.toFixed(2)}</div>
+            <div>Total Entregado: $${totalPurchasesCost.toFixed(2)}</div>
+            <div><strong>Saldo Actual: ${saldoProveedor < 0 ? '-' : '+'}$${Math.abs(saldoProveedor).toFixed(2)}</strong></div>
+          </div>
           <table>
-            <thead>
-              <tr><th>Fecha</th><th>Concepto</th><th>Origen</th><th class="num">Cargo (Deuda)</th><th class="num">Abono (Pago)</th><th class="num">Saldo Acumulado</th></tr>
-            </thead>
+            <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Cargo</th><th class="num">Abono</th><th class="num">Balance</th></tr></thead>
             <tbody>
               ${ledgerWithBalance.map(e => `
                 <tr>
-                  <td>${fmtDate(e.date)}</td>
-                  <td>${e.concept}</td>
-                  <td>${e.source === 'purchase' ? 'Material' : 'Pago'}</td>
-                  <td class="num">${e.cargo ? `$${e.cargo.toFixed(2)}` : '—'}</td>
-                  <td class="num">${e.abono ? `$${e.abono.toFixed(2)}` : '—'}</td>
+                  <td>${fmtDate(e.date) || '-'}</td>
+                  <td>${e.concept || '-'}</td>
+                  <td class="num">${e.cargo ? e.cargo.toFixed(2) : '-'}</td>
+                  <td class="num">${e.abono ? e.abono.toFixed(2) : '-'}</td>
                   <td class="num">${e.balance.toFixed(2)}</td>
                 </tr>
               `).join('')}
@@ -139,19 +146,130 @@ export default function Compras() {
     if (win) { win.document.write(html); win.document.close(); }
   }
 
+  async function handleCalibrateSaldo() {
+    const inputStr = await promptDialog({
+      title: '🔧 Calibrar Saldo con Andrés',
+      message: `¿Cuál es el saldo real actual con Andrés en tus registros?\n\n` +
+               `- Ingresa un valor POSITIVO (ej. 227628.94) si Andrés tiene saldo a favor por anticipos.\n` +
+               `- Ingresa un valor NEGATIVO si la empresa le debe a Andrés.\n\n` +
+               `Saldo calculado actual en sistema: ${money(saldoProveedor)}`,
+      defaultValue: '',
+      placeholder: 'Ej. 40800.00'
+    });
+    if (inputStr === null) return;
+    const realBalance = parseFloat(inputStr.replace(/[^0-9.-]/g, ''));
+    if (isNaN(realBalance)) {
+      toast('❌ Por favor ingresa un número válido.', 'bad');
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: realBalance }, { merge: true });
+      triggerHaptic('success');
+      toast(`✅ Saldo calibrado con éxito a ${money(realBalance)}.`, 'ok');
+    } catch (e) {
+      toast(`❌ Error al calibrar: ${(e as Error).message}`, 'bad');
+    }
+  }
+
+  function handleSendWhatsApp() {
+    const msg = generateAndresWhatsAppSummary({
+      providerName: provName,
+      totalPagado,
+      totalPurchasesCost,
+      totalReceivedKilos,
+      saldoProveedor,
+      costPricePerKg: currentCostPerKg,
+    });
+    openWhatsAppMessage(msg);
+    triggerHaptic('success');
+    toast(`📲 Abriendo WhatsApp con el Estado de Cuenta de ${provName}`, 'ok');
+  }
+
+  function handleSendEmail() {
+    const draft = generateAndresEmailDraft({
+      providerName: provName,
+      totalPagado,
+      totalPurchasesCost,
+      totalReceivedKilos,
+      saldoProveedor,
+      costPricePerKg: currentCostPerKg,
+    });
+    openInstitutionalEmail(draft);
+    triggerHaptic('success');
+    toast(`📧 Abriendo cliente de correo con el Estado de Cuenta de ${provName}`, 'ok');
+  }
+
   return (
     <>
-      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
         <div>
-          <h1>Módulo de Compras & Cuenta Corriente con {provName}</h1>
-          <p>Control de anticipos, entregas en báscula, costo de compra y estado de cuenta con el proveedor ({provName}).</p>
+          <h1 style={{ fontWeight: 900, letterSpacing: '-0.03em' }}>
+            Módulo de Compras & Cuenta Corriente con {provName}
+          </h1>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+            Control de anticipos, entregas en báscula, costo de compra ($38/kg) y estado de cuenta oficial.
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={() => setAjusteModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <IconScale size={16} /> Ajuste Manual
+          <button
+            className="btn"
+            onClick={() => void handleCalibrateSaldo()}
+            style={{
+              minHeight: 40,
+              borderRadius: 10,
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1px solid #a7f3d0',
+              fontWeight: 700,
+              fontSize: 12.5,
+            }}
+          >
+            🔧 Calibrar Saldo
           </button>
-          <button className="btn btn-primary" onClick={() => setSelected({} as Purchase)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <IconPlus size={16} /> Nuevo Anticipo / OC
+          <button
+            className="btn"
+            onClick={handleSendEmail}
+            style={{
+              minHeight: 40,
+              borderRadius: 10,
+              background: '#eff6ff',
+              color: '#1d4ed8',
+              border: '1px solid #93c5fd',
+              fontWeight: 700,
+              fontSize: 12.5,
+            }}
+          >
+            📧 Enviar Correo
+          </button>
+          <button
+            className="btn"
+            onClick={handleSendWhatsApp}
+            style={{
+              minHeight: 40,
+              borderRadius: 10,
+              background: '#f0fdf4',
+              color: '#15803d',
+              border: '1px solid #86efac',
+              fontWeight: 700,
+              fontSize: 12.5,
+            }}
+          >
+            📲 Enviar WhatsApp
+          </button>
+          <button
+            className="btn"
+            onClick={() => setAjusteModal(true)}
+            style={{ minHeight: 40, borderRadius: 10, fontWeight: 700, fontSize: 12.5 }}
+          >
+            ⚖️ Ajuste Manual
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setSelected({} as Purchase)}
+            style={{ minHeight: 40, borderRadius: 10, fontWeight: 800, fontSize: 12.5 }}
+          >
+            ➕ Nuevo Anticipo / OC
           </button>
         </div>
       </div>
@@ -164,12 +282,40 @@ export default function Compras() {
         onPayDebt={(amount) => setPagarModalAmount(amount || 0.01)}
       />
 
-      <div className="tabs" style={{ marginBottom: 24, display: 'flex', gap: 8, borderBottom: '1px solid var(--line-soft)', paddingBottom: 12 }}>
-        <button className={`btn ${tab === 'estado' ? 'btn-primary' : ''}`} onClick={() => setTab('estado')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <IconScale size={16} /> Libro Mayor y Pagos
+      <div style={{ marginBottom: 24, display: 'flex', gap: 6, background: 'var(--paper-sunk)', padding: 4, borderRadius: 12, width: 'fit-content', border: '1px solid var(--line-soft)' }}>
+        <button
+          className={`btn-small ${tab === 'estado' ? 'btn-primary' : ''}`}
+          style={{
+            minHeight: 36,
+            borderRadius: 8,
+            padding: '6px 16px',
+            background: tab === 'estado' ? 'var(--accent)' : 'transparent',
+            color: tab === 'estado' ? '#fff' : 'var(--ink-soft)',
+            border: 'none',
+            fontWeight: tab === 'estado' ? 800 : 600,
+            fontSize: 13,
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setTab('estado')}
+        >
+          ⚖️ Libro Mayor y Pagos
         </button>
-        <button className={`btn ${tab === 'ordenes' ? 'btn-primary' : ''}`} onClick={() => setTab('ordenes')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <IconPackage size={16} /> Órdenes de Compra
+        <button
+          className={`btn-small ${tab === 'ordenes' ? 'btn-primary' : ''}`}
+          style={{
+            minHeight: 36,
+            borderRadius: 8,
+            padding: '6px 16px',
+            background: tab === 'ordenes' ? 'var(--accent)' : 'transparent',
+            color: tab === 'ordenes' ? '#fff' : 'var(--ink-soft)',
+            border: 'none',
+            fontWeight: tab === 'ordenes' ? 800 : 600,
+            fontSize: 13,
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setTab('ordenes')}
+        >
+          📦 Órdenes de Compra
         </button>
       </div>
 
@@ -186,7 +332,7 @@ export default function Compras() {
                     const ord = orderById.get(p.id);
                     const orderedKg = p.expectedKilos || Number(ord?.totalKilograms) || 0;
                     const receivedKg = p.receivedKilos || 0;
-                    const costKg = p.pricePerKg || currentCostPerKg || 42;
+                    const costKg = p.pricePerKg || currentCostPerKg || 38;
                     return {
                       folio: ord?.folio || ord?.oc || p.id,
                       client: ord?.client ? nombreClienteVisible(ord.client) : 'Providencia',
@@ -212,16 +358,12 @@ export default function Compras() {
                   toast('✅ Estado de cuenta y entregas PDF generado', 'ok');
                 }}
                 title="Generar Estado de Cuenta Oficial con Detalle de Entregas en PDF"
-                style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 700 }}
               >
-                <IconFileText size={16} /> PDF Auditado
+                📄 PDF Auditado
               </button>
-              <button className="btn btn-icon" onClick={exportComprasCsv} title="Descargar CSV" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <IconDownload size={16} /> CSV
-              </button>
-              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <IconDownload size={16} /> Imprimir
-              </button>
+              <button className="btn btn-icon" onClick={exportComprasCsv} title="Descargar CSV">📊 CSV</button>
+              <button className="btn btn-icon" onClick={printComprasReport} title="Imprimir Reporte">🖨️ Imprimir</button>
             </div>
           }
         >
@@ -242,16 +384,14 @@ export default function Compras() {
                 <button 
                   className={`chip ${filter === 'activas' ? 'active' : ''}`}
                   onClick={() => setFilter('activas')}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <IconClock size={14} color="var(--bad)" /> Pendientes
+                  🔴 Pendientes
                 </button>
                 <button 
                   className={`chip ${filter === 'completadas' ? 'active' : ''}`}
                   onClick={() => setFilter('completadas')}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <IconCheckCircle size={14} color="var(--ok)" /> Completadas
+                  ✅ Completadas
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -262,17 +402,14 @@ export default function Compras() {
                   onChange={e => setSearch(e.target.value)} 
                   style={{ maxWidth: 300 }}
                 />
-                <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <IconFileText size={16} /> Lista
-                </button>
-                <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <IconClipboardList size={16} /> Tablero
-                </button>
+                <button className={`btn ${view === 'lista' ? 'btn-primary' : ''}`} onClick={() => setView('lista')}>☰ Lista</button>
+                <button className={`btn ${view === 'tablero' ? 'btn-primary' : ''}`} onClick={() => setView('tablero')}>🗂️ Tablero</button>
               </div>
             </div>
           {view === 'tablero' ? (
             <ComprasKanban purchases={provPurchases} orderById={orderById} onSelect={setSelected} />
           ) : provPurchases.length === 0 ? <Empty>No hay órdenes registradas.</Empty> : (() => {
+            // ANTES: `search` y `filter` existian como controles visuales
             // pero nunca se aplicaban a la lista — cambiarlos no hacia
             // absolutamente nada. Se corrigen aqui, al mismo tiempo que se
             // convierte la tabla en tarjetas.

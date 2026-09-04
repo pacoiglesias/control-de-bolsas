@@ -26,6 +26,8 @@ export function SemaforoDelDia({
     let porFacturarKilos = 0;
     let porFacturarMonto = 0;
     let sinContrareciboCount = 0;
+    let enRevisionCount = 0;
+    let enRevisionMonto = 0;
     let porRecibirContadorMonto = 0;
     let porRecibirContadorCount = 0;
 
@@ -67,6 +69,11 @@ export function SemaforoDelDia({
               sinContrareciboCount++;
             }
           }
+          // Facturas en revisión (in_review) — enviadas a Providencia esperando CR
+          if (st === 'in_review') {
+            enRevisionCount++;
+            enRevisionMonto = round2(enRevisionMonto + (totalInv || 0));
+          }
           if (st === 'paid') {
             const tot = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
             const comm = inv.financials?.commission ?? (tot * (config?.commissionRate || 0.08));
@@ -91,6 +98,8 @@ export function SemaforoDelDia({
       porFacturarKilos: round2(porFacturarKilos),
       porFacturarMonto: round2(porFacturarMonto),
       sinContrareciboCount,
+      enRevisionCount,
+      enRevisionMonto: round2(enRevisionMonto),
       porRecibirContadorMonto: round2(porRecibirContadorMonto),
       porRecibirContadorCount,
     };
@@ -280,6 +289,33 @@ export function SemaforoDelDia({
           </div>
           <div style={{ fontSize: 16, fontWeight: 800, color: metrics.sinContrareciboCount > 0 ? '#b91c1c' : 'var(--ink)', marginTop: 2 }}>
             {metrics.sinContrareciboCount} factura{metrics.sinContrareciboCount !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        {/* 4b. En Revisión por Providencia (in_review) */}
+        <div
+          onClick={() => nav('/cobranza')}
+          className="clickable"
+          style={{
+            background: metrics.enRevisionCount > 0 ? 'rgba(37,99,235,0.08)' : 'var(--paper-sunk)',
+            border: `1px solid ${metrics.enRevisionCount > 0 ? '#2563eb' : 'var(--line)'}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 18 }}>🔵</span>
+            <span className="badge" style={{ background: metrics.enRevisionCount > 0 ? '#2563eb' : 'var(--ink-faint)', color: '#fff', fontSize: 10 }}>
+              {metrics.enRevisionCount} en revisión
+            </span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', textTransform: 'uppercase' }}>
+            4b. En Revisión / Esperando CR
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: metrics.enRevisionCount > 0 ? '#1d4ed8' : 'var(--ink)', marginTop: 2 }}>
+            {money(metrics.enRevisionMonto)}
           </div>
         </div>
 
