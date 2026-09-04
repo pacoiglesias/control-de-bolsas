@@ -691,7 +691,34 @@ export default function Orders() {
                           );
                         })()}
                       </td>
-                      <td>{nombreClienteVisible(o.client)}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{nombreClienteVisible(o.client)}</span>
+                          {(() => {
+                            const d = (o.department || '').toUpperCase();
+                            const c = (o.client || '').toUpperCase();
+                            const isTH = d.includes('TH') || c.includes('TH') || c.includes('NAVA');
+                            const isGT = d.includes('GT') || d.includes('P4') || c.includes('GT') || c.includes('EVELIA');
+                            if (!isTH && !isGT && !o.department) return null;
+                            return (
+                              <span
+                                style={{
+                                  fontSize: '0.72em',
+                                  fontWeight: 800,
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  textTransform: 'uppercase',
+                                  background: isTH ? 'rgba(59, 130, 246, 0.12)' : isGT ? 'rgba(16, 185, 129, 0.12)' : 'var(--paper-sunk)',
+                                  color: isTH ? '#2563eb' : isGT ? '#059669' : 'var(--ink-soft)',
+                                  border: isTH ? '1px solid rgba(59, 130, 246, 0.25)' : isGT ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--line-soft)',
+                                }}
+                              >
+                                {isTH ? 'TH · Nava' : isGT ? 'GT · Evelia' : o.department}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
                       <td>{o.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(o.provider) ? o.provider : '—'}</td>
                       {(() => {
                         const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);

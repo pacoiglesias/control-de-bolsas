@@ -11,11 +11,11 @@ import { useToast } from '../../context/ToastContext';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { generateCollectionNotice } from '../../lib/whatsappReminder';
 
-const TONE: Record<string, { color: string; bg: string; border: string }> = {
-  colRevision: { color: 'var(--ink-soft)', bg: 'var(--paper-sunk)', border: 'var(--line)' },
-  colPorCobrar: { color: '#dc2626', bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.2)' },
-  colContador: { color: '#d97706', bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.2)' },
-  colCaja: { color: '#059669', bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.2)' },
+const TONE: Record<string, { color: string; bg: string; border: string; accent: string }> = {
+  colRevision: { color: 'var(--ink-soft)', bg: 'var(--paper)', border: 'var(--line-soft)', accent: '#64748b' },
+  colPorCobrar: { color: '#dc2626', bg: 'rgba(239, 68, 68, 0.03)', border: 'rgba(239, 68, 68, 0.22)', accent: '#dc2626' },
+  colContador: { color: '#d97706', bg: 'rgba(245, 158, 11, 0.03)', border: 'rgba(245, 158, 11, 0.22)', accent: '#d97706' },
+  colCaja: { color: '#059669', bg: 'rgba(16, 185, 129, 0.03)', border: 'rgba(16, 185, 129, 0.22)', accent: '#059669' },
 };
 
 export default function TableroKanban() {
@@ -108,30 +108,36 @@ export default function TableroKanban() {
     const late = daysLate(toDate(inv.creditCycle?.dueDate));
     const isOverdue = late !== null && late > 0;
 
+    const crUpper = (cr || '').toUpperCase();
+    const deptUpper = ((o.department || '') + ' ' + (o.client || '')).toUpperCase();
+    const isTH = crUpper.startsWith('TH-') || deptUpper.includes('TH') || deptUpper.includes('NAVA');
+    const isGT = crUpper.startsWith('GT-') || deptUpper.includes('GT') || deptUpper.includes('EVELIA') || deptUpper.includes('P4');
+
     return (
       <motion.div
         layout
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+        exit={{ opacity: 0, scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-        whileHover={{ y: -2, boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.08)' }}
+        whileHover={{ y: -2, boxShadow: '0 8px 24px -4px rgba(15, 23, 42, 0.12)' }}
         key={inv.id}
         draggable
         onDragStart={(e: any) => onDragStart(e, o.id, inv.id)}
         style={{
-          background: 'var(--paper, #fff)',
+          background: 'var(--paper-raised, #fff)',
           border: x._posibleDuplicado
-            ? '1.5px solid rgba(245, 158, 11, 0.6)'
+            ? '1.5px solid rgba(245, 158, 11, 0.7)'
             : isOverdue
-            ? '1.5px solid rgba(239, 68, 68, 0.5)'
-            : '1px solid var(--card-border, var(--line))',
-          borderRadius: 12,
-          padding: '12px 14px',
-          marginBottom: 10,
+            ? '1.5px solid rgba(239, 68, 68, 0.55)'
+            : '1px solid var(--line-soft)',
+          borderRadius: 14,
+          padding: '14px',
+          marginBottom: 12,
           cursor: 'grab',
-          boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+          boxShadow: 'var(--shadow-sm)',
           position: 'relative',
+          transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
         }}
         onClick={() => setDrawerTarget({ o: x.o, inv: x.inv })}
       >
@@ -142,11 +148,12 @@ export default function TableroKanban() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              background: 'rgba(245, 158, 11, 0.12)',
-              borderRadius: 6,
-              padding: '3px 6px',
-              marginBottom: 8,
-              fontSize: 10.5,
+              background: 'rgba(245, 158, 11, 0.14)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: 8,
+              padding: '4px 8px',
+              marginBottom: 10,
+              fontSize: 11,
               fontWeight: 700,
               color: 'var(--warn)',
             }}
@@ -155,7 +162,7 @@ export default function TableroKanban() {
             <button
               className="btn"
               style={{
-                padding: '2px 5px',
+                padding: '2px 6px',
                 fontSize: 10,
                 background: '#ef4444',
                 color: '#fff',
@@ -181,48 +188,67 @@ export default function TableroKanban() {
         )}
 
         {/* Encabezado: Folio + Importe */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span
               style={{
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: 800,
-                fontFamily: 'monospace',
+                fontFamily: 'JetBrains Mono, monospace',
                 background: 'var(--paper-sunk)',
-                padding: '2px 6px',
+                padding: '3px 8px',
                 borderRadius: 6,
                 color: 'var(--ink)',
+                border: '1px solid var(--line-soft)',
               }}
             >
               {inv.folio ? `#${inv.folio}` : o.folio ? `#${o.folio}` : 'Sin Folio'}
             </span>
           </div>
           <span
+            className="mono"
             style={{
-              fontSize: 14,
-              fontWeight: 800,
+              fontSize: 15,
+              fontWeight: 900,
               color: isOverdue ? 'var(--bad)' : 'var(--ink)',
-              fontFamily: 'monospace',
               letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
             }}
           >
             {money(amt)}
           </span>
         </div>
 
-        {/* Cliente y Departamento */}
-        <div
-          style={{
-            fontSize: 11.5,
-            color: 'var(--ink-soft)',
-            marginBottom: 8,
-            fontWeight: 500,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {nombreClienteVisible(o.client)} {o.department ? <span style={{ opacity: 0.75 }}>({o.department})</span> : ''}
+        {/* Departamento Oficial y Cliente */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              padding: '2px 7px',
+              borderRadius: 6,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              background: isTH ? 'rgba(59, 130, 246, 0.12)' : isGT ? 'rgba(16, 185, 129, 0.12)' : 'var(--paper-sunk)',
+              color: isTH ? '#2563eb' : isGT ? '#059669' : 'var(--ink-soft)',
+              border: isTH ? '1px solid rgba(59, 130, 246, 0.25)' : isGT ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--line-soft)',
+            }}
+          >
+            {isTH ? 'TH · Nava' : isGT ? 'GT · Evelia' : (o.department || 'Providencia')}
+          </span>
+          <span
+            style={{
+              fontSize: 11.5,
+              color: 'var(--ink-soft)',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flex: 1,
+            }}
+          >
+            {nombreClienteVisible(o.client)}
+          </span>
         </div>
 
         {/* Badges de Contrarecibo y Vencimiento */}
@@ -231,41 +257,52 @@ export default function TableroKanban() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            paddingTop: 6,
+            paddingTop: 8,
             borderTop: '1px solid var(--line-soft)',
           }}
         >
           <span
             style={{
-              fontSize: 10.5,
+              fontSize: 11,
               background: cr ? 'rgba(5, 150, 105, 0.12)' : 'var(--paper-sunk)',
               color: cr ? '#059669' : 'var(--ink-soft)',
-              padding: '2px 6px',
-              borderRadius: 4,
+              border: cr ? '1px solid rgba(5, 150, 105, 0.25)' : '1px solid var(--line-soft)',
+              padding: '2px 7px',
+              borderRadius: 6,
               fontWeight: 700,
-              fontFamily: 'monospace',
+              fontFamily: 'JetBrains Mono, monospace',
             }}
           >
             {cr ? `CR: ${cr}` : 'Sin CR'}
           </span>
-          <span
-            style={{
-              fontSize: 10.5,
-              color: isOverdue ? 'var(--bad)' : 'var(--ink-soft)',
-              fontWeight: isOverdue ? 700 : 500,
-            }}
-          >
-            {isOverdue
-              ? `+${late}d atraso`
-              : inv.creditCycle?.dueDate
-              ? fmtDate(inv.creditCycle.dueDate)
-              : ''}
-          </span>
+          {isOverdue ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 10.5,
+                fontWeight: 800,
+                background: 'var(--bad-bg)',
+                color: 'var(--bad)',
+                padding: '2px 7px',
+                borderRadius: 6,
+                border: '1px solid rgba(225, 29, 72, 0.25)',
+              }}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--bad)', display: 'inline-block' }} />
+              +{late}d atraso
+            </span>
+          ) : inv.creditCycle?.dueDate ? (
+            <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
+              {fmtDate(inv.creditCycle.dueDate)}
+            </span>
+          ) : null}
         </div>
 
         {/* Barra de Acción Rápida Compacta */}
         <div
-          style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center' }}
+          style={{ display: 'flex', gap: 6, marginTop: 10, alignItems: 'center' }}
           onClick={(e) => e.stopPropagation()}
         >
           {!cr ? (
@@ -430,15 +467,16 @@ export default function TableroKanban() {
   };
 
   const getColStyle = (colId: string) => ({
-    flex: '0 0 300px',
-    background: activeTarget === colId ? 'color-mix(in srgb, var(--ink) 5%, transparent)' : TONE[colId].bg,
-    borderRadius: 16,
+    flex: '0 0 310px',
+    background: activeTarget === colId ? 'color-mix(in srgb, var(--ink) 6%, var(--paper))' : TONE[colId].bg,
+    borderRadius: 18,
     padding: '16px 14px',
     display: 'flex',
     flexDirection: 'column' as const,
-    maxHeight: '75vh',
-    transition: 'all 0.2s ease',
-    border: `1px solid ${activeTarget === colId ? 'var(--accent)' : TONE[colId].border}`,
+    maxHeight: '78vh',
+    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+    border: `1.5px solid ${activeTarget === colId ? 'var(--accent)' : TONE[colId].border}`,
+    boxShadow: activeTarget === colId ? '0 0 0 3px var(--accent-tint)' : 'var(--shadow-sm)',
   });
 
   return (
@@ -460,8 +498,8 @@ export default function TableroKanban() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: 13.5,
-              letterSpacing: '-0.01em',
+              fontSize: 14,
+              letterSpacing: '-0.02em',
             }}
           >
             <span>🔎 En Revisión (Sin CR)</span>
@@ -469,17 +507,26 @@ export default function TableroKanban() {
               style={{
                 background: 'var(--paper)',
                 color: 'var(--ink)',
-                padding: '2px 8px',
-                borderRadius: 12,
-                fontSize: 11.5,
-                fontWeight: 700,
-                border: '1px solid var(--line)',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 800,
+                border: '1px solid var(--line-soft)',
               }}
             >
               {cols.colRevision.length}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 12, fontWeight: 700 }}>
+          <div
+            className="mono"
+            style={{
+              fontSize: 12.5,
+              color: 'var(--ink-soft)',
+              marginBottom: 14,
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             Total: {money(cols.totales.colRevision)}
           </div>
           <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
@@ -508,8 +555,8 @@ export default function TableroKanban() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: 13.5,
-              letterSpacing: '-0.01em',
+              fontSize: 14,
+              letterSpacing: '-0.02em',
             }}
           >
             <span>⏳ Por Cobrar (Con CR)</span>
@@ -517,17 +564,26 @@ export default function TableroKanban() {
               style={{
                 background: 'var(--paper)',
                 color: TONE.colPorCobrar.color,
-                padding: '2px 8px',
-                borderRadius: 12,
-                fontSize: 11.5,
-                fontWeight: 700,
-                border: '1px solid var(--line)',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 800,
+                border: '1px solid var(--line-soft)',
               }}
             >
               {cols.colPorCobrar.length}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: TONE.colPorCobrar.color, marginBottom: 12, fontWeight: 700 }}>
+          <div
+            className="mono"
+            style={{
+              fontSize: 12.5,
+              color: TONE.colPorCobrar.color,
+              marginBottom: 14,
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             Total: {money(cols.totales.colPorCobrar)}
           </div>
           <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
@@ -556,8 +612,8 @@ export default function TableroKanban() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: 13.5,
-              letterSpacing: '-0.01em',
+              fontSize: 14,
+              letterSpacing: '-0.02em',
             }}
           >
             <span>🟡 Con el Contador</span>
@@ -565,17 +621,26 @@ export default function TableroKanban() {
               style={{
                 background: 'var(--paper)',
                 color: TONE.colContador.color,
-                padding: '2px 8px',
-                borderRadius: 12,
-                fontSize: 11.5,
-                fontWeight: 700,
-                border: '1px solid var(--line)',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 800,
+                border: '1px solid var(--line-soft)',
               }}
             >
               {cols.colContador.length}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: TONE.colContador.color, marginBottom: 12, fontWeight: 700 }}>
+          <div
+            className="mono"
+            style={{
+              fontSize: 12.5,
+              color: TONE.colContador.color,
+              marginBottom: 14,
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             Total: {money(cols.totales.colContador)}
           </div>
           <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>
@@ -604,26 +669,35 @@ export default function TableroKanban() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              fontSize: 13.5,
-              letterSpacing: '-0.01em',
+              fontSize: 14,
+              letterSpacing: '-0.02em',
             }}
           >
-            <span>✅ En Caja Chica</span>
+            <span>✅ Liquidado en Caja</span>
             <span
               style={{
                 background: 'var(--paper)',
                 color: TONE.colCaja.color,
-                padding: '2px 8px',
-                borderRadius: 12,
-                fontSize: 11.5,
-                fontWeight: 700,
-                border: '1px solid var(--line)',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 800,
+                border: '1px solid var(--line-soft)',
               }}
             >
               {cols.colCaja.length}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: TONE.colCaja.color, marginBottom: 12, fontWeight: 700 }}>
+          <div
+            className="mono"
+            style={{
+              fontSize: 12.5,
+              color: TONE.colCaja.color,
+              marginBottom: 14,
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             Total: {money(cols.totales.colCaja)}
           </div>
           <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4, paddingBottom: 16 }}>

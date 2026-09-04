@@ -205,24 +205,19 @@ export default function Layout() {
           className="topbar-search-btn"
           onClick={() => window.dispatchEvent(new CustomEvent('open-command-menu'))}
           title="Buscar cualquier orden, factura o contrarecibo (Ctrl + K)"
-          style={{
-            minHeight: 40,
-            borderRadius: 10,
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
         >
           <span>🔍</span>
           <span className="search-label" style={{ fontWeight: 600 }}>Buscar...</span>
-          <kbd className="search-kbd" style={{ borderRadius: 6, fontWeight: 700 }}>Ctrl K</kbd>
+          <kbd className="search-kbd">Ctrl K</kbd>
         </button>
 
         <span className="spacer" />
         <AuditCentinelaBadge />
         <OnlineUsers />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 6, marginLeft: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 6, marginLeft: 6 }}>
           <OfflineIndicator />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Botón de Modo Privado / Discreto */}
           <button
             type="button"
@@ -231,14 +226,9 @@ export default function Layout() {
             aria-label={isPrivate ? "Modo Discreto Activo (Clic para mostrar cifras)" : "Modo Visible (Clic para ocultar cifras)"}
             title={isPrivate ? "Modo Discreto Activo: Las cifras sensibles están ocultas en público. Clic para mostrar." : "Modo Visible: Clic para ocultar cifras sensibles en público."}
             style={{
-              minHeight: 40,
-              minWidth: 40,
-              background: isPrivate ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-              color: isPrivate ? '#f59e0b' : 'inherit',
-              border: isPrivate ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--line-soft)',
-              borderRadius: 10,
-              fontSize: 16,
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              background: isPrivate ? 'rgba(245, 158, 11, 0.15)' : undefined,
+              color: isPrivate ? '#f59e0b' : undefined,
+              borderColor: isPrivate ? 'rgba(245, 158, 11, 0.4)' : undefined,
             }}
           >
             {isPrivate ? '🙈' : '👁️'}
@@ -251,14 +241,6 @@ export default function Layout() {
             onClick={() => setShortcutsOpen(true)}
             aria-label="Ver Atajos de Teclado (?)"
             title="Ver Atajos de Teclado & Teclas Rápidas (Presiona ?)"
-            style={{
-              minHeight: 40,
-              minWidth: 40,
-              borderRadius: 10,
-              border: '1px solid var(--line-soft)',
-              fontSize: 16,
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
           >
             ⌨️
           </button>
@@ -269,13 +251,6 @@ export default function Layout() {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label="Cambiar tema"
             title="Cambiar tema Claro / Oscuro"
-            style={{
-              minHeight: 40,
-              minWidth: 40,
-              borderRadius: 10,
-              border: '1px solid var(--line-soft)',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
           >
             ◐
           </button>

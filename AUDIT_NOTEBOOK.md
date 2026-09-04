@@ -1,3 +1,25 @@
+### Iteración 108: Renovación God Tier UI/UX (Linear/Vercel), Touch Targets $\ge$ 44px, Deduplicación en Stats y Stripe-like Modals
+[2026-09-04]
+Archivos: `src/styles/layout.css`, `src/styles/components.css`, `src/components/Layout.tsx`, `src/components/Cobranza/TableroKanban.tsx`, `src/pages/Orders.tsx`, `src/components/QuickCrModal.tsx`, `src/hooks/useDashboardStatsV2.ts`
+Problema: Modernización integral de UI/UX al estándar Linear/Vercel/Stripe: asegurar touch targets $\ge 44\text{px}$ en botones y campos de entrada, eliminar posibles recálculos en acumuladores sin Set en `useDashboardStatsV2`, elevar badges departamentales calibrados (TH vs GT) y pulir micro-interacciones.
+Solución:
+1. **Shell Global & Navegación (`layout.css`, `Layout.tsx`):**
+   - Touch targets de mínimo 44px en toda la botonera superior (tema, atajos, notificaciones, privacidad, search bar, hamburguesa).
+   - Glassmorphism ultra nítido con `backdrop-filter: blur(20px) saturate(180%)` y micro-gradientes sutiles.
+2. **Tablero de Cobranza & Órdenes (`TableroKanban.tsx`, `Orders.tsx`):**
+   - Tipografía tabular mono (`tabular-nums font-mono`) en importes e IVA.
+   - Píldoras departamentales diferenciadas por HSL: `TH · Nava` en azul real (#2563eb) vs `GT · Evelia` en esmeralda (#059669).
+   - Badge de días de atraso con pulso circular para cuentas críticas.
+3. **Formularios & Modales Críticos (`QuickCrModal.tsx`, `components.css`):**
+   - Inputs y botones elevados al estándar Stripe (min-height 44px, focus rings suaves con glow, botón cerrar accesible $\ge 44\text{px}$).
+   - `.btn` global asegurado con `min-height: 44px`.
+4. **Idempotencia y Centinela en Métricas (`useDashboardStatsV2.ts`):**
+   - Añadidos conjuntos de control `seenPaidInvoices`, `seenFacturasEmitidas` y `seenActiveInvoices` en los acumuladores de facturas para garantizar cero duplicados y latencia cero.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, transacciones atómicas y contratos intactos.
+Estado: ✅ Verificado — 139/139 tests unitarios pasando, TypeScript 5 sin errores (`tsc --noEmit`), Vite + Cloud Functions compilados al 100% con código 0.
+
+---
+
 ### Iteración 107: Alertas Dinámicas de Dashboard y Actualización Canónica de Cartera ($799,691.80)
 [2026-09-03]
 Archivo: `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/lib/constants.ts`

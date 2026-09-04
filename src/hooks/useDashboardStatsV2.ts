@@ -74,6 +74,7 @@ export function useDashboardStats(
     let effectiveNetoCobrado = 0;
     let effectiveGananciaRealizada = 0;
 
+    const seenPaidInvoices = new Set<string>();
     deptOrders.forEach(o => {
       if (!o) return;
       const kg = Number(o.totalKilograms) || 0;
@@ -82,8 +83,12 @@ export function useDashboardStats(
       effectiveTotalVendido += venta;
       effectiveNetoTotal += venta;
 
-      (o.invoices || []).forEach(inv => {
+      (o.invoices || []).forEach((inv, idx) => {
         if (!inv) return;
+        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
+        if (seenPaidInvoices.has(invKey)) return;
+        seenPaidInvoices.add(invKey);
+
         const st = inv.creditCycle?.status;
         const invKg = Number(inv.kilos) || 0;
         const invSale = invKg * cfg.salePricePerKg;
@@ -107,10 +112,14 @@ export function useDashboardStats(
     const proximas: any[] = [];
 
     let effectiveFacturasEmitidas = 0;
+    const seenFacturasEmitidas = new Set<string>();
     deptOrders.forEach(o => {
       if (!o) return;
-      (o.invoices || []).forEach(inv => {
+      (o.invoices || []).forEach((inv, idx) => {
         if (!inv) return;
+        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
+        if (seenFacturasEmitidas.has(invKey)) return;
+        seenFacturasEmitidas.add(invKey);
         effectiveFacturasEmitidas++;
       });
     });
@@ -120,11 +129,16 @@ export function useDashboardStats(
     let livePorCobrarSinCR = 0;
     let liveVencido = 0;
     const now = Date.now();
+    const seenActiveInvoices = new Set<string>();
 
     activeOrders.forEach(o => {
       if (!o) return;
-      (o.invoices || []).forEach(inv => {
+      (o.invoices || []).forEach((inv, idx) => {
         if (!inv) return;
+        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
+        if (seenActiveInvoices.has(invKey)) return;
+        seenActiveInvoices.add(invKey);
+
         const stStatus = inv.creditCycle?.status;
         if (stStatus === 'pending' || stStatus === 'overdue' || stStatus === 'facturado') {
           const amt = inv.financials?.invoiceTotal ?? ((Number(inv.kilos) || 0) * cfg.salePricePerKg * (1 + cfg.ivaRate));

@@ -203,24 +203,48 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink-soft)' }}
+            aria-label="Cerrar modal"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: 18,
+              cursor: 'pointer',
+              color: 'var(--ink-soft)',
+              minWidth: 44,
+              minHeight: 44,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 8,
+              transition: 'background 0.15s ease',
+            }}
           >
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Campo de Contrarecibo y Selector de Prefijo */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 800 }}>
                 Número de Contrarecibo (CR):
               </label>
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
                   className="btn-small"
-                  style={{ fontSize: 11, padding: '2px 8px', fontWeight: 800, background: crNumber.startsWith('TH-') ? '#3b82f6' : 'var(--paper-sunk)', color: crNumber.startsWith('TH-') ? '#fff' : 'var(--ink)' }}
+                  style={{
+                    fontSize: 11.5,
+                    padding: '4px 10px',
+                    minHeight: 32,
+                    fontWeight: 800,
+                    borderRadius: 6,
+                    border: '1px solid ' + (crNumber.startsWith('TH-') ? '#2563eb' : 'var(--line)'),
+                    background: crNumber.startsWith('TH-') ? '#2563eb' : 'var(--paper-sunk)',
+                    color: crNumber.startsWith('TH-') ? '#fff' : 'var(--ink)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
                   onClick={() => setPrefix('TH-')}
                 >
                   🟦 TH-
@@ -228,7 +252,18 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
                 <button
                   type="button"
                   className="btn-small"
-                  style={{ fontSize: 11, padding: '2px 8px', fontWeight: 800, background: crNumber.startsWith('GT-') ? '#8b5cf6' : 'var(--paper-sunk)', color: crNumber.startsWith('GT-') ? '#fff' : 'var(--ink)' }}
+                  style={{
+                    fontSize: 11.5,
+                    padding: '4px 10px',
+                    minHeight: 32,
+                    fontWeight: 800,
+                    borderRadius: 6,
+                    border: '1px solid ' + (crNumber.startsWith('GT-') ? '#7c3aed' : 'var(--line)'),
+                    background: crNumber.startsWith('GT-') ? '#7c3aed' : 'var(--paper-sunk)',
+                    color: crNumber.startsWith('GT-') ? '#fff' : 'var(--ink)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
                   onClick={() => setPrefix('GT-')}
                 >
                   🟪 GT-
@@ -243,6 +278,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               onChange={(e) => setCrNumber(e.target.value.toUpperCase())}
               style={{
                 width: '100%',
+                minHeight: 46,
                 boxSizing: 'border-box',
                 padding: '10px 14px',
                 fontSize: 18,
@@ -254,6 +290,8 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
                 outline: 'none',
                 fontFamily: 'monospace',
                 letterSpacing: '0.05em',
+                boxShadow: duplicateMatch ? '0 0 0 3px rgba(239, 68, 68, 0.15)' : '0 0 0 3px var(--accent-tint)',
+                transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
               autoFocus
             />
@@ -280,7 +318,6 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
             )}
           </div>
 
-          {/* Campo de Fecha de Vencimiento y Atajos Rápidos */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 800 }}>
@@ -297,6 +334,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               onChange={(e) => setDueDate(e.target.value)}
               style={{
                 width: '100%',
+                minHeight: 44,
                 boxSizing: 'border-box',
                 padding: '10px 14px',
                 fontSize: 15,
@@ -306,15 +344,15 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
                 outline: 'none',
+                transition: 'border-color 0.15s ease',
               }}
             />
 
-            {/* Botones de cálculo rápido */}
             <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn-small"
-                style={{ fontSize: 11, padding: '4px 10px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid #3b82f6', fontWeight: 800, borderRadius: 6 }}
+                style={{ fontSize: 11.5, minHeight: 34, padding: '6px 12px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 800, borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
                 onClick={() => setDaysFromBase(30)}
               >
                 ⚡ +30 Días (Providencia)
@@ -322,7 +360,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               <button
                 type="button"
                 className="btn-small"
-                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--paper-sunk)', color: 'var(--ink-soft)', border: '1px solid var(--line)', borderRadius: 6 }}
+                style={{ fontSize: 11.5, minHeight: 34, padding: '6px 12px', background: 'var(--paper-sunk)', color: 'var(--ink-soft)', border: '1px solid var(--line)', fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
                 onClick={() => setDaysFromBase(15)}
               >
                 +15 Días
@@ -330,7 +368,7 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               <button
                 type="button"
                 className="btn-small"
-                style={{ fontSize: 11, padding: '4px 10px', background: 'var(--paper-sunk)', color: 'var(--ink-soft)', border: '1px solid var(--line)', borderRadius: 6 }}
+                style={{ fontSize: 11.5, minHeight: 34, padding: '6px 12px', background: 'var(--paper-sunk)', color: 'var(--ink-soft)', border: '1px solid var(--line)', fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
                 onClick={() => setDaysFromBase(45)}
               >
                 +45 Días
@@ -338,19 +376,18 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
             </div>
           </div>
 
-          {/* Toggle para aplicar a todas las facturas de la orden */}
           {order.invoices && order.invoices.length > 1 && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink)', cursor: 'pointer', background: 'var(--paper-sunk)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink)', cursor: 'pointer', background: 'var(--paper-sunk)', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
               <input
                 type="checkbox"
                 checked={applyToAll}
                 onChange={(e) => setApplyToAll(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
               />
               Aplicar este contrarecibo a todas las facturas de esta OC ({order.invoices.length} facturas)
             </label>
           )}
 
-          {/* Banner de días de revisión de Providencia */}
           <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 11.5, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>ℹ️</span>
             <span>Los días de ingreso y sellado de Contrarecibos en Providencia son <strong>Martes y Jueves</strong> (Ventanilla de Cuentas por Pagar).</span>
@@ -362,13 +399,18 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               onClick={onClose}
               style={{
                 flex: 1,
-                padding: '11px',
+                minHeight: 44,
+                padding: '11px 16px',
                 borderRadius: 10,
                 border: '1px solid var(--line)',
                 background: 'var(--paper-sunk)',
                 color: 'var(--ink)',
                 fontWeight: 700,
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease',
               }}
             >
               Cancelar
@@ -378,14 +420,20 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
               disabled={busy || !!duplicateMatch}
               style={{
                 flex: 2,
-                padding: '11px',
+                minHeight: 44,
+                padding: '11px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: duplicateMatch ? 'var(--line)' : '#2563eb',
+                background: duplicateMatch ? 'var(--line)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 color: '#fff',
                 fontWeight: 800,
                 fontSize: 14,
                 cursor: duplicateMatch ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: duplicateMatch ? 'none' : '0 4px 12px rgba(37, 99, 235, 0.3)',
+                transition: 'all 0.15s ease',
               }}
             >
               {busy ? 'Guardando...' : '💾 Guardar y Asignar CR'}
