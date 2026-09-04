@@ -1,4 +1,6 @@
-# Radiografía del Sistema: Control Bolsas ERP (v8.9.15)
+# Radiografía del Sistema: Control Bolsas ERP
+
+> ⚠️ La versión vigente es la de `package.json`, no la de este título —este documento llegó a decir v8.9.15 mientras `package.json` ya iba en v9.1.0 (auditoría 2026-09-03). Antes de asumir que un dato de este archivo sigue vigente (precios, comisiones, flujos), verifícalo contra el código real.
 
 Este documento describe la arquitectura, la base de datos y los flujos del sistema. Está diseñado para que cualquier desarrollador o IA entienda cómo funciona el negocio sin perder avances previos.
 
@@ -64,13 +66,13 @@ El sistema gestiona la compra, venta y cobranza de bolsas de plástico (polietil
 
 ARQUITECTURA:
 1. Las órdenes de compra de los clientes se guardan en la colección 'purchaseOrders'. Tienen un arreglo de facturas (invoices[]), un arreglo de entregas (deliveries[]) y un arreglo de artículos detallados (items[]).
-2. Existe una Cloud Function conectada a Gemini 2.0 Flash que procesa los PDFs subidos a Firebase Storage. Es bi-funcional: si subes una Orden de Compra, crea un expediente nuevo con sus artículos. Si subes una Factura, busca el expediente original (vía referencia OC) y anexa la factura.
-3. La lógica financiera (comisiones del 6.9%, cálculos de deuda y vencimientos a 30 días) se procesa al vuelo mediante funciones en 'src/lib/finance.ts'.
+2. Existe una Cloud Function conectada a Gemini 2.5 Flash (`functions/src/ai/extractor.ts`) que procesa los PDFs subidos a Firebase Storage. Es bi-funcional: si subes una Orden de Compra, crea un expediente nuevo con sus artículos. Si subes una Factura, busca el expediente original (vía referencia OC) y anexa la factura.
+3. La lógica financiera (comisión configurable, por omisión 8% —ver `config/financials.commissionRate`, NO 6.9%—, cálculos de deuda y vencimientos a 30 días) se procesa al vuelo mediante funciones en 'src/lib/finance.ts'.
 4. La UX incluye un buscador global por teclado (Ctrl+K), Modo Oscuro (var --theme), y reportes en tiempo real.
 
 REGLAS ESTRICTAS:
 - No destruyas la estructura de los expedientes (PurchaseOrders). El costo y comisión a nivel expediente (`customCostPrice`, `customCommissionRate`) sobreescriben la configuración global pero NUNCA el historial pasado (Snapshots).
-- Si alteras el esquema de base de datos en TypeScript ('src/lib/types.ts'), debes actualizar la lógica de validación de Zod en 'functions/src/index.ts'.
+- Si alteras el esquema de base de datos en TypeScript ('src/lib/types.ts'), actualiza `sanitizeExtractedData` en `functions/src/ai/extractor.ts` (auditoría 2026-09-03: es la validación real que existe hoy; este documento antes mencionaba "Zod", que nunca existió en este archivo — no asumas que hay más validación de la que realmente ves en el código).
 - Mantén el diseño de la interfaz alineado a los componentes actuales en 'src/components/ui/'.
 
 OBJETIVO: 

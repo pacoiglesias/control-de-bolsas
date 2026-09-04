@@ -1,4 +1,6 @@
-# Ficha Técnica y Reporte de Funciones: Control Bolsas ERP (v5.7.0)
+# Ficha Técnica y Reporte de Funciones: Control Bolsas ERP
+
+> ⚠️ La versión vigente es la de `package.json`, no la de este título (auditoría 2026-09-03: este documento decía v5.7.0 mientras el sistema real ya iba en v9.1.0).
 
 ## Resumen del Sistema y Arquitectura
 

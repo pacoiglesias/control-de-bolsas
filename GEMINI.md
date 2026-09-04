@@ -52,7 +52,7 @@ Tus prioridades, en estricto orden, son:
     2. Si empieza con prefijo `GT-` o proviene de Evelia / P4, se asigna forzosamente a **GT**.
     3. Nunca combinar entregas, facturas o contrarecibos entre ambos expedientes.
 
-### 3. Padrón Oficial Canónico de Cartera Activa ($675,839.76 MXN)
+### 3. Padrón Oficial Canónico de Cartera Activa ($799,691.80 MXN)
 1. `GT-651` | $106,477.56 (F-5971)
 2. `GT-713` | $69,001.60 (F-6053)
 3. `GT-742` | $54,520.00 (F-6073)
@@ -61,6 +61,8 @@ Tus prioridades, en estricto orden, son:
 6. `TH-946` | $81,780.00 (F-6173)
 7. `TH-990` | $98,054.60 (F-6198)
 8. `GT-874` | $49,880.00 (F-6193)
+9. `GT-904` | $49,032.04 (F-6224)
+10. `TH-1030` | $74,820.00 (F-6200)
 *   **Facturas en Revisión Sin CR ($155,585.70 MXN):** `F-6266` (TH · $72,086.58), `F-6267` (GT · $34,916.00), `F-6268` (GT · $48,583.12).
 *   **Regla Inviolable de Unicidad:** Toda OC, Contrarecibo, Factura y Remisión es única. Prohibida la duplicación de folios o registros.
 

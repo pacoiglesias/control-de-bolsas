@@ -117,7 +117,59 @@ export async function extractDocumentData(base64: string, mimeType: string, apiK
 
   const jsonText = response.text;
   if (!jsonText) throw new Error("Respuesta vacía del modelo");
-  return JSON.parse(jsonText);
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (e) {
+    throw new Error("El modelo devolvió un JSON inválido, no se puede procesar el documento.");
+  }
+
+  return sanitizeExtractedData(parsed);
+}
+
+/**
+ * FIX (auditoría 2026-09-03): antes, lo que devolvía Gemini se regresaba
+ * tal cual —sin ninguna validación de tipos— al cliente, que a su vez lo
+ * guarda en Firestore como parte de un expediente financiero real. La
+ * documentación del sistema (docs/SISTEMA_ACTUAL.md) afirma que existe
+ * "validación de Zod"; no existía en este archivo. Esta función es el
+ * mínimo necesario: obliga a que los campos numéricos sean números finitos
+ * (nunca strings tipo "cuarenta y tres mil") y a que 'conceptos' sea
+ * siempre un arreglo, sin inventar valores que el modelo no dio.
+ */
+function sanitizeExtractedData(data: any): any {
+  const toFiniteNumberOrUndefined = (val: unknown): number | undefined => {
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+    if (typeof val === "string") {
+      const cleaned = val.replace(/[^0-9.\-]/g, "");
+      const n = Number(cleaned);
+      if (Number.isFinite(n) && cleaned.length > 0) return n;
+    }
+    return undefined;
+  };
+
+  const safe = { ...data };
+
+  for (const field of ["subtotal", "iva", "total", "kilosTotales"] as const) {
+    if (field in safe) {
+      const n = toFiniteNumberOrUndefined(safe[field]);
+      safe[field] = n; // undefined si no era convertible — mejor faltante que corrupto
+    }
+  }
+
+  if ("conceptos" in safe) {
+    safe.conceptos = Array.isArray(safe.conceptos)
+      ? safe.conceptos.map((c: any) => ({
+          ...c,
+          cantidad: toFiniteNumberOrUndefined(c?.cantidad),
+          precioUnitario: toFiniteNumberOrUndefined(c?.precioUnitario),
+          importe: toFiniteNumberOrUndefined(c?.importe),
+        }))
+      : [];
+  }
+
+  return safe;
 }
 
 /**

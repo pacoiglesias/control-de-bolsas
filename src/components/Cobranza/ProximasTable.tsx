@@ -31,7 +31,8 @@ export default function ProximasTable() {
   const vencidosCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) > 0).length;
   const enProcesoCount = lista.filter((x: any) => {
     const portalSt = x?.inv?.collection?.contrareciboPortalStatus;
-    return portalSt === 'EN PROCESO DE PAGO' || ['TH-768', 'GT-624', 'GT-597'].includes(x?.cr);
+    const cycleSt = x?.inv?.creditCycle?.status;
+    return portalSt === 'EN PROCESO DE PAGO' || cycleSt === 'in_review';
   }).length;
   const enPlazoCount = lista.filter((x: any) => x && x.hasCr && (x.d ?? 0) <= 0).length;
 

@@ -1,5 +1,47 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.2.2] - 4 Septiembre 2026 (Sincronización Universal de Cartera, Saneamiento OC 12026439753 y Corrección UTF-8/PDF)
+
+### 📊 Unificación y Consistencia de Contrarecibos en Cobranza y Órdenes
+- **Deduplicación por Factura y Consolidación de CR Multi-Factura:** Se corrigió el filtrado en Tablero Kanban y Tablas de Cobranza para admitir múltiples facturas vinculadas a un mismo contrarecibo (como `TH-879` con facturas F-6097 y F-6098 por $136,300.00), garantizando que `/cobranza` y `/ordenes` muestren idéntico padrón de 10 contrarecibos activos ($799,691.80 MXN) y 3 facturas en revisión ($155,585.70 MXN).
+- **Purga de Folios Obsoletos:** Se eliminaron duplicados obsoletos (`GT-597`, `GT-624`, `TH-768`, `TH-804`, `TH-836`) garantizando un conteo exacto en toda la plataforma.
+
+### 📄 Corrección de Codificación UTF-8 en Portal Maquilador y PDFs
+- **Cero Mojibake:** Eliminación del emoji problemático en el saldo inicial y añadido de encabezado HTML5 formal con `<meta charset="UTF-8">`, BOM `\uFEFF` y `type: 'text/html;charset=utf-8'` en los Blobs generados para Estado de Cuenta, Comprobantes de Entrega y Manifiestos.
+
+### 📦 Saneamiento Canónico de OC 12026439753 (Planta P4 / Evelia)
+- **Partidas Reales de Providencia:** Corrección en base de datos de la OC 12026439753 con sus 4 partidas exactas (EGBO000095-SC: 1,500 kg, EGBO000093-SC: 1,000 kg, EGBO000018-SC: 1,000 kg, EGBO000094-SC: 1,000 kg; Total: 4,500 kg @ $43.00 = $193,500.00 subtotal, $224,460.00 con IVA).
+
+---
+
+## [v9.2.1] - 3 Septiembre 2026 (Fix: el escáner de OC en PDF no detectaba partidas multi-artículo)
+
+### 🐛 Causa raíz de "Facturar OC no muestra descripciones ni kilos"
+- **`src/lib/ocr.ts` (`extractTextFromPdf`):** unía TODO el texto de cada página del PDF con un solo espacio y solo cortaba de línea al final de la página completa —nunca entre renglones de la tabla de artículos. Una OC con 4 partidas en 4 renglones se convertía en una sola línea gigante con encabezado, partidas y pie de página pegados.
+- El parser `src/lib/ocParser.ts` (`parseOrdenDeCompra`) busca línea por línea el patrón "No. Código Cantidad Descripción P.U. Dtos Importe" —con todo pegado en una sola línea, nunca encontraba nada, y el sistema caía al respaldo de un solo concepto genérico ("kilos por confirmar", sin descripciones reales). Esto es lo que se veía al presionar **🤖 Escanear OC (PDF)** en la pestaña Productos y después **⚡ Facturar OC**.
+- **Corregido:** `extractTextFromPdf` ahora reconstruye los renglones agrupando cada fragmento de texto por su posición vertical real en la página (`item.transform[5]` de pdf.js), la técnica estándar para recuperar tablas de un PDF con pdf.js. El patrón ya existente en `ocParser.ts` ("Formato A") ya cubría el layout real de las OCs de Providencia — solo faltaba que le llegaran los renglones separados de verdad.
+- **Nota:** los expedientes que ya se guardaron con el concepto genérico (por ejemplo, la OC 12026439753) no se corrigen solos; hay que volver a escanear el PDF o capturar las partidas a mano en la pestaña Productos.
+
+---
+
+## [v9.2.0] - 3 Septiembre 2026 (Auditoría Integral: fin de las "correcciones" hardcodeadas)
+
+### 🛡️ Corrección del patrón de datos hardcodeados como "auto-sanación"
+Una auditoría integral encontró el mismo patrón repetido en 4 lugares: cada vez que hubo un dato corrupto real en el pasado, se dejó una excepción permanente en el código en vez de corregir el dato en Firestore. Esta versión corrige las 4:
+- **`src/lib/auditEngine.ts`:** el motor de auditoría forázaba en silencio cualquier saldo de Andrés mayor a $500,000 (o cercano a $1,227,839.35) de vuelta a $103,411.84, marcándolo como "auto-corregido". Ahora solo reporta el valor atípico para revisión humana; nunca lo sobreescribe.
+- **`src/pages/Settings.tsx` (`handlePurgeTestOrders`):** el botón "Ejecutar Purga Protegida" archivaba cualquier expediente que no apareciera en una lista fija de 11 contrarecibos históricos —incluyendo expedientes nuevos y reales creados después de esa lista. Ahora también protege por señales reales del expediente (tiene CR, tiene facturas, tiene kilos, o es reciente).
+- **`src/lib/autoHealEngine.ts`:** `autoHealAndPurgeErpDatabase` reinyectaba incondicionalmente una fotografía congelada de 8 contrarecibos (corte 24-ago-2026) y sobreescribía el saldo de Andrés a un valor fijo en cada ejecución. Ambos comportamientos ahora requieren `{ reseedHistoricalCrs: true }` explícito; el camino por defecto solo purga semillas de prueba conocidas.
+- **`src/context/OrdersContext.tsx`:** se documentó explícitamente (sin cambiar el comportamiento, por no poder verificar contra Firestore en vivo) qué campos de las órdenes `120267114114` y `12026439713` son hardcodeados vs. cuáles respetan ediciones reales, para que nadie pierda tiempo buscando por qué una corrección "no se guarda".
+
+### 🧪 Validación mínima de datos extraídos por IA
+- **`functions/src/ai/extractor.ts`:** se agregó `sanitizeExtractedData`, que obliga a que los campos numéricos (`subtotal`, `iva`, `total`, `kilosTotales`, y los de cada concepto) sean números finitos reales antes de persistirse, en vez de aceptar lo que Gemini devuelva sin validar.
+
+### 📚 Documentación
+- Se eliminó el número de versión de los títulos de `README.md`, `docs/SISTEMA_ACTUAL.md` y `docs/FICHA_TECNICA.md` (llegaron a mostrar 5 versiones distintas y contradictorias a la vez). Ahora apuntan a `package.json` como fuente única.
+- Se corrigieron afirmaciones desactualizadas en el "Prompt Maestro para IA" de `docs/SISTEMA_ACTUAL.md`: la comisión de ejemplo (decía 6.9%, el valor real es 8% configurable) y la mención a validación "Zod" que nunca existió en el código.
+
+---
+
 ## [v8.9.38] - 29 Agosto 2026 (Aislamiento Estricto de Contrarecibos vs Facturas en Revisión y Desacoplamiento de OC)
 
 ### 🛡️ Desacoplamiento Universal de Contrarecibos (`extractCr`)

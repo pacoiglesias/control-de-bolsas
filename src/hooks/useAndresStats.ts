@@ -67,7 +67,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       {
         id: 'init-andres-balance',
         date: Timestamp.fromDate(new Date('2026-09-02T00:00:00')),
-        concept: '🌟 Saldo Inicial Oficial a Favor (Anticipos Disponibles)',
+        concept: 'Saldo Inicial Oficial a Favor (Anticipos Disponibles)',
         cargo: 0,
         abono: saldoProveedor,
         balance: saldoProveedor,

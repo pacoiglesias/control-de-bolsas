@@ -241,11 +241,17 @@ export function runContinuousAutoAudit({
   // =========================================================================
   // 3. REGLAS DE CONCILIACIÓN CON ANDRÉS ($38/KG & HISTORICAL DEBT)
   // =========================================================================
-  const rawHist = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
-  const histDebt = (rawHist > 500000 || Math.abs(rawHist - 1227839.35) < 10) ? 103411.84 : rawHist;
-  const calculatedAndresBalance = round2(histDebt);
+  // FIX (auditoría 2026-09-03): antes, esta función auto-corregía en SILENCIO
+  // cualquier saldo de Andrés mayor a $500,000, o cercano a $1,227,839.35,
+  // forzándolo de vuelta a $103,411.84 (correcto en un momento del pasado).
+  // Un motor de auditoría no debe decidir qué es "correcto" comparando contra
+  // una constante congelada: si el saldo real y legítimo con Andrés algún día
+  // vuelve a superar $500,000 de forma legítima, este código lo iba a ocultar
+  // en vez de reportarlo. Ahora solo REPORTA valores atípicos, sin tocarlos.
+  const calculatedAndresBalance = round2(
+    typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 0
+  );
 
-  // Si no hay histórico configurado y hay desfase
   if (cfg.historicalDebtAndres === undefined || cfg.historicalDebtAndres === null) {
     anomalies.push({
       id: 'andres_historical_debt_unconfigured',
@@ -259,21 +265,18 @@ export function runContinuousAutoAudit({
       autoFixLabel: '🔧 Calibrar Saldo Andrés',
       autoFixType: 'calibrate_andres',
     });
-  }
-
-  // Detectar si el saldo de Andrés en Firestore tiene un valor residual imposible (>500k)
-  if (typeof cfg.historicalDebtAndres === 'number' && (cfg.historicalDebtAndres > 500000 || Math.abs(cfg.historicalDebtAndres - 1227839.35) < 10)) {
+  } else if (Math.abs(cfg.historicalDebtAndres) > 500000) {
+    // Ya NO se sobreescribe el valor. Solo se avisa para que un humano lo
+    // verifique contra el estado de cuenta real de Andrés.
     anomalies.push({
-      id: 'andres_historical_debt_out_of_range',
+      id: 'andres_historical_debt_needs_review',
       category: 'cuentas_andres',
-      severity: 'info',
-      title: 'Saldo de Andrés auto-corregido a $103,411.84',
-      description: `Firestore contenía un valor residual de cálculo crudo (${money(cfg.historicalDebtAndres)}). El sistema lo ha auto-calibrado al saldo oficial: +$103,411.84 MXN a favor de la empresa.`,
-      rootCause: 'Resta cruda de totalPagado − totalPurchasesCost incluyendo egresos de ciclos anteriores.',
-      recommendation: 'El saldo ya fue corregido automáticamente. Verifica en Compras que muestre +$103,411.84.',
-      autoFixAvailable: true,
-      autoFixLabel: '✅ Ver en Compras',
-      autoFixType: 'calibrate_andres',
+      severity: 'warning',
+      title: `Saldo de Andrés fuera de rango esperado (${money(cfg.historicalDebtAndres)})`,
+      description: 'El saldo histórico configurado es inusualmente alto o bajo comparado con el rango típico de operación. Puede ser correcto si el volumen de negocio creció, o puede ser un error de captura — este sistema ya no lo corrige solo.',
+      rootCause: 'Verificar manualmente contra el estado de cuenta real de Andrés antes de asumir que es un error.',
+      recommendation: 'Revisa en Compras que este saldo coincida con tu conciliación manual más reciente. Si es correcto, ignora esta alerta; si no, corrígelo en Configuración → Proveedor & Andrés.',
+      autoFixAvailable: false,
     });
   }
 

@@ -199,7 +199,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     const initRow = {
       id: 'init-andres-balance',
       dateMillis: CUT_TIMESTAMP,
-      concept: '🌟 Saldo Inicial Oficial a Favor (Anticipos Disponibles)',
+      concept: 'Saldo Inicial Oficial a Favor (Anticipos Disponibles)',
       cargo: 0,
       abono: historicalDebtAndres,
       balance: historicalDebtAndres,

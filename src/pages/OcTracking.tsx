@@ -526,7 +526,7 @@ export default function OcTracking() {
 
   function printManifiesto() {
     const html = getManifiestoHtml(filteredGroups);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob(['\uFEFF' + html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);

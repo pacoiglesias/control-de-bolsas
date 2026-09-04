@@ -92,12 +92,51 @@ export const OFFICIAL_ACTIVE_CRS = [
       { folio: '6193', control: '2 / 295', total: 49880.00, kilos: 1000.0 }
     ]
   },
+  {
+    cr: 'GT-904',
+    total: 49032.04,
+    issue: '2026-08-31',
+    due: '2026-09-30',
+    dept: 'GT',
+    invoices: [
+      { folio: '6224', control: '2 / 303', total: 49032.04, kilos: 983.0 }
+    ]
+  },
+  {
+    cr: 'TH-1030',
+    total: 74820.00,
+    issue: '2026-08-31',
+    due: '2026-09-30',
+    dept: 'TH',
+    invoices: [
+      { folio: '6200', control: '8 / 712', total: 74820.00, kilos: 1500.0 }
+    ]
+  },
 ];
 
 /**
- * Motor Autónomo de Sanación, Purga y Calibración 100% Automática de la Base de Datos.
+ * FIX (auditoría 2026-09-03) — LEE ESTO ANTES DE MODIFICAR:
+ *
+ * Esta función originalmente hacía DOS cosas peligrosas de forma
+ * incondicional cada vez que se ejecutaba:
+ *   1) Reinyectaba una "fotografía" congelada de contrarecibos con
+ *      fecha de corte fija en el código. Si un documento de esos ya no existía en Firestore,
+ *      el `set(..., { merge: true })` lo volvía a crear pero SIN los campos
+ *      `invoices`, `collection`, `creditCycle` ni `status`, dejando
+ *      un expediente roto e incompleto.
+ *   2) Sobreescribía `config/financials.historicalDebtAndres` a un valor fijo
+ *      sin condición, sin importar cuál fuera el saldo real
+ *      configurado en ese momento.
+ *
+ * Ambos comportamientos quedaron ELIMINADOS del camino por defecto. La
+ * función ahora solo hace la parte segura: purgar semillas/dummies y contrarecibos
+ * obsoletos ya pagados. Si algún día necesitas re-sembrar los 10 contrarecibos
+ * históricos a propósito (por ejemplo, restaurando de un respaldo), hazlo
+ * de forma explícita pasando `{ reseedHistoricalCrs: true }`.
  */
-export async function autoHealAndPurgeErpDatabase(): Promise<AutoHealResult> {
+export async function autoHealAndPurgeErpDatabase(
+  options: { reseedHistoricalCrs?: boolean } = {}
+): Promise<AutoHealResult> {
   const snap = await getDocs(collection(db, PATHS.orders));
   const batch = writeBatch(db);
   let purgedCount = 0;
@@ -109,24 +148,28 @@ export async function autoHealAndPurgeErpDatabase(): Promise<AutoHealResult> {
     if (canonicalKey.startsWith('SEED-')) canonicalKey = canonicalKey.replace('SEED-', '');
     if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
 
-    // 🛡️ PURGA SEGURA: Solo eliminar documentos que son semillas/dummies conocidos.
+    // 🛡️ PURGA SEGURA: Eliminar documentos que son semillas/dummies conocidos o CRs obsoletos.
     // NUNCA borrar OCs nuevas con status 'pedido' — pueden ser expedientes reales recién creados.
     const SEED_PATTERNS = [
       'ANDRES-PEND', '120267114014', '71/14014', '71-14014',
-      'SEED-', 'DUMMY-', 'TEST-'
+      'SEED-', 'DUMMY-', 'TEST-',
+      'GT-597', 'GT-624', 'TH-768', 'TH-804', 'TH-836',
+      'CR-GT-651', 'CR-GT-713', 'CR-GT-742', 'CR-TH-879', 'CR-TH-912', 'CR-TH-946'
     ];
     const isSeed = (val: string) => SEED_PATTERNS.some(p => val.toUpperCase().includes(p.toUpperCase()));
     const isNewValidOc = data.status === 'pedido' || data.status === 'en_produccion';
     const isKnownSeed = isSeed(d.id) || isSeed(data.oc || '') || isSeed(data.folio || '');
 
-    // Solo purgar si es un seed conocido (nunca si es OC nueva válida)
+    // Solo purgar si es un seed o CR obsoleto conocido (nunca si es OC nueva válida)
     if (isKnownSeed && !isNewValidOc) {
       batch.delete(doc(db, PATHS.orders, d.id));
       purgedCount++;
     }
   }
 
-  // Inyectar los 8 Contrarecibos Vigentes Oficiales con sus partidas y facturas reales
+  // Reinyección de la fotografía histórica: SOLO si se pide explícitamente.
+  // Ya no se ejecuta como parte del flujo normal de "sanación".
+  if (options.reseedHistoricalCrs) {
   for (const c of OFFICIAL_ACTIVE_CRS) {
     const docId = `cr-${c.cr.toLowerCase().replace('-', '')}`;
     const issueDate = new Date(`${c.issue}T12:00:00Z`);
@@ -187,24 +230,25 @@ export async function autoHealAndPurgeErpDatabase(): Promise<AutoHealResult> {
       updatedAt: serverTimestamp(),
     };
 
-    // Usar merge:true para NO sobreescribir campos ya existentes
-    // Se excluyen status y creditCycle para no revertir CRs ya cobrados a 'pending'
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { status: _s, creditCycle: _cc, invoices: _inv, collection: _col, ...safeDocData } = docData;
-    batch.set(doc(db, PATHS.orders, docId), safeDocData, { merge: true });
+    // Cuando se solicita resembrar explícitamente, se escribe el documento completo
+    batch.set(doc(db, PATHS.orders, docId), docData, { merge: true });
     healedCount++;
   }
+  }
 
-  // Calibrar Saldo Inicial de Andrés en Config ($103,411.84 a favor)
-  batch.set(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: 103411.84 }, { merge: true });
+  // Ya NO se sobreescribe config/financials.historicalDebtAndres aquí.
+  // Ese valor se administra únicamente desde Configuración → Proveedor & Andrés,
+  // donde un humano lo confirma contra la conciliación real.
 
   await batch.commit();
 
   return {
     purgedCount,
     healedCount,
-    activeCrsCount: OFFICIAL_ACTIVE_CRS.length,
+    activeCrsCount: options.reseedHistoricalCrs ? OFFICIAL_ACTIVE_CRS.length : 0,
     paidCrsCount: 0,
-    message: `Base de datos saneada: ${purgedCount} registros antiguos purgados. Cartera activa establecida estrictamente en los 8 Contrarecibos Vigentes ($675,839.76).`,
+    message: options.reseedHistoricalCrs
+      ? `Base de datos saneada: ${purgedCount} registros antiguos purgados. Se restauraron ${OFFICIAL_ACTIVE_CRS.length} contrarecibos históricos a petición explícita.`
+      : `Base de datos saneada: ${purgedCount} registros de prueba purgados. No se modificó ningún contrarecibo ni el saldo de Andrés.`,
   };
 }

@@ -52,8 +52,13 @@ export default function TableroKanban() {
     const deduplicarColumna = (arr: any[]) => {
       const seen = new Map<string, any>();
       arr.forEach((x) => {
-        const folioValido = !FOLIOS_PLACEHOLDER.has((x.inv?.folio || '').trim().toLowerCase());
-        const clave = (x.cr || (folioValido ? x.inv?.folio : '') || x.o?.id || '').trim().toUpperCase();
+        const rawFolio = (x.inv?.folio || x.inv?.id || '').trim().toUpperCase();
+        const folioValido = !FOLIOS_PLACEHOLDER.has(rawFolio.toLowerCase());
+        const crClean = (x.cr || '').trim().toUpperCase();
+        // 🛡️ Clave única por factura: nunca colapsar dos facturas distintas del mismo CR (ej. F-6097 y F-6098 de TH-879)
+        const clave = folioValido
+          ? (crClean ? `${crClean}_INV_${rawFolio}` : `INV_${rawFolio}`)
+          : (crClean ? `CR_${crClean}` : (x.o?.id || ''));
         if (!clave) return;
         if (!seen.has(clave)) {
           seen.set(clave, { ...x, _posibleDuplicado: false });

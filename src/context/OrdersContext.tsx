@@ -87,9 +87,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             (doc.invoices || []).some(inv => (inv.collection?.contrareciboNumber || '').toUpperCase().includes(c))
           );
 
+          // 🛡️ Si el documento tiene formato de Contrarecibo (GT-xxx, TH-xxx, CR-xxx) pero NO pertenece
+          // a la cartera oficial activa (OFFICIAL_VALID_CRS), es un CR obsoleto ya saldado.
+          const isContrareciboDoc = /^(CR-)?(GT|TH)-?\d+$/i.test(canonicalKey) || /^(GT|TH)-?\d+$/i.test(crNum) || doc.id.startsWith('cr-');
+          if (isContrareciboDoc && !crMatch) {
+            continue;
+          }
+
           // Normalizar la clave para que los documentos del mismo CR/OC se agrupen juntos.
-          // ⚡ FIX CRÍTICO: ya NO descartamos documentos que no estén en la lista canónica.
-          // Cualquier OC nueva es válida y debe aparecer en el dashboard.
+          // Las OCs nuevas reales (que no son CRs) siempre pasan y se conservan.
           if (crMatch && !isMasterOc) {
             canonicalKey = crMatch;
           }
@@ -206,6 +212,28 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           }
 
           // 🎯 Parámetros Oficiales Reales de las Órdenes de Compra de Providencia:
+          //
+          // NOTA DE AUDITORÍA (2026-09-03) — lee esto antes de tocar este bloque:
+          // Este `if`/`else if` fuerza, en CADA render, los valores de
+          // `items`, `totalKilograms`, `deliveries` y los campos financieros
+          // (`kilos`, `items`, `financials`) de las facturas de estas DOS
+          // órdenes específicas (120267114114 / TH y 12026439713 / GT) a
+          // valores literales escritos aquí, sin importar qué haya realmente
+          // en Firestore. Lo único que SÍ respeta una edición real hecha
+          // desde la interfaz es `collection` (número/fecha de contrarecibo)
+          // y `creditCycle` (status/fechas) DE CADA FACTURA — esos dos
+          // sub-campos se fusionan con lo existente más abajo
+          // (`...existing.collection`, `...existing.creditCycle`). Todo lo
+          // demás (kilos, precios, montos, entregas, items) es fijo y
+          // cualquier corrección hecha desde Orders.tsx a esos campos se
+          // revertirá sola en la próxima recarga.
+          //
+          // Próximo paso recomendado (requiere confirmar contra Firestore,
+          // no lo hice yo por no tener acceso a la base de datos en vivo):
+          // si estos valores ya coinciden con lo que hay realmente guardado
+          // en los documentos `120267114114` y `12026439713`, migrar estos
+          // literales a un script de una sola corrida contra Firestore y
+          // borrar este bloque por completo.
           if (canonicalKey === '120267114114' || canonicalKey.includes('71/14114') || canonicalKey.includes('71-14114')) {
             const thItems = [
               { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250 (48+17+17X140)', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },

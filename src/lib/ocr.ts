@@ -32,17 +32,75 @@ export interface OcrResult {
 export async function extractTextFromPdf(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  
+
   let fullText = '';
-  
+
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    const pageText = textContent.items.map((item: any) => item.str).join(' ');
-    fullText += pageText + '\n';
+    fullText += reconstructLinesFromTextContent(textContent) + '\n';
   }
-  
+
   return fullText;
+}
+
+/**
+ * FIX (auditoría 2026-09-03): antes esta función unía TODOS los fragmentos
+ * de texto de una página con un solo espacio (`items.map(i => i.str).join('
+ *   ')`)
+ * y solo agregaba un salto de línea AL FINAL DE CADA PÁGINA, nunca entre
+ * renglones. El resultado: una OC con 4 artículos en 4 renglones distintos
+ * se convertía en UNA sola línea gigante con el encabezado, los 4
+ * artículos y el pie de página todos pegados. El parser de `ocParser.ts`
+ * trabaja línea por línea (`text.split(/\r?\n/)`) buscando el patrón
+ * "1 CODIGO CANTIDAD DESCRIPCION PRECIO... IMPORTE" en cada renglón —con
+ * todo pegado en una sola línea, esa búsqueda NUNCA encontraba nada, y el
+ * sistema caía al respaldo de "un solo concepto genérico" (la OC completa
+ * facturada como si fuera un solo producto, con "kilos por confirmar").
+ *
+ * Esta función reconstruye los renglones agrupando cada fragmento de texto
+ * por su posición vertical real en la página (pdf.js expone esa posición en
+ * `item.transform[5]`), que es la técnica estándar para recuperar la
+ * estructura de tabla de un PDF con pdf.js.
+ */
+function reconstructLinesFromTextContent(textContent: { items: any[] }): string {
+  const items = textContent.items as Array<{ str: string; transform: number[] }>;
+  if (!items || items.length === 0) return '';
+
+  // Agrupar fragmentos por posición vertical (Y), tolerando pequeñas
+  // variaciones de sub-pixel dentro del mismo renglón visual.
+  const Y_TOLERANCE = 2;
+  const lines: { y: number; parts: { x: number; str: string }[] }[] = [];
+
+  for (const item of items) {
+    const str = item.str;
+    if (str === undefined || str === null) continue;
+    const x = item.transform?.[4] ?? 0;
+    const y = item.transform?.[5] ?? 0;
+
+    let line = lines.find((l) => Math.abs(l.y - y) <= Y_TOLERANCE);
+    if (!line) {
+      line = { y, parts: [] };
+      lines.push(line);
+    }
+    line.parts.push({ x, str });
+  }
+
+  // El eje Y de pdf.js crece hacia arriba: la primera línea visual de la
+  // página tiene la Y más alta, así que se ordena descendente.
+  lines.sort((a, b) => b.y - a.y);
+
+  return lines
+    .map((line) =>
+      line.parts
+        .sort((a, b) => a.x - b.x)
+        .map((p) => p.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
+    .filter((l) => l.length > 0)
+    .join('\n');
 }
 
 export async function extractTextFromImage(file: File): Promise<string> {

@@ -91,10 +91,20 @@ export default function Settings() {
   const sysDirty = Boolean(settings && sysForm && JSON.stringify(sysForm) !== JSON.stringify(settings));
 
   async function handlePurgeTestOrders() {
+    // FIX (auditoría 2026-09-03): esta función usaba UNA LISTA FIJA de 11
+    // contrarecibos históricos como Única protección contra el borrado. Todo
+    // expediente que no apareciera en esa lista —incluyendo cualquier
+    // expediente nuevo y real creado después de escribir la lista— se
+    // archivaba como "prueba". Con el ritmo real del negocio, un expediente
+    // recién facturado o en revisión (que aún no tiene CR) caería aquí sin
+    // querer. Ahora la protección es por SEÑALES REALES del propio
+    // expediente (tiene CR, tiene facturas, tiene kilos, o es reciente), y
+    // la lista histórica queda solo como refuerzo adicional, nunca como
+    // única barrera.
     const ok = await confirmDialog(
       '¿Deseas archivar los expedientes de prueba en la Papelera?\n\n' +
-        'Esta acción conservará únicamente los 11 Contrarecibos Oficiales ($1,101,736.34), ' +
-        'dejando la cartera cuadrada exactamente al corte oficial de los 11 Contrarecibos ($1,101,736.34).'
+        'Esta acción conservará cualquier expediente con contrarecibo, con facturas, con kilos registrados, ' +
+        'o creado en los últimos 180 días. Solo se archivarán expedientes vacíos/de prueba evidentes.'
     );
     if (!ok) return;
 
@@ -113,6 +123,8 @@ export default function Settings() {
         'GT-624',
         'GT-597',
       ];
+      const SAFE_WINDOW_MS = 180 * 24 * 60 * 60 * 1000; // 180 días
+      const now = Date.now();
       let purgedCount = 0;
       const batch = writeBatch(db);
 
@@ -139,7 +151,17 @@ export default function Settings() {
               (o.invoices || []).some((i) => i.folio === item.folio)
           );
 
-        if (!hasOfficialCr && !isFactura6167 && !isPendingOrder && !isInReview) {
+        // Red de seguridad genérica: cualquier señal real de que el
+        // expediente NO es basura de prueba, sin depender de listas fijas.
+        const hasAnyCr = crNumber.length > 0 || (o.invoices || []).some((inv) => (inv.collection?.contrareciboNumber || '').trim().length > 0);
+        const hasAnyInvoice = (o.invoices || []).length > 0;
+        const hasKilos = (o.totalKilograms ?? 0) > 0;
+        const createdMs = (o as any).createdAt?.toMillis ? (o as any).createdAt.toMillis() : null;
+        const isRecent = createdMs !== null && (now - createdMs) < SAFE_WINDOW_MS;
+
+        const looksLikeRealData = hasAnyCr || hasAnyInvoice || hasKilos || isRecent;
+
+        if (!hasOfficialCr && !isFactura6167 && !isPendingOrder && !isInReview && !looksLikeRealData) {
           batch.update(doc(db, PATHS.orders, o.id), {
             isDeleted: true,
             deletedAt: serverTimestamp(),
@@ -947,7 +969,7 @@ export default function Settings() {
             <Card title="🧹 Auditoría de Datos: Purga Protegida de Pruebas">
               <div style={{ padding: 18 }}>
                 <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
-                  Archiva en la Papelera los expedientes residuales de prueba sin alterar los <strong>11 Contrarecibos Oficiales</strong> ($1,101,736.34) ni las órdenes pendientes de Andrés.
+                  Archiva en la Papelera solo expedientes vacíos de prueba: nunca toca expedientes con contrarecibo, con facturas, con kilos registrados, o creados en los últimos 180 días.
                 </p>
                 <motion.button
                   whileHover={{ scale: 1.02 }}

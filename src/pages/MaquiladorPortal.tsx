@@ -354,7 +354,7 @@ export default function MaquiladorPortal() {
     if (!statement) return;
     triggerHaptic('success');
     const html = getStatementHtml(statement, provName, clientName);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob(['\uFEFF' + html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
@@ -363,7 +363,7 @@ export default function MaquiladorPortal() {
   const handleDownloadDeliveryTicket = (h: any) => {
     triggerHaptic('success');
     const html = getDeliveryTicketHtml(h, provName, clientName);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob(['\uFEFF' + html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);

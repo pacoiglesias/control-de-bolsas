@@ -107,22 +107,33 @@ export default function Cobranza() {
   }
 
   const data = useMemo(() => {
-    const seen = new Set<string>();
-    const allInvoices: Array<{ o: PurchaseOrder; inv: any }> = [];
+    // 🛡️ DEDUPLICACIÓN CANÓNICA DE FACTURAS POR FOLIO
+    // Si una factura está presente tanto en una Orden Maestra como en un documento de Contrarecibo,
+    // se unifica en una sola instancia manteniendo la versión con Contrarecibo asignado.
+    const invoiceMap = new Map<string, { o: PurchaseOrder; inv: any }>();
 
     (orders || []).forEach((o) => {
       if (!o || (o as any).isDeleted) return;
       const s = getOrderSummary(o);
       (s.invoices || []).forEach((inv) => {
         if (!inv) return;
+        const rawFolio = (inv.folio || inv.id || '').toUpperCase().trim();
+        if (!rawFolio || rawFolio === 'S/N' || rawFolio === 'SIN FOLIO') return;
         const cr = extractCr(inv, o).toUpperCase().trim();
-        const folio = (inv.folio || inv.id || '').toUpperCase().trim();
-        const key = cr ? `CR:${cr}_INV:${folio}` : `INV:${folio}`;
-        if (key && seen.has(key)) return;
-        if (key) seen.add(key);
-        allInvoices.push({ o, inv });
+
+        if (!invoiceMap.has(rawFolio)) {
+          invoiceMap.set(rawFolio, { o, inv });
+        } else {
+          const prev = invoiceMap.get(rawFolio)!;
+          const prevCr = extractCr(prev.inv, prev.o).toUpperCase().trim();
+          if (!prevCr && cr) {
+            invoiceMap.set(rawFolio, { o, inv });
+          }
+        }
       });
     });
+
+    const allInvoices: Array<{ o: PurchaseOrder; inv: any }> = Array.from(invoiceMap.values());
 
     const saldo = (inv: (typeof allInvoices)[number]['inv']) =>
       Math.max((inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0) - (inv.collection?.paidAmount ?? 0), 0);
@@ -134,7 +145,7 @@ export default function Cobranza() {
       });
 
     const isPaidOrCollected = (st?: string) => st === 'paid' || st === 'collected';
-    const PAID_CRS_SET = new Set(['TH-836', 'TH-804', 'TH-768', 'TH-739', 'TH-713', 'GT-624', 'TH-680']);
+    const PAID_CRS_SET = new Set(['TH-836', 'TH-804', 'TH-768', 'TH-739', 'GT-624', 'TH-680', 'GT-597']);
 
     const paid = conCr(allInvoices.filter((x) => x.inv.creditCycle?.status === 'paid'));
     const collected = conCr(allInvoices.filter((x) => {
@@ -344,7 +355,8 @@ export default function Cobranza() {
     } else if (filterType === 'enproceso') {
       list = list.filter((x: any) => {
         const portalSt = x.inv.collection?.contrareciboPortalStatus as string | undefined;
-        return portalSt === 'EN PROCESO DE PAGO' || ['TH-768', 'GT-624', 'GT-597'].includes(x.cr);
+        const cycleSt = x.inv.creditCycle?.status as string | undefined;
+        return portalSt === 'EN PROCESO DE PAGO' || cycleSt === 'in_review';
       });
     } else if (filterType === 'enplazo') {
       list = list.filter((x: any) => (x.d ?? 0) <= 0 && x.hasCr);

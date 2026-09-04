@@ -103,6 +103,11 @@ export const SEED_BLACKLIST = [
   '71/14014',
   '71-14014',
   '14014',
+  'GT-597',
+  'GT-624',
+  'TH-768',
+  'TH-804',
+  'TH-836',
 ] as const;
 
 /** Verifica si un ID/folio pertenece a la lista negra de seeds */

@@ -21,7 +21,7 @@ export function useCobranzaReports({
 }) {
   function printCobranzaGlobalReport() {
     const html = getCobranzaGlobalHtml(data, settings);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob(['\uFEFF' + html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
@@ -41,7 +41,7 @@ export function useCobranzaReports({
     const totalVencido = overdueItems.reduce((sum: number, x: any) => sum + (x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0);
 
     const html = getCarteraVencidaHtml(settings, overdueItems, totalVencido);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob(['\uFEFF' + html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
@@ -61,7 +61,7 @@ export function useCobranzaReports({
 
   function printConsolidatedCr(grp: any) {
     const html = getConsolidatedCrHtml(settings, grp);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob(['\uFEFF' + html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);

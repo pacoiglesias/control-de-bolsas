@@ -1,8 +1,10 @@
-# ERP Control Universal - Control de Bolsas (v8.7.0 Luxury Edition)
+# ERP Control Universal - Control de Bolsas
+
+> La versión vigente del sistema es la de `package.json` (campo `version`). No repitas el número aquí: los documentos de `docs/` llegaron a tener 5 números de versión distintos y contradictorios al mismo tiempo (auditoría 2026-09-03). Si necesitas saber la versión exacta, revisa `package.json` o el `CHANGELOG.md`.
 
 Este es el repositorio oficial del ERP de compras, maquila, entregas, facturación, cobranza, flujo de efectivo y prefacturas SAT con parametrización multi-empresa.
 
-## 🚀 Estado del Sistema (v8.7.0 Luxury Edition)
+## 🚀 Estado del Sistema
 - **URL de Producción:** https://control-de-bolsas-69.web.app
 - **URL Secundaria:** https://control-de-bolsas-89c88.web.app
 - **Compilación:** PWA + Vite + React 18.3 + Cloud Functions Node 22 (100% limpia)
