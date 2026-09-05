@@ -21,6 +21,7 @@ setGlobalOptions({ region: "us-east1", maxInstances: 10 });
 export { checkOverdueInvoices } from "./modules/cobranza/handlers";
 export { sanitizePurchaseOrder, processPurchaseOrder } from "./modules/compras/handlers";
 export { scheduledMidnightBackup, updateCajaChicaBalance } from "./modules/sistema/handlers";
+export { checkDeadlines } from "./modules/sistema/notifications";
 export { syncDashboardStats, recalcDashboardStats } from "./stats";
 
 // ── Handlers HTTP / Callable (legado) ───────────────────────────────────────

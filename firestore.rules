@@ -251,6 +251,27 @@ service cloud.firestore {
       allow write: if isAuthenticatedUser() && request.auth.uid == uid;
     }
 
+    // Historial para prellenado inteligente
+    match /history/{historyId} {
+      allow read: if isAuthenticatedUser() && (resource == null || resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow create: if isAuthenticatedUser() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticatedUser() && resource.data.userId == request.auth.uid;
+    }
+
+    // Notificaciones proactivas
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticatedUser() && (resource == null || resource.data.userId == request.auth.uid || resource.data.userId == 'todos' || isSuperAdmin());
+      allow create: if isAuthenticatedUser();
+      allow update: if isAuthenticatedUser() && (resource.data.userId == request.auth.uid || resource.data.userId == 'todos' || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    // Preferencias y personalización de usuario
+    match /userPreferences/{uid} {
+      allow read: if isAuthenticatedUser() && (request.auth.uid == uid || isSuperAdmin());
+      allow write: if isAuthenticatedUser() && (request.auth.uid == uid || isSuperAdmin());
+    }
+
     // Todo lo demás queda cerrado.
     match /{document=**} {
       allow read, write: if false;

@@ -20,9 +20,10 @@ import { DEFAULT_CONFIG, DEFAULT_DEPARTMENTS, type FinancialConfig, type Departm
 import MigrationTools from '../components/MigrationTools';
 import { confirmDialog } from '../lib/confirmDialog';
 import { triggerHaptic } from '../lib/hapticEngine';
+import { useTheme } from '../context/ThemeContext';
 import { OFFICIAL_IN_REVIEW } from '../components/Cobranza/SincronizadorOficialModal';
 
-type SettingsTab = 'identity' | 'plants' | 'provider' | 'financials' | 'sat' | 'maintenance';
+type SettingsTab = 'preferences' | 'identity' | 'plants' | 'provider' | 'financials' | 'sat' | 'maintenance';
 
 export default function Settings() {
   const { config, loading: loadingCfg, exists } = useConfig();
@@ -31,8 +32,9 @@ export default function Settings() {
   const { orders } = useOrders();
   const { user, role } = useAuth();
   const toast = useToast();
+  const { theme, setTheme, preferences, toggleColumn, updatePreferences } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('identity');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
   const [form, setForm] = useState<FinancialConfig>(config);
   const [sysForm, setSysForm] = useState<SystemSettings>(settings);
   const [maquilaPin, setMaquilaPin] = useState('');
@@ -314,9 +316,11 @@ export default function Settings() {
   }
 
   if (loading) return <Spinner />;
-  if (role !== 'admin') return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/" replace />;
+  const isAdmin = role === 'admin';
 
-  const tabsConfig = [
+  const allTabs = [
+    { key: 'preferences', label: '🎨 Personalización & Temas', icon: '🎨' },
     { key: 'identity', label: '🏢 Identidad & Cliente', icon: '🏢' },
     { key: 'plants', label: `🏬 Plantas (${(form.departmentConfigs || DEFAULT_DEPARTMENTS).length})`, icon: '🏬' },
     { key: 'provider', label: '🏭 Proveedor & Andrés', icon: '🏭' },
@@ -324,6 +328,8 @@ export default function Settings() {
     { key: 'sat', label: '🧾 Datos Fiscales SAT', icon: '🧾' },
     { key: 'maintenance', label: '🛡️ Auditoría & Respaldo', icon: '🛡️' },
   ] as const;
+
+  const tabsConfig = isAdmin ? allTabs : allTabs.filter((t) => t.key === 'preferences');
 
   return (
     <>
@@ -392,6 +398,155 @@ export default function Settings() {
       </div>
 
       <AnimatePresence mode="wait">
+        {/* TAB 0: PERSONALIZACIÓN & TEMAS */}
+        {activeTab === 'preferences' && (
+          <motion.div
+            key="preferences"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+          >
+            <Card title="🎨 Apariencia y Tema del ERP">
+              <div style={{ padding: 18 }}>
+                <p className="hint" style={{ marginTop: 0, marginBottom: 16 }}>
+                  Personaliza la interfaz visual para maximizar tu confort según las condiciones de iluminación de tu oficina o planta.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setTheme('light');
+                      toast('☀️ Modo Claro activado', 'ok');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 16,
+                      borderRadius: 12,
+                      border: theme === 'light' ? '2px solid #3b82f6' : '1px solid var(--line)',
+                      background: theme === 'light' ? 'rgba(59, 130, 246, 0.1)' : 'var(--paper-raised)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: 28 }}>☀️</span>
+                    <div>
+                      <div style={{ fontWeight: 800, color: 'var(--ink)' }}>Modo Claro</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>Fondo blanco limpio y alto contraste diurno</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setTheme('dark');
+                      toast('🌙 Modo Oscuro activado', 'ok');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 16,
+                      borderRadius: 12,
+                      border: theme === 'dark' ? '2px solid #3b82f6' : '1px solid var(--line)',
+                      background: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'var(--paper-raised)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: 28 }}>🌙</span>
+                    <div>
+                      <div style={{ fontWeight: 800, color: 'var(--ink)' }}>Modo Oscuro</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>Tonos oscuros premium y descanso visual nocturno</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="📋 Columnas Visibles en Listados">
+              <div style={{ padding: 18 }}>
+                <p className="hint" style={{ marginTop: 0, marginBottom: 16 }}>
+                  Configura qué columnas deseas ver de forma predeterminada en los listados y tablas de seguimiento del ERP.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                  {[
+                    { key: 'folio', label: 'Folio de OC / Expediente' },
+                    { key: 'client', label: 'Cliente' },
+                    { key: 'department', label: 'Planta / Departamento (TH/GT)' },
+                    { key: 'kilos', label: 'Kilos Totales' },
+                    { key: 'total', label: 'Importe Total ($)' },
+                    { key: 'status', label: 'Estatus del Pedido' },
+                    { key: 'dueDate', label: 'Fecha de Vencimiento' },
+                    { key: 'cr', label: 'No. de Contrarecibo' },
+                    { key: 'actions', label: 'Botones de Acción Rápida' },
+                  ].map((col) => (
+                    <label
+                      key={col.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        background: 'var(--paper-raised)',
+                        border: '1px solid var(--line)',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: 'var(--ink)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={preferences.visibleColumns[col.key as keyof typeof preferences.visibleColumns] ?? true}
+                        onChange={() => {
+                          triggerHaptic('light');
+                          toggleColumn(col.key as any);
+                        }}
+                      />
+                      <span>{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            <Card title="⚡ Preferencias de Visualización y Productividad">
+              <div style={{ padding: 18 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={preferences.compactMode ?? false}
+                      onChange={(e) => {
+                        triggerHaptic('light');
+                        updatePreferences({ compactMode: e.target.checked });
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>Modo Compacto de Alta Densidad</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>Reduce márgenes y paddings para ver más registros en pantallas de laptop</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
         {/* TAB 1: IDENTIDAD & CLIENTE */}
         {activeTab === 'identity' && (
           <motion.div

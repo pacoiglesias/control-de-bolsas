@@ -260,8 +260,14 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
           addLog(`✅ CR ${item.cr} (${money(item.total)}): Sincronizado con folios [${updatedInvoices.map(i => i.folio).join(', ')}].`);
         } else {
-          // Crear expediente nuevo para este Contrarecibo Oficial
+          // Crear expediente nuevo para este Contrarecibo Oficial (verificando que no haya sido eliminado)
           const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+          const existingSnap = await getDoc(doc(db, PATHS.orders, newId));
+          if (existingSnap.exists() && existingSnap.data()?.isDeleted) {
+            addLog(`⏭️ CR ${item.cr} omitido (marcado como eliminado por el usuario).`);
+            continue;
+          }
+
           const kilosEst = Math.round(item.total / (43 * 1.16));
           const newInvoices = buildInvoices(newId);
           const newOrderDoc: any = {
@@ -297,9 +303,13 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
       // 2. Sincronizar los 7 Contrarecibos Históricos Pagados (Saldo $0.00 / 100% Cobrado)
       for (const item of OFFICIAL_PAID_CRS) {
+        const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        const existingPaid = await getDoc(doc(db, PATHS.orders, newId));
+        if (existingPaid.exists() && existingPaid.data()?.isDeleted) {
+          continue; // NUNCA revivir expedientes que el usuario mandó a papelera
+        }
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
-        const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
         const kilosEst = Math.round(item.total / (43 * 1.16));
         const paidDoc: any = {
           id: newId,
@@ -372,6 +382,11 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
         for (const [ocNumber, items] of ocGroupsMap.entries()) {
           const orderId = `oc-${ocNumber}`;
+          const existingSnap = await getDoc(doc(db, PATHS.orders, orderId));
+          if (existingSnap.exists() && existingSnap.data()?.isDeleted) {
+            addLog(`⏭️ OC ${ocNumber} omitida (marcada como eliminada por el usuario).`);
+            continue;
+          }
           const isTH = ocNumber === '120267114114';
           const kilosPedidosOC = isTH ? 6500 : 3700;
           const earliestDate = new Date(`${items[0].dateStr}T12:00:00`);

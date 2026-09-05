@@ -39,6 +39,8 @@ const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m
 const AuditSync = lazy(() => import('./pages/AuditSync'));
 const DataMining = lazy(() => import('./pages/DataMining'));
 const Users = lazy(() => import('./pages/Users'));
+const Settings = lazy(() => import('./pages/Settings'));
+const WizardContainer = lazy(() => import('./features/wizard/WizardContainer').then(m => ({ default: m.WizardContainer })));
 
 function RouteFallback() {
   return (
@@ -65,10 +67,13 @@ function RouteFallback() {
 
 import { GlobalFastFlowsHost } from './components/FastFlows/GlobalFastFlowsHost';
 
+import { ThemeProvider } from './context/ThemeContext';
+
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <PrivacyProvider>
-      <InvoicesProvider>
+    <ThemeProvider>
+      <PrivacyProvider>
+        <InvoicesProvider>
         <OrdersProvider>
           <PurchasesProvider>
             <ProductsProvider>
@@ -88,7 +93,8 @@ function AppProviders({ children }: { children: React.ReactNode }) {
           </PurchasesProvider>
         </OrdersProvider>
       </InvoicesProvider>
-    </PrivacyProvider>
+      </PrivacyProvider>
+    </ThemeProvider>
   );
 }
 
@@ -165,6 +171,8 @@ function Gate() {
             <Route path="mining" element={seccion(<DataMining />)} />
             <Route path="catalogo" element={seccion(<Catalog />)} />
             <Route path="captura-rapida" element={seccion(<FastEntry />)} />
+            <Route path="proceso-compra" element={seccion(<WizardContainer />)} />
+            <Route path="configuracion" element={seccion(<Settings />)} />
             <Route path="usuarios" element={seccion(<Users />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

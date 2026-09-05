@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, writeBatch, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, writeBatch, Timestamp, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
 import { round2 } from './finance';
 
@@ -172,6 +172,10 @@ export async function autoHealAndPurgeErpDatabase(
   if (options.reseedHistoricalCrs) {
   for (const c of OFFICIAL_ACTIVE_CRS) {
     const docId = `cr-${c.cr.toLowerCase().replace('-', '')}`;
+    const existing = await getDoc(doc(db, PATHS.orders, docId));
+    if (existing.exists() && existing.data()?.isDeleted) {
+      continue; // NUNCA revivir documentos que el usuario eliminó
+    }
     const issueDate = new Date(`${c.issue}T12:00:00Z`);
     const dueDate = new Date(`${c.due}T12:00:00Z`);
     const totalKilos = c.invoices.reduce((acc, inv) => acc + inv.kilos, 0);

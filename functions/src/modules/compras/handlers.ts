@@ -133,3 +133,60 @@ export const sanitizePurchaseOrder = onDocumentWritten(
     }
   },
 );
+
+// ────────────────────────────────────────────────────────────────────────────
+// getOrdersWithDeadline — Recupera OCs que vencen en los próximos 3 días
+// ────────────────────────────────────────────────────────────────────────────
+export interface OrderDeadlineInfo {
+  id: string;
+  userId: string;
+  folio: string;
+  dueDate: Date;
+  daysRemaining: number;
+}
+
+export async function getOrdersWithDeadline(now: Date = new Date()): Promise<OrderDeadlineInfo[]> {
+  const db = getFirestore();
+  const snapshot = await db.collection(COL_ORDERS).get();
+  const results: OrderDeadlineInfo[] = [];
+  const nowMs = now.getTime();
+  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+
+  for (const docSnap of snapshot.docs) {
+    const data = docSnap.data();
+    if (data.status === 'collected' || data.status === 'paid') continue;
+
+    let targetDueDate: Date | null = null;
+    if (data.creditCycle?.dueDate) {
+      targetDueDate = typeof data.creditCycle.dueDate.toDate === 'function'
+        ? data.creditCycle.dueDate.toDate()
+        : new Date(data.creditCycle.dueDate);
+    } else if (Array.isArray(data.invoices)) {
+      for (const inv of data.invoices) {
+        if (inv.creditCycle?.dueDate && inv.creditCycle.status !== 'collected' && inv.creditCycle.status !== 'paid') {
+          targetDueDate = typeof inv.creditCycle.dueDate.toDate === 'function'
+            ? inv.creditCycle.dueDate.toDate()
+            : new Date(inv.creditCycle.dueDate);
+          break;
+        }
+      }
+    }
+
+    if (targetDueDate) {
+      const diffMs = targetDueDate.getTime() - nowMs;
+      // Vence dentro de 3 días o venció recientemente
+      if (diffMs <= threeDaysMs && diffMs >= -24 * 60 * 60 * 1000) {
+        const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        results.push({
+          id: docSnap.id,
+          userId: data.userId || data.createdBy || 'todos',
+          folio: data.folio || docSnap.id,
+          dueDate: targetDueDate,
+          daysRemaining,
+        });
+      }
+    }
+  }
+
+  return results;
+}

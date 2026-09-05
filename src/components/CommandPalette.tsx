@@ -40,6 +40,18 @@ export function CommandPalette() {
   const SYSTEM_ACTIONS: PaletteItem[] = useMemo(() => [
     {
       type: 'action',
+      id: 'action-wizard-process',
+      label: '🪄 0. Nuevo Proceso de Compra (Wizard Unificado)',
+      desc: 'Flujo guiado paso a paso: OC ➔ Báscula ➔ Factura SAT',
+      val: 'Acción Rápida',
+      badge: 'WIZARD',
+      badgeColor: '#d97706',
+      action: () => {
+        navigate('/proceso-compra');
+      },
+    },
+    {
+      type: 'action',
       id: 'action-fast-oc',
       label: '📝 1. Capturar Nueva Orden / OC',
       desc: 'Crear un nuevo expediente o cargar PDF de OC',

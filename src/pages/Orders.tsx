@@ -22,6 +22,7 @@ import { ProactiveCrHubModal } from '../components/Cobranza/ProactiveCrHubModal'
 import { kilos, money, nombreClienteVisible, toDate } from '../lib/format';
 import { getOrderSummary, extractCr, round2 } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
+import { useTheme } from '../context/ThemeContext';
 
 const FILTERS: { key: 'all' | 'sin_cr' | OrderStatus; label: string }[] = [
   { key: 'all', label: 'Todas' },
@@ -37,6 +38,8 @@ export default function Orders() {
   const { orders, loading, error } = useOrders();
   const { role } = useAuth();
   const { config } = useConfig();
+  const { preferences } = useTheme();
+  const cols = preferences?.visibleColumns || { folio: true, client: true, kilos: true, total: true, status: true, actions: true, dueDate: true, cr: true, department: true };
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
@@ -569,22 +572,31 @@ export default function Orders() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table">
+            <table className={`data-table ${preferences?.compactMode ? 'compact-table' : ''}`}>
               <thead>
                 <tr>
-                  <th className="sticky-col" onClick={() => toggleSort('folio')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Expediente / OC {sortBy === 'folio' && (sortDir === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th onClick={() => toggleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Cliente {sortBy === 'client' && (sortDir === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th className="num" style={{ minWidth: 160 }}>Progreso kg</th>
-                  <th className="num">Facturado (c/IVA)</th><th className="num">Cobrado</th>
-                  <th className="num" onClick={() => toggleSort('deuda')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                    Deuda {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th>Estado / Próxima Acción</th>
-                  <th style={{ width: 200, textAlign: 'center' }}>Acciones</th>
+                  {cols.folio && (
+                    <th className="sticky-col" onClick={() => toggleSort('folio')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      Expediente / OC {sortBy === 'folio' && (sortDir === 'asc' ? '▲' : '▼')}
+                    </th>
+                  )}
+                  {cols.client && (
+                    <th onClick={() => toggleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      Cliente {sortBy === 'client' && (sortDir === 'asc' ? '▲' : '▼')}
+                    </th>
+                  )}
+                  {cols.kilos && <th className="num" style={{ minWidth: 160 }}>Progreso kg</th>}
+                  {cols.total && (
+                    <>
+                      <th className="num">Facturado (c/IVA)</th>
+                      <th className="num">Cobrado</th>
+                      <th className="num" onClick={() => toggleSort('deuda')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        Deuda {sortBy === 'deuda' && (sortDir === 'asc' ? '▲' : '▼')}
+                      </th>
+                    </>
+                  )}
+                  {cols.status && <th>Estado / Próxima Acción</th>}
+                  {cols.actions && <th style={{ width: 200, textAlign: 'center' }}>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -612,6 +624,7 @@ export default function Orders() {
                       tabIndex={0}
                       style={{ cursor: 'pointer' }}
                     >
+                      {cols.folio && (
                       <td className="mono sticky-col" style={{ lineHeight: '1.5' }}>
                         {o.oc && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -759,6 +772,8 @@ export default function Orders() {
                           );
                         })()}
                       </td>
+                      )}
+                      {cols.client && (
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
                           <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{nombreClienteVisible(o.client)}</span>
@@ -787,8 +802,9 @@ export default function Orders() {
                           })()}
                         </div>
                       </td>
+                      )}
                       {/* Columna compacta: Progreso kg (barra + texto en una sola celda) */}
-                      {(() => {
+                      {cols.kilos && (() => {
                         const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
                         const orderTotalKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0);
                         const faltanKg = Math.max(0, orderTotalKg - summary.kilosDelivered);
@@ -813,10 +829,15 @@ export default function Orders() {
                           </td>
                         );
                       })()}
-                      <td className="num mono">{money(summary.invoiceTotal)}</td>
-                      <td className="num mono">{money(summary.paidAmount)}</td>
-                      <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
+                      {cols.total && (
+                        <>
+                          <td className="num mono">{money(summary.invoiceTotal)}</td>
+                          <td className="num mono">{money(summary.paidAmount)}</td>
+                          <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
+                        </>
+                      )}
                       {/* Columna Estado + Próxima Acción fusionadas */}
+                      {cols.status && (
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start', minWidth: 195 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -861,6 +882,8 @@ export default function Orders() {
                           <OrderLifecycleSemaphore order={o} summary={summary} compact />
                         </div>
                       </td>
+                      )}
+                      {cols.actions && (
                       <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <OrderRowActions
                           order={o}
@@ -870,21 +893,28 @@ export default function Orders() {
                           onFastCr={() => setQuickCrOrder(o)}
                         />
                       </td>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={2}>Totales de la vista ({rows.length} expedientes)</td>
-                  <td className="num mono" style={{ fontSize: '0.85em' }}>
-                    {kilos(totals.kilosEntregados)} / {kilos(totals.kilos)}
-                  </td>
-                  <td className="num">{money(totals.venta)}</td>
-                  <td className="num">{money(totals.cobrado)}</td>
-                  <td className="num">{money(totals.deuda)}</td>
-                  <td />
-                  <td />
+                  <td colSpan={(cols.folio ? 1 : 0) + (cols.client ? 1 : 0)}>Totales de la vista ({rows.length} expedientes)</td>
+                  {cols.kilos && (
+                    <td className="num mono" style={{ fontSize: '0.85em' }}>
+                      {kilos(totals.kilosEntregados)} / {kilos(totals.kilos)}
+                    </td>
+                  )}
+                  {cols.total && (
+                    <>
+                      <td className="num">{money(totals.venta)}</td>
+                      <td className="num">{money(totals.cobrado)}</td>
+                      <td className="num">{money(totals.deuda)}</td>
+                    </>
+                  )}
+                  {cols.status && <td />}
+                  {cols.actions && <td />}
                 </tr>
               </tfoot>
             </table>

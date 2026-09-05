@@ -8,6 +8,7 @@ import { useConfig } from '../hooks/useConfig';
 import { useToast } from '../context/ToastContext';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { usePrivacy } from '../context/PrivacyContext';
+import { useTheme } from '../context/ThemeContext';
 import { getOrderSummary, round2 } from '../lib/finance';
 import { sound } from '../lib/sounds';
 import { downloadBackupJsonFile } from '../lib/cloudBackup';
@@ -34,14 +35,9 @@ type NavItem = {
   roles: string[];
 };
 
-function initTheme(): 'light' | 'dark' {
-  const saved = localStorage.getItem('cb-theme');
-  if (saved === 'dark' || saved === 'light') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 export default function Layout() {
   const { user, role, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { orders } = useOrders();
   const { purchases } = usePurchases();
   const { expenses } = useExpenses();
@@ -50,7 +46,6 @@ export default function Layout() {
   const { settings } = useSystemSettings();
   const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(initTheme);
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const location = useLocation();
@@ -108,6 +103,7 @@ export default function Layout() {
     { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },
     
     { type: 'group', label: 'OPERACIONES & BÁSCULA', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/proceso-compra', icon: '🪄', label: 'Nuevo Proceso de Compra', roles: ['admin', 'manager'] },
     { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC', roles: ['admin', 'manager'] },
     { type: 'link', to: '/captura-rapida', icon: '⚖️', label: 'Báscula & Entregas', roles: ['admin', 'manager'] },
@@ -119,7 +115,8 @@ export default function Layout() {
     { type: 'link', to: '/compras', icon: '🏭', label: `Compras & Andrés`, roles: ['admin'] },
     { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
 
-    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin'] },
+    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/configuracion', icon: '🎨', label: 'Personalización y Temas', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/audit', icon: '🛡️', label: 'Centinela & Auditoría', roles: ['admin'] },
     { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocios BI', roles: ['admin'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin'] },
@@ -145,11 +142,6 @@ export default function Layout() {
   useEffect(() => {
     document.body.style.overflow = '';
   }, [location.pathname]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('cb-theme', theme);
-  }, [theme]);
 
   useEffect(() => {
     setNavOpen(false);
@@ -247,12 +239,13 @@ export default function Layout() {
           
           <NotificationsCenter />
           <button
+            type="button"
             className="icon-btn"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            aria-label="Cambiar tema"
-            title="Cambiar tema Claro / Oscuro"
+            onClick={toggleTheme}
+            aria-label={`Cambiar a modo ${theme === 'dark' ? 'claro' : 'oscuro'}`}
+            title={`Tema actual: ${theme === 'dark' ? 'Oscuro' : 'Claro'}. Clic para alternar.`}
           >
-            ◐
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
         </div>
       </header>
