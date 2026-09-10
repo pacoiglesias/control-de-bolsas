@@ -122,6 +122,10 @@ export async function extractDocumentData(base64: string, mimeType: string, apiK
   try {
     parsed = JSON.parse(jsonText);
   } catch (e) {
+    // FIX (security/observability — 2026-09-10): loguear el error original
+    // antes de relanzar, para que Cloud Logging capture la respuesta cruda
+    // de Gemini que causó el fallo y permita correlacionar en producción.
+    console.error("[extractor] JSON inválido recibido de Gemini:", e, "| raw:", jsonText?.slice(0, 200));
     throw new Error("El modelo devolvió un JSON inválido, no se puede procesar el documento.");
   }
 

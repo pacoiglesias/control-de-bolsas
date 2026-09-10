@@ -175,7 +175,11 @@ export function SmartAlerts({ orders, deudaAndres }: { orders: PurchaseOrder[]; 
     }
 
     return list;
-  }, [orders, pendingApprovals, nav, config.salePricePerKg, config.costPricePerKg]);
+  // FIX (hooks — 2026-09-10): deudaAndres faltaba en las deps del useMemo.
+  // Sin él, la alerta de saldo anómalo con Andrés no se recalculaba cuando
+  // el saldo cambiaba (por calibración u operación), y podía quedar
+  // desactualizada hasta el próximo cambio en orders o pendingApprovals.
+  }, [orders, pendingApprovals, nav, config.salePricePerKg, config.costPricePerKg, deudaAndres]);
 
 
   if (alerts.length === 0) return null;

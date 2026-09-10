@@ -23,8 +23,16 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
   const startTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
+  // FIX (hooks — 2026-09-10): displayValue se leía directamente en el efecto
+  // (como startValueRef.current = displayValue), lo que requería listarlo como
+  // dependencia y causaría que la animación se reiniciara en cada frame.
+  // Se captura en una ref auxiliar que siempre apunta al valor actual sin
+  // necesidad de incluirlo en las deps del efecto de animación.
+  const displayValueRef = useRef(displayValue);
+  useEffect(() => { displayValueRef.current = displayValue; }, [displayValue]);
+
   useEffect(() => {
-    startValueRef.current = displayValue;
+    startValueRef.current = displayValueRef.current;
     startTimeRef.current = null;
 
     const animate = (timestamp: number) => {

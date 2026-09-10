@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../hooks/useOrders';
@@ -51,6 +51,24 @@ export default function Layout() {
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
 
+  // FIX (perf/hooks — 2026-09-10): Los handlers de teclado capturaban
+  // orders/purchases/expenses/config/settings via closure con deps=[],
+  // lo que causaba que Ctrl+E y Ctrl+Shift+P leyeran el snapshot inicial
+  // (posiblemente vacío) si se presionaban antes de que Firestore terminara
+  // de cargar. Se usan refs para que el handler siempre lea el valor
+  // más reciente sin necesidad de re-registrar el listener en cada render.
+  const ordersRef = useRef(orders);
+  const purchasesRef = useRef(purchases);
+  const expensesRef = useRef(expenses);
+  const configRef = useRef(config);
+  const settingsRef = useRef(settings);
+
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
+  useEffect(() => { purchasesRef.current = purchases; }, [purchases]);
+  useEffect(() => { expensesRef.current = expenses; }, [expenses]);
+  useEffect(() => { configRef.current = config; }, [config]);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -62,7 +80,7 @@ export default function Layout() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e' && !isInput) {
         e.preventDefault();
         try {
-          downloadMasterExcelWorkbook({ orders, purchases, expenses, config, settings });
+          downloadMasterExcelWorkbook({ orders: ordersRef.current, purchases: purchasesRef.current, expenses: expensesRef.current, config: configRef.current, settings: settingsRef.current });
           sound.playSuccess();
           toast('📊 Base de Datos Maestra exportada a Excel (.xlsx)', 'ok');
         } catch (err: any) {
@@ -72,9 +90,9 @@ export default function Layout() {
         e.preventDefault();
         try {
           const saldoCaja = round2(
-            (expenses || []).reduce((acc: number, exp: any) => acc + (exp?.type === 'ingreso' ? Number(exp.amount) || 0 : -(Number(exp.amount) || 0)), 0)
+            (expensesRef.current || []).reduce((acc: number, exp: any) => acc + (exp?.type === 'ingreso' ? Number(exp.amount) || 0 : -(Number(exp.amount) || 0)), 0)
           );
-          downloadExecutiveOnePagerPdf({ orders, expenses, config, settings, saldoCaja });
+          downloadExecutiveOnePagerPdf({ orders: ordersRef.current, expenses: expensesRef.current, config: configRef.current, settings: settingsRef.current, saldoCaja });
           sound.playSuccess();
           toast('📄 Resumen Ejecutivo One-Pager descargado en PDF', 'ok');
         } catch (err: any) {

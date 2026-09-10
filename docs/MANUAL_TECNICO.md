@@ -1,5 +1,5 @@
 # 📘 MANUAL TÉCNICO, ARQUITECTURA Y FLUJOS DEL SISTEMA
-## ERP Control Universal · v8.7.0 Luxury Cockpit, Haptic Engine & Universal Customization Edition
+## ERP Control Universal · v9.3.0 → v10.0.0 | Staff Engineer Audit Edition
 
 Este documento describe la arquitectura técnica integral, los flujos operativos del negocio, las fórmulas matemáticas deterministas, el catálogo de funciones de software, la política de inmutabilidad de precios históricos, la parametrización universal (multi-empresa / multi-taller) y la suite de experiencia de lujo (Spotlight, Quick-Peek, Floating Hub y Motor Háptico).
 

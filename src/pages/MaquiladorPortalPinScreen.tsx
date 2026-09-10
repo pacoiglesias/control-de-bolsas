@@ -63,7 +63,12 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
     }
   }, [rememberMe, onSuccess, toast]);
 
-  const handleDigit = (d: string) => {
+  // FIX (hooks — 2026-09-10): handleDigit era una función inline que se
+  // redefinía en cada render. El useEffect del teclado físico no la listaba
+  // como dependencia, por lo que podía capturar un `digits` obsoleto y
+  // ejecutar tryLogin con el PIN incompleto. useCallback + deps correctas
+  // garantizan que el handler siempre ve el estado más reciente.
+  const handleDigit = useCallback((d: string) => {
     if (digits.length >= 6 || loading) return;
     triggerHaptic('light');
     const next = digits + d;
@@ -71,7 +76,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
     if (next.length === 4) {
       void tryLogin(next);
     }
-  };
+  }, [digits, loading, tryLogin]);
 
   // Auto-login si hay PIN guardado
   useEffect(() => {
@@ -98,7 +103,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [digits, loading, tryLogin]);
+  }, [digits, loading, tryLogin, handleDigit]);
 
   const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 
