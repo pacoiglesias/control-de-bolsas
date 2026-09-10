@@ -17,7 +17,13 @@ service firebase.storage {
     }
 
     function isManagerOrAdmin() {
+      // FIX (v9.3.0, 2026-09-10): añadido email_verified para alinear con
+      // isAllowedOwnerEmail() y las reglas de Firestore. Sin esta condición,
+      // un usuario con un token válido pero correo sin verificar que existiera
+      // en /admins/ podría subir archivos a Storage sin haber confirmado su
+      // identidad. Mantiene consistencia con firestore.rules isAuthenticatedUser().
       return request.auth != null
+        && request.auth.token.email_verified == true
         && (
           (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
            && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in ['admin', 'manager'])
@@ -26,7 +32,10 @@ service firebase.storage {
     }
 
     function isAdmin() {
+      // FIX (v9.3.0, 2026-09-10): añadido email_verified por la misma razón
+      // que isManagerOrAdmin() arriba.
       return request.auth != null
+        && request.auth.token.email_verified == true
         && (
           (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) 
            && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')
