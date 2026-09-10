@@ -190,6 +190,18 @@ service cloud.firestore {
       allow update, delete: if isManagerOrAdmin();
     }
 
+    // RIESGO ACEPTADO (documentado — v9.3.0, 2026-09-10):
+    // `allow read: if true` es INTENCIONAL: la pantalla de Login lee este
+    // documento antes de que el usuario se autentique para mostrar el nombre y
+    // logo de la empresa (branding de acceso). Esto expone públicamente campos
+    // de presentación (companyName, logoUrl) a cualquiera que conozca el
+    // projectId de Firebase (que viaja en el HTML público del sitio).
+    //
+    // Campos sensibles (precios, márgenes, claves SAT, datos financieros) deben
+    // guardarse en /config/{docId} (requiere isAuthenticatedUser()) y NUNCA en
+    // este documento. Si en el futuro se implementa multi-tenencia SaaS, crear
+    // una colección separada /branding/{tenantId} para los datos públicos y
+    // mover /system_settings/global a acceso autenticado.
     match /system_settings/global {
       allow read: if true;
       allow write: if isSuperAdmin();
@@ -261,7 +273,19 @@ service cloud.firestore {
     // Notificaciones proactivas
     match /notifications/{notificationId} {
       allow read: if isAuthenticatedUser() && (resource == null || resource.data.userId == request.auth.uid || resource.data.userId == 'todos' || isSuperAdmin());
-      allow create: if isAuthenticatedUser();
+      // FIX (v9.3.0, 2026-09-10): antes "allow create: if isAuthenticatedUser()"
+      // permitía que cualquier usuario autenticado creara notificaciones con
+      // cualquier userId arbitrario — incluso el UID de otro usuario.
+      // Ahora solo puedes crear notificaciones para ti mismo (tu propio uid),
+      // para broadcast ('todos'), o si eres superAdmin. Las Cloud Functions
+      // usan el Admin SDK y no pasan por estas reglas, por lo que las
+      // notificaciones del sistema siguen funcionando sin cambios.
+      allow create: if isAuthenticatedUser()
+        && (
+          request.resource.data.userId == request.auth.uid
+          || request.resource.data.userId == 'todos'
+          || isSuperAdmin()
+        );
       allow update: if isAuthenticatedUser() && (resource.data.userId == request.auth.uid || resource.data.userId == 'todos' || isSuperAdmin());
       allow delete: if isSuperAdmin();
     }
