@@ -3,25 +3,25 @@ import { OFFICIAL_CRS, OFFICIAL_IN_REVIEW } from '../../components/Cobranza/Sinc
 import { round2, computeCommissionFromInvoiceTotal } from '../finance';
 
 describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
-  it('debe sumar exactamente $675,839.76 en los 8 Contrarecibos Oficiales Generados', () => {
+  it('debe sumar exactamente $799,691.80 en los 10 Contrarecibos Oficiales Generados', () => {
     const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
-    expect(totalCrs).toBe(675839.76);
-    expect(OFFICIAL_CRS.length).toBe(8);
+    expect(totalCrs).toBe(799691.80);
+    expect(OFFICIAL_CRS.length).toBe(10);
   });
 
-  it('debe calcular la deuda total de Providencia con las 2 facturas en revisión (F-6224, F-6200) en $799,691.80', () => {
-    const totalCrs = OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0);
+  it('debe calcular la deuda total de Providencia con las 3 facturas en revisión (F-6268, F-6267, F-6266) en $955,277.50', () => {
+    const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
     const totalRevision = Array.isArray(OFFICIAL_IN_REVIEW)
       ? round2(OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0))
       : 0;
     const deudaTotal = round2(totalCrs + totalRevision);
 
-    expect(totalRevision).toBe(123852.04);
-    expect(deudaTotal).toBe(799691.80);
+    expect(totalRevision).toBe(155585.70);
+    expect(deudaTotal).toBe(955277.50);
   });
 
   it('debe calcular la comisión contable (8% sobre subtotal) con precisión milimétrica', () => {
-    const totalConIva = 675839.76;
+    const totalConIva = 799691.80;
     const subtotal = totalConIva / 1.16;
     const comisionEsperada = round2(subtotal * 0.08);
 
@@ -57,7 +57,7 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
 
     // Filtrado estricto
     const validOrders = mockOrders.filter((o: any) => !o.isDeleted);
-    expect(validOrders.length).toBe(8);
+    expect(validOrders.length).toBe(10);
 
     const sumaValidada = round2(
       validOrders.reduce((sum, o) => {
@@ -66,6 +66,6 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
       }, 0)
     );
 
-    expect(sumaValidada).toBe(675839.76);
+    expect(sumaValidada).toBe(799691.80);
   });
 });

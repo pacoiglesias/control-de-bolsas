@@ -11,6 +11,8 @@ import { useToast } from '../../context/ToastContext';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { generateCollectionNotice } from '../../lib/whatsappReminder';
 
+import type { PurchaseOrder, Invoice } from '../../lib/types';
+
 const TONE: Record<string, { color: string; bg: string; border: string; accent: string }> = {
   colRevision: { color: 'var(--ink-soft)', bg: 'var(--paper)', border: 'var(--line-soft)', accent: '#64748b' },
   colPorCobrar: { color: '#dc2626', bg: 'rgba(239, 68, 68, 0.03)', border: 'rgba(239, 68, 68, 0.22)', accent: '#dc2626' },
@@ -18,21 +20,44 @@ const TONE: Record<string, { color: string; bg: string; border: string; accent: 
   colCaja: { color: '#059669', bg: 'rgba(16, 185, 129, 0.03)', border: 'rgba(16, 185, 129, 0.22)', accent: '#059669' },
 };
 
+export interface KanbanCardItem {
+  o: PurchaseOrder;
+  inv: Invoice;
+  d?: number | null;
+  saldo?: number;
+  hasCr?: boolean;
+  cr?: string;
+  _posibleDuplicado?: boolean;
+}
+
+interface KanbanColumns {
+  colRevision: KanbanCardItem[];
+  colPorCobrar: KanbanCardItem[];
+  colContador: KanbanCardItem[];
+  colCaja: KanbanCardItem[];
+  totales: {
+    colRevision: number;
+    colPorCobrar: number;
+    colContador: number;
+    colCaja: number;
+  };
+}
+
 export default function TableroKanban() {
   const { data, money, moveInvoice, deleteOrArchiveInvoice } = useContext(CobranzaContext)!;
   const toast = useToast();
   const [activeTarget, setActiveTarget] = useState<string | null>(null);
-  const [drawerTarget, setDrawerTarget] = useState<{ o: any; inv: any } | null>(null);
-  const [quickCrTarget, setQuickCrTarget] = useState<{ o: any; inv?: any } | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<{ o: PurchaseOrder; inv: Invoice } | null>(null);
+  const [quickCrTarget, setQuickCrTarget] = useState<{ o: PurchaseOrder; inv?: Invoice } | null>(null);
   const { config: dynamicConfig } = useConfig();
 
-  const cols = useMemo(() => {
-    const colRevision: any[] = [];
-    const colPorCobrar: any[] = [];
-    const colContador: any[] = [];
-    const colCaja: any[] = [];
+  const cols = useMemo<KanbanColumns>(() => {
+    const colRevision: KanbanCardItem[] = [];
+    const colPorCobrar: KanbanCardItem[] = [];
+    const colContador: KanbanCardItem[] = [];
+    const colCaja: KanbanCardItem[] = [];
 
-    (data?.lista || []).forEach((x: any) => {
+    ((data?.lista || []) as KanbanCardItem[]).forEach((x) => {
       if (!x) return;
       if (!x.hasCr) {
         colRevision.push(x);
@@ -41,16 +66,16 @@ export default function TableroKanban() {
       }
     });
 
-    (data?.paid || []).forEach((x: any) => {
+    ((data?.paid || []) as KanbanCardItem[]).forEach((x) => {
       if (x) colContador.push(x);
     });
-    (data?.collected || []).forEach((x: any) => {
+    ((data?.collected || []) as KanbanCardItem[]).forEach((x) => {
       if (x) colCaja.push(x);
     });
 
     const FOLIOS_PLACEHOLDER = new Set(['s/n', 'sin folio', '']);
-    const deduplicarColumna = (arr: any[]) => {
-      const seen = new Map<string, any>();
+    const deduplicarColumna = (arr: KanbanCardItem[]): KanbanCardItem[] => {
+      const seen = new Map<string, KanbanCardItem>();
       arr.forEach((x) => {
         const rawFolio = (x.inv?.folio || x.inv?.id || '').trim().toUpperCase();
         const folioValido = !FOLIOS_PLACEHOLDER.has(rawFolio.toLowerCase());
@@ -63,7 +88,7 @@ export default function TableroKanban() {
         if (!seen.has(clave)) {
           seen.set(clave, { ...x, _posibleDuplicado: false });
         } else {
-          const prev = seen.get(clave);
+          const prev = seen.get(clave)!;
           if ((x.saldo || 0) > (prev.saldo || 0) || (x.inv?.kilos || 0) > (prev.inv?.kilos || 0)) {
             seen.set(clave, { ...x, _posibleDuplicado: false });
           }
@@ -77,9 +102,9 @@ export default function TableroKanban() {
     const cleanContador = deduplicarColumna(colContador);
     const cleanCaja = deduplicarColumna(colCaja);
 
-    const sumaSaldo = (arr: any[]) => arr.reduce((acc, x) => acc + (x.saldo ?? 0), 0);
-    const montoFactura = (x: any) => x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0;
-    const sumaMonto = (arr: any[]) => arr.reduce((acc, x) => acc + montoFactura(x), 0);
+    const sumaSaldo = (arr: KanbanCardItem[]) => arr.reduce((acc, x) => acc + (x.saldo ?? 0), 0);
+    const montoFactura = (x: KanbanCardItem) => x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0;
+    const sumaMonto = (arr: KanbanCardItem[]) => arr.reduce((acc, x) => acc + montoFactura(x), 0);
 
     return {
       colRevision: cleanRevision,
@@ -100,7 +125,7 @@ export default function TableroKanban() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const renderCard = (x: any) => {
+  const renderCard = (x: KanbanCardItem) => {
     const o = x.o;
     const inv = x.inv;
     const cr = extractCr(inv, o);
@@ -123,7 +148,7 @@ export default function TableroKanban() {
         whileHover={{ y: -2, boxShadow: '0 8px 24px -4px rgba(15, 23, 42, 0.12)' }}
         key={inv.id}
         draggable
-        onDragStart={(e: any) => onDragStart(e, o.id, inv.id)}
+        onDragStart={(e) => onDragStart(e as unknown as React.DragEvent<HTMLDivElement>, o.id, inv.id)}
         style={{
           background: 'var(--paper-raised, #fff)',
           border: x._posibleDuplicado

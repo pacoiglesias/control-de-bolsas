@@ -1,11 +1,15 @@
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
-interface HealthGaugeDialProps {
-  score: number; // 0 to 100
+export interface HealthGaugeDialProps {
+  /** Puntuación de salud numérica entre 0 y 100 */
+  score: number;
   title?: string;
   subtitle?: string;
   size?: number;
   onClick?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export function HealthGaugeDial({
@@ -14,26 +18,41 @@ export function HealthGaugeDial({
   subtitle = 'Auditoría Continua Centinela',
   size = 140,
   onClick,
+  className = '',
+  style,
 }: HealthGaugeDialProps) {
-  const safeScore = Math.max(0, Math.min(100, Math.round(score)));
-  
-  // Determinación de color armónico según puntuación
-  const getColor = (s: number) => {
-    if (s >= 95) return '#10B981'; // Esmeralda impecable
-    if (s >= 80) return '#3B82F6'; // Azul sólido
-    if (s >= 65) return '#F59E0B'; // Ámbar de atención
-    return '#F43F5E';            // Carmesí crítico
-  };
+  const safeScore = useMemo(() => {
+    if (!Number.isFinite(score) || Number.isNaN(score)) return 0;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }, [score]);
 
-  const color = getColor(safeScore);
+  // Determinación de color armónico según puntuación
+  const { color, label } = useMemo(() => {
+    if (safeScore >= 95) return { color: '#10B981', label: 'Impecable' }; // Esmeralda impecable
+    if (safeScore >= 80) return { color: '#3B82F6', label: 'Óptimo' };    // Azul sólido
+    if (safeScore >= 65) return { color: '#F59E0B', label: 'Revisión' };  // Ámbar de atención
+    return { color: '#F43F5E', label: 'Crítico' };                        // Carmesí crítico
+  }, [safeScore]);
+
   const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
   const circumference = Math.PI * radius; // Semicírculo
   const strokeDashoffset = circumference - (safeScore / 100) * circumference;
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <div
       onClick={onClick}
+      onKeyDown={onClick ? handleKeyDown : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      role={onClick ? 'button' : 'region'}
+      aria-label={`${title}: ${safeScore}% (${label})`}
       style={{
         display: 'inline-flex',
         flexDirection: 'column',
@@ -46,15 +65,24 @@ export function HealthGaugeDial({
         boxShadow: 'var(--shadow)',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        outline: 'none',
+        ...style,
       }}
-      className="health-gauge-card"
+      className={`health-gauge-card ${className}`.trim()}
     >
-      <div style={{ position: 'relative', width: size, height: size / 2 + 16 }}>
+      <div
+        style={{ position: 'relative', width: size, height: size / 2 + 16 }}
+        role="progressbar"
+        aria-valuenow={safeScore}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <svg
           width={size}
           height={size / 2 + 10}
           viewBox={`0 0 ${size} ${size / 2 + 10}`}
           style={{ overflow: 'visible' }}
+          aria-hidden="true"
         >
           {/* Arco de Fondo */}
           <path
@@ -105,8 +133,17 @@ export function HealthGaugeDial({
           >
             {safeScore}%
           </span>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 2 }}>
-            {safeScore === 100 ? 'Impecable' : safeScore >= 80 ? 'Óptimo' : safeScore >= 60 ? 'Revisión' : 'Crítico'}
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginTop: 2,
+            }}
+          >
+            {label}
           </span>
         </div>
       </div>

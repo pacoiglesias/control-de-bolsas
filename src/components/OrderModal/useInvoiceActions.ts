@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { doc, runTransaction, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
@@ -16,163 +17,171 @@ export function useInvoiceActions() {
   const { user } = useAuth();
   const { orders: allOrders } = useOrders();
 
-  async function saveInvoice(order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: FinanceConfigCore) {
-    try {
-      const orderRef = doc(db, PATHS.orders, order.id);
-      const invRef = doc(db, PATHS.invoices, updatedInvoice.id);
+  const saveInvoice = useCallback(
+    async (order: PurchaseOrder, updatedInvoice: Invoice, dynamicConfig: FinanceConfigCore) => {
+      try {
+        const orderRef = doc(db, PATHS.orders, order.id);
+        const invRef = doc(db, PATHS.invoices, updatedInvoice.id);
 
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(orderRef);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) throw new Error('El expediente ya no existe.');
 
-        const currentOrder = snap.data() as PurchaseOrder;
-        const currentInvoices = currentOrder.invoices || [];
-        const index = currentInvoices.findIndex((i) => i.id === updatedInvoice.id);
+          const currentOrder = snap.data() as PurchaseOrder;
+          const currentInvoices = currentOrder.invoices || [];
+          const index = currentInvoices.findIndex((i) => i.id === updatedInvoice.id);
 
-        const crNum = updatedInvoice.collection?.contrareciboNumber?.trim() || '';
-        const folioStr = updatedInvoice.folio?.trim() || '';
-        const finalFolio = crNum && !folioStr ? 'S/N' : folioStr;
+          const crNum = updatedInvoice.collection?.contrareciboNumber?.trim() || '';
+          const folioStr = updatedInvoice.folio?.trim() || '';
+          const finalFolio = crNum && !folioStr ? 'S/N' : folioStr;
 
-        const finalInv = {
-          ...updatedInvoice,
-          folio: finalFolio,
-          financials: computeFinancials(updatedInvoice.kilos, {
-            ...dynamicConfig,
-            salePricePerKg: updatedInvoice.financials?.salePricePerKg || dynamicConfig.salePricePerKg,
-            costPricePerKg: updatedInvoice.financials?.costPricePerKg || dynamicConfig.costPricePerKg,
-            commissionRate: updatedInvoice.financials?.commissionRate || dynamicConfig.commissionRate,
-          }),
-          collection: updatedInvoice.collection
-            ? {
-                ...updatedInvoice.collection,
-                contrareciboNumber: crNum,
-              }
-            : undefined,
-          orderId: order.id,
-          clientId: order.client?.trim() || '',
-          oc: order.oc?.trim() || '',
-          createdAt: updatedInvoice.createdAt || Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        };
+          const finalInv: Invoice = {
+            ...updatedInvoice,
+            folio: finalFolio,
+            financials: computeFinancials(updatedInvoice.kilos, {
+              ...dynamicConfig,
+              salePricePerKg: updatedInvoice.financials?.salePricePerKg || dynamicConfig.salePricePerKg,
+              costPricePerKg: updatedInvoice.financials?.costPricePerKg || dynamicConfig.costPricePerKg,
+              commissionRate: updatedInvoice.financials?.commissionRate || dynamicConfig.commissionRate,
+            }),
+            collection: updatedInvoice.collection
+              ? {
+                  ...updatedInvoice.collection,
+                  contrareciboNumber: crNum,
+                }
+              : undefined,
+            orderId: order.id,
+            client: order.client?.trim() || '',
+            oc: order.oc?.trim() || '',
+            createdAt: updatedInvoice.createdAt || Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          };
 
-        const newInvoicesArray = [...currentInvoices];
-        if (index >= 0) {
-          newInvoicesArray[index] = finalInv;
-        } else {
-          newInvoicesArray.push(finalInv);
-        }
-
-        // Validate duplicates
-        if (finalFolio !== 'S/N') {
-          const upperFolio = finalFolio.toUpperCase();
-          if (currentInvoices.some((x) => x.id !== updatedInvoice.id && x.folio?.toUpperCase() === upperFolio)) {
-            throw new Error(`El folio de factura ${finalFolio} ya está en este expediente.`);
+          const newInvoicesArray = [...currentInvoices];
+          if (index >= 0) {
+            newInvoicesArray[index] = finalInv;
+          } else {
+            newInvoicesArray.push(finalInv);
           }
-          const globalDup = findDuplicateInvoiceFolio(allOrders || [], finalFolio, updatedInvoice.id);
-          if (globalDup && globalDup.orderFolio !== (order.folio || order.oc)) {
-            throw new Error(
-              `🚨 La factura #${finalFolio} ya está registrada en la OC #${globalDup.orderFolio} (${globalDup.client}).`
-            );
+
+          // Validate duplicates
+          if (finalFolio !== 'S/N') {
+            const upperFolio = finalFolio.toUpperCase();
+            if (currentInvoices.some((x) => x.id !== updatedInvoice.id && x.folio?.toUpperCase() === upperFolio)) {
+              throw new Error(`El folio de factura ${finalFolio} ya está en este expediente.`);
+            }
+            const globalDup = findDuplicateInvoiceFolio(allOrders || [], finalFolio, updatedInvoice.id);
+            if (globalDup && globalDup.orderFolio !== (order.folio || order.oc)) {
+              throw new Error(
+                `🚨 La factura #${finalFolio} ya está registrada en la OC #${globalDup.orderFolio} (${globalDup.client}).`
+              );
+            }
           }
-        }
 
-        // Vincular entregas de báscula a la factura
-        const updatedDeliveries = linkDeliveriesToInvoice(
-          currentOrder.deliveries || [],
-          finalInv.id,
-          finalInv.kilos || 0
-        );
+          // Vincular entregas de báscula a la factura
+          const updatedDeliveries = linkDeliveriesToInvoice(
+            currentOrder.deliveries || [],
+            finalInv.id,
+            finalInv.kilos || 0
+          );
 
-        tx.update(orderRef, {
-          deliveries: updatedDeliveries,
-          ...camposInvoices(newInvoicesArray),
-        });
-
-        tx.set(invRef, finalInv, { merge: true });
-      });
-
-      await logAction(user?.email, 'Factura Guardada', {
-        orderId: order.id,
-        folio: updatedInvoice.folio,
-        kilos: updatedInvoice.kilos,
-      });
-
-      toast('Factura guardada correctamente', 'ok');
-    } catch (e: any) {
-      toast(`No se pudo guardar la factura: ${e.message}`, 'bad');
-      throw e;
-    }
-  }
-
-  async function deleteInvoice(order: PurchaseOrder, invoiceId: string) {
-    const invToDelete = (order.invoices || []).find((i) => i.id === invoiceId);
-    const cr = invToDelete?.collection?.contrareciboNumber;
-    const isPaid = invToDelete?.creditCycle?.status === 'paid' || invToDelete?.creditCycle?.status === 'collected';
-
-    let warningMsg = `¿Estás seguro de que deseas eliminar la Factura #${invToDelete?.folio || '(sin folio)'}?`;
-    if (cr || isPaid) {
-      warningMsg = `⚠️ ¡ADVERTENCIA CRÍTICA!\n\nLa Factura #${
-        invToDelete?.folio || '(sin folio)'
-      } ya tiene Contrarecibo (${cr || 'registrado'}) o pagos en caja.\n\nSi la eliminas, alterará las cuentas por cobrar y el historial financiero.\n\nEsta acción quedará registrada en la bitácora de auditoría. ¿Deseas proceder?`;
-    }
-
-    if (!(await confirmDialog({ message: warningMsg, danger: true }))) return;
-
-    try {
-      const orderRef = doc(db, PATHS.orders, order.id);
-      const invRef = doc(db, PATHS.invoices, invoiceId);
-
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(orderRef);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
-
-        const currentOrder = snap.data() as PurchaseOrder;
-        const currentInvoices = currentOrder.invoices || [];
-        const newInvoicesArray = currentInvoices.filter((i) => i.id !== invoiceId);
-
-        // Desvincular entregas asociadas a la factura eliminada
-        const updatedDeliveries = unmarkDeliveriesByInvoiceId(
-          currentOrder.deliveries || [],
-          invoiceId
-        );
-
-        if (
-          newInvoicesArray.length === 0 &&
-          (!currentOrder.items || currentOrder.items.length === 0 || currentOrder.creditCycle?.status !== 'pedido')
-        ) {
-          tx.update(orderRef, {
-            isDeleted: true,
-            deletedAt: serverTimestamp(),
-            deletedBy: user?.email || 'admin@sistema',
-            deliveries: updatedDeliveries,
-            ...camposInvoices([]),
-          });
-        } else {
           tx.update(orderRef, {
             deliveries: updatedDeliveries,
             ...camposInvoices(newInvoicesArray),
           });
-        }
 
-        tx.delete(invRef);
-      });
+          tx.set(invRef, finalInv, { merge: true });
+        });
 
-      await logAction(user?.email, 'Factura Eliminada', {
-        orderId: order.id,
-        orderFolio: order.folio,
-        invoiceId,
-        folio: invToDelete?.folio,
-        kilos: invToDelete?.kilos,
-        total: invToDelete?.financials?.invoiceTotal,
-        cr: invToDelete?.collection?.contrareciboNumber,
-      });
+        await logAction(user?.email, 'Factura Guardada', {
+          orderId: order.id,
+          folio: updatedInvoice.folio,
+          kilos: updatedInvoice.kilos,
+        });
 
-      toast('Factura eliminada', 'ok');
-    } catch (e: any) {
-      toast(`No se pudo eliminar la factura: ${e.message}`, 'bad');
-      throw e;
-    }
-  }
+        toast('Factura guardada correctamente', 'ok');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast(`No se pudo guardar la factura: ${msg}`, 'bad');
+        throw e;
+      }
+    },
+    [allOrders, user?.email, toast]
+  );
+
+  const deleteInvoice = useCallback(
+    async (order: PurchaseOrder, invoiceId: string) => {
+      const invToDelete = (order.invoices || []).find((i) => i.id === invoiceId);
+      const cr = invToDelete?.collection?.contrareciboNumber;
+      const isPaid = invToDelete?.creditCycle?.status === 'paid' || invToDelete?.creditCycle?.status === 'collected';
+
+      let warningMsg = `¿Estás seguro de que deseas eliminar la Factura #${invToDelete?.folio || '(sin folio)'}?`;
+      if (cr || isPaid) {
+        warningMsg = `⚠️ ¡ADVERTENCIA CRÍTICA!\n\nLa Factura #${
+          invToDelete?.folio || '(sin folio)'
+        } ya tiene Contrarecibo (${cr || 'registrado'}) o pagos en caja.\n\nSi la eliminas, alterará las cuentas por cobrar y el historial financiero.\n\nEsta acción quedará registrada en la bitácora de auditoría. ¿Deseas proceder?`;
+      }
+
+      if (!(await confirmDialog({ message: warningMsg, danger: true }))) return;
+
+      try {
+        const orderRef = doc(db, PATHS.orders, order.id);
+        const invRef = doc(db, PATHS.invoices, invoiceId);
+
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(orderRef);
+          if (!snap.exists()) throw new Error('El expediente ya no existe.');
+
+          const currentOrder = snap.data() as PurchaseOrder;
+          const currentInvoices = currentOrder.invoices || [];
+          const newInvoicesArray = currentInvoices.filter((i) => i.id !== invoiceId);
+
+          // Desvincular entregas asociadas a la factura eliminada
+          const updatedDeliveries = unmarkDeliveriesByInvoiceId(
+            currentOrder.deliveries || [],
+            invoiceId
+          );
+
+          if (
+            newInvoicesArray.length === 0 &&
+            (!currentOrder.items || currentOrder.items.length === 0 || currentOrder.creditCycle?.status !== 'pedido')
+          ) {
+            tx.update(orderRef, {
+              isDeleted: true,
+              deletedAt: serverTimestamp(),
+              deletedBy: user?.email || 'admin@sistema',
+              deliveries: updatedDeliveries,
+              ...camposInvoices([]),
+            });
+          } else {
+            tx.update(orderRef, {
+              deliveries: updatedDeliveries,
+              ...camposInvoices(newInvoicesArray),
+            });
+          }
+
+          tx.delete(invRef);
+        });
+
+        await logAction(user?.email, 'Factura Eliminada', {
+          orderId: order.id,
+          orderFolio: order.folio,
+          invoiceId,
+          folio: invToDelete?.folio,
+          kilos: invToDelete?.kilos,
+          total: invToDelete?.financials?.invoiceTotal,
+          cr: invToDelete?.collection?.contrareciboNumber,
+        });
+
+        toast('Factura eliminada', 'ok');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast(`No se pudo eliminar la factura: ${msg}`, 'bad');
+        throw e;
+      }
+    },
+    [user?.email, toast]
+  );
 
   return { saveInvoice, deleteInvoice };
 }
