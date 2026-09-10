@@ -8,7 +8,7 @@
  */
 
 // ---------------------------------------------------------------------------
-// Cartera Oficial Activa — 8 Contrarecibos Canónicos de Providencia
+// Cartera Oficial Activa — 10 Contrarecibos Canónicos de Providencia
 // ---------------------------------------------------------------------------
 
 /** Folios de contrarecibo activos en cartera. Actualizar aquí y en ningún otro lugar. */
@@ -27,14 +27,24 @@ export const OFFICIAL_VALID_CRS = [
 
 export type OfficialCR = (typeof OFFICIAL_VALID_CRS)[number];
 
+/** Contrarecibos Oficiales Ya Pagados por Providencia */
+export const OFFICIAL_PAID_CRS_LIST = [
+  'TH-836',
+  'TH-804',
+  'TH-768',
+  'TH-739',
+  'TH-713',
+] as const;
+
 // ---------------------------------------------------------------------------
-// Órdenes de Compra Maestras de Providencia
+// Órdenes de Compra Maestras y Oficiales de Providencia
 // ---------------------------------------------------------------------------
 
 export const OC_TH_NAVA = '120267114114';    // Textil Hogar — Nava / Torre Lamuño
 export const OC_GT_EVELIA = '12026439713';   // Grupo Textil — Evelia / P4
+export const OC_GT_NEW = '12026439753';      // Grupo Textil — P4-ALM (No. Ord. 43/9753 · 4,500 kg)
 
-export const MASTER_OCS = [OC_TH_NAVA, OC_GT_EVELIA] as const;
+export const MASTER_OCS = [OC_TH_NAVA, OC_GT_EVELIA, OC_GT_NEW] as const;
 
 /** Detecta si un string corresponde a la OC maestra de TH */
 export function isOcTH(s: string): boolean {
@@ -42,10 +52,10 @@ export function isOcTH(s: string): boolean {
   return clean.includes('14114') || clean.includes('120267114114');
 }
 
-/** Detecta si un string corresponde a la OC maestra de GT */
+/** Detecta si un string corresponde a una OC oficial de GT */
 export function isOcGT(s: string): boolean {
   const clean = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return clean.includes('9713') || clean.includes('12026439713');
+  return clean.includes('9713') || clean.includes('12026439713') || clean.includes('9753') || clean.includes('12026439753');
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +84,7 @@ export const CARTERA_OFICIAL = [
   { cr: 'GT-742', monto:  54520.00, factura: 'F-6073', dept: DEPT_GT },
   { cr: 'TH-879', monto: 136300.00, factura: 'F-6097/F-6098', dept: DEPT_TH },
   { cr: 'TH-912', monto:  79826.00, factura: 'F-6159', dept: DEPT_TH },
-  { cr: 'TH-946', monto:  81780.00, factura: 'F-6173', dept: DEPT_TH },
+  { cr: 'TH-946', monto:  81780.00, factura: 'F-6167', dept: DEPT_TH },
   { cr: 'TH-990', monto:  98054.60, factura: 'F-6198', dept: DEPT_TH },
   { cr: 'GT-874', monto:  49880.00, factura: 'F-6193', dept: DEPT_GT },
   { cr: 'GT-904', monto:  49032.04, factura: 'F-6224', dept: DEPT_GT },
@@ -105,9 +115,6 @@ export const SEED_BLACKLIST = [
   '14014',
   'GT-597',
   'GT-624',
-  'TH-768',
-  'TH-804',
-  'TH-836',
 ] as const;
 
 /** Verifica si un ID/folio pertenece a la lista negra de seeds */

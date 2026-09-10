@@ -69,7 +69,7 @@ export const OFFICIAL_ACTIVE_CRS = [
     due: '2026-09-16',
     dept: 'TH',
     invoices: [
-      { folio: '6173', control: '8 / 654', total: 81780.00, kilos: 1639.55 }
+      { folio: '6167', control: '8 / 654', total: 81780.00, kilos: 1639.55 }
     ]
   },
   {
@@ -148,19 +148,18 @@ export async function autoHealAndPurgeErpDatabase(
     if (canonicalKey.startsWith('SEED-')) canonicalKey = canonicalKey.replace('SEED-', '');
     if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
 
-    // 🛡️ PURGA SEGURA: Eliminar documentos que son semillas/dummies conocidos o CRs obsoletos.
-    // NUNCA borrar OCs nuevas con status 'pedido' — pueden ser expedientes reales recién creados.
+    // 🛡️ PURGA SEGURA: Eliminar documentos que son semillas/dummies conocidos de prueba.
+    // NUNCA borrar OCs nuevas reales ni contrarecibos oficiales activos o pagados.
     const SEED_PATTERNS = [
       'ANDRES-PEND', '120267114014', '71/14014', '71-14014',
       'SEED-', 'DUMMY-', 'TEST-',
-      'GT-597', 'GT-624', 'TH-768', 'TH-804', 'TH-836',
-      'CR-GT-651', 'CR-GT-713', 'CR-GT-742', 'CR-TH-879', 'CR-TH-912', 'CR-TH-946'
+      'GT-597',
     ];
     const isSeed = (val: string) => SEED_PATTERNS.some(p => val.toUpperCase().includes(p.toUpperCase()));
     const isNewValidOc = data.status === 'pedido' || data.status === 'en_produccion';
     const isKnownSeed = isSeed(d.id) || isSeed(data.oc || '') || isSeed(data.folio || '');
 
-    // Solo purgar si es un seed o CR obsoleto conocido (nunca si es OC nueva válida)
+    // Solo purgar si es un seed de prueba conocido (nunca si es OC nueva válida)
     if (isKnownSeed && !isNewValidOc) {
       batch.delete(doc(db, PATHS.orders, d.id));
       purgedCount++;

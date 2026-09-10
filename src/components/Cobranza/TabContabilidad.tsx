@@ -2,6 +2,13 @@ import { useContext } from 'react';
 import CobranzaContext from './CobranzaContext';
 import { Card, Empty } from '../ui';
 
+interface CRGroup {
+  cr: string;
+  client: string;
+  totalVenta: number;
+  comisionContador: number;
+}
+
 export default function TabContabilidad() {
   const { data, money, liquidateAccountantBlock } = useContext(CobranzaContext)!;
   const unliquidatedCrs = data.unliquidatedCrs;
@@ -44,7 +51,7 @@ export default function TabContabilidad() {
                     </tr>
                   </thead>
                   <tbody>
-                    {unliquidatedCrs.map((grp: any) => (
+                    {unliquidatedCrs.map((grp: CRGroup) => (
                       <tr key={grp.cr}>
                         <td className="mono" style={{ fontWeight: 800 }}>{grp.cr}</td>
                         <td>{grp.client}</td>
@@ -68,7 +75,7 @@ export default function TabContabilidad() {
                     <tr>
                       <td colSpan={3} style={{ textAlign: 'right', fontWeight: 700 }}>TOTAL PENDIENTE:</td>
                       <td className="num mono" style={{ fontWeight: 800, color: 'var(--bad)', fontSize: 14 }}>
-                        {money(unliquidatedCrs.reduce((a: number, b: any) => a + b.comisionContador, 0))}
+                        {money(unliquidatedCrs.reduce((a: number, b: CRGroup) => a + b.comisionContador, 0))}
                       </td>
                       <td></td>
                     </tr>
@@ -94,7 +101,7 @@ export default function TabContabilidad() {
                     </tr>
                   </thead>
                   <tbody>
-                    {liquidatedCrs.map((grp: any) => (
+                    {liquidatedCrs.map((grp: CRGroup) => (
                       <tr key={grp.cr}>
                         <td className="mono" style={{ fontWeight: 700 }}>{grp.cr}</td>
                         <td>{grp.client}</td>

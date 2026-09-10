@@ -26,36 +26,56 @@ export interface OfficialCrRecord {
 export const OFFICIAL_CRS: OfficialCrRecord[] = [
   {
     no: 1,
+    cr: 'GT-904',
+    issueDate: '2026-08-31',
+    dueDate: '2026-09-30',
+    total: 49032.04,
+    status: 'GENERADO',
+    department: 'GT',
+    invoicesDetails: [{ folio: '6224', controlInterno: '2 / 303', amount: 49032.04 }],
+  },
+  {
+    no: 2,
+    cr: 'TH-1030',
+    issueDate: '2026-08-31',
+    dueDate: '2026-09-30',
+    total: 74820.00,
+    status: 'GENERADO',
+    department: 'TH',
+    invoicesDetails: [{ folio: '6200', controlInterno: '8 / 712', amount: 74820.00 }],
+  },
+  {
+    no: 3,
     cr: 'GT-874',
     issueDate: '2026-08-24',
     dueDate: '2026-09-23',
     total: 49880.00,
     status: 'GENERADO',
     department: 'GT',
-    invoicesDetails: [{ folio: '6224', controlInterno: '2 / 280', amount: 49880.00 }],
+    invoicesDetails: [{ folio: '6193', controlInterno: '2 / 295', amount: 49880.00 }],
   },
   {
-    no: 2,
+    no: 4,
     cr: 'TH-990',
     issueDate: '2026-08-24',
     dueDate: '2026-09-23',
     total: 98054.60,
     status: 'GENERADO',
     department: 'TH',
-    invoicesDetails: [{ folio: '6198', controlInterno: '8 / 655', amount: 98054.60 }],
+    invoicesDetails: [{ folio: '6198', controlInterno: '8 / 678', amount: 98054.60 }],
   },
   {
-    no: 3,
+    no: 5,
     cr: 'TH-946',
     issueDate: '2026-08-17',
     dueDate: '2026-09-16',
     total: 81780.00,
     status: 'GENERADO',
     department: 'TH',
-    invoicesDetails: [{ folio: '6173', controlInterno: '8 / 645', amount: 81780.00 }],
+    invoicesDetails: [{ folio: '6167', controlInterno: '8 / 654', amount: 81780.00 }],
   },
   {
-    no: 4,
+    no: 6,
     cr: 'TH-912',
     issueDate: '2026-08-10',
     dueDate: '2026-09-09',
@@ -65,7 +85,7 @@ export const OFFICIAL_CRS: OfficialCrRecord[] = [
     invoicesDetails: [{ folio: '6159', controlInterno: '8 / 630', amount: 79826.00 }],
   },
   {
-    no: 5,
+    no: 7,
     cr: 'TH-879',
     issueDate: '2026-08-03',
     dueDate: '2026-09-02',
@@ -78,7 +98,7 @@ export const OFFICIAL_CRS: OfficialCrRecord[] = [
     ],
   },
   {
-    no: 6,
+    no: 8,
     cr: 'GT-742',
     issueDate: '2026-07-20',
     dueDate: '2026-08-19',
@@ -88,7 +108,7 @@ export const OFFICIAL_CRS: OfficialCrRecord[] = [
     invoicesDetails: [{ folio: '6073', controlInterno: '2 / 260', amount: 54520.00 }],
   },
   {
-    no: 7,
+    no: 9,
     cr: 'GT-713',
     issueDate: '2026-07-13',
     dueDate: '2026-08-12',
@@ -98,7 +118,7 @@ export const OFFICIAL_CRS: OfficialCrRecord[] = [
     invoicesDetails: [{ folio: '6053', controlInterno: '2 / 249', amount: 69001.60 }],
   },
   {
-    no: 8,
+    no: 10,
     cr: 'GT-651',
     issueDate: '2026-06-29',
     dueDate: '2026-07-29',
@@ -115,14 +135,36 @@ export const OFFICIAL_PAID_CRS: OfficialCrRecord[] = [
   { no: 3, cr: 'TH-768', issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, status: 'PAGADO', department: 'TH' },
   { no: 4, cr: 'TH-739', issueDate: '2026-07-06', dueDate: '2026-08-05', total: 109040.00, status: 'PAGADO', department: 'TH' },
   { no: 5, cr: 'TH-713', issueDate: '2026-06-29', dueDate: '2026-07-29', total: 108647.46, status: 'PAGADO', department: 'TH' },
-  { no: 6, cr: 'GT-624', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00,  status: 'PAGADO', department: 'GT' },
-  { no: 7, cr: 'TH-680', issueDate: '2026-06-22', dueDate: '2026-07-22', total: 80970.38,  status: 'PAGADO', department: 'TH' },
 ];
 
 export const OFFICIAL_IN_REVIEW = [
-  { folio: '6224', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 49032.04, department: 'GT', dateStr: '2026-08-26', kilos: 983.00, uuid: '' },
-  { folio: '6200', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 74820.00, department: 'TH', dateStr: '2026-08-24', kilos: 1500.00, uuid: '771D692B-0BCF-480C-B2CA-40A48E996BA9' },
+  { folio: '6268', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 48583.12, department: 'GT' as const, dateStr: '2026-09-01', kilos: 974.00, uuid: '' },
+  { folio: '6267', oc: '12026439713', client: 'Grupo Textil Providencia - GT', total: 34916.00, department: 'GT' as const, dateStr: '2026-09-01', kilos: 700.00, uuid: '' },
+  { folio: '6266', oc: '120267114114', client: 'Grupo Textil Providencia - TH', total: 72086.58, department: 'TH' as const, dateStr: '2026-09-01', kilos: 1445.20, uuid: '' },
 ];
+
+export const OFFICIAL_NEW_OC = {
+  oc: '12026439753',
+  folio: '43/9753',
+  client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+  rfc: 'GTP930115PU1',
+  deliveryPlace: 'ELEMENTAL DENIM',
+  department: 'GT' as const,
+  departmentSub: 'P4-ALM',
+  issueDate: '2026-09-02',
+  deliveryDate: '2026-09-11',
+  creditDays: 30,
+  subtotal: 193500.00,
+  iva: 30960.00,
+  total: 224460.00,
+  totalKilograms: 4500.00,
+  items: [
+    { id: 'it-oc-9753-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1500, unitPrice: 43.0, amount: 64500.0, unit: 'Kilos' },
+    { id: 'it-oc-9753-2', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
+    { id: 'it-oc-9753-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
+    { id: 'it-oc-9753-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
+  ],
+};
 
 export function SincronizadorOficialModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
   const toast = useToast();
@@ -151,17 +193,29 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
       if (purgeOldOrders) {
         addLog('🧹 Limpiando expedientes de prueba antiguos...');
         const officialCrSet = new Set(OFFICIAL_CRS.map(c => c.cr.toUpperCase().trim()));
-        for (const o of orders) {
-          const oCr = (o.collection?.contrareciboNumber || o.folio || o.oc || '').toUpperCase().trim();
-          const hasMatchingCr = (o.invoices || []).some(i => officialCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim())) || officialCrSet.has(oCr);
-          const is6167 = (o.folio === '6167' || o.oc === '120267114014' || (o.invoices || []).some(i => i.folio === '6167'));
-          const isInReview = Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.some(item => 
-            o.oc === item.oc || o.folio === item.oc || o.folio === item.folio || (o.invoices || []).some(i => i.folio === item.folio)
-          );
+        const officialPaidCrSet = new Set(OFFICIAL_PAID_CRS.map(p => p.cr.toUpperCase().trim()));
+        const officialInReviewFolios = new Set(OFFICIAL_IN_REVIEW.map(r => r.folio));
+        const officialInReviewOcs = new Set(OFFICIAL_IN_REVIEW.map(r => r.oc));
 
-          if (!hasMatchingCr && !is6167 && !isInReview) {
+        for (const o of orders) {
+          if ((o as any).isDeleted) continue;
+          const oCr = (o.collection?.contrareciboNumber || o.folio || o.oc || '').toUpperCase().trim();
+          const hasMatchingCr = officialCrSet.has(oCr) || (o.invoices || []).some(i => officialCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim()));
+          const hasMatchingPaidCr = officialPaidCrSet.has(oCr) || (o.invoices || []).some(i => officialPaidCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim()));
+          const isInReview = officialInReviewOcs.has(o.oc || '') || officialInReviewFolios.has(o.folio || '') || (o.invoices || []).some(i => officialInReviewFolios.has(i.folio || ''));
+          const isOfficialOc = o.oc === '12026439753' || o.folio === '43/9753' || o.oc === '12026439713' || o.oc === '120267114114';
+          const isFactura6167 = o.folio === '6167' || (o.invoices || []).some(i => i.folio === '6167');
+          const orderStatuses = o.invoiceStatuses || (o.creditCycle ? [o.creditCycle.status] : []);
+          const isRealActiveOrder = (orderStatuses.includes('pedido') || orderStatuses.includes('en_produccion')) && (o.totalKilograms ?? 0) > 0;
+
+          if (!hasMatchingCr && !hasMatchingPaidCr && !isInReview && !isOfficialOc && !isFactura6167 && !isRealActiveOrder) {
             try {
-              await updateDoc(doc(db, PATHS.orders, o.id), { isDeleted: true, updatedAt: serverTimestamp() });
+              await updateDoc(doc(db, PATHS.orders, o.id), {
+                isDeleted: true,
+                deletedAt: serverTimestamp(),
+                deleteReason: 'Purga de expediente no perteneciente a cartera oficial',
+                updatedAt: serverTimestamp()
+              });
               addLog(`🗑️ Archivado expediente obsoleto: ${o.folio || o.oc || o.id}`);
             } catch (e: any) {
               console.error(e);
@@ -435,20 +489,21 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
           const deliveriesList = items.map(inv => {
             const iDate = new Date(`${inv.dateStr}T12:00:00`);
-            const delivItems = inv.folio === '6198'
+            const delivItems = inv.folio === '6266'
               ? [
-                  { itemId: 'it-th-1', quantity: 990.16 },
-                  { itemId: 'it-th-3', quantity: 975.65 },
+                  { itemId: 'it-th-1', quantity: 500.0 },
+                  { itemId: 'it-th-2', quantity: 500.0 },
+                  { itemId: 'it-th-3', quantity: 445.2 },
                 ]
-              : inv.folio === '6200'
+              : inv.folio === '6267'
               ? [
-                  { itemId: 'it-th-2', quantity: 1000.0 },
-                  { itemId: 'it-th-4', quantity: 500.0 },
+                  { itemId: 'it-gt-1', quantity: 400.0 },
+                  { itemId: 'it-gt-2', quantity: 300.0 },
                 ]
-              : inv.folio === '6193'
+              : inv.folio === '6268'
               ? [
-                  { itemId: 'it-gt-1', quantity: 500.0 },
-                  { itemId: 'it-gt-2', quantity: 500.0 },
+                  { itemId: 'it-gt-3', quantity: 474.0 },
+                  { itemId: 'it-gt-4', quantity: 500.0 },
                 ]
               : [];
 
@@ -510,6 +565,38 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           };
           await setDoc(doc(db, PATHS.purchases, orderId), purchaseDoc, { merge: true });
         }
+      }
+
+      // 4. Sincronizar Nueva Orden de Compra Oficial (OC 12026439753 - No. 43/9753)
+      const newOcId = `oc-${OFFICIAL_NEW_OC.oc}`;
+      const existingNewOc = await getDoc(doc(db, PATHS.orders, newOcId));
+      if (!existingNewOc.exists() || !existingNewOc.data()?.isDeleted) {
+        const issueTs = Timestamp.fromDate(new Date(`${OFFICIAL_NEW_OC.issueDate}T12:00:00`));
+        const deliveryTs = Timestamp.fromDate(new Date(`${OFFICIAL_NEW_OC.deliveryDate}T12:00:00`));
+        
+        const newOcDoc: any = {
+          id: newOcId,
+          folio: OFFICIAL_NEW_OC.folio,
+          oc: OFFICIAL_NEW_OC.oc,
+          client: OFFICIAL_NEW_OC.client,
+          department: OFFICIAL_NEW_OC.departmentSub,
+          totalKilograms: OFFICIAL_NEW_OC.totalKilograms,
+          customSellPrice: 43,
+          customCostPrice: 38,
+          status: 'pedido',
+          items: OFFICIAL_NEW_OC.items,
+          invoices: existingNewOc.exists() ? existingNewOc.data()?.invoices || [] : [],
+          deliveries: existingNewOc.exists() ? existingNewOc.data()?.deliveries || [] : [],
+          creditCycle: {
+            status: 'pedido',
+            issueDate: issueTs,
+            dueDate: deliveryTs,
+          },
+          createdAt: issueTs,
+          updatedAt: serverTimestamp(),
+        };
+        await setDoc(doc(db, PATHS.orders, newOcId), newOcDoc, { merge: true });
+        addLog(`✨ Nueva OC ${OFFICIAL_NEW_OC.oc} (${OFFICIAL_NEW_OC.folio}): 4,500 kg registrados en estatus 'pedido'.`);
       }
 
       // 2.1 Actualizar saldo histórico con Andrés solo si no está configurado
