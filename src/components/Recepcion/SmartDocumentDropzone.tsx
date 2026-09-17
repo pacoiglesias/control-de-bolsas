@@ -48,6 +48,9 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const handleFileProcessRef = useRef<(file: File) => Promise<void>>(async () => {});
+  const handleTextProcessRef = useRef<(text: string) => void>(() => {});
+
   // Escuchar evento de Pegado Global (Ctrl + V)
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
@@ -61,7 +64,7 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
         if (e.clipboardData.files && e.clipboardData.files.length > 0) {
           const file = e.clipboardData.files[0];
           e.preventDefault();
-          handleFileProcess(file);
+          handleFileProcessRef.current(file);
           return;
         }
 
@@ -69,7 +72,7 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
         const text = e.clipboardData.getData('text');
         if (text && text.trim().length > 10) {
           e.preventDefault();
-          handleTextProcess(text);
+          handleTextProcessRef.current(text);
         }
       }
     };
@@ -356,6 +359,8 @@ export function SmartDocumentDropzone({ onDocumentProcessed }: SmartDocumentDrop
       setStatusMessage('');
     }
   };
+  handleFileProcessRef.current = handleFileProcess;
+  handleTextProcessRef.current = handleTextProcess;
 
   return (
     <div ref={containerRef} style={{ width: '100%' }}>

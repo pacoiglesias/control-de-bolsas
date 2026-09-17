@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { collection, query, where, limit, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
@@ -22,7 +22,7 @@ export default function Papelera() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function cargar() {
+  const cargar = useCallback(async () => {
     setLoading(true);
     try {
       const q = query(collection(db, PATHS.orders), where('isDeleted', '==', true), limit(100));
@@ -33,11 +33,11 @@ export default function Papelera() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
 
   useEffect(() => {
     void cargar();
-  }, []);
+  }, [cargar]);
 
   async function restaurar(item: any) {
     triggerHaptic('light');

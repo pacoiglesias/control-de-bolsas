@@ -66,7 +66,6 @@ export function generateExecutiveOnePagerPdf({
   let totalPorCobrar = 0;
   let totalKilosPedidos = 0;
   let totalKilosEntregados = 0;
-  let totalKilosFacturados = 0;
   let thPedidos = 0;
   let thEntregados = 0;
   let thFacturado = 0;
@@ -85,7 +84,6 @@ export function generateExecutiveOnePagerPdf({
 
     totalKilosPedidos += ped;
     totalKilosEntregados += s.kilosDelivered;
-    totalKilosFacturados += s.kilosInvoiced;
     totalPorCobrar += Math.max(0, s.invoiceTotal - s.paidAmount);
 
     if (dept === 'TH') {

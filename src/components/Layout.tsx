@@ -115,7 +115,7 @@ export default function Layout() {
       window.removeEventListener('open-command-menu', handleOpenCommand);
       window.removeEventListener('open-shortcuts-modal', handleOpenShortcuts);
     };
-  }, []);
+  }, [toast]);
 
   const navItems = useMemo<NavItem[]>(() => [
     { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },

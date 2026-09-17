@@ -320,10 +320,15 @@ export interface PurchaseOrder {
   customSellPrice?: number;
   customCommissionRate?: number;
 
+  createdAt?: AnyFirestoreDate;
   processedAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
   aiError?: string;
   isClosedShort?: boolean;
+  /** Marca de borrado suave (soft-delete). Cuando es true el expediente se
+   *  excluye de Analytics, Dashboard y listas operativas, pero persiste en
+   *  Firestore para auditoría. */
+  isDeleted?: boolean;
   /** Metadatos de auditoría criptográfica y trazabilidad */
   audit?: AuditMetadata;
 }

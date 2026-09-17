@@ -25,7 +25,7 @@ export function triggerCelebrationConfetti() {
       colors: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'],
       disableForReducedMotion: true,
     });
-  } catch (err) {
+  } catch {
     // Si canvas-confetti no está disponible o falla, fallar silenciosamente
   }
 }

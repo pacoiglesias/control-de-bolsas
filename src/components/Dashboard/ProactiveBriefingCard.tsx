@@ -29,7 +29,7 @@ export function ProactiveBriefingCard({
   config,
   onOpenQuickInvoice,
   onOpenQuickCollection,
-  onOpenOrder,
+  onOpenOrder: _onOpenOrder,
 }: ProactiveBriefingCardProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -135,7 +135,7 @@ export function ProactiveBriefingCard({
     }
 
     return items;
-  }, [orders, saleKg, ivaRate, onOpenQuickInvoice, onOpenQuickCollection, onOpenOrder]);
+  }, [orders, saleKg, ivaRate, onOpenQuickInvoice, onOpenQuickCollection]);
 
   if (proactiveActions.length === 0) return null;
 

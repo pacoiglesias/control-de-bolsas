@@ -84,6 +84,7 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
       triggerHaptic('success');
       toast(`OC ${order.folio || order.oc} marcada como entrega concluida`, 'ok');
     } catch (err: any) {
+      console.error('[DeliveryDueBanner] Error al actualizar estatus:', err);
       toast('Error al actualizar estatus', 'bad');
     }
   };
