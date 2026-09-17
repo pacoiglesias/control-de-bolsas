@@ -1,5 +1,25 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.4.0] - 17 Septiembre 2026 (Tríada Proactiva: Auto-Captura de Contrarecibos, Ingesta Masiva & ZIP, Alerta Facturas Huérfanas >72h con WhatsApp 1-Clic, y Semáforo 3-Way Matching)
+
+### 🔖 Ingestión Autónoma de Contrarecibos (CR)
+- **Auto-Detección y Asignación Zero-Manual:** Al subir el PDF o pegar el texto/HTML del portal de Providencia (e.g. `apps.mundoprovidencia.com`), el dropzone extrae el número de Contrarecibo (`TH-XXXX`, `GT-XXXX`), folios de facturas amparadas, importe total y fecha estimada de pago.
+- **`executeAutoAssignContrarecibo`:** Asigna automáticamente el CR a cada factura amparada en los expedientes de Firestore, fija la fecha de pago y actualiza el estado a `'in_review'` en cartera con confeti y toast explicativo.
+- **Protocolo de Duda Interactiva para CRs:** Si alguna factura no se encuentra en el padrón activo, despliega el modal interactivo de duda permitiendo asignar el CR manualmente a cualquier expediente o cancelarlo.
+
+### 📦 Ingesta Masiva en Lote y Soporte Nativo de Archivos ZIP (.zip)
+- **Descompresión en Memoria con `JSZip`:** El dropzone ahora acepta arrastrar directamente archivos `.zip` (e.g. facturas del mes descargadas del SAT). Los PDFs y XMLs contenidos se extraen en memoria en milisegundos sin subirlos a servidores externos.
+- **Motor de Procesamiento en Paralelo con Auto-Ejecución:** Cada documento del lote es evaluado por el motor autónomo, ejecutando de forma atómica altas de OCs, vinculaciones de facturas y asignaciones de contrarecibos, con resumen consolidado al terminar.
+
+### 🚨 Centinela de Facturas Huérfanas de Contrarecibo (> 72 horas)
+- **Alerta Proactiva en Dashboard:** Monitoreo en vivo de facturas con más de 3 días hábiles de emitidas y entregadas que carecen de número de Contrarecibo en el portal de Providencia.
+- **Botón WhatsApp 1-Clic para Reclamar:** Redacción automática del mensaje institucional para el Lic. José Nava Flores (TH) o la Lic. Evelia (GT) con el desglose tabular de folios, kilos, importes y días transcurridos.
+
+### 🔗 Semáforo Visual de Conciliación de 3 Vías (3-Way Matching)
+- **`ThreeWayMatchingBadge.tsx`:** Componente visual integrado en los pods ejecutivos del Dashboard que monitorea la salud completa de cada expediente: `OC Providencia` ➔ `Báscula Patio` ➔ `Factura CFDI` ➔ `Contrarecibo CR` ➔ `Cobro / Banco`.
+
+---
+
 ## [v9.3.0] - 17 Septiembre 2026 (Motor Autónomo de Ingestión de Documentos + Protocolo de Duda Interactiva + Alta OC 12026439774)
 
 ### ⚡ Motor Autónomo de Captura de Documentos (Zero-Manual)

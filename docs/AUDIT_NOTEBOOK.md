@@ -1,3 +1,22 @@
+### Iteración 110: Tríada Proactiva (Auto-Captura de Contrarecibos, Ingesta Masiva & ZIP, Centinela Facturas Huérfanas >72h y Semáforo 3-Way Matching)
+[2026-09-17]
+Archivos: `src/lib/autoDocumentProcessor.ts`, `src/lib/providenciaPortalParser.ts`, `src/components/Recepcion/SmartDocumentDropzone.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/components/ui/ThreeWayMatchingBadge.tsx`, `src/lib/__tests__/autoDocumentProcessor.test.ts`
+Problema: 
+1. Los Contrarecibos de Providencia requerían asignación manual posterior al timbrado.
+2. El dropzone solo procesaba archivos individuales y no permitía arrastrar archivos `.zip` de facturas del mes ni lotes masivos con auto-ejecución en base de datos.
+3. No existía una alerta proactiva cuando una factura emitida superaba los 3 días hábiles sin que Providencia genere el Contrarecibo en su portal de proveedores.
+4. Faltaba un indicador visual de 3-Way Matching (OC ➔ Báscula ➔ Factura ➔ Contrarecibo ➔ Pago) en el cockpit de atención prioritaria.
+Solución:
+1. **Auto-Captura y Asignación de Contrarecibos:** Extracción y vinculación inmediata de folios `TH-XXXX` y `GT-XXXX`, fechas de pago e importes hacia las facturas amparadas en Firestore mediante `executeAutoAssignContrarecibo`.
+2. **Soporte Masivo Multi-Archivo & ZIP (.zip):** Descompresión en memoria con `JSZip` y evaluación/ejecución autónoma de cada documento en paralelo con resumen consolidado y cola de dudas interactiva.
+3. **Centinela de Facturas Huérfanas (> 72 hrs):** Detección automática en `ExecutivePriorityAlerts.tsx` con botón 1-clic para reclamar formalmente por WhatsApp a Lic. José Nava Flores (TH) o Lic. Evelia (GT).
+4. **Semáforo 3-Way Matching:** Componente `ThreeWayMatchingBadge.tsx` integrado en Pod 1 y Pod 2 que visualiza en tiempo real la salud de la cadena comercial.
+Riesgo: 🟢 Cero — Cálculos financieros y contratos de Firestore inmutables.
+Estado: ✅ Verificado — 173/173 tests pasando (`npm test`), 0 errores de TypeScript (`tsc --noEmit`).
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 2 (Facturación & Cobranza Automática), OKR 5 (Excelencia Visual & UX).
+
+---
+
 ### Iteración 109: Motor Autónomo de Ingestión de Documentos, Protocolo de Duda Interactiva y Alta Oficial de OC 12026439774 y Facturas de OC 12026439753
 [2026-09-17]
 Archivos: `src/lib/autoDocumentProcessor.ts`, `src/components/Recepcion/OperationDoubtModal.tsx`, `src/components/Recepcion/SmartDocumentDropzone.tsx`, `src/lib/ocParser.ts`, `src/lib/__tests__/autoDocumentProcessor.test.ts`

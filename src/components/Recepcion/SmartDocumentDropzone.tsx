@@ -10,15 +10,18 @@ import { app } from '../../lib/firebase';
 import { useOrders } from '../../hooks/useOrders';
 import { checkAllDuplicates, type DuplicateMatch } from '../../lib/duplicateGuards';
 import { kilos, money } from '../../lib/format';
+import { OperationDoubtModal } from './OperationDoubtModal';
+import confetti from 'canvas-confetti';
+import JSZip from 'jszip';
+import { parseProvidenciaContrareciboHtml } from '../../lib/providenciaPortalParser';
 import {
   evaluateDocumentOperation,
   executeAutoCreateOc,
   executeAutoAssignInvoice,
+  executeAutoAssignContrarecibo,
   type OperationDecision,
   type SuggestedAction,
 } from '../../lib/autoDocumentProcessor';
-import { OperationDoubtModal } from './OperationDoubtModal';
-import confetti from 'canvas-confetti';
 
 export interface ExtractedDocumentData {
   type: 'xml_factura' | 'pdf_document' | 'text_pasted' | 'contrarecibo' | 'orden_compra' | 'complemento_pago';
@@ -29,6 +32,7 @@ export interface ExtractedDocumentData {
   oc?: string;
   ocFolio?: string;
   contrarecibo?: string;
+  facturaFolios?: string[];
   complementoFolio?: string;
   complementoUuid?: string;
   kilos?: number;
@@ -218,6 +222,39 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
                 confidence: 0.95,
               };
             }
+
+            // C) Es un Contrarecibo oficial de Providencia en PDF
+            const isContrarecibo =
+              (lowerPdf.includes('contrarecibo') ||
+                lowerPdf.includes('contra recibo') ||
+                lowerPdf.includes('mundoprovidencia') ||
+                /(?:TH|GT)-\d{3,5}/i.test(pdfText)) &&
+              !lowerPdf.includes('orden de compra');
+
+            if (isContrarecibo) {
+              const parsedCrList = parseProvidenciaContrareciboHtml(pdfText);
+              if (parsedCrList.length > 0) {
+                const first = parsedCrList[0];
+                const crFolio = first.contrareciboNumber;
+                const facturas = parsedCrList.map((p) => p.facturaFolio).filter(Boolean);
+                const totalImporte = parsedCrList.reduce((acc, p) => acc + (p.importe || 0), 0);
+                const dept: 'TH' | 'GT' = first.department === 'TH' ? 'TH' : 'GT';
+                return {
+                  type: 'contrarecibo',
+                  rawText: pdfText,
+                  fileName: file.name,
+                  contrarecibo: crFolio,
+                  folio: facturas[0] || crFolio,
+                  facturaFolios: facturas,
+                  total: totalImporte,
+                  dueDate: first.fechaPago,
+                  date: first.fechaRecepcion || new Date().toISOString().split('T')[0],
+                  department: dept,
+                  client: dept === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA)',
+                  confidence: 1.0,
+                };
+              }
+            }
           }
         } catch (pdfErr) {
           console.warn('Extracción local PDF falló, usando fallback', pdfErr);
@@ -318,6 +355,10 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
         await executeAutoAssignInvoice(docData, decision.targetOrder, config);
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
         toast(`⚡ Procesado Automáticamente: ${decision.summary}`, 'ok');
+      } else if (decision.type === 'auto_assign_contrarecibo') {
+        await executeAutoAssignContrarecibo(decision);
+        confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        toast(`⚡ Procesado Automáticamente: ${decision.summary}`, 'ok');
       } else if (decision.type === 'doubt') {
         // En caso de duda: ¡preguntar al usuario con el modal interactivo!
         setActiveDoubt({ decision, docData });
@@ -346,9 +387,21 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
       } else if (action.actionType === 'assign_to_order' && action.orderId) {
         const target = orders.find((o) => o.id === action.orderId);
         if (target) {
-          await executeAutoAssignInvoice(docData, target, config);
-          confetti({ particleCount: 100, spread: 60 });
-          toast(`✅ Factura #${docData.folio} vinculada a la OC ${target.folio || target.oc}`, 'ok');
+          if (docData.type === 'contrarecibo') {
+            await executeAutoAssignContrarecibo({
+              crNumber: docData.contrarecibo || docData.folio || '',
+              targetOrders: [target],
+              facturaFolios: (docData as any).facturaFolios || (docData.folio ? [docData.folio] : []),
+              paymentDate: docData.dueDate || docData.date,
+              importe: docData.total,
+            });
+            confetti({ particleCount: 100, spread: 60 });
+            toast(`✅ Contrarecibo ${docData.contrarecibo || ''} vinculado a la OC ${target.folio || target.oc}`, 'ok');
+          } else {
+            await executeAutoAssignInvoice(docData, target, config);
+            confetti({ particleCount: 100, spread: 60 });
+            toast(`✅ Factura #${docData.folio} vinculada a la OC ${target.folio || target.oc}`, 'ok');
+          }
         }
       } else if (action.actionType === 'replace_invoice' && decision.targetOrder) {
         await executeAutoAssignInvoice(docData, decision.targetOrder, config);
@@ -367,11 +420,46 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
     }
   }, [activeDoubt, orders, config, toast]);
 
-  // Procesar lote de múltiples archivos
-  const handleBatchProcess = useCallback(async (files: File[]) => {
-    if (!files || files.length === 0) return;
+  // Helper para descomprimir archivos .zip en memoria
+  const expandZipFiles = useCallback(async (rawFiles: File[]): Promise<File[]> => {
+    const result: File[] = [];
+    for (const f of rawFiles) {
+      if (f.name.toLowerCase().endsWith('.zip') || f.type.includes('zip')) {
+        try {
+          const zip = await JSZip.loadAsync(f);
+          const fileNames = Object.keys(zip.files);
+          for (const relPath of fileNames) {
+            const zipEntry = zip.files[relPath];
+            if (!zipEntry.dir) {
+              const lower = relPath.toLowerCase();
+              if (lower.endsWith('.pdf') || lower.endsWith('.xml')) {
+                const blob = await zipEntry.async('blob');
+                const baseName = relPath.split('/').pop() || relPath;
+                const unzipped = new File([blob], baseName, {
+                  type: lower.endsWith('.xml') ? 'application/xml' : 'application/pdf',
+                });
+                result.push(unzipped);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error al descomprimir ZIP:', err);
+          result.push(f);
+        }
+      } else {
+        result.push(f);
+      }
+    }
+    return result;
+  }, []);
+
+  // Procesar lote de múltiples archivos con ejecución autónoma
+  const handleBatchProcess = useCallback(async (rawFiles: File[]) => {
+    if (!rawFiles || rawFiles.length === 0) return;
 
     setIsBatchProcessing(true);
+    const files = await expandZipFiles(rawFiles);
+
     const initialItems: BatchItem[] = files.map((f, i) => ({
       id: `batch_${Date.now()}_${i}`,
       fileName: f.name,
@@ -383,6 +471,8 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
     toast(`📦 Procesando lote de ${files.length} archivos en paralelo...`, 'info');
 
     const processedDocs: ExtractedDocumentData[] = [];
+    const doubtQueue: Array<{ decision: OperationDecision & { type: 'doubt' }; docData: ExtractedDocumentData }> = [];
+    let autoSuccessCount = 0;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -399,6 +489,22 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
 
         docData.duplicateMatch = duplicate;
         processedDocs.push(docData);
+
+        // 🧠 EVALUACIÓN Y EJECUCIÓN AUTÓNOMA EN LOTE
+        const decision = evaluateDocumentOperation(docData, orders, config);
+
+        if (decision.type === 'auto_create_oc') {
+          await executeAutoCreateOc(docData, config);
+          autoSuccessCount++;
+        } else if (decision.type === 'auto_assign_invoice') {
+          await executeAutoAssignInvoice(docData, decision.targetOrder, config);
+          autoSuccessCount++;
+        } else if (decision.type === 'auto_assign_contrarecibo') {
+          await executeAutoAssignContrarecibo(decision);
+          autoSuccessCount++;
+        } else if (decision.type === 'doubt') {
+          doubtQueue.push({ decision, docData });
+        }
 
         setBatchItems((prev) =>
           prev.map((item, idx) =>
@@ -428,12 +534,22 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
     }
 
     setIsBatchProcessing(false);
-    toast(`🎉 Lote finalizado: ${processedDocs.length} de ${files.length} procesados`, 'ok');
+
+    if (autoSuccessCount > 0) {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      toast(`🎉 Lote finalizado: ${autoSuccessCount} documentos registrados automáticamente en el ERP`, 'ok');
+    } else {
+      toast(`🎉 Lote finalizado: ${processedDocs.length} de ${files.length} procesados`, 'ok');
+    }
+
+    if (doubtQueue.length > 0) {
+      setActiveDoubt(doubtQueue[0]);
+    }
 
     if (onBatchProcessed && processedDocs.length > 0) {
       onBatchProcessed(processedDocs);
     }
-  }, [extractFromFile, orders, onBatchProcessed, toast]);
+  }, [expandZipFiles, extractFromFile, orders, config, onBatchProcessed, toast]);
 
   // Procesar texto pegado
   const handleTextProcess = useCallback((text: string) => {
@@ -512,6 +628,48 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
         setShowTextModal(false);
         setPasteText('');
         return;
+      }
+
+      // Si el texto pegado es una tabla o volcado de Contrarecibos de Providencia
+      const isPortalCr = clean.includes('No. TH-') || clean.includes('No. GT-') || clean.includes('apps.mundoprovidencia') || /(?:TH|GT)-\d{3,5}/i.test(clean);
+      if (isPortalCr) {
+        const parsedCrList = parseProvidenciaContrareciboHtml(clean);
+        if (parsedCrList.length > 0) {
+          const first = parsedCrList[0];
+          const facturas = parsedCrList.map((p) => p.facturaFolio).filter(Boolean);
+          const totalImporte = parsedCrList.reduce((acc, p) => acc + (p.importe || 0), 0);
+          const dept: 'TH' | 'GT' = first.department === 'TH' ? 'TH' : 'GT';
+          const docData: ExtractedDocumentData = {
+            type: 'contrarecibo',
+            rawText: clean,
+            contrarecibo: first.contrareciboNumber,
+            folio: facturas[0] || first.contrareciboNumber,
+            facturaFolios: facturas,
+            total: totalImporte,
+            dueDate: first.fechaPago,
+            date: first.fechaRecepcion || new Date().toISOString().split('T')[0],
+            department: dept,
+            client: dept === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA)',
+            confidence: 1.0,
+          };
+          const duplicate = checkAllDuplicates(orders, { contrarecibo: docData.contrarecibo });
+          docData.duplicateMatch = duplicate;
+
+          const decision = evaluateDocumentOperation(docData, orders, config);
+          if (decision.type === 'auto_assign_contrarecibo') {
+            executeAutoAssignContrarecibo(decision).then(() => {
+              confetti({ particleCount: 120, spread: 70 });
+              toast(`⚡ Contrarecibo ${first.contrareciboNumber} asignado automáticamente`, 'ok');
+            });
+          } else if (decision.type === 'doubt') {
+            setActiveDoubt({ decision, docData });
+          }
+
+          onDocumentProcessed(docData);
+          setShowTextModal(false);
+          setPasteText('');
+          return;
+        }
       }
 
       // Parseo de texto copiado de WhatsApp / Correo
@@ -613,7 +771,11 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const files = Array.from(e.dataTransfer.files);
-      if (files.length === 1) {
+      const isSingleNonZip =
+        files.length === 1 &&
+        !files[0].name.toLowerCase().endsWith('.zip') &&
+        !files[0].type.includes('zip');
+      if (isSingleNonZip) {
         handleFileProcess(files[0]);
       } else {
         handleBatchProcess(files);
@@ -649,11 +811,15 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
           ref={fileInputRef}
           multiple
           style={{ display: 'none' }}
-          accept=".pdf,.xml,image/*"
+          accept=".pdf,.xml,.zip,image/*,application/zip,application/x-zip-compressed"
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
               const files = Array.from(e.target.files);
-              if (files.length === 1) {
+              const isSingleNonZip =
+                files.length === 1 &&
+                !files[0].name.toLowerCase().endsWith('.zip') &&
+                !files[0].type.includes('zip');
+              if (isSingleNonZip) {
                 handleFileProcess(files[0]);
               } else {
                 handleBatchProcess(files);

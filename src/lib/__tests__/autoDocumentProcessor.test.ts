@@ -135,4 +135,45 @@ describe('Motor Autónomo de Procesamiento y Detección de Dudas (autoDocumentPr
       expect(decision.suggestedActions.some((a) => a.actionType === 'create_new_oc')).toBe(true);
     }
   });
+
+  it('vincula automáticamente un Contrarecibo cuando las facturas amparadas existen en una orden activa', () => {
+    const crDoc: ExtractedDocumentData = {
+      type: 'contrarecibo',
+      contrarecibo: 'GT-904',
+      folio: '6275',
+      facturaFolios: ['6275'],
+      total: 61551.92,
+      dueDate: '25/09/2026',
+      confidence: 1.0,
+    };
+
+    const decision = evaluateDocumentOperation(crDoc, [existingOrder9753], dummyConfig);
+    expect(decision.type).toBe('auto_assign_contrarecibo');
+    if (decision.type === 'auto_assign_contrarecibo') {
+      expect(decision.crNumber).toBe('GT-904');
+      expect(decision.facturaFolios).toContain('6275');
+      expect(decision.targetOrders.length).toBe(1);
+      expect(decision.targetOrders[0].id).toBe('oc-12026439753');
+    }
+  });
+
+  it('pregunta (DUDA) si el Contrarecibo ampara una factura inexistente en el ERP', () => {
+    const unknownCrDoc: ExtractedDocumentData = {
+      type: 'contrarecibo',
+      contrarecibo: 'TH-9999',
+      folio: '8888',
+      facturaFolios: ['8888'],
+      total: 50000,
+      confidence: 1.0,
+    };
+
+    const decision = evaluateDocumentOperation(unknownCrDoc, [existingOrder9753], dummyConfig);
+    expect(decision.type).toBe('doubt');
+    if (decision.type === 'doubt') {
+      expect(decision.doubtType).toBe('no_matching_oc');
+      expect(decision.question).toContain('TH-9999');
+      expect(decision.suggestedActions.some((a) => a.actionType === 'assign_to_order')).toBe(true);
+    }
+  });
 });
+

@@ -4,6 +4,7 @@ import { money, toDate } from '../../lib/format';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 import { useNavigate } from 'react-router-dom';
 import { OFFICIAL_VALID_CRS, OC_TH_NAVA, OC_GT_EVELIA, CARTERA_OFICIAL, TOTAL_CARTERA_OFICIAL } from '../../lib/constants';
+import { ThreeWayMatchingBadge } from '../ui/ThreeWayMatchingBadge';
 
 interface ExecutivePriorityAlertsProps {
   orders: PurchaseOrder[];
@@ -42,6 +43,13 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     if (!o || (o as any).isDeleted) return false;
     const oc = (o.oc || o.folio || o.id || '').toUpperCase();
     return oc === OC_GT_EVELIA || oc === `OC-${OC_GT_EVELIA}` || oc.includes('9713');
+  }), [orders]);
+
+  // 2b. Detección de la Nueva OC oficial que ampara el exceso (OC 12026439774 · 298 kg)
+  const eveliaNewOcOrder = useMemo(() => (orders || []).find(o => {
+    if (!o || (o as any).isDeleted) return false;
+    const oc = (o.oc || o.folio || o.id || '').toUpperCase();
+    return oc.includes('9774');
   }), [orders]);
 
   // 3. Métricas en tiempo real de la OC TH · Nava
@@ -151,6 +159,80 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   const { vencidasCount, vencidasMonto, porVencerMonto, sinCrMonto } = carteraMetrics;
   const totalCarteraReal = vencidasMonto + porVencerMonto + sinCrMonto || TOTAL_CARTERA_OFICIAL;
 
+  // 7. Facturas huérfanas de Contrarecibo emitidas hace más de 72 horas (3 días hábiles)
+  const orphanInvoices = useMemo(() => {
+    const now = Date.now();
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    const orphans: Array<{
+      orderId: string;
+      orderFolio: string;
+      department: 'TH' | 'GT';
+      buyer: string;
+      invoiceFolio: string;
+      kilos: number;
+      monto: number;
+      daysPending: number;
+    }> = [];
+
+    (orders || []).forEach((o) => {
+      if (!o || (o as any).isDeleted) return;
+      const dept: 'TH' | 'GT' = (o.department as any) || ((o.client || '').toUpperCase().includes('GT') ? 'GT' : 'TH');
+      const buyer = dept === 'TH' ? 'Lic. José Nava Flores' : 'Lic. Evelia';
+
+      (o.invoices || []).forEach((inv: any) => {
+        if (!inv) return;
+        const st = inv.creditCycle?.status;
+        const isPaid = st === 'paid' || st === 'collected';
+        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
+        const hasCr = cr.length > 0 && OFFICIAL_VALID_CRS.includes(cr.toUpperCase() as any);
+
+        if (!isPaid && !hasCr) {
+          const issueDate = toDate(inv.creditCycle?.issueDate);
+          const issueTime = issueDate ? issueDate.getTime() : now - THREE_DAYS_MS - 1000;
+          const diffDays = Math.max(1, Math.floor((now - issueTime) / (24 * 60 * 60 * 1000)));
+
+          if (diffDays >= 3) {
+            const monto = inv.financials?.invoiceTotal || (inv.kilos || 0) * saleKg * (1 + ivaRate);
+            orphans.push({
+              orderId: o.id,
+              orderFolio: o.folio || o.oc || o.id || 'S/F',
+              department: dept,
+              buyer,
+              invoiceFolio: inv.folio || inv.id,
+              kilos: inv.kilos || 0,
+              monto,
+              daysPending: diffDays,
+            });
+          }
+        }
+      });
+    });
+
+    return orphans;
+  }, [orders, saleKg, ivaRate]);
+
+  const handleClaimCrWhatsApp = (dept: 'TH' | 'GT') => {
+    const relevant = orphanInvoices.filter((inv) => inv.department === dept);
+    if (relevant.length === 0) return;
+    const buyer = dept === 'TH' ? 'Lic. José Nava Flores' : 'Lic. Evelia';
+    const totalMonto = relevant.reduce((sum, i) => sum + i.monto, 0);
+    const invoiceList = relevant
+      .map((i) => `• Factura #${i.invoiceFolio}: ${i.kilos.toLocaleString('es-MX')} kg | ${money(i.monto)} (${i.daysPending} días transcurridos)`)
+      .join('\n');
+
+    const msg =
+      `*SOLICITUD DE CONTRARECIBOS — ELEMENTAL DENIM / PROVIDENCIA*\n\n` +
+      `Estimada/o ${buyer},\n` +
+      `Espero se encuentre muy bien. Le escribo para dar seguimiento a las facturas debidamente entregadas que siguen pendientes de contrarecibo en portal:\n\n` +
+      `${invoiceList}\n\n` +
+      `*Total pendiente de CR:* ${money(totalMonto)} MXN\n\n` +
+      `¿Nos apoyaría por favor confirmando el estatus o compartiéndonos el número de contrarecibo para conciliar la fecha de pago en sistema?\n\n` +
+      `Muchas gracias por su apoyo. Saludos cordiales.`;
+
+    const encoded = encodeURIComponent(msg);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+  };
+
   // ── Textos dinámicos TH · Nava ────────────────────────────────────────────
   const navaPatioKg = navaMetrics?.patioKg || 0;
   const navaRemanenteKg = navaMetrics ? navaMetrics.remanenteOcKg : 1588.99;
@@ -169,18 +251,121 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     : `⚡ Facturar remanente OC (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
 
   // ── Textos dinámicos GT · Evelia ──────────────────────────────────────────
+  const hasNewOc = !!eveliaNewOcOrder;
+  const newOcFacturados = hasNewOc ? totalKilosFacturados(eveliaNewOcOrder) : 0;
+  const newOcGoal = Number(eveliaNewOcOrder?.totalKilograms) || 298.0;
+  const isNewOcPendingInvoice = hasNewOc && (newOcFacturados < newOcGoal);
+
   const eveliaExceso = eveliaMetrics?.excesoKg ?? 298.0;
   const eveliaFacturadosKg = eveliaMetrics ? eveliaMetrics.facturadosKg : 2674.0;
   const eveliaFolios = eveliaMetrics?.foliosFacturados || 'F-6193, F-6267, F-6268';
 
-  const eveliaTitle = `${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados en espera de nueva OC`;
+  let eveliaBadge = '🏭 GT · Evelia (Pendiente Pedir OC)';
+  let eveliaBadgeColor = '#60a5fa';
+  let eveliaOcLabel = `OC: ${OC_GT_EVELIA}`;
+  let eveliaTitle = `${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados en espera de nueva OC`;
+  let eveliaSubtitle = `OC 9713 facturada al 100% (${eveliaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg con ${eveliaFolios}). Faltan ${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados físicamente en planta P4 que requieren solicitar una nueva OC a Evelia para poder timbrarse (${money(eveliaExceso * saleKg * (1 + ivaRate))} con IVA).`;
+  let eveliaBtn = `📋 Solicitar Nueva OC (${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
+  let eveliaTargetOrderId = eveliaOrder?.id || `oc-${OC_GT_EVELIA}`;
 
-  const eveliaSubtitle = `OC 9713 facturada al 100% (${eveliaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg con ${eveliaFolios}). Faltan ${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados físicamente en planta P4 que requieren solicitar una nueva OC a Evelia para poder timbrarse (${money(eveliaExceso * saleKg * (1 + ivaRate))} con IVA).`;
-
-  const eveliaBtn = `📋 Solicitar Nueva OC (${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
+  if (hasNewOc && isNewOcPendingInvoice) {
+    const targetFolio = eveliaNewOcOrder?.folio || '43/9774';
+    eveliaBadge = `🏭 GT · Evelia (OC 9774 Registrada)`;
+    eveliaBadgeColor = '#34d399';
+    eveliaOcLabel = `OC: 12026439774 (${targetFolio})`;
+    eveliaTitle = `OC 12026439774 en Sistema (${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg) · Lista para Facturar`;
+    eveliaSubtitle = `Ampara los ${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados físicamente en Planta P4 (Folio ${targetFolio} · ${money(newOcGoal * saleKg * (1 + ivaRate))} con IVA). Lista para timbrarse.`;
+    eveliaBtn = `⚡ Facturar OC 9774 (${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
+    eveliaTargetOrderId = eveliaNewOcOrder.id || 'oc-12026439774';
+  } else if (hasNewOc && !isNewOcPendingInvoice) {
+    eveliaBadge = `🏭 GT · Evelia (Al Día)`;
+    eveliaBadgeColor = '#10b981';
+    eveliaOcLabel = `OC: 12026439774 (43/9774)`;
+    eveliaTitle = `OC 9713 y OC 9774 Facturadas al 100%`;
+    eveliaSubtitle = `Todos los kilos entregados físicamente en P4 (2,674 kg + 298 kg) se encuentran debidamente amparados y timbrados.`;
+    eveliaBtn = `📂 Ver OC 9774`;
+    eveliaTargetOrderId = eveliaNewOcOrder.id || 'oc-12026439774';
+  }
 
   return (
     <div style={{ marginBottom: 12 }}>
+      {/* BANNER PROACTIVO: FACTURAS SIN CONTRARECIBO (> 72 HORAS) */}
+      {orphanInvoices.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            marginBottom: 14,
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.08) 100%)',
+            border: '1px solid rgba(239, 68, 68, 0.45)',
+            borderRadius: 16,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            boxShadow: '0 4px 20px -4px rgba(239, 68, 68, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>🚨</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Centinela Proactivo: {orphanInvoices.length} Factura{orphanInvoices.length > 1 ? 's' : ''} Sin Contrarecibo (&gt; 72 hrs)
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink, #fff)', marginTop: 2 }}>
+                {orphanInvoices.map((i) => `F-${i.invoiceFolio} (${money(i.monto)})`).join(' · ')}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {orphanInvoices.some((i) => i.department === 'TH') && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => handleClaimCrWhatsApp('TH')}
+                style={{
+                  minHeight: 38,
+                  padding: '6px 14px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(37, 211, 102, 0.3)',
+                }}
+              >
+                💬 Reclamar a Lic. Nava
+              </button>
+            )}
+            {orphanInvoices.some((i) => i.department === 'GT') && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => handleClaimCrWhatsApp('GT')}
+                style={{
+                  minHeight: 38,
+                  padding: '6px 14px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(37, 211, 102, 0.3)',
+                }}
+              >
+                💬 Reclamar a Lic. Evelia
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       <div
         style={{
           display: 'grid',
@@ -233,6 +418,12 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
               {navaSubtitle}
             </div>
+
+            {navaOrder && (
+              <div style={{ marginTop: 12 }}>
+                <ThreeWayMatchingBadge order={navaOrder} compact />
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
@@ -302,17 +493,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                   fontWeight: 900,
                   padding: '3px 10px',
                   borderRadius: 8,
-                  background: 'rgba(59, 130, 246, 0.2)',
-                  color: '#60a5fa',
-                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                  background: hasNewOc ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                  color: eveliaBadgeColor,
+                  border: `1px solid ${hasNewOc ? 'rgba(16, 185, 129, 0.4)' : 'rgba(59, 130, 246, 0.4)'}`,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
                 }}
               >
-                🏭 GT · Evelia (Pendiente Pedir OC)
+                {eveliaBadge}
               </span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#3b82f6', fontVariantNumeric: 'tabular-nums' }}>
-                OC: {OC_GT_EVELIA}
+              <span style={{ fontSize: 12, fontWeight: 800, color: hasNewOc ? '#10b981' : '#3b82f6', fontVariantNumeric: 'tabular-nums' }}>
+                {eveliaOcLabel}
               </span>
             </div>
 
@@ -323,17 +514,23 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
               {eveliaSubtitle}
             </div>
+
+            {(eveliaNewOcOrder || eveliaOrder) && (
+              <div style={{ marginTop: 12 }}>
+                <ThreeWayMatchingBadge order={(eveliaNewOcOrder || eveliaOrder)!} compact />
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button
               type="button"
               className="btn"
-              onClick={() => onOpenQuickInvoice(eveliaOrder?.id || `oc-${OC_GT_EVELIA}`)}
+              onClick={() => onOpenQuickInvoice(eveliaTargetOrderId)}
               style={{
                 flex: 1,
                 minHeight: 44,
-                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                background: hasNewOc ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 color: '#fff',
                 border: 'none',
                 padding: '10px 14px',
@@ -341,7 +538,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 fontSize: 13,
                 fontWeight: 800,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+                boxShadow: hasNewOc ? '0 4px 12px rgba(5, 150, 105, 0.35)' : '0 4px 12px rgba(37, 99, 235, 0.35)',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -350,7 +547,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             <button
               type="button"
               className="btn"
-              onClick={() => nav(`/ordenes?abrir=${eveliaOrder?.id || `oc-${OC_GT_EVELIA}`}`)}
+              onClick={() => nav(`/ordenes?abrir=${eveliaTargetOrderId}`)}
               style={{
                 minHeight: 44,
                 background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
@@ -364,7 +561,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 transition: 'all 0.15s ease',
               }}
             >
-              📂 Ver OC 9713
+              📂 Ver {hasNewOc ? 'OC 9774' : 'OC 9713'}
             </button>
           </div>
         </motion.div>

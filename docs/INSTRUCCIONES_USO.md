@@ -1,12 +1,12 @@
-# Manual de Uso Maestro: ERP Control Universal (v8.7.0)
+# Manual de Uso Maestro: ERP Control Universal (v9.3.0)
 
-> **Novedades Clave de la Versión v8.7.0**
+> **Novedades Clave de la Versión v9.3.0**
+> - **⚡ Motor Autónomo de Captura (Zero-Manual):** Arrastra cualquier PDF (OC de Providencia o Factura de Elemental Denim) al dropzone y el sistema lo analiza, extrae y registra de forma autónoma sin clics innecesarios.
+> - **❓ Protocolo de Duda Interactiva (1 Clic):** Si el sistema detecta ambigüedad (OC duplicada, factura huérfana o exceso de kilos), no falla ni asume; despliega un modal con la pregunta específica y botones de resolución en un solo clic.
+> - **🚀 Extracción Local Instantánea en Navegador:** La lectura de PDFs se realiza en el cliente con `pdfjs-dist` y parsers deterministas en milisegundos, sin depender de Cloud Functions.
+> - **🏢 Alertas Ejecutivas Dinámicas Data-Driven:** Pods de alta prioridad para TH · Nava (OC 120267114114) y GT · Evelia (OC 12026439713 y nueva OC 12026439774 amparando los 298 kg entregados en P4).
 > - **⚡ Spotlight Universal (`Ctrl + K` / `⌘ + K`):** Buscador inteligente con navegación por flechas `↑` `↓` y `Enter` para buscar órdenes, contrarecibos, compras o ejecutar acciones directas.
-> - **🔍 Smart Quick-Peek Drawer:** Panel lateral que se abre en 0.1 segundos para ver avance de kilos y estatus sin abrir modales pesados.
 > - **🕶️ Atajo Global de Privacidad (`Ctrl + H`):** Oculta/muestra todas las cifras y utilidades en 1 segundo con cristal esmerilado para trabajar en público.
-> - **🔘 Floating Quick Hub (`⚡`):** Botón flotante en esquina inferior derecha para acceso inmediato a todas las funciones clave.
-> - **⚙️ Parametrización Total Multi-Empresa:** Configura tu razón social, taller maquilador, cliente y departamentos desde Configuración.
-> - **🧹 Purga Segura de Pruebas:** Archiva en la Papelera los registros de desarrollo y conserva exactos los 10 CRs oficiales ($1,019,956.34) y la Factura 6167 ($81,780.00).
 
 ---
 
@@ -35,10 +35,11 @@
   - Facturas timbradas y su estatus.
   - Botón directo para **Cobrar en 1 Toque**, **Enviar WhatsApp** o **Abrir Expediente Completo**.
 
-### B. Subir pedidos con Inteligencia Artificial
-1. Ve al menú **"Subir Órdenes"** o **"Captura Rápida"**.
-2. Arrastra los PDFs de las Órdenes de Compra (OC).
-3. Gemini extraerá automáticamente el folio, cliente, kilos totales y la tabla de artículos con sus precios congelados.
+### B. Captura Autónoma de Documentos (Zero-Manual) & Protocolo de Duda
+1. Ve al área de recepción o arrastra los documentos al **Dropzone Inteligente**.
+2. **Si es una Orden de Compra nueva:** El sistema extrae el número de OC (ej. `12026439774`), folio interno, partidas, kilos y precios congelados, dándola de alta automáticamente con confeti.
+3. **Si es una Factura emitida:** Detecta el folio, UUID y kilos, y la vincula de inmediato a la OC correspondiente.
+4. **En caso de duda (ambigüedad):** El sistema abre el **Protocolo de Duda Interactiva** mostrando opciones claras: *"Crear nuevo expediente"*, *"Vincular a OC existente"*, *"Reemplazar factura"* o *"Conservar existente"*.
 
 ---
 

@@ -41,8 +41,12 @@ export type OperationDecision =
   | {
       type: 'auto_assign_contrarecibo';
       summary: string;
-      targetOrder: PurchaseOrder;
+      targetOrders: PurchaseOrder[];
+      targetOrder?: PurchaseOrder;
       crNumber: string;
+      facturaFolios: string[];
+      paymentDate?: string;
+      importe?: number;
     }
   | {
       type: 'doubt';
@@ -278,33 +282,73 @@ export function evaluateDocumentOperation(
     };
   }
 
-  // 3. Caso: Contrarecibo
+  // 3. Caso: Contrarecibo oficial de Providencia (PDF o texto/HTML)
   if (docData.type === 'contrarecibo') {
-    const crNum = docData.contrarecibo || '';
-    const matchOrder = activeOrders.find((o) =>
-      (o.invoices || []).some((inv) => inv.folio && docData.folio && normalizeCode(inv.folio) === normalizeCode(docData.folio))
-    );
+    const crNum = docData.contrarecibo || docData.folio || '';
+    const targetFolios: string[] = (docData as any).facturaFolios && (docData as any).facturaFolios.length > 0
+      ? (docData as any).facturaFolios
+      : docData.folio ? [docData.folio] : [];
 
-    if (matchOrder) {
+    // Encontrar qué órdenes contienen las facturas amparadas por este CR
+    const matchedOrders: PurchaseOrder[] = [];
+    const missingFolios: string[] = [];
+
+    for (const fol of targetFolios) {
+      const normF = normalizeCode(fol);
+      const foundOrder = activeOrders.find((o) =>
+        (o.invoices || []).some(
+          (inv) =>
+            (inv.folio && normalizeCode(inv.folio) === normF) ||
+            (inv.folio && normF && (normF.includes(normalizeCode(inv.folio)) || normalizeCode(inv.folio).includes(normF)))
+        )
+      );
+      if (foundOrder) {
+        if (!matchedOrders.some((m) => m.id === foundOrder.id)) {
+          matchedOrders.push(foundOrder);
+        }
+      } else {
+        missingFolios.push(fol);
+      }
+    }
+
+    // A) Encontramos al menos una orden y no hay folios faltantes (o no se especificaron folios y encontramos 1 orden coincidente)
+    if (matchedOrders.length > 0 && missingFolios.length === 0) {
+      const foliosText = targetFolios.length > 0 ? targetFolios.map((f) => `F-${f}`).join(', ') : 'factura asociada';
       return {
         type: 'auto_assign_contrarecibo',
-        summary: `Contrarecibo ${crNum} asignado a OC ${matchOrder.folio || matchOrder.oc}`,
-        targetOrder: matchOrder,
+        summary: `Contrarecibo ${crNum} vinculado a ${foliosText}`,
+        targetOrders: matchedOrders,
+        targetOrder: matchedOrders[0],
         crNumber: crNum,
+        facturaFolios: targetFolios,
+        paymentDate: docData.dueDate || docData.date,
+        importe: docData.total,
       };
     }
 
+    // B) Hay folios que no se encontraron en el padrón activo
+    const suggested = activeOrders.slice(0, 3);
     return {
       type: 'doubt',
-      doubtType: 'unknown_document',
-      title: 'Contrarecibo Sin Factura Asociada',
-      question: `Se detectó el Contrarecibo "${crNum}", pero no se encontró la factura correspondiente en ningún expediente activo.`,
+      doubtType: 'no_matching_oc',
+      title: 'Factura(s) de Contrarecibo no Encontradas',
+      question: `El Contrarecibo "${crNum}" ampara ${targetFolios.length > 0 ? `la(s) factura(s) ${targetFolios.map((f) => `F-${f}`).join(', ')}` : 'facturas'}, pero no se encontraron en ningún expediente activo. ¿A cuál expediente deseas asignarlo?`,
+      details: missingFolios.length > 0 ? `Folios no localizados: ${missingFolios.join(', ')}` : undefined,
+      suggestedOrders: suggested,
       suggestedActions: [
+        ...suggested.map((o, idx) => ({
+          id: `assign_cr_${o.id}`,
+          label: `Vincular a OC ${o.folio || o.oc} (${o.client || 'Cliente'})`,
+          description: `Asignará el CR ${crNum} al expediente seleccionado`,
+          actionType: 'assign_to_order' as const,
+          orderId: o.id,
+          variant: idx === 0 ? ('primary' as const) : ('secondary' as const),
+        })),
         {
           id: 'skip_cr',
-          label: 'Aceptar y Cerrar',
-          actionType: 'skip',
-          variant: 'secondary',
+          label: 'Omitir Contrarecibo',
+          actionType: 'skip' as const,
+          variant: 'secondary' as const,
         },
       ],
     };
@@ -499,3 +543,79 @@ export async function executeAutoAssignInvoice(
     updatedAt: Timestamp.now(),
   });
 }
+
+/**
+ * Ejecuta la vinculación automática de un Contrarecibo a una o varias órdenes en Firestore.
+ */
+export async function executeAutoAssignContrarecibo(
+  decision: {
+    crNumber: string;
+    targetOrders: PurchaseOrder[];
+    facturaFolios: string[];
+    paymentDate?: string;
+    importe?: number;
+  }
+): Promise<void> {
+  const normTargetFolios = (decision.facturaFolios || []).map((f) => normalizeCode(f));
+
+  let parsedDueDate: Timestamp | undefined = undefined;
+  if (decision.paymentDate) {
+    try {
+      const parts = decision.paymentDate.split('/');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (!isNaN(d.getTime())) parsedDueDate = Timestamp.fromDate(d);
+      } else {
+        const d = new Date(decision.paymentDate);
+        if (!isNaN(d.getTime())) parsedDueDate = Timestamp.fromDate(d);
+      }
+    } catch {
+      // ignore date parsing error
+    }
+  }
+
+  for (const targetOrder of decision.targetOrders) {
+    const orderRef = doc(db, PATHS.orders, targetOrder.id);
+    const currentInvoices = targetOrder.invoices || [];
+
+    const updatedInvoices = currentInvoices.map((inv) => {
+      const invNorm = normalizeCode(inv.folio);
+      const isTarget =
+        normTargetFolios.length === 0 ||
+        normTargetFolios.some((tf) => tf === invNorm || (invNorm && tf && (invNorm.includes(tf) || tf.includes(invNorm))));
+      if (isTarget) {
+
+        return {
+          ...inv,
+          collection: {
+            ...(inv.collection || {}),
+            contrareciboNumber: decision.crNumber,
+            contrareciboDate: parsedDueDate || Timestamp.now(),
+            contrareciboPortalStatus: 'generado' as const,
+          },
+          creditCycle: {
+            ...(inv.creditCycle || {}),
+            status: 'in_review' as const,
+            dueDate: parsedDueDate || inv.creditCycle?.dueDate,
+          },
+        };
+      }
+      return inv;
+    });
+
+    const updatedCollection = {
+      ...(targetOrder.collection || {}),
+      contrareciboNumber: decision.crNumber,
+      contrareciboDate: parsedDueDate || Timestamp.now(),
+      contrareciboPortalStatus: 'generado' as const,
+    };
+
+    await updateDoc(orderRef, {
+      ...camposInvoices(updatedInvoices),
+      collection: updatedCollection,
+      status: 'facturado',
+      updatedAt: Timestamp.now(),
+    });
+  }
+}
+

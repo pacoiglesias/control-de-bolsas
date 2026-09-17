@@ -102,19 +102,30 @@ export function parseProvidenciaContrareciboHtml(content: string): ParsedContrar
         });
       }
     } else {
-      // 2. Factura Folio fallback
+      // 2. Factura Folio fallback (HTML y texto plano de PDFs)
       const facMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>\s*<td[^>]*>([0-9]{3,8})<\/td>/i) ||
                        text.match(/Factura\s*No\.[\s\S]*?<td[^>]*>([0-9]{3,8})<\/td>/i) ||
-                       text.match(/Factura\s*No\.?[^0-9]*([0-9]{3,8})/i);
+                       text.match(/Factura\s*(?:No\.?)?[:\s]*F?-?([0-9]{3,8})/i) ||
+                       text.match(/F-([0-9]{3,8})/i);
       const facturaFolio = facMatch ? facMatch[1].trim() : '';
 
       // 3. Serie / Control Interno
-      const serieMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>[\s\S]*?<td[^>]*>([0-9\s/]+)<\/td>/i);
+      const serieMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>[\s\S]*?<td[^>]*>([0-9\s/]+)<\/td>/i) ||
+                         text.match(/Serie[:\s]*([A-Z0-9\s/]+)/i);
       const serieControlInterno = serieMatch ? serieMatch[1].trim() : undefined;
 
-      // 4. Importe
+      // 4. Fechas en texto plano si no se detectaron en HTML
+      const plainFecPago = !fechaPago ? (text.match(/Fecha\s*(?:Probable\s*de\s*)?Pago[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || text.match(/Pago[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i)) : null;
+      const effectiveFechaPago = fechaPago || (plainFecPago ? plainFecPago[1].trim() : undefined);
+
+      const plainFecRec = !fechaRecepcion ? (text.match(/Fecha\s*(?:de\s*)?Recepci[oó]n[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || text.match(/Recepci[oó]n[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i)) : null;
+      const effectiveFechaRecepcion = fechaRecepcion || (plainFecRec ? plainFecRec[1].trim() : undefined);
+
+      // 5. Importe (HTML o texto plano)
       const importeMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>[\s\S]*?<td[^>]*>([0-9,]+\.[0-9]{2})<\/td>/i) ||
-                           text.match(/1\|\d{4}\|[A-Z0-9-]+\|[^|]+\|[^|]+\|([0-9.]+)\|/);
+                           text.match(/1\|\d{4}\|[A-Z0-9-]+\|[^|]+\|[^|]+\|([0-9.]+)\|/) ||
+                           text.match(/Total[:\s]*\$?\s*([0-9,]+\.[0-9]{2})/i) ||
+                           text.match(/Importe[:\s]*\$?\s*([0-9,]+\.[0-9]{2})/i);
       let importe = 0;
       if (importeMatch) {
         importe = parseFloat(importeMatch[1].replace(/,/g, ''));
@@ -126,8 +137,8 @@ export function parseProvidenciaContrareciboHtml(content: string): ParsedContrar
           facturaFolio,
           serieControlInterno,
           importe,
-          fechaRecepcion,
-          fechaPago,
+          fechaRecepcion: effectiveFechaRecepcion,
+          fechaPago: effectiveFechaPago,
           cadenaOriginal,
           selloDigital,
           department,
