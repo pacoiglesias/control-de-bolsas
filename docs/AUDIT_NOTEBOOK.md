@@ -16,7 +16,11 @@ Solución:
    - Consolidada `oc-12026439753` (Folio 43/9753, 4,500.00 kg, $221,217.80 facturado con 4,435.00 kg amparados por F-6275, F-6276, F-6284 y F-6285).
    - Eliminados expedientes fragmentados duplicados de pruebas en Firestore.
 Riesgo: 🟢 Cero — Cálculos y transacciones financieras verificadas contra fórmulas canónicas.
+Commit: `711fb2a` (`feat(v9.3.0): motor autonomo de ingestion documentos, protocolo duda interactiva, alta OC 12026439774 y consolidacion OC 12026439753`)
+Build & Deploy: ✅ Exitoso (`npm run build` 1759 módulos + Cloud Functions). Firebase Hosting desplegado en `https://control-de-bolsas-89c88.web.app` y `https://control-de-bolsas-69.web.app`.
+Respaldo Local: ✅ `C:\respaldos-control-bolsas\v9.3.0_20260917_2328`.
 Estado: ✅ Verificado — 171/171 tests unitarios pasando (`npm test`), TypeScript estricto validado (`tsc --noEmit`).
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 2 (Facturación & Contabilidad Automática), OKR 5 (Excelencia Visual & UX).
 
 ---
 
