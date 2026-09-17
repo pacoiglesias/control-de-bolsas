@@ -1,12 +1,24 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseXmlInvoice } from '../../lib/xmlParser';
+import { extractTextFromPdf, parseOcrData } from '../../lib/ocr';
+import { parseOrdenDeCompra } from '../../lib/ocParser';
+import { useConfig } from '../../hooks/useConfig';
 import { useToast } from '../../context/ToastContext';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../../lib/firebase';
 import { useOrders } from '../../hooks/useOrders';
 import { checkAllDuplicates, type DuplicateMatch } from '../../lib/duplicateGuards';
 import { kilos, money } from '../../lib/format';
+import {
+  evaluateDocumentOperation,
+  executeAutoCreateOc,
+  executeAutoAssignInvoice,
+  type OperationDecision,
+  type SuggestedAction,
+} from '../../lib/autoDocumentProcessor';
+import { OperationDoubtModal } from './OperationDoubtModal';
+import confetti from 'canvas-confetti';
 
 export interface ExtractedDocumentData {
   type: 'xml_factura' | 'pdf_document' | 'text_pasted' | 'contrarecibo' | 'orden_compra' | 'complemento_pago';
@@ -56,6 +68,7 @@ interface SmartDocumentDropzoneProps {
 export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }: SmartDocumentDropzoneProps) {
   const toast = useToast();
   const { orders } = useOrders();
+  const { config } = useConfig();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -63,6 +76,10 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
   const [showTextModal, setShowTextModal] = useState(false);
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [activeDoubt, setActiveDoubt] = useState<{
+    decision: OperationDecision & { type: 'doubt' };
+    docData: ExtractedDocumentData;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,8 +143,88 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
       };
     }
 
-    // Caso 2: Archivo PDF o Imagen (IA Gemini / Extractor)
+    // Caso 2: Archivo PDF o Imagen (Extractor Local + IA Gemini)
     if (fileName.endsWith('.pdf') || file.type === 'application/pdf' || file.type.startsWith('image/')) {
+      // 1. Intentar extracción directa de texto PDF en el cliente (Ultra-rápido y offline)
+      if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+        try {
+          const pdfText = await extractTextFromPdf(file);
+          if (pdfText && pdfText.trim().length > 25) {
+            const lowerPdf = pdfText.toLowerCase();
+
+            // A) Es una Orden de Compra (Providencia / Nava / Evelia)
+            const isOC =
+              (lowerPdf.includes('orden de compra') ||
+                lowerPdf.includes('cdb oc:') ||
+                lowerPdf.includes('no. ord. de compra:') ||
+                /12026\d{6,8}/.test(pdfText)) &&
+              !lowerPdf.includes('sello digital') &&
+              !lowerPdf.includes('folio fiscal');
+
+            if (isOC) {
+              const parsed = parseOrdenDeCompra(pdfText);
+              const totalKg = parsed.totalKilograms;
+              return {
+                type: 'orden_compra',
+                rawText: pdfText,
+                fileName: file.name,
+                oc: parsed.oc,
+                ocFolio: parsed.oc,
+                folio: parsed.folio || parsed.oc,
+                kilos: totalKg,
+                subtotal: totalKg * 43,
+                iva: totalKg * 43 * 0.16,
+                total: totalKg * 43 * 1.16,
+                client: parsed.client || (parsed.department === 'GT' ? 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)' : 'TEXTIL HOGAR (TH - NAVA)'),
+                department: parsed.department,
+                date: new Date().toISOString().split('T')[0],
+                dueDate: parsed.estimatedDeliveryDate ? parsed.estimatedDeliveryDate.toISOString().split('T')[0] : undefined,
+                items: parsed.items.map((it) => ({
+                  code: it.code,
+                  description: it.description,
+                  quantity: it.quantity,
+                  unitPrice: it.unitPrice,
+                  amount: it.amount,
+                })),
+                confidence: 1.0,
+              };
+            }
+
+            // B) Es una Factura / CFDI en PDF (SAT / Blikon / Elemental Denim)
+            const isFactura =
+              lowerPdf.includes('factura') ||
+              lowerPdf.includes('folio fiscal') ||
+              lowerPdf.includes('uuid') ||
+              lowerPdf.includes('cfdi') ||
+              lowerPdf.includes('sello digital');
+
+            if (isFactura) {
+              const ocr = parseOcrData(pdfText);
+              return {
+                type: 'pdf_document',
+                rawText: pdfText,
+                fileName: file.name,
+                uuid: ocr.uuid,
+                folio: ocr.folio,
+                oc: ocr.ocNumber,
+                ocFolio: ocr.ocNumber,
+                kilos: ocr.kilos,
+                subtotal: ocr.subTotal,
+                iva: ocr.total && ocr.subTotal ? ocr.total - ocr.subTotal : undefined,
+                total: ocr.total,
+                client: ocr.receptorNombre || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+                department: ocr.ocNumber && ocr.ocNumber.startsWith('1202671') ? 'TH' : 'GT',
+                date: ocr.fecha || new Date().toISOString().split('T')[0],
+                confidence: 0.95,
+              };
+            }
+          }
+        } catch (pdfErr) {
+          console.warn('Extracción local PDF falló, usando fallback', pdfErr);
+        }
+      }
+
+      // 2. Fallback: Procesamiento mediante Cloud Function / Gemini
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -191,11 +288,11 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
     throw new Error('Formato no soportado. Usa PDF, XML, JPG o PNG.');
   }, []);
 
-  // Procesar archivo individual
+  // Procesar archivo individual con motor autónomo y detector de dudas
   const handleFileProcess = useCallback(async (file: File) => {
     if (!file) return;
     setIsProcessing(true);
-    setStatusMessage(`Leyendo archivo: ${file.name}...`);
+    setStatusMessage(`Analizando documento: ${file.name}...`);
 
     try {
       const docData = await extractFromFile(file);
@@ -210,10 +307,20 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
 
       docData.duplicateMatch = duplicate;
 
-      if (duplicate && duplicate.exists) {
-        toast(`⚠️ Documento ya existente en el ERP: Asociado a ${duplicate.orderFolio} (${duplicate.matchedValue})`, 'bad');
-      } else {
-        toast(`✅ Documento procesado correctamente: ${docData.fileName}`, 'ok');
+      // 🧠 EVALUACIÓN AUTÓNOMA: Procesar directamente o preguntar en caso de duda
+      const decision = evaluateDocumentOperation(docData, orders, config);
+
+      if (decision.type === 'auto_create_oc') {
+        await executeAutoCreateOc(docData, config);
+        confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        toast(`⚡ Procesado Automáticamente: ${decision.summary}`, 'ok');
+      } else if (decision.type === 'auto_assign_invoice') {
+        await executeAutoAssignInvoice(docData, decision.targetOrder, config);
+        confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        toast(`⚡ Procesado Automáticamente: ${decision.summary}`, 'ok');
+      } else if (decision.type === 'doubt') {
+        // En caso de duda: ¡preguntar al usuario con el modal interactivo!
+        setActiveDoubt({ decision, docData });
       }
 
       onDocumentProcessed(docData);
@@ -224,7 +331,41 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
       setStatusMessage('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [extractFromFile, orders, onDocumentProcessed, toast]);
+  }, [extractFromFile, orders, config, onDocumentProcessed, toast]);
+
+  // Manejar respuesta del usuario ante una duda de la operación
+  const handleResolveDoubt = useCallback(async (action: SuggestedAction) => {
+    if (!activeDoubt) return;
+    const { docData, decision } = activeDoubt;
+
+    try {
+      if (action.actionType === 'create_new_oc') {
+        await executeAutoCreateOc(docData, config);
+        confetti({ particleCount: 100, spread: 60 });
+        toast('✅ Nuevo expediente creado y registrado en el ERP', 'ok');
+      } else if (action.actionType === 'assign_to_order' && action.orderId) {
+        const target = orders.find((o) => o.id === action.orderId);
+        if (target) {
+          await executeAutoAssignInvoice(docData, target, config);
+          confetti({ particleCount: 100, spread: 60 });
+          toast(`✅ Factura #${docData.folio} vinculada a la OC ${target.folio || target.oc}`, 'ok');
+        }
+      } else if (action.actionType === 'replace_invoice' && decision.targetOrder) {
+        await executeAutoAssignInvoice(docData, decision.targetOrder, config);
+        toast(`✅ Factura #${docData.folio} actualizada en el expediente`, 'ok');
+      } else if (action.actionType === 'force_assign' && decision.targetOrder) {
+        await executeAutoAssignInvoice(docData, decision.targetOrder, config);
+        confetti({ particleCount: 100, spread: 60 });
+        toast(`✅ Documento vinculado al expediente`, 'ok');
+      } else if (action.actionType === 'skip') {
+        toast('Operación omitida por el usuario', 'info');
+      }
+    } catch (err: any) {
+      toast(`Error al ejecutar resolución: ${err.message}`, 'bad');
+    } finally {
+      setActiveDoubt(null);
+    }
+  }, [activeDoubt, orders, config, toast]);
 
   // Procesar lote de múltiples archivos
   const handleBatchProcess = useCallback(async (files: File[]) => {
@@ -825,6 +966,14 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
               </div>
             </motion.div>
           </div>
+        )}
+        {/* Modal de Duda de Operación (Pregunta interactiva al usuario) */}
+        {activeDoubt && (
+          <OperationDoubtModal
+            decision={activeDoubt.decision}
+            onResolve={handleResolveDoubt}
+            onClose={() => setActiveDoubt(null)}
+          />
         )}
       </AnimatePresence>
     </div>

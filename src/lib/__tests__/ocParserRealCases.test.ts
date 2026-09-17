@@ -247,4 +247,40 @@ BOLSA POLIETILENO 100 X 125 CM  _Sin Color
     expect(parsed.items[3].quantity).toBe(1000);
     expect(parsed.items[3].amount).toBe(43000);
   });
+
+  const OC_12026439774_TEXT = `
+GRUPO TEXTIL PROVIDENCIA SA DE CV P4-ALM | sa |12026439774 |17/09/2026 13:27:11
+Orden de Compra
+12026439774
+No. Ord. de Compra: 43/9774
+Proveedor
+N0147 - OPERADORA VIVANCO S. DE R.L. DE C.V. 
+Fecha Pedido: 17-septiembre-20
+Fecha Entrega: 21-septiembre-2
+CREDITO A 30 DIAS
+Lugar de Entrega:
+OPERADORA VIVANCO S. DE R.L. DE C.V.
+CDB OC: 12026439774
+Su Documento: 
+No. Articulo Cantidad P. U. Dtos Importe
+1 EGBO000017-SC 298.0000 BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color 43.0000 0.0000 12,814.0000
+0.0000 12,814.0000
+BOLSA PARA EMPAQUE EDREDON
+SubTotal 12,814.0000
+Solicitó Autorizó Recibio
+`;
+
+  it('extrae con precisión la OC 12026439774 de Evelia (Planta P4, 298 kg, $43/kg)', () => {
+    const parsed = parseOrdenDeCompra(OC_12026439774_TEXT);
+    expect(parsed.oc).toBe('12026439774');
+    expect(parsed.folio).toBe('43/9774');
+    expect(parsed.department).toBe('GT');
+    expect(parsed.totalKilograms).toBe(298);
+    expect(parsed.items.length).toBe(1);
+    expect(parsed.items[0].code).toBe('EGBO000017-SC');
+    expect(parsed.items[0].quantity).toBe(298);
+    expect(parsed.items[0].unitPrice).toBe(43);
+    expect(parsed.items[0].amount).toBe(12814);
+  });
 });
+

@@ -27,6 +27,7 @@ export interface ParsedOC {
   folio: string;        // Folio interno corto (ej. "43/9713"), de "No. Ord. de Compra:"
   provider: string;     // De la seccion "Proveedor"
   client: string;       // Cliente detectado (Providencia u otro, de la primera linea)
+  department: 'TH' | 'GT'; // Planta detectada: 'GT' (Evelia / Planta P4) o 'TH' (Nava / Almacén 1)
   items: PurchaseOrderItem[];
   totalKilograms: number;      // Suma de las cantidades de cada articulo
   estimatedDeliveryDate: Date | null;  // De "Fecha Entrega: DD-mes-YYYY"
@@ -220,11 +221,15 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
     const dia = Number(fechaMatch[1]);
     const mes = MESES[fechaMatch[2].toLowerCase()];
     let anio = Number(fechaMatch[3]);
-    if (anio < 100) anio += 2000;
+    if (anio < 10) anio = 2026;
+    else if (anio < 100) anio += 2000;
     if (!isNaN(dia) && mes !== undefined && !isNaN(anio)) {
       estimatedDeliveryDate = new Date(anio, mes, dia, 12, 0, 0);
     }
   }
+
+  const isGt = /P4|Planta\s*4|GT|Evelia/i.test(text || '');
+  const department: 'TH' | 'GT' = isGt ? 'GT' : 'TH';
 
   const kilosFromItems = round2sum(items);
 
@@ -233,6 +238,7 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
     folio: folioMatch ? folioMatch[1].trim() : '',
     provider: providerMatch ? providerMatch[1].trim() : '',
     client,
+    department,
     items,
     totalKilograms: kilosFromItems,
     estimatedDeliveryDate,

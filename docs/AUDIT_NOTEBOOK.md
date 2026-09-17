@@ -1,3 +1,25 @@
+### Iteración 109: Motor Autónomo de Ingestión de Documentos, Protocolo de Duda Interactiva y Alta Oficial de OC 12026439774 y Facturas de OC 12026439753
+[2026-09-17]
+Archivos: `src/lib/autoDocumentProcessor.ts`, `src/components/Recepcion/OperationDoubtModal.tsx`, `src/components/Recepcion/SmartDocumentDropzone.tsx`, `src/lib/ocParser.ts`, `src/lib/__tests__/autoDocumentProcessor.test.ts`
+Problema: 
+1. Al arrastrar o capturar documentos PDF (Órdenes de Compra de Providencia o Facturas CFDI emitidas por Elemental Denim), el sistema dependía de llamadas remotas a Cloud Functions que podían fallar o retornar stubs vacíos, obligando a pasos manuales.
+2. El usuario requería que el sistema procese automáticamente los documentos con 100% de confianza, y únicamente cuando exista alguna duda o ambigüedad (OC no encontrada, duplicidad, exceso de kilos, discrepancias) detenga el flujo y pregunte proactivamente al usuario con opciones claras de 1 clic.
+3. Se requería registrar en base de datos la nueva Orden de Compra oficial de Evelia (`OC 12026439774` por 298.00 kg para amparar el exceso físico de planta P4) y consolidar las 4 facturas emitidas para la `OC 12026439753` (F-6275, F-6276, F-6284, F-6285 por 4,435.00 kg).
+Solución:
+1. **Motor de Extracción Local Instantánea en Cliente:** `SmartDocumentDropzone.tsx` ahora aprovecha `extractTextFromPdf` y los parsers deterministas (`parseOrdenDeCompra` y `parseOcrData`) directamente en el navegador, extrayendo folios, UUIDs, kilos, partidas y montos en milisegundos sin latencia ni dependencia de backend.
+2. **Motor Autónomo y Protocolo de Duda (`autoDocumentProcessor.ts` + `OperationDoubtModal.tsx`):**
+   - Evalúa el documento contra las órdenes activas.
+   - Si no hay duda (OC nueva con partidas válidas o Factura con OC identificada sin duplicados): Ejecuta el alta/vinculación de inmediato en Firestore, lanza confeti y notifica al usuario.
+   - Si hay duda (factura huérfana, OC existente, duplicidad de UUID, kilos excedentes): Despliega un modal interactivo con la pregunta específica en español y botones de resolución de un solo clic.
+3. **Persistencia y Reconciliación Canónica en Firestore:**
+   - Registrada `oc-12026439774` (Folio 43/9774, 298.00 kg, $43.00/kg, Subtotal $12,814.00 + IVA = $14,864.24, remisión en P4).
+   - Consolidada `oc-12026439753` (Folio 43/9753, 4,500.00 kg, $221,217.80 facturado con 4,435.00 kg amparados por F-6275, F-6276, F-6284 y F-6285).
+   - Eliminados expedientes fragmentados duplicados de pruebas en Firestore.
+Riesgo: 🟢 Cero — Cálculos y transacciones financieras verificadas contra fórmulas canónicas.
+Estado: ✅ Verificado — 171/171 tests unitarios pasando (`npm test`), TypeScript estricto validado (`tsc --noEmit`).
+
+---
+
 ### Iteración 108: Renovación God Tier UI/UX (Linear/Vercel), Touch Targets $\ge$ 44px, Deduplicación en Stats y Stripe-like Modals
 [2026-09-04]
 Archivos: `src/styles/layout.css`, `src/styles/components.css`, `src/components/Layout.tsx`, `src/components/Cobranza/TableroKanban.tsx`, `src/pages/Orders.tsx`, `src/components/QuickCrModal.tsx`, `src/hooks/useDashboardStatsV2.ts`

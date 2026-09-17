@@ -1,5 +1,28 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.3.0] - 17 Septiembre 2026 (Motor Autónomo de Ingestión de Documentos + Protocolo de Duda Interactiva + Alta OC 12026439774)
+
+### ⚡ Motor Autónomo de Captura de Documentos (Zero-Manual)
+- **Procesamiento Automático al Instante:** Al subir o arrastrar cualquier PDF (OC de Providencia o Factura emitida por Elemental Denim), el sistema evalúa el documento, lo identifica y ejecuta el alta en Firestore sin ninguna acción adicional del usuario.
+- **Extracción Local Offline:** `SmartDocumentDropzone.tsx` ahora usa `extractTextFromPdf` y los parsers deterministas (`parseOrdenDeCompra`, `parseOcrData`) directamente en el navegador — sin llamadas a Cloud Functions, sin latencia.
+- **Detección Automática de Tipo:** Reconoce Órdenes de Compra (`CDB OC:`, `No. Ord. de Compra:`), Facturas CFDI y Contrarecibos sin configuración.
+
+### ❓ Protocolo de Duda Interactiva (Pregunta Solo Cuando Es Necesario)
+- **`autoDocumentProcessor.ts`:** Motor de decisión que evalúa 5 escenarios: OC nueva (alta automática), Factura con OC identificada (vinculación automática), OC duplicada, Factura huérfana, Factura duplicada (UUID). Solo en caso de ambigüedad lanza la pregunta al usuario.
+- **`OperationDoubtModal.tsx`:** Modal proactivo con la pregunta específica en español y botones de resolución de 1 clic (Crear Nuevo Expediente, Vincular a OC existente, Reemplazar Factura, Conservar existente, etc.).
+- **Confeti en Operaciones Exitosas:** Retroalimentación visual inmediata al completar cualquier alta automática.
+
+### 📦 Reconciliación y Alta Oficial en Firestore
+- **Nueva OC 12026439774 registrada:** Folio `43/9774`, 298.00 kg @ $43.00/kg (Subtotal $12,814.00 + IVA = $14,864.24). Ampara la entrega física de Evelia en Planta P4 que estaba sin OC oficial. Código: `EGBO000017-SC`.
+- **OC 12026439753 consolidada:** Folio `43/9753`, 4,500.00 kg, con sus 4 facturas correctamente registradas: F-6275 (1,234 kg, UUID `87880E51...`), F-6276 (987 kg, UUID `6A272DDF...`), F-6284 (1,241 kg, UUID `7CCA53C2...`), F-6285 (973 kg, UUID `E66FB1E9...`). Total facturado: $221,217.80 MXN.
+- **Limpieza de Fragmentos:** Eliminados 4 expedientes fragmentados de pruebas que registraban parcialmente las facturas de la OC 9753.
+
+### 🧪 Suite de Tests
+- **171/171 tests** pasando (incluye 5 tests nuevos del motor autónomo).
+- **TypeScript estricto** sin errores (`tsc --noEmit`).
+
+---
+
 ## [v9.2.3] - 4 Septiembre 2026 (Calibración Canónica de Patio Nava, Exceso GT 298 kg, Facturación Rápida y Sincronización Inmediata)
 
 ### 🏢 Calibración Ejecutiva Nava (TH · OC 120267114114)
