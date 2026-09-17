@@ -10,7 +10,8 @@ import type { PurchaseOrder, Invoice, PurchaseOrderItem, Delivery } from '../../
 import { round2, getOrderSummary, computeFinancials, validateInvoiceWeightGuardrail } from '../../lib/finance';
 import { nombreClienteVisible } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
-import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
+import { useDuplicateRadar } from '../../hooks/useDuplicateRadar';
+import { parseXmlInvoice } from '../../lib/xmlParser';
 import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
@@ -69,8 +70,15 @@ export function QuickInvoiceModal({
     return validOrders[0]?.id || '';
   });
   const [folio, setFolio] = useState('');
+  const [uuidFiscal, setUuidFiscal] = useState('');
   const [saving, setSaving] = useState(false);
   const [conceptRows, setConceptRows] = useState<ConceptRow[]>([]);
+
+  useEffect(() => {
+    if (initialOrderId && validOrders.some((o) => o.id === initialOrderId)) {
+      setSelectedOrderId(initialOrderId);
+    }
+  }, [initialOrderId, validOrders]);
 
   const selectedOrder = validOrders.find((o) => o.id === selectedOrderId);
 
@@ -304,14 +312,28 @@ export function QuickInvoiceModal({
     return availableKilos > 0 ? Math.min(100, Math.round((kilosToInvoice / availableKilos) * 100)) : 0;
   }, [kilosToInvoice, availableKilos]);
 
-  // Verificación en tiempo real de factura duplicada
-  const duplicateInvoice = useMemo(() => {
-    if (!folio.trim()) return null;
-    return findDuplicateInvoiceFolio(allOrders.length > 0 ? allOrders : orders, folio.trim());
-  }, [folio, allOrders, orders]);
+  // Verificación en tiempo real con Radar Antiduplicados (Folio y UUID)
+  const { match: duplicateInvoice } = useDuplicateRadar(allOrders.length > 0 ? allOrders : orders, {
+    invoiceFolio: folio,
+    uuid: uuidFiscal,
+    debounceMs: 120,
+  });
 
-  const handleInvoice = async () => {
+  const handleXmlSelected = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = parseXmlInvoice(text);
+      if (parsed.folio) setFolio(parsed.folio);
+      if (parsed.uuid) setUuidFiscal(parsed.uuid);
+      toast(`✅ Factura #${parsed.folio || 'S/F'} vinculada desde XML (UUID: ${parsed.uuid?.slice(0, 8)}...)`, 'ok');
+    } catch (err: any) {
+      toast(`Error al leer XML: ${err.message}`, 'bad');
+    }
+  };
+
+  const handleInvoice = async (overrideFolio?: string) => {
     if (!selectedOrder) return;
+    const targetFolio = (overrideFolio || folio).trim();
     if (selectedRows.length === 0) {
       triggerHaptic('warning');
       return toast('Selecciona al menos un concepto para facturar', 'bad');
@@ -327,15 +349,15 @@ export function QuickInvoiceModal({
         'bad'
       );
     }
-    if (!folio.trim()) {
+    if (!targetFolio) {
       triggerHaptic('warning');
       return toast('Falta el folio de la factura', 'bad');
     }
 
-    if (duplicateInvoice) {
+    if (duplicateInvoice && duplicateInvoice.exists) {
       triggerHaptic('warning');
       return toast(
-        `🚨 La factura #${folio.trim()} ya fue registrada en la OC #${duplicateInvoice.orderFolio}. No se permiten facturas duplicadas.`,
+        `🚨 El folio/UUID ya existe en la OC #${duplicateInvoice.orderFolio} (${duplicateInvoice.client}).`,
         'bad'
       );
     }
@@ -368,7 +390,8 @@ export function QuickInvoiceModal({
       const newInvoice: Invoice = {
         id: newInvoiceId,
         orderId: selectedOrder.id,
-        folio: folio.trim(),
+        folio: targetFolio,
+        uuid: uuidFiscal.trim() || undefined,
         kilos: kilosToInvoice,
         items: invoiceItems,
         financials: {
@@ -413,6 +436,14 @@ export function QuickInvoiceModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleOneClickInvoice = () => {
+    if (!selectedOrder) return;
+    const suggested = `F-${Date.now().toString().slice(-4)}`;
+    setFolio(suggested);
+    toast(`⚡ Folio ${suggested} generado. Facturando en 1 clic...`, 'ok');
+    handleInvoice(suggested);
   };
 
   // Entregas de la orden seleccionada
@@ -702,13 +733,16 @@ export function QuickInvoiceModal({
               currentCostPrice={currentCostPrice}
               folio={folio}
               setFolio={setFolio}
+              uuidFiscal={uuidFiscal}
               duplicateInvoice={duplicateInvoice}
               saving={saving}
-              onInvoice={handleInvoice}
+              onInvoice={() => handleInvoice()}
               onClose={onClose}
               onDownloadPrefactura={handleDownloadPrefactura}
               onDownloadXmlDraft={handleDownloadXmlDraft}
               onWhatsAppContador={handleWhatsAppContador}
+              onXmlSelected={handleXmlSelected}
+              onOneClickInvoice={handleOneClickInvoice}
               selectedRowsCount={selectedRows.length}
               guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}
             />

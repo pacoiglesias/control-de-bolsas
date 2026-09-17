@@ -1,5 +1,7 @@
 import { money } from '../../lib/format';
 import type { InvoiceGuardrailResult } from '../../lib/finance';
+import { DuplicateRadarAlert } from '../common/DuplicateRadarAlert';
+import type { DuplicateMatch } from '../../lib/duplicateGuards';
 
 interface InvoiceFinancialCardProps {
   kilosToInvoice: number;
@@ -12,13 +14,16 @@ interface InvoiceFinancialCardProps {
   currentCostPrice: number;
   folio: string;
   setFolio: (v: string) => void;
-  duplicateInvoice: { orderFolio?: string } | null;
+  uuidFiscal?: string;
+  duplicateInvoice: DuplicateMatch | { orderFolio?: string } | null;
   saving: boolean;
   onInvoice: () => void;
   onClose: () => void;
   onDownloadPrefactura?: () => void;
   onDownloadXmlDraft?: () => void;
   onWhatsAppContador?: () => void;
+  onXmlSelected?: (file: File) => void;
+  onOneClickInvoice?: () => void;
   selectedRowsCount: number;
   guardrail?: InvoiceGuardrailResult | null;
 }
@@ -34,6 +39,7 @@ export function InvoiceFinancialCard({
   currentCostPrice,
   folio,
   setFolio,
+  uuidFiscal,
   duplicateInvoice,
   saving,
   onInvoice,
@@ -41,6 +47,8 @@ export function InvoiceFinancialCard({
   onDownloadPrefactura,
   onDownloadXmlDraft,
   onWhatsAppContador,
+  onXmlSelected,
+  onOneClickInvoice,
   selectedRowsCount,
   guardrail,
 }: InvoiceFinancialCardProps) {
@@ -107,14 +115,44 @@ export function InvoiceFinancialCard({
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-        <div style={{ flex: '1 1 240px', minWidth: 200 }}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>
-            Folio Fiscal de la Factura (Opcional si es Prefactura)
-          </label>
+        <div style={{ flex: '1 1 280px', minWidth: 240 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>
+              Folio Fiscal de la Factura
+            </label>
+            {onXmlSelected && (
+              <label
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: '#2563eb',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(37,99,235,0.08)',
+                }}
+              >
+                <span>🧾 Cargar XML SAT</span>
+                <input
+                  type="file"
+                  accept=".xml"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      onXmlSelected(e.target.files[0]);
+                    }
+                  }}
+                />
+              </label>
+            )}
+          </div>
           <input
             type="text"
             className="input mono"
-            placeholder="Ej: 6200, 6266"
+            placeholder="Ej: 6200, 6266 o F-01"
             value={folio}
             onChange={(e) => setFolio(e.target.value)}
             disabled={saving}
@@ -127,9 +165,16 @@ export function InvoiceFinancialCard({
               borderColor: duplicateInvoice ? 'var(--bad)' : undefined,
             }}
           />
-          {duplicateInvoice && (
+          {uuidFiscal && (
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>🛡️ UUID SAT:</span> <strong className="mono">{uuidFiscal.slice(0, 8)}...{uuidFiscal.slice(-8)}</strong>
+            </div>
+          )}
+          {duplicateInvoice && 'type' in duplicateInvoice ? (
+            <DuplicateRadarAlert match={duplicateInvoice as DuplicateMatch} />
+          ) : duplicateInvoice && (
             <div style={{ color: 'var(--bad)', fontSize: 11, fontWeight: 700, marginTop: 4 }}>
-              ⚠️ El folio ya existe en el expediente {duplicateInvoice.orderFolio}.
+              ⚠️ El folio ya existe en el expediente {(duplicateInvoice as any).orderFolio}.
             </div>
           )}
         </div>
@@ -220,6 +265,36 @@ export function InvoiceFinancialCard({
           >
             Cancelar
           </button>
+          {onOneClickInvoice && !folio.trim() && (
+            <button
+              type="button"
+              className="btn"
+              onClick={onOneClickInvoice}
+              disabled={
+                saving ||
+                kilosToInvoice <= 0 ||
+                Boolean(guardrail?.isOverDelivered || guardrail?.isOverOrdered)
+              }
+              style={{
+                padding: '10px 18px',
+                fontWeight: 800,
+                fontSize: 13,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                color: '#fff',
+                border: 'none',
+                boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              title="Genera un folio sugerido y factura en 1 clic los kilos amparados"
+            >
+              <span>⚡</span>
+              <span>Facturar en 1 Clic</span>
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"

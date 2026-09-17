@@ -4,7 +4,7 @@ import { fmtDate, toDate } from './format';
 
 export interface DuplicateMatch {
   exists: boolean;
-  type: 'cr' | 'invoice' | 'oc' | 'remision';
+  type: 'cr' | 'invoice' | 'oc' | 'remision' | 'uuid';
   matchedValue: string;
   orderFolio: string;
   invoiceFolio?: string;
@@ -117,11 +117,22 @@ export function findDuplicateOrderFolio(
   const target = normalizeFolio(orderFolio);
   if (!target || target.length < 2) return null;
 
+  const targetRaw = target.replace(/^oc/, '');
+
   for (const o of orders) {
     if ((o as any).isDeleted) continue;
     if (excludeOrderId && o.id === excludeOrderId) continue;
-    const f = normalizeFolio(o.folio || o.oc);
-    if (f === target) {
+    const fFolio = normalizeFolio(o.folio);
+    const fOc = normalizeFolio(o.oc);
+    const fFolioRaw = fFolio.replace(/^oc/, '');
+    const fOcRaw = fOc.replace(/^oc/, '');
+
+    const isMatch =
+      fFolio === target ||
+      fOc === target ||
+      (targetRaw.length >= 2 && (fFolioRaw === targetRaw || fOcRaw === targetRaw));
+
+    if (isMatch) {
       const dt = toDate(o.processedAt || o.updatedAt || o.estimatedDeliveryDate);
       return {
         exists: true,
@@ -169,4 +180,79 @@ export function findDuplicateRemision(
 
   return null;
 }
+
+/**
+ * Valida si un UUID fiscal del SAT (CFDI) ya existe en cualquier factura del sistema.
+ */
+export function findDuplicateUuid(
+  orders: PurchaseOrder[],
+  uuid: string,
+  excludeInvoiceId?: string
+): DuplicateMatch | null {
+  if (!uuid) return null;
+  const target = uuid.trim().toLowerCase();
+  if (target.length < 10) return null;
+
+  for (const o of orders) {
+    if ((o as any).isDeleted) continue;
+    for (const inv of o.invoices || []) {
+      if (excludeInvoiceId && inv.id === excludeInvoiceId) continue;
+      const invUuid = (inv.uuid || (inv as any).uuidFiscal || '').trim().toLowerCase();
+      if (invUuid && (invUuid === target || invUuid.replace(/-/g, '') === target.replace(/-/g, ''))) {
+        const dt = toDate(inv.creditCycle?.issueDate);
+        return {
+          exists: true,
+          type: 'uuid',
+          matchedValue: inv.uuid || (inv as any).uuidFiscal || target,
+          orderFolio: o.folio || o.oc || 'S/OC',
+          invoiceFolio: inv.folio || 'S/F',
+          client: o.client || 'Providencia',
+          dateStr: dt ? fmtDate(dt) : undefined,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Radar integral para checar cualquier duplicado (OC, Factura, UUID, CR, Remisión)
+ */
+export function checkAllDuplicates(
+  orders: PurchaseOrder[],
+  query: {
+    oc?: string;
+    invoiceFolio?: string;
+    uuid?: string;
+    contrarecibo?: string;
+    remision?: string;
+    excludeOrderId?: string;
+    excludeInvoiceId?: string;
+    excludeDeliveryId?: string;
+  }
+): DuplicateMatch | null {
+  if (query.uuid) {
+    const match = findDuplicateUuid(orders, query.uuid, query.excludeInvoiceId);
+    if (match) return match;
+  }
+  if (query.invoiceFolio) {
+    const match = findDuplicateInvoiceFolio(orders, query.invoiceFolio, query.excludeInvoiceId);
+    if (match) return match;
+  }
+  if (query.oc) {
+    const match = findDuplicateOrderFolio(orders, query.oc, query.excludeOrderId);
+    if (match) return match;
+  }
+  if (query.contrarecibo) {
+    const match = findDuplicateContrarecibo(orders, query.contrarecibo, query.excludeInvoiceId, query.excludeOrderId);
+    if (match) return match;
+  }
+  if (query.remision) {
+    const match = findDuplicateRemision(orders, query.remision, query.excludeDeliveryId);
+    if (match) return match;
+  }
+  return null;
+}
+
 

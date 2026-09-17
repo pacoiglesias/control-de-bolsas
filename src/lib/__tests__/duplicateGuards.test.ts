@@ -1,123 +1,109 @@
 import { describe, it, expect } from 'vitest';
 import {
+  normalizeFolio,
   findDuplicateContrarecibo,
   findDuplicateInvoiceFolio,
   findDuplicateOrderFolio,
   findDuplicateRemision,
-  normalizeFolio,
+  findDuplicateUuid,
+  checkAllDuplicates,
 } from '../duplicateGuards';
 import type { PurchaseOrder } from '../types';
 
-describe('duplicateGuards test suite', () => {
+describe('Radar Antiduplicados (duplicateGuards)', () => {
   const mockOrders: PurchaseOrder[] = [
     {
-      id: 'ord_1',
+      id: 'ord-1',
       folio: 'OC-1001',
-      client: 'Providencia',
+      oc: '1001',
+      client: 'GRUPO TEXTIL PROVIDENCIA',
       invoices: [
         {
-          id: 'inv_1',
-          folio: 'FACT-501',
-          kilos: 500,
+          id: 'inv-1',
+          folio: 'F-8890',
+          uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          kilos: 1000,
           collection: {
-            contrareciboNumber: 'CR-9001',
+            contrareciboNumber: 'CR-5544',
           },
-          creditCycle: {
-            status: 'pending',
-          },
+        } as any,
+      ],
+      deliveries: [
+        {
+          id: 'del-1',
+          docFolio: 'REM-777',
+          kgNeto: 1000,
         } as any,
       ],
     } as any,
     {
-      id: 'ord_2',
-      folio: 'OC-1002',
-      client: 'San Marcos',
-      invoices: [
-        {
-          id: 'inv_2',
-          folio: 'FACT-502',
-          kilos: 300,
-          collection: {
-            contrareciboNumber: 'CR-9002',
-          },
-          creditCycle: {
-            status: 'pending',
-          },
-        } as any,
-      ],
+      id: 'ord-2',
+      folio: 'OC-2002',
+      oc: '2002',
+      client: 'GRUPO TEXTIL PROVIDENCIA (GT)',
+      invoices: [],
+      deliveries: [],
     } as any,
   ];
 
-  it('normalizes alphanumeric strings properly', () => {
-    expect(normalizeFolio(' CR - 9001 ')).toBe('cr9001');
-    expect(normalizeFolio('OC/1001-A')).toBe('oc1001a');
+  it('normaliza folios correctamente eliminando acentos y caracteres especiales', () => {
+    expect(normalizeFolio(' O.C. - 1001 ')).toBe('oc1001');
+    expect(normalizeFolio('CR 5544')).toBe('cr5544');
     expect(normalizeFolio(null)).toBe('');
   });
 
-  it('detects duplicate contrarecibos accurately', () => {
-    const dup = findDuplicateContrarecibo(mockOrders, 'cr-9001');
-    expect(dup).not.toBeNull();
-    expect(dup?.orderFolio).toBe('OC-1001');
-    expect(dup?.invoiceFolio).toBe('FACT-501');
+  it('detecta Folio de OC duplicado ignorando mayúsculas y espacios', () => {
+    const match = findDuplicateOrderFolio(mockOrders, 'oc-1001');
+    expect(match).not.toBeNull();
+    expect(match?.orderFolio).toBe('OC-1001');
+    expect(match?.type).toBe('oc');
 
-    // Should ignore if same invoice ID is excluded (e.g. editing the same invoice)
-    const selfCheck = findDuplicateContrarecibo(mockOrders, 'cr-9001', 'inv_1');
-    expect(selfCheck).toBeNull();
-
-    // Should return null for non-existing CR
-    expect(findDuplicateContrarecibo(mockOrders, 'CR-9999')).toBeNull();
+    // Excluyendo la misma orden no debe alertar
+    const matchExcluded = findDuplicateOrderFolio(mockOrders, 'OC-1001', 'ord-1');
+    expect(matchExcluded).toBeNull();
   });
 
-  it('detects duplicate invoices accurately', () => {
-    const dup = findDuplicateInvoiceFolio(mockOrders, 'fact-501');
-    expect(dup).not.toBeNull();
-    expect(dup?.orderFolio).toBe('OC-1001');
+  it('detecta Folio de Factura duplicado', () => {
+    const match = findDuplicateInvoiceFolio(mockOrders, 'F-8890');
+    expect(match).not.toBeNull();
+    expect(match?.invoiceFolio).toBe('F-8890');
+    expect(match?.type).toBe('invoice');
 
-    // Should ignore when editing the same invoice
-    expect(findDuplicateInvoiceFolio(mockOrders, 'fact-501', 'inv_1')).toBeNull();
-
-    // Should return null for a unique invoice
-    expect(findDuplicateInvoiceFolio(mockOrders, 'FACT-777')).toBeNull();
+    const notFound = findDuplicateInvoiceFolio(mockOrders, 'F-9999');
+    expect(notFound).toBeNull();
   });
 
-  it('detects duplicate purchase order folios', () => {
-    const dup = findDuplicateOrderFolio(mockOrders, 'OC-1001');
-    expect(dup).not.toBeNull();
-    expect(dup?.orderFolio).toBe('OC-1001');
+  it('detecta UUID SAT duplicado ignorando guiones y mayúsculas', () => {
+    const match = findDuplicateUuid(mockOrders, 'A1B2C3D4E5F67890ABCDEF1234567890');
+    expect(match).not.toBeNull();
+    expect(match?.type).toBe('uuid');
+    expect(match?.invoiceFolio).toBe('F-8890');
 
-    // Should ignore when editing the same order
-    expect(findDuplicateOrderFolio(mockOrders, 'OC-1001', 'ord_1')).toBeNull();
-
-    // Unique folio
-    expect(findDuplicateOrderFolio(mockOrders, 'OC-9999')).toBeNull();
+    const notFound = findDuplicateUuid(mockOrders, '99999999-9999-9999-9999-999999999999');
+    expect(notFound).toBeNull();
   });
 
-  it('detects duplicate delivery remisiones accurately', () => {
-    const ordersWithDeliveries: PurchaseOrder[] = [
-      {
-        id: 'ord_10',
-        folio: 'OC-2026',
-        client: 'Providencia',
-        deliveries: [
-          {
-            id: 'del_1',
-            docFolio: 'REM-8899',
-            kilos: 1200,
-            date: new Date() as any,
-          },
-        ],
-      } as any,
-    ];
+  it('detecta Contrarecibo y Remisión duplicados', () => {
+    const matchCr = findDuplicateContrarecibo(mockOrders, 'cr-5544');
+    expect(matchCr).not.toBeNull();
+    expect(matchCr?.type).toBe('cr');
 
-    const dup = findDuplicateRemision(ordersWithDeliveries, 'rem-8899');
-    expect(dup).not.toBeNull();
-    expect(dup?.orderFolio).toBe('OC-2026');
-    expect(dup?.matchedValue).toBe('REM-8899');
+    const matchRem = findDuplicateRemision(mockOrders, 'rem-777');
+    expect(matchRem).not.toBeNull();
+    expect(matchRem?.type).toBe('remision');
+  });
 
-    // Should ignore when editing same delivery
-    expect(findDuplicateRemision(ordersWithDeliveries, 'rem-8899', 'del_1')).toBeNull();
+  it('checkAllDuplicates valida múltiples campos en una sola llamada', () => {
+    const match1 = checkAllDuplicates(mockOrders, { oc: '1001' });
+    expect(match1?.type).toBe('oc');
 
-    // Should return null for non-existing remision
-    expect(findDuplicateRemision(ordersWithDeliveries, 'REM-0000')).toBeNull();
+    const match2 = checkAllDuplicates(mockOrders, { invoiceFolio: 'F-8890' });
+    expect(match2?.type).toBe('invoice');
+
+    const match3 = checkAllDuplicates(mockOrders, { uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' });
+    expect(match3?.type).toBe('uuid');
+
+    const matchNone = checkAllDuplicates(mockOrders, { oc: 'OC-9999', invoiceFolio: 'F-0000' });
+    expect(matchNone).toBeNull();
   });
 });

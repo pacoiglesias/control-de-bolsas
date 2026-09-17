@@ -3,6 +3,9 @@ import { TextField } from '../common/Autocomplete';
 import { computeFinancials } from '../../lib/finance';
 import { money, kilos } from '../../lib/format';
 import { DEFAULT_CONFIG } from '../../lib/types';
+import { useOrders } from '../../hooks/useOrders';
+import { useDuplicateRadar } from '../../hooks/useDuplicateRadar';
+import { DuplicateRadarAlert } from '../common/DuplicateRadarAlert';
 
 export interface FacturaFormData {
   folioFactura: string;
@@ -55,6 +58,20 @@ export const FacturaForm: React.FC<FacturaFormProps> = ({
   );
   const [contrarecibo, setContrarecibo] = useState(initialData.contrarecibo || '');
   const [notes, setNotes] = useState(initialData.notes || '');
+
+  const { orders } = useOrders();
+  const { match: duplicateFolio } = useDuplicateRadar(orders, {
+    invoiceFolio: folioFactura,
+    debounceMs: 120,
+  });
+  const { match: duplicateUuid } = useDuplicateRadar(orders, {
+    uuid: uuidFiscal,
+    debounceMs: 150,
+  });
+  const { match: duplicateCr } = useDuplicateRadar(orders, {
+    contrarecibo: contrarecibo,
+    debounceMs: 120,
+  });
 
   const numKilos = Number(invoiceKilos) || 0;
   const numPrice = Number(price) || 43;
@@ -123,6 +140,9 @@ export const FacturaForm: React.FC<FacturaFormProps> = ({
         />
       </div>
 
+      <DuplicateRadarAlert match={duplicateFolio} />
+      <DuplicateRadarAlert match={duplicateUuid} />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
         <TextField
           label="Kilos a Facturar *"
@@ -169,13 +189,16 @@ export const FacturaForm: React.FC<FacturaFormProps> = ({
         </div>
       </div>
 
-      <TextField
-        label="Número de Contrarecibo (Opcional - si ya fue entregado)"
-        value={contrarecibo}
-        onChange={(e) => setContrarecibo(e.target.value)}
-        placeholder="Ej. CR-90145"
-        disabled={disabled}
-      />
+      <div>
+        <TextField
+          label="Número de Contrarecibo (Opcional - si ya fue entregado)"
+          value={contrarecibo}
+          onChange={(e) => setContrarecibo(e.target.value)}
+          placeholder="Ej. 10025687"
+          disabled={disabled}
+        />
+        <DuplicateRadarAlert match={duplicateCr} />
+      </div>
 
       <TextField
         label="Notas o Leyendas Fiscales"

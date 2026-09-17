@@ -4,6 +4,9 @@ import { TextField } from '../common/Autocomplete';
 import { computeFinancials } from '../../lib/finance';
 import { money } from '../../lib/format';
 import { DEFAULT_CONFIG } from '../../lib/types';
+import { useOrders } from '../../hooks/useOrders';
+import { useDuplicateRadar } from '../../hooks/useDuplicateRadar';
+import { DuplicateRadarAlert } from '../common/DuplicateRadarAlert';
 
 export interface OrdenCompraFormData {
   folio: string;
@@ -40,6 +43,11 @@ export const OrdenCompraForm: React.FC<OrdenCompraFormProps> = ({
   disabled = false,
 }) => {
   const [folio, setFolio] = useState(initialData.folio || `OC-${Date.now().toString().slice(-6)}`);
+  const { orders } = useOrders();
+  const { match: duplicateOc } = useDuplicateRadar(orders, {
+    oc: folio,
+    debounceMs: 120,
+  });
   const [client, setClient] = useState<any>(initialData.client || 'GRUPO TEXTIL PROVIDENCIA (TH - José Nava Flores)');
   const [department, setDepartment] = useState(initialData.department || 'TH');
   const [provider, setProvider] = useState<any>(initialData.provider || 'Andrés Gutiérrez (Maquila y Resina)');
@@ -101,6 +109,7 @@ export const OrdenCompraForm: React.FC<OrdenCompraFormProps> = ({
             required
             disabled={disabled}
           />
+          <DuplicateRadarAlert match={duplicateOc} />
         </div>
 
         <div>

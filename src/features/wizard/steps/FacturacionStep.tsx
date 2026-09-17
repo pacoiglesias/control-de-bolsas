@@ -36,6 +36,50 @@ export const FacturacionStep: React.FC<FacturacionStepProps> = ({
         </p>
       </div>
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            const subtotal = kilosFromReception * salePrice;
+            const iva = subtotal * 0.16;
+            const total = subtotal + iva;
+            onComplete({
+              facturaData: {
+                folioFactura: `F-${Date.now().toString().slice(-4)}`,
+                uuidFiscal: `UUID-${Date.now()}`,
+                invoiceKilos: kilosFromReception,
+                salePricePerKg: salePrice,
+                subtotal,
+                iva,
+                total,
+                paymentMethod: 'PPD',
+                contrarecibo: '',
+                notes: `Facturado automático desde báscula (${kilosFromReception} kg)`,
+              },
+            });
+          }}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+            color: '#fff',
+            border: 'none',
+            fontWeight: 800,
+            fontSize: 13,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
+            cursor: 'pointer',
+          }}
+          title="Usa los kilos exactos de báscula y el precio de la OC para facturar en 1 clic"
+        >
+          <span>⚡</span>
+          <span>Facturar con datos de báscula en 1 Clic ➔</span>
+        </button>
+      </div>
+
       <FacturaForm
         initialData={initialData?.facturaData || initialData}
         kilosFromReception={kilosFromReception}

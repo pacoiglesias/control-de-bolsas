@@ -83,7 +83,7 @@ export function OrderRowActions({
         title={`Emitir Factura CFDI (${kilosPendientesDeFacturar.toLocaleString('es-MX')} kg listos)`}
       >
         <span aria-hidden="true">⚡</span>
-        <span>Facturar</span>
+        <span>{hasPendingKilos ? `Facturar ${kilosPendientesDeFacturar.toLocaleString('es-MX')} kg` : 'Facturar'}</span>
       </button>
 
       {/* 4. Entrega de Báscula */}
