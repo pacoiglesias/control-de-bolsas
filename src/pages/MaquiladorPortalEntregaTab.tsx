@@ -45,6 +45,7 @@ export default function MaquiladorPortalEntregaTab({
   setDeliveryNotes,
   saving,
   handleSubmit,
+  onOpenCameraScanner,
 }: {
   deptFilter: 'ALL' | 'TH' | 'GT';
   setDeptFilter: (d: 'ALL' | 'TH' | 'GT') => void;
@@ -72,6 +73,7 @@ export default function MaquiladorPortalEntregaTab({
   setDeliveryNotes: (n: string) => void;
   saving: boolean;
   handleSubmit: (e: FormEvent) => void;
+  onOpenCameraScanner?: () => void;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -448,8 +450,29 @@ export default function MaquiladorPortalEntregaTab({
             </div>
           )}
 
-          {/* Presets Inteligentes de 1-Clic */}
+          {/* Presets Inteligentes de 1-Clic + Escaneo de Ticket */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {onOpenCameraScanner && (
+              <button
+                type="button"
+                onClick={onOpenCameraScanner}
+                style={{
+                  background: 'rgba(124, 58, 237, 0.2)',
+                  border: '1px solid #7c3aed',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  color: '#c4b5fd',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                📸 Escanear Ticket Báscula
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setKilos(String(selectedOrder.pendingKilos))}

@@ -7,7 +7,7 @@ import confetti from 'canvas-confetti';
 import { openWhatsAppMessage } from '../lib/whatsappReminder';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { PinScreen } from './MaquiladorPortalPinScreen';
-import { glass, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY } from './MaquiladorPortal.shared';
+import { glass, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY, type ActiveMaquilaOrder, type MaquilaDelivery, type LastDeliveredNotice, type MaquilaStatement, type MaquilaLedgerEntry } from './MaquiladorPortal.shared';
 import { getStatementHtml, getDeliveryTicketHtml } from './MaquiladorPortalReports';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
@@ -20,6 +20,7 @@ import {
 } from '../lib/offlineMaquilaDb';
 import { PulsingBadge } from '../components/ui/PulsingBadge';
 import { triggerHaptic } from '../lib/hapticEngine';
+import { CameraTicketScannerModal, type CameraScanResult } from '../components/Recepcion/CameraTicketScannerModal';
 
 // Subcomponentes Modulares del Portal
 import MaquiladorPortalEntregaTab from './MaquiladorPortalEntregaTab';
@@ -46,7 +47,7 @@ export default function MaquiladorPortal() {
   const clientName = settings?.clientShortName || 'Providencia';
   const [pin, setPin] = useState('');
   const [auth, setAuth] = useState(false);
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [activeOrders, setActiveOrders] = useState<ActiveMaquilaOrder[]>([]);
   const [, setLoadingOrders] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [kilos, setKilos] = useState('');
@@ -55,13 +56,13 @@ export default function MaquiladorPortal() {
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'entrega' | 'estado' | 'historial'>('entrega');
-  const [statement, setStatement] = useState<any>(null);
+  const [statement, setStatement] = useState<MaquilaStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'pagos' | 'entregas'>('all');
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [searchOc, setSearchOc] = useState('');
   const [deptFilter, setDeptFilter] = useState<'ALL' | 'TH' | 'GT'>('ALL');
-  const [lastDeliveredNotice, setLastDeliveredNotice] = useState<any>(null);
+  const [lastDeliveredNotice, setLastDeliveredNotice] = useState<LastDeliveredNotice | null>(null);
 
   // Cola offline persistente con IndexedDB
   const [offlineQueue, setOfflineQueue] = useState<OfflineDeliveryItem[]>([]);
@@ -72,6 +73,7 @@ export default function MaquiladorPortal() {
   const [showBundleCalc, setShowBundleCalc] = useState(false);
   const [bundleCount, setBundleCount] = useState('');
   const [bundleWeight, setBundleWeight] = useState('25');
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   // Estado de Red
   const { isOnline } = useNetworkStatus();
@@ -140,7 +142,7 @@ export default function MaquiladorPortal() {
   }, [isOnline, pin, syncOfflineQueue]);
 
   // Cargar historial guardado (filtrando folios obsoletos de prueba como 120267114014)
-  const [historial, setHistorial] = useState<any[]>(() => {
+  const [historial, setHistorial] = useState<MaquilaDelivery[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_DELIVERIES_KEY);
       const list = saved ? JSON.parse(saved) : [];
@@ -241,7 +243,7 @@ export default function MaquiladorPortal() {
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
         toast(`✅ Entrega de ${numKilos} kg registrada correctamente.`, 'ok');
 
-        const newDelivery = {
+        const newDelivery: MaquilaDelivery = {
           date: new Date().toISOString(),
           orderId,
           folio: order?.folio,
@@ -288,7 +290,7 @@ export default function MaquiladorPortal() {
 
         toast(`📦 Sin conexión. Entrega guardada en tu dispositivo (Offline).`, 'info');
 
-        const newDelivery = {
+        const newDelivery: MaquilaDelivery = {
           date: new Date().toISOString(),
           orderId,
           folio: order?.folio,
@@ -375,15 +377,15 @@ export default function MaquiladorPortal() {
 
   const filteredLedger = useMemo(() => {
     if (!statement?.ledger) return [];
-    let list = statement.ledger;
+    let list: MaquilaLedgerEntry[] = statement.ledger;
     if (ledgerFilter === 'pagos') {
-      list = list.filter((r: any) => r.cargo > 0);
+      list = list.filter((r) => r.cargo > 0);
     } else if (ledgerFilter === 'entregas') {
-      list = list.filter((r: any) => r.abono > 0);
+      list = list.filter((r) => r.abono > 0);
     }
     if (ledgerSearch.trim()) {
       const q = ledgerSearch.toLowerCase().trim();
-      list = list.filter((r: any) => (r.concept || '').toLowerCase().includes(q));
+      list = list.filter((r) => (r.concept || '').toLowerCase().includes(q));
     }
     return list;
   }, [statement, ledgerFilter, ledgerSearch]);
@@ -690,6 +692,7 @@ export default function MaquiladorPortal() {
             setDeliveryNotes={setDeliveryNotes}
             saving={saving}
             handleSubmit={handleSubmit}
+            onOpenCameraScanner={() => setShowCameraScanner(true)}
           />
         )}
 
@@ -728,6 +731,26 @@ export default function MaquiladorPortal() {
           isOnline={isOnline}
           offlineQueue={offlineQueue}
         />
+
+        {/* Escáner de Ticket de Báscula para el Portal Maquilador */}
+        {showCameraScanner && (
+          <CameraTicketScannerModal
+            orders={activeOrders}
+            initialOrderId={orderId}
+            onClose={() => setShowCameraScanner(false)}
+            onApplyResult={(result: CameraScanResult) => {
+              if (result.kilos > 0) setKilos(String(result.kilos));
+              if (result.folio) setDocFolio(result.folio);
+              // Auto-asignar OC si la IA la detectó
+              if (result.suggestedOrderId) {
+                const matched = filteredOrders.find((o: any) => o.id === result.suggestedOrderId);
+                if (matched) setOrderId(result.suggestedOrderId);
+              }
+              triggerHaptic('success');
+              setShowCameraScanner(false);
+            }}
+          />
+        )}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import { sound } from '../../lib/sounds';
 import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
 import { findDuplicateRemision } from '../../lib/duplicateGuards';
 import { getEffectiveOrderItems } from '../../lib/types';
+import { CameraTicketScannerModal, type CameraScanResult } from '../Recepcion/CameraTicketScannerModal';
 
 interface QuickDeliveryModalProps {
   orders: PurchaseOrder[];
@@ -62,6 +63,7 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
   const [docFolio, setDocFolio] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   const duplicateRemision = useMemo(() => {
     if (!docFolio.trim()) return null;
@@ -531,8 +533,28 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
                       <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink-soft)' }}>kg</span>
                     </div>
 
-                    {/* Atajos de llenado rápido */}
+                    {/* Atajos de llenado rápido + Escaneo de Ticket */}
                     <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowCameraScanner(true)}
+                        title="Escanear Ticket de Báscula con Cámara"
+                        style={{
+                          fontSize: 11,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #7c3aed',
+                          background: 'rgba(124, 58, 237, 0.12)',
+                          color: '#7c3aed',
+                          cursor: 'pointer',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        📸 Escanear Ticket Báscula
+                      </button>
                       <button
                         type="button"
                         onClick={() => setKilos(selectedInfo.faltante)}
@@ -755,6 +777,35 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
           </>
         )}
       </div>
+
+      {/* Camera Ticket Scanner — se abre sobre el propio modal */}
+      {showCameraScanner && (
+        <CameraTicketScannerModal
+          orders={orders}
+          initialOrderId={selectedOrderId}
+          onClose={() => setShowCameraScanner(false)}
+          onApplyResult={(result: CameraScanResult) => {
+            // Auto-rellenar todos los campos desde el ticket escaneado
+            if (result.kilos > 0) setKilos(result.kilos);
+            if (result.folio) setDocFolio(result.folio);
+            if (result.dateStr) setDateStr(result.dateStr);
+            if (result.driver) setDriver(result.driver);
+
+            // Si la IA detectó la OC correcta, cambiar automáticamente a ella
+            if (result.suggestedOrderId) {
+              const matched = pendingOrders.find((p) => p.order.id === result.suggestedOrderId);
+              if (matched) {
+                setSelectedOrderId(result.suggestedOrderId);
+                // No sobreescribir los kilos del ticket con el faltante de la OC
+              }
+            }
+
+            triggerHaptic('success');
+            sound.playSuccess();
+            setShowCameraScanner(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }

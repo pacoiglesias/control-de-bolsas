@@ -14,7 +14,7 @@ import { useToast } from '../context/ToastContext';
 import { money } from '../lib/format';
 import { computeFinancials, round2 } from '../lib/finance';
 import { triggerHaptic } from '../lib/hapticEngine';
-import { downloadMasterExcelWorkbook } from '../lib/masterExcelExporter';
+// masterExcelExporter se carga de forma lazy (xlsx pesa 143 kB gzip)
 import { downloadExecutiveOnePagerPdf } from '../lib/executiveOnePagerPdf';
 import {
   embedIntoHtml,
@@ -469,15 +469,20 @@ export default function Respaldo() {
                   border: 'none',
                   color: '#fff',
                 }}
-                onClick={() => {
+                onClick={async () => {
                   triggerHaptic('success');
-                  downloadMasterExcelWorkbook({
-                    orders,
-                    purchases,
-                    expenses,
-                    config,
-                  });
-                  toast('📊 Base de Datos Maestra exportada a Excel (.xlsx multi-hoja)', 'ok');
+                  try {
+                    const { downloadMasterExcelWorkbook } = await import('../lib/masterExcelExporter');
+                    downloadMasterExcelWorkbook({
+                      orders,
+                      purchases,
+                      expenses,
+                      config,
+                    });
+                    toast('📊 Base de Datos Maestra exportada a Excel (.xlsx multi-hoja)', 'ok');
+                  } catch (e: any) {
+                    toast(`Error al exportar Excel maestro: ${e.message}`, 'bad');
+                  }
                 }}
               >
                 ⭳ Descargar Excel Maestro (.xlsx)

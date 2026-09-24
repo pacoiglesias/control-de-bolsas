@@ -100,7 +100,7 @@ export default defineConfig(({ mode }) => {
   build: {
     outDir: 'dist',
     sourcemap: 'hidden', // genera .map para debugging pero no los expone en el bundle
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 500,  // estándar recomendado (antes: 1000)
     rollupOptions: {
       output: {
         // El SDK de Firebase pesa; separarlo deja que el navegador lo cachee
@@ -110,9 +110,10 @@ export default defineConfig(({ mode }) => {
           react: ['react', 'react-dom', 'react-router-dom'],
           motion: ['framer-motion'],
           excel: ['xlsx'],
-          pdf: ['html2pdf.js'],
-          ocr: ['pdfjs-dist', 'tesseract.js'],
+          pdf: ['html2pdf.js'],              // html2pdf (jspdf interno)
+          ocr: ['pdfjs-dist', 'tesseract.js'],  // pdfjs + tesseract separados
           archive: ['jszip'],
+          charts: ['recharts'],              // recharts separado (102 kB gzip)
         },
       },
     },

@@ -1,8 +1,9 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { createWorker } from 'tesseract.js';
 
-// We need to set the worker source. In Vite, we can point to the local file.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Worker de pdfjs-dist v4 — ya no usa eval (eliminado en v4.x).
+// Apuntamos al CDN de unpkg que sí tiene el worker v4 en el path correcto.
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export interface OcrConcepto {
   codigo?: string;

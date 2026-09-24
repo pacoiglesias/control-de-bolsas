@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { triggerHaptic } from '../../lib/hapticEngine';
-import { downloadMasterExcelWorkbook } from '../../lib/masterExcelExporter';
+// masterExcelExporter se carga de forma lazy (xlsx pesa 143 kB gzip)
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useConfig } from '../../hooks/useConfig';
 import { useToast } from '../../context/ToastContext';
@@ -28,6 +28,7 @@ export function GlobalSpeedFab() {
     try {
       triggerHaptic('success');
       toast('📊 Generando Base de Datos Maestra de Excel...', 'info');
+      const { downloadMasterExcelWorkbook } = await import('../../lib/masterExcelExporter');
       downloadMasterExcelWorkbook({ orders, purchases: [], expenses: [], config });
       toast('✅ Archivo Excel descargado con éxito.', 'ok');
     } catch (err: any) {

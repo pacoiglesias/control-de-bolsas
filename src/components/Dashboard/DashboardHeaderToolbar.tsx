@@ -3,7 +3,7 @@ import { money, monthLabel } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { exportToExcel } from '../../lib/export';
 import { downloadBackupJsonFile } from '../../lib/cloudBackup';
-import { downloadMasterExcelWorkbook } from '../../lib/masterExcelExporter';
+// masterExcelExporter se carga de forma lazy (xlsx pesa 143 kB gzip)
 import { downloadExecutiveOnePagerPdf } from '../../lib/executiveOnePagerPdf';
 import { OfflineExcelSyncModal } from '../Offline/OfflineExcelSyncModal';
 import { motion } from 'framer-motion';
@@ -367,9 +367,10 @@ export function DashboardHeaderToolbar({
                 <button
                   className="btn"
                   style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#059669', padding: '8px 12px', borderRadius: 8 }}
-                  onClick={() => {
+                  onClick={async () => {
                     setShowExportMenu(false);
                     try {
+                      const { downloadMasterExcelWorkbook } = await import('../../lib/masterExcelExporter');
                       downloadMasterExcelWorkbook({
                         orders: globalOrders,
                         purchases,

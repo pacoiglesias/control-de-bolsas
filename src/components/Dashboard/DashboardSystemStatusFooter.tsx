@@ -1,5 +1,5 @@
 import { fmtDate } from '../../lib/format';
-import { SYSTEM_CHANGELOG } from '../../lib/systemChangelog';
+import { LATEST_RELEASE } from '../../lib/latestRelease';
 import type { LiveLogEntry } from '../../pages/Dashboard';
 
 /**
@@ -113,10 +113,10 @@ export function DashboardSystemStatusFooter({
             <span className="badge" style={{ background: 'var(--ok)', fontSize: 10 }}>v{__APP_VERSION__}</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--accent-deep)', fontWeight: 600, marginTop: 2 }}>
-            📅 {SYSTEM_CHANGELOG[0]?.date ?? '—'}
+            📅 {LATEST_RELEASE.date}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {SYSTEM_CHANGELOG[0]?.summary ?? ''}
+            {LATEST_RELEASE.summary}
           </div>
           <button className="btn" onClick={onOpenChangelog} style={{ fontSize: 10, marginTop: 6, padding: '3px 8px' }}>
             📜 Bitácora de Versiones
