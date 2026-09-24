@@ -107,8 +107,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           ocMap.set(canonicalKey, list);
         }
 
-        // 🛡️ Garantizar que las OCs Activas de Providencia existan siempre como fallback
-        // OC 120267114302 (TH - Nava · 71/14302 · 8,000 kg) — activa con entrega parcial F-6307
+        // 🛡️ Garantizar que las OCs Activas Oficiales existan siempre como fallback
+        // OC 120267114302 (TH - Nava · 71/14302 · 8,000 kg) — activa con entrega parcial Factura 6307
         if (!ocMap.has(OC_TH_ACTIVE)) {
           ocMap.set(OC_TH_ACTIVE, [{
             id: `oc-${OC_TH_ACTIVE}`,
@@ -117,10 +117,22 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             client: CLIENT_TH,
             department: DEPT_TH_ALMACEN,
             totalKilograms: 8000.00,
-            status: 'pedido',
+            isClosedShort: false,
             creditCycle: { status: 'pedido' },
+            invoices: [
+              {
+                id: 'inv-6307',
+                folio: '6307',
+                uuid: '67F11BC8-7B33-4CFC-97EE-0AA45F51F797',
+                kilos: 1986.00,
+                financials: { invoiceTotal: 99061.68 },
+                creditCycle: { status: 'facturado' },
+                orderId: `oc-${OC_TH_ACTIVE}`,
+                oc: OC_TH_ACTIVE,
+              } as Invoice
+            ],
             processedAt: Timestamp.fromDate(new Date('2026-09-23T17:12:29Z')),
-          } as PurchaseOrder]);
+          } as unknown as PurchaseOrder]);
         }
         // OC 12026439784 (GT - Evelia · 43/9784 · 5,100 kg) — activa pendiente de entrega
         if (!ocMap.has(OC_GT_ACTIVE)) {
@@ -131,35 +143,11 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             client: CLIENT_GT,
             department: DEPT_GT_ALMACEN,
             totalKilograms: 5100.00,
-            status: 'pedido',
+            isClosedShort: false,
             creditCycle: { status: 'pedido' },
+            invoices: [],
             processedAt: Timestamp.fromDate(new Date('2026-09-21T15:14:50Z')),
-          } as PurchaseOrder]);
-        }
-        // Fallbacks históricos (OCs ya completadas, conservadas para el historial de cobranza)
-        if (!ocMap.has(OC_TH_NAVA)) {
-          ocMap.set(OC_TH_NAVA, [{
-            id: `oc-${OC_TH_NAVA}`,
-            oc: OC_TH_NAVA,
-            folio: '71/14114',
-            client: CLIENT_TH,
-            department: DEPT_TH_ALMACEN,
-            totalKilograms: 6411.01,
-            creditCycle: { status: 'facturado' },
-            processedAt: Timestamp.fromDate(new Date('2026-08-20T09:34:40Z')),
-          } as PurchaseOrder]);
-        }
-        if (!ocMap.has(OC_GT_EVELIA)) {
-          ocMap.set(OC_GT_EVELIA, [{
-            id: `oc-${OC_GT_EVELIA}`,
-            oc: OC_GT_EVELIA,
-            folio: '43/9713',
-            client: CLIENT_GT,
-            department: DEPT_GT_ALMACEN,
-            totalKilograms: 3955.20,
-            creditCycle: { status: 'facturado' },
-            processedAt: Timestamp.fromDate(new Date('2026-08-19T13:52:37Z')),
-          } as PurchaseOrder]);
+          } as unknown as PurchaseOrder]);
         }
 
         const deduplicatedDocs: PurchaseOrder[] = [];

@@ -123,7 +123,7 @@ export default defineConfig(({ mode }) => {
     include: ['src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov', 'html', 'json'],
+      reporter: ['text', 'lcov', 'html', 'json', 'json-summary'],
       reportsDirectory: './coverage',
       // Cobertura enfocada en la lógica de negocio pura en src/lib/.
       // Se excluyen:

@@ -143,10 +143,11 @@ export default function OcTracking() {
       const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
       const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
       const allDelivered = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
-      const isCompleted = (summary.status === 'collected' || summary.status === 'paid') && allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01 || Boolean(mergedOrder.isClosedShort));
+      const ocCreditStatus = (mergedOrder.creditCycle?.status ?? '') as string;
+      const isCompleted = ocCreditStatus === 'completed' || Boolean(mergedOrder.isClosedShort && allInvoicesPaid) || ((summary.status === 'collected' || summary.status === 'paid') && allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01 || Boolean(mergedOrder.isClosedShort)));
 
       let statusCategory: OcGroup['statusCategory'] = 'en_cobranza';
-      if (isCompleted) {
+      if (isCompleted || ocCreditStatus === 'completed') {
         statusCategory = 'completada';
       } else if (kilosFaltantes > 0.01 && !mergedOrder.isClosedShort) {
         statusCategory = 'por_entregar';
