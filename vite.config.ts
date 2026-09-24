@@ -111,6 +111,8 @@ export default defineConfig(({ mode }) => {
           motion: ['framer-motion'],
           excel: ['xlsx'],
           pdf: ['html2pdf.js'],
+          ocr: ['pdfjs-dist', 'tesseract.js'],
+          archive: ['jszip'],
         },
       },
     },

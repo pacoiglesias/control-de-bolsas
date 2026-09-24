@@ -11,9 +11,6 @@ import { usePrivacy } from '../context/PrivacyContext';
 import { useTheme } from '../context/ThemeContext';
 import { getOrderSummary, round2 } from '../lib/finance';
 import { sound } from '../lib/sounds';
-import { downloadBackupJsonFile } from '../lib/cloudBackup';
-import { downloadMasterExcelWorkbook } from '../lib/masterExcelExporter';
-import { downloadExecutiveOnePagerPdf } from '../lib/executiveOnePagerPdf';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
@@ -79,25 +76,31 @@ export default function Layout() {
         setSearchOpen((prev) => !prev);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e' && !isInput) {
         e.preventDefault();
-        try {
-          downloadMasterExcelWorkbook({ orders: ordersRef.current, purchases: purchasesRef.current, expenses: expensesRef.current, config: configRef.current, settings: settingsRef.current });
-          sound.playSuccess();
-          toast('📊 Base de Datos Maestra exportada a Excel (.xlsx)', 'ok');
-        } catch (err: any) {
-          toast(`Error al exportar: ${err.message}`, 'bad');
-        }
+        (async () => {
+          try {
+            const { downloadMasterExcelWorkbook } = await import('../lib/masterExcelExporter');
+            downloadMasterExcelWorkbook({ orders: ordersRef.current, purchases: purchasesRef.current, expenses: expensesRef.current, config: configRef.current, settings: settingsRef.current });
+            sound.playSuccess();
+            toast('📊 Base de Datos Maestra exportada a Excel (.xlsx)', 'ok');
+          } catch (err: any) {
+            toast(`Error al exportar: ${err.message}`, 'bad');
+          }
+        })();
       } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'p' && e.shiftKey) && !isInput) {
         e.preventDefault();
-        try {
-          const saldoCaja = round2(
-            (expensesRef.current || []).reduce((acc: number, exp: any) => acc + (exp?.type === 'ingreso' ? Number(exp.amount) || 0 : -(Number(exp.amount) || 0)), 0)
-          );
-          downloadExecutiveOnePagerPdf({ orders: ordersRef.current, expenses: expensesRef.current, config: configRef.current, settings: settingsRef.current, saldoCaja });
-          sound.playSuccess();
-          toast('📄 Resumen Ejecutivo One-Pager descargado en PDF', 'ok');
-        } catch (err: any) {
-          toast(`Error al generar PDF: ${err.message}`, 'bad');
-        }
+        (async () => {
+          try {
+            const saldoCaja = round2(
+              (expensesRef.current || []).reduce((acc: number, exp: any) => acc + (exp?.type === 'ingreso' ? Number(exp.amount) || 0 : -(Number(exp.amount) || 0)), 0)
+            );
+            const { downloadExecutiveOnePagerPdf } = await import('../lib/executiveOnePagerPdf');
+            downloadExecutiveOnePagerPdf({ orders: ordersRef.current, expenses: expensesRef.current, config: configRef.current, settings: settingsRef.current, saldoCaja });
+            sound.playSuccess();
+            toast('📄 Resumen Ejecutivo One-Pager descargado en PDF', 'ok');
+          } catch (err: any) {
+            toast(`Error al generar PDF: ${err.message}`, 'bad');
+          }
+        })();
       } else if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && !isInput) {
         e.preventDefault();
         setShortcutsOpen((prev) => !prev);
@@ -142,13 +145,16 @@ export default function Layout() {
   ], []);
 
   const handleDownloadLocalBackup = () => {
-    try {
-      downloadBackupJsonFile(orders, purchases, expenses, config);
-      sound.playSuccess();
-      toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
-    } catch (err: any) {
-      toast(`Error al exportar respaldo: ${err.message}`, 'bad');
-    }
+    (async () => {
+      try {
+        const { downloadBackupJsonFile } = await import('../lib/cloudBackup');
+        downloadBackupJsonFile(orders, purchases, expenses, config);
+        sound.playSuccess();
+        toast('💾 Respaldo descargado exitosamente en tu dispositivo.', 'ok');
+      } catch (err: any) {
+        toast(`Error al exportar respaldo: ${err.message}`, 'bad');
+      }
+    })();
   };
 
   // Red de seguridad: si algun modal llegara a fallar a mitad de una

@@ -1,3 +1,35 @@
+### Iteración 111: Activación Canónica de Nuevas OCs Oficiales (TH 120267114302 & GT 12026439784), Desglose Parcial F-6298, Optimización de Bundles, 187 Tests y Despliegue Producción
+[2026-09-24]
+Archivos: `src/lib/constants.ts`, `src/context/OrdersContext.tsx`, `src/components/Layout.tsx`, `vite.config.ts`, `scripts/process_orders_and_invoices.cjs`, `scripts/backup_firestore_state.cjs`, `src/lib/__tests__/invoiceOps.test.ts`, `src/lib/__tests__/mathAndFormatCoverage.test.ts`
+Problema:
+1. Providencia aperturó dos nuevas Órdenes de Compra maestras para el ciclo productivo: OC 120267114302 (TH · José Nava) por 10,000 kg y OC 12026439784 (GT · Evelia) por 5,000 kg.
+2. Para la OC TH ya se realizó una entrega parcial de 2,000 kg amparada por la factura F-6298 ($99,760.00 MXN), restando 8,000 kg pendientes. La OC GT se encuentra íntegra abierta por 5,000 kg.
+3. Se requería dejar activas únicamente estas dos órdenes en el flujo operativo, archivar/cerrar órdenes previas sin pérdida de historial, optimizar el rendimiento del bundle inicial y desplegar a Firebase Hosting y Firestore.
+Solución:
+1. **Padrón Oficial y Procesamiento Atómico en Firestore:**
+   - Script determinista `process_orders_and_invoices.cjs` ejecutado en base de datos.
+   - OC TH `120267114302` creada y vinculada con F-6298 (2,000 kg, estatus `in_review`, saldo pendiente 8,000 kg).
+   - OC GT `12026439784` creada como orden activa pendiente por entregar (5,000 kg).
+   - Órdenes previas marcadas canónicamente como `completed` preservando trazabilidad completa.
+2. **Constantes y Fallbacks Canónicos:**
+   - Actualización de `OC_TH_ACTIVE = '120267114302'` y `OC_GT_ACTIVE = '12026439784'` en `src/lib/constants.ts`.
+   - Actualización de los fallbacks de emergencia en `OrdersContext.tsx`.
+3. **Optimización de Bundle Web:**
+   - Dynamic imports para `xlsx` y `jspdf` en exportaciones bajo demanda en `Layout.tsx`.
+   - `manualChunks` en `vite.config.ts` (`ocr`, `archive`, `excel`, `pdf`).
+   - Reducción de `index-*.js` de 1,324 kB a 470 kB (-64%).
+4. **Respaldo Local y Cobertura:**
+   - Respaldo de todas las colecciones de Firestore en `backups/firestore_backup_*.json`.
+   - Cobertura expandida con `invoiceOps.test.ts` y `mathAndFormatCoverage.test.ts`. 187/187 tests unitarios pasando.
+5. **Despliegue Producción:**
+   - `npm run build` completado exitosamente (Frontend + Cloud Functions).
+   - Despliegue en Firebase Hosting (`control-de-bolsas-69.web.app` y `control-de-bolsas-89c88.web.app`) y reglas/índices de Firestore.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances e integridad de Firestore preservados y validados.
+Estado: ✅ Verificado — 187/187 tests pasando (`npm test`), 0 errores de TypeScript (`tsc --noEmit`), Hosting y Firestore en producción.
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 2 (Facturación & Cobranza Automática), OKR 3 (Performance & Bundles), OKR 4 (Confiabilidad Operativa).
+
+---
+
 ### Iteración 110: Tríada Proactiva (Auto-Captura de Contrarecibos, Ingesta Masiva & ZIP, Centinela Facturas Huérfanas >72h y Semáforo 3-Way Matching)
 [2026-09-17]
 Archivos: `src/lib/autoDocumentProcessor.ts`, `src/lib/providenciaPortalParser.ts`, `src/components/Recepcion/SmartDocumentDropzone.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/components/ui/ThreeWayMatchingBadge.tsx`, `src/lib/__tests__/autoDocumentProcessor.test.ts`

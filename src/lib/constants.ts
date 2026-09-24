@@ -40,22 +40,28 @@ export const OFFICIAL_PAID_CRS_LIST = [
 // Órdenes de Compra Maestras y Oficiales de Providencia
 // ---------------------------------------------------------------------------
 
-export const OC_TH_NAVA = '120267114114';    // Textil Hogar — Nava / Torre Lamuño
-export const OC_GT_EVELIA = '12026439713';   // Grupo Textil — Evelia / P4
+export const OC_TH_NAVA = '120267114114';    // Textil Hogar — Nava / Torre Lamuño (Histórica)
+export const OC_GT_EVELIA = '12026439713';   // Grupo Textil — Evelia / P4 (Histórica)
 export const OC_GT_NEW = '12026439753';      // Grupo Textil — P4-ALM (No. Ord. 43/9753 · 4,500 kg)
+export const OC_TH_ACTIVE = '120267114302';   // Textil Hogar — Nava / Torre Lamuño (No. Ord. 71/14302 · 8,000 kg) - ACTIVA
+export const OC_GT_ACTIVE = '12026439784';   // Grupo Textil — Evelia / P4 (No. Ord. 43/9784 · 5,100 kg) - ACTIVA
 
-export const MASTER_OCS = [OC_TH_NAVA, OC_GT_EVELIA, OC_GT_NEW] as const;
+export const MASTER_OCS = [OC_TH_ACTIVE, OC_GT_ACTIVE, OC_TH_NAVA, OC_GT_EVELIA, OC_GT_NEW] as const;
 
-/** Detecta si un string corresponde a la OC maestra de TH */
+/** Detecta si un string corresponde a la OC de TH (Nava) */
 export function isOcTH(s: string): boolean {
   const clean = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return clean.includes('14114') || clean.includes('120267114114');
+  return clean.includes('14302') || clean.includes('120267114302') || clean.includes('14114') || clean.includes('120267114114');
 }
 
-/** Detecta si un string corresponde a una OC oficial de GT */
+/** Detecta si un string corresponde a una OC oficial de GT (Evelia) */
 export function isOcGT(s: string): boolean {
   const clean = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return clean.includes('9713') || clean.includes('12026439713') || clean.includes('9753') || clean.includes('12026439753');
+  return (
+    clean.includes('9784') || clean.includes('12026439784') ||
+    clean.includes('9753') || clean.includes('12026439753') ||
+    clean.includes('9713') || clean.includes('12026439713')
+  );
 }
 
 // ---------------------------------------------------------------------------

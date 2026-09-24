@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, limit, Timestamp } from 'firebase/firest
 import { db, PATHS } from '../lib/firebase';
 import type { PurchaseOrder, Delivery, Invoice } from '../lib/types';
 import { toDate } from '../lib/format';
-import { OFFICIAL_VALID_CRS, isSeedDocument, OC_TH_NAVA, OC_GT_EVELIA, CLIENT_TH, CLIENT_GT, DEPT_TH_ALMACEN, DEPT_GT_ALMACEN } from '../lib/constants';
+import { OFFICIAL_VALID_CRS, isSeedDocument, OC_TH_NAVA, OC_GT_EVELIA, OC_TH_ACTIVE, OC_GT_ACTIVE, CLIENT_TH, CLIENT_GT, DEPT_TH_ALMACEN, DEPT_GT_ALMACEN } from '../lib/constants';
 
 /**
  * Suscripción ÚNICA a purchaseOrders.
@@ -80,7 +80,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           // 🎯 Normalizar clave canónica — crNum debe declararse ANTES de usarse en crMatch
           const crNum = (doc.collection?.contrareciboNumber || (doc as any).contrarecibo || '').trim().toUpperCase();
           const isMasterOc = canonicalKey === OC_TH_NAVA || canonicalKey === OC_GT_EVELIA ||
-                             doc.id === `oc-${OC_TH_NAVA}` || doc.id === `oc-${OC_GT_EVELIA}`;
+                             canonicalKey === OC_TH_ACTIVE || canonicalKey === OC_GT_ACTIVE ||
+                             doc.id === `oc-${OC_TH_NAVA}` || doc.id === `oc-${OC_GT_EVELIA}` ||
+                             doc.id === `oc-${OC_TH_ACTIVE}` || doc.id === `oc-${OC_GT_ACTIVE}`;
           const crMatch = OFFICIAL_VALID_CRS.find(c =>
             canonicalKey.includes(c) ||
             crNum.includes(c) ||
@@ -105,12 +107,41 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           ocMap.set(canonicalKey, list);
         }
 
-        // 🛡️ Garantizar que ambas OCs Maestras de Providencia (TH y GT) existan siempre
+        // 🛡️ Garantizar que las OCs Activas de Providencia existan siempre como fallback
+        // OC 120267114302 (TH - Nava · 71/14302 · 8,000 kg) — activa con entrega parcial F-6307
+        if (!ocMap.has(OC_TH_ACTIVE)) {
+          ocMap.set(OC_TH_ACTIVE, [{
+            id: `oc-${OC_TH_ACTIVE}`,
+            oc: OC_TH_ACTIVE,
+            folio: '71/14302',
+            client: CLIENT_TH,
+            department: DEPT_TH_ALMACEN,
+            totalKilograms: 8000.00,
+            status: 'pedido',
+            creditCycle: { status: 'pedido' },
+            processedAt: Timestamp.fromDate(new Date('2026-09-23T17:12:29Z')),
+          } as PurchaseOrder]);
+        }
+        // OC 12026439784 (GT - Evelia · 43/9784 · 5,100 kg) — activa pendiente de entrega
+        if (!ocMap.has(OC_GT_ACTIVE)) {
+          ocMap.set(OC_GT_ACTIVE, [{
+            id: `oc-${OC_GT_ACTIVE}`,
+            oc: OC_GT_ACTIVE,
+            folio: '43/9784',
+            client: CLIENT_GT,
+            department: DEPT_GT_ALMACEN,
+            totalKilograms: 5100.00,
+            status: 'pedido',
+            creditCycle: { status: 'pedido' },
+            processedAt: Timestamp.fromDate(new Date('2026-09-21T15:14:50Z')),
+          } as PurchaseOrder]);
+        }
+        // Fallbacks históricos (OCs ya completadas, conservadas para el historial de cobranza)
         if (!ocMap.has(OC_TH_NAVA)) {
           ocMap.set(OC_TH_NAVA, [{
             id: `oc-${OC_TH_NAVA}`,
             oc: OC_TH_NAVA,
-            folio: OC_TH_NAVA,
+            folio: '71/14114',
             client: CLIENT_TH,
             department: DEPT_TH_ALMACEN,
             totalKilograms: 6411.01,
@@ -122,7 +153,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           ocMap.set(OC_GT_EVELIA, [{
             id: `oc-${OC_GT_EVELIA}`,
             oc: OC_GT_EVELIA,
-            folio: OC_GT_EVELIA,
+            folio: '43/9713',
             client: CLIENT_GT,
             department: DEPT_GT_ALMACEN,
             totalKilograms: 3955.20,

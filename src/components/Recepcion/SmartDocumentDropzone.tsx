@@ -714,7 +714,7 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
       setIsProcessing(false);
       setStatusMessage('');
     }
-  }, [orders, onDocumentProcessed, toast]);
+  }, [orders, onDocumentProcessed, toast, config]);
 
   useEffect(() => {
     handleFileProcessRef.current = handleFileProcess;

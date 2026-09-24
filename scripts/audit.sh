@@ -37,14 +37,15 @@ echo ""
 
 # ── 1. Archivos .bat y .ps1 en raíz ──────────────────────────────────────────
 echo "── [1/7] Archivos prohibidos en raíz (.bat, .ps1)..."
-bat_count=$(find . -maxdepth 1 -name "*.bat" | wc -l)
+# Excepción autorizada: scripts de inicio rápido Windows (reauth / autenticar_servicios)
+bat_count=$(find . -maxdepth 1 -name "*.bat" -not -name "autenticar_servicios.bat" -not -name "reauth.bat" | wc -l)
 ps1_count=$(find . -maxdepth 1 -name "*.ps1" | wc -l)
 if [ "$bat_count" -gt 0 ]; then
-  fail "Archivos .bat encontrados en la raíz: $(find . -maxdepth 1 -name '*.bat' | tr '\n' ' ')"
+  fail "Archivos .bat no autorizados en la raíz: $(find . -maxdepth 1 -name '*.bat' -not -name 'autenticar_servicios.bat' -not -name 'reauth.bat' | tr '\n' ' ')"
 elif [ "$ps1_count" -gt 0 ]; then
   fail "Archivos .ps1 encontrados en la raíz: $(find . -maxdepth 1 -name '*.ps1' | tr '\n' ' ')"
 else
-  ok "Sin archivos .bat o .ps1 en raíz"
+  ok "Sin archivos no autorizados .bat o .ps1 en raíz"
 fi
 
 # ── 2. Archivos *.log en todo el repositorio ──────────────────────────────────

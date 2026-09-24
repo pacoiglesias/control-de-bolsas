@@ -9,6 +9,7 @@ import { inferDepartment } from '../lib/finance';
 import { useOrders } from '../hooks/useOrders';
 import { findDuplicateContrarecibo } from '../lib/duplicateGuards';
 import type { PurchaseOrder, Invoice } from '../lib/types';
+import { espejarFacturasV2 } from '../lib/invoicesMirror';
 import { motion } from 'framer-motion';
 
 interface QuickCrModalProps {
@@ -138,6 +139,9 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
         invoices: updatedInvoices,
         updatedAt: Timestamp.now(),
       });
+
+      // Espejo asíncrono para mantener sincronizada la colección /invoices
+      espejarFacturasV2({ ...order, invoices: updatedInvoices }).catch(() => {});
 
       logAction(user?.email, 'UPDATE_ORDER', {
         details: `Asignado CR ${cleanCr} a OC ${order.folio || order.oc}`,

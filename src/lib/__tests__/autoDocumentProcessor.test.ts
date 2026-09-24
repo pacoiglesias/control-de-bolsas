@@ -175,5 +175,55 @@ describe('Motor Autónomo de Procesamiento y Detección de Dudas (autoDocumentPr
       expect(decision.suggestedActions.some((a) => a.actionType === 'assign_to_order')).toBe(true);
     }
   });
+
+  it('genera duda cuando una factura ya existe en el expediente (duplicate_invoice)', () => {
+    const dupInvoiceDoc: ExtractedDocumentData = {
+      type: 'xml_factura',
+      folio: '6275',
+      oc: '12026439753',
+      kilos: 500,
+      total: 25000,
+      confidence: 1.0,
+    };
+
+    const decision = evaluateDocumentOperation(dupInvoiceDoc, [existingOrder9753], dummyConfig);
+    expect(decision.type).toBe('doubt');
+    if (decision.type === 'doubt') {
+      expect(decision.doubtType).toBe('duplicate_invoice');
+      expect(decision.suggestedActions.some((a) => a.id === 'replace_invoice')).toBe(true);
+    }
+  });
+
+  it('genera duda cuando los kilos exceden el remanente de la OC (kilos_exceeded)', () => {
+    const overKgInvoiceDoc: ExtractedDocumentData = {
+      type: 'xml_factura',
+      folio: '7000',
+      oc: '12026439753',
+      kilos: 8000, // Meta 4500, restan 3266
+      total: 400000,
+      confidence: 1.0,
+    };
+
+    const decision = evaluateDocumentOperation(overKgInvoiceDoc, [existingOrder9753], dummyConfig);
+    expect(decision.type).toBe('doubt');
+    if (decision.type === 'doubt') {
+      expect(decision.doubtType).toBe('kilos_exceeded');
+    }
+  });
+
+  it('genera duda cuando el tipo de documento es desconocido', () => {
+    const unknownDoc: ExtractedDocumentData = {
+      type: 'desconocido' as any,
+      fileName: 'archivo_raro.pdf',
+      confidence: 0.1,
+    };
+
+    const decision = evaluateDocumentOperation(unknownDoc, [existingOrder9753], dummyConfig);
+    expect(decision.type).toBe('doubt');
+    if (decision.type === 'doubt') {
+      expect(decision.doubtType).toBe('unknown_document');
+    }
+  });
 });
+
 

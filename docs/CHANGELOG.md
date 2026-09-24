@@ -1,5 +1,23 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.5.0] - 24 Septiembre 2026 (Activación Canónica de Nuevas OCs Oficiales TH 120267114302 & GT 12026439784, F-6298 Parcial, Bundles Optimizados y 187 Tests)
+
+### 📋 Nuevas Órdenes de Compra Oficiales Activas
+- **OC 120267114302 (TH · José Nava):** Registrada por 10,000 kg a $43.00/kg ($498,800.00 MXN con IVA). Ampara la entrega parcial inicial de 2,000 kg con la factura F-6298 vinculada ($99,760.00 MXN) y deja un saldo pendiente exacto de 8,000 kg para las siguientes entregas.
+- **OC 12026439784 (GT · Evelia):** Registrada por 5,000 kg a $43.00/kg ($249,400.00 MXN con IVA), aperturada al 100% (5,000 kg pendientes por entregar).
+- **Archivado Canónico de OCs Previas:** Las órdenes anteriores completadas fueron cerradas formalmente (`completed`) manteniendo intacto el registro histórico de facturas, contrarecibos y pagos.
+- **Constantes y Contexto:** Sincronizadas las constantes `OC_TH_ACTIVE` y `OC_GT_ACTIVE` en `src/lib/constants.ts` y los fallbacks de emergencia en `OrdersContext.tsx`.
+
+### 🚀 Optimización de Rendimiento Web
+- **Bundle Splitting:** Reducción de más del 64% en el bundle principal (`index-*.js` pasó de 1.32 MB a 470 kB) mediante lazy dynamic imports para librerías pesadas (`xlsx`, `jspdf`) y `manualChunks` específicos para OCR y compresión en `vite.config.ts`.
+- **Carga Ultra Rápida:** Mejora sustancial en First Contentful Paint (FCP) y Time to Interactive (TTI).
+
+### 🛡️ Pruebas Unitarias y Confiabilidad
+- **187 pruebas unitarias:** Cobertura expandida con pruebas automatizadas para operaciones de facturas (`invoiceOps.test.ts`) y precisión de redondeo y cálculos matemáticos (`mathAndFormatCoverage.test.ts`).
+- **Validación Estricta:** 100% de tipos TypeScript verificados (`tsc --noEmit`) sin advertencias ni errores.
+
+---
+
 ## [v9.4.0] - 17 Septiembre 2026 (Tríada Proactiva: Auto-Captura de Contrarecibos, Ingesta Masiva & ZIP, Alerta Facturas Huérfanas >72h con WhatsApp 1-Clic, y Semáforo 3-Way Matching)
 
 ### 🔖 Ingestión Autónoma de Contrarecibos (CR)
