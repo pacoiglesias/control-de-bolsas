@@ -11,6 +11,7 @@ import { useToast } from '../../context/ToastContext';
 import { sound } from '../../lib/sounds';
 import confetti from 'canvas-confetti';
 import type { PurchaseOrder, Invoice } from '../../lib/types';
+import { CANONICAL_GT_ITEMS_439753 } from '../../lib/types';
 
 export interface OfficialCrRecord {
   no: number;
@@ -158,12 +159,7 @@ export const OFFICIAL_NEW_OC = {
   iva: 30960.00,
   total: 224460.00,
   totalKilograms: 4500.00,
-  items: [
-    { id: 'it-oc-9753-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1500, unitPrice: 43.0, amount: 64500.0, unit: 'Kilos' },
-    { id: 'it-oc-9753-2', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
-    { id: 'it-oc-9753-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
-    { id: 'it-oc-9753-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
-  ],
+  items: CANONICAL_GT_ITEMS_439753,
 };
 
 export function SincronizadorOficialModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {

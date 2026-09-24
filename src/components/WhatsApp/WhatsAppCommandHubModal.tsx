@@ -4,6 +4,7 @@ import { money, fmtDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import type { PurchaseOrder } from '../../lib/types';
+import { PRECIO_VENTA_KG, PRECIO_COSTO_KG, IVA_RATE } from '../../lib/constants';
 
 interface WhatsAppCommandHubModalProps {
   order?: PurchaseOrder | null;
@@ -25,8 +26,8 @@ export const WhatsAppCommandHubModal: React.FC<WhatsAppCommandHubModalProps> = (
   const cliente = order?.client || 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
   const totalKilos = order?.totalKilograms || order?.deliveries?.reduce((s, d) => s + (d.kilos || 0), 0) || 1000;
   const kilosEntregados = order?.deliveries?.reduce((s, d) => s + (d.kilos || 0), 0) || totalKilos;
-  const subtotal = totalKilos * 43.0;
-  const iva = subtotal * 0.16;
+  const subtotal = totalKilos * PRECIO_VENTA_KG;
+  const iva = subtotal * IVA_RATE;
   const total = subtotal + iva;
 
   const firstInvoice = order?.invoices?.[0];
@@ -60,8 +61,8 @@ Hola Andrés, te compartimos el pesaje recibido en patio:
 
 📦 *Orden de Compra:* ${ocFolio}
 ⚖️ *Kilos Recibidos:* ${kilosEntregados.toLocaleString('es-MX')} kg
-💲 *Costo Pactado:* $38.00 / kg (Cero mermas)
-💰 *Monto a Liquidar:* ${money(kilosEntregados * 38.0)}
+💲 *Costo Pactado:* $${PRECIO_COSTO_KG}.00 / kg (Cero mermas)
+💰 *Monto a Liquidar:* ${money(kilosEntregados * PRECIO_COSTO_KG)}
 📅 *Fecha de Recepción:* ${fmtDate(new Date())}
 🚛 *Estatus:* Mercancía descargada y validada en almacén Providencia.
 

@@ -3,6 +3,7 @@ import type { PurchaseOrder, Invoice } from '../../lib/types';
 import { money, toDate } from '../../lib/format';
 import { inferDepartment, round2 } from '../../lib/finance';
 import { triggerHaptic } from '../../lib/hapticEngine';
+import { COMISION_CONTADOR } from '../../lib/constants';
 
 interface WeeklyBucket {
   weekKey: string;
@@ -104,8 +105,8 @@ export function CashFlowForecastWidget({ orders }: { orders: PurchaseOrder[] }) 
         const due = toDate(inv.creditCycle?.dueDate);
         const invTotal = Number(inv.financials?.invoiceTotal) || Number(inv.kilos || 0) * 49.88;
         const subtotal = Number(inv.financials?.saleTotal) || Number(inv.kilos || 0) * 43.00;
-        const comm = subtotal * 0.08;
-        const netDeposit = subtotal * 1.08;
+        const comm = subtotal * COMISION_CONTADOR;
+        const netDeposit = subtotal * (1 + COMISION_CONTADOR);
 
         const item = { invoice: inv, order: o, dept };
 

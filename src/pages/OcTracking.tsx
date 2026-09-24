@@ -9,6 +9,7 @@ import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible, toDate, fmtDate } from '../lib/format';
 import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/finance';
+import { MARGEN_LIBRE_KG } from '../lib/constants';
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
 import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
@@ -16,7 +17,7 @@ import { CashFlowForecastWidget } from '../components/Cobranza/CashFlowForecastW
 import { generateDeliveryRemissionPdf } from '../lib/deliveryRemissionPdf';
 import { triggerHaptic } from '../lib/hapticEngine';
 import type { TabName } from '../components/OrderModal/types';
-import type { PurchaseOrder, Invoice, Delivery } from '../lib/types';
+import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from '../lib/types';
 
 interface OcGroup {
   oc: string;
@@ -143,11 +144,11 @@ export default function OcTracking() {
       const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
       const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
       const allDelivered = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
-      const ocCreditStatus = (mergedOrder.creditCycle?.status ?? '') as string;
+      const ocCreditStatus = mergedOrder.creditCycle?.status ?? ('' as OrderStatus);
       const isCompleted = ocCreditStatus === 'completed' || Boolean(mergedOrder.isClosedShort && allInvoicesPaid) || ((summary.status === 'collected' || summary.status === 'paid') && allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01 || Boolean(mergedOrder.isClosedShort)));
 
       let statusCategory: OcGroup['statusCategory'] = 'en_cobranza';
-      if (isCompleted || ocCreditStatus === 'completed') {
+      if (isCompleted) {
         statusCategory = 'completada';
       } else if (kilosFaltantes > 0.01 && !mergedOrder.isClosedShort) {
         statusCategory = 'por_entregar';
@@ -699,8 +700,8 @@ export default function OcTracking() {
         <div style={{ cursor: 'pointer' }} onClick={() => setScope('todas')}>
           <KpiCard 
             label="💵 Flujo Neto en Caja ($8.44/kg)" 
-            value={money(filteredGroups.reduce((a, g) => a + g.kilosEntregados * 8.44, 0))} 
-            sub={`Total Cartera: ${money(filteredGroups.reduce((a, g) => a + g.kilosPedidos * 8.44, 0))}`}
+            value={money(filteredGroups.reduce((a, g) => a + g.kilosEntregados * MARGEN_LIBRE_KG, 0))} 
+            sub={`Total Cartera: ${money(filteredGroups.reduce((a, g) => a + g.kilosPedidos * MARGEN_LIBRE_KG, 0))}`}
             tone="ok" 
           />
         </div>
@@ -886,9 +887,9 @@ export default function OcTracking() {
                     <div style={{ fontSize: 11, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monto Facturado</div>
                     <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--ink)' }}>{money(group.totalVentaFacturada)}</div>
                     <div style={{ fontSize: 11, color: '#059669', marginTop: 4, fontWeight: 800, background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: 6, display: 'inline-block' }}>
-                      💵 Flujo: {money(group.kilosEntregados * 8.44)}
+                      💵 Flujo: {money(group.kilosEntregados * MARGEN_LIBRE_KG)}
                       <span style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 600, marginLeft: 4 }}>
-                        / {money(group.kilosPedidos * 8.44)}
+                        / {money(group.kilosPedidos * MARGEN_LIBRE_KG)}
                       </span>
                     </div>
                     <div style={{ fontSize: 11, color: statusColor, marginTop: 4, fontWeight: 700, background: 'var(--paper-sunk)', padding: '2px 8px', borderRadius: 10, display: 'block' }}>

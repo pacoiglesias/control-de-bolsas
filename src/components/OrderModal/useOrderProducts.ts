@@ -19,7 +19,7 @@ export function useOrderProducts(
         items: nextItems,
         totalKilograms: sumKg > 0 ? String(sumKg) : '',
       });
-      console.log(`[AUDIT][Partidas] Sincronización automática a Firebase exitosa para orden ${orderId}`);
+      // [AUDIT][Partidas] Sync exitoso — silencioso en producción
     } catch (err) {
       console.error('[AUDIT][Partidas] Error en auto-sync a Firebase:', err);
     }

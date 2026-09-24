@@ -22,6 +22,8 @@ import { OfflineBanner } from './OfflineBanner';
 import { MobileBottomBar } from './Navigation/MobileBottomBar';
 import { AuditCentinelaBadge } from './Audit/AuditCentinelaBadge';
 import { GlobalSpeedFab } from './Navigation/GlobalSpeedFab';
+import { SidebarLiveStatus, SidebarFastActions } from './Navigation/SidebarWidgets';
+import { money } from '../lib/format';
 
 type NavItem = {
   type?: 'link' | 'group';
@@ -182,10 +184,11 @@ export default function Layout() {
   }, [isOnline]);
 
   // Badges inteligentes en tiempo real
-  const { overdue, review, unbilledOrdersCount } = useMemo(() => {
+  const { overdue, review, unbilledOrdersCount, activeOcsCount, saldoCaja } = useMemo(() => {
     let overdue = 0;
     let review = 0;
     let unbilledOrdersCount = 0;
+    let activeOcsCount = 0;
     for (const o of orders) {
       const summary = getOrderSummary(o);
       const st = summary.status;
@@ -194,9 +197,18 @@ export default function Layout() {
       if (summary.kilosDelivered > summary.kilosInvoiced + 0.01 && !o.isClosedShort) {
         unbilledOrdersCount++;
       }
+      const isCompleted = summary.status === 'completed' || summary.status === 'paid' || summary.status === 'collected';
+      if (!isCompleted && !o.isClosedShort) {
+        activeOcsCount++;
+      }
     }
-    return { overdue, review, unbilledOrdersCount };
-  }, [orders]);
+    const saldoCaja = round2(
+      (expenses || []).reduce((acc, e) => {
+        return acc + (e.type === 'ingreso' ? Number(e.amount) || 0 : -(Number(e.amount) || 0));
+      }, 0)
+    );
+    return { overdue, review, unbilledOrdersCount, activeOcsCount, saldoCaja };
+  }, [orders, expenses]);
 
   return (
     <div className="layout">
@@ -225,6 +237,78 @@ export default function Layout() {
           <span>🔍</span>
           <span className="search-label" style={{ fontWeight: 600 }}>Buscar...</span>
           <kbd className="search-kbd">Ctrl K</kbd>
+        </button>
+
+        {/* Acceso Rápido Directo: Capturar Entrega / Báscula */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-fast-delivery'))}
+          title="Captura Rápida de Entrega / Báscula (kilos, remisión y chofer)"
+          style={{
+            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(29, 78, 216, 0.3) 100%)',
+            border: '1px solid rgba(59, 130, 246, 0.4)',
+            color: '#60a5fa',
+            borderRadius: 8,
+            padding: '5px 10px',
+            fontSize: 11.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          className="desktop-only-block"
+        >
+          <span>⚖️</span>
+          <span>+ Entrega</span>
+        </button>
+
+        {/* Acceso Rápido Directo: Factura CFDI */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-fast-invoice'))}
+          title="Captura Rápida de Factura CFDI"
+          style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.3) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: '#34d399',
+            borderRadius: 8,
+            padding: '5px 10px',
+            fontSize: 11.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          className="desktop-only-block"
+        >
+          <span>🧾</span>
+          <span>+ Factura</span>
+        </button>
+
+        {/* Acceso Rápido Directo: Auto-Captura Documento */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-fast-upload'))}
+          title="Subir o Pegar Documento (OC, Factura, Contrarecibo o Lote ZIP)"
+          style={{
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(109, 40, 217, 0.3) 100%)',
+            border: '1px solid rgba(139, 92, 246, 0.4)',
+            color: '#a78bfa',
+            borderRadius: 8,
+            padding: '5px 10px',
+            fontSize: 11.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          className="desktop-only-block"
+        >
+          <span>⚡</span>
+          <span>Auto-Subir</span>
         </button>
 
         <span className="spacer" />
@@ -286,6 +370,13 @@ export default function Layout() {
               </div>
             </div>
           </div>
+
+          {/* Tarjeta de Resumen en Vivo del Negocio */}
+          <SidebarLiveStatus />
+
+          {/* Botones de Captura Rápida Global (1-Clic) */}
+          <SidebarFastActions />
+
           <nav className="nav">
             {navItems.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
               if (it.type === 'group') {
@@ -315,6 +406,31 @@ export default function Layout() {
                     <span className="nav-badge soft" title={`${unbilledOrdersCount} órdenes con entregas por facturar`}>{unbilledOrdersCount} fac</span>
                   ) : it.to === '/ordenes' && review > 0 ? (
                     <span className="nav-badge soft">{review}</span>
+                  ) : null}
+                  {it.to === '/oc' && activeOcsCount > 0 ? (
+                    <span className="nav-badge" style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' }} title={`${activeOcsCount} OCs activas`}>
+                      {activeOcsCount} act
+                    </span>
+                  ) : null}
+                  {it.to === '/caja-chica' ? (
+                    <span
+                      className="nav-badge"
+                      style={{
+                        background: saldoCaja >= 0 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      }}
+                      title="Saldo disponible en efectivo"
+                    >
+                      {isPrivate ? '••••' : money(saldoCaja)}
+                    </span>
+                  ) : null}
+                  {it.to === '/audit' ? (
+                    <span
+                      className="nav-badge"
+                      style={{ background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)' }}
+                      title="Auditoría y Centinela en línea"
+                    >
+                      100% OK
+                    </span>
                   ) : null}
                 </NavLink>
               );

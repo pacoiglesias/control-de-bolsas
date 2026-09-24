@@ -1,5 +1,35 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.6.0] - 25 Septiembre 2026 (Menú Lateral Enriquecido + Live Status Card + Panel Universal de Captura y Edición Rápida 1-Clic)
+
+### 📊 Tarjeta de Estado en Vivo en Menú Lateral (`SidebarLiveStatus`)
+- **Métricas Vivas Integradas en la Barra Lateral:** Ubicado directamente bajo la marca institucional, despliega en tiempo real:
+  - **Kilos por Entregar en Patio:** Kilos faltantes totales de las OCs activas con indicador de OCs en curso.
+  - **Efectivo en Caja Chica:** Saldo en vivo en pesos ($ MXN) con semáforo y soporte para modo privado/discreto.
+  - **Cartera por Cobrar Providencia:** Total en facturas vivas por cobrar y monto de facturas vencidas con alerta visual.
+- **Navegación 1-Clic al Tocar:** Cada bloque métrico es interactivo y navega de inmediato a `/oc`, `/caja-chica` o `/cobranza`.
+
+### ⚡ Panel Universal de Captura Rápida (1-Clic en Todo el Sistema)
+- **`SidebarFastActions`:** Accesos directos permanentes en el menú lateral para meter y modificar información sin cambiar de pantalla:
+  - ⚖️ **+ Nueva Entrega (Báscula):** Abre el modal de captura de pesaje, kilos, remisión, chofer y fotos de ticket (`QuickDeliveryModal`).
+  - 🧾 **+ Registrar Factura CFDI:** Abre el modal de facturación para vincular folio, kilos e importe a cualquier OC (`QuickInvoiceModal`).
+  - 🔖 **+ Asignar Contrarecibo:** Abre la asignación rápida de folio CR, importe y fecha estimada de pago (`QuickCollectionModal`).
+  - ⚡ **+ Auto-Captura Documento (IA / OCR):** Abre el dropzone universal para arrastrar cualquier PDF de OC, SAT XML o ZIP con extracción automática zero-manual (`UniversalDocumentUploadModal`).
+  - 💵 **+ Movimiento Caja Chica:** Abre el drawer de captura de egreso o ingreso en efectivo con validación de saldo (`ExpenseDrawer`).
+  - 💬 **WhatsApp Providencia:** Abre el hub de comandos y mensajes pre-redactados para José Nava (TH) y Evelia (GT) (`WhatsAppCommandHubModal`).
+  - 🧮 **Calculadora Kilos / Margen:** Abre la calculadora flotante en pantalla para simular importes, margen e IVA (`FloatingKiloCalculator`).
+  - 📊 **Exportar Excel Maestro (.xlsx)** y 📄 **PDF One-Pager:** Descarga directa de reportes con un solo clic.
+
+### 🚀 Acceso Rápido en Cabecera Superior (Topbar)
+- **Botones Directos en Topbar:** Agregados accesos `+ Entrega`, `+ Factura` y `⚡ Auto-Subir` junto a la barra de búsqueda universal (Ctrl + K) para captura instantánea desde cualquier pantalla y dispositivo.
+
+### 🏷️ Badges Inteligentes Dinámicos en Navegación
+- **`/oc` (Seguimiento por OC):** Muestra badge con OCs activas en operación.
+- **`/caja-chica` (Efectivo):** Muestra badge con el saldo disponible en pesos ($ MXN) en tiempo real.
+- **`/audit` (Centinela):** Muestra badge con confirmación `100% OK`.
+
+---
+
 ## [v9.5.0] - 24 Septiembre 2026 (Activación Canónica de Nuevas OCs Oficiales TH 120267114302 & GT 12026439784, F-6298 Parcial, Bundles Optimizados y 187 Tests)
 
 ### 📋 Nuevas Órdenes de Compra Oficiales Activas

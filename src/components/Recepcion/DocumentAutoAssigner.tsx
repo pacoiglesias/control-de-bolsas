@@ -8,6 +8,7 @@ import { doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { money } from '../../lib/format';
 import { computeFinancials } from '../../lib/finance';
 import { useConfig } from '../../hooks/useConfig';
+import { PRECIO_VENTA_KG } from '../../lib/constants';
 import confetti from 'canvas-confetti';
 import { PulsingBadge } from '../ui/PulsingBadge';
 
@@ -229,8 +230,8 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
           {
             description: 'Bolsa de Polietileno Transparente en Rollo',
             quantity: totalKilos,
-            unitPrice: 43.0,
-            amount: totalKilos * 43.0,
+            unitPrice: PRECIO_VENTA_KG,
+            amount: totalKilos * PRECIO_VENTA_KG,
           }
         ],
         deliveries: [],

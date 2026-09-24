@@ -62,7 +62,6 @@ export default function TabProductos() {
     toast('🤖 Analizando documento con Inteligencia Local...', 'info');
     try {
       const ocrResult = await processPdfOrder(file);
-      console.log('OCR Output:', ocrResult);
       // El escaneo de PDF ya pasa por su propio OCR local antes de llegar
       // aqui (mas lento y con su propio nivel de confianza) -- se aplica
       // directo, igual que antes. La vista previa manual (OCPreviewModal)

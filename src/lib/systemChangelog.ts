@@ -8,6 +8,75 @@ export interface SystemRelease {
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   {
+    version: 'v9.6.0 Enterprise: Menú Lateral Enriquecido, Live Status Card y Panel Universal de Captura 1-Clic',
+    date: '25 de Septiembre de 2026',
+    time: '12:15 AM',
+    summary: 'Rediseño mayor de accesibilidad y ergonomía: tarjeta de métricas en vivo en la barra lateral (kilos pendientes, caja chica y cartera por cobrar), panel de captura rápida para meter o modificar datos desde cualquier lugar sin cambiar de vista, botones directos en la cabecera superior y badges inteligentes.',
+    highlights: [
+      '📊 Live Status Card en Sidebar: Monitoreo en vivo de kilos por entregar en patio, saldo en efectivo en Caja Chica y cartera de Providencia con clic táctil para saltar a cada vista.',
+      '⚡ Panel Universal de Captura Rápida (1-Clic): Botones permanentes para registrar entregas de báscula, facturas CFDI, contrarecibos, documentos con auto-captura (IA/OCR) y movimientos de caja chica.',
+      '🚀 Accesos Directos en Topbar: Botones rápidos (+ Entrega, + Factura, ⚡ Auto-Subir) accesibles en la cabecera superior en desktop y laptop.',
+      '🏷️ Badges Inteligentes Dinámicos: Conteo en tiempo real de OCs activas, saldo en efectivo en pesos y centinela 100% OK en el menú lateral.',
+    ],
+  },
+  {
+    version: 'v9.5.0 Enterprise: Activación Canónica de Nuevas OCs Oficiales TH 120267114302 & GT 12026439784, Bundles Optimizados y 187 Tests',
+    date: '24 de Septiembre de 2026',
+    time: '11:50 PM',
+    summary: 'Registro y activación canónica de las nuevas órdenes de compra oficiales de Providencia: TH 120267114302 (10,000 kg con entrega parcial de 2,000 kg amparada por F-6298) y GT 12026439784 (5,000 kg abierta al 100%). Cierre formal de OCs completadas, optimización masiva de bundle splitting (-64%) y 187 pruebas unitarias.',
+    highlights: [
+      '📋 Nuevas OCs Oficiales: OC 120267114302 (TH · José Nava) por 10,000 kg con F-6298 vinculada, y OC 12026439784 (GT · Evelia) por 5,000 kg.',
+      '📦 Archivado Canónico: Órdenes completadas cerradas preservando histórico de facturas, contrarecibos y pagos.',
+      '🚀 Bundle Splitting Dinámico: Reducción del chunk principal de 1.32 MB a 489 kB mediante lazy dynamic imports para Excel y PDF.',
+      '🛡️ 187 Pruebas Unitarias: Cobertura automatizada al 100% en operaciones de facturas y precisión matemática.',
+    ],
+  },
+  {
+    version: 'v9.4.0 Enterprise: Tríada Proactiva: Auto-Captura de Contrarecibos, Ingesta ZIP, Centinela >72h y 3-Way Matching',
+    date: '17 de Septiembre de 2026',
+    time: '06:00 PM',
+    summary: 'Ingestión autónoma zero-manual de contrarecibos de Providencia, soporte nativo para arrastrar archivos ZIP del SAT con descompresión en memoria, alerta proactiva de facturas huérfanas con reclamo 1-clic por WhatsApp y semáforo visual 3-way matching.',
+    highlights: [
+      '🔖 Auto-Captura de Contrarecibos: Extracción y asignación automática de folios CR y fechas de pago desde PDFs o texto del portal.',
+      '📦 Soporte Nativo de Archivos ZIP: Descompresión y procesamiento en memoria de lotes de facturas descargadas del SAT.',
+      '🚨 Centinela de Facturas Huérfanas (>72h): Detección automática y botón WhatsApp 1-clic con redacción de reclamo para Nava y Evelia.',
+      '🔗 Semáforo 3-Way Matching: Conciliación visual del flujo Orden ➔ Báscula ➔ Factura ➔ Contrarecibo ➔ Pago.',
+    ],
+  },
+  {
+    version: 'v9.3.0 Enterprise: Motor Autónomo de Ingestión de Documentos, Protocolo de Duda y Alta OC 12026439774',
+    date: '17 de Septiembre de 2026',
+    time: '12:00 PM',
+    summary: 'Motor autónomo de captura zero-manual de documentos PDF con extracción local sin servidores externos, protocolo de duda interactiva ante ambigüedades, y reconciliación oficial de la OC 12026439774 (298 kg) y OC 12026439753 (4,500 kg).',
+    highlights: [
+      '⚡ Captura Zero-Manual: Alta automática de OCs y facturas al soltar cualquier PDF en el navegador.',
+      '❓ Protocolo de Duda Interactiva: Modales con preguntas de 1 clic solo cuando existe ambigüedad o duplicidad.',
+      '📦 Reconciliación Oficial: Alta de la OC 12026439774 (298 kg) y consolidación de la OC 12026439753 con sus 4 facturas.',
+    ],
+  },
+  {
+    version: 'v9.2.3 Enterprise: Calibración Canónica de Patio Nava, Exceso GT 298 kg y Sincronización Inmediata',
+    date: '4 de Septiembre de 2026',
+    time: '04:00 PM',
+    summary: 'Reconciliación matemática de patio para Textil Hogar (0 kg pendientes en patio) y registro del exceso físico de 298 kg en Planta P4 en espera de OC de Evelia.',
+    highlights: [
+      '🏢 Patio Nava al Día: 100% de lo entregado amparado con facturas y visualización precisa del remanente de OC.',
+      '🏭 Exceso Físico GT (298 kg): Registro formal de la entrega en Planta P4.',
+      '⚡ Sincronización Inmediata: Actualización reactiva con Firestore al editar conceptos, facturas o CRs.',
+    ],
+  },
+  {
+    version: 'v9.2.0 Enterprise: Auditoría Integral y Supresión de Parches Hardcodeados',
+    date: '3 de Septiembre de 2026',
+    time: '08:00 PM',
+    summary: 'Auditoría exhaustiva del núcleo financiero: eliminación definitiva de saldos fijos hardcodeados, purga segura con reglas basadas en señales reales y protección de entregas legítimas.',
+    highlights: [
+      '🛡️ Fin de Parches Hardcodeados: El motor de auditoría reporta valores atípicos sin sobreescribir la base de datos.',
+      '🧹 Purga Protegida Inteligente: Reglas de protección basadas en señales reales (kilos, facturas, CRs, fechas).',
+      '📄 Parser de OCs en PDF Reconstruido: Detección precisa de renglones y tablas multi-partida sin truncamiento.',
+    ],
+  },
+  {
     version: 'v9.1.0 Enterprise: Consolidación de UI/UX, Centinela Anti-Duplicados y Motor Háptico Sensorial',
     date: '2 de Septiembre de 2026',
     time: '05:30 PM',

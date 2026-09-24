@@ -10,7 +10,7 @@ export type AnyFirestoreDate =
   | null
   | undefined;
 
-export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review';
+export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review' | 'completed';
 
 export interface FinancialConfig {
   salePricePerKg: number;
@@ -390,6 +390,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   collected: '✅ Recibida',
   overdue: '🔴 Vencida',
   manual_review: 'Revisión Manual',
+  completed: '✅ Completada',
 };
 
 export const STATUS_TONE: Record<OrderStatus, string> = {
@@ -401,6 +402,7 @@ export const STATUS_TONE: Record<OrderStatus, string> = {
   collected: 'b-ok',
   overdue: 'b-bad',
   manual_review: 'b-warn',
+  completed: 'b-ok',
 };
 
 export interface Product {
