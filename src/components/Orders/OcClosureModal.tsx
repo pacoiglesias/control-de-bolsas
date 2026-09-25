@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { PurchaseOrder, OcClosureAudit } from '../../lib/types';
 import { kilos, money } from '../../lib/format';
@@ -72,7 +72,7 @@ export const OcClosureModal: React.FC<OcClosureModalProps> = ({ order, onClose, 
       if (reopen) {
         await updateDoc(orderRef, {
           isClosedShort: false,
-          closureAudit: null,
+          closureAudit: deleteField(),
           updatedAt: serverTimestamp(),
         });
         toast(`🔓 OC ${order.folio || order.oc} reabierta exitosamente.`, 'ok');
@@ -80,17 +80,17 @@ export const OcClosureModal: React.FC<OcClosureModalProps> = ({ order, onClose, 
         const closureData: OcClosureAudit = {
           closedAt: Timestamp.now(),
           closedBy: user?.email || user?.displayName || 'Administrador',
-          contractedKg,
-          deliveredKg,
-          invoicedKg,
-          shortfallKg,
-          surplusKg,
-          fulfillmentRate,
-          shortfallCostValue,
-          shortfallSaleValue,
+          contractedKg: contractedKg || 0,
+          deliveredKg: deliveredKg || 0,
+          invoicedKg: invoicedKg || 0,
+          shortfallKg: shortfallKg || 0,
+          surplusKg: surplusKg || 0,
+          fulfillmentRate: fulfillmentRate || 0,
+          shortfallCostValue: shortfallCostValue || 0,
+          shortfallSaleValue: shortfallSaleValue || 0,
           closureStatus: surplusKg > 0 ? 'con_excedente' : selectedReasonObj.status,
-          closureReason: selectedReasonObj.label,
-          closureNotes: notes.trim() || undefined,
+          closureReason: selectedReasonObj.label || 'Finiquito de orden',
+          closureNotes: notes.trim() || '',
         };
 
         await updateDoc(orderRef, {

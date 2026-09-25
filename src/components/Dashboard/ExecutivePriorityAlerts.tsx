@@ -616,6 +616,86 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         </motion.div>
       )}
 
+      {/* ─── BARRA EJECUTIVA "SEMÁFORO INTELIGENTE DE CARTERA PROVIDENCIA" ─── */}
+      <div
+        style={{
+          background: 'var(--paper-raised)',
+          border: '1px solid var(--line)',
+          borderRadius: 18,
+          padding: '16px 20px',
+          marginBottom: 16,
+          boxShadow: '0 4px 20px -4px rgba(0, 0, 0, 0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>🏛️</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink)' }}>
+                Deuda Total Providencia: {money(919116.06)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+                10 Contrarecibos vigentes ($805,190.14) + 2 Facturas en revisión ($113,925.92)
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => nav('/audit')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 10,
+              fontSize: 12,
+              fontWeight: 800,
+              background: 'var(--paper-sunk)',
+              border: '1px solid var(--line)',
+              color: 'var(--ink)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>📊 Ver Conciliación Detallada</span>
+          </button>
+        </div>
+
+        {/* Barra Visual de Proporciones */}
+        <div style={{ height: 12, borderRadius: 999, overflow: 'hidden', display: 'flex', background: 'rgba(255,255,255,0.06)' }}>
+          <div
+            style={{ width: `${(723410.14 / 919116.06) * 100}%`, background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)' }}
+            title={`Vigente al corriente: ${money(723410.14)} (78.7%)`}
+          />
+          <div
+            style={{ width: `${(81780.00 / 919116.06) * 100}%`, background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)' }}
+            title={`Vencido (CR TH-946): ${money(81780.00)} (8.9%)`}
+          />
+          <div
+            style={{ width: `${(113925.92 / 919116.06) * 100}%`, background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)' }}
+            title={`En Revisión (F-6302 y F-6307): ${money(113925.92)} (12.4%)`}
+          />
+        </div>
+
+        {/* Leyenda interactiva */}
+        <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
+            <span style={{ color: 'var(--ink-soft)' }}>Vigente al Corriente:</span>
+            <strong style={{ color: '#047857' }}>{money(723410.14)}</strong>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
+            <span style={{ color: 'var(--ink-soft)' }}>Vencido (TH-946):</span>
+            <strong style={{ color: '#dc2626' }}>{money(81780.00)}</strong>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
+            <span style={{ color: 'var(--ink-soft)' }}>En Revisión (F-6302 / 6307):</span>
+            <strong style={{ color: '#d97706' }}>{money(113925.92)}</strong>
+          </div>
+        </div>
+      </div>
+
       {/* GRID PRINCIPAL DE ALERTAS EJECUTIVAS */}
       <div
         style={{

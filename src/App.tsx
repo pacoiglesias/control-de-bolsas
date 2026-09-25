@@ -14,6 +14,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { FloatingKiloCalculator } from './components/FloatingKiloCalculator';
 import { ConfirmDialogHost } from './lib/confirmDialog';
 import { PromptDialogHost } from './lib/promptDialog';
+import { GlobalDropzoneHUD } from './components/Upload/GlobalDropzoneHUD';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -83,6 +84,7 @@ function AppProviders({ children }: { children: React.ReactNode }) {
                     <FloatingKiloCalculator />
                     <ConfirmDialogHost />
                     <PromptDialogHost />
+                    <GlobalDropzoneHUD />
                     {children}
                   </UndoProvider>
                 </ToastProvider>

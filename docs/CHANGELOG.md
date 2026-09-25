@@ -1,5 +1,30 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.9.0] - 25 Septiembre 2026 (Drag & Drop Global HUD Pantalla Completa, Corrección Cierre OC y Semáforo Providencia $919,116.06)
+
+### 📥 Drag & Drop Global HUD de Pantalla Completa (`GlobalDropzoneHUD`)
+- **Captura Universal en Cualquier Pantalla:** El usuario puede arrastrar y soltar archivos en cualquier parte de la ventana (XML CFDI 4.0 de facturas, PDF de remisiones o fotos/tickets de báscula).
+- **HUD Translúcido Obsidian Glass:** Interfaz inmersiva con `backdrop-filter: blur(12px)`, prevención de navegación accidental del navegador y contador de arrastre anidado anti-parpadeo.
+- **Auditoría e Inspección Previa (`GlobalDropInspectorModal`):** Cero escrituras destructivas silenciosas. Todo documento analizado muestra:
+  - Extracción automática de folios, kilos, importes y tipo de documento mediante parser OCR y XML.
+  - Verificador de confianza (Score 100% para CFDI digital / 85%+ para OCR).
+  - Selector interactivo de OC destino para asociar la entrega o factura.
+  - Previsualización del impacto antes de confirmar el guardado en Firestore.
+
+### 🐛 Corrección Crítica en Cierre de OC (`OcClosureModal`)
+- **Erradicación de Error Firestore `undefined`:** Corrección de la llamada a `updateDoc` que fallaba al enviar `closureAudit.closureNotes: undefined`. Se sanitizó la estructura completa con valores por defecto seguros (`notes.trim() || ''`, montos numéricos a `0` y `deleteField()` en reaperturas), garantizando que el finiquito formal de órdenes de compra se ejecute de forma transparente y sin errores.
+
+### 🚦 Semáforo Inteligente de Cartera Providencia ($919,116.06 MXN)
+- **Barra Visual Proporcional en Dashboard:** Desglose interactivo en tiempo real de la cartera:
+  - **$723,410.14 MXN (78.7%)** en 9 Contrarecibos al corriente.
+  - **$81,780.00 MXN (8.9%)** en 1 Contrarecibo vencido (`TH-946` / Factura 6167, vto. 16/09/2026).
+  - **$113,925.92 MXN (12.4%)** en 2 Facturas en revisión (`F-6302` por $14,864.24 y `F-6307` por $99,061.68).
+  - **$0.00 MXN** pendientes por facturar.
+
+### 🔒 Botón de Finiquito en 1 Clic y Limpieza de OCs en Alertas
+- **Acceso Directo a Cierre:** Botón dedicado en las alertas del dashboard para formalizar la OC `120267114114` de José Nava con sus 88.99 kg de saldo de merma acordada.
+- **Ocultamiento de OCs Cumplidas:** Botón "Guardar y Ocultar del Tablero" para expedientes al 100% de Grupo Textil Evelia, enfocando la atención operativa en la OC activa `12026439784` (5,100 kg).
+
 ## [v9.8.0] - 25 Septiembre 2026 (Calibración Maestra de Cartera Providencia, Saldo de Caja $844,526.90 y Auditoría de Cierres de OC)
 
 ### 💵 Calibración Canónica de Saldo en Efectivo de Caja Chica

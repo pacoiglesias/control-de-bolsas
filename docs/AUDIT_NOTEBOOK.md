@@ -1,3 +1,43 @@
+### Iteración 120: Drag & Drop Global HUD de Pantalla Completa, Corrección de Cierre de OC y Semáforo Providencia
+[2026-09-25]
+Archivos: `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/components/Upload/GlobalDropInspectorModal.tsx`, `src/components/Orders/OcClosureModal.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/App.tsx`, `src/lib/__tests__/globalDropzone.test.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Error al guardar cierre de OC en Firestore:
+   `Function updateDoc() called with invalid data. Unsupported field value: undefined (found in field closureAudit.closureNotes in document purchaseOrders/AEN8hc8z60Ac7e27RJjH)`
+   debido a que `notes.trim() || undefined` inyectaba `undefined` cuando el usuario no escribía notas.
+2. El usuario solicitó poder arrastrar documentos a cualquier parte de la pantalla (Drag & Drop Global) para que el sistema los analice de forma inteligente (XML CFDI, PDF de remisiones, tickets/fotos de báscula) sin cometer errores y pidiendo confirmación/previsualización previa antes de guardar.
+3. El usuario requería una experiencia de dashboard más limpia, eliminando botones redundantes en la tarjeta de Evelia (100% cumplida) y una barra visual intuitiva de la cartera total de Providencia ($919,116.06).
+Solución:
+1. **Sanitización de Cierre de OC (`OcClosureModal`):**
+   - Reemplazado `notes.trim() || undefined` por `notes.trim() || ''`.
+   - Incorporados fallbacks `|| 0` para todos los montos numéricos y `deleteField()` al reabrir, erradicando cualquier valor `undefined` que rechace Firestore.
+2. **Drag & Drop Global HUD (`GlobalDropzoneHUD` + `GlobalDropInspectorModal`):**
+   - Listener global en `window` con prevención de navegación accidental y contador de arrastre anidado anti-flicker.
+   - Overlay Obsidian Glass con blur inmersivo activado automáticamente al arrastrar cualquier archivo.
+   - Modal de inspección previa con análisis instantáneo por OCR y parser XML CFDI 4.0, visualización de confianza (score %), selector de OC destino y vista previa del impacto antes de confirmar la persistencia.
+3. **Semáforo Inteligente de Cartera Providencia:**
+   - Barra visual de salud financiera en la cabecera de `ExecutivePriorityAlerts.tsx`: $919,116.06 total, desglosado en $723,410.14 al corriente, $81,780.00 vencido (TH-946) y $113,925.92 en revisión.
+   - Botón directo de cierre para Nava y botón de archivar/ocultar para expedientes completados de Evelia.
+4. **Pruebas y Verificación:**
+   - Creado test suite `globalDropzone.test.ts` con jsdom.
+   - 209/209 pruebas unitarias aprobadas al 100%.
+Riesgo: 🟢 Cero — Reglas de TypeScript estrictas, cero escrituras sin confirmación del usuario.
+Estado: ✅ Verificado — Compilado y listo para despliegue.
+
+---
+
+### Iteración 119: Conciliación de Deuda Providencia $919,116.06, Vencidos $81,780.00 y Facturas en Revisión
+[2026-09-25]
+Archivos: `src/lib/constants.ts`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/lib/types.ts`
+Problema:
+- Ajuste exacto de cartera Providencia a $919,116.06 MXN compuesto por 10 CRs vigentes ($805,190.14) + 2 Facturas en revisión ($113,925.92: F-6302 y F-6307), clasificando el vencimiento de TH-946 en $81,780.00.
+Solución:
+- Ajustadas constantes canónicas y fórmulas de consolidación en dashboard y reportes.
+Riesgo: 🟢 Cero.
+Estado: ✅ Verificado.
+
+---
+
 ### Iteración 118: Calibración Maestra de Cartera Providencia, Saldo de Caja $844,526.90 y Auditoría de Cierres de OC
 [2026-09-25]
 Archivos: `src/lib/constants.ts`, `src/pages/CajaChica.tsx`, `src/components/Orders/OcClosureModal.tsx`, `src/components/Orders/OcFulfillmentReportModal.tsx`, `src/pages/Orders.tsx`, `src/components/Dashboard/ActionRadar.tsx`, `src/context/OrdersContext.tsx`, `src/lib/types.ts`, `docs/CHANGELOG.md`

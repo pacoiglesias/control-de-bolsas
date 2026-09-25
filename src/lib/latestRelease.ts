@@ -7,16 +7,16 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.8.1 Enterprise: Conciliación de Deuda Providencia $919,116.06, Vencidos $81,780.00, F-6302/F-6307 y Cierre Rápido de OCs',
+  version: 'v9.9.0 Enterprise: Drag & Drop Global HUD, Corrección Cierre OC y Semáforo de Cartera Providencia',
   date: '25 de Septiembre de 2026',
-  time: '10:45 PM',
-  summary: 'Ajuste financiero de máxima precisión: Conciliación de Deuda Total Providencia en $919,116.06 MXN ($805,190.14 en 10 CRs vigentes + $113,925.92 en Facturas 6302 y 6307), desglose oficial de Vencidos en $81,780.00 (CR TH-946), botón interactivo de 1 clic para cerrar y finiquitar OCs desde la tarjeta del dashboard (OC 14114 de Nava), y depuración del pod de Evelia con opción para archivar OCs al día y enfoque en la OC activa 9784.',
+  time: '11:00 PM',
+  summary: 'Implementación del Drag & Drop Global HUD de pantalla completa con inspección previa por OCR/CFDI antes de impactar Firestore; resolución del error de cierre de OC (eliminando valores undefined en closureAudit.closureNotes); barra visual de Semáforo de Cartera Providencia ($919,116.06); y certificación de 209 pruebas unitarias.',
   highlights: [
-    '📊 Deuda Total Providencia Cuadrada al Centavo ($919,116.06 MXN): 10 Contrarecibos vigentes ($805,190.14) + 2 Facturas en revisión ($113,925.92: F-6302 de 298 kg por $14,864.24 y F-6307 de 1,986 kg por $99,061.68).',
-    '🚨 Monitoreo de Vencidos ($81,780.00 MXN): Clasificación oficial del CR TH-946 (Factura 6167) como único documento vencido.',
-    '🔒 Botón Rápido de Cierre de OC en Alertas: Acceso directo desde el dashboard para cerrar la OC 120267114114 de Nava con sus 88.99 kg de merma acordada mediante acta formal.',
-    '🧹 Descongestionamiento de Dashboard (GT Evelia): Erradicación de botones duplicados y nuevo botón "Guardar y Ocultar del Tablero" para expedientes al 100%, priorizando la OC activa 12026439784 (5,100 kg).',
-    '🧪 206 Pruebas Unitarias Verificadas: Conciliación matemática auditada y pasando al 100%.',
+    '📥 Drag & Drop Global HUD de Pantalla Completa: Arrastra cualquier archivo (XML CFDI 4.0, PDF de remisión o imagen/foto de báscula) a cualquier parte de la ventana. HUD translúcido con efecto Obsidian Glass, análisis OCR/XML inmediato y confirmación previa obligatoria antes de guardar.',
+    '🐛 Corrección de Cierre de OC (undefined closureNotes): Sanitización total en OcClosureModal garantizando que closureNotes, closureReason y montos nunca envíen undefined a Firestore updateDoc(), protegiendo el finiquito de OCs.',
+    '🚦 Semáforo Inteligente de Cartera Providencia ($919,116.06 MXN): Barra visual superior con desglose de $723,410.14 corriente, $81,780.00 vencido (CR TH-946) y $113,925.92 en revisión (F-6302 y F-6307).',
+    '🔒 Cierre y Finiquito en 1 Clic: Acceso directo desde alertas del dashboard para formalizar el finiquito de la OC 14114 de Nava (88.99 kg saldo de merma acordada).',
+    '🧪 209 Pruebas Unitarias Verificadas: Suite de pruebas ejecutada al 100% sin regresiones.',
   ],
 };
 
