@@ -7,16 +7,16 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.8.0 Enterprise: Calibración Maestra de Cartera Providencia, Saldo de Caja $844,526.90 y Auditoría de Cierres de OC',
+  version: 'v9.8.1 Enterprise: Conciliación de Deuda Providencia $919,116.06, Vencidos $81,780.00, F-6302/F-6307 y Cierre Rápido de OCs',
   date: '25 de Septiembre de 2026',
-  time: '07:20 PM',
-  summary: 'Alineación matemática 1:1 con los registros del portal oficial de Providencia: actualización de los 10 Contrarecibos Vigentes ($805,190.14 MXN), padrón de 10 Contrarecibos Pagados ($1,032,087.04 MXN), calibración de saldo en efectivo de caja a $844,526.90, incorporación de la Factura 6271 (1,500 kg), y módulo de auditoría de cierre de OCs con reporte de kilos faltantes y exportación.',
+  time: '10:45 PM',
+  summary: 'Ajuste financiero de máxima precisión: Conciliación de Deuda Total Providencia en $919,116.06 MXN ($805,190.14 en 10 CRs vigentes + $113,925.92 en Facturas 6302 y 6307), desglose oficial de Vencidos en $81,780.00 (CR TH-946), botón interactivo de 1 clic para cerrar y finiquitar OCs desde la tarjeta del dashboard (OC 14114 de Nava), y depuración del pod de Evelia con opción para archivar OCs al día y enfoque en la OC activa 9784.',
   highlights: [
-    '💵 Saldo en Efectivo Calibrado a $844,526.90 MXN: Actualización canónica del saldo físico real en caja chica.',
-    '📑 Cartera Oficial Vigente ($805,190.14 MXN): Cuadre exacto de los 10 Contrarecibos en portal (GT-993, GT-962, TH-1103, GT-929, TH-1068, GT-904, TH-1030, GT-874, TH-990, TH-946).',
-    '✅ Cartera Pagada Oficial ($1,032,087.04 MXN): Registro histórico consolidado de los 10 Contrarecibos liquidados.',
-    '🧾 Ingesta Factura 6271 (1,500 kg): OC 120267114114 de Nava elevada al 98.63% de cumplimiento (6,411.01 kg facturados), saldo final de sólo 88.99 kg.',
-    '🏁 Auditoría y Reportes de Cierre de OC: Modal interactivo OcClosureModal y tablero OcFulfillmentReportModal con métricas de faltantes, mermas de pesaje, valor a $38/kg y exportación a CSV/WhatsApp.',
-    '🛡️ 206 Pruebas Unitarias Verificadas: 100% de la suite pasando en Vitest con tipado estricto.',
+    '📊 Deuda Total Providencia Cuadrada al Centavo ($919,116.06 MXN): 10 Contrarecibos vigentes ($805,190.14) + 2 Facturas en revisión ($113,925.92: F-6302 de 298 kg por $14,864.24 y F-6307 de 1,986 kg por $99,061.68).',
+    '🚨 Monitoreo de Vencidos ($81,780.00 MXN): Clasificación oficial del CR TH-946 (Factura 6167) como único documento vencido.',
+    '🔒 Botón Rápido de Cierre de OC en Alertas: Acceso directo desde el dashboard para cerrar la OC 120267114114 de Nava con sus 88.99 kg de merma acordada mediante acta formal.',
+    '🧹 Descongestionamiento de Dashboard (GT Evelia): Erradicación de botones duplicados y nuevo botón "Guardar y Ocultar del Tablero" para expedientes al 100%, priorizando la OC activa 12026439784 (5,100 kg).',
+    '🧪 206 Pruebas Unitarias Verificadas: Conciliación matemática auditada y pasando al 100%.',
   ],
 };
+

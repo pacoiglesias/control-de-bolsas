@@ -149,6 +149,34 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             processedAt: Timestamp.fromDate(new Date('2026-09-21T15:14:50Z')),
           } as unknown as PurchaseOrder]);
         }
+        // OC 12026439774 (GT - Evelia · 43/9774 · 298 kg) — ampara Factura 6302 ($14,864.24) en revisión
+        const OC_GT_REVISION = '12026439774';
+        if (!ocMap.has(OC_GT_REVISION)) {
+          ocMap.set(OC_GT_REVISION, [{
+            id: `oc-${OC_GT_REVISION}`,
+            oc: OC_GT_REVISION,
+            folio: '43/9774',
+            client: CLIENT_GT,
+            department: DEPT_GT_ALMACEN,
+            totalKilograms: 298.00,
+            isClosedShort: false,
+            creditCycle: { status: 'facturado' },
+            invoices: [
+              {
+                id: 'inv-6302',
+                folio: '6302',
+                uuid: 'FFD7964A-BD1E-4332-AEA9-61E3F498521C',
+                kilos: 298.00,
+                financials: { invoiceTotal: 14864.24 },
+                creditCycle: { status: 'facturado' },
+                orderId: `oc-${OC_GT_REVISION}`,
+                oc: OC_GT_REVISION,
+              } as Invoice
+            ],
+            processedAt: Timestamp.fromDate(new Date('2026-09-22T11:58:13Z')),
+          } as unknown as PurchaseOrder]);
+        }
+
 
         const deduplicatedDocs: PurchaseOrder[] = [];
 

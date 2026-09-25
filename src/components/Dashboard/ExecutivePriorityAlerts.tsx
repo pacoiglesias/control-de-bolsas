@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { OcClosureModal } from '../Orders/OcClosureModal';
 import { money, toDate } from '../../lib/format';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 import { useNavigate } from 'react-router-dom';
@@ -7,11 +8,13 @@ import {
   OFFICIAL_VALID_CRS,
   OC_TH_NAVA,
   OC_GT_EVELIA,
+  OC_GT_ACTIVE,
   CARTERA_OFICIAL,
   TOTAL_CARTERA_OFICIAL,
   isOcTH,
   isOcGT,
 } from '../../lib/constants';
+import { useToast } from '../../context/ToastContext';
 import {
   generateReclamarKilosAndresMessage,
   generateEstadoCuentaSemanalAndresMessage,
@@ -90,6 +93,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   onOpenQuickCollection,
 }) => {
   const nav = useNavigate();
+  const toast = useToast();
+  const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
+  const [eveliaCompletedArchived, setEveliaCompletedArchived] = useState(() => {
+    return localStorage.getItem('evelia_completed_pod_archived') === 'true';
+  });
+
+  const handleArchiveEveliaCompleted = () => {
+    localStorage.setItem('evelia_completed_pod_archived', 'true');
+    setEveliaCompletedArchived(true);
+    toast('Expediente de GT (OC 9774) archivado y guardado del tablero.', 'ok');
+  };
   const saleKg = config?.salePricePerKg || 43;
   const ivaRate = config?.ivaRate || 0.16;
 
@@ -112,6 +126,13 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     if (!o || (o as any).isDeleted) return false;
     const oc = (o.oc || o.folio || o.id || '').toUpperCase();
     return oc.includes('9774');
+  }), [orders]);
+
+  // 2c. Detección de la OC Activa Oficial vigente para Evelia (OC 12026439784 · 5,100 kg)
+  const eveliaActiveOrder = useMemo(() => (orders || []).find(o => {
+    if (!o || (o as any).isDeleted) return false;
+    const oc = (o.oc || o.folio || o.id || '').toUpperCase();
+    return oc === OC_GT_ACTIVE || oc === `OC-${OC_GT_ACTIVE}` || oc.includes('9784');
   }), [orders]);
 
   // 3. Métricas en tiempo real de la OC TH · Nava
@@ -348,7 +369,20 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   let eveliaBtn = `📋 Solicitar Nueva OC`;
   let eveliaTargetOrderId = eveliaOrder?.id || `oc-${OC_GT_EVELIA}`;
 
-  if (hasNewOc && isNewOcPendingInvoice) {
+  if (eveliaActiveOrder) {
+    const activeKg = Number(eveliaActiveOrder.totalKilograms) || 5100.0;
+    const activeEntregados = totalKilosEntregados(eveliaActiveOrder);
+    const activeFacturados = totalKilosFacturados(eveliaActiveOrder);
+    const activeRemanente = Math.max(0, activeKg - activeEntregados);
+    eveliaBadge = `🏭 GT · Lic. Evelia`;
+    eveliaBadgeColor = '#3b82f6';
+    eveliaOcLabel = `OC: ${eveliaActiveOrder.oc || '12026439784'} (${eveliaActiveOrder.folio || '43/9784'})`;
+    eveliaStatusLabel = activeEntregados > 0 ? '⚡ En Suministro' : '📦 En Maquila';
+    eveliaTitle = `OC 43/9784 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
+    eveliaSubtitle = `Nueva orden oficial de Evelia en Planta P4. ${activeEntregados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg entregados, ${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.`;
+    eveliaBtn = activeEntregados > activeFacturados ? '⚡ Facturar Entregas' : '📦 Ver OC 9784';
+    eveliaTargetOrderId = eveliaActiveOrder.id || 'oc-12026439784';
+  } else if (hasNewOc && isNewOcPendingInvoice) {
     const targetFolio = eveliaNewOcOrder?.folio || '43/9774';
     eveliaBadge = `🏭 GT · Lic. Evelia`;
     eveliaBadgeColor = '#34d399';
@@ -364,8 +398,8 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     eveliaOcLabel = `OC: 12026439774 (43/9774)`;
     eveliaStatusLabel = '✅ Al Día';
     eveliaTitle = `OC 9713 y OC 9774 Facturadas al 100%`;
-    eveliaSubtitle = `Todos los kilos entregados físicamente en P4 (2,674 kg + 298 kg) se encuentran debidamente amparados y timbrados.`;
-    eveliaBtn = `📂 Ver OC 9774`;
+    eveliaSubtitle = `Todos los kilos entregados físicamente en P4 (2,674 kg + 298 kg) se encuentran debidamente amparados y timbrados con Factura 6302.`;
+    eveliaBtn = `📥 Guardar y Ocultar`;
     eveliaTargetOrderId = eveliaNewOcOrder.id || 'oc-12026439774';
   }
 
@@ -662,207 +696,337 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => onOpenQuickInvoice(navaOrder?.id || `oc-${OC_TH_NAVA}`)}
-              style={{
-                flex: 1,
-                minHeight: 40,
-                background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                color: '#fff',
-                border: 'none',
-                padding: '9px 12px',
-                borderRadius: 10,
-                fontSize: 12.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                boxShadow: '0 4px 12px rgba(217, 119, 6, 0.35)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {navaBtn}
-            </button>
-            {navaRemanenteKg > 0 && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  const text = generateReclamarKilosAndresMessage({
-                    oc: navaOrder?.folio || navaOrder?.oc || OC_TH_NAVA,
-                    client: 'Textil Hogar (José Nava)',
-                    totalKg: Number(navaOrder?.totalKilograms) || 6500,
-                    entregadosKg: navaEntregadosKg,
-                    faltantesKg: navaRemanenteKg,
-                    providerName: 'Andrés',
-                    deliveriesCount: (navaOrder?.deliveries || []).length,
-                  });
-                  openWhatsAppMessage(text);
-                }}
-                style={{
-                  minHeight: 40,
-                  background: 'rgba(245, 158, 11, 0.15)',
-                  color: '#fbbf24',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                  padding: '9px 12px',
-                  borderRadius: 10,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                }}
-                title={`Enviar WhatsApp a Andrés para exigir la entrega de los ${Math.round(navaRemanenteKg)} kg restantes`}
-              >
-                💬 Reclamar ({Math.round(navaRemanenteKg)} kg)
-              </button>
+            {navaPatioKg === 0 && (navaRemanenteKg <= 150 || navaOrder?.isClosedShort) ? (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setClosingOrder(navaOrder || ({
+                    id: `oc-${OC_TH_NAVA}`,
+                    oc: OC_TH_NAVA,
+                    folio: '71/14114',
+                    client: 'GRUPO TEXTIL PROVIDENCIA (TH - JOSÉ NAVA)',
+                    totalKilograms: 6500,
+                    isClosedShort: true,
+                    deliveries: [{ kilos: 6411.01 }],
+                    invoices: [{ kilos: 6411.01 }],
+                  } as any))}
+                  style={{
+                    flex: 1,
+                    minHeight: 40,
+                    background: navaOrder?.isClosedShort
+                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                      : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '9px 14px',
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: navaOrder?.isClosedShort
+                      ? '0 4px 12px rgba(5, 150, 105, 0.35)'
+                      : '0 4px 12px rgba(217, 119, 6, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title={navaOrder?.isClosedShort ? 'Ver acta de auditoría y finiquito de la OC' : 'Cerrar y finiquitar formalmente la orden con 88.99 kg de merma'}
+                >
+                  {navaOrder?.isClosedShort
+                    ? '🏁 OC Concluida (Ver Acta)'
+                    : `🔒 Cerrar OC (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Finiquito)`}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => nav(`/ordenes?abrir=${navaOrder?.id || `oc-${OC_TH_NAVA}`}`)}
+                  style={{
+                    minHeight: 40,
+                    background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
+                    color: 'var(--ink, #fff)',
+                    border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  📂 Ver OC
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => onOpenQuickInvoice(navaOrder?.id || `oc-${OC_TH_NAVA}`)}
+                  style={{
+                    flex: 1,
+                    minHeight: 40,
+                    background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    boxShadow: '0 4px 12px rgba(217, 119, 6, 0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {navaBtn}
+                </button>
+                {navaRemanenteKg > 0 && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      const text = generateReclamarKilosAndresMessage({
+                        oc: navaOrder?.folio || navaOrder?.oc || OC_TH_NAVA,
+                        client: 'Textil Hogar (José Nava)',
+                        totalKg: Number(navaOrder?.totalKilograms) || 6500,
+                        entregadosKg: navaEntregadosKg,
+                        faltantesKg: navaRemanenteKg,
+                        providerName: 'Andrés',
+                        deliveriesCount: (navaOrder?.deliveries || []).length,
+                      });
+                      openWhatsAppMessage(text);
+                    }}
+                    style={{
+                      minHeight: 40,
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      color: '#fbbf24',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title={`Enviar WhatsApp a Andrés para exigir la entrega de los ${Math.round(navaRemanenteKg)} kg restantes`}
+                  >
+                    💬 Reclamar ({Math.round(navaRemanenteKg)} kg)
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => nav(`/ordenes?abrir=${navaOrder?.id || `oc-${OC_TH_NAVA}`}`)}
+                  style={{
+                    minHeight: 40,
+                    background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
+                    color: 'var(--ink, #fff)',
+                    border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  📂 Ver OC
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              className="btn"
-              onClick={() => nav(`/ordenes?abrir=${navaOrder?.id || `oc-${OC_TH_NAVA}`}`)}
-              style={{
-                minHeight: 40,
-                background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
-                color: 'var(--ink, #fff)',
-                border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                padding: '9px 12px',
-                borderRadius: 10,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              📂 Ver OC
-            </button>
           </div>
         </motion.div>
 
         {/* POD 2: GRUPO TEXTIL (EVELIA) */}
-        <motion.div
-          whileHover={{ y: -3, transition: { duration: 0.2 } }}
-          whileTap={{ scale: 0.99 }}
-          style={{
-            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(29, 78, 216, 0.06) 100%)',
-            border: '1px solid rgba(59, 130, 246, 0.35)',
-            borderRadius: 18,
-            padding: '18px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 20px -4px rgba(59, 130, 246, 0.15)',
-            minHeight: 230,
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 900,
-                  padding: '4px 10px',
-                  borderRadius: 8,
-                  background: hasNewOc ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                  color: eveliaBadgeColor,
-                  border: `1px solid ${hasNewOc ? 'rgba(16, 185, 129, 0.4)' : 'rgba(59, 130, 246, 0.4)'}`,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.3px',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {eveliaBadge}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {(!eveliaCompletedArchived || eveliaActiveOrder || isNewOcPendingInvoice) && (
+          <motion.div
+            whileHover={{ y: -3, transition: { duration: 0.2 } }}
+            whileTap={{ scale: 0.99 }}
+            style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(29, 78, 216, 0.06) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.35)',
+              borderRadius: 18,
+              padding: '18px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxShadow: '0 4px 20px -4px rgba(59, 130, 246, 0.15)',
+              minHeight: 230,
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 800,
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    background: hasNewOc ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                    fontWeight: 900,
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    background: hasNewOc && !eveliaActiveOrder ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)',
                     color: eveliaBadgeColor,
-                    border: `1px solid ${hasNewOc ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                    border: `1px solid ${hasNewOc && !eveliaActiveOrder ? 'rgba(16, 185, 129, 0.4)' : 'rgba(59, 130, 246, 0.4)'}`,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {eveliaStatusLabel}
+                  {eveliaBadge}
                 </span>
-                <span style={{ fontSize: 11.5, fontWeight: 800, color: eveliaBadgeColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                  {eveliaOcLabel}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: hasNewOc && !eveliaActiveOrder ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                      color: eveliaBadgeColor,
+                      border: `1px solid ${hasNewOc && !eveliaActiveOrder ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {eveliaStatusLabel}
+                  </span>
+                  <span style={{ fontSize: 11.5, fontWeight: 800, color: eveliaBadgeColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {eveliaOcLabel}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
-              {eveliaTitle}
-            </div>
-
-            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
-              {eveliaSubtitle}
-            </div>
-
-            {(eveliaNewOcOrder || eveliaOrder) && (
-              <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
-                <ThreeWayMatchingBadge order={(eveliaNewOcOrder || eveliaOrder)!} compact />
+              <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
+                {eveliaTitle}
               </div>
-            )}
-          </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => onOpenQuickInvoice(eveliaTargetOrderId)}
-              style={{
-                flex: 1,
-                minHeight: 40,
-                background: hasNewOc ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                color: '#fff',
-                border: 'none',
-                padding: '9px 12px',
-                borderRadius: 10,
-                fontSize: 12.5,
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                boxShadow: hasNewOc ? '0 4px 12px rgba(5, 150, 105, 0.35)' : '0 4px 12px rgba(37, 99, 235, 0.35)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {eveliaBtn}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => nav(`/ordenes?abrir=${eveliaTargetOrderId}`)}
-              style={{
-                minHeight: 40,
-                background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
-                color: 'var(--ink, #fff)',
-                border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                padding: '9px 12px',
-                borderRadius: 10,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              📂 Ver {hasNewOc ? 'OC 9774' : 'OC 9713'}
-            </button>
-          </div>
-        </motion.div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
+                {eveliaSubtitle}
+              </div>
+
+              {(eveliaActiveOrder || eveliaNewOcOrder || eveliaOrder) && (
+                <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
+                  <ThreeWayMatchingBadge order={(eveliaActiveOrder || eveliaNewOcOrder || eveliaOrder)!} compact />
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+              {hasNewOc && !isNewOcPendingInvoice && !eveliaActiveOrder ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleArchiveEveliaCompleted}
+                    style={{
+                      flex: 1,
+                      minHeight: 40,
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 4px 12px rgba(5, 150, 105, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                    title="Ocultar esta tarjeta del tablero porque ya está al 100% cumplida y facturada"
+                  >
+                    📥 Guardar y Ocultar del Tablero
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => nav(`/ordenes?abrir=${eveliaTargetOrderId}`)}
+                    style={{
+                      minHeight: 40,
+                      background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
+                      color: 'var(--ink, #fff)',
+                      border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    📂 Ver OC 9774
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      if (eveliaActiveOrder) {
+                        nav(`/ordenes?abrir=${eveliaTargetOrderId}`);
+                      } else {
+                        onOpenQuickInvoice(eveliaTargetOrderId);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      minHeight: 40,
+                      background: hasNewOc ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      boxShadow: hasNewOc ? '0 4px 12px rgba(5, 150, 105, 0.35)' : '0 4px 12px rgba(37, 99, 235, 0.35)',
+                    }}
+                  >
+                    {eveliaBtn}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => nav(`/ordenes?abrir=${eveliaTargetOrderId}`)}
+                    style={{
+                      minHeight: 40,
+                      background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
+                      color: 'var(--ink, #fff)',
+                      border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    📂 Ver OC {eveliaActiveOrder ? '9784' : hasNewOc ? '9774' : '9713'}
+                  </button>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         {/* POD 3: FACTURAS EN ESPERA DE CONTRARECIBO */}
         <motion.div
@@ -1282,6 +1446,15 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           );
         })}
       </div>
+
+      {/* MODAL DE CIERRE Y AUDITORÍA DE OC */}
+      {closingOrder && (
+        <OcClosureModal
+          order={closingOrder}
+          onClose={() => setClosingOrder(null)}
+        />
+      )}
     </div>
   );
 };
+

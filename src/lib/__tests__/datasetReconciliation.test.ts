@@ -7,28 +7,39 @@ import {
   CARTERA_PAGADA_OFICIAL,
   TOTAL_CARTERA_PAGADA,
   SALDO_CAJA_ACTUAL,
+  TOTAL_VENCIDOS_OFICIAL,
+  TOTAL_FACTURAS_REVISION_OFICIAL,
+  DEUDA_TOTAL_PROVIDENCIA_OFICIAL,
 } from '../constants';
 
 describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
-  it('debe sumar exactamente $799,691.80 en los 10 Contrarecibos Oficiales Generados', () => {
+  it('debe sumar exactamente $805,190.14 en los 10 Contrarecibos Oficiales Vigentes', () => {
     const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
-    expect(totalCrs).toBe(799691.80);
+    expect(totalCrs).toBe(805190.14);
     expect(OFFICIAL_CRS.length).toBe(10);
   });
 
-  it('debe calcular la deuda total de Providencia con las 3 facturas en revisión (F-6268, F-6267, F-6266) en $955,277.50', () => {
+  it('debe calcular la deuda total de Providencia con las 2 facturas en revisión (F-6302 y F-6307) en $919,116.06', () => {
     const totalCrs = round2(OFFICIAL_CRS.reduce((sum, item) => sum + item.total, 0));
     const totalRevision = Array.isArray(OFFICIAL_IN_REVIEW)
       ? round2(OFFICIAL_IN_REVIEW.reduce((sum, item) => sum + item.total, 0))
       : 0;
     const deudaTotal = round2(totalCrs + totalRevision);
 
-    expect(totalRevision).toBe(155585.70);
-    expect(deudaTotal).toBe(955277.50);
+    expect(totalRevision).toBe(113925.92);
+    expect(deudaTotal).toBe(919116.06);
+    expect(TOTAL_FACTURAS_REVISION_OFICIAL).toBe(113925.92);
+    expect(DEUDA_TOTAL_PROVIDENCIA_OFICIAL).toBe(919116.06);
+  });
+
+  it('debe validar el importe exacto de vencidos en $81,780.00 correspondiente a CR TH-946', () => {
+    expect(TOTAL_VENCIDOS_OFICIAL).toBe(81780.00);
+    const crVencido = OFFICIAL_CRS.find(c => c.status === 'VENCIDO' || c.cr === 'TH-946');
+    expect(crVencido?.total).toBe(81780.00);
   });
 
   it('debe calcular la comisión contable (8% sobre subtotal) con precisión milimétrica', () => {
-    const totalConIva = 799691.80;
+    const totalConIva = 805190.14;
     const subtotal = totalConIva / 1.16;
     const comisionEsperada = round2(subtotal * 0.08);
 
@@ -73,7 +84,7 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
       }, 0)
     );
 
-    expect(sumaValidada).toBe(799691.80);
+    expect(sumaValidada).toBe(805190.14);
   });
 
   it('debe validar la Cartera Oficial Activa Vigente en $805,190.14 con los 10 CRs del portal', () => {
@@ -91,3 +102,4 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
     expect(SALDO_CAJA_ACTUAL).toBe(844526.90);
   });
 });
+

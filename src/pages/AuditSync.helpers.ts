@@ -26,18 +26,39 @@ export const ESTATUS_VALIDOS: { value: OrderStatus; label: string }[] = [
 ];
 
 export const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: string }> = {
-  'TH-946': { total: 81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' },
-  'TH-912': { total: 79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
+  // 10 Contrarecibos Vigentes ($805,190.14 MXN)
+  'GT-993':  { total: 110434.32, issueDate: '2026-09-21', dueDate: '2026-10-21' },
+  'GT-962':  { total: 110783.48, issueDate: '2026-09-14', dueDate: '2026-10-14' },
+  'TH-1103': { total:  74820.00, issueDate: '2026-09-14', dueDate: '2026-10-14' },
+  'GT-929':  { total:  83499.12, issueDate: '2026-09-07', dueDate: '2026-10-07' },
+  'TH-1068': { total:  72086.58, issueDate: '2026-09-07', dueDate: '2026-10-07' },
+  'GT-904':  { total:  49032.04, issueDate: '2026-08-31', dueDate: '2026-09-30' },
+  'TH-1030': { total:  74820.00, issueDate: '2026-08-31', dueDate: '2026-09-30' },
+  'GT-874':  { total:  49880.00, issueDate: '2026-08-24', dueDate: '2026-09-23' },
+  'TH-990':  { total:  98054.60, issueDate: '2026-08-24', dueDate: '2026-09-23' },
+  'TH-946':  { total:  81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' }, // VENCIDO
+
+  // 10 Contrarecibos Ya Pagados ($1,032,087.04 MXN)
+  'TH-912': { total:  79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
   'TH-879': { total: 136300.00, issueDate: '2026-08-03', dueDate: '2026-09-02' },
   'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
-  'GT-742': { total: 54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
+  'GT-742': { total:  54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
   'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
-  'GT-713': { total: 69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
-  'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+  'GT-713': { total:  69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
   'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
-  'GT-624': { total: 98136.00, issueDate: '2026-06-22', dueDate: '2026-07-22' },
-  'GT-597': { total: 107420.76, issueDate: '2026-06-15', dueDate: '2026-07-15' },
+  'TH-739': { total: 109040.00, issueDate: '2026-07-06', dueDate: '2026-08-05' },
+  'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+  'TH-713': { total: 108647.46, issueDate: '2026-06-29', dueDate: '2026-07-29' },
+
+  // Facturas en Revisión Oficiales ($113,925.92 MXN)
+  '6302':        { total: 14864.24, issueDate: '2026-09-22', dueDate: '2026-10-22' },
+  '12026439774': { total: 14864.24, issueDate: '2026-09-22', dueDate: '2026-10-22' },
+  '43/9774':     { total: 14864.24, issueDate: '2026-09-22', dueDate: '2026-10-22' },
+  '6307':        { total: 99061.68, issueDate: '2026-09-24', dueDate: '2026-10-24' },
+  '120267114302':{ total: 99061.68, issueDate: '2026-09-24', dueDate: '2026-10-24' },
+  '71/14302':    { total: 99061.68, issueDate: '2026-09-24', dueDate: '2026-10-24' },
 };
+
 
 export type ModeTab = 'grid' | 'paste' | 'batch' | 'excel';
 

@@ -108,6 +108,50 @@ export const CARTERA_OFICIAL = [
 export const TOTAL_CARTERA_OFICIAL = 805190.14;
 
 // ---------------------------------------------------------------------------
+// Vencidos Oficiales Providencia ($81,780.00 MXN)
+// ---------------------------------------------------------------------------
+export const TOTAL_VENCIDOS_OFICIAL = 81780.00;
+export const CR_VENCIDO_OFICIAL = 'TH-946'; // Factura 6167 · Vencimiento: 16/09/2026
+
+// ---------------------------------------------------------------------------
+// Facturas en Revisión / Pendientes de Asignación de CR ($113,925.92 MXN)
+// ---------------------------------------------------------------------------
+export const FACTURAS_EN_REVISION_OFICIAL = [
+  {
+    folio: '6302',
+    uuid: 'FFD7964A-BD1E-4332-AEA9-61E3F498521C',
+    oc: '12026439774',
+    folioOc: '43/9774',
+    client: CLIENT_GT,
+    department: DEPT_GT,
+    kilos: 298.00,
+    subtotal: 12814.00,
+    iva: 2050.24,
+    total: 14864.24,
+    dateStr: '2026-09-22',
+  },
+  {
+    folio: '6307',
+    uuid: '67F11BC8-7B33-4CFC-97EE-0AA45F51F797',
+    oc: '120267114302',
+    folioOc: '71/14302',
+    client: CLIENT_TH,
+    department: DEPT_TH,
+    kilos: 1986.00,
+    subtotal: 85398.00,
+    iva: 13663.68,
+    total: 99061.68,
+    dateStr: '2026-09-24',
+  },
+] as const;
+
+export const TOTAL_FACTURAS_REVISION_OFICIAL = 113925.92;
+export const TOTAL_KILOS_REVISION_OFICIAL = 2284.00;
+export const PENDIENTE_POR_FACTURAR_OFICIAL = 0.00;
+export const DEUDA_TOTAL_PROVIDENCIA_OFICIAL = 919116.06; // $805,190.14 + $113,925.92
+
+
+// ---------------------------------------------------------------------------
 // Padrón Oficial de Cartera Ya Pagada ($1,032,087.04 MXN)
 // ---------------------------------------------------------------------------
 
