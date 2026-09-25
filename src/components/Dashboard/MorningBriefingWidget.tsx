@@ -6,8 +6,7 @@ import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsap
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { useNavigate } from 'react-router-dom';
-
-const OFFICIAL_VALID_CRS = ['GT-874', 'TH-990', 'TH-946', 'TH-912', 'TH-879', 'GT-742', 'GT-713', 'GT-651'];
+import { OFFICIAL_VALID_CRS, OFFICIAL_PAID_CRS_LIST } from '../../lib/constants';
 
 export function MorningBriefingWidget({
   orders,
@@ -35,9 +34,9 @@ export function MorningBriefingWidget({
       (o.invoices || []).forEach((inv) => {
         if (!inv) return;
         const cr = extractCr(inv, o);
-        if (!cr || !OFFICIAL_VALID_CRS.includes(cr)) return;
+        if (!cr || !(OFFICIAL_VALID_CRS as readonly string[]).includes(cr)) return;
 
-        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected';
+        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected' || (OFFICIAL_PAID_CRS_LIST as readonly string[]).includes(cr);
         if (isPaid) return;
 
         const due = toDate(inv.creditCycle?.dueDate || inv.collection?.contrareciboDate);
@@ -75,10 +74,10 @@ export function MorningBriefingWidget({
       (o.invoices || []).forEach((inv) => {
         if (!inv) return;
         const cr = extractCr(inv, o);
-        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected';
+        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected' || (OFFICIAL_PAID_CRS_LIST as readonly string[]).includes(cr);
         if (isPaid) return;
 
-        if (!cr || !OFFICIAL_VALID_CRS.includes(cr)) {
+        if (!cr || !(OFFICIAL_VALID_CRS as readonly string[]).includes(cr)) {
           const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
           list.push({
             folio: inv.folio || 'S/F',
@@ -238,8 +237,8 @@ export function MorningBriefingWidget({
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'rgba(255, 255, 255, 0.8)', lineHeight: 1.4 }}>
               {sinCrInvoices.length > 0
-                ? `Facturas #${sinCrInvoices.map((i) => i.folio).join(', #')} esperando número de CR en apps.mundoprovidencia.com.`
-                : '✅ Todas las facturas timbradas cuentan con su contrarecibo.'}
+                ? `Facturas #${sinCrInvoices.map((i) => i.folio).join(', #')} en revisión en apps.mundoprovidencia.com (${money(totalSinCrMonto)}).`
+                : '✅ Todas las facturas timbradas cuentan con su contrarecibo asignado.'}
             </p>
           </div>
 
@@ -303,7 +302,7 @@ export function MorningBriefingWidget({
               </span>
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'rgba(255, 255, 255, 0.8)', lineHeight: 1.4 }}>
-              Entregas de báscula cuadradas al 100% (6,085.01 kg entregados = 6,085.01 kg facturados). Cero mermas.
+              Entregas de báscula cuadradas (6,085.01 kg entregados = 6,085.01 kg facturados). En maquila no aplican mermas: se entrega completo o con saldo remanente por surtir (sin excesos).
             </p>
           </div>
 

@@ -1159,11 +1159,11 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             </div>
 
             <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', lineHeight: 1.25 }}>
-              Facturas recientes para tramitar CR
+              2 Facturas en Revisión: F-6302 y F-6307
             </div>
 
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
-              Monitorea el ingreso al portal de proveedores (<code style={{ fontSize: 11 }}>apps.mundoprovidencia.com</code>) para capturar los folios <strong>`TH-`</strong> y <strong>`GT-`</strong> oficiales y activar el ciclo de crédito.
+              Total <strong>$113,925.92 MXN</strong> (F-6302 por $14,864.24 y F-6307 por $99,061.68) pendientes de asignación de Contrarecibo en portal <code style={{ fontSize: 11 }}>apps.mundoprovidencia.com</code>.
             </div>
           </div>
 
@@ -1190,7 +1190,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 transition: 'all 0.15s ease',
               }}
             >
-              📝 Asignar CR Rápido
+              ✏️ Asignar CR Manual
             </button>
             <button
               type="button"

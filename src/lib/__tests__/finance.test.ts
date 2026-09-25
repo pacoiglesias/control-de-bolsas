@@ -440,7 +440,7 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
       collection: { contrareciboNumber: 'TH-946' },
       invoices: [
         { id: 'inv-6198', folio: '6198', kilos: 1965.81, collection: { contrareciboNumber: 'TH-946' } },
-        { id: 'inv-6200', folio: '6200', kilos: 1500.00, collection: { contrareciboNumber: '' } }, // En revisión, aún sin CR
+        { id: 'inv-6307', folio: '6307', kilos: 1986.00, collection: { contrareciboNumber: '' } }, // En revisión, aún sin CR
         { id: 'inv-nueva', folio: '', kilos: 1000.00, collection: { contrareciboNumber: '' } },     // Por facturar
       ],
     };
@@ -448,7 +448,7 @@ describe('Conciliación Oficial de Contrarecibos y Filtro Departamental TH/GT', 
     // La factura 6198 tiene su CR asignado
     expect(extractCr(multiInvoiceOrder.invoices[0], multiInvoiceOrder)).toBe('TH-946');
 
-    // La factura 6200 NO tiene CR asignado, por lo que debe devolver vacío ('') y no heredar TH-946
+    // La factura 6307 NO tiene CR asignado, por lo que debe devolver vacío ('') y no heredar TH-946
     expect(extractCr(multiInvoiceOrder.invoices[1], multiInvoiceOrder)).toBe('');
 
     // La factura nueva tampoco debe heredar TH-946

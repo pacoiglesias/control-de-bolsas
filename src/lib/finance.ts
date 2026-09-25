@@ -28,6 +28,8 @@ export type {
   DynamicFinancialsResult,
 } from '../../functions/src/shared/finance.core';
 
+import { CARTERA_OFICIAL } from './constants';
+
 export function extractCr(
   inv?: Partial<Invoice> | Partial<PurchaseOrder> | Record<string, any> | null,
   o?: Partial<PurchaseOrder> | Record<string, any> | null
@@ -38,6 +40,16 @@ export function extractCr(
     if (invCr) return invCr;
     const f1 = ((inv as any)?.folio || '').trim().toUpperCase();
     if (f1.startsWith('TH-') || f1.startsWith('GT-')) return f1;
+
+    // Mapeo Canónico contra el Padrón Oficial de Cartera Providencia
+    if (f1) {
+      const matchedCanonical = CARTERA_OFICIAL.find((item) => {
+        const folios = item.factura.split(/\s+/).map((f) => f.trim().toUpperCase());
+        return folios.includes(f1);
+      });
+      if (matchedCanonical) return matchedCanonical.cr;
+    }
+
     // Si la orden raíz no tiene array de facturas (documento legacy único), puede revisar la orden
     if (!o?.invoices || o.invoices.length <= 1) {
       const oCr = (o?.collection?.contrareciboNumber || (o as any)?.contrarecibo || '').trim();
@@ -53,7 +65,15 @@ export function extractCr(
   let cr = (target?.collection?.contrareciboNumber || target?.contrarecibo || '').trim();
   if (!cr) {
     const f = (target?.folio || '').trim().toUpperCase();
-    if (f.startsWith('TH-') || f.startsWith('GT-')) cr = f;
+    if (f.startsWith('TH-') || f.startsWith('GT-')) {
+      cr = f;
+    } else if (f) {
+      const matchedCanonical = CARTERA_OFICIAL.find((item) => {
+        const folios = item.factura.split(/\s+/).map((x) => x.trim().toUpperCase());
+        return folios.includes(f);
+      });
+      if (matchedCanonical) cr = matchedCanonical.cr;
+    }
   }
   return cr;
 }

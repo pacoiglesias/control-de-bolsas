@@ -452,6 +452,26 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                   🎯 <strong>OC Detectada en Texto:</strong> <span className="mono" style={{ fontWeight: 800 }}>{detectedOcNumber}</span>
                 </div>
               )}
+
+              {(!extractedFolio || extractedKilos <= 0 || (docType === 'factura_cfdi' && extractedTotal <= 0)) && (
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  fontSize: 12,
+                  color: '#fbbf24',
+                  lineHeight: 1.4,
+                }}>
+                  ✏️ <strong>Datos Faltantes Requeridos:</strong>
+                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                    {!extractedFolio && <li>Falta ingresar el <strong>Folio / No. Documento</strong>.</li>}
+                    {extractedKilos <= 0 && <li>Falta ingresar los <strong>Kilos Netos</strong>.</li>}
+                    {docType === 'factura_cfdi' && extractedTotal <= 0 && <li>Falta ingresar el <strong>Importe Total</strong>.</li>}
+                  </ul>
+                  <span style={{ fontSize: 11, opacity: 0.9 }}>Puedes capturarlos directamente en los campos de arriba antes de guardar.</span>
+                </div>
+              )}
             </div>
 
             {/* COLUMNA 2: SELECCIÓN DE ORDEN Y DIAGNÓSTICO DE IMPACTO */}
