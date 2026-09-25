@@ -9,7 +9,9 @@ import { KilosProgressBar } from '../Orders/KilosProgressBar';
 import { KebabMenu, type KebabMenuItem } from '../ui/KebabMenu';
 import { useToast } from '../../context/ToastContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
-import { generateInstitutionalEmailDraft, openInstitutionalEmail, copyToClipboard } from '../../lib/whatsappReminder';
+import { generateInstitutionalEmailDraft, openInstitutionalEmail, copyToClipboard, generateReclamarKilosAndresMessage, openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { confirmDialog } from '../../lib/confirmDialog';
+import { triggerHaptic } from '../../lib/hapticEngine';
 import type { PurchaseOrder } from '../../lib/types';
 import type { PipelineStageKey } from './MoneyFlowPipeline';
 
@@ -89,6 +91,43 @@ export function SeguimientoPedidosTable({
       toast(`Factura #${cleanFolio} actualizada con éxito`, 'ok');
     } catch (err: any) {
       toast(`Error al actualizar factura: ${err.message}`, 'bad');
+    }
+  };
+
+  const handleReclamarAndres = (order: PurchaseOrder, kilosPedidos: number, kilosEntregados: number, kilosFaltantes: number) => {
+    triggerHaptic('light');
+    const text = generateReclamarKilosAndresMessage({
+      oc: order.folio || order.oc || order.id,
+      client: nombreClienteVisible(order.client),
+      totalKg: kilosPedidos,
+      entregadosKg: kilosEntregados,
+      faltantesKg: kilosFaltantes,
+      providerName: settings?.providerName || 'Andrés',
+      deliveriesCount: (order.deliveries || []).length,
+    });
+    openWhatsAppMessage(text);
+  };
+
+  const handleConcluirOc = async (order: PurchaseOrder, kilosEntregados: number) => {
+    triggerHaptic('warning');
+    const ok = await confirmDialog({
+      title: '🏁 ¿Concluir Orden de Compra?',
+      message: `Esta orden tiene ${kilosEntregados.toLocaleString('es-MX')} kg entregados. Al concluirla, el ERP la considerará completada con lo entregado y ya no esperará más viajes del proveedor. ¿Deseas cerrarla ahora?`,
+      confirmLabel: 'Sí, Concluir OC',
+      cancelLabel: 'Cancelar',
+    });
+    if (!ok) return;
+
+    try {
+      const orderRef = doc(db, PATHS.orders, order.id);
+      await updateDoc(orderRef, {
+        isClosedShort: true,
+        updatedAt: serverTimestamp(),
+      });
+      triggerHaptic('success');
+      toast(`✅ OC ${order.folio || order.oc} concluida exitosamente con ${kilosEntregados.toLocaleString('es-MX')} kg.`, 'ok');
+    } catch (err: any) {
+      toast(`Error al concluir OC: ${err.message}`, 'bad');
     }
   };
 
@@ -512,23 +551,100 @@ export function SeguimientoPedidosTable({
                     </td>
                     <td style={{ fontSize: 12 }}>{f.cliente}</td>
                     <td style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums' }}>{fmtDate(f.fecha)}</td>
-                    <td className="num">
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <td className="num" style={{ minWidth: 210 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
                         <KilosProgressBar
                           deliveredKg={f.kilosEntregados}
                           totalKg={f.kilosPedidos}
                           compact
                         />
-                        <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          {f.kilosEntregados === 0 
-                            ? `🏭 ${f.kilosPedidos.toLocaleString('es-MX')} kg en producción` 
-                            : f.isClosedShort
-                              ? `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados (Concluida)`
-                              : f.kilosEntregados < f.kilosPedidos 
-                                ? `🚚 ${f.kilosEntregados.toLocaleString('es-MX')} kg (${(f.kilosPedidos - f.kilosEntregados).toLocaleString('es-MX')} kg faltan)` 
-                                : `✅ ${f.kilosEntregados.toLocaleString('es-MX')} kg entregados`
+                        {/* Conciliación cuádruple: OC vs Báscula vs Facturado vs Restan */}
+                        <div style={{ display: 'flex', gap: 6, fontSize: 10.5, flexWrap: 'wrap', justifyContent: 'flex-end', fontVariantNumeric: 'tabular-nums' }}>
+                          <span title="Kilos pedidos en la OC original" style={{ color: 'var(--ink-soft)' }}>
+                            📋 OC: <strong>{f.kilosPedidos.toLocaleString('es-MX')}</strong>
+                          </span>
+                          <span title="Kilos reales recibidos en báscula" style={{ color: f.kilosEntregados > 0 ? '#10b981' : 'var(--ink-soft)' }}>
+                            🚚 Báscula: <strong>{f.kilosEntregados.toLocaleString('es-MX')}</strong>
+                          </span>
+                          <span title="Kilos ya facturados en el SAT" style={{ color: f.kilosFacturados > 0 ? '#6366f1' : 'var(--ink-faint)' }}>
+                            🧾 Fact: <strong>{f.kilosFacturados.toLocaleString('es-MX')}</strong>
+                          </span>
+                        </div>
+
+                        {/* Indicador de Restantes y Decisión Operativa Inmediata */}
+                        {(() => {
+                          const faltanKg = f.isClosedShort ? 0 : Math.max(0, f.kilosPedidos - f.kilosEntregados);
+                          const porFacturarKg = Math.max(0, f.kilosEntregados - f.kilosFacturados);
+                          
+                          if (f.isClosedShort) {
+                            return (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#047857', background: 'rgba(16,185,129,0.1)', padding: '1px 6px', borderRadius: 4 }}>
+                                🏁 Concluida con lo entregado ({f.kilosEntregados.toLocaleString('es-MX')} kg)
+                              </span>
+                            );
                           }
-                        </span>
+                          if (faltanKg > 0.01) {
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                <span style={{ fontSize: 10.5, fontWeight: 800, color: '#d97706', background: 'rgba(217,119,6,0.12)', padding: '1px 6px', borderRadius: 4 }}>
+                                  ⏳ Restan {faltanKg.toLocaleString('es-MX')} kg
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReclamarAndres(f.order, f.kilosPedidos, f.kilosEntregados, faltanKg);
+                                  }}
+                                  title="Reclamar entrega de kilos faltantes por WhatsApp a Andrés"
+                                  style={{
+                                    border: 'none',
+                                    background: '#25D366',
+                                    color: '#fff',
+                                    padding: '2px 6px',
+                                    borderRadius: 4,
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  💬 Reclamar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConcluirOc(f.order, f.kilosEntregados);
+                                  }}
+                                  title="Cerrar la OC si Andrés ya no mandará más kilos y facturar lo entregado"
+                                  style={{
+                                    border: '1px solid rgba(217, 119, 6, 0.4)',
+                                    background: 'rgba(217, 119, 6, 0.1)',
+                                    color: '#b45309',
+                                    padding: '2px 6px',
+                                    borderRadius: 4,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  🏁 Cerrar OC
+                                </button>
+                              </div>
+                            );
+                          }
+                          if (porFacturarKg > 0.01) {
+                            return (
+                              <span style={{ fontSize: 10.5, fontWeight: 700, color: '#2563eb', background: 'rgba(37,99,235,0.1)', padding: '1px 6px', borderRadius: 4 }}>
+                                ⚡ 100% entregado · Facturar {porFacturarKg.toLocaleString('es-MX')} kg
+                              </span>
+                            );
+                          }
+                          return (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a' }}>
+                              ✅ 100% Surtido y Facturado
+                            </span>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="num mono" style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{money(f.total)}</td>

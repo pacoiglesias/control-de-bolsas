@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrdersContext } from '../context/OrdersContext';
 import { useExpensesContext } from '../context/ExpensesContext';
@@ -20,7 +20,25 @@ type Tab = 'settings' | 'users' | 'backup' | 'logs' | 'papelera';
 
 export default function ControlCenter() {
   const { role } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('settings');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as Tab;
+  const [activeTab, setActiveTabState] = useState<Tab>(() => {
+    if (urlTab && ['settings', 'users', 'backup', 'logs', 'papelera'].includes(urlTab)) {
+      return urlTab;
+    }
+    return 'settings';
+  });
+
+  useEffect(() => {
+    if (urlTab && ['settings', 'users', 'backup', 'logs', 'papelera'].includes(urlTab) && urlTab !== activeTab) {
+      setActiveTabState(urlTab);
+    }
+  }, [urlTab, activeTab]);
+
+  const setActiveTab = (tab: Tab) => {
+    setActiveTabState(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
   const { orders } = useOrdersContext();
   const { expenses } = useExpensesContext();
   const { invoices } = useInvoicesContext();
@@ -55,7 +73,11 @@ export default function ControlCenter() {
   };
 
   if (role !== 'admin') {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="page" style={{ padding: '20px 0' }}>
+        <Settings />
+      </div>
+    );
   }
 
   const tabsConfig = [

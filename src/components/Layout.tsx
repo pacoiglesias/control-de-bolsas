@@ -140,8 +140,7 @@ export default function Layout() {
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/audit', icon: '🛡️', label: 'Centinela & Auditoría', roles: ['admin'] },
     { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocios BI', roles: ['admin'] },
-    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin'] },
-    { type: 'link', to: '/configuracion', icon: '🎨', label: 'Personalización y Temas', roles: ['manager', 'viewer'] },
+    { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin', 'manager', 'viewer'] },
   ], []);
 
   const handleDownloadLocalBackup = () => {

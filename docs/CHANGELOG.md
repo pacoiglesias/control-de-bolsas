@@ -1,5 +1,16 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.7.1] - 25 Septiembre 2026 (Consolidación de Rutas, Cero Pantallas Redundantes y Puente Logístico-Financiero)
+
+### 🧭 Unificación Definitiva de Configuración & Eliminación de Rutas Redundantes
+- **Centralización en Centro de Control (`/centro-control`):** Eliminación del enlace secundario de personalización en la barra lateral; el Centro de Control unifica Ajustes, Usuarios, Respaldos, Logs y Papelera para todos los roles.
+- **Sincronización de Pestañas por URL:** El Centro de Control ahora soporta parámetros de consulta URL (`?tab=settings`, `?tab=users`, `?tab=backup`, `?tab=logs`, `?tab=papelera`), permitiendo compartir o saltar directamente a cualquier pestaña administrativa.
+- **Redirección No-Destructiva:** Las rutas `/configuracion` y `/usuarios` ahora redirigen fluidamente a su pestaña correspondiente en el Centro de Control, y los roles `manager` y `viewer` pueden acceder a sus preferencias de interfaz sin bloqueos.
+
+### 🌉 Puente Bidireccional Expedientes ⇄ Báscula & Logística
+- **Selector de Perspectiva Inmediato:** Botón en la cabecera de Expedientes (`🚚 Ver Modo Báscula & Logística →`) para saltar a `/oc` con 1 clic, y botón recíproco en Seguimiento por OC (`📂 Ver Expedientes & Finanzas →`) para volver a la visión financiera y de cobranza.
+- **Cero Fricción en Navegación:** El operador ya no tiene que buscar en el menú lateral ni perder el hilo de las órdenes activas.
+
 ## [v9.7.0] - 25 Septiembre 2026 (Centinela Continuo en Vivo, Dial de Salud ERP y Directiva Staff Engineer v2.0)
 
 ### 🛡️ Centinela Continuo & Dial Visual de Salud en Dashboard (`AuditHealthCard`)

@@ -13,6 +13,7 @@ import {
   isOcGT,
 } from '../../lib/constants';
 import { ThreeWayMatchingBadge } from '../ui/ThreeWayMatchingBadge';
+import { generateReclamarKilosAndresMessage, openWhatsAppMessage } from '../../lib/whatsappReminder';
 
 interface ExecutivePriorityAlertsProps {
   orders: PurchaseOrder[];
@@ -518,7 +519,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
               className="btn"
@@ -543,6 +544,41 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             >
               {navaBtn}
             </button>
+            {navaRemanenteKg > 0 && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const text = generateReclamarKilosAndresMessage({
+                    oc: navaOrder?.folio || navaOrder?.oc || OC_TH_NAVA,
+                    client: 'Textil Hogar (José Nava)',
+                    totalKg: Number(navaOrder?.totalKilograms) || 6500,
+                    entregadosKg: navaEntregadosKg,
+                    faltantesKg: navaRemanenteKg,
+                    providerName: 'Andrés',
+                    deliveriesCount: (navaOrder?.deliveries || []).length,
+                  });
+                  openWhatsAppMessage(text);
+                }}
+                style={{
+                  minHeight: 40,
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  padding: '9px 12px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                title={`Enviar WhatsApp a Andrés para exigir la entrega de los ${Math.round(navaRemanenteKg)} kg restantes`}
+              >
+                💬 Reclamar ({Math.round(navaRemanenteKg)} kg)
+              </button>
+            )}
             <button
               type="button"
               className="btn"
@@ -1018,7 +1054,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="btn"
@@ -1043,6 +1079,41 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 >
                   {primaryBtnText}
                 </button>
+                {remanenteKg > 0 && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      const text = generateReclamarKilosAndresMessage({
+                        oc: order.oc || order.folio || order.id,
+                        client: deptInfo.buyer || 'Providencia',
+                        totalKg: goalKg,
+                        entregadosKg: entregadosKg,
+                        faltantesKg: remanenteKg,
+                        providerName: 'Andrés',
+                        deliveriesCount: (order.deliveries || []).length,
+                      });
+                      openWhatsAppMessage(text);
+                    }}
+                    style={{
+                      minHeight: 40,
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      color: '#fbbf24',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title={`Enviar WhatsApp a Andrés reclamando los ${Math.round(remanenteKg)} kg faltantes`}
+                  >
+                    💬 Reclamar ({Math.round(remanenteKg)} kg)
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn"

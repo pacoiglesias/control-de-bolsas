@@ -38,8 +38,6 @@ const Catalog = lazy(() => import('./pages/Catalog'));
 const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m.FastEntry })));
 const AuditSync = lazy(() => import('./pages/AuditSync'));
 const DataMining = lazy(() => import('./pages/DataMining'));
-const Users = lazy(() => import('./pages/Users'));
-const Settings = lazy(() => import('./pages/Settings'));
 const WizardContainer = lazy(() => import('./features/wizard/WizardContainer').then(m => ({ default: m.WizardContainer })));
 
 function RouteFallback() {
@@ -172,8 +170,8 @@ function Gate() {
             <Route path="catalogo" element={seccion(<Catalog />)} />
             <Route path="captura-rapida" element={seccion(<FastEntry />)} />
             <Route path="proceso-compra" element={seccion(<WizardContainer />)} />
-            <Route path="configuracion" element={seccion(<Settings />)} />
-            <Route path="usuarios" element={seccion(<Users />)} />
+            <Route path="configuracion" element={<Navigate to="/centro-control?tab=settings" replace />} />
+            <Route path="usuarios" element={<Navigate to="/centro-control?tab=users" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

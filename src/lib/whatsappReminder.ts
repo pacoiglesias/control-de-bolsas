@@ -318,3 +318,39 @@ Favor de emitir el *Complemento de Pago (REP)* correspondiente y enviarnos el PD
 ¡Muchas gracias!`;
 }
 
+/**
+ * Genera el mensaje estructurado de WhatsApp para exigir al proveedor (Andrés)
+ * la entrega de los kilos faltantes de una Orden de Compra o coordinar el cierre.
+ */
+export function generateReclamarKilosAndresMessage({
+  oc,
+  client = 'Providencia',
+  totalKg,
+  entregadosKg,
+  faltantesKg,
+  providerName = 'Andrés',
+  deliveriesCount = 0,
+}: {
+  oc: string;
+  client?: string;
+  totalKg: number;
+  entregadosKg: number;
+  faltantesKg: number;
+  providerName?: string;
+  deliveriesCount?: number;
+}): string {
+  const pct = totalKg > 0 ? ((entregadosKg / totalKg) * 100).toFixed(1) : '0';
+  return `📦 *SEGUIMIENTO DE KILOS PENDIENTES — OC ${oc}*
+
+Hola ${providerName}, buen día.
+
+Te escribo para revisar el avance de entrega de la orden de compra *OC ${oc}* (${client}):
+
+• *Meta Contratada:* ${totalKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg
+• *Kilos Entregados:* ${entregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${deliveriesCount > 0 ? `${deliveriesCount} viajes recibidos · ` : ''}${pct}%)
+• 🚨 *KILOS FALTANTES POR ENVIAR:* *${faltantesKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg*
+
+Necesitamos coordinar cuándo sale el siguiente viaje para completar el pedido en planta de Providencia, o si ya no tienes material para cerrar la orden formalmente en sistema.
+
+¿Para qué fecha programas la entrega del resto? Quedo al pendiente, gracias.`;
+}

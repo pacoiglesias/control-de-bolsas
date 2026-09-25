@@ -1,3 +1,29 @@
+### Iteración 115: Consolidación de Rutas, Cero Pantallas Redundantes y Puente Logístico-Financiero
+[2026-09-25]
+Archivos: `src/App.tsx`, `src/components/Layout.tsx`, `src/pages/ControlCenter.tsx`, `src/pages/Orders.tsx`, `src/pages/OcTracking.tsx`, `package.json`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Rutas y pantallas redundantes en la estructura del ERP:
+   - Coexistían enlaces independientes para `/configuracion` y `/centro-control` en la barra lateral, confundiendo al usuario sobre dónde realizar ajustes.
+   - En `ControlCenter.tsx`, cambiar de pestaña no actualizaba la URL ni permitía enlaces directos a usuarios o respaldos (`?tab=...`).
+2. Fricción entre la gestión administrativa y la logística de patio:
+   - Para alternar entre la visión financiera de OCs (`/ordenes`) y los pesajes de báscula de Andrés (`/oc`), el operador tenía que recurrir repetidamente al menú lateral sin contexto continuo.
+Solución:
+1. **Unificación de Configuración en Centro de Control (`ControlCenter.tsx` + `Layout.tsx`):**
+   - Retirado el enlace duplicado de `/configuracion` en la barra lateral; el Centro de Control unifica el acceso para todos los roles (`admin`, `manager`, `viewer`).
+   - Sincronización bidireccional con `useSearchParams` (`?tab=settings`, `?tab=users`, etc.) permitiendo navegación directa por pestaña con preservación de estado y feedback háptico.
+   - Redirección automática no-destructiva en `App.tsx` para rutas heredadas (`/configuracion` y `/usuarios`).
+2. **Puente Bidireccional de 1-Clic (Expedientes ⇄ Báscula):**
+   - En `Orders.tsx`: Botón `🚚 Ver Modo Báscula & Logística →` con navegación fluida a `/oc`.
+   - En `OcTracking.tsx`: Botón `📂 Ver Expedientes & Finanzas →` con navegación fluida a `/ordenes`.
+3. **Verificación y Cobertura:**
+   - 204/204 pruebas unitarias aprobadas en Vitest.
+   - 0 errores de TypeScript y compilación de producción validada.
+Riesgo: 🟢 Cero — Mejoras de navegación y ergonomía que preservan al 100% los contratos y la persistencia de datos.
+Estado: ✅ Verificado — Build de producción exitoso, 204 tests verdes, listo para despliegue.
+OKRs afectados: OKR 3 (Ergonomía & Reducción de Clics), OKR 5 (Excelencia Visual & Cero Redundancia).
+
+---
+
 ### Iteración 114: Centinela Continuo en Vivo, Dial de Salud ERP y Directiva Staff Engineer v2.0
 [2026-09-25]
 Archivos: `src/components/Audit/AuditHealthCard.tsx`, `src/hooks/useAuditReport.ts`, `src/components/Audit/AuditCentinelaBadge.tsx`, `src/components/Audit/AuditCentinelaModal.tsx`, `src/components/Dashboard/ModernKpiGrid.tsx`, `src/components/Dashboard/UniversalDocumentUploadModal.tsx`, `docs/PLAN_MEJORAS_PROACTIVAS.md`, `docs/PROMPT_SISTEMA.md`, `package.json`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`

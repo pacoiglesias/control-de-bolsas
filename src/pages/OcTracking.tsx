@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
@@ -12,10 +13,13 @@ import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/fina
 import { MARGEN_LIBRE_KG } from '../lib/constants';
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
-import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
+import { openWhatsAppMessage, openEmailMessage, generateReclamarKilosAndresMessage } from '../lib/whatsappReminder';
 import { CashFlowForecastWidget } from '../components/Cobranza/CashFlowForecastWidget';
 import { generateDeliveryRemissionPdf } from '../lib/deliveryRemissionPdf';
 import { triggerHaptic } from '../lib/hapticEngine';
+import { confirmDialog } from '../lib/confirmDialog';
+import { db, PATHS } from '../lib/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from '../lib/types';
 
@@ -43,6 +47,7 @@ interface OcGroup {
 
 export default function OcTracking() {
   const toast = useToast();
+  const navigate = useNavigate();
   const { orders, loading, error } = useOrders();
   const { config } = useConfig();
   const { settings } = useSystemSettings();
@@ -322,6 +327,67 @@ export default function OcTracking() {
     toast(`📧 Abriendo cliente de correo con el estatus de la OC ${group.oc}`, 'ok');
   }
 
+  const handleReclamarAndres = (group: OcGroup) => {
+    triggerHaptic('light');
+    const text = generateReclamarKilosAndresMessage({
+      oc: group.oc,
+      client: nombreClienteVisible(group.order.client),
+      totalKg: group.kilosPedidos,
+      entregadosKg: group.kilosEntregados,
+      faltantesKg: group.kilosFaltantes,
+      providerName: settings.providerName || 'Andrés',
+      deliveriesCount: (group.order.deliveries || []).length,
+    });
+    openWhatsAppMessage(text);
+    toast(`📲 Abriendo WhatsApp para reclamar ${group.kilosFaltantes.toLocaleString('es-MX')} kg faltantes a ${settings.providerName || 'Andrés'}`, 'ok');
+  };
+
+  const handleConcluirOc = async (group: OcGroup) => {
+    triggerHaptic('warning');
+    const ok = await confirmDialog({
+      title: '🏁 ¿Concluir Orden de Compra?',
+      message: `Esta OC tiene ${group.kilosEntregados.toLocaleString('es-MX')} kg entregados de ${group.kilosPedidos.toLocaleString('es-MX')} kg pedidos (${group.kilosFaltantes.toLocaleString('es-MX')} kg faltantes).\n\nAl concluirla, el ERP considerará la orden finalizada con lo entregado y ya no esperará más viajes de ${settings.providerName || 'Andrés'}, permitiéndote facturar lo real y cerrar el ciclo sin batallar.\n\n¿Deseas concluir la OC ahora?`,
+      confirmLabel: 'Sí, Concluir OC',
+      cancelLabel: 'Cancelar',
+    });
+    if (!ok) return;
+
+    try {
+      const orderRef = doc(db, PATHS.orders, group.order.id);
+      await updateDoc(orderRef, {
+        isClosedShort: true,
+        updatedAt: serverTimestamp(),
+      });
+      triggerHaptic('success');
+      toast(`✅ OC ${group.oc} concluida exitosamente con ${group.kilosEntregados.toLocaleString('es-MX')} kg.`, 'ok');
+    } catch (err: any) {
+      toast(`Error al concluir OC: ${err.message}`, 'bad');
+    }
+  };
+
+  const handleReabrirOc = async (group: OcGroup) => {
+    triggerHaptic('medium');
+    const ok = await confirmDialog({
+      title: '🔄 ¿Reabrir Orden de Compra?',
+      message: `La OC ${group.oc} estaba concluida con ${group.kilosEntregados.toLocaleString('es-MX')} kg. ¿Deseas reactivarla para recibir viajes adicionales en báscula?`,
+      confirmLabel: 'Sí, Reabrir OC',
+      cancelLabel: 'Cancelar',
+    });
+    if (!ok) return;
+
+    try {
+      const orderRef = doc(db, PATHS.orders, group.order.id);
+      await updateDoc(orderRef, {
+        isClosedShort: false,
+        updatedAt: serverTimestamp(),
+      });
+      triggerHaptic('success');
+      toast(`🔄 OC ${group.oc} reabierta con éxito.`, 'ok');
+    } catch (err: any) {
+      toast(`Error al reabrir OC: ${err.message}`, 'bad');
+    }
+  };
+
   const toggle = (oc: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -595,7 +661,29 @@ export default function OcTracking() {
             Control integral del flujo de entrega de {settings.providerName || 'Andrés'} a {settings.clientShortName || 'Providencia'}: Kilos pedidos, kilos entregados en planta, facturas emitidas y contrarecibos de cobro.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => navigate('/ordenes')}
+            style={{
+              background: 'rgba(124, 58, 237, 0.12)',
+              border: '1px solid rgba(124, 58, 237, 0.35)',
+              color: '#8b5cf6',
+              fontWeight: 700,
+              fontSize: 12.5,
+              borderRadius: 8,
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+            title="Ir a Expedientes y Finanzas"
+          >
+            <span>📂</span>
+            <span>Ver Expedientes & Finanzas →</span>
+          </button>
           <button className="btn" style={{ background: '#334155', color: '#fff', borderColor: '#334155', fontWeight: 600 }} onClick={shareManifiesto}>
             <span className="icon">📤</span> Compartir PDF
           </button>
@@ -846,25 +934,28 @@ export default function OcTracking() {
                       </span>
                     </div>
 
-                    <div style={{ fontSize: 12, marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 12, marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: 'var(--ink-soft)' }}>Pedida:</span> <strong>{group.kilosPedidos.toLocaleString('es-MX')} kg</strong>
+                        <span style={{ color: 'var(--ink-soft)' }}>📋 Contratado (OC):</span> <strong>{group.kilosPedidos.toLocaleString('es-MX')} kg</strong>
                       </div>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: group.kilosEntregados >= group.kilosPedidos && group.kilosPedidos > 0 ? 'var(--ok)' : 'var(--ink)' }}>Entregada:</span>{' '}
+                        <span style={{ color: group.kilosEntregados >= group.kilosPedidos && group.kilosPedidos > 0 ? 'var(--ok)' : 'var(--ink)' }}>🚚 Entregado (Báscula):</span>{' '}
                         <strong style={{ color: group.kilosEntregados > 0 ? 'var(--ok)' : 'inherit' }}>
                           {group.kilosEntregados.toLocaleString('es-MX')} kg
                         </strong>
                       </div>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: group.kilosFaltantes > 0 ? 'var(--bad)' : 'var(--ok)' }}>Por Surtir:</span>{' '}
-                        <strong style={{ color: group.kilosFaltantes > 0 ? 'var(--bad)' : 'var(--ok)' }}>
-                          {group.kilosFaltantes.toLocaleString('es-MX')} kg
-                        </strong>
+                        <span style={{ color: 'var(--ink-soft)' }}>🧾 Facturado (SAT):</span> <strong>{group.kilosFacturados.toLocaleString('es-MX')} kg</strong>
                       </div>
-                      <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: 'var(--ink-soft)' }}>Facturada:</span> <strong>{group.kilosFacturados.toLocaleString('es-MX')} kg</strong>
-                      </div>
+                      {group.order.isClosedShort ? (
+                        <div style={{ background: 'rgba(16,185,129,0.12)', color: '#047857', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
+                          🏁 OC Concluida con lo Entregado ({group.kilosEntregados.toLocaleString('es-MX')} kg)
+                        </div>
+                      ) : group.kilosFaltantes > 0.01 ? (
+                        <div style={{ background: 'rgba(239,68,68,0.12)', color: '#b91c1c', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
+                          🚨 Restan por Surtir: {group.kilosFaltantes.toLocaleString('es-MX')} kg
+                        </div>
+                      ) : null}
                       {group.kilosPendientesFacturar > 0.01 && (
                         <div style={{ background: 'rgba(245,158,11,0.15)', color: '#d97706', padding: '4px 8px', borderRadius: 6, fontWeight: 700 }}>
                           ⚡ Por Facturar: {group.kilosPendientesFacturar.toLocaleString('es-MX')} kg
@@ -897,7 +988,7 @@ export default function OcTracking() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                     {group.statusCategory !== 'completada' && (
                       <button
                         className="btn"
@@ -923,6 +1014,48 @@ export default function OcTracking() {
                         title="Facturar kilos entregados"
                       >
                         ⚡ Facturar
+                      </button>
+                    )}
+                    {group.kilosFaltantes > 0.01 && !group.order.isClosedShort && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ fontSize: 11.5, padding: '6px 10px', background: '#25D366', color: '#fff', border: 'none', fontWeight: 800 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReclamarAndres(group);
+                          }}
+                          title={`Reclamar ${group.kilosFaltantes.toLocaleString('es-MX')} kg faltantes a Andrés por WhatsApp`}
+                        >
+                          💬 Reclamar ({group.kilosFaltantes.toLocaleString('es-MX')} kg)
+                        </button>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ fontSize: 11.5, padding: '6px 10px', background: 'rgba(217, 119, 6, 0.12)', color: '#b45309', border: '1px solid rgba(217, 119, 6, 0.4)', fontWeight: 800 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConcluirOc(group);
+                          }}
+                          title="Cerrar la OC si Andrés ya no mandará más viajes y facturar lo entregado"
+                        >
+                          🏁 Concluir OC
+                        </button>
+                      </>
+                    )}
+                    {group.order.isClosedShort && (
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ fontSize: 11, padding: '5px 8px', background: 'rgba(100, 116, 139, 0.1)', color: 'var(--ink-soft)', border: '1px solid var(--line-soft)' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReabrirOc(group);
+                        }}
+                        title="Reabrir OC si el proveedor envía otro camión"
+                      >
+                        🔄 Reabrir OC
                       </button>
                     )}
                     <button

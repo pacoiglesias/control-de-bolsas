@@ -3,8 +3,12 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { db, PATHS } from '../lib/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { confirmDialog } from '../lib/confirmDialog';
+import { triggerHaptic } from '../lib/hapticEngine';
+import { generateReclamarKilosAndresMessage, openWhatsAppMessage } from '../lib/whatsappReminder';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
 import OrderModal from '../components/OrderModal';
 import KanbanBoard from '../components/Orders/KanbanBoard';
@@ -54,6 +58,44 @@ export default function Orders() {
   const [page, setPage] = useState(1);
   const pageSize = 30;
   const observerTarget = useRef(null);
+  const toast = useToast();
+
+  const handleReclamarAndres = (order: PurchaseOrder, totalKg: number, entregadosKg: number, faltantesKg: number) => {
+    triggerHaptic('light');
+    const text = generateReclamarKilosAndresMessage({
+      oc: order.folio || order.oc || order.id,
+      client: nombreClienteVisible(order.client),
+      totalKg,
+      entregadosKg,
+      faltantesKg,
+      providerName: (config as any)?.providerName || 'Andrés',
+      deliveriesCount: (order.deliveries || []).length,
+    });
+    openWhatsAppMessage(text);
+  };
+
+  const handleConcluirOc = async (order: PurchaseOrder, entregadosKg: number) => {
+    triggerHaptic('warning');
+    const ok = await confirmDialog({
+      title: '🏁 ¿Concluir Orden de Compra?',
+      message: `Esta orden tiene ${entregadosKg.toLocaleString('es-MX')} kg entregados. Al concluirla, el ERP la considerará finalizada con lo entregado y ya no esperará más viajes del proveedor Andrés. ¿Deseas cerrarla ahora?`,
+      confirmLabel: 'Sí, Concluir OC',
+      cancelLabel: 'Cancelar',
+    });
+    if (!ok) return;
+
+    try {
+      const orderRef = doc(db, PATHS.orders, order.id);
+      await updateDoc(orderRef, {
+        isClosedShort: true,
+        updatedAt: serverTimestamp(),
+      });
+      triggerHaptic('success');
+      toast(`✅ OC ${order.folio || order.oc} concluida exitosamente con ${entregadosKg.toLocaleString('es-MX')} kg.`, 'ok');
+    } catch (err: any) {
+      toast(`Error al concluir OC: ${err.message}`, 'bad');
+    }
+  };
 
   useEffect(() => {
     const q = params.get('q');
@@ -319,12 +361,40 @@ export default function Orders() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>Expedientes</h1>
-        <p style={{ marginBottom: counts.sin_cr > 0 ? 0 : undefined }}>
-          Vista de acción por expediente. Usa <strong>⚡ Acciones Hoy</strong> para ver qué hacer primero,
-          o <strong>☰ Lista</strong> para el detalle completo.
-        </p>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1>Expedientes y OCs</h1>
+          <p style={{ marginBottom: counts.sin_cr > 0 ? 0 : undefined }}>
+            Vista de acción por expediente. Usa <strong>⚡ Acciones Hoy</strong> para ver qué hacer primero,
+            o <strong>☰ Lista</strong> para el detalle completo.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => navigate('/oc')}
+            style={{
+              background: 'rgba(59, 130, 246, 0.12)',
+              border: '1px solid rgba(59, 130, 246, 0.35)',
+              color: '#3b82f6',
+              fontWeight: 700,
+              fontSize: 12.5,
+              borderRadius: 8,
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+            title="Ir a Seguimiento Logístico por OC (pesajes de báscula, remisiones y vales)"
+          >
+            <span>🚚</span>
+            <span>Ver Modo Báscula & Logística →</span>
+          </button>
+        </div>
+      </div>
+      <div>
         {/* Banner proactivo: expedientes sin CR */}
         {counts.sin_cr > 0 && (
           <div style={{
@@ -803,28 +873,73 @@ export default function Orders() {
                         </div>
                       </td>
                       )}
-                      {/* Columna compacta: Progreso kg (barra + texto en una sola celda) */}
+                      {/* Columna compacta: Progreso kg (Conciliación cuádruple: OC vs Báscula vs Facturado vs Restan) */}
                       {cols.kilos && (() => {
                         const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
                         const orderTotalKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || summary.kilosDelivered || 0);
-                        const faltanKg = Math.max(0, orderTotalKg - summary.kilosDelivered);
+                        const faltanKg = o.isClosedShort ? 0 : Math.max(0, orderTotalKg - summary.kilosDelivered);
+                        const unbilledKg = Math.max(0, summary.kilosDelivered - summary.kilosInvoiced);
                         const isSurtido = orderTotalKg > 0 && summary.kilosDelivered >= orderTotalKg;
-                        const provText = o.provider && !/ELEMENTAL\s*DENIM|N0321/i.test(o.provider) ? o.provider : null;
                         return (
-                          <td className="num" style={{ minWidth: 160 }}>
+                          <td className="num" style={{ minWidth: 195 }}>
                             <KilosProgressBar compact deliveredKg={summary.kilosDelivered} totalKg={orderTotalKg} />
-                            <div style={{ fontSize: '0.78em', color: 'var(--ink-soft)', marginTop: 3, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                              {isSurtido ? (
-                                <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido</span>
+                            <div style={{ fontSize: '0.78em', color: 'var(--ink-soft)', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end', fontVariantNumeric: 'tabular-nums' }}>
+                              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                <span title="Kilos pedidos en la OC">📋 OC: <strong>{kilos(orderTotalKg)}</strong></span>
+                                <span title="Kilos recibidos en báscula" style={{ color: summary.kilosDelivered > 0 ? '#10b981' : 'inherit' }}>🚚 {kilos(summary.kilosDelivered)}</span>
+                                <span title="Kilos facturados en SAT" style={{ color: summary.kilosInvoiced > 0 ? '#6366f1' : 'inherit' }}>🧾 {kilos(summary.kilosInvoiced)}</span>
+                              </div>
+                              {o.isClosedShort ? (
+                                <span style={{ color: '#047857', fontWeight: 800 }}>🏁 Concluida con {kilos(summary.kilosDelivered)}</span>
                               ) : faltanKg > 0.01 ? (
-                                <span style={{ color: '#d97706', fontWeight: 700 }}>⏳ {kilos(faltanKg)} pend.</span>
+                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 1 }}>
+                                  <span style={{ color: '#d97706', fontWeight: 800 }}>⏳ Faltan {kilos(faltanKg)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReclamarAndres(o, orderTotalKg, summary.kilosDelivered, faltanKg);
+                                    }}
+                                    title="Reclamar entrega de kilos faltantes por WhatsApp a Andrés"
+                                    style={{
+                                      border: 'none',
+                                      background: '#25D366',
+                                      color: '#fff',
+                                      padding: '1px 5px',
+                                      borderRadius: 4,
+                                      fontSize: 10,
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    💬 Reclamar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleConcluirOc(o, summary.kilosDelivered);
+                                    }}
+                                    title="Cerrar la OC si Andrés ya no mandará más kilos y facturar lo entregado"
+                                    style={{
+                                      border: '1px solid rgba(217, 119, 6, 0.4)',
+                                      background: 'rgba(217, 119, 6, 0.1)',
+                                      color: '#b45309',
+                                      padding: '1px 5px',
+                                      borderRadius: 4,
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    🏁 Concluir
+                                  </button>
+                                </div>
+                              ) : unbilledKg > 0.01 ? (
+                                <span style={{ color: '#2563eb', fontWeight: 700 }}>⚡ Por Fact: {kilos(unbilledKg)}</span>
+                              ) : isSurtido ? (
+                                <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ 100% Surtido y Facturado</span>
                               ) : null}
-                              {summary.kilosInvoiced > 0 && (
-                                <span title="Kilos facturados">🧾 {kilos(summary.kilosInvoiced)}</span>
-                              )}
-                              {provText && (
-                                <span title={`Proveedor: ${provText}`} style={{ opacity: 0.6 }}>· {provText}</span>
-                              )}
                             </div>
                           </td>
                         );

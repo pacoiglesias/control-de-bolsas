@@ -7,14 +7,14 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.7.0 Enterprise: Centinela Continuo en Vivo, Dial de Salud ERP y Directiva Staff Engineer',
+  version: 'v9.7.1 Enterprise: Consolidación de Rutas, Cero Pantallas Redundantes y Puente Logístico-Financiero',
   date: '25 de Septiembre de 2026',
-  time: '06:30 PM',
-  summary: 'Integración del motor de auditoría continua Centinela en vivo con dial visual de salud del ERP (HealthGaugeDial) en el Dashboard, diagnóstico de anomalías en tiempo real, blindaje tipado en modales de subida y adopción de la directiva Staff Engineer.',
+  time: '06:45 PM',
+  summary: 'Ejecución del Plan Maestro de Usabilidad: erradicación total de pantallas y rutas redundantes (unificación de Configuración y Usuarios en el Centro de Control con sincronización en URL), selector de perspectiva bidireccional entre Expedientes y Seguimiento de Báscula (OC), y navegación optimizada para todos los roles.',
   highlights: [
-    '🛡️ Centinela Continuo & Dial de Salud: Tarjeta dinámica en el Dashboard con HealthGaugeDial animado (0 a 100%) y diagnóstico exhaustivo de 4 cuadrantes (Báscula, Facturación SAT, Andrés y Caja Chica).',
-    '🚨 Badge Inteligente con Silencio Operativo: Badge que permanece oculto cuando el sistema está 100% blindado y alerta con código de severidad al primer síntoma de inconsistencia.',
-    '📋 Plan Maestro Proactivo & Directiva Staff Engineer: Documento maestro de acción contra la redundancia de pantallas (PLAN_MEJORAS_PROACTIVAS.md) y directiva operativa v2.0 (PROMPT_SISTEMA.md).',
-    '⚡ 204 Tests Unitarios & Cero Errores: 100% de la suite pasando y compilación de producción verificada al centavo.',
+    '🧭 Unificación Definitiva de Configuración: Eliminación del enlace duplicado de personalización en la barra lateral; el Centro de Control ahora soporta navegación por URL (?tab=settings, ?tab=users, etc.) y permite a todos los roles acceder a sus temas sin fricción.',
+    '🌉 Puente Bidireccional Expedientes ⇄ Báscula: Botón de cambio de perspectiva instantáneo en la cabecera de Expedientes (🚚 Modo Báscula & Logística) y en Seguimiento por OC (📂 Modo Administrativo & Finanzas).',
+    '⚡ Depuración de Imports & Bundles: Retiro de imports perezosos duplicados en App.tsx y eliminación de componentes huérfanos sin llamadas.',
+    '🛡️ 204 Pruebas Unitarias Verificadas: 100% de la suite pasando en Vitest y compilación estricta aprobada.',
   ],
 };
