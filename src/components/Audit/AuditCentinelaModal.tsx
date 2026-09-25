@@ -8,6 +8,7 @@ import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { sound } from '../../lib/sounds';
+import { HealthGaugeDial } from '../ui/HealthGaugeDial';
 
 interface AuditCentinelaModalProps {
   report: AuditHealthReport;
@@ -27,12 +28,6 @@ export function AuditCentinelaModal({
     if (selectedFilter === 'all') return true;
     return a.severity === selectedFilter;
   });
-
-  const getScoreColor = (score: number) => {
-    if (score >= 95) return '#10b981';
-    if (score >= 80) return '#f59e0b';
-    return '#ef4444';
-  };
 
   const getSeverityBadge = (sev: AuditAnomaly['severity']) => {
     if (sev === 'critical') {
@@ -100,69 +95,66 @@ export function AuditCentinelaModal({
       {/* El modal-body base ya tiene overflow-y: auto y padding. Solo ponemos flex column. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* 1. Resumen Ejecutivo */}
+        {/* 1. Resumen Ejecutivo con HealthGaugeDial */}
         <div
           style={{
             background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: 12,
-            padding: '12px 14px',
+            padding: '14px 18px',
             color: '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 10,
+            gap: 14,
+            flexWrap: 'wrap',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 10,
-                background: getScoreColor(report.score),
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: 15,
-                boxShadow: `0 0 12px ${getScoreColor(report.score)}50`,
-                flexShrink: 0,
-              }}
-            >
-              {report.score}%
+          {/* Dial SVG de salud */}
+          <HealthGaugeDial
+            score={report.score}
+            title={report.score === 100 ? 'ERP Blindado' : 'Auditoría Viva'}
+            subtitle="Centinela Continuo"
+            size={130}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              backdropFilter: 'none',
+              boxShadow: 'none',
+              padding: 0,
+            }}
+          />
+
+          {/* Info y chips de conteo */}
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.3px', marginBottom: 4 }}>
+              {report.score === 100 ? '¡ERP Blindado y Conciliado!' : 'Diagnóstico en Tiempo Real'}
             </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '-0.2px' }}>
-                {report.score === 100 ? 'ERP Blindado y Conciliado' : 'Auditoría en Vivo'}
-              </div>
-              <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
-                Báscula · Facturación SAT · Andrés · Caja Chica
-              </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+              Báscula · Facturación SAT · Andrés · Caja Chica
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-            {report.criticalCount > 0 && (
-              <span style={{ background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-                {report.criticalCount} Críticas
-              </span>
-            )}
-            {report.warningCount > 0 && (
-              <span style={{ background: '#f59e0b', color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-                {report.warningCount} Alertas
-              </span>
-            )}
-            {report.infoCount > 0 && (
-              <span style={{ background: '#0ea5e9', color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-                {report.infoCount} Info
-              </span>
-            )}
-            {report.criticalCount === 0 && report.warningCount === 0 && (
-              <span style={{ background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
-                ✓ 100% OK
-              </span>
-            )}
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {report.criticalCount > 0 && (
+                <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+                  🚨 {report.criticalCount} Críticas
+                </span>
+              )}
+              {report.warningCount > 0 && (
+                <span style={{ background: '#f59e0b', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+                  ⚠️ {report.warningCount} Alertas
+                </span>
+              )}
+              {report.infoCount > 0 && (
+                <span style={{ background: '#0ea5e9', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+                  💡 {report.infoCount} Info
+                </span>
+              )}
+              {report.criticalCount === 0 && report.warningCount === 0 && (
+                <span style={{ background: '#10b981', color: '#fff', padding: '2px 10px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
+                  ✓ Sistema 100% OK
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

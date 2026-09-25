@@ -1,3 +1,29 @@
+### Iteración 114: Centinela Continuo en Vivo, Dial de Salud ERP y Directiva Staff Engineer v2.0
+[2026-09-25]
+Archivos: `src/components/Audit/AuditHealthCard.tsx`, `src/hooks/useAuditReport.ts`, `src/components/Audit/AuditCentinelaBadge.tsx`, `src/components/Audit/AuditCentinelaModal.tsx`, `src/components/Dashboard/ModernKpiGrid.tsx`, `src/components/Dashboard/UniversalDocumentUploadModal.tsx`, `docs/PLAN_MEJORAS_PROACTIVAS.md`, `docs/PROMPT_SISTEMA.md`, `package.json`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`
+Problema:
+1. El motor de auditoría en vivo (`auditEngine.ts`) carecía de representación visual continua en el Dashboard general, requiriendo navegar a `/audit` para evaluar la salud contable.
+2. Los componentes del centinela tenían inconsistencias sintácticas y no aprovechaban el dial SVG animado `HealthGaugeDial`.
+3. Se requería establecer el Plan Maestro Proactivo contra redundancias y actualizar la directiva Staff Engineer al contexto real del ERP (reglas de $38/$43, deduplicación, 3-Way Matching y optimización de costes en Firestore).
+Solución:
+1. **Tarjeta de Salud del ERP en Dashboard (`AuditHealthCard.tsx`):**
+   - Integrada como 5° KPI en `ModernKpiGrid.tsx` con el componente animado `HealthGaugeDial` (0 a 100%).
+   - Monitoreo continuo de 4 cuadrantes: Báscula de Andrés, Facturación SAT CFDI 4.0, Cuenta Corriente y Caja Chica.
+   - Acceso con 1 clic al diagnóstico detallado del modal Centinela.
+2. **Hook Memoizado Global (`useAuditReport.ts`):**
+   - Centraliza el cálculo de auditoría continua suscrito a `OrdersContext`, `usePurchases`, `useExpenses` y `useConfig` con memoización estricta, evitando re-cálculos innecesarios entre el badge y el KPI card.
+3. **Plan Maestro Proactivo & Directiva Staff Engineer:**
+   - Formalizado `docs/PLAN_MEJORAS_PROACTIVAS.md` con matriz de impacto vs esfuerzo y roadmap para eliminar duplicidad de pantallas y navegación.
+   - Refactorizado `docs/PROMPT_SISTEMA.md` a v2.0 adaptado exactamente a la arquitectura real del ERP.
+4. **Verificación Integral:**
+   - 204/204 pruebas unitarias aprobadas en Vitest.
+   - 0 errores de TypeScript y build de producción exitoso.
+Riesgo: 🟢 Cero — Mejoras reactivas de diagnóstico y observabilidad sin impacto en contratos de datos.
+Estado: ✅ Verificado — Build de producción exitoso, 204 tests verdes, listo para despliegue.
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 4 (Observabilidad & Centinela Continuo), OKR 5 (Excelencia Visual & UX).
+
+---
+
 ### Iteración 113: Captura Fluida, Edición In-Situ de Folios/CR y Depuración Modular del ERP
 [2026-09-25]
 Archivos: `src/components/ui/InlineQuickEdit.tsx`, `src/components/Cobranza/SmartPasteCrModal.tsx`, `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/components/Cobranza/CobranzaHeader.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Layout.tsx`, `package.json`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `docs/CHANGELOG.md`

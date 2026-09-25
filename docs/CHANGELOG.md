@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.7.0] - 25 Septiembre 2026 (Centinela Continuo en Vivo, Dial de Salud ERP y Directiva Staff Engineer v2.0)
+
+### 🛡️ Centinela Continuo & Dial Visual de Salud en Dashboard (`AuditHealthCard`)
+- **Dial SVG Dinámico (`HealthGaugeDial`):** Indicador visual interactivo de salud global (0 a 100%) integrado en la rejilla de KPIs maestros del Dashboard (`ModernKpiGrid`).
+- **Diagnóstico Exhaustivo en 4 Cuadrantes:** Monitorea en vivo discrepancias en Báscula de Andrés ($38/kg), Facturación SAT CFDI 4.0 ($43/kg), Cuenta Corriente de Anticipos y Caja Chica.
+- **Acceso con 1-Clic a Corrección Atómica:** Al hacer clic en la tarjeta o presionar `Enter`, se despliega el modal interactivo `AuditCentinelaModal` con filtros por severidad (Críticas, Alertas, Info) y botones de reparación asistida en un solo clic.
+
+### 🚨 Centinela Badge con Silencio Operativo
+- **Cero Ruido Visual:** El badge superior (`AuditCentinelaBadge`) se oculta automáticamente cuando el sistema está 100% conciliado y sin anomalías, apareciendo únicamente con pulsos de alerta ámbar o rojo cuando surge alguna discrepancia que requiere atención.
+
+### 📋 Plan Maestro Proactivo & Directiva Staff Engineer v2.0
+- **Eliminación de Pantallas y Rutas Redundantes:** Publicación de `PLAN_MEJORAS_PROACTIVAS.md` con la estrategia para unificar ajustes y simplificar la navegación operativa.
+- **Directiva Staff Engineer v2.0:** Adaptación del prompt maestro `PROMPT_SISTEMA.md` al contexto real del ERP (reglas inmutables de negocio, 3-Way Matching y optimización de costes en Firestore).
+
 ## [v9.6.2] - 25 Septiembre 2026 (Captura Fluida, Edición In-Situ y Depuración Modular del ERP)
 
 ### ✏️ Edición Rápida In-Situ (`InlineQuickEdit`) en Seguimiento de Pedidos

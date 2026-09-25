@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ResponsiveMoney } from '../ui';
 import { kilos as fmtKilos } from '../../lib/format';
+import { AuditHealthCard } from '../Audit/AuditHealthCard';
 
 // =========================================================================
 // Tipo estricto del objeto de estadísticas (derivado de useDashboardStatsV2)
@@ -195,6 +196,9 @@ export function ModernKpiGrid({
       >
         <ResponsiveMoney value={k.vencido ?? 0} />
       </KpiCard>
+
+      {/* 5 — Salud del ERP (Centinela Continuo) */}
+      <AuditHealthCard size={120} />
 
     </div>
   );

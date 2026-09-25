@@ -1,47 +1,22 @@
-import { useMemo, useState } from 'react';
-import { useOrdersContext } from '../../context/OrdersContext';
-import { usePurchases } from '../../hooks/usePurchases';
-import { useExpenses } from '../../hooks/useExpenses';
-import { useConfig } from '../../hooks/useConfig';
-import { runContinuousAutoAudit } from '../../lib/auditEngine';
+import { useState } from 'react';
+import { useAuditReport } from '../../hooks/useAuditReport';
 import { AuditCentinelaModal } from './AuditCentinelaModal';
 
 export function AuditCentinelaBadge() {
-  const { orders } = useOrdersContext();
-  const { purchases } = usePurchases();
-  const { expenses } = useExpenses();
-  const { config } = useConfig();
-
+  const report = useAuditReport();
   const [openModal, setOpenModal] = useState(false);
 
-  const report = useMemo(() => {
-    return runContinuousAutoAudit({
-      orders: orders || [],
-      purchases: purchases || [],
-      expenses: expenses || [],
-      config: config as any,
-    });
-  }, [orders, purchases, expenses, config]);
-
-  const isPerfect = report.score === 100 && report.totalAnomalies === 0;
+  const isPerfect   = report.score === 100 && report.totalAnomalies === 0;
   const hasCritical = report.criticalCount > 0;
 
-  // Opción B: Silencio Operativo — Si todo está 100% en orden, no genera ruido visual
+  // Silencio operativo: badge invisible cuando todo esta en orden
   if (isPerfect || (report.criticalCount === 0 && report.warningCount === 0)) {
     return null;
   }
 
-  const badgeColor = hasCritical
-    ? '#ef4444' // Rojo
-    : '#f59e0b'; // Ámbar
-
-  const badgeBg = hasCritical
-    ? 'rgba(239, 68, 68, 0.15)'
-    : 'rgba(245, 158, 11, 0.15)';
-
-  const badgeBorder = hasCritical
-    ? 'rgba(239, 68, 68, 0.4)'
-    : 'rgba(245, 158, 11, 0.4)';
+  const badgeColor  = hasCritical ? '#ef4444' : '#f59e0b';
+  const badgeBg     = hasCritical ? 'rgba(239,68,68,0.15)'  : 'rgba(245,158,11,0.15)';
+  const badgeBorder = hasCritical ? 'rgba(239,68,68,0.4)'   : 'rgba(245,158,11,0.4)';
 
   return (
     <>
@@ -49,11 +24,7 @@ export function AuditCentinelaBadge() {
         type="button"
         className="centinela-badge"
         onClick={() => setOpenModal(true)}
-        title={
-          isPerfect
-            ? '🛡️ Centinela ERP: 100% Saludable (0 Anomalías contables o de báscula). Clic para abrir reporte.'
-            : `🛡️ Centinela ERP: Score ${report.score}/100 (${report.totalAnomalies} observaciones). Clic para auto-reparar.`
-        }
+        title={`Centinela ERP: Score ${report.score}/100 (${report.totalAnomalies} observaciones). Clic para diagnosticar.`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -69,34 +40,27 @@ export function AuditCentinelaBadge() {
           transition: 'all 0.2s ease',
         }}
       >
-        <span style={{ fontSize: 13, display: 'inline-block', transform: isPerfect ? 'none' : 'scale(1.1)' }}>
-          {isPerfect ? '🛡️' : hasCritical ? '🚨' : '⚠️'}
+        <span style={{ fontSize: 13, transform: 'scale(1.1)', display: 'inline-block' }}>
+          {hasCritical ? '🚨' : '⚠️'}
         </span>
-        <span style={{ letterSpacing: '0.2px' }}>
-          {isPerfect ? 'CENTINELA 100%' : `CENTINELA ${report.score}%`}
-        </span>
+        <span style={{ letterSpacing: '0.2px' }}>CENTINELA {report.score}%</span>
         {report.totalAnomalies > 0 && (
-          <span
-            style={{
-              background: badgeColor,
-              color: '#fff',
-              borderRadius: 10,
-              padding: '1px 6px',
-              fontSize: 10,
-              fontWeight: 800,
-              marginLeft: 2,
-            }}
-          >
+          <span style={{
+            background: badgeColor,
+            color: '#fff',
+            borderRadius: 10,
+            padding: '1px 6px',
+            fontSize: 10,
+            fontWeight: 800,
+            marginLeft: 2,
+          }}>
             {report.totalAnomalies}
           </span>
         )}
       </button>
 
       {openModal && (
-        <AuditCentinelaModal
-          report={report}
-          onClose={() => setOpenModal(false)}
-        />
+        <AuditCentinelaModal report={report} onClose={() => setOpenModal(false)} />
       )}
     </>
   );

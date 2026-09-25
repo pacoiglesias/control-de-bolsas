@@ -14,7 +14,6 @@ import { money } from '../../lib/format';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { logAction } from '../../lib/logger';
 import { findDuplicateOrderFolio } from '../../lib/duplicateGuards';
-
 interface UniversalDocumentUploadModalProps {
   onClose: () => void;
 }
