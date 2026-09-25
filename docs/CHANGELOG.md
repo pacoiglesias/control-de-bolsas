@@ -1,5 +1,21 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.0] - 25 Septiembre 2026 (Consola de Cuadre Ejecutivo Directo & Protegido, Persistencia OCs Concluidas y Saldo Caja $844,526.90)
+
+### ⚡ Consola de Cuadre Ejecutivo Directo (`ConsolaCuadreEjecutivoModal`)
+- **Acceso Directo y Atajo de Teclado:** Botón destacado en el encabezado del Dashboard (`⚡ Cuadre Rápido`) y atajo `Ctrl + E` para calibrar en 1 clic los 4 Pilares Maestros del ERP.
+- **Desbloqueo Protegido por PIN de Dirección:** Bloqueo de seguridad con PIN (`2026`/`1234`) para impedir que operadores o capturistas alteren balances maestros.
+- **Delta en Tiempo Real & Asientos Automáticos:** Muestra el cálculo de diferencia exacta antes de aplicar los cambios y genera automáticamente la partida contable de arqueo/conciliación sin alterar transacciones históricas.
+- **↩️ Deshacer en 1 Clic (Snapshot Rollback):** Permite revertir de inmediato cualquier cuadre en caso de error de captura manual.
+- **📋 Copiar Resumen Ejecutivo a WhatsApp:** Formato estructurado de 4 renglones listo para enviar a socios y contadores.
+
+### 💵 Calibración Definitiva de Caja Chica a $844,526.90
+- **Depuración de Firestore:** Eliminación del asiento de ajuste ficticio de 400k (`kxny7r0kZBaRJJgkvBIc`) y calibración exacta del efectivo físico en mano al centavo ($844,526.90 MXN).
+
+### 🏁 Resolución y Archivado de OCs Concluidas
+- **OC 120267114114 (TH · Nava):** Finiquitada formalmente con acta (88.99 kg de merma acordada). Se resolvió el fallo de persistencia que la mantenía en pantalla; ahora se archiva y oculta del Dashboard mediante `nava_completed_pod_archived`.
+- **Priorización de la OC Activa 120267114302 (71/14302):** El Dashboard enfoca automáticamente la atención en la orden vigente de 8,000 kg (1,986 kg facturados F-6307 y 6,014 kg en proceso de maquila con Andrés).
+
 ## [v9.9.0] - 25 Septiembre 2026 (Drag & Drop Global HUD Pantalla Completa, Corrección Cierre OC y Semáforo Providencia $919,116.06)
 
 ### 📥 Drag & Drop Global HUD de Pantalla Completa (`GlobalDropzoneHUD`)

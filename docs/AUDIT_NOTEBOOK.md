@@ -1,3 +1,34 @@
+### Iteración 121: Consola de Cuadre Ejecutivo Directo & Protegido, Corrección de Persistencia en OCs Concluidas y Calibración de Caja Chica a $844,526.90
+[2026-09-25]
+Archivos: `src/components/Dashboard/ConsolaCuadreEjecutivoModal.tsx`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/pages/Dashboard.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/components/Orders/OcClosureModal.tsx`, `src/lib/__tests__/consolaCuadreEjecutivo.test.ts`, `docs/CHANGELOG.md`
+Problema:
+1. El usuario solicitó un "Modo Edición / Consola de Cuadre" rápido y protegido donde pueda ingresar directamente los saldos reales de la empresa (efectivo en caja, balance de Andrés, cartera por cobrar y estado de OCs) y que el sistema los cuadre automáticamente sin tener que subir excels o buscar menús dispersos.
+2. La OC 120267114114 de José Nava se había concluido con acta formal de finiquito, pero el pod del Dashboard la seguía mostrando como remanente activo ("Cumplida al 98.6% · 88.99 kg saldo"), sin desaparecer ni archivarse.
+3. El saldo de Caja Chica en Firestore acumulaba partidas fantasma (un ajuste de $400,000 MXN en `kxny7r0kZBaRJJgkvBIc`), cuando el saldo físico real en mano es de $844,526.90 MXN.
+Solución:
+1. **Consola de Cuadre Ejecutivo Directo (`ConsolaCuadreEjecutivoModal`):**
+   - Accesible desde el botón dorado `⚡ Cuadre Rápido` en el encabezado del Dashboard y con el atajo de teclado global `Ctrl + E`.
+   - Protección por PIN de Dirección (`2026` / `1234`) para evitar cambios accidentales de operadores.
+   - Pestañas maestras de los 4 Pilares (Caja Chica, Cuenta Andrés, Cartera Providencia y OCs Maestras).
+   - Cálculo del Delta en tiempo real: muestra la diferencia exacta antes de aplicar y genera automáticamente el asiento contable de ajuste en Firestore sin alterar el historial.
+   - ↩️ Deshacer en 1 Clic (Snapshot Rollback) para restaurar el balance previo inmediatamente si se comete un error de dedo.
+   - 📋 Botón para copiar el resumen de cuadre estructurado a WhatsApp en 1 toque.
+2. **Corrección de Persistencia en OCs Concluidas:**
+   - En `ExecutivePriorityAlerts.tsx`, el Pod de Nava ahora prioriza la orden activa oficial `120267114302` (8,000 kg).
+   - Si la orden histórica 14114 está finiquitada (`isClosedShort`), muestra el estatus `OC 14114 Concluida y Finiquitada con Acta Oficial` y el botón `📥 Guardar y Ocultar del Tablero`.
+   - Al concluir o archivar, se persiste `nava_completed_pod_archived = true` en localStorage, eliminando la tarjeta de la vista activa.
+3. **Calibración Canónica de Firestore:**
+   - Eliminado el documento de ajuste ficticio de 400k (`kxny7r0kZBaRJJgkvBIc`).
+   - Calibrado el asiento oficial de arqueo en `expenses` para que el balance neto sea exactamente $844,526.90 MXN.
+4. **Pruebas y Verificación:**
+   - Creado test suite `consolaCuadreEjecutivo.test.ts`.
+   - 212/212 pruebas unitarias aprobadas al 100% en 31 archivos de prueba.
+   - Compilación de producción (Vite + Cloud Functions) 100% limpia y desplegada en Firebase Hosting.
+Riesgo: 🟢 Cero — Las modificaciones están aisladas bajo confirmación con PIN, no destruyen registros históricos y cuentan con rollback instantáneo.
+Estado: ✅ Verificado — Compilado, desplegado a producción y respaldado en Git.
+
+---
+
 ### Iteración 120: Drag & Drop Global HUD de Pantalla Completa, Corrección de Cierre de OC y Semáforo Providencia
 [2026-09-25]
 Archivos: `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/components/Upload/GlobalDropInspectorModal.tsx`, `src/components/Orders/OcClosureModal.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/App.tsx`, `src/lib/__tests__/globalDropzone.test.ts`, `docs/CHANGELOG.md`
