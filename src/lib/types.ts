@@ -325,12 +325,30 @@ export interface PurchaseOrder {
   updatedAt?: Timestamp | null;
   aiError?: string;
   isClosedShort?: boolean;
+  /** Auditoría y control de cierre de OC (kilos entregados vs contratados, faltantes y motivo) */
+  closureAudit?: OcClosureAudit;
   /** Marca de borrado suave (soft-delete). Cuando es true el expediente se
    *  excluye de Analytics, Dashboard y listas operativas, pero persiste en
    *  Firestore para auditoría. */
   isDeleted?: boolean;
   /** Metadatos de auditoría criptográfica y trazabilidad */
   audit?: AuditMetadata;
+}
+
+export interface OcClosureAudit {
+  closedAt: Timestamp | null;
+  closedBy?: string;
+  contractedKg: number;
+  deliveredKg: number;
+  invoicedKg: number;
+  shortfallKg: number;        // Kilos que faltaron por entregar (si faltó)
+  surplusKg: number;          // Kilos entregados de más (si hubo excedente)
+  fulfillmentRate: number;    // (deliveredKg / contractedKg) * 100
+  shortfallCostValue: number; // shortfallKg * costPrice (ej. 38.00)
+  shortfallSaleValue: number; // shortfallKg * salePrice (ej. 43.00)
+  closureStatus: 'completo' | 'merma_tolerable' | 'con_faltante' | 'con_excedente';
+  closureReason: string;      // Razón seleccionada
+  closureNotes?: string;      // Comentarios de finiquito
 }
 
 export interface AuditMetadata {

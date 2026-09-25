@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { OFFICIAL_CRS, OFFICIAL_IN_REVIEW } from '../../components/Cobranza/SincronizadorOficialModal';
 import { round2, computeCommissionFromInvoiceTotal } from '../finance';
+import {
+  CARTERA_OFICIAL,
+  TOTAL_CARTERA_OFICIAL,
+  CARTERA_PAGADA_OFICIAL,
+  TOTAL_CARTERA_PAGADA,
+  SALDO_CAJA_ACTUAL,
+} from '../constants';
 
 describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
   it('debe sumar exactamente $799,691.80 en los 10 Contrarecibos Oficiales Generados', () => {
@@ -67,5 +74,20 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
     );
 
     expect(sumaValidada).toBe(799691.80);
+  });
+
+  it('debe validar la Cartera Oficial Activa Vigente en $805,190.14 con los 10 CRs del portal', () => {
+    const totalActivo = round2(CARTERA_OFICIAL.reduce((sum, item) => sum + item.monto, 0));
+    expect(totalActivo).toBe(805190.14);
+    expect(CARTERA_OFICIAL.length).toBe(10);
+    expect(TOTAL_CARTERA_OFICIAL).toBe(805190.14);
+  });
+
+  it('debe validar la Cartera Pagada Oficial en $1,032,087.04 y el Saldo en Efectivo de Caja en $844,526.90', () => {
+    const totalPagado = round2(CARTERA_PAGADA_OFICIAL.reduce((sum, item) => sum + item.monto, 0));
+    expect(totalPagado).toBe(1032087.04);
+    expect(CARTERA_PAGADA_OFICIAL.length).toBe(10);
+    expect(TOTAL_CARTERA_PAGADA).toBe(1032087.04);
+    expect(SALDO_CAJA_ACTUAL).toBe(844526.90);
   });
 });

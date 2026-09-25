@@ -3,10 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useConfig } from '../hooks/useConfig';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 import { db, PATHS } from '../lib/firebase';
-import { doc, collection, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { confirmDialog } from '../lib/confirmDialog';
+import { doc, collection } from 'firebase/firestore';
 import { triggerHaptic } from '../lib/hapticEngine';
 import { generateReclamarKilosAndresMessage, openWhatsAppMessage } from '../lib/whatsappReminder';
 import { Card, Empty, StatusBadge, Skeleton } from '../components/ui';
@@ -23,6 +21,8 @@ import { OrdersKpiRibbon } from '../components/Orders/OrdersKpiRibbon';
 import { OrderRowActions } from '../components/Orders/OrderRowActions';
 import { ExcelDragDropModal } from '../components/Excel/ExcelDragDropModal';
 import { ProactiveCrHubModal } from '../components/Cobranza/ProactiveCrHubModal';
+import { OcClosureModal } from '../components/Orders/OcClosureModal';
+import { OcFulfillmentReportModal } from '../components/Orders/OcFulfillmentReportModal';
 import { kilos, money, nombreClienteVisible, toDate } from '../lib/format';
 import { getOrderSummary, extractCr, round2 } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
@@ -51,6 +51,8 @@ export default function Orders() {
   const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showCrHubModal, setShowCrHubModal] = useState(false);
+  const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
+  const [showFulfillmentReport, setShowFulfillmentReport] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('radar');
@@ -58,7 +60,6 @@ export default function Orders() {
   const [page, setPage] = useState(1);
   const pageSize = 30;
   const observerTarget = useRef(null);
-  const toast = useToast();
 
   const handleReclamarAndres = (order: PurchaseOrder, totalKg: number, entregadosKg: number, faltantesKg: number) => {
     triggerHaptic('light');
@@ -74,27 +75,9 @@ export default function Orders() {
     openWhatsAppMessage(text);
   };
 
-  const handleConcluirOc = async (order: PurchaseOrder, entregadosKg: number) => {
-    triggerHaptic('warning');
-    const ok = await confirmDialog({
-      title: '🏁 ¿Concluir Orden de Compra?',
-      message: `Esta orden tiene ${entregadosKg.toLocaleString('es-MX')} kg entregados. Al concluirla, el ERP la considerará finalizada con lo entregado y ya no esperará más viajes del proveedor Andrés. ¿Deseas cerrarla ahora?`,
-      confirmLabel: 'Sí, Concluir OC',
-      cancelLabel: 'Cancelar',
-    });
-    if (!ok) return;
-
-    try {
-      const orderRef = doc(db, PATHS.orders, order.id);
-      await updateDoc(orderRef, {
-        isClosedShort: true,
-        updatedAt: serverTimestamp(),
-      });
-      triggerHaptic('success');
-      toast(`✅ OC ${order.folio || order.oc} concluida exitosamente con ${entregadosKg.toLocaleString('es-MX')} kg.`, 'ok');
-    } catch (err: any) {
-      toast(`Error al concluir OC: ${err.message}`, 'bad');
-    }
+  const handleConcluirOc = (order: PurchaseOrder) => {
+    triggerHaptic('light');
+    setClosingOrder(order);
   };
 
   useEffect(() => {
@@ -369,7 +352,31 @@ export default function Orders() {
             o <strong>☰ Lista</strong> para el detalle completo.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setShowFulfillmentReport(true)}
+            style={{
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              color: '#10b981',
+              fontWeight: 700,
+              fontSize: 12.5,
+              borderRadius: 8,
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              minHeight: '36px',
+            }}
+            title="Ver balance global de cumplimiento, mermas de báscula y kilos faltantes en OCs cerradas"
+          >
+            <span>📊</span>
+            <span>Reporte de Faltantes & Cumplimiento</span>
+          </button>
+
           <button
             type="button"
             className="btn"
@@ -386,6 +393,7 @@ export default function Orders() {
               alignItems: 'center',
               gap: 6,
               cursor: 'pointer',
+              minHeight: '36px',
             }}
             title="Ir a Seguimiento Logístico por OC (pesajes de báscula, remisiones y vales)"
           >
@@ -890,7 +898,21 @@ export default function Orders() {
                                 <span title="Kilos facturados en SAT" style={{ color: summary.kilosInvoiced > 0 ? '#6366f1' : 'inherit' }}>🧾 {kilos(summary.kilosInvoiced)}</span>
                               </div>
                               {o.isClosedShort ? (
-                                <span style={{ color: '#047857', fontWeight: 800 }}>🏁 Concluida con {kilos(summary.kilosDelivered)}</span>
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConcluirOc(o);
+                                  }}
+                                  title="Ver certificado de cierre y auditoría de faltantes"
+                                  style={{
+                                    color: '#047857',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline dotted',
+                                  }}
+                                >
+                                  🏁 Concluida con {kilos(summary.kilosDelivered)} {o.closureAudit ? `(${o.closureAudit.fulfillmentRate}%)` : ''} 🔍
+                                </span>
                               ) : faltanKg > 0.01 ? (
                                 <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 1 }}>
                                   <span style={{ color: '#d97706', fontWeight: 800 }}>⏳ Faltan {kilos(faltanKg)}</span>
@@ -918,9 +940,9 @@ export default function Orders() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleConcluirOc(o, summary.kilosDelivered);
+                                      handleConcluirOc(o);
                                     }}
-                                    title="Cerrar la OC si Andrés ya no mandará más kilos y facturar lo entregado"
+                                    title="Cerrar la OC si Andrés ya no mandará más kilos y auditar faltantes"
                                     style={{
                                       border: '1px solid rgba(217, 119, 6, 0.4)',
                                       background: 'rgba(217, 119, 6, 0.1)',
@@ -1084,6 +1106,19 @@ export default function Orders() {
         <ProactiveCrHubModal
           isOpen={showCrHubModal}
           onClose={() => setShowCrHubModal(false)}
+        />
+      )}
+      {closingOrder && (
+        <OcClosureModal
+          order={orders.find((o) => o.id === closingOrder.id) ?? closingOrder}
+          onClose={() => setClosingOrder(null)}
+        />
+      )}
+      {showFulfillmentReport && (
+        <OcFulfillmentReportModal
+          orders={orders}
+          onClose={() => setShowFulfillmentReport(false)}
+          onOpenOrder={(o) => setSelected(o)}
         />
       )}
     </>

@@ -12,8 +12,12 @@ import {
   isOcTH,
   isOcGT,
 } from '../../lib/constants';
+import {
+  generateReclamarKilosAndresMessage,
+  generateEstadoCuentaSemanalAndresMessage,
+  openWhatsAppMessage,
+} from '../../lib/whatsappReminder';
 import { ThreeWayMatchingBadge } from '../ui/ThreeWayMatchingBadge';
-import { generateReclamarKilosAndresMessage, openWhatsAppMessage } from '../../lib/whatsappReminder';
 
 interface ExecutivePriorityAlertsProps {
   orders: PurchaseOrder[];
@@ -306,19 +310,23 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
 
   // ── Textos Dinámicos TH · Nava ────────────────────────────────────────────
   const navaPatioKg = navaMetrics?.patioKg || 0;
-  const navaRemanenteKg = navaMetrics ? navaMetrics.remanenteOcKg : 1588.99;
-  const navaEntregadosKg = navaMetrics ? navaMetrics.entregadosKg : 4911.01;
-  const navaFacturadosKg = navaMetrics ? navaMetrics.facturadosKg : 4911.01;
-  const navaFolios = navaMetrics?.foliosFacturados || 'F-6198, F-6200, F-6266';
+  const navaRemanenteKg = navaMetrics ? navaMetrics.remanenteOcKg : 88.99;
+  const navaEntregadosKg = navaMetrics ? navaMetrics.entregadosKg : 6411.01;
+  const navaFacturadosKg = navaMetrics ? navaMetrics.facturadosKg : 6411.01;
+  const navaFolios = navaMetrics?.foliosFacturados || 'F-6198, F-6200, F-6266, F-6271';
 
   const navaTitle = navaPatioKg > 0
     ? `${navaPatioKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg en patio por facturar`
+    : navaRemanenteKg <= 100
+    ? `Patio al día (0 kg) · Cumplida al 98.6% (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg saldo)`
     : `Patio al día (0 kg) · ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg por surtir`;
 
-  const navaSubtitle = `Entregados: ${navaEntregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${navaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${navaFolios}). Saldo remanente de OC: ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${money(navaRemanenteKg * saleKg * (1 + ivaRate))} con IVA) pendientes de programar entrega.`;
+  const navaSubtitle = `Entregados: ${navaEntregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${navaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${navaFolios}). Saldo remanente de OC: ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${money(navaRemanenteKg * saleKg * (1 + ivaRate))} con IVA) con finiquito acordado.`;
 
   const navaBtn = navaPatioKg > 0
     ? `⚡ Facturar Patio (${Math.round(navaPatioKg)} kg)`
+    : navaRemanenteKg <= 100
+    ? `🏁 OC Finiquitada (Ver Expediente)`
     : `⚡ Facturar Remanente`;
 
   // ── Textos Dinámicos GT · Evelia ──────────────────────────────────────────
@@ -361,8 +369,142 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     eveliaTargetOrderId = eveliaNewOcOrder.id || 'oc-12026439774';
   }
 
+  // 6. Conciliación Global de Maquila Andrés (Kilos pendientes en todas las OCs activas)
+  const andresGlobalFaltantes = useMemo(() => {
+    let totalKg = 0;
+    let pedidosKg = 0;
+    let entregadosKg = 0;
+    const desglose: Array<{
+      oc: string;
+      cliente: string;
+      pedidosKg: number;
+      entregadosKg: number;
+      faltantesKg: number;
+      viajesCount: number;
+    }> = [];
+
+    (orders || []).forEach((o) => {
+      if (!o || (o as any).isDeleted || o.isClosedShort) return;
+      const oc = (o.oc || o.folio || o.id || '').toUpperCase();
+      const client = o.client || 'Providencia';
+      const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+      const ped = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || 0);
+      const ent = totalKilosEntregados(o);
+      const falt = Math.max(0, ped - ent);
+      const viajes = (o.deliveries || []).length;
+
+      if (ped > 0) {
+        pedidosKg += ped;
+        entregadosKg += ent;
+        if (falt > 0.01) {
+          totalKg += falt;
+          desglose.push({
+            oc,
+            cliente: client,
+            pedidosKg: ped,
+            entregadosKg: ent,
+            faltantesKg: falt,
+            viajesCount: viajes,
+          });
+        }
+      }
+    });
+
+    return { totalKg, pedidosKg, entregadosKg, countOcs: desglose.length, desglose };
+  }, [orders]);
+
+  const handleSendWeeklyMaquilaWhatsApp = () => {
+    const text = generateEstadoCuentaSemanalAndresMessage({
+      providerName: 'Andrés',
+      totalKilosPedidos: andresGlobalFaltantes.pedidosKg,
+      totalKilosEntregados: andresGlobalFaltantes.entregadosKg,
+      totalKilosFaltantes: andresGlobalFaltantes.totalKg,
+      totalViajes: andresGlobalFaltantes.desglose.reduce((s, it) => s + it.viajesCount, 0),
+      costoKg: 38,
+      desgloseOcs: andresGlobalFaltantes.desglose,
+    });
+    openWhatsAppMessage(text);
+  };
+
   return (
     <div style={{ marginBottom: 14 }}>
+      {/* BANNER PROACTIVO: MAQUILA ANDRÉS KILOS PENDIENTES */}
+      {andresGlobalFaltantes.totalKg > 0.01 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            marginBottom: 14,
+            padding: '12px 18px',
+            background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.14) 0%, rgba(91, 33, 182, 0.08) 100%)',
+            border: '1px solid rgba(139, 92, 246, 0.4)',
+            borderRadius: 16,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            boxShadow: '0 4px 20px -4px rgba(124, 58, 237, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>🏭</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Maquila Andrés: {andresGlobalFaltantes.totalKg.toLocaleString('es-MX')} kg Pendientes de Entregar ({andresGlobalFaltantes.countOcs} OCs · {money(andresGlobalFaltantes.totalKg * 38)} a $38/kg)
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink, #fff)', marginTop: 2 }}>
+                {andresGlobalFaltantes.desglose.map(d => `OC ${d.oc}: faltan ${d.faltantesKg.toLocaleString('es-MX')} kg`).join(' · ')}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={handleSendWeeklyMaquilaWhatsApp}
+              style={{
+                minHeight: 38,
+                padding: '6px 14px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: 800,
+                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(37, 211, 102, 0.3)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              title="Enviar consolidado semanal a Andrés por WhatsApp"
+            >
+              <span>📲</span>
+              <span>Reporte Semanal a Andrés</span>
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => nav('/oc')}
+              style={{
+                minHeight: 38,
+                padding: '6px 12px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: 700,
+                background: 'rgba(139, 92, 246, 0.15)',
+                color: '#c084fc',
+                border: '1px solid rgba(139, 92, 246, 0.4)',
+                cursor: 'pointer',
+              }}
+            >
+              🚚 Ver Báscula por OC →
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* BANNER PROACTIVO: FACTURAS SIN CONTRARECIBO (> 72 HORAS) */}
       {orphanInvoices.length > 0 && (
         <motion.div

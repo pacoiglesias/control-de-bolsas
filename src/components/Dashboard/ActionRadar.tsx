@@ -1,7 +1,16 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { money, kilos as fmtKilos, nombreClienteVisible, toDate } from '../../lib/format';
 import { computeCommissionFromInvoiceTotal, getOrderSummary, round2 } from '../../lib/finance';
+import { useToast } from '../../context/ToastContext';
+import { triggerHaptic } from '../../lib/hapticEngine';
+import {
+  openWhatsAppMessage,
+  generateEstadoCuentaSemanalAndresMessage,
+  generateReclamarKilosAndresMessage,
+} from '../../lib/whatsappReminder';
+import { OcClosureModal } from '../Orders/OcClosureModal';
+import { OcFulfillmentReportModal } from '../Orders/OcFulfillmentReportModal';
 import type { PurchaseOrder, Purchase, FinancialConfig } from '../../lib/types';
 
 interface ActionRadarProps {
@@ -27,6 +36,7 @@ export type UrgentAction = {
 };
 
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
+  const toast = useToast();
   const actions = useMemo<UrgentAction[]>(() => {
     const saleKg = config?.salePricePerKg || 43;
     const costKg = config?.costPricePerKg || 38;
@@ -161,6 +171,93 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
     return list.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
   }, [orders, purchases, config, nav, onOpenOrder]);
 
+  const andresSummary = useMemo(() => {
+    const costKg = config?.costPricePerKg || 38;
+    const activeOcsWithFaltantes: Array<{
+      order: PurchaseOrder;
+      oc: string;
+      cliente: string;
+      pedidosKg: number;
+      entregadosKg: number;
+      faltantesKg: number;
+      viajesCount: number;
+    }> = [];
+
+    let totalKilosPedidos = 0;
+    let totalKilosEntregados = 0;
+    let totalKilosFaltantes = 0;
+    let totalViajes = 0;
+
+    (orders || []).forEach((o) => {
+      if (o.isClosedShort) return;
+      const s = getOrderSummary(o);
+      const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+      const pedidosKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || s.kilosDelivered || 0);
+      const entregadosKg = s.kilosDelivered;
+      const faltantesKg = Math.max(0, pedidosKg - entregadosKg);
+      const viajesCount = (o.deliveries || []).length;
+
+      if (pedidosKg > 0) {
+        totalKilosPedidos += pedidosKg;
+        totalKilosEntregados += entregadosKg;
+        totalViajes += viajesCount;
+        if (faltantesKg > 0.01) {
+          totalKilosFaltantes += faltantesKg;
+          activeOcsWithFaltantes.push({
+            order: o,
+            oc: o.folio || o.oc || o.id,
+            cliente: nombreClienteVisible(o.client) || 'Providencia',
+            pedidosKg,
+            entregadosKg,
+            faltantesKg,
+            viajesCount,
+          });
+        }
+      }
+    });
+
+    return {
+      costKg,
+      totalKilosPedidos: round2(totalKilosPedidos),
+      totalKilosEntregados: round2(totalKilosEntregados),
+      totalKilosFaltantes: round2(totalKilosFaltantes),
+      totalViajes,
+      activeOcsWithFaltantes,
+      pctGlobal: totalKilosPedidos > 0 ? Math.round((totalKilosEntregados / totalKilosPedidos) * 100) : 0,
+      valorFaltantePesos: round2(totalKilosFaltantes * costKg),
+    };
+  }, [orders, config]);
+
+  const handleSendWeeklyAndresReport = () => {
+    triggerHaptic('light');
+    const text = generateEstadoCuentaSemanalAndresMessage({
+      providerName: (config as any)?.providerName || 'Andrés',
+      totalKilosPedidos: andresSummary.totalKilosPedidos,
+      totalKilosEntregados: andresSummary.totalKilosEntregados,
+      totalKilosFaltantes: andresSummary.totalKilosFaltantes,
+      totalViajes: andresSummary.totalViajes,
+      costoKg: andresSummary.costKg,
+      desgloseOcs: andresSummary.activeOcsWithFaltantes.map(it => ({
+        oc: it.oc,
+        cliente: it.cliente,
+        pedidosKg: it.pedidosKg,
+        entregadosKg: it.entregadosKg,
+        faltantesKg: it.faltantesKg,
+        viajesCount: it.viajesCount,
+      })),
+    });
+    openWhatsAppMessage(text);
+    toast(`📲 Abriendo WhatsApp con reporte semanal para Andrés (${andresSummary.totalKilosFaltantes.toLocaleString('es-MX')} kg pendientes)`, 'ok');
+  };
+
+  const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
+  const [showFulfillmentReport, setShowFulfillmentReport] = useState(false);
+
+  const handleConcluirOc = (order: PurchaseOrder) => {
+    triggerHaptic('light');
+    setClosingOrder(order);
+  };
+
   return (
     <div
       role="region"
@@ -193,14 +290,202 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             fontWeight: 800,
             padding: '3px 10px',
             borderRadius: 999,
-            background: actions.length > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
-            color: actions.length > 0 ? '#ef4444' : '#10b981',
-            border: `1px solid ${actions.length > 0 ? '#ef4444' : '#10b981'}`,
+            background: (actions.length > 0 || andresSummary.totalKilosFaltantes > 0) ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
+            color: (actions.length > 0 || andresSummary.totalKilosFaltantes > 0) ? '#ef4444' : '#10b981',
+            border: `1px solid ${(actions.length > 0 || andresSummary.totalKilosFaltantes > 0) ? '#ef4444' : '#10b981'}`,
           }}
         >
-          {actions.length > 0 ? `${actions.length} acciones pendientes` : '🎉 Todo al día'}
+          {actions.length > 0
+            ? `${actions.length} acciones prioritarias`
+            : andresSummary.totalKilosFaltantes > 0
+              ? 'Maquila pendiente'
+              : '🎉 Todo al día'}
         </span>
       </div>
+
+      {/* CARD DE CONCILIACIÓN SEMANAL DE MAQUILA ANDRÉS */}
+      {andresSummary.totalKilosFaltantes > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(124, 58, 237, 0.12) 100%)',
+            border: '1.5px solid rgba(139, 92, 246, 0.35)',
+            borderRadius: 14,
+            padding: '16px 18px',
+            marginBottom: 18,
+            boxShadow: '0 4px 16px rgba(124, 58, 237, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 24 }}>🏭</span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 900, margin: 0, color: 'var(--ink)' }}>
+                    Maquila Andrés · Conciliación de Kilos Pendientes
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      color: '#ef4444',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    🚨 {fmtKilos(andresSummary.totalKilosFaltantes)} kg por enviar
+                  </span>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+                  Valor de maquila pendiente: <strong>{money(andresSummary.valorFaltantePesos)}</strong> (${andresSummary.costKg.toFixed(2)}/kg) · {andresSummary.activeOcsWithFaltantes.length} OC(s) activas
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleSendWeeklyAndresReport}
+                style={{
+                  background: '#25D366',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)',
+                }}
+                title="Enviar consolidado semanal con todas las OCs a Andrés por WhatsApp"
+              >
+                <span>📲</span>
+                <span>Enviar Reporte Semanal a Andrés</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFulfillmentReport(true)}
+                style={{
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+                title="Ver balance y reporte de cumplimiento y mermas de todas las OCs"
+              >
+                <span>📊</span>
+                <span>Reporte de Faltantes</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => nav('/oc')}
+                style={{
+                  background: 'rgba(139, 92, 246, 0.15)',
+                  color: '#8b5cf6',
+                  border: '1px solid rgba(139, 92, 246, 0.4)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                🚚 Ver Báscula por OC →
+              </button>
+            </div>
+          </div>
+
+          {/* Desglose de OCs con Kilos Faltantes */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 8, marginTop: 10 }}>
+            {andresSummary.activeOcsWithFaltantes.map((item) => (
+              <div
+                key={item.oc}
+                style={{
+                  background: 'var(--paper)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <div style={{ minWidth: 140 }}>
+                  <div style={{ fontWeight: 800, fontSize: 12.5, color: 'var(--ink)' }}>
+                    OC {item.oc} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-soft)' }}>· {item.cliente}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
+                    Entregado: {fmtKilos(item.entregadosKg)} / {fmtKilos(item.pedidosKg)} kg ({item.viajesCount} viajes)
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#d97706', marginTop: 1 }}>
+                    ⏳ Faltan: {fmtKilos(item.faltantesKg)} kg ({money(item.faltantesKg * andresSummary.costKg)})
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = generateReclamarKilosAndresMessage({
+                        oc: item.oc,
+                        client: item.cliente,
+                        totalKg: item.pedidosKg,
+                        entregadosKg: item.entregadosKg,
+                        faltantesKg: item.faltantesKg,
+                        providerName: (config as any)?.providerName || 'Andrés',
+                        deliveriesCount: item.viajesCount,
+                      });
+                      openWhatsAppMessage(text);
+                    }}
+                    style={{
+                      border: 'none',
+                      background: '#25D366',
+                      color: '#fff',
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                    title="Reclamar faltante de esta OC específica a Andrés"
+                  >
+                    💬 Reclamar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConcluirOc(item.order)}
+                    style={{
+                      border: '1px solid rgba(217, 119, 6, 0.4)',
+                      background: 'rgba(217, 119, 6, 0.1)',
+                      color: '#b45309',
+                      padding: '3px 7px',
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    title="Cerrar esta OC si Andrés no enviará más kilos y auditar faltantes"
+                  >
+                    🏁 Concluir OC
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {actions.length === 0 ? (
         <div
@@ -217,7 +502,7 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
         >
           <span style={{ fontSize: 24 }}>✨</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>¡Operación 100% al día!</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>¡Facturación y Cobranza al día!</div>
             <div style={{ fontSize: 12, opacity: 0.9 }}>
               No tienes entregas pendientes de facturar, contrarecibos vencidos ni dinero pendiente de recolectar.
             </div>
@@ -274,6 +559,21 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
             </motion.div>
           ))}
         </div>
+      )}
+
+      {closingOrder && (
+        <OcClosureModal
+          order={closingOrder}
+          onClose={() => setClosingOrder(null)}
+        />
+      )}
+
+      {showFulfillmentReport && (
+        <OcFulfillmentReportModal
+          orders={orders}
+          onClose={() => setShowFulfillmentReport(false)}
+          onOpenOrder={onOpenOrder}
+        />
       )}
     </div>
   );

@@ -270,7 +270,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.oc = '120267114114';
             best.isClosedShort = true;
             (best as any).status = 'facturado';
-            // 🎯 Reconciliación Canónica de Entregas TH (Total Físico Facturado: 4,911.01 kg | Remanente OC: 1,588.99 kg)
+            // 🎯 Reconciliación Canónica de Entregas TH (Total Físico Facturado: 6,411.01 kg | Remanente OC: 88.99 kg)
             const reconciledThDeliveries: Delivery[] = [
               {
                 id: 'del-th-6198',
@@ -292,7 +292,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 kilos: 1500.00,
                 items: [
                   { itemId: 'it-th-2', quantity: 1000.00 },
-                  { itemId: 'it-th-6', quantity: 500.00 },
+                  { itemId: 'it-th-4', quantity: 500.00 },
                 ],
                 invoiced: true,
                 invoiceId: 'inv-6200',
@@ -312,6 +312,20 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 docType: 'factura',
                 docFolio: '6266',
                 notes: 'Entrega física amparada por Factura XML #6266 (1,445.20 kg)',
+              },
+              {
+                id: 'del-th-6271',
+                date: Timestamp.fromDate(new Date('2026-09-07T13:19:49Z')),
+                kilos: 1500.00,
+                items: [
+                  { itemId: 'it-th-5', quantity: 1000.00 },
+                  { itemId: 'it-th-6', quantity: 500.00 },
+                ],
+                invoiced: true,
+                invoiceId: 'inv-6271',
+                docType: 'factura',
+                docFolio: '6271',
+                notes: 'Entrega física amparada por Factura XML #6271 (1,500.00 kg)',
               },
             ];
             best.deliveries = reconciledThDeliveries;
@@ -354,7 +368,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 kilos: 1500.00,
                 items: [
                   { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco (55x126)', quantity: 1000.00, unitPrice: 43.0, amount: 43000.0, unit: 'KGM' },
-                  { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM (30x40)', quantity: 500.00, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                  { id: 'it-th-4', code: 'enbo000006-sc', description: 'BOLSA POLIETILENO 77 CM X 55 CM (77x55)', quantity: 500.00, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
                 ],
                 financials: {
                   costPricePerKg: 38,
@@ -398,6 +412,32 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 creditCycle: {
                   status: 'facturado',
                   issueDate: Timestamp.fromDate(new Date('2026-09-01T13:36:29Z')),
+                  dueDate: null,
+                },
+              },
+              {
+                id: 'inv-6271',
+                orderId: best.id,
+                folio: '6271',
+                uuid: 'F782CCEF-82A2-4447-9E48-8A97A9290A56',
+                kilos: 1500.00,
+                items: [
+                  { id: 'it-th-5', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM', quantity: 1000.00, unitPrice: 43.0, amount: 43000.0, unit: 'KGM' },
+                  { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM (30x40)', quantity: 500.00, unitPrice: 43.0, amount: 21500.0, unit: 'KGM' },
+                ],
+                financials: {
+                  costPricePerKg: 38,
+                  salePricePerKg: 43,
+                  saleTotal: 64500.0,
+                  invoiceTotal: 74820.0,
+                  costTotal: 57000.0,
+                  commission: 5160.0,
+                  netCashFlow: 12660.0,
+                  tradeMargin: 7500.0,
+                },
+                creditCycle: {
+                  status: 'facturado',
+                  issueDate: Timestamp.fromDate(new Date('2026-09-07T13:19:49Z')),
                   dueDate: null,
                 },
               },

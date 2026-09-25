@@ -354,3 +354,64 @@ Necesitamos coordinar cuándo sale el siguiente viaje para completar el pedido e
 
 ¿Para qué fecha programas la entrega del resto? Quedo al pendiente, gracias.`;
 }
+
+/**
+ * Genera el estado de cuenta y reporte semanal consolidado de maquila para el proveedor (Andrés),
+ * agrupando todas las OCs activas con kilos pedidos, entregados en báscula y faltantes.
+ */
+export function generateEstadoCuentaSemanalAndresMessage({
+  providerName = 'Andrés',
+  totalKilosPedidos,
+  totalKilosEntregados,
+  totalKilosFaltantes,
+  totalViajes = 0,
+  costoKg = 38,
+  desgloseOcs = [],
+}: {
+  providerName?: string;
+  totalKilosPedidos: number;
+  totalKilosEntregados: number;
+  totalKilosFaltantes: number;
+  totalViajes?: number;
+  costoKg?: number;
+  desgloseOcs?: Array<{
+    oc: string;
+    cliente: string;
+    pedidosKg: number;
+    entregadosKg: number;
+    faltantesKg: number;
+    viajesCount?: number;
+  }>;
+}): string {
+  const pctGlobal = totalKilosPedidos > 0 ? ((totalKilosEntregados / totalKilosPedidos) * 100).toFixed(1) : '0';
+  const importeMaterialFaltante = totalKilosFaltantes * costoKg;
+
+  let msg = `📋 *ESTADO DE CUENTA Y RESUMEN SEMANAL DE MAQUILA — BOLSAS ELEMENTAL / PROVIDENCIA*\n\n`;
+  msg += `Hola ${providerName}, buen día.\n\n`;
+  msg += `Te comparto el consolidado semanal de entregas en báscula y kilos pendientes en planta al día de hoy:\n\n`;
+  msg += `• *Meta Total Contratada:* ${totalKilosPedidos.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg\n`;
+  msg += `• *Kilos Entregados en Planta:* ${totalKilosEntregados.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${totalViajes} viajes · ${pctGlobal}%)\n`;
+  msg += `• 🚨 *TOTAL KILOS PENDIENTES DE ENVIAR:* *${totalKilosFaltantes.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg*\n`;
+  msg += `• 💵 *Valor en Maquila ($${costoKg.toFixed(2)}/kg):* $${importeMaterialFaltante.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n\n`;
+
+  if (desgloseOcs.length > 0) {
+    msg += `📦 *DESGLOSE POR ORDEN DE COMPRA (OC):*\n`;
+    desgloseOcs.forEach((item, idx) => {
+      const pct = item.pedidosKg > 0 ? ((item.entregadosKg / item.pedidosKg) * 100).toFixed(0) : '0';
+      msg += `\n${idx + 1}. *OC ${item.oc}* (${item.cliente})\n`;
+      msg += `   - Entregado: ${item.entregadosKg.toLocaleString('es-MX')} / ${item.pedidosKg.toLocaleString('es-MX')} kg (${pct}%)\n`;
+      if (item.faltantesKg > 0.01) {
+        msg += `   - ⏳ *Faltan por surtir:* *${item.faltantesKg.toLocaleString('es-MX')} kg*\n`;
+      } else {
+        msg += `   - ✅ Surtido 100%\n`;
+      }
+    });
+    msg += `\n`;
+  }
+
+  msg += `Necesitamos coordinar la programación de viajes de esta semana para no atrasar la entrega en las plantas de Providencia, o confirmar si alguna orden se cierra con lo entregado.\n\n`;
+  msg += `¿Qué días de esta semana tienes salida de camión? Quedamos al pendiente, muchas gracias.`;
+
+  return msg;
+}
+

@@ -1,5 +1,34 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.8.0] - 25 Septiembre 2026 (Calibración Maestra de Cartera Providencia, Saldo de Caja $844,526.90 y Auditoría de Cierres de OC)
+
+### 💵 Calibración Canónica de Saldo en Efectivo de Caja Chica
+- **Saldo Actualizado:** Registro del saldo físico real en efectivo en caja a **$844,526.90 MXN**, calibrado al centavo contra arqueo de tesorería y reflejado en `src/lib/constants.ts` y en el asistente de calibración de `CajaChica.tsx`.
+
+### 📑 Cuadre 1:1 con Portal Providencia: 10 Contrarecibos Vigentes ($805,190.14 MXN)
+- **Alineación Oficial:** Incorporación exacta del padrón de los 10 Contrarecibos generados activos por cobrar:
+  1. `GT-993` (21/09/2026 -> 21/10/2026): **$110,434.32** (F-6284, F-6285)
+  2. `GT-962` (14/09/2026 -> 14/10/2026): **$110,783.48** (F-6275, F-6276)
+  3. `TH-1103` (14/09/2026 -> 14/10/2026): **$74,820.00** (F-6271)
+  4. `GT-929` (07/09/2026 -> 07/10/2026): **$83,499.12** (F-6267, F-6268)
+  5. `TH-1068` (07/09/2026 -> 07/10/2026): **$72,086.58** (F-6266)
+  6. `GT-904` (31/08/2026 -> 30/09/2026): **$49,032.04** (F-6224)
+  7. `TH-1030` (31/08/2026 -> 30/09/2026): **$74,820.00** (F-6200)
+  8. `GT-874` (24/08/2026 -> 23/09/2026): **$49,880.00** (F-6193)
+  9. `TH-990` (24/08/2026 -> 23/09/2026): **$98,054.60** (F-6198)
+  10. `TH-946` (17/08/2026 -> 16/09/2026): **$81,780.00** (F-6167)
+- **Total Cartera Activa:** **$805,190.14 MXN**. Cero facturas huérfanas; todas debidamente amparadas con su folio oficial de contrarecibo.
+
+### ✅ Padrón de 10 Contrarecibos Ya Pagados ($1,032,087.04 MXN)
+- **Registro Histórico Liquidado:** Confirmación de los 10 CRs formalmente liquidados por Providencia: `TH-912` ($79,826.00), `TH-879` ($136,300.00), `TH-836` ($106,720.17), `GT-742` ($54,520.00), `TH-804` ($136,300.00), `GT-713` ($69,001.60), `TH-768` ($125,254.25), `TH-739` ($109,040.00), `GT-651` ($106,477.56), y `TH-713` ($108,647.46).
+
+### 🧾 Ingesta Factura 6271 (1,500 kg) & Cierre OC 120267114114 al 98.63%
+- **Resolución de la OC de Nava:** Con la ingesta de la Factura 6271 ($74,820.00 con IVA amparada con CR TH-1103), el total facturado subió a **6,411.01 kg** de los 6,500.00 kg contratados. El saldo faltante real es de sólo **88.99 kg** (1.37% de merma normal de pesaje de báscula), quedando la orden lista y sellada para cierre.
+
+### 🏁 Módulo de Auditoría y Reporte de Cierre de Órdenes de Compra
+- **`OcClosureModal`:** Interfaz Obsidian Dark para sellar el cierre de una OC, calculando automáticamente kilos contratados vs entregados en báscula vs facturados, tasa de cumplimiento (%), kilos faltantes/excedentes, valor monetario a $38/kg de maquila y motivo de cierre.
+- **`OcFulfillmentReportModal`:** Tablero accesible desde `/ordenes` y `ActionRadar` con métricas globales de cumplimiento, filtros (Completas vs Con Faltantes), desglose por partidas y botones de **Exportación a CSV/Excel** y **Compartir Resumen por WhatsApp**.
+
 ## [v9.7.1] - 25 Septiembre 2026 (Consolidación de Rutas, Cero Pantallas Redundantes y Puente Logístico-Financiero)
 
 ### 🧭 Unificación Definitiva de Configuración & Eliminación de Rutas Redundantes

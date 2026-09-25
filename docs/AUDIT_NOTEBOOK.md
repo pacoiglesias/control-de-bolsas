@@ -1,3 +1,44 @@
+### Iteración 118: Calibración Maestra de Cartera Providencia, Saldo de Caja $844,526.90 y Auditoría de Cierres de OC
+[2026-09-25]
+Archivos: `src/lib/constants.ts`, `src/pages/CajaChica.tsx`, `src/components/Orders/OcClosureModal.tsx`, `src/components/Orders/OcFulfillmentReportModal.tsx`, `src/pages/Orders.tsx`, `src/components/Dashboard/ActionRadar.tsx`, `src/context/OrdersContext.tsx`, `src/lib/types.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Desalineación entre los contrarecibos en sistema y el portal en vivo de Providencia:
+   - Faltaba incorporar los 5 nuevos contrarecibos generados en septiembre (GT-993, GT-962, TH-1103, GT-929, TH-1068).
+   - El padrón de contrarecibos pagados no reflejaba los 10 CRs formalmente liquidados ($1,032,087.04).
+2. Saldo en efectivo de caja chica desactualizado:
+   - El usuario reportó el saldo físico real en efectivo en caja a $844,526.90 MXN.
+3. Ingesta pendiente de la Factura 6271 (1,500 kg):
+   - La OC 120267114114 figuraba con 1,588.99 kg pendientes por surtir, cuando en realidad la Factura 6271 amparaba 1,500.00 kg adicionales y el saldo real era de solo 88.99 kg (1.37%).
+4. Ausencia de control formal y reportes de OCs cerradas / concluidas con faltante:
+   - El usuario requería poder cerrar OCs registrando el motivo, mermas de báscula, kilos faltantes y valor monetario a $38/kg, así como un reporte de cumplimiento con exportación a Excel y WhatsApp.
+Solución:
+1. **Actualización Canónica de Cartera Oficial de Providencia:**
+   - 10 Contrarecibos Vigentes Activos por $805,190.14 MXN con vinculación 1:1 de facturas en `src/lib/constants.ts`.
+   - 10 Contrarecibos Ya Pagados por $1,032,087.04 MXN.
+   - Saldo en efectivo de caja calibrado a $844,526.90 MXN.
+2. **Ingesta de Factura 6271 y Conciliación Nava TH:**
+   - Registrada Factura 6271 por $74,820.00 (1,500.00 kg) vinculada a CR TH-1103. Total entregado y facturado de la OC 14114 elevado a 6,411.01 kg (98.63% de cumplimiento, 88.99 kg de merma normal).
+3. **Módulo de Auditoría de Cierre (`OcClosureModal`):**
+   - Modal interactivo Obsidian Dark que concilia los 4 pilares, calcula tasa de cumplimiento y valor monetario del faltante a $38/kg de maquila y $43/kg de venta, guardando `closureAudit` en Firestore.
+4. **Tablero y Reporte de Cumplimiento & Faltantes (`OcFulfillmentReportModal`):**
+   - Vista ejecutiva con KPIs globales, filtros por cumplimiento (≥98% vs <98%), exportación a CSV/Excel y resumen estructurado para WhatsApp.
+Riesgo: 🟢 Cero — Reglas financieras, tipos TypeScript y 206/206 pruebas en Vitest aprobadas.
+Estado: ✅ Verificado — Compilación estricta y despliegue a producción.
+
+---
+
+### Iteración 117: Conciliación Semanal Consolidada de Maquila Andrés y Radar de Cierre
+[2026-09-25]
+Archivos: `src/lib/whatsappReminder.ts`, `src/components/Dashboard/ActionRadar.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`
+Problema:
+- El operador debía reclamar a Andrés orden por orden vía WhatsApp; se requería un estado de cuenta semanal global con todos los kilos pendientes acumulados a $38/kg.
+Solución:
+- Implementado generador `generateEstadoCuentaSemanalAndresMessage`, card de conciliación consolidada en `ActionRadar.tsx` y banner persistente en `ExecutivePriorityAlerts.tsx`.
+Riesgo: 🟢 Cero.
+Estado: ✅ Verificado.
+
+---
+
 ### Iteración 116: Conciliación Cuádruple de Kilos (OC vs Báscula vs SAT vs Faltantes) y Toma de Decisión Inmediata (Reclamar a Andrés vs Concluir OC)
 [2026-09-25]
 Archivos: `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/pages/OcTracking.tsx`, `src/pages/Orders.tsx`, `src/lib/whatsappReminder.ts`, `docs/CHANGELOG.md`

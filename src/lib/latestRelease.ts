@@ -7,14 +7,16 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.7.1 Enterprise: Consolidación de Rutas, Cero Pantallas Redundantes y Puente Logístico-Financiero',
+  version: 'v9.8.0 Enterprise: Calibración Maestra de Cartera Providencia, Saldo de Caja $844,526.90 y Auditoría de Cierres de OC',
   date: '25 de Septiembre de 2026',
-  time: '06:45 PM',
-  summary: 'Ejecución del Plan Maestro de Usabilidad: erradicación total de pantallas y rutas redundantes (unificación de Configuración y Usuarios en el Centro de Control con sincronización en URL), selector de perspectiva bidireccional entre Expedientes y Seguimiento de Báscula (OC), y navegación optimizada para todos los roles.',
+  time: '07:20 PM',
+  summary: 'Alineación matemática 1:1 con los registros del portal oficial de Providencia: actualización de los 10 Contrarecibos Vigentes ($805,190.14 MXN), padrón de 10 Contrarecibos Pagados ($1,032,087.04 MXN), calibración de saldo en efectivo de caja a $844,526.90, incorporación de la Factura 6271 (1,500 kg), y módulo de auditoría de cierre de OCs con reporte de kilos faltantes y exportación.',
   highlights: [
-    '🧭 Unificación Definitiva de Configuración: Eliminación del enlace duplicado de personalización en la barra lateral; el Centro de Control ahora soporta navegación por URL (?tab=settings, ?tab=users, etc.) y permite a todos los roles acceder a sus temas sin fricción.',
-    '🌉 Puente Bidireccional Expedientes ⇄ Báscula: Botón de cambio de perspectiva instantáneo en la cabecera de Expedientes (🚚 Modo Báscula & Logística) y en Seguimiento por OC (📂 Modo Administrativo & Finanzas).',
-    '⚡ Depuración de Imports & Bundles: Retiro de imports perezosos duplicados en App.tsx y eliminación de componentes huérfanos sin llamadas.',
-    '🛡️ 204 Pruebas Unitarias Verificadas: 100% de la suite pasando en Vitest y compilación estricta aprobada.',
+    '💵 Saldo en Efectivo Calibrado a $844,526.90 MXN: Actualización canónica del saldo físico real en caja chica.',
+    '📑 Cartera Oficial Vigente ($805,190.14 MXN): Cuadre exacto de los 10 Contrarecibos en portal (GT-993, GT-962, TH-1103, GT-929, TH-1068, GT-904, TH-1030, GT-874, TH-990, TH-946).',
+    '✅ Cartera Pagada Oficial ($1,032,087.04 MXN): Registro histórico consolidado de los 10 Contrarecibos liquidados.',
+    '🧾 Ingesta Factura 6271 (1,500 kg): OC 120267114114 de Nava elevada al 98.63% de cumplimiento (6,411.01 kg facturados), saldo final de sólo 88.99 kg.',
+    '🏁 Auditoría y Reportes de Cierre de OC: Modal interactivo OcClosureModal y tablero OcFulfillmentReportModal con métricas de faltantes, mermas de pesaje, valor a $38/kg y exportación a CSV/WhatsApp.',
+    '🛡️ 206 Pruebas Unitarias Verificadas: 100% de la suite pasando en Vitest con tipado estricto.',
   ],
 };

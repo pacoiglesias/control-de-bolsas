@@ -161,7 +161,7 @@ export default function CajaChica() {
     const input = await promptDialog({
       title: '🔧 Calibrar Saldo en Efectivo de Caja',
       message: `El saldo actual calculado en sistema es ${money(saldo)}. Ingresa el saldo físico real en mano:`,
-      defaultValue: saldo === 0 ? '105938.56' : String(saldo),
+      defaultValue: saldo === 0 ? '844526.90' : String(saldo),
       confirmLabel: 'Ajustar Saldo',
     });
     if (input === null) return;
