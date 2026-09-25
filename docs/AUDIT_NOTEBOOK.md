@@ -1,3 +1,28 @@
+### Iteración 116: Conciliación Cuádruple de Kilos (OC vs Báscula vs SAT vs Faltantes) y Toma de Decisión Inmediata (Reclamar a Andrés vs Concluir OC)
+[2026-09-25]
+Archivos: `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/pages/OcTracking.tsx`, `src/pages/Orders.tsx`, `src/lib/whatsappReminder.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Dilema operativo con el proveedor maquilador (Andrés):
+   - Andrés con frecuencia entrega pedidos incompletos o parciales (ej. 75-80%) y el operador no tenía una forma rápida de evaluar si debe exigir el resto por WhatsApp o dar por cerrada la OC con lo entregado para poder facturar lo real.
+2. Carencia de visión en 4 pilares en las tablas de seguimiento:
+   - Se mostraba sólo el avance en barra sin el contraste simultáneo de: Kilos OC (Contratados), Kilos Báscula (Entregados físicamente a $38), Kilos Facturados (Timbrados SAT a $43) y Kilos Faltantes por entregar o por facturar.
+Solución:
+1. **Conciliación de 4 Pilares en Tiempo Real:**
+   - Implementada en `SeguimientoPedidosTable.tsx`, `OcTracking.tsx` y `Orders.tsx` con desglose visual de:
+     - 📋 OC: Kilos contratados de Providencia.
+     - 🚚 Báscula: Kilos recibidos en patio de Andrés ($38.00/kg).
+     - 🧾 Factura: Kilos amparados en CFDI 4.0 ($43.00/kg + IVA).
+     - ⏳ Restan: Kilos faltantes por surtir o ⚡ Por Facturar: Kilos listos para emitir CFDI.
+2. **Acción Operativa Inmediata (1 Clic):**
+   - Botón `[ 💬 Reclamar ]`: Redacta automáticamente un mensaje formal de WhatsApp para Andrés con folios de OC, total contratado, kilos recibidos en N viajes y kilos faltantes urgentes.
+   - Botón `[ 🏁 Concluir OC ]`: Abre diálogo interactivo de confirmación y marca `isClosedShort: true` en Firestore, liberando los kilos entregados para facturación inmediata sin arrastrar faltantes fantasma.
+   - Botón `[ 🔄 Reabrir OC ]`: Permite reactivar la orden en caso de que Andrés envíe un camión adicional imprevisto.
+Riesgo: 🟢 Cero — Fórmulas matemáticas, balances y reglas de $38/$43 intactas.
+Estado: ✅ Verificado — 204/204 tests pasando, 0 errores de TypeScript, build y deploy en producción exitosos.
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 3 (Ergonomía & Reducción de Clics), OKR 5 (Excelencia Visual & Cero Fricción).
+
+---
+
 ### Iteración 115: Consolidación de Rutas, Cero Pantallas Redundantes y Puente Logístico-Financiero
 [2026-09-25]
 Archivos: `src/App.tsx`, `src/components/Layout.tsx`, `src/pages/ControlCenter.tsx`, `src/pages/Orders.tsx`, `src/pages/OcTracking.tsx`, `package.json`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `docs/CHANGELOG.md`
