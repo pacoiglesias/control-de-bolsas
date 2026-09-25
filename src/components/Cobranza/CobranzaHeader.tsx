@@ -5,11 +5,13 @@ import { IconZap, IconRefresh, IconDownload, IconAlertTriangle, IconTrendingUp, 
 interface CobranzaHeaderProps {
   onOpenSincronizador: () => void;
   onOpenAutoConciliador: () => void;
+  onOpenSmartPaste: () => void;
 }
 
 export default function CobranzaHeader({
   onOpenSincronizador,
   onOpenAutoConciliador,
+  onOpenSmartPaste,
 }: CobranzaHeaderProps) {
   const {
     shareCarteraVencida,
@@ -97,6 +99,26 @@ export default function CobranzaHeader({
           title="Conciliar automáticamente depósitos y transferencias bancarias"
         >
           <IconRefresh size={16} /> Auto-Conciliar
+        </button>
+
+        {/* Pegar de WhatsApp / Portal */}
+        <button
+          className="btn"
+          style={{
+            background: 'rgba(16, 185, 129, 0.15)',
+            color: '#34d399',
+            fontWeight: 700,
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            fontSize: 13,
+          }}
+          onClick={onOpenSmartPaste}
+          title="Pegar texto de WhatsApp o portal de Providencia para vincular CR automáticamente"
+        >
+          📋 Pegar CR Rápido
         </button>
 
         {/* Menú Desplegable de Reportes & Exportación */}

@@ -125,25 +125,23 @@ export default function Layout() {
   const navItems = useMemo<NavItem[]>(() => [
     { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },
     
-    { type: 'group', label: 'OPERACIONES & BÁSCULA', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'group', label: 'OPERACIONES & PEDIDOS', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/proceso-compra', icon: '🪄', label: 'Nuevo Proceso de Compra', roles: ['admin', 'manager'] },
     { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC', roles: ['admin', 'manager'] },
     { type: 'link', to: '/captura-rapida', icon: '⚖️', label: 'Báscula & Entregas', roles: ['admin', 'manager'] },
     { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de SKUs', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/portal-maquilador', icon: '🚛', label: 'Portal del Maquilador', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'FINANZAS & LIQUIDEZ', roles: ['admin', 'manager'] },
+    { type: 'group', label: 'FINANZAS & COBRANZA', roles: ['admin', 'manager'] },
     { type: 'link', to: '/cobranza', icon: '🧾', label: `Cobranza Providencia`, roles: ['admin', 'manager'] },
     { type: 'link', to: '/compras', icon: '🏭', label: `Compras & Andrés`, roles: ['admin'] },
     { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
 
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/configuracion', icon: '🎨', label: 'Personalización y Temas', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/audit', icon: '🛡️', label: 'Centinela & Auditoría', roles: ['admin'] },
     { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocios BI', roles: ['admin'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin'] },
-    { type: 'link', to: '/usuarios', icon: '👥', label: 'Usuarios & Permisos', roles: ['admin'] },
+    { type: 'link', to: '/configuracion', icon: '🎨', label: 'Personalización y Temas', roles: ['manager', 'viewer'] },
   ], []);
 
   const handleDownloadLocalBackup = () => {

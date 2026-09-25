@@ -1,3 +1,33 @@
+### Iteración 113: Captura Fluida, Edición In-Situ de Folios/CR y Depuración Modular del ERP
+[2026-09-25]
+Archivos: `src/components/ui/InlineQuickEdit.tsx`, `src/components/Cobranza/SmartPasteCrModal.tsx`, `src/components/Dashboard/SeguimientoPedidosTable.tsx`, `src/components/Cobranza/CobranzaHeader.tsx`, `src/components/Cobranza/index.tsx`, `src/components/Layout.tsx`, `package.json`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Fricción operativa en captura y actualización de datos:
+   - Para registrar un número de factura o asignar un Contrarecibo (CR) era necesario abrir un modal completo, perdiendo el foco y el contexto de la tabla de seguimiento.
+2. Pérdida de tiempo al procesar información de WhatsApp y portales:
+   - Los números de CR y facturas llegaban como mensajes de texto sueltos por WhatsApp o correos de Providencia, requiriendo transcripción manual propensa a errores.
+3. Desorden y duplicidades en el menú de navegación:
+   - Enlaces duplicados para ajustes (`/configuracion` y `/centro-control`) y módulos secundarios dispersos sin jerarquía clara.
+Solución:
+1. **Componente de Edición Rápida In-Situ (`InlineQuickEdit`):**
+   - Integrado en las columnas de Facturas y Contrarecibos de `SeguimientoPedidosTable`.
+   - Permite editar folios directamente en la celda con 1 clic, guardando con `Enter` y cancelando con `Escape`. Actualiza atómicamente Firestore con toasts de confirmación.
+2. **Modal de Pegado Inteligente (`SmartPasteCrModal`):**
+   - Agregado en la cabecera de Cobranza (`📋 Pegar CR Rápido`).
+   - Parser predictivo que extrae folios (`TH-`/`GT-`), factura, monto y fecha de vencimiento desde cualquier fragmento de texto pegado, vinculándolo a la orden con 1 clic.
+3. **Depuración y Consolidación de Navegación (`Layout.tsx`):**
+   - Menú simplificado en 3 grupos operativos sin redundancias (`OPERACIONES & PEDIDOS`, `FINANZAS & COBRANZA`, `CONTROL & AUDITORÍA`).
+   - Centralización de ajustes en el Centro de Control para administradores.
+4. **Verificación Integral:**
+   - 204/204 pruebas unitarias aprobadas en Vitest.
+   - 7/7 verificaciones de auditoría superadas (`scripts/audit.sh`).
+   - Compilación de producción exitosa sin errores de tipado.
+Riesgo: 🟢 Cero — Mejoras operativas no destructivas con total compatibilidad hacia atrás.
+Estado: ✅ Verificado — Build de producción exitoso, 204 tests verdes, listo para despliegue.
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 2 (Facturación & Cobranza Automática), OKR 3 (Ergonomía & UI/UX).
+
+---
+
 ### Iteración 112: Rediseño Ergonómico Anti-Colisión en Alertas Prioritarias, Reconciliación Canónica TH/GT y Trazabilidad Horizontal 3-Way Matching
 [2026-09-25]
 Archivos: `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/components/ui/ThreeWayMatchingBadge.tsx`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`

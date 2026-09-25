@@ -22,6 +22,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import type { Invoice } from '../../lib/types';
 import AutoConciliadorModal from './AutoConciliadorModal';
 import { SincronizadorOficialModal } from './SincronizadorOficialModal';
+import { SmartPasteCrModal } from './SmartPasteCrModal';
 import { useToast } from '../../context/ToastContext';
 import { sound } from '../../lib/sounds';
 import type { PurchaseOrder } from '../../lib/types';
@@ -44,6 +45,7 @@ export default function Cobranza() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [showAutoConciliador, setShowAutoConciliador] = useState(false);
   const [showSincronizador, setShowSincronizador] = useState(false);
+  const [showSmartPaste, setShowSmartPaste] = useState(false);
   const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
   const [quickCrTarget, setQuickCrTarget] = useState<{ order: PurchaseOrder; invoice?: any } | null>(null);
 
@@ -436,6 +438,7 @@ export default function Cobranza() {
       <CobranzaHeader
         onOpenSincronizador={() => setShowSincronizador(true)}
         onOpenAutoConciliador={() => setShowAutoConciliador(true)}
+        onOpenSmartPaste={() => setShowSmartPaste(true)}
       />
 
       <CobranzaStats />
@@ -492,6 +495,12 @@ export default function Cobranza() {
       {showSincronizador && (
         <SincronizadorOficialModal orders={orders} onClose={() => setShowSincronizador(false)} />
       )}
+
+      <SmartPasteCrModal
+        isOpen={showSmartPaste}
+        onClose={() => setShowSmartPaste(false)}
+        orders={orders}
+      />
     </CobranzaContext.Provider>
   );
 }

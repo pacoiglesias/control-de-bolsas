@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
 import { Card, Empty } from '../ui';
+import { InlineQuickEdit } from '../ui/InlineQuickEdit';
 import { money, fmtDate, nombreClienteVisible, toDate } from '../../lib/format';
 import { getOrderSummary, extractCr, inferDepartment } from '../../lib/finance';
 import { KilosProgressBar } from '../Orders/KilosProgressBar';
@@ -34,6 +37,60 @@ export function SeguimientoPedidosTable({
   const deptNameTH = settings?.deptNameTH || 'Textil Hogar';
   const deptNameGT = settings?.deptNameGT || 'Grupo Textil';
   const [activeChip, setActiveChip] = useState<string>('ALL');
+
+  const handleUpdateOrderCr = async (order: PurchaseOrder, newCr: string) => {
+    const cleanCr = newCr.trim().toUpperCase();
+    try {
+      const orderRef = doc(db, PATHS.orders, order.id);
+      const updatedInvoices = (order.invoices || []).map((inv: any) => ({
+        ...inv,
+        collection: {
+          ...(inv.collection || {}),
+          contrareciboNumber: cleanCr,
+        },
+      }));
+
+      await updateDoc(orderRef, {
+        'collection.contrareciboNumber': cleanCr,
+        invoices: updatedInvoices,
+        updatedAt: serverTimestamp(),
+      });
+
+      toast(`Contrarecibo ${cleanCr || '(eliminado)'} actualizado en ${order.folio || order.oc}`, 'ok');
+    } catch (err: any) {
+      toast(`Error al guardar CR: ${err.message}`, 'bad');
+    }
+  };
+
+  const handleUpdateOrderInvoiceFolio = async (order: PurchaseOrder, newFolio: string) => {
+    const cleanFolio = newFolio.trim();
+    try {
+      const orderRef = doc(db, PATHS.orders, order.id);
+      let updatedInvoices = order.invoices || [];
+      if (updatedInvoices.length > 0) {
+        updatedInvoices = updatedInvoices.map((inv: any, idx: number) => (idx === 0 ? { ...inv, folio: cleanFolio } : inv));
+      } else if (cleanFolio) {
+        updatedInvoices = [
+          {
+            id: `inv-${cleanFolio}`,
+            folio: cleanFolio,
+            orderId: order.id,
+            kilos: Number(order.totalKilograms) || 0,
+            creditCycle: { status: 'facturado' },
+          } as any,
+        ];
+      }
+
+      await updateDoc(orderRef, {
+        invoices: updatedInvoices,
+        updatedAt: serverTimestamp(),
+      });
+
+      toast(`Factura #${cleanFolio} actualizada con éxito`, 'ok');
+    } catch (err: any) {
+      toast(`Error al actualizar factura: ${err.message}`, 'bad');
+    }
+  };
 
   // Determinar la estación de cada orden en el ciclo
   const getOrderStage = (o: PurchaseOrder): PipelineStageKey => {
@@ -421,26 +478,37 @@ export function SeguimientoPedidosTable({
                       {getStageBadge(f.stage, f.isClosedShort)}
                     </td>
                     <td className="mono" style={{ fontSize: 11.5, fontVariantNumeric: 'tabular-nums' }}>
-                      {f.facturas.length > 0 ? (
-                        f.facturas.map((fac, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', background: 'var(--paper-sunk, rgba(255,255,255,0.06))', border: '1px solid var(--border, rgba(255,255,255,0.1))', padding: '2px 7px', borderRadius: 6, marginRight: 4, fontWeight: 700 }}>
-                            #{fac}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: 'var(--ink-faint, rgba(255,255,255,0.3))', fontSize: 11 }}>Pendiente</span>
-                      )}
+                      <InlineQuickEdit
+                        value={f.facturas.join(', ')}
+                        placeholder="ej. F-6307"
+                        title="Clic para editar folio de factura directamente"
+                        emptyLabel="Pendiente"
+                        onSave={(val) => handleUpdateOrderInvoiceFolio(f.order, val)}
+                        badgeStyle={{
+                          background: f.facturas.length > 0 ? 'var(--paper-sunk, rgba(255,255,255,0.06))' : 'transparent',
+                          border: f.facturas.length > 0 ? '1px solid var(--border, rgba(255,255,255,0.1))' : '1px dashed rgba(255,255,255,0.2)',
+                          fontWeight: 700,
+                          borderRadius: 6,
+                          padding: '2px 8px',
+                        }}
+                      />
                     </td>
                     <td className="mono" style={{ fontSize: 11.5, fontVariantNumeric: 'tabular-nums' }}>
-                      {f.contrarecibos.length > 0 ? (
-                        f.contrarecibos.map((cr, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', background: 'rgba(217, 119, 6, 0.15)', border: '1px solid rgba(217, 119, 6, 0.35)', color: '#fbbf24', fontWeight: 800, padding: '2px 7px', borderRadius: 6, marginRight: 4 }}>
-                            {cr}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: 'var(--ink-faint, rgba(255,255,255,0.3))', fontSize: 11 }}>Sin CR</span>
-                      )}
+                      <InlineQuickEdit
+                        value={f.contrarecibos.join(', ')}
+                        placeholder="ej. TH-4235"
+                        title="Clic para asignar o cambiar Contrarecibo (CR)"
+                        emptyLabel="Sin CR"
+                        onSave={(val) => handleUpdateOrderCr(f.order, val)}
+                        badgeStyle={{
+                          background: f.contrarecibos.length > 0 ? 'rgba(217, 119, 6, 0.15)' : 'transparent',
+                          border: f.contrarecibos.length > 0 ? '1px solid rgba(217, 119, 6, 0.35)' : '1px dashed rgba(217, 119, 6, 0.3)',
+                          color: f.contrarecibos.length > 0 ? '#fbbf24' : 'var(--ink-faint)',
+                          fontWeight: 800,
+                          borderRadius: 6,
+                          padding: '2px 8px',
+                        }}
+                      />
                     </td>
                     <td style={{ fontSize: 12 }}>{f.cliente}</td>
                     <td style={{ fontSize: 11.5, color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums' }}>{fmtDate(f.fecha)}</td>

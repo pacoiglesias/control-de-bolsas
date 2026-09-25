@@ -1,5 +1,23 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.6.2] - 25 Septiembre 2026 (Captura Fluida, Edición In-Situ y Depuración Modular del ERP)
+
+### ✏️ Edición Rápida In-Situ (`InlineQuickEdit`) en Seguimiento de Pedidos
+- **Edición en 1-Clic de Folios:** Permite hacer clic directamente sobre cualquier celda de Factura o Contrarecibo (CR) en la tabla interactiva de pedidos (`SeguimientoPedidosTable`) para editar el valor sin necesidad de abrir modales pesados.
+- **Navegación Ergonómica por Teclado:** Guardado instantáneo con tecla `Enter` y cancelación con `Escape`, con indicador sutil de guardado y feedback visual mediante toasts reactivos de éxito.
+- **Persistencia Directa en Firestore:** Actualización atómica en la orden y en el espejo de facturas con validación y normalización automática de formatos (`TH-`, `GT-`, `F-`).
+
+### 📋 Pegado Inteligente de Contrarecibos (`SmartPasteCrModal`)
+- **Parser Asistido desde WhatsApp y Portal Providencia:** Modal accesible desde la cabecera de Cobranza (`📋 Pegar CR Rápido`) que analiza texto no estructurado copiado de mensajes o del portal oficial (`apps.mundoprovidencia.com`).
+- **Extracción Automática Predictiva:** Detecta automáticamente número de CR (`TH-xxxx`, `GT-xxxx`), folio de factura (`F-xxxx`), monto con IVA ($) y fecha de vencimiento (`DD/MM/AAAA`), relacionándolo de inmediato con la orden correspondiente y permitiendo aplicar la actualización en un solo clic.
+
+### 🧭 Depuración y Limpieza del Menú de Navegación Lateral (`Layout`)
+- **Estructuración en 3 Bloques Lógicos:** Eliminación de enlaces duplicados o redundantes:
+  - `OPERACIONES & PEDIDOS`: Dashboard, Nuevo Proceso, Expedientes y OCs, Seguimiento por OC, Báscula & Entregas, Catálogo.
+  - `FINANZAS & COBRANZA`: Cobranza Providencia, Compras Andrés, Caja Chica.
+  - `CONTROL & AUDITORÍA`: Centinela & Auditoría, Inteligencia BI, Configuración ERP.
+- **Centralización de Configuración:** Los usuarios administradores acceden al Centro de Control completo con todas sus pestañas consolidadas (Ajustes, Usuarios, Respaldos, Logs, Papelera).
+
 ## [v9.6.1] - 25 Septiembre 2026 (Rediseño Ergonómico Anti-Colisión en Alertas Prioritarias, Reconciliación Canónica TH/GT y Trazabilidad Horizontal 3-Way Matching)
 
 ### 📐 Rejilla y Tarjetas Anti-Colisión (`ExecutivePriorityAlerts`)
