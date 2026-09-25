@@ -46,6 +46,7 @@ export function DashboardHeaderToolbar({
   onOpenUniversalUpload,
   onAutoHeal,
   isHealing,
+  onOpenCuadreEjecutivo,
 }: {
   nav: NavigateFunction;
   toast: (msg: string, tone?: 'info' | 'ok' | 'bad') => void;
@@ -73,6 +74,7 @@ export function DashboardHeaderToolbar({
   onOpenUniversalUpload?: () => void;
   onAutoHeal?: () => void;
   isHealing?: boolean;
+  onOpenCuadreEjecutivo?: () => void;
 }) {
   const [showOfflineModal, setShowOfflineModal] = useState(false);
 
@@ -169,6 +171,36 @@ export function DashboardHeaderToolbar({
             >
               <span style={{ fontSize: 15 }}>{isHealing ? '⏳' : '🛡️'}</span>
               <span>{isHealing ? 'Reparando...' : 'Reparar Datos'}</span>
+            </button>
+          )}
+
+          {/* BOTÓN FRONT-ROW: CUADRE EJECUTIVO DIRECTO */}
+          {onOpenCuadreEjecutivo && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(180, 83, 9, 0.15) 100%)',
+                border: '1px solid rgba(245, 158, 11, 0.55)',
+                color: '#fbbf24',
+                fontWeight: 900,
+                fontSize: 13,
+                padding: '9px 16px',
+                borderRadius: 12,
+                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                triggerHaptic('medium');
+                onOpenCuadreEjecutivo();
+              }}
+              title="Consola de Cuadre Ejecutivo Directo (Ctrl+E): Ajusta caja, cuenta Andrés y cartera al instante"
+            >
+              <span style={{ fontSize: 15 }}>⚡</span>
+              <span>Cuadre Rápido</span>
             </button>
           )}
 

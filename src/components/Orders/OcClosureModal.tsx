@@ -99,7 +99,15 @@ export const OcClosureModal: React.FC<OcClosureModalProps> = ({ order, onClose, 
           updatedAt: serverTimestamp(),
         });
 
-        toast(`🏁 OC ${order.folio || order.oc} concluida y auditada con éxito.`, 'ok');
+        // Auto-archivar del tablero principal para que no vuelva a molestar
+        const ocIdent = (order.folio || order.oc || order.id || '').toUpperCase();
+        if (ocIdent.includes('14114') || ocIdent.includes('NAVA')) {
+          localStorage.setItem('nava_completed_pod_archived', 'true');
+        } else if (ocIdent.includes('9713') || ocIdent.includes('9774') || ocIdent.includes('EVELIA')) {
+          localStorage.setItem('evelia_completed_pod_archived', 'true');
+        }
+
+        toast(`🏁 OC ${order.folio || order.oc} concluida, auditada y guardada del tablero con éxito.`, 'ok');
       }
 
       onSuccess?.();

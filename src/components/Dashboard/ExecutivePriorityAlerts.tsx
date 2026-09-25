@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   OFFICIAL_VALID_CRS,
   OC_TH_NAVA,
+  OC_TH_ACTIVE,
   OC_GT_EVELIA,
   OC_GT_ACTIVE,
   CARTERA_OFICIAL,
@@ -98,11 +99,20 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   const [eveliaCompletedArchived, setEveliaCompletedArchived] = useState(() => {
     return localStorage.getItem('evelia_completed_pod_archived') === 'true';
   });
+  const [navaCompletedArchived, setNavaCompletedArchived] = useState(() => {
+    return localStorage.getItem('nava_completed_pod_archived') === 'true';
+  });
 
   const handleArchiveEveliaCompleted = () => {
     localStorage.setItem('evelia_completed_pod_archived', 'true');
     setEveliaCompletedArchived(true);
     toast('Expediente de GT (OC 9774) archivado y guardado del tablero.', 'ok');
+  };
+
+  const handleArchiveNavaCompleted = () => {
+    localStorage.setItem('nava_completed_pod_archived', 'true');
+    setNavaCompletedArchived(true);
+    toast('Expediente de TH (OC 14114) finiquitado y archivado del tablero.', 'ok');
   };
   const saleKg = config?.salePricePerKg || 43;
   const ivaRate = config?.ivaRate || 0.16;
@@ -112,6 +122,13 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     if (!o || (o as any).isDeleted) return false;
     const oc = (o.oc || o.folio || o.id || '').toUpperCase();
     return oc === OC_TH_NAVA || oc === `OC-${OC_TH_NAVA}` || oc.includes('14114');
+  }), [orders]);
+
+  // 1b. Detección Canónica de la OC Activa Oficial vigente para Nava (OC 120267114302 · 8,000 kg)
+  const navaActiveOrder = useMemo(() => (orders || []).find(o => {
+    if (!o || (o as any).isDeleted) return false;
+    const oc = (o.oc || o.folio || o.id || '').toUpperCase();
+    return oc === OC_TH_ACTIVE || oc === `OC-${OC_TH_ACTIVE}` || oc.includes('14302');
   }), [orders]);
 
   // 2. Detección Canónica de Evelia (Grupo Textil / P4 · OC 12026439713)
@@ -336,19 +353,46 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   const navaFacturadosKg = navaMetrics ? navaMetrics.facturadosKg : 6411.01;
   const navaFolios = navaMetrics?.foliosFacturados || 'F-6198, F-6200, F-6266, F-6271';
 
-  const navaTitle = navaPatioKg > 0
+  let navaBadge = '🏢 TH · José Nava';
+  let navaBadgeColor = '#fbbf24';
+  let navaOcLabel = `OC: ${OC_TH_NAVA}`;
+  let navaStatusLabel = navaPatioKg > 0 ? '⚡ Patio por Facturar' : navaOrder?.isClosedShort ? '🏁 Concluida' : '🟡 Remanente OC';
+  let navaTitle = navaPatioKg > 0
     ? `${navaPatioKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg en patio por facturar`
+    : navaOrder?.isClosedShort
+    ? `OC 14114 Concluida y Finiquitada con Acta Oficial`
     : navaRemanenteKg <= 100
     ? `Patio al día (0 kg) · Cumplida al 98.6% (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg saldo)`
     : `Patio al día (0 kg) · ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg por surtir`;
 
-  const navaSubtitle = `Entregados: ${navaEntregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${navaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${navaFolios}). Saldo remanente de OC: ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${money(navaRemanenteKg * saleKg * (1 + ivaRate))} con IVA) con finiquito acordado.`;
+  let navaSubtitle = navaOrder?.isClosedShort
+    ? `Entregados: ${navaEntregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${navaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${navaFolios}). Saldo remanente de 88.99 kg finiquitado formalmente bajo acta.`
+    : `Entregados: ${navaEntregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${navaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${navaFolios}). Saldo remanente de OC: ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${money(navaRemanenteKg * saleKg * (1 + ivaRate))} con IVA) con finiquito acordado.`;
 
-  const navaBtn = navaPatioKg > 0
+  let navaBtn = navaPatioKg > 0
     ? `⚡ Facturar Patio (${Math.round(navaPatioKg)} kg)`
+    : navaOrder?.isClosedShort
+    ? `🏁 OC Concluida (Ver Acta)`
     : navaRemanenteKg <= 100
     ? `🏁 OC Finiquitada (Ver Expediente)`
     : `⚡ Facturar Remanente`;
+  let navaTargetOrderId = navaOrder?.id || `oc-${OC_TH_NAVA}`;
+
+  // Si existe la OC Activa de Nava (OC 120267114302 · 8,000 kg), priorizarla en pantalla automáticamente
+  if (navaActiveOrder) {
+    const activeKg = Number(navaActiveOrder.totalKilograms) || 8000.0;
+    const activeEntregados = totalKilosEntregados(navaActiveOrder);
+    const activeFacturados = totalKilosFacturados(navaActiveOrder);
+    const activeRemanente = Math.max(0, activeKg - activeEntregados);
+    navaBadge = '🏢 TH · José Nava';
+    navaBadgeColor = '#3b82f6';
+    navaOcLabel = `OC: ${navaActiveOrder.oc || '120267114302'} (${navaActiveOrder.folio || '71/14302'})`;
+    navaStatusLabel = activeEntregados > 0 ? '⚡ En Suministro' : '📦 En Maquila';
+    navaTitle = `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
+    navaSubtitle = `Nueva orden oficial de Textil Hogar (José Nava). F-6307 timbrada (1,986 kg en revisión). ${activeRemanente > 0 ? `${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.` : 'Surtido completo.'}`;
+    navaBtn = activeEntregados > activeFacturados ? '⚡ Facturar Entregas' : '📦 Ver OC 14302';
+    navaTargetOrderId = navaActiveOrder.id || 'oc-120267114302';
+  }
 
   // ── Textos Dinámicos GT · Evelia ──────────────────────────────────────────
   const hasNewOc = !!eveliaNewOcOrder;
@@ -705,19 +749,24 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         }}
       >
         {/* POD 1: TEXTIL HOGAR (NAVA) */}
+        {(!navaCompletedArchived || navaActiveOrder) && (
         <motion.div
           whileHover={{ y: -3, transition: { duration: 0.2 } }}
           whileTap={{ scale: 0.99 }}
-          className="pulse-aura-amber"
+          className={navaActiveOrder ? 'pulse-aura-blue' : 'pulse-aura-amber'}
           style={{
-            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(180, 83, 9, 0.06) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.35)',
+            background: navaActiveOrder
+              ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(29, 78, 216, 0.06) 100%)'
+              : 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(180, 83, 9, 0.06) 100%)',
+            border: `1px solid ${navaActiveOrder ? 'rgba(59, 130, 246, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`,
             borderRadius: 18,
             padding: '18px 20px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.15)',
+            boxShadow: navaActiveOrder
+              ? '0 4px 20px -4px rgba(59, 130, 246, 0.15)'
+              : '0 4px 20px -4px rgba(245, 158, 11, 0.15)',
             minHeight: 230,
           }}
         >
@@ -729,15 +778,15 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                   fontWeight: 900,
                   padding: '4px 10px',
                   borderRadius: 8,
-                  background: 'rgba(245, 158, 11, 0.2)',
-                  color: '#fbbf24',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  background: navaActiveOrder ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  color: navaBadgeColor,
+                  border: `1px solid ${navaActiveOrder ? 'rgba(59, 130, 246, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
                   whiteSpace: 'nowrap',
                 }}
               >
-                🏢 TH · José Nava
+                {navaBadge}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span
@@ -746,16 +795,36 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                     fontWeight: 800,
                     padding: '3px 8px',
                     borderRadius: 6,
-                    background: navaPatioKg > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.15)',
-                    color: navaPatioKg > 0 ? '#f87171' : '#f59e0b',
-                    border: `1px solid ${navaPatioKg > 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(245, 158, 11, 0.3)'}`,
+                    background: navaActiveOrder
+                      ? 'rgba(59, 130, 246, 0.15)'
+                      : navaPatioKg > 0
+                      ? 'rgba(239, 68, 68, 0.2)'
+                      : navaOrder?.isClosedShort
+                      ? 'rgba(16, 185, 129, 0.2)'
+                      : 'rgba(245, 158, 11, 0.15)',
+                    color: navaActiveOrder
+                      ? '#60a5fa'
+                      : navaPatioKg > 0
+                      ? '#f87171'
+                      : navaOrder?.isClosedShort
+                      ? '#34d399'
+                      : '#f59e0b',
+                    border: `1px solid ${
+                      navaActiveOrder
+                        ? 'rgba(59, 130, 246, 0.3)'
+                        : navaPatioKg > 0
+                        ? 'rgba(239, 68, 68, 0.4)'
+                        : navaOrder?.isClosedShort
+                        ? 'rgba(16, 185, 129, 0.4)'
+                        : 'rgba(245, 158, 11, 0.3)'
+                    }`,
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {navaPatioKg > 0 ? '⚡ Patio por Facturar' : '🟡 Remanente OC'}
+                  {navaStatusLabel}
                 </span>
-                <span style={{ fontSize: 11.5, fontWeight: 800, color: '#f59e0b', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                  OC: {OC_TH_NAVA}
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: navaBadgeColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {navaOcLabel}
                 </span>
               </div>
             </div>
@@ -768,15 +837,140 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
               {navaSubtitle}
             </div>
 
-            {navaOrder && (
+            {(navaActiveOrder || navaOrder) && (
               <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
-                <ThreeWayMatchingBadge order={navaOrder} compact />
+                <ThreeWayMatchingBadge order={(navaActiveOrder || navaOrder)!} compact />
               </div>
             )}
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            {navaPatioKg === 0 && (navaRemanenteKg <= 150 || navaOrder?.isClosedShort) ? (
+            {navaActiveOrder ? (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => nav(`/ordenes?abrir=${navaTargetOrderId}`)}
+                  style={{
+                    flex: 1,
+                    minHeight: 40,
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {navaBtn}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => nav(`/ordenes?abrir=${navaTargetOrderId}`)}
+                  style={{
+                    minHeight: 40,
+                    background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
+                    color: 'var(--ink, #fff)',
+                    border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  📂 Ver OC 14302
+                </button>
+              </>
+            ) : navaOrder?.isClosedShort ? (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setClosingOrder(navaOrder)}
+                  style={{
+                    minHeight: 40,
+                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '9px 14px',
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Ver acta de auditoría y finiquito de la OC"
+                >
+                  🏁 OC Concluida (Ver Acta)
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleArchiveNavaCompleted}
+                  style={{
+                    flex: 1,
+                    minHeight: 40,
+                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Guardar y ocultar formalmente esta OC concluida del tablero"
+                >
+                  📥 Guardar y Ocultar del Tablero
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => nav(`/ordenes?abrir=${navaTargetOrderId}`)}
+                  style={{
+                    minHeight: 40,
+                    background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
+                    color: 'var(--ink, #fff)',
+                    border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  📂 Ver OC
+                </button>
+              </>
+            ) : navaPatioKg === 0 && navaRemanenteKg <= 150 ? (
               <>
                 <button
                   type="button"
@@ -794,9 +988,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                   style={{
                     flex: 1,
                     minHeight: 40,
-                    background: navaOrder?.isClosedShort
-                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
-                      : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                    background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
                     color: '#fff',
                     border: 'none',
                     padding: '9px 14px',
@@ -805,20 +997,16 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                     fontWeight: 900,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
-                    boxShadow: navaOrder?.isClosedShort
-                      ? '0 4px 12px rgba(5, 150, 105, 0.35)'
-                      : '0 4px 12px rgba(217, 119, 6, 0.35)',
+                    boxShadow: '0 4px 12px rgba(217, 119, 6, 0.35)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 6,
                     transition: 'all 0.15s ease',
                   }}
-                  title={navaOrder?.isClosedShort ? 'Ver acta de auditoría y finiquito de la OC' : 'Cerrar y finiquitar formalmente la orden con 88.99 kg de merma'}
+                  title="Cerrar y finiquitar formalmente la orden con 88.99 kg de saldo"
                 >
-                  {navaOrder?.isClosedShort
-                    ? '🏁 OC Concluida (Ver Acta)'
-                    : `🔒 Cerrar OC (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Finiquito)`}
+                  {`🔒 Cerrar OC (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Finiquito)`}
                 </button>
 
                 <button
@@ -929,6 +1117,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             )}
           </div>
         </motion.div>
+        )}
 
         {/* POD 2: GRUPO TEXTIL (EVELIA) */}
         {(!eveliaCompletedArchived || eveliaActiveOrder || isNewOcPendingInvoice) && (

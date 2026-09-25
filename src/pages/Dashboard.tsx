@@ -39,6 +39,7 @@ import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
 import { AdminFloatingButton } from '../components/Dashboard/AdminFloatingButton';
+import { ConsolaCuadreEjecutivoModal } from '../components/Dashboard/ConsolaCuadreEjecutivoModal';
 import type { PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
 
 export interface LiveLogEntry {
@@ -58,6 +59,20 @@ export default function Dashboard() {
   const { config } = useConfig();
   const nav = useNavigate();
   const toast = useToast();
+
+  // Consola de Cuadre Ejecutivo Directo (Ctrl + E)
+  const [showCuadreModal, setShowCuadreModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        setShowCuadreModal((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Estados de Monitoreo y Respaldos
   const [health] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({
@@ -393,6 +408,7 @@ export default function Dashboard() {
         onOpenUniversalUpload={() => setShowUniversalUpload(true)}
         onAutoHeal={handleAutoHeal}
         isHealing={isHealing}
+        onOpenCuadreEjecutivo={() => setShowCuadreModal(true)}
         globalOrders={globalOrders}
         purchases={purchases}
         expenses={expenses}
@@ -594,6 +610,22 @@ export default function Dashboard() {
             totalPurchasesCost={k.totalPurchasesCost ?? 0}
           />
         </>
+      )}
+
+      {/* 9. Consola de Cuadre Ejecutivo Directo & Protegido (Ctrl + E) */}
+      {showCuadreModal && (
+        <ConsolaCuadreEjecutivoModal
+          open={showCuadreModal}
+          onClose={() => setShowCuadreModal(false)}
+          saldoCaja={saldoCaja}
+          saldoAndres={k.deudaAndres ?? 0}
+          orders={activeOrders}
+          config={config as any}
+          userEmail={user?.email}
+          onRefreshData={() => {
+            triggerHaptic('light');
+          }}
+        />
       )}
     </div>
   );
