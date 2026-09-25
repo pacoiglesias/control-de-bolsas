@@ -12,9 +12,17 @@ import type { Invoice } from './types';
  * financiera antes de consolidarse en finance.core.ts.
  */
 export function camposInvoices(invoices: Invoice[]) {
+  // Firestore rejects `undefined` values. Convert any undefined field (e.g., notes) to null.
+  const cleaned = invoices.map((inv) => {
+    const copy: any = { ...inv };
+    Object.keys(copy).forEach((k) => {
+      if (copy[k] === undefined) copy[k] = null;
+    });
+    return copy;
+  });
   return {
-    invoices,
-    invoiceStatuses: invoices.map((i) => i.creditCycle?.status ?? 'pending'),
+    invoices: cleaned,
+    invoiceStatuses: cleaned.map((i) => i.creditCycle?.status ?? 'pending'),
     updatedAt: serverTimestamp(),
   };
 }

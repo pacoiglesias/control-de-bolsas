@@ -15,6 +15,7 @@ import {
   type UpdateData,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { cleanUndefined } from '../lib/cleanUndefined';
 
 export async function getDocById<T = DocumentData>(collectionName: string, id: string): Promise<T | null> {
   const docRef = doc(db, collectionName, id);
@@ -24,12 +25,12 @@ export async function getDocById<T = DocumentData>(collectionName: string, id: s
 
 export async function setDocData<T extends DocumentData>(collectionName: string, id: string, data: T, merge = true): Promise<void> {
   const docRef = doc(db, collectionName, id);
-  await setDoc(docRef, data, { merge });
+  await setDoc(docRef, cleanUndefined(data), { merge });
 }
 
 export async function updateDocData<T extends DocumentData>(collectionName: string, id: string, data: UpdateData<T>): Promise<void> {
   const docRef = doc(db, collectionName, id);
-  await updateDoc(docRef, data);
+  await updateDoc(docRef, cleanUndefined(data) as any);
 }
 
 export async function deleteDocById(collectionName: string, id: string): Promise<void> {
