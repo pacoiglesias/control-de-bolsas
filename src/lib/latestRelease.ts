@@ -7,14 +7,14 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.6.0 Enterprise: Menú Lateral Enriquecido, Live Status Card y Panel Universal de Captura 1-Clic',
+  version: 'v9.6.1 Enterprise: Rediseño Ergonómico Anti-Colisión de Alertas Prioritarias & Reconciliación Canónica TH/GT',
   date: '25 de Septiembre de 2026',
-  time: '12:15 AM',
-  summary: 'Rediseño mayor de accesibilidad y ergonomía: tarjeta de métricas en vivo en la barra lateral (kilos pendientes, caja chica y cartera por cobrar), panel de captura rápida para meter o modificar datos desde cualquier lugar sin cambiar de vista, botones directos en la cabecera superior y badges inteligentes.',
+  time: '03:15 PM',
+  summary: 'Rediseño integral de la tarjeta de alertas prioritarias en el Dashboard: erradicación total de textos encimados y saltos verticales, reconciliación precisa de departamentos (TH Nava vs GT Evelia en OC 120267114302), cálculo exacto de saldo remanente (6,014 kg pendientes tras F-6307) y botones de acción compactos con 204 tests unitarios pasando.',
   highlights: [
-    '📊 Live Status Card en Sidebar: Monitoreo en vivo de kilos por entregar en patio, saldo en efectivo en Caja Chica y cartera de Providencia con clic táctil para saltar a cada vista.',
-    '⚡ Panel Universal de Captura Rápida (1-Clic): Botones permanentes para registrar entregas de báscula, facturas CFDI, contrarecibos, documentos con auto-captura (IA/OCR) y movimientos de caja chica.',
-    '🚀 Accesos Directos en Topbar: Botones rápidos (+ Entrega, + Factura, ⚡ Auto-Subir) accesibles en la cabecera superior en desktop y laptop.',
-    '🏷️ Badges Inteligentes Dinámicos: Conteo en tiempo real de OCs activas, saldo en efectivo en pesos y centinela 100% OK en el menú lateral.',
+    '📐 Rejilla y Tarjetas Anti-Colisión: Rejilla fluida responsiva (minmax 330px), cabecera desacoplada con chips no rompibles y botones de acción con ancho optimizado sin desbordamiento.',
+    '🏢 Identificación Canónica TH vs GT: Corrección de la clasificación errónea de la OC 120267114302 (TH · José Nava), eliminando la confusión con Evelia.',
+    '⚖️ Cálculo Exacto de Remanente: Reconocimiento de entregas y facturación parcial (F-6307: 1,986 kg) mostrando el saldo exacto pendiente de entregar (6,014 kg de 8,000 kg).',
+    '🔗 3-Way Matching Horizontal: Semáforo de trazabilidad (OC ➔ Báscula ➔ Factura ➔ CR) bloqueado en una sola fila sin saltos de línea verticales.',
   ],
 };

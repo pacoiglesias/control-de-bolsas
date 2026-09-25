@@ -53,31 +53,76 @@ export const ThreeWayMatchingBadge: React.FC<ThreeWayMatchingBadgeProps> = ({ or
 
   if (compact) {
     return (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700 }}>
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          fontSize: 11,
+          fontWeight: 700,
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
+          overflowX: 'auto',
+          maxWidth: '100%',
+          padding: '2px 0',
+        }}
+      >
         <span
           title={`1. OC: ${order.folio || order.oc}`}
-          style={{ padding: '2px 6px', borderRadius: 4, background: getColor(ocState).bg, color: getColor(ocState).text }}
+          style={{
+            padding: '2px 7px',
+            borderRadius: 5,
+            background: getColor(ocState).bg,
+            color: getColor(ocState).text,
+            border: `1px solid ${getColor(ocState).border}`,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
         >
           OC {getColor(ocState).icon}
         </span>
-        <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
+        <span style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0, fontSize: 10 }}>→</span>
         <span
           title={`2. Báscula: ${deliveredKg.toLocaleString()} / ${goalKg.toLocaleString()} kg`}
-          style={{ padding: '2px 6px', borderRadius: 4, background: getColor(deliveryState).bg, color: getColor(deliveryState).text }}
+          style={{
+            padding: '2px 7px',
+            borderRadius: 5,
+            background: getColor(deliveryState).bg,
+            color: getColor(deliveryState).text,
+            border: `1px solid ${getColor(deliveryState).border}`,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
         >
           Báscula {getColor(deliveryState).icon}
         </span>
-        <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
+        <span style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0, fontSize: 10 }}>→</span>
         <span
           title={`3. Facturación: ${invoicedKg.toLocaleString()} kg facturados`}
-          style={{ padding: '2px 6px', borderRadius: 4, background: getColor(invoiceState).bg, color: getColor(invoiceState).text }}
+          style={{
+            padding: '2px 7px',
+            borderRadius: 5,
+            background: getColor(invoiceState).bg,
+            color: getColor(invoiceState).text,
+            border: `1px solid ${getColor(invoiceState).border}`,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
         >
           Factura {getColor(invoiceState).icon}
         </span>
-        <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
+        <span style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0, fontSize: 10 }}>→</span>
         <span
           title={hasCr ? `4. Contrarecibo: ${crNumbers.join(', ')}` : '4. Sin Contrarecibo'}
-          style={{ padding: '2px 6px', borderRadius: 4, background: getColor(crState).bg, color: getColor(crState).text }}
+          style={{
+            padding: '2px 7px',
+            borderRadius: 5,
+            background: getColor(crState).bg,
+            color: getColor(crState).text,
+            border: `1px solid ${getColor(crState).border}`,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
         >
           CR {getColor(crState).icon}
         </span>

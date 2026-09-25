@@ -3,7 +3,15 @@ import { motion } from 'framer-motion';
 import { money, toDate } from '../../lib/format';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 import { useNavigate } from 'react-router-dom';
-import { OFFICIAL_VALID_CRS, OC_TH_NAVA, OC_GT_EVELIA, CARTERA_OFICIAL, TOTAL_CARTERA_OFICIAL } from '../../lib/constants';
+import {
+  OFFICIAL_VALID_CRS,
+  OC_TH_NAVA,
+  OC_GT_EVELIA,
+  CARTERA_OFICIAL,
+  TOTAL_CARTERA_OFICIAL,
+  isOcTH,
+  isOcGT,
+} from '../../lib/constants';
 import { ThreeWayMatchingBadge } from '../ui/ThreeWayMatchingBadge';
 
 interface ExecutivePriorityAlertsProps {
@@ -13,12 +21,61 @@ interface ExecutivePriorityAlertsProps {
   onOpenQuickCollection: () => void;
 }
 
-// ─── helpers puros ────────────────────────────────────────────────────────────
+// ─── Helpers Puros ────────────────────────────────────────────────────────────
 function totalKilosFacturados(order: any): number {
   return (order?.invoices || []).reduce((s: number, i: any) => s + (Number(i.kilos) || 0), 0);
 }
+
 function totalKilosEntregados(order: any): number {
   return (order?.deliveries || []).reduce((s: number, d: any) => s + (Number(d.kilos) || 0), 0);
+}
+
+function getDepartmentMeta(order: Partial<PurchaseOrder> | null | undefined, fallbackDept?: 'TH' | 'GT') {
+  const oc = (order?.oc || order?.folio || order?.id || '').toUpperCase();
+  const dept = ((order as any)?.department || '').toUpperCase();
+  const client = (order?.client || '').toUpperCase();
+
+  const isTH =
+    isOcTH(oc) ||
+    dept.includes('TH') ||
+    client.includes('TH') ||
+    client.includes('NAVA') ||
+    client.includes('TEXTIL HOGAR') ||
+    fallbackDept === 'TH';
+
+  const isGT =
+    !isTH &&
+    (isOcGT(oc) ||
+      dept.includes('GT') ||
+      dept.includes('P4') ||
+      client.includes('GT') ||
+      client.includes('EVELIA') ||
+      client.includes('GRUPO TEXTIL') ||
+      fallbackDept === 'GT');
+
+  if (isTH) {
+    return {
+      department: 'TH' as const,
+      deptLabel: '🏢 TH · José Nava',
+      buyer: 'Lic. José Nava Flores',
+      accentColor: '#f59e0b',
+      accentBg: 'rgba(245, 158, 11, 0.12)',
+      accentBorder: 'rgba(245, 158, 11, 0.35)',
+      accentBtn: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+      shadow: '0 4px 12px rgba(217, 119, 6, 0.35)',
+    };
+  }
+
+  return {
+    department: 'GT' as const,
+    deptLabel: isGT ? '🏭 GT · Lic. Evelia' : '🏭 GT · Providencia',
+    buyer: 'Lic. Evelia',
+    accentColor: '#3b82f6',
+    accentBg: 'rgba(59, 130, 246, 0.12)',
+    accentBorder: 'rgba(59, 130, 246, 0.35)',
+    accentBtn: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    shadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+  };
 }
 
 export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = ({
@@ -59,7 +116,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     const facturadosKg = totalKilosFacturados(navaOrder);
     const entregadosKg = totalKilosEntregados(navaOrder);
     const patioKg = Math.max(0, entregadosKg - facturadosKg);
-    const remanenteOcKg = Math.max(0, goalKg - facturadosKg);
+    const remanenteOcKg = Math.max(0, goalKg - Math.max(entregadosKg, facturadosKg));
     const foliosFacturados = (navaOrder.invoices || []).map((i: any) => `F-${i.folio || i.id}`).join(', ');
     return { goalKg, facturadosKg, entregadosKg, patioKg, remanenteOcKg, foliosFacturados };
   }, [navaOrder]);
@@ -77,15 +134,28 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   }, [eveliaOrder]);
 
   // 5. OCs nuevas pendientes de surtir (status: 'pedido', distintas a las dos maestras)
-  const newPendingOrders = useMemo(() => (orders || []).filter(o => {
-    if (!o || (o as any).isDeleted) return false;
-    const st = (o as any).status || o.creditCycle?.status;
-    if (st !== 'pedido') return false;
-    const oc = (o.oc || o.folio || '').toUpperCase();
-    const isMaster = oc.includes('14114') || oc.includes('9713') ||
-                     oc === OC_TH_NAVA || oc === OC_GT_EVELIA;
-    return !isMaster;
-  }), [orders]);
+  const newPendingOrders = useMemo(() => {
+    const displayedIds = new Set([
+      navaOrder?.id,
+      eveliaOrder?.id,
+      eveliaNewOcOrder?.id,
+    ].filter(Boolean));
+
+    return (orders || []).filter(o => {
+      if (!o || (o as any).isDeleted) return false;
+      if (displayedIds.has(o.id)) return false;
+      const st = (o as any).status || o.creditCycle?.status;
+      if (st !== 'pedido' && st !== 'production' && st !== 'activo') return false;
+      const oc = (o.oc || o.folio || o.id || '').toUpperCase();
+      const isMaster =
+        oc.includes('14114') ||
+        oc.includes('9713') ||
+        oc === OC_TH_NAVA ||
+        oc === OC_GT_EVELIA ||
+        oc.includes('9774');
+      return !isMaster;
+    });
+  }, [orders, navaOrder, eveliaOrder, eveliaNewOcOrder]);
 
   // 6. Cartera de Contrarecibos Oficiales — con fallback al padrón canónico
   const carteraMetrics = useMemo(() => {
@@ -107,7 +177,6 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
       });
 
       if (!order) {
-        // CR canónico sin orden en DB → usar monto canónico
         porVencerCount++;
         porVencerMonto += entry.monto;
         return;
@@ -176,8 +245,9 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
 
     (orders || []).forEach((o) => {
       if (!o || (o as any).isDeleted) return;
-      const dept: 'TH' | 'GT' = (o.department as any) || ((o.client || '').toUpperCase().includes('GT') ? 'GT' : 'TH');
-      const buyer = dept === 'TH' ? 'Lic. José Nava Flores' : 'Lic. Evelia';
+      const deptMeta = getDepartmentMeta(o);
+      const dept = deptMeta.department;
+      const buyer = deptMeta.buyer;
 
       (o.invoices || []).forEach((inv: any) => {
         if (!inv) return;
@@ -233,7 +303,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
   };
 
-  // ── Textos dinámicos TH · Nava ────────────────────────────────────────────
+  // ── Textos Dinámicos TH · Nava ────────────────────────────────────────────
   const navaPatioKg = navaMetrics?.patioKg || 0;
   const navaRemanenteKg = navaMetrics ? navaMetrics.remanenteOcKg : 1588.99;
   const navaEntregadosKg = navaMetrics ? navaMetrics.entregadosKg : 4911.01;
@@ -242,15 +312,15 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
 
   const navaTitle = navaPatioKg > 0
     ? `${navaPatioKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg en patio por facturar`
-    : `Patio al día (0 kg pendientes) · ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg por surtir`;
+    : `Patio al día (0 kg) · ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg por surtir`;
 
   const navaSubtitle = `Entregados: ${navaEntregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${navaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${navaFolios}). Saldo remanente de OC: ${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${money(navaRemanenteKg * saleKg * (1 + ivaRate))} con IVA) pendientes de programar entrega.`;
 
   const navaBtn = navaPatioKg > 0
-    ? `⚡ Facturar ${navaPatioKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg en patio`
-    : `⚡ Facturar remanente OC (${navaRemanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
+    ? `⚡ Facturar Patio (${Math.round(navaPatioKg)} kg)`
+    : `⚡ Facturar Remanente`;
 
-  // ── Textos dinámicos GT · Evelia ──────────────────────────────────────────
+  // ── Textos Dinámicos GT · Evelia ──────────────────────────────────────────
   const hasNewOc = !!eveliaNewOcOrder;
   const newOcFacturados = hasNewOc ? totalKilosFacturados(eveliaNewOcOrder) : 0;
   const newOcGoal = Number(eveliaNewOcOrder?.totalKilograms) || 298.0;
@@ -260,27 +330,30 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   const eveliaFacturadosKg = eveliaMetrics ? eveliaMetrics.facturadosKg : 2674.0;
   const eveliaFolios = eveliaMetrics?.foliosFacturados || 'F-6193, F-6267, F-6268';
 
-  let eveliaBadge = '🏭 GT · Evelia (Pendiente Pedir OC)';
+  let eveliaBadge = '🏭 GT · Lic. Evelia';
   let eveliaBadgeColor = '#60a5fa';
   let eveliaOcLabel = `OC: ${OC_GT_EVELIA}`;
+  let eveliaStatusLabel = '📋 Pendiente OC';
   let eveliaTitle = `${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados en espera de nueva OC`;
   let eveliaSubtitle = `OC 9713 facturada al 100% (${eveliaFacturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg con ${eveliaFolios}). Faltan ${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados físicamente en planta P4 que requieren solicitar una nueva OC a Evelia para poder timbrarse (${money(eveliaExceso * saleKg * (1 + ivaRate))} con IVA).`;
-  let eveliaBtn = `📋 Solicitar Nueva OC (${eveliaExceso.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
+  let eveliaBtn = `📋 Solicitar Nueva OC`;
   let eveliaTargetOrderId = eveliaOrder?.id || `oc-${OC_GT_EVELIA}`;
 
   if (hasNewOc && isNewOcPendingInvoice) {
     const targetFolio = eveliaNewOcOrder?.folio || '43/9774';
-    eveliaBadge = `🏭 GT · Evelia (OC 9774 Registrada)`;
+    eveliaBadge = `🏭 GT · Lic. Evelia`;
     eveliaBadgeColor = '#34d399';
     eveliaOcLabel = `OC: 12026439774 (${targetFolio})`;
-    eveliaTitle = `OC 12026439774 en Sistema (${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg) · Lista para Facturar`;
+    eveliaStatusLabel = '⚡ Lista para Timbrar';
+    eveliaTitle = `OC 12026439774 (${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg) · Lista para Facturar`;
     eveliaSubtitle = `Ampara los ${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg entregados físicamente en Planta P4 (Folio ${targetFolio} · ${money(newOcGoal * saleKg * (1 + ivaRate))} con IVA). Lista para timbrarse.`;
-    eveliaBtn = `⚡ Facturar OC 9774 (${newOcGoal.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg)`;
+    eveliaBtn = `⚡ Facturar OC 9774`;
     eveliaTargetOrderId = eveliaNewOcOrder.id || 'oc-12026439774';
   } else if (hasNewOc && !isNewOcPendingInvoice) {
-    eveliaBadge = `🏭 GT · Evelia (Al Día)`;
+    eveliaBadge = `🏭 GT · Lic. Evelia`;
     eveliaBadgeColor = '#10b981';
     eveliaOcLabel = `OC: 12026439774 (43/9774)`;
+    eveliaStatusLabel = '✅ Al Día';
     eveliaTitle = `OC 9713 y OC 9774 Facturadas al 100%`;
     eveliaSubtitle = `Todos los kilos entregados físicamente en P4 (2,674 kg + 298 kg) se encuentran debidamente amparados y timbrados.`;
     eveliaBtn = `📂 Ver OC 9774`;
@@ -288,7 +361,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 14 }}>
       {/* BANNER PROACTIVO: FACTURAS SIN CONTRARECIBO (> 72 HORAS) */}
       {orphanInvoices.length > 0 && (
         <motion.div
@@ -366,14 +439,15 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         </motion.div>
       )}
 
+      {/* GRID PRINCIPAL DE ALERTAS EJECUTIVAS */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 14,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 330px), 1fr))',
+          gap: 16,
         }}
       >
-        {/* POD 1: TEXTIL HOGAR (NAVA) — datos reales de Firestore */}
+        {/* POD 1: TEXTIL HOGAR (NAVA) */}
         <motion.div
           whileHover={{ y: -3, transition: { duration: 0.2 } }}
           whileTap={{ scale: 0.99 }}
@@ -387,61 +461,82 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             flexDirection: 'column',
             justifyContent: 'space-between',
             boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.15)',
+            minHeight: 230,
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: 900,
-                  padding: '3px 10px',
+                  padding: '4px 10px',
                   borderRadius: 8,
                   background: 'rgba(245, 158, 11, 0.2)',
                   color: '#fbbf24',
                   border: '1px solid rgba(245, 158, 11, 0.4)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {navaPatioKg > 0 ? '🏢 TH · Nava (Patio por Facturar)' : '🏢 TH · Nava (Patio al Día · Remanente OC)'}
+                🏢 TH · José Nava
               </span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#f59e0b', fontVariantNumeric: 'tabular-nums' }}>
-                OC: {OC_TH_NAVA}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    background: navaPatioKg > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.15)',
+                    color: navaPatioKg > 0 ? '#f87171' : '#f59e0b',
+                    border: `1px solid ${navaPatioKg > 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(245, 158, 11, 0.3)'}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {navaPatioKg > 0 ? '⚡ Patio por Facturar' : '🟡 Remanente OC'}
+                </span>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: '#f59e0b', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  OC: {OC_TH_NAVA}
+                </span>
+              </div>
             </div>
 
-            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px' }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
               {navaTitle}
             </div>
 
-            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
               {navaSubtitle}
             </div>
 
             {navaOrder && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
                 <ThreeWayMatchingBadge order={navaOrder} compact />
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
             <button
               type="button"
               className="btn"
               onClick={() => onOpenQuickInvoice(navaOrder?.id || `oc-${OC_TH_NAVA}`)}
               style={{
                 flex: 1,
-                minHeight: 44,
+                minHeight: 40,
                 background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
                 color: '#fff',
                 border: 'none',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 boxShadow: '0 4px 12px rgba(217, 119, 6, 0.35)',
                 transition: 'all 0.15s ease',
               }}
@@ -453,15 +548,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
               className="btn"
               onClick={() => nav(`/ordenes?abrir=${navaOrder?.id || `oc-${OC_TH_NAVA}`}`)}
               style={{
-                minHeight: 44,
+                minHeight: 40,
                 background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
                 color: 'var(--ink, #fff)',
                 border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -470,7 +567,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           </div>
         </motion.div>
 
-        {/* POD 2: GRUPO TEXTIL (EVELIA) — datos reales de Firestore */}
+        {/* POD 2: GRUPO TEXTIL (EVELIA) */}
         <motion.div
           whileHover={{ y: -3, transition: { duration: 0.2 } }}
           whileTap={{ scale: 0.99 }}
@@ -483,61 +580,82 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             flexDirection: 'column',
             justifyContent: 'space-between',
             boxShadow: '0 4px 20px -4px rgba(59, 130, 246, 0.15)',
+            minHeight: 230,
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: 900,
-                  padding: '3px 10px',
+                  padding: '4px 10px',
                   borderRadius: 8,
                   background: hasNewOc ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)',
                   color: eveliaBadgeColor,
                   border: `1px solid ${hasNewOc ? 'rgba(16, 185, 129, 0.4)' : 'rgba(59, 130, 246, 0.4)'}`,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {eveliaBadge}
               </span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: hasNewOc ? '#10b981' : '#3b82f6', fontVariantNumeric: 'tabular-nums' }}>
-                {eveliaOcLabel}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    background: hasNewOc ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                    color: eveliaBadgeColor,
+                    border: `1px solid ${hasNewOc ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {eveliaStatusLabel}
+                </span>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: eveliaBadgeColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {eveliaOcLabel}
+                </span>
+              </div>
             </div>
 
-            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px' }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
               {eveliaTitle}
             </div>
 
-            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
               {eveliaSubtitle}
             </div>
 
             {(eveliaNewOcOrder || eveliaOrder) && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
                 <ThreeWayMatchingBadge order={(eveliaNewOcOrder || eveliaOrder)!} compact />
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
             <button
               type="button"
               className="btn"
               onClick={() => onOpenQuickInvoice(eveliaTargetOrderId)}
               style={{
                 flex: 1,
-                minHeight: 44,
+                minHeight: 40,
                 background: hasNewOc ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 color: '#fff',
                 border: 'none',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 boxShadow: hasNewOc ? '0 4px 12px rgba(5, 150, 105, 0.35)' : '0 4px 12px rgba(37, 99, 235, 0.35)',
                 transition: 'all 0.15s ease',
               }}
@@ -549,15 +667,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
               className="btn"
               onClick={() => nav(`/ordenes?abrir=${eveliaTargetOrderId}`)}
               style={{
-                minHeight: 44,
+                minHeight: 40,
                 background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
                 color: 'var(--ink, #fff)',
                 border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -579,55 +699,71 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             flexDirection: 'column',
             justifyContent: 'space-between',
             boxShadow: '0 4px 20px -4px rgba(139, 92, 246, 0.15)',
+            minHeight: 230,
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: 900,
-                  padding: '3px 10px',
+                  padding: '4px 10px',
                   borderRadius: 8,
                   background: 'rgba(139, 92, 246, 0.2)',
                   color: '#c4b5fd',
                   border: '1px solid rgba(139, 92, 246, 0.4)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                📑 En Revisión / Remisión
+                📑 Portal Providencia
               </span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#a78bfa' }}>
-                Portal Providencia
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(139, 92, 246, 0.15)',
+                  color: '#a78bfa',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🌐 Trámite de CR
               </span>
             </div>
 
-            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px' }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', lineHeight: 1.25 }}>
               Facturas recientes para tramitar CR
             </div>
 
-            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
               Monitorea el ingreso al portal de proveedores (<code style={{ fontSize: 11 }}>apps.mundoprovidencia.com</code>) para capturar los folios <strong>`TH-`</strong> y <strong>`GT-`</strong> oficiales y activar el ciclo de crédito.
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
             <button
               type="button"
               className="btn"
               onClick={onOpenQuickCollection}
               style={{
                 flex: 1,
-                minHeight: 44,
+                minHeight: 40,
                 background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
                 color: '#fff',
                 border: 'none',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 boxShadow: '0 4px 12px rgba(124, 58, 237, 0.35)',
                 transition: 'all 0.15s ease',
               }}
@@ -639,15 +775,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
               className="btn"
               onClick={() => nav('/cobranza')}
               style={{
-                minHeight: 44,
+                minHeight: 40,
                 background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
                 color: 'var(--ink, #fff)',
                 border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -656,7 +794,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           </div>
         </motion.div>
 
-        {/* POD 4: CARTERA OFICIAL — métricas reales con fallback canónico */}
+        {/* POD 4: CARTERA OFICIAL */}
         <motion.div
           whileHover={{ y: -3, transition: { duration: 0.2 } }}
           whileTap={{ scale: 0.99 }}
@@ -673,61 +811,78 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             boxShadow: vencidasCount > 0
               ? '0 4px 20px -4px rgba(239, 68, 68, 0.15)'
               : '0 4px 20px -4px rgba(16, 185, 129, 0.15)',
+            minHeight: 230,
           }}
         >
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: 900,
-                  padding: '3px 10px',
+                  padding: '4px 10px',
                   borderRadius: 8,
                   background: vencidasCount > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
                   color: vencidasCount > 0 ? '#f87171' : '#34d399',
                   border: `1px solid ${vencidasCount > 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {vencidasCount > 0 ? '🚨 Cobranza Urgente' : '🧾 Cartera Oficial'}
+                {vencidasCount > 0 ? '🚨 Cartera Providencia' : '🧾 Cartera Oficial'}
               </span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: vencidasCount > 0 ? '#f87171' : '#34d399', fontVariantNumeric: 'tabular-nums' }}>
-                {vencidasCount > 0 ? `${vencidasCount} Vencidas` : '8 CRs al día'}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  background: vencidasCount > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  color: vencidasCount > 0 ? '#f87171' : '#34d399',
+                  border: `1px solid ${vencidasCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {vencidasCount > 0 ? `${vencidasCount} Vencidas` : '✅ 8 CRs al Día'}
               </span>
             </div>
 
-            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
               {vencidasCount > 0
                 ? `${money(vencidasMonto)} por cobrar vencido`
                 : `${money(totalCarteraReal)} en 8 Contrarecibos`}
             </div>
 
-            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
               Cartera Total: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totalCarteraReal)}</strong>
               {porVencerMonto > 0 && ` · Por vencer: ${money(porVencerMonto)}`}
               {sinCrMonto > 0 && ` · Sin CR: ${money(sinCrMonto)}`}
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
             <button
               type="button"
               className="btn"
               onClick={onOpenQuickCollection}
               style={{
                 flex: 1,
-                minHeight: 44,
+                minHeight: 40,
                 background: vencidasCount > 0
                   ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
                   : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                 color: '#fff',
                 border: 'none',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 boxShadow: `0 4px 12px ${vencidasCount > 0 ? 'rgba(220, 38, 38, 0.35)' : 'rgba(5, 150, 105, 0.35)'}`,
                 transition: 'all 0.15s ease',
               }}
@@ -739,15 +894,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
               className="btn"
               onClick={() => nav('/cobranza')}
               style={{
-                minHeight: 44,
+                minHeight: 40,
                 background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
                 color: 'var(--ink, #fff)',
                 border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                padding: '10px 14px',
+                padding: '9px 12px',
                 borderRadius: 10,
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -756,18 +913,30 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           </div>
         </motion.div>
 
-        {/* POD 5 (DINÁMICO): OCs NUEVAS CON status:'pedido' — aparece automáticamente al subir una OC */}
+        {/* POD 5 (DINÁMICO): OCs NUEVAS PENDIENTES DE SURTIR */}
         {newPendingOrders.map((order) => {
           const goalKg = Number(order.totalKilograms) || 0;
-          const dept = (order as any).department || '';
-          const isTH = dept === 'TH' || (order.client || '').toUpperCase().includes('TEXTIL HOGAR');
-          const accentColor = isTH ? '#f59e0b' : '#3b82f6';
-          const accentBg = isTH ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)';
-          const accentBorder = isTH ? 'rgba(245, 158, 11, 0.35)' : 'rgba(59, 130, 246, 0.35)';
-          const accentBtn = isTH
-            ? 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'
-            : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
-          const deptLabel = isTH ? '🏢 TH · Nava' : '🏭 GT · Evelia';
+          const facturadosKg = totalKilosFacturados(order);
+          const entregadosKg = totalKilosEntregados(order);
+          const patioKg = Math.max(0, entregadosKg - facturadosKg);
+          const remanenteKg = Math.max(0, goalKg - Math.max(entregadosKg, facturadosKg));
+          const unitPrice = Number((order as any).pricePerKg || (order as any).costPerKg) || saleKg;
+          const valorRemanente = remanenteKg * unitPrice * (1 + ivaRate);
+          const foliosFacturados = (order.invoices || []).map((i: any) => `F-${i.folio || i.id}`).join(', ');
+
+          const deptInfo = getDepartmentMeta(order);
+
+          const title = remanenteKg > 0
+            ? `${remanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg por surtir${facturadosKg > 0 ? ` (de ${goalKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg)` : ''}`
+            : `OC amparada al 100% (${goalKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg)`;
+
+          const subtitle = facturadosKg > 0
+            ? `Entregados: ${entregadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg | Facturados: ${facturadosKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${foliosFacturados}). Saldo remanente: ${remanenteKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg (${money(valorRemanente)} con IVA) pendientes de programar entrega.`
+            : `OC: ${order.oc || order.folio} registrada por ${goalKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg. Valor total estimado: ${money(valorRemanente)} con IVA.`;
+
+          const primaryBtnText = patioKg > 0
+            ? `⚡ Facturar Patio (${Math.round(patioKg)} kg)`
+            : `⚡ Facturar Remanente`;
 
           return (
             <motion.div
@@ -778,96 +947,118 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
               whileHover={{ y: -3, transition: { duration: 0.2 } }}
               whileTap={{ scale: 0.99 }}
               style={{
-                background: `linear-gradient(135deg, ${accentBg} 0%, rgba(0,0,0,0.02) 100%)`,
-                border: `1px solid ${accentBorder}`,
+                background: `linear-gradient(135deg, ${deptInfo.accentBg} 0%, rgba(0,0,0,0.02) 100%)`,
+                border: `1px solid ${deptInfo.accentBorder}`,
                 borderRadius: 18,
                 padding: '18px 20px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                boxShadow: `0 4px 20px -4px ${accentBorder}`,
+                boxShadow: `0 4px 20px -4px ${deptInfo.shadow}`,
+                minHeight: 230,
               }}
             >
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
                   <span
                     style={{
                       fontSize: 11,
                       fontWeight: 900,
-                      padding: '3px 10px',
+                      padding: '4px 10px',
                       borderRadius: 8,
-                      background: isTH ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)',
-                      color: accentColor,
-                      border: `1px solid ${accentBorder}`,
+                      background: deptInfo.accentBg,
+                      color: deptInfo.accentColor,
+                      border: `1px solid ${deptInfo.accentBorder}`,
                       textTransform: 'uppercase',
                       letterSpacing: '0.3px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {deptLabel} — Nueva OC Pendiente
+                    {deptInfo.deptLabel}
                   </span>
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: 6,
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    color: '#34d399',
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
-                  }}>
-                    🟢 En Producción
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        background: patioKg > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                        color: patioKg > 0 ? '#f87171' : '#34d399',
+                        border: `1px solid ${patioKg > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {patioKg > 0 ? `⚡ ${patioKg.toLocaleString('es-MX')} kg en Patio` : '🟢 En Producción'}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        color: deptInfo.accentColor,
+                        fontVariantNumeric: 'tabular-nums',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      OC: {order.oc || order.folio}
+                    </span>
+                  </div>
                 </div>
 
-                <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums' }}>
-                  {goalKg > 0
-                    ? `${goalKg.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg por surtir`
-                    : 'OC registrada — kilos por confirmar'}
+                <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 }}>
+                  {title}
                 </div>
 
-                <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 6, lineHeight: 1.45 }}>
-                  OC: <strong style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{order.oc || order.folio}</strong>
-                  {goalKg > 0 && (
-                    <> · Valor estimado: <strong>{money(goalKg * saleKg * (1 + ivaRate))}</strong> con IVA</>
-                  )}
+                <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
+                  {subtitle}
+                </div>
+
+                <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
+                  <ThreeWayMatchingBadge order={order} compact />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
                 <button
                   type="button"
                   className="btn"
                   onClick={() => onOpenQuickInvoice(order.id)}
                   style={{
                     flex: 1,
-                    minHeight: 44,
-                    background: accentBtn,
+                    minHeight: 40,
+                    background: deptInfo.accentBtn,
                     color: '#fff',
                     border: 'none',
-                    padding: '10px 14px',
+                    padding: '9px 12px',
                     borderRadius: 10,
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: `0 4px 12px ${accentBorder}`,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    boxShadow: deptInfo.shadow,
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  ⚡ Facturar OC
+                  {primaryBtnText}
                 </button>
                 <button
                   type="button"
                   className="btn"
                   onClick={() => nav(`/ordenes?abrir=${order.id}`)}
                   style={{
-                    minHeight: 44,
+                    minHeight: 40,
                     background: 'var(--paper-sunk, rgba(255, 255, 255, 0.08))',
                     color: 'var(--ink, #fff)',
                     border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-                    padding: '10px 14px',
+                    padding: '9px 12px',
                     borderRadius: 10,
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: 700,
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -877,7 +1068,6 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             </motion.div>
           );
         })}
-
       </div>
     </div>
   );

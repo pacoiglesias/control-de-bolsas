@@ -1,3 +1,38 @@
+### Iteración 112: Rediseño Ergonómico Anti-Colisión en Alertas Prioritarias, Reconciliación Canónica TH/GT y Trazabilidad Horizontal 3-Way Matching
+[2026-09-25]
+Archivos: `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/components/ui/ThreeWayMatchingBadge.tsx`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`
+Problema:
+1. El cuadro de alertas prioritarias del Dashboard mostraba elementos visualmente encimados y distorsionados:
+   - Al coexistir 5 tarjetas (Nava 14114, Evelia 9774, Portal CR, Cartera y la nueva OC 14302), la rejilla CSS forzaba columnas estrechas (< 280px) donde los chips de departamento y las etiquetas de OC colisionaban directamente sobre la misma línea.
+   - Los botones de acción al pie de tarjeta envolvían textos largos ("⚡ Facturar remanente OC (1,588.99 kg)") en 3 o 4 líneas irregulares.
+2. Error de datos en identificación de cliente:
+   - La nueva orden de compra `120267114302` (perteneciente a Textil Hogar · José Nava Flores con 8,000 kg) se mostraba erróneamente clasificada como "GT · Evelia" debido a que la comprobación evaluaba estrictamente `department === 'TH'` o `client.includes('TEXTIL HOGAR')`, omitiendo el departamento real `'TH-ALMACEN-1'`, la razón social oficial y la función canónica `isOcTH`.
+3. Inexactitud en saldo remanente:
+   - En las órdenes en curso, el sistema presentaba el total contratado (8,000 kg) ignorando los 1,986 kg ya facturados con la factura oficial F-6307, en lugar de desglosar los 6,014 kg pendientes de surtir y su valor con IVA exacto.
+4. Desbordamiento vertical en 3-Way Matching:
+   - En pantallas compactas, los pasos del semáforo visual (OC ➔ Báscula ➔ Factura ➔ CR) saltaban verticalmente en 7 líneas separadas por flechas.
+Solución:
+1. **Rejilla Fluida y Tarjetas Anti-Colisión:**
+   - Adopción de `gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 330px), 1fr))'` con espaciado balanceado (16px) y altura mínima armónica (`minHeight: 230px`).
+   - Cabecera desacoplada con `flexWrap: 'wrap'` y chips con `whiteSpace: 'nowrap'`, asegurando que el badge del departamento y el estatus/OC se ubiquen con alineación perfecta sin jamás encimarse.
+   - Botones de acción ergonómicos de una sola línea con `whiteSpace: 'nowrap'`, truncamiento elíptico preventivo y botones secundarios con `flexShrink: 0`.
+2. **Reconciliación Canónica Universal TH vs GT (`getDepartmentMeta`):**
+   - Integración de `isOcTH` e `isOcGT` junto con búsqueda multicriterio (departamento `TH`, `P4`, `GT`, cliente `NAVA`, `EVELIA`).
+   - OC `120267114302` ahora se identifica de manera impecable como `🏢 TH · José Nava` con paleta ámbar y asignación a Lic. José Nava Flores.
+3. **Cálculo Preciso de Remanente y Kilos en Patio:**
+   - Desglose matemático: Kilos Totales, Facturados (con lista de folios como F-6307), Entregados, Patio por Facturar y Saldo Remanente por Surtir (6,014 kg · $299,978.32 MXN con IVA).
+   - Botones contextuales dinámicos: `⚡ Facturar Patio (X kg)` si hay báscula lista, o `⚡ Facturar Remanente` / `📂 Ver OC`.
+4. **Pipeline Horizontal 3-Way Matching Ininterrumpido:**
+   - `ThreeWayMatchingBadge` compact blindado con `flexWrap: 'nowrap'`, `whiteSpace: 'nowrap'`, `overflowX: 'auto'` y `flexShrink: 0`.
+5. **Verificación y Cobertura:**
+   - 204/204 pruebas unitarias pasando en Vitest (`npm test`).
+   - 0 errores TypeScript (`tsc && vite build`).
+Riesgo: 🟢 Cero — Mejoras puramente visuales y de precisión de datos en capa de presentación; la persistencia y reglas de negocio quedan intactas.
+Estado: ✅ Verificado — Build de producción exitoso, 204 tests verdes, listo para despliegue.
+OKRs afectados: OKR 1 (Precisión Numérica & Cartera), OKR 2 (Facturación & Cobranza Automática), OKR 3 (Ergonomía & UI/UX).
+
+---
+
 ### Iteración 111: Activación Canónica de Nuevas OCs Oficiales (TH 120267114302 & GT 12026439784), Desglose Parcial F-6298, Optimización de Bundles, 187 Tests y Despliegue Producción
 [2026-09-24]
 Archivos: `src/lib/constants.ts`, `src/context/OrdersContext.tsx`, `src/components/Layout.tsx`, `vite.config.ts`, `scripts/process_orders_and_invoices.cjs`, `scripts/backup_firestore_state.cjs`, `src/lib/__tests__/invoiceOps.test.ts`, `src/lib/__tests__/mathAndFormatCoverage.test.ts`

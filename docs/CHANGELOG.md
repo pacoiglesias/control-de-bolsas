@@ -1,5 +1,19 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.6.1] - 25 Septiembre 2026 (Rediseño Ergonómico Anti-Colisión en Alertas Prioritarias, Reconciliación Canónica TH/GT y Trazabilidad Horizontal 3-Way Matching)
+
+### 📐 Rejilla y Tarjetas Anti-Colisión (`ExecutivePriorityAlerts`)
+- **Eliminación Total de Textos Encimados:** Rejilla fluida responsiva (`minmax(min(100%, 330px), 1fr)`) que evita la compresión excesiva en pantallas de 1080p, laptops y modo multi-ventana.
+- **Cabeceras Desacopladas y Flexibles:** Los chips de departamento (`🏢 TH · José Nava`, `🏭 GT · Lic. Evelia`) y los badges de estatus/OC (`🟢 En Producción`, `⚡ Por Facturar`, etc.) se separan limpiamente con `flexWrap: 'wrap'` y `whiteSpace: 'nowrap'`, garantizando alineación visual sin colisiones.
+- **Botones Ergonómicos de 1-Línea:** Optimización del ancho de botones al pie de cada tarjeta (`⚡ Facturar Remanente`, `⚡ Facturar Patio`, `📂 Ver OC`) previniendo saltos a 3 o 4 líneas.
+
+### 🏢 Reconciliación Canónica TH vs GT en Nuevas OCs
+- **Corrección de Identificación de Cliente:** Solución de la clasificación errónea que etiquetaba la OC `120267114302` (TH · José Nava) como Evelia. Implementación de `getDepartmentMeta` con `isOcTH` e `isOcGT` y validación de razón social y departamento.
+- **Cálculo Exacto de Kilos y Montos Remanentes:** Reconocimiento de facturas vinculadas (F-6307: 1,986 kg) para mostrar con exactitud los 6,014 kg pendientes de entrega de los 8,000 kg originales y su valor remanente ($299,978.32 MXN con IVA).
+
+### 🔗 Pipeline Horizontal 3-Way Matching Ininterrumpido (`ThreeWayMatchingBadge`)
+- **Blindaje Anti-Salto Vertical:** Configuración de `flexWrap: 'nowrap'`, `whiteSpace: 'nowrap'` y `flexShrink: 0` en el semáforo visual de 4 pasos (OC ➔ Báscula ➔ Factura ➔ CR), impidiendo que se quiebre en líneas verticales.
+
 ## [v9.6.0] - 25 Septiembre 2026 (Menú Lateral Enriquecido + Live Status Card + Panel Universal de Captura y Edición Rápida 1-Clic)
 
 ### 📊 Tarjeta de Estado en Vivo en Menú Lateral (`SidebarLiveStatus`)
