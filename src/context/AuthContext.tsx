@@ -9,7 +9,8 @@ import {
   signInWithPopup,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { logAction } from '../lib/logger';
 import { auth, db, PATHS } from '../lib/firebase';
 
@@ -96,9 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!snap.exists() && isOwnerEmail) {
           try {
-            await setDoc(
-              adminRef,
-              {
+            await safeSetDoc(adminRef, {
                 email: u.email,
                 role: 'admin',
                 createdAt: serverTimestamp(),

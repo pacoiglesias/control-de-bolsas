@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { collection, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, Timestamp } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db } from '../lib/firebase';
 import { Card } from './ui';
 
@@ -26,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('Uncaught error:', error, errorInfo);
     try {
       const errorLogRef = doc(collection(db, 'error_logs'));
-      setDoc(errorLogRef, {
+      safeSetDoc(errorLogRef, {
         message: error.message,
         stack: error.stack,
         componentStack: errorInfo.componentStack,

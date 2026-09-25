@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db } from '../lib/firebase';
 
 export interface SystemSettings {
@@ -63,7 +64,7 @@ export function useSystemSettings() {
 }
 
 export async function saveSystemSettings(cfg: Partial<SystemSettings>) {
-  await setDoc(doc(db, 'system_settings', 'global'), cfg, { merge: true });
+  await safeSetDoc(doc(db, 'system_settings', 'global'), cfg, { merge: true });
 }
 
 /**
@@ -79,5 +80,5 @@ export async function getMaquilaPin(): Promise<string> {
 }
 
 export async function saveMaquilaPin(pin: string): Promise<void> {
-  await setDoc(doc(db, 'system_settings_private', 'maquila'), { pin }, { merge: true });
+  await safeSetDoc(doc(db, 'system_settings_private', 'maquila'), { pin }, { merge: true });
 }

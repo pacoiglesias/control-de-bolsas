@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
+import { doc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
+
 import { db, PATHS } from '../../lib/firebase';
 import { parseXmlInvoice, type ParsedInvoiceData } from '../../lib/xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from '../../lib/ocr';
@@ -180,7 +182,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         const isPartial = orderGoalKilos > 0 && totalInvoicedKilos < orderGoalKilos - 0.05;
         const prevStatus = (match as any).status || match.creditCycle?.status;
 
-        await updateDoc(doc(db, PATHS.orders, match.id), {
+        await safeUpdateDoc(doc(db, PATHS.orders, match.id), {
           invoices: updatedInvoices,
           deliveries: updatedDeliveries,
           status: isComplete ? 'facturado' : (prevStatus === 'pedido' ? 'facturado' : prevStatus),
@@ -352,7 +354,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
       }
 
       if (changed) {
-        await updateDoc(doc(db, PATHS.orders, match.id), updates);
+        await safeUpdateDoc(doc(db, PATHS.orders, match.id), updates);
       }
 
       // Auto-registrar productos nuevos en el catálogo de Firestore
@@ -360,7 +362,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         for (const it of parsedItems) {
           if (it.code && it.code !== 'S/C' && it.code !== '24141500') {
             try {
-              await setDoc(doc(db, PATHS.products, it.code.toUpperCase().trim()), {
+              await safeSetDoc(doc(db, PATHS.products, it.code.toUpperCase().trim()), {
                 code: it.code.toUpperCase().trim(),
                 description: it.description.trim(),
                 unit: it.unit || 'Kilos',
@@ -410,7 +412,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
     for (const it of items) {
       if (it.code && it.code !== 'S/C' && it.code !== '24141500') {
         try {
-          await setDoc(doc(db, PATHS.products, it.code.toUpperCase().trim()), {
+          await safeSetDoc(doc(db, PATHS.products, it.code.toUpperCase().trim()), {
             code: it.code.toUpperCase().trim(),
             description: it.description.trim(),
             unit: it.unit || 'Kilos',
@@ -513,7 +515,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         };
       }
 
-      await updateDoc(doc(db, PATHS.orders, targetOrder.id), {
+      await safeUpdateDoc(doc(db, PATHS.orders, targetOrder.id), {
         invoices: updatedInvoices,
         'collection.paidAmount': payment.amount,
         'collection.paidAt': payTs,
@@ -608,7 +610,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         updatedAt: serverTimestamp(),
       };
 
-      await updateDoc(doc(db, PATHS.orders, newId), paidDoc).catch(async () => {
+      await safeUpdateDoc(doc(db, PATHS.orders, newId), paidDoc).catch(async () => {
         await addDoc(collection(db, PATHS.orders), paidDoc);
       });
 
@@ -683,7 +685,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         };
       }
 
-      await updateDoc(doc(db, PATHS.orders, targetOrder.id), {
+      await safeUpdateDoc(doc(db, PATHS.orders, targetOrder.id), {
         invoices: updatedInvoices,
         'collection.paidAmount': transfer.amount,
         'collection.paidAt': payTs,
@@ -939,7 +941,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                 docType: 'remision',
                 docFolio: folio,
               };
-              await updateDoc(doc(db, PATHS.orders, match.id), {
+              await safeUpdateDoc(doc(db, PATHS.orders, match.id), {
                 deliveries: [...currentDeliveries, newDelivery],
               });
 
@@ -1120,7 +1122,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                 docType: 'remision',
                 docFolio: folio,
               };
-              await updateDoc(doc(db, PATHS.orders, match.id), {
+              await safeUpdateDoc(doc(db, PATHS.orders, match.id), {
                 deliveries: [...currentDeliveries, newDelivery],
               });
 
@@ -1360,7 +1362,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
               dueDate: dueDate ? Timestamp.fromDate(dueDate) : null,
             };
 
-            await updateDoc(doc(db, PATHS.orders, targetOrder.id), {
+            await safeUpdateDoc(doc(db, PATHS.orders, targetOrder.id), {
               invoices: updatedInvoices,
             });
 
@@ -1454,7 +1456,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
 
           if (match) {
             const currentDeliveries = match.deliveries || [];
-            await updateDoc(doc(db, PATHS.orders, match.id), {
+            await safeUpdateDoc(doc(db, PATHS.orders, match.id), {
               deliveries: [...currentDeliveries, {
                 id: `del-txt-${Date.now()}`,
                 date: Timestamp.now(),
@@ -1612,7 +1614,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         docFolio: xmlData.folio,
       });
 
-      await updateDoc(doc(db, PATHS.orders, targetOrder.id), {
+      await safeUpdateDoc(doc(db, PATHS.orders, targetOrder.id), {
         invoices: [...(targetOrder.invoices || []), newInvoice as any],
         deliveries: updatedDeliveries,
         status: 'facturado',
@@ -1894,7 +1896,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                           }}
                           onClick={async () => {
                             triggerHaptic('success');
-                            await updateDoc(doc(db, PATHS.orders, r.orderId!), {
+                            await safeUpdateDoc(doc(db, PATHS.orders, r.orderId!), {
                               isClosedShort: !r.isClosedShort,
                               status: !r.isClosedShort ? 'facturado' : 'pedido',
                             });

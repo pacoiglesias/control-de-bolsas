@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { doc, setDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { doc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc } from '../../../lib/safeFirestore';
 import { db, PATHS } from '../../../lib/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
@@ -127,7 +128,7 @@ export const ConfirmacionStep: React.FC<ConfirmacionStepProps> = ({
         wizardCreated: true,
       };
 
-      await setDoc(orderRef, newOrder);
+      await safeSetDoc(orderRef, newOrder);
 
       await logAction(
         user?.email || 'Sistema',

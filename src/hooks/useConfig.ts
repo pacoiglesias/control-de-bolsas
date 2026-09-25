@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { DEFAULT_CONFIG, type FinancialConfig } from '../lib/types';
 
@@ -32,5 +33,5 @@ export function useConfig() {
 }
 
 export async function saveConfig(cfg: FinancialConfig) {
-  await setDoc(doc(db, PATHS.config, PATHS.configFinancials), cfg, { merge: true });
+  await safeSetDoc(doc(db, PATHS.config, PATHS.configFinancials), cfg, { merge: true });
 }

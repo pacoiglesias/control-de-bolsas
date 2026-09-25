@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { doc, setDoc, onSnapshot, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from 'react-router-dom';
@@ -24,7 +25,7 @@ export function usePresence() {
     const presenceRef = doc(db, 'presence', user.uid);
     
     const updatePresence = () => {
-      setDoc(presenceRef, {
+      safeSetDoc(presenceRef, {
         uid: user.uid,
         email: user.email,
         currentPath: location.pathname,
@@ -38,7 +39,7 @@ export function usePresence() {
 
     // Cleanup on unmount or tab close
     const handleUnload = () => {
-      setDoc(presenceRef, { status: 'offline', lastActive: serverTimestamp() }, { merge: true });
+      safeSetDoc(presenceRef, { status: 'offline', lastActive: serverTimestamp() }, { merge: true });
     };
     window.addEventListener('beforeunload', handleUnload);
 

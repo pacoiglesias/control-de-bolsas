@@ -1,4 +1,5 @@
-import { doc, setDoc, runTransaction, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
 import { db } from '../../lib/firebase';
 import { PATHS } from '../../lib/firebase';
 import { computeDeliveredTotals, upsertAndresPurchase } from '../../lib/deliveries';
@@ -184,7 +185,7 @@ export function useOrderActions() {
                 ? it.code.trim().toUpperCase() 
                 : it.description.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
                 
-              await setDoc(doc(db, PATHS.products, productId), {
+              await safeSetDoc(doc(db, PATHS.products, productId), {
                 code: it.code?.trim() || null,
                 description: it.description.trim(),
                 unit: it.unit,
@@ -251,7 +252,7 @@ export function useOrderActions() {
       return;
     setBusy(true);
     try {
-      await updateDoc(doc(db, PATHS.orders, order.id), {
+      await safeUpdateDoc(doc(db, PATHS.orders, order.id), {
         isDeleted: deleteField(),
         deletedAt: deleteField(),
         deletedBy: deleteField(),

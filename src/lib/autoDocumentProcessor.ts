@@ -1,4 +1,5 @@
-import { doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from './safeFirestore';
 import { db, PATHS } from './firebase';
 import type { PurchaseOrder, FinancialConfig, PurchaseOrderItem, Invoice, Delivery } from './types';
 import type { ExtractedDocumentData } from '../components/Recepcion/SmartDocumentDropzone';
@@ -451,7 +452,7 @@ export async function executeAutoCreateOc(
     updatedAt: Timestamp.now(),
   };
 
-  await setDoc(orderRef, newOrder, { merge: true });
+  await safeSetDoc(orderRef, newOrder, { merge: true });
   return orderId;
 }
 
@@ -535,7 +536,7 @@ export async function executeAutoAssignInvoice(
   const totalInvoicedKilos = updatedInvoices.reduce((acc, inv) => acc + (inv.kilos || 0), 0);
   const isComplete = (targetOrder.totalKilograms || 0) > 0 && totalInvoicedKilos >= (targetOrder.totalKilograms || 0) - 1;
 
-  await updateDoc(orderRef, {
+  await safeUpdateDoc(orderRef, {
     ...camposInvoices(updatedInvoices),
     deliveries: updatedDeliveries,
     status: isComplete ? 'facturado' : ((targetOrder as any).status || targetOrder.creditCycle?.status || 'pedido'),
@@ -610,7 +611,7 @@ export async function executeAutoAssignContrarecibo(
       contrareciboPortalStatus: 'generado' as const,
     };
 
-    await updateDoc(orderRef, {
+    await safeUpdateDoc(orderRef, {
       ...camposInvoices(updatedInvoices),
       collection: updatedCollection,
       status: 'facturado',

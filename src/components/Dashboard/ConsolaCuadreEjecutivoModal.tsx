@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, collection, setDoc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+
+import { doc, collection, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { money } from '../../lib/format';
 import { round2 } from '../../lib/finance';
@@ -113,7 +115,7 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
       const entryType = deltaCaja > 0 ? 'ingreso' : 'egreso';
       const absAmount = Math.abs(deltaCaja);
 
-      await setDoc(newRef, {
+      await safeSetDoc(newRef, {
         id: newRef.id,
         date: Timestamp.now(),
         concept: `Ajuste / Cuadre Ejecutivo de Caja Chica (${deltaCaja > 0 ? '+' : ''}${money(deltaCaja)})`,
@@ -159,7 +161,7 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
       const entryType = deltaAndres > 0 ? 'salida' : 'ingreso';
       const absAmount = Math.abs(deltaAndres);
 
-      await setDoc(newRef, {
+      await safeSetDoc(newRef, {
         id: newRef.id,
         date: Timestamp.now(),
         concept: `Ajuste / Cuadre Ejecutivo Cuenta Andrés (${deltaAndres > 0 ? '+' : ''}${money(deltaAndres)})`,
@@ -230,7 +232,7 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
         });
 
         if (orderChanged) {
-          await updateDoc(doc(db, 'purchaseOrders', o.id), {
+          await safeUpdateDoc(doc(db, 'purchaseOrders', o.id), {
             invoices: newInvoices,
             updatedAt: serverTimestamp(),
           });
@@ -254,7 +256,7 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
       const ocIdent = (order.folio || order.oc || order.id || '').toUpperCase();
       
       // Actualizar en Firestore como cerrada
-      await updateDoc(doc(db, 'purchaseOrders', order.id), {
+      await safeUpdateDoc(doc(db, 'purchaseOrders', order.id), {
         isClosedShort: true,
         closureAudit: {
           closedAt: Timestamp.now(),
@@ -291,7 +293,7 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
     try {
       if (lastSnapshot.docId) {
         // Eliminar el documento de ajuste generado
-        await updateDoc(doc(db, PATHS.expenses, lastSnapshot.docId), {
+        await safeUpdateDoc(doc(db, PATHS.expenses, lastSnapshot.docId), {
           amount: 0,
           concept: `[REVERTIDO] Ajuste de cuadre cancelado (${new Date().toLocaleTimeString('es-MX')})`,
           updatedAt: serverTimestamp(),

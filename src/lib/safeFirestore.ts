@@ -1,26 +1,47 @@
 // src/lib/safeFirestore.ts
 /**
  * Wrapper utilities for Firestore writes that automatically sanitize undefined values.
- * Uses the cleanUndefined utility to replace undefined with null before sending to Firestore.
+ * Uses cleanUndefined to replace undefined fields with null before sending to Firestore.
  */
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  type DocumentReference,
+  type SetOptions,
+} from 'firebase/firestore';
+import { db } from './firebase';
 import { cleanUndefined } from './cleanUndefined';
 
 /**
- * Safe setDoc that sanitizes the data object.
+ * Safe setDoc that accepts either a DocumentReference or path string,
+ * sanitizing undefined fields to null recursively.
  */
-export async function safeSetDoc<T>(path: string, data: T, options?: { merge?: boolean }): Promise<void> {
-  const docRef = doc(db, ...path.split('/'));
+export async function safeSetDoc<T = any>(
+  docRefOrPath: DocumentReference<any> | string,
+  data: T,
+  options?: SetOptions
+): Promise<void> {
+  const ref =
+    typeof docRefOrPath === 'string'
+      ? (doc(db, ...docRefOrPath.split('/') as [string, ...string[]]) as DocumentReference<any>)
+      : docRefOrPath;
   const sanitized = cleanUndefined(data);
-  await setDoc(docRef, sanitized, options ?? {});
+  return setDoc(ref, sanitized as any, options ?? {});
 }
 
 /**
- * Safe updateDoc that sanitizes the data object.
+ * Safe updateDoc that accepts either a DocumentReference or path string,
+ * sanitizing undefined fields to null recursively.
  */
-export async function safeUpdateDoc<T>(path: string, data: Partial<T>): Promise<void> {
-  const docRef = doc(db, ...path.split('/'));
+export async function safeUpdateDoc(
+  docRefOrPath: DocumentReference<any> | string,
+  data: any
+): Promise<void> {
+  const ref =
+    typeof docRefOrPath === 'string'
+      ? (doc(db, ...docRefOrPath.split('/') as [string, ...string[]]) as DocumentReference<any>)
+      : docRefOrPath;
   const sanitized = cleanUndefined(data);
-  await updateDoc(docRef, sanitized as any);
+  return updateDoc(ref, sanitized as any);
 }

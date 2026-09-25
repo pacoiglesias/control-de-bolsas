@@ -15,7 +15,8 @@ import { Skeleton, Empty, Card } from '../components/ui';
 import { generateAndresAuditStatementPdf } from '../lib/andresStatementPdf';
 import type { Purchase, PurchaseOrder } from '../lib/types';
 import { money } from '../lib/format';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { triggerHaptic } from '../lib/hapticEngine';
 import { promptDialog } from '../lib/promptDialog';
@@ -164,7 +165,7 @@ export default function Compras() {
     }
 
     try {
-      await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: realBalance }, { merge: true });
+      await safeSetDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: realBalance }, { merge: true });
       triggerHaptic('success');
       toast(`✅ Saldo calibrado con éxito a ${money(realBalance)}.`, 'ok');
     } catch (e) {

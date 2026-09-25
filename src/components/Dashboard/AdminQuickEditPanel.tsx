@@ -1,6 +1,10 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, setDoc } from 'firebase/firestore';
+
+
+
+import { doc } from 'firebase/firestore';
+import { safeSetDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { useToast } from '../../context/ToastContext';
@@ -153,7 +157,7 @@ export function AdminQuickEditPanel({
       format: (v: number) => money(v) + '/kg',
       step: 0.5,
       save: async (v: number) => {
-        await setDoc(doc(db, PATHS.config, 'financials'), { salePricePerKg: v }, { merge: true });
+        await safeSetDoc(doc(db, PATHS.config, 'financials'), { salePricePerKg: v }, { merge: true });
       },
     },
     {
@@ -165,7 +169,7 @@ export function AdminQuickEditPanel({
       format: (v: number) => money(v) + '/kg',
       step: 0.5,
       save: async (v: number) => {
-        await setDoc(doc(db, PATHS.config, 'financials'), { costPricePerKg: v }, { merge: true });
+        await safeSetDoc(doc(db, PATHS.config, 'financials'), { costPricePerKg: v }, { merge: true });
       },
     },
     {
@@ -177,7 +181,7 @@ export function AdminQuickEditPanel({
       format: (v: number) => v.toFixed(2) + '%',
       step: 0.1,
       save: async (v: number) => {
-        await setDoc(doc(db, PATHS.config, 'financials'), { commissionRate: v / 100 }, { merge: true });
+        await safeSetDoc(doc(db, PATHS.config, 'financials'), { commissionRate: v / 100 }, { merge: true });
       },
     },
     {
@@ -189,7 +193,7 @@ export function AdminQuickEditPanel({
       format: (v: number) => v.toFixed(1) + '%',
       step: 0.5,
       save: async (v: number) => {
-        await setDoc(doc(db, PATHS.config, 'financials'), { ivaRate: v / 100 }, { merge: true });
+        await safeSetDoc(doc(db, PATHS.config, 'financials'), { ivaRate: v / 100 }, { merge: true });
       },
     },
     {
@@ -201,7 +205,7 @@ export function AdminQuickEditPanel({
       format: (v: number) => v + ' días',
       step: 1,
       save: async (v: number) => {
-        await setDoc(doc(db, PATHS.config, 'financials'), { creditDays: v }, { merge: true });
+        await safeSetDoc(doc(db, PATHS.config, 'financials'), { creditDays: v }, { merge: true });
       },
     },
     {
@@ -214,7 +218,7 @@ export function AdminQuickEditPanel({
       step: 100,
       save: async (v: number) => {
         const diff = v - (totalPagadoAndres - totalPurchasesCost);
-        await setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: diff }, { merge: true });
+        await safeSetDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: diff }, { merge: true });
       },
     },
   ];

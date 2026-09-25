@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { doc, setDoc, serverTimestamp, Timestamp, addDoc, collection, runTransaction } from 'firebase/firestore';
+import { doc, serverTimestamp, Timestamp, addDoc, collection, runTransaction } from 'firebase/firestore';
+import { safeSetDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -30,7 +31,7 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
     setBusy(true);
     try {
       const d = fromInputDate(fecha) ?? new Date();
-      await setDoc(doc(db, PATHS.purchases, purchase.id), {
+      await safeSetDoc(doc(db, PATHS.purchases, purchase.id), {
         date: Timestamp.fromDate(d),
         provider: purchase.provider || 'Andrés',
         expectedKilos: kilosCalculados,

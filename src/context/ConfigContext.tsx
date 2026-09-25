@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db } from '../lib/firebase';
 import { CARTERA_OFICIAL as LEGACY_CARTERA } from '../lib/constants';
 
@@ -34,7 +35,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       if (!snapshot.exists()) {
         // One-time migration/seed
         console.warn('Seeding config/carteraOficial from constants...');
-        await setDoc(docRef, { crs: LEGACY_CARTERA });
+        await safeSetDoc(docRef, { crs: LEGACY_CARTERA });
         return;
       }
 

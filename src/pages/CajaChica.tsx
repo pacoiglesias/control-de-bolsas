@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { doc, collection, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, collection, Timestamp } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { useExpenses } from '../hooks/useExpenses';
 import { useOrders } from '../hooks/useOrders';
@@ -177,7 +178,7 @@ export default function CajaChica() {
     }
     try {
       const newRef = doc(collection(db, PATHS.expenses));
-      await setDoc(newRef, {
+      await safeSetDoc(newRef, {
         id: newRef.id,
         date: Timestamp.now(),
         concept: `Ajuste / Calibración de Saldo de Caja Chica (${diff > 0 ? '+' : ''}${money(diff)})`,

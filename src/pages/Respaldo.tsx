@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { collection, doc, getDocs, query, serverTimestamp, setDoc, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { motion } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useOrders } from '../hooks/useOrders';
@@ -226,7 +227,7 @@ export default function Respaldo() {
         await batch.commit();
       }
 
-      await setDoc(doc(db, 'snapshots', 'fromHtml'), {
+      await safeSetDoc(doc(db, 'snapshots', 'fromHtml'), {
         payload: JSON.stringify(entrante.data).slice(0, 900_000),
         createdAt: serverTimestamp(),
         archivo: entrante.nombre,

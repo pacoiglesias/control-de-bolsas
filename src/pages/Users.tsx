@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { collection, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../lib/safeFirestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut as fbSignOut } from 'firebase/auth';
 import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
@@ -78,7 +79,7 @@ export default function Users() {
 
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
 
-      await setDoc(doc(db, 'admins', userCredential.user.uid), {
+      await safeSetDoc(doc(db, 'admins', userCredential.user.uid), {
         email: userCredential.user.email,
         role: newRole,
         createdAt: new Date(),
@@ -132,7 +133,7 @@ export default function Users() {
     if (!confirmado) return;
 
     try {
-      await updateDoc(doc(db, 'admins', userId), { role: targetRole });
+      await safeUpdateDoc(doc(db, 'admins', userId), { role: targetRole });
       triggerHaptic('success');
       toast('Rol actualizado con éxito', 'ok');
     } catch (err) {

@@ -1,5 +1,21 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.1] - 26 Septiembre 2026 (Blindaje Universal safeFirestore, Erradicación Error Undefined en Sincronizador Providencia y Logs Estructurados)
+
+### 🛡️ Blindaje Universal Firestore (`safeFirestore` & `cleanUndefined`)
+- **Sanitización Recursiva de `undefined`:** Creación e integración de `safeSetDoc` y `safeUpdateDoc` en todo el sistema. Reemplaza recursivamente cualquier valor `undefined` por `null` antes de enviarlo al SDK de Firebase, respetando intactas las instancias nativas de `Timestamp`, `FieldValue` y `Date`.
+- **Prevención Definitiva de Errores de Escritura:** Cero excepciones `Unsupported field value: undefined` en cualquier módulo del ERP (Cobranza, Recepción, Dashboard, Caja Chica, Compras, etc.).
+
+### ⚡ Sincronizador Oficial de Providencia 100% Corregido (`SincronizadorOficialModal`)
+- **Resolución de Error en CR GT-993:** Corregido el mapeo de partidas en `buildInvoices` donde folios sin `controlInterno` asignaban `notes: undefined`, provocando el fallo al sincronizar la orden `cr-gt993`.
+- **Actualización Segura de Facturas:** Se preservan los folios oficiales, status de ciclo de crédito y fechas límite de contrarecibos sin generar discrepancias.
+
+### 🪵 Registro Estructurado de Logs de Diagnóstico
+- **Error Tracking Unificado:** Se asegura el almacenamiento y reporte de errores en consola y en la colección de auditoría de errores (`error_logs`), permitiendo diagnóstico y resolución instantánea con trazabilidad completa.
+
+### 🧪 100% Suite de Pruebas Unitarias Aprobada
+- **207 de 207 Pruebas Exitosas:** Verificación completa en Vitest de los 30 archivos de prueba del ERP sin regresiones financieras, matemáticas ni de tipos.
+
 ## [v9.10.0] - 25 Septiembre 2026 (Consola de Cuadre Ejecutivo Directo & Protegido, Persistencia OCs Concluidas y Saldo Caja $844,526.90)
 
 ### ⚡ Consola de Cuadre Ejecutivo Directo (`ConsolaCuadreEjecutivoModal`)

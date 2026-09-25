@@ -4,7 +4,8 @@ import { ExtractedDocumentData } from './SmartDocumentDropzone';
 import { useOrders } from '../../hooks/useOrders';
 import { useToast } from '../../context/ToastContext';
 import { db, PATHS } from '../../lib/firebase';
-import { doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
 import { money } from '../../lib/format';
 import { computeFinancials } from '../../lib/finance';
 import { useConfig } from '../../hooks/useConfig';
@@ -129,7 +130,7 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
         invoices.push(newInvoice);
       }
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         invoices,
         'creditCycle.status': 'pending',
       });
@@ -165,7 +166,7 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
         return inv;
       });
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         invoices,
         'collection.contrareciboNumber': data.contrarecibo,
       });
@@ -258,7 +259,7 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
         createdAt: Timestamp.now(),
       };
 
-      await setDoc(orderRef, newOrder);
+      await safeSetDoc(orderRef, newOrder);
 
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
       toast(`🎉 Expediente creado con éxito para la OC ${folio} (${totalKilos} kg)`, 'ok');
@@ -305,7 +306,7 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
         return inv;
       });
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         invoices,
         'creditCycle.status': 'paid',
       });

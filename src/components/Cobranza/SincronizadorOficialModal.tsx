@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Modal } from '../ui';
 import { money, fmtDate } from '../../lib/format';
-import { doc, setDoc, updateDoc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
 import { round2, computeFinancials } from '../../lib/finance';
 import { db, PATHS, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -208,7 +209,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
           if (!hasMatchingCr && !hasMatchingPaidCr && !isInReview && !isOfficialOc && !isFactura6167 && !isRealActiveOrder) {
             try {
-              await updateDoc(doc(db, PATHS.orders, o.id), {
+              await safeUpdateDoc(doc(db, PATHS.orders, o.id), {
                 isDeleted: true,
                 deletedAt: serverTimestamp(),
                 deleteReason: 'Purga de expediente no perteneciente a cartera oficial',
@@ -248,7 +249,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                 id: `inv-${item.cr.toLowerCase()}-${inv.folio || idx}`,
                 orderId,
                 folio: inv.folio,
-                notes: inv.controlInterno ? `Control Interno: ${inv.controlInterno}` : undefined,
+                notes: inv.controlInterno ? `Control Interno: ${inv.controlInterno}` : null,
                 kilos: kEst,
                 creditCycle: {
                   status: 'pending',
@@ -301,7 +302,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           const updatedInvoices = buildInvoices(matchingOrder.id);
 
           const ref = doc(db, PATHS.orders, matchingOrder.id);
-          await updateDoc(ref, {
+          await safeUpdateDoc(ref, {
             ...camposInvoices(updatedInvoices),
             'collection.contrareciboNumber': item.cr,
             'collection.contrareciboDate': issueTs,
@@ -348,7 +349,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             updatedAt: serverTimestamp(),
           };
 
-          await setDoc(doc(db, PATHS.orders, newId), newOrderDoc, { merge: true });
+          await safeSetDoc(doc(db, PATHS.orders, newId), newOrderDoc, { merge: true });
           addLog(`✨ CR ${item.cr} (${money(item.total)}): Creado nuevo expediente oficial en Firestore.`);
         }
       }
@@ -418,7 +419,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           updatedAt: serverTimestamp(),
         };
 
-        await setDoc(doc(db, PATHS.orders, newId), paidDoc, { merge: true });
+        await safeSetDoc(doc(db, PATHS.orders, newId), paidDoc, { merge: true });
         addLog(`💰 CR Pagado ${item.cr} (${money(item.total)}): Registrado como liquidado al 100% en caja.`);
       }
 
@@ -548,7 +549,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             updatedAt: serverTimestamp(),
           };
 
-          await setDoc(doc(db, PATHS.orders, orderId), orderDoc, { merge: true });
+          await safeSetDoc(doc(db, PATHS.orders, orderId), orderDoc, { merge: true });
           const foliosListStr = items.map(i => `#${i.folio} (${i.kilos} kg)`).join(', ');
           addLog(`📝 OC ${ocNumber} (${isTH ? 'TH' : 'GT'}): Facturas ${foliosListStr} registradas en revisión.`);
 
@@ -566,7 +567,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             notes: `Entrega de ${totalKilosEntregados} kg para OC ${ocNumber}`,
             createdAt: serverTimestamp(),
           };
-          await setDoc(doc(db, PATHS.purchases, orderId), purchaseDoc, { merge: true });
+          await safeSetDoc(doc(db, PATHS.purchases, orderId), purchaseDoc, { merge: true });
         }
       }
 
@@ -598,7 +599,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           createdAt: issueTs,
           updatedAt: serverTimestamp(),
         };
-        await setDoc(doc(db, PATHS.orders, newOcId), newOcDoc, { merge: true });
+        await safeSetDoc(doc(db, PATHS.orders, newOcId), newOcDoc, { merge: true });
         addLog(`✨ Nueva OC ${OFFICIAL_NEW_OC.oc} (${OFFICIAL_NEW_OC.folio}): 4,500 kg registrados en estatus 'pedido'.`);
       }
 
@@ -607,7 +608,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const docRef = doc(db, PATHS.config, 'financials');
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists() || docSnap.data()?.historicalDebtAndres === undefined) {
-          await setDoc(docRef, { historicalDebtAndres: 103411.84 }, { merge: true });
+          await safeSetDoc(docRef, { historicalDebtAndres: 103411.84 }, { merge: true });
           addLog(`⚖️ Saldo histórico inicial con Andrés establecido a: $103,411.84.`);
         } else {
           addLog(`⚖️ Saldo histórico con Andrés preservado (ya configurado por el usuario: ${money(docSnap.data().historicalDebtAndres)}).`);

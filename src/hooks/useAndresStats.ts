@@ -1,5 +1,6 @@
 import { useMemo, useEffect } from 'react';
-import { Timestamp, setDoc, doc } from 'firebase/firestore';
+import { Timestamp, doc } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { usePurchases } from './usePurchases';
 import { useExpenses } from './useExpenses';
@@ -27,7 +28,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
 
   useEffect(() => {
     if (typeof config?.historicalDebtAndres === 'number' && (config.historicalDebtAndres > 500000 || Math.abs(config.historicalDebtAndres - 1227839.35) < 10)) {
-      setDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: 103411.84 }, { merge: true }).catch(() => {});
+      safeSetDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: 103411.84 }, { merge: true }).catch(() => {});
     }
   }, [config?.historicalDebtAndres]);
 

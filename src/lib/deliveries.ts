@@ -1,4 +1,5 @@
-import { Timestamp, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { Timestamp, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from './safeFirestore';
 import { db, PATHS } from './firebase';
 import { computeFinancials, addDays, round2 } from './finance';
 import type { Delivery, Invoice, PurchaseOrder, PurchaseOrderItem, FinancialConfig } from './types';
@@ -364,9 +365,9 @@ export async function upsertAndresPurchase(params: {
   const purchaseSnap = await getDoc(purchaseRef);
   const totalAmount = round2(receivedKilos * costPerKg);
   if (purchaseSnap.exists()) {
-    await updateDoc(purchaseRef, { expectedKilos, receivedKilos, pricePerKg: costPerKg, totalAmount });
+    await safeUpdateDoc(purchaseRef, { expectedKilos, receivedKilos, pricePerKg: costPerKg, totalAmount });
   } else {
-    await setDoc(purchaseRef, {
+    await safeSetDoc(purchaseRef, {
       date: serverTimestamp(),
       provider: provider || 'Andrés',
       expectedKilos,

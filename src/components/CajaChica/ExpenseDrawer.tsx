@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { doc, setDoc, serverTimestamp, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
+import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { Drawer, Field } from '../ui';
 import { CurrencyInput } from '../CurrencyInput';
@@ -56,8 +57,7 @@ export function ExpenseDrawer({
     setBusy(true);
     try {
       const d = fromInputDate(form.date) ?? new Date();
-      await setDoc(
-        doc(db, PATHS.expenses, expense.id),
+      await safeSetDoc(doc(db, PATHS.expenses, expense.id),
         {
           date: Timestamp.fromDate(d),
           concept: form.concept.trim(),
@@ -107,7 +107,7 @@ export function ExpenseDrawer({
       },
       async () => {
         const ref = doc(db, PATHS.expenses, expense.id);
-        await updateDoc(ref, {
+        await safeUpdateDoc(ref, {
           isDeleted: deleteField(),
           deletedAt: deleteField(),
           deletedBy: deleteField(),

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMessaging, getToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
-import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc } from '../lib/safeFirestore';
 import { app, db, auth } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 
@@ -106,7 +107,7 @@ export function useFCMNotifications() {
         // Guardar token en Firestore para alertas automáticas del backend
         const currentUser = auth.currentUser;
         const tokenId = fcmToken.substring(0, 40); // Clave segura
-        await setDoc(doc(db, 'fcm_tokens', tokenId), {
+        await safeSetDoc(doc(db, 'fcm_tokens', tokenId), {
           token: fcmToken,
           userId: currentUser?.uid || 'anonimo',
           userEmail: currentUser?.email || null,

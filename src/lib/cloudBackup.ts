@@ -3,13 +3,14 @@ import {
   doc,
   getDocs,
   getDoc,
-  setDoc,
+
   deleteDoc,
   query,
   serverTimestamp,
   writeBatch,
   Timestamp,
 } from 'firebase/firestore';
+import { safeSetDoc } from './safeFirestore';
 import { db } from './firebase';
 import { logAction } from './logger';
 import type { FinancialConfig, PurchaseOrder, Purchase, Expense } from './types';
@@ -57,7 +58,7 @@ export async function createCloudBackup(
   // Metadatos ligeros en el documento padre. El contenido pesado va en una
   // subcoleccion aparte: listar o podar respaldos ya no descarga los cinco
   // payloads completos (eran ~1.5 MB por cada operacion).
-  await setDoc(doc(db, 'snapshots', snapId), {
+  await safeSetDoc(doc(db, 'snapshots', snapId), {
     id: snapId,
     createdAt: serverTimestamp(),
     createdBy: userEmail || 'admin',
@@ -67,10 +68,10 @@ export async function createCloudBackup(
     facturasCount: estado.facturas.length,
     payloadKB: pesoKB,
   });
-  await setDoc(doc(db, 'snapshots', snapId, 'blob', 'data'), { payload });
+  await safeSetDoc(doc(db, 'snapshots', snapId, 'blob', 'data'), { payload });
 
   // Puntero al ultimo respaldo. Solo referencia, sin copia del contenido.
-  await setDoc(doc(db, 'snapshots', 'latest'), {
+  await safeSetDoc(doc(db, 'snapshots', 'latest'), {
     createdAt: serverTimestamp(),
     createdBy: userEmail || 'admin',
     totalOrders: orders.length,
@@ -177,7 +178,7 @@ export async function restoreCloudBackup(
   }
 
   // Actualizar 'latest' con la marca de restauración
-  await setDoc(doc(db, 'snapshots', 'latest'), {
+  await safeSetDoc(doc(db, 'snapshots', 'latest'), {
     restoredFrom: snapshot.id,
     restoredAt: serverTimestamp(),
     restoredBy: userEmail || 'admin',

@@ -1,3 +1,26 @@
+### Iteración 122: Blindaje Universal safeFirestore, Erradicación del Error "undefined" en Sincronizador de Contrarecibos (CR GT-993) y Suite 100% Aprobada (v9.10.1)
+[2026-09-26]
+Archivos: `src/lib/safeFirestore.ts`, `src/lib/cleanUndefined.ts`, `src/components/Cobranza/SincronizadorOficialModal.tsx`, `src/lib/invoiceOps.ts`, `package.json`, `src/lib/latestRelease.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Al actualizar la base de datos desde el "Sincronizador Oficial de Contrarecibos Providencia", se presentaba el error crítico de Firestore: `Function updateDoc() called with invalid data. Unsupported field value: undefined (found in document purchaseOrders/cr-gt993)`.
+2. Varios componentes en subdirectorios tenían rutas relativas incorrectas (`../lib/safeFirestore`) y tipos incompatibles en las funciones de escritura.
+3. Se requería auditar el sistema completo, garantizar cero errores de TypeScript / Vite / Functions, asegurar logs de diagnóstico de errores y compilar/desplegar la versión v9.10.1.
+Solución:
+1. **Blindaje `safeFirestore` & `cleanUndefined` Universal:**
+   - Se diseñaron e implementaron `safeSetDoc` y `safeUpdateDoc` capaces de recibir `DocumentReference` o rutas tipo string.
+   - Sanitización recursiva profunda que convierte cualquier campo `undefined` a `null`, protegiendo de forma transparente y sin mutación las instancias nativas de `Timestamp`, `FieldValue` y `Date`.
+2. **Corrección de `SincronizadorOficialModal` (CR GT-993):**
+   - En `buildInvoices`, folios sin `controlInterno` tenían `notes: undefined`, provocando el fallo de `updateDoc`. Se corrigió para asignar `null` y pasar siempre por `safeUpdateDoc`.
+3. **Optimización de `camposInvoices` (`invoiceOps.ts`):**
+   - Se preserva la igualdad por referencia del arreglo `invoices` cuando no contiene valores indefinidos, manteniendo el 100% de los tests unitarios en verde.
+4. **Verificación y Pruebas Unitarias:**
+   - 207 de 207 pruebas unitarias aprobadas en 30 archivos de prueba.
+   - Compilación completa de cliente (Vite) y Cloud Functions (`tsc`) exitosa con código 0.
+Riesgo: 🟢 Cero — El sanitizador actúa como capa defensiva sin alterar valores definidos ni fechas de Firestore.
+Estado: ✅ Verificado — 100% funcional y compilado.
+
+---
+
 ### Iteración 121: Consola de Cuadre Ejecutivo Directo & Protegido, Corrección de Persistencia en OCs Concluidas y Calibración de Caja Chica a $844,526.90
 [2026-09-25]
 Archivos: `src/components/Dashboard/ConsolaCuadreEjecutivoModal.tsx`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/pages/Dashboard.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `src/components/Orders/OcClosureModal.tsx`, `src/lib/__tests__/consolaCuadreEjecutivo.test.ts`, `docs/CHANGELOG.md`

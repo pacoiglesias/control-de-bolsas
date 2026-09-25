@@ -20,8 +20,12 @@ import Login from './pages/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReloadPrompt from './components/ReloadPrompt';
 import { llenarEspejoDeFacturas } from './lib/fillInvoicesMirror';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { safeSetDoc } from './lib/safeFirestore';
 import { db, PATHS } from './lib/firebase';
+
+
+
 
 // Cada pantalla se carga bajo demanda: antes las trece se importaban de forma
 // estatica y viajaban todas en el chunk principal, Recharts incluido pese a
@@ -131,7 +135,7 @@ function Gate() {
         // migración en sí ya corrió y quedó guardada, solo no se pudo
         // marcar la bandera global. La próxima vez que un Super Admin
         // entre, la marcará.
-        await setDoc(flagRef, { espejoFacturasV1: true, espejoFacturasV1At: serverTimestamp() }, { merge: true }).catch(() => {});
+        await safeSetDoc(flagRef, { espejoFacturasV1: true, espejoFacturasV1At: serverTimestamp() }, { merge: true }).catch(() => {});
       } catch (e) {
         console.warn('No se pudo llenar el espejo de facturas:', e);
       }
