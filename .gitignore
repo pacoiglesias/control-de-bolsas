@@ -19,6 +19,7 @@ Respaldos/
 backups/
 backup-*.zip
 *.zip
+*.bundle
 _respaldo_*/
 
 # Archivos temporales

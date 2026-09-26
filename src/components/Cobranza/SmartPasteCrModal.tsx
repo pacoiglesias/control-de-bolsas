@@ -38,7 +38,7 @@ export const SmartPasteCrModal: React.FC<SmartPasteCrModalProps> = ({
     const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
 
     // 4. Extraer Fecha (DD/MM/AAAA, DD-MM-AAAA, o "24 de octubre")
-    const dateMatch = rawText.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+    const dateMatch = rawText.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
     let dueDate: Date | null = null;
     if (dateMatch) {
       const day = parseInt(dateMatch[1], 10);

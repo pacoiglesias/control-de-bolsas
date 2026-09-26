@@ -1,3 +1,29 @@
+### Iteración 123: Auditoría Integral del Sistema, Blindaje de Reglas de Hooks, Higiene del Repositorio y 0 Warnings ESLint
+[2026-09-26]
+Archivos: `src/components/Orders/OcClosureModal.tsx`, `src/components/Cobranza/SmartPasteCrModal.tsx`, `src/lib/scaleTicketParser.ts`, `src/components/Recepcion/CameraTicketScannerModal.tsx`, `src/components/Upload/GlobalDropInspectorModal.tsx`, `.gitignore`, `scripts/audit.sh`, `docs/AUDIT_NOTEBOOK.md`
+Problema:
+1. Violación de reglas de hooks en `OcClosureModal.tsx`: `useState` se ejecutaba condicionalmente después de un early return (`if (!order) return null;`), lo que podía provocar inestabilidad o desincronización de estado en React.
+2. ESLint reportaba errores de sintaxis y advertencias en expresiones regulares (`SmartPasteCrModal.tsx`, `scaleTicketParser.ts`) y variables no utilizadas / fugas potenciales de Blob URLs en `GlobalDropInspectorModal.tsx`.
+3. El script de auditoría del repositorio (`scripts/audit.sh`) fallaba en el chequeo [3/7] debido a 24 archivos en la raíz (límite: 20) al tener zips y bundles de respaldo de más de 260 MB sueltos en el directorio principal.
+Solución:
+1. **Blindaje de Ciclo de Vida y Reglas de Hooks:**
+   - Se refactorizó `OcClosureModal` extrayendo el subcomponente interno `OcClosureModalContent`, garantizando que todos los hooks se invoquen incondicionalmente en el nivel superior.
+   - Se estabilizó la suscripción de `useOrdersContext` en `CameraTicketScannerModal` evitando dependencias inestables en `useMemo`.
+2. **Corrección de Regex y Fugas de Memoria:**
+   - Se simplificaron los character classes de expresiones regulares sin escapes redundantes en `SmartPasteCrModal.tsx` y `scaleTicketParser.ts`.
+   - En `GlobalDropInspectorModal.tsx`, se aisló el ciclo de vida de `createdUrl` en el scope del `useEffect` con revocación en cleanup y se habilitó la visualización de la miniatura de fotos de tickets/comprobantes arrastrados.
+3. **Higiene del Repositorio y Auditoría:**
+   - Se movieron todos los archivos de respaldo (`backup.zip`, `full_backup.zip`, `full_backup_clean.zip`, `repo.bundle`) a la carpeta segura `backups/`.
+   - Se añadió `*.bundle` a `.gitignore`.
+   - `scripts/audit.sh` ahora pasa 7 de 7 comprobaciones al 100%.
+   - ESLint: 0 errores y 0 advertencias en todo el proyecto.
+   - Vitest: 212 de 212 tests unitarios aprobados en 31 suites.
+   - Compilación completa (`tsc` cliente, `vite build`, `functions/tsc`) exitosa con código 0.
+Riesgo: 🟢 Cero — Mejoras de calidad de código, robustez de hooks e higiene del repositorio sin alterar contratos de datos ni lógica financiera.
+Estado: ✅ Verificado — 100% aprobado y compilado.
+
+---
+
 ### Iteración 122: Blindaje Universal safeFirestore, Erradicación del Error "undefined" en Sincronizador de Contrarecibos (CR GT-993) y Suite 100% Aprobada (v9.10.1)
 [2026-09-26]
 Archivos: `src/lib/safeFirestore.ts`, `src/lib/cleanUndefined.ts`, `src/components/Cobranza/SincronizadorOficialModal.tsx`, `src/lib/invoiceOps.ts`, `package.json`, `src/lib/latestRelease.ts`, `docs/CHANGELOG.md`

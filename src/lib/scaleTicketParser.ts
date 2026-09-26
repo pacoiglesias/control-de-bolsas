@@ -103,15 +103,15 @@ export function parseScaleTicket(text: string): ParsedScaleTicket {
   }
 
   // 5. Extraer FECHA (Formatos DD/MM/YYYY, YYYY-MM-DD o DD-MM-YYYY)
-  const dateMatch1 = text.match(/\b([0-3]?[0-9])[\/\-.]([0-1]?[0-9])[\/\-.](202[4-9]|[2-9][0-9])\b/);
+  const dateMatch1 = text.match(/\b([0-3]?[0-9])[/.-]([0-1]?[0-9])[/.-](202[4-9]|[2-9][0-9])\b/);
   if (dateMatch1) {
-    let day = dateMatch1[1].padStart(2, '0');
-    let month = dateMatch1[2].padStart(2, '0');
+    const day = dateMatch1[1].padStart(2, '0');
+    const month = dateMatch1[2].padStart(2, '0');
     let year = dateMatch1[3];
     if (year.length === 2) year = `20${year}`;
     result.dateStr = `${year}-${month}-${day}`;
   } else {
-    const dateMatch2 = text.match(/\b(202[4-9])[\/\-.]([0-1]?[0-9])[\/\-.]([0-3]?[0-9])\b/);
+    const dateMatch2 = text.match(/\b(202[4-9])[/.-]([0-1]?[0-9])[/.-]([0-3]?[0-9])\b/);
     if (dateMatch2) {
       const year = dateMatch2[1];
       const month = dateMatch2[2].padStart(2, '0');

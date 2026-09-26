@@ -23,10 +23,19 @@ const CLOSURE_REASONS = [
 ];
 
 export const OcClosureModal: React.FC<OcClosureModalProps> = ({ order, onClose, onSuccess }) => {
+  if (!order) return null;
+  return <OcClosureModalContent order={order} onClose={onClose} onSuccess={onSuccess} />;
+};
+
+interface OcClosureModalContentProps {
+  order: PurchaseOrder;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+const OcClosureModalContent: React.FC<OcClosureModalContentProps> = ({ order, onClose, onSuccess }) => {
   const { user } = useAuth();
   const toast = useToast();
-
-  if (!order) return null;
 
   // Cálculos de conciliación
   const itemsSum = (order.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);

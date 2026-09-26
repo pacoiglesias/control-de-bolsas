@@ -48,6 +48,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
   // Analizar archivo en el montaje
   useEffect(() => {
     let active = true;
+    let createdUrl: string | null = null;
 
     async function analyze() {
       setAnalyzing(true);
@@ -56,8 +57,8 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
 
         // Si es imagen, generar URL de previsualización
         if (file.type.startsWith('image/')) {
-          const url = URL.createObjectURL(file);
-          setImagePreviewUrl(url);
+          createdUrl = URL.createObjectURL(file);
+          setImagePreviewUrl(createdUrl);
         }
 
         // 1. CASO XML CFDI
@@ -166,7 +167,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
 
     return () => {
       active = false;
-      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
   }, [file, orders]);
 
@@ -396,6 +397,16 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
               <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: 'var(--ink-faint)', letterSpacing: '0.4px' }}>
                 📊 Datos Extraídos del Documento
               </div>
+
+              {imagePreviewUrl && (
+                <div style={{ textAlign: 'center', marginBottom: 4, background: 'var(--paper-sunk)', padding: 6, borderRadius: 10, border: '1px solid var(--line)' }}>
+                  <img
+                    src={imagePreviewUrl}
+                    alt="Previsualización del comprobante"
+                    style={{ maxHeight: 150, maxWidth: '100%', borderRadius: 6, objectFit: 'contain' }}
+                  />
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>

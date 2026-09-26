@@ -46,17 +46,12 @@ export function CameraTicketScannerModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Obtener órdenes de forma segura (por prop o por Context)
-  let contextOrders: any[] = [];
-  try {
-    const ctx = useOrdersContext();
-    contextOrders = ctx?.orders || [];
-  } catch {
-    contextOrders = [];
-  }
+  const ordersCtx = useOrdersContext();
+  const contextOrders = ordersCtx?.orders;
+
   const availableOrders = useMemo(() => {
-    return (orders && orders.length > 0 ? orders : contextOrders).filter(
-      (o) => o && !o.isClosedShort
-    );
+    const list = orders && orders.length > 0 ? orders : (contextOrders || []);
+    return list.filter((o) => o && !o.isClosedShort);
   }, [orders, contextOrders]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrderId || '');
