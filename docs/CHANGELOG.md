@@ -1,5 +1,26 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.2] - 01 Octubre 2026 (Flujo Integral de OC de Punta a Punta, Precios Fluctuantes $37/$38/$43, Contingencias Operativas y Respaldo Dual)
+
+### 📈 Detección y Gestión de Precios Fluctuantes en OC
+- **Previsualizador Inteligente (`OCPreviewModal`):** Extracción y prellenado automático del precio de venta desde el texto de la OC de Providencia. Selector interactivo de costo de compra a Andrés ($37.00, $38.00, $43.00 o personalizado) con cálculo en vivo de margen bruto ($/kg y %) y utilidad proyectada.
+- **Píldora Rápida de Precios en Expediente (`OrderStepper` y `TabResumen`):** Ajuste en 1 clic de venta y costo con recálculo dinámico de pasivo de Andrés y flujos de cobranza.
+
+### 🧭 Stepper Integral del Ciclo de Vida de la OC (`OCLifecycleTracker`)
+- **8 Etapas Operativas:** OC Recibida -> Pedido a Andrés -> Entregas en Báscula -> Remisión/Prefactura -> Factura en Revisión -> Contrarecibo -> Cobranza -> Cierre & Finiquito.
+- **Botón "Pedir a Andrés" (`WhatsAppOrderModal`):** Genera mensaje instantáneo formateado para WhatsApp con kilos, claves SAT, precio pactado y fecha de entrega.
+
+### 🛡️ Variantes y Contingencias Operativas
+- **Merma Tolerable (<2% y <150 kg):** Banner de cierre rápido formal con acta en `TabEntregas` para evitar órdenes zombi.
+- **Sobre-Entrega / Excedente:** Alerta y botón de consulta a Providencia por WhatsApp cuando la entrega supera el pedido.
+- **Facturas Rechazadas / Sustitución de Folios:** Panel en `InvoiceWidget` para estatus `manual_review` que permite sustituir el folio rechazado, guardando el anterior tachado e historial sin perder las entregas asociadas.
+
+### 🔍 Auditoría, Build, Deploy y Respaldo Dual
+- **Centinela en Vivo:** Indicador `CentinelaLivePill` en el Dashboard para auditoría continua.
+- **Versionado Unificado:** Script `scripts/bump_version.js` sincronizado a `v9.10.2`.
+- **Validación al 100%:** 7/7 en `audit.sh`, 216/216 tests unitarios en Vitest, 0 errores TypeScript, 0 errores ESLint.
+- **Respaldo Dual:** Git/GitHub sincronizado y copia completa en memoria USB (Disco D:).
+
 ## [v9.10.1] - 26 Septiembre 2026 (Blindaje Universal safeFirestore, Erradicación Error Undefined en Sincronizador Providencia y Logs Estructurados)
 
 ### 🛡️ Blindaje Universal Firestore (`safeFirestore` & `cleanUndefined`)

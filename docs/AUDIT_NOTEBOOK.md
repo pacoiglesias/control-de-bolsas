@@ -1,3 +1,37 @@
+### Iteración 124: Flujo Integral de OC de Punta a Punta, Precios Fluctuantes ($37/$38/$43), Contingencias Operativas y Respaldo Dual v9.10.2
+[2026-10-01]
+Archivos: `src/components/OCPreviewModal.tsx`, `src/components/OrderModal/OrderStepper.tsx`, `src/components/OrderModal/OCLifecycleTracker.tsx`, `src/components/OrderModal/WhatsAppOrderModal.tsx`, `src/components/OrderModal/OrderPriceModal.tsx`, `src/components/OrderModal/TabEntregas.tsx`, `src/components/OrderModal/InvoiceWidget.tsx`, `src/components/Audit/CentinelaLivePill.tsx`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/lib/__tests__/fluctuatingPricingAndLifecycle.test.ts`, `package.json`, `functions/package.json`, `docs/PLAN_IMPLEMENTACION_FLUJO_OC.md`, `scripts/bump_version.js`
+Problema:
+1. El negocio opera con precios de compra fluctuantes ($37.00, $38.00 o $43.00/kg pactados con Andrés según el tipo de resina o urgencia) y precios de venta variables por OC. El sistema requería detección automática del precio unitario desde la OC, selector rápido de costo con Andrés y cálculo instantáneo del margen ($/kg y %) antes y después de aplicar al expediente.
+2. Faltaba un stepper integral de 8 pasos del ciclo de vida de la OC que guiara desde la recepción de la OC hasta el finiquito y cobranza, con botón directo de 1 toque para enviar la orden de maquila a Andrés vía WhatsApp o PDF.
+3. Se necesitaban herramientas para contingencias operativas: cierre rápido por merma tolerable (<2% y <150 kg para evitar órdenes zombi), advertencia y botón de aclaración por WhatsApp para sobre-entregas/excedentes, y reasignación de folios para facturas rechazadas o en revisión manual en Providencia conservando las entregas vinculadas.
+4. Se requería auditoría integral del repositorio (7/7 en audit.sh, 0 warnings ESLint, 0 errores TypeScript, 100% de tests unitarios aprobados), build de producción, deploy a Firebase y respaldo completo dual (Git/GitHub y USB-C en Disco D:).
+Solución:
+1. **Detección y Gestión de Precios Fluctuantes (Fase 1):**
+   - En `OCPreviewModal`, extracción automática del precio unitario de venta y botones rápidos interactivos de costo pactado con Andrés ($37.00, $38.00, $43.00 + personalizado). Proyección en tiempo real del margen $/kg y utilidad neta esperada.
+   - Píldora interactiva de precios en `TabResumen` y `OrderStepper` para ajustar costos en 1 clic con recálculo dinámico de la deuda con Andrés y proyección de cobranza.
+2. **Pipeline Visual del Ciclo de Vida de la OC (Fase 2):**
+   - Stepper operativo de 8 etapas (`OrderStepper` y `OCLifecycleTracker`): OC Recibida -> Pedido a Andrés -> Entregas en Báscula -> Remisión/Prefactura -> Factura en Revisión -> Contrarecibo -> Cobranza -> Cierre & Finiquito.
+   - Componente `WhatsAppOrderModal`: genera el mensaje formal con formato markdown para WhatsApp detallando kilos, medidas, precio acordado y fecha límite de entrega para Andrés.
+3. **Variantes y Contingencias del Camino (Fase 3):**
+   - En `TabEntregas.tsx`: Banner inteligente de merma tolerable (<2% y <150 kg) con botón de cierre formal que evita órdenes zombi.
+   - Alerta visual de excedente / sobre-entrega con botón para consultar por WhatsApp a Providencia si se factura o se toma a cuenta del siguiente lote.
+   - En `InvoiceWidget.tsx`: Panel para estatus `manual_review` con campo para sustituir folio rechazado, guardando el folio anterior tachado y registrando la nota de historial sin desvincular entregas.
+4. **Auditoría Técnica, Build, Deploy y Respaldo Dual (Fase 4):**
+   - `CentinelaLivePill` en la barra superior del Dashboard para auditoría continua en vivo.
+   - Script unificado `scripts/bump_version.js` (`npm run version:bump patch`) sincronizando la versión a `v9.10.2`.
+   - `scripts/audit.sh`: 7/7 comprobaciones aprobadas.
+   - Suite Vitest: 32 archivos, 216/216 pruebas aprobadas (100%).
+   - TypeScript (`tsc --noEmit`): 0 errores.
+   - ESLint: 0 errores y 0 advertencias.
+   - Compilación de producción (Vite + Cloud Functions) 100% limpia.
+   - Despliegue exitoso a Firebase Hosting (`control-de-bolsas-69.web.app` y `control-de-bolsas-89c88.web.app`) y Firestore rules/indexes.
+   - Respaldo dual: Commit y Push a GitHub (`origin/main`), y respaldo en la memoria USB Lexar (Disco D:) en `D:\Backups_Control_Bolsas\` (Git bundle completo de 12.2 MB, ZIP comprimido de 2.2 MB, workspace completo de 43.4 MB / 728 archivos, y dist compilado de 26.2 MB).
+Riesgo: 🟢 Cero — Mejoras aditivas y defensivas que no alteran esquemas existentes, blindadas con 216 tests unitarios.
+Estado: ✅ Verificado — 100% compilado, desplegado a producción y respaldado en Git y USB Disco D:.
+
+---
+
 ### Iteración 123: Auditoría Integral del Sistema, Blindaje de Reglas de Hooks, Higiene del Repositorio y 0 Warnings ESLint
 [2026-09-26]
 Archivos: `src/components/Orders/OcClosureModal.tsx`, `src/components/Cobranza/SmartPasteCrModal.tsx`, `src/lib/scaleTicketParser.ts`, `src/components/Recepcion/CameraTicketScannerModal.tsx`, `src/components/Upload/GlobalDropInspectorModal.tsx`, `.gitignore`, `scripts/audit.sh`, `docs/AUDIT_NOTEBOOK.md`

@@ -7,17 +7,19 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.1 Enterprise: Blindaje Firestore safeWrites, Erradicación de Error Undefined en Sincronizador y Suite 100% Aprobada',
-  date: '26 de Septiembre de 2026',
-  time: '12:35 AM',
-  summary: 'Actualización y auditoría integral v9.10.1 Enterprise: erradicación definitiva del error "Unsupported field value: undefined" en Firestore mediante safeFirestore y cleanUndefined universal; corrección completa del Sincronizador Oficial de Contrarecibos Providencia (CR GT-993 y carteras oficiales); logging estructurado de errores del sistema; y 100% de la suite de pruebas unitarias pasando.',
+  version: 'v9.10.2: Flujo Integral de OC de Punta a Punta, Precios Fluctuantes y Contingencias Operativas',
+  date: '01 de Octubre de 2026',
+  time: '08:35 PM',
+  summary: 'Actualización y auditoría integral v9.10.2: gestión ágil de precios de compra fluctuantes ($37, $38, $43) y precios de venta; stepper interactivo de 8 etapas del ciclo de vida de la OC; pedido a maquila con Andrés vía WhatsApp en 1 toque; gestión de contingencias (merma tolerable <2%, alerta de sobre-entrega y reasignación de folios rechazados); Centinela en vivo; y suite de 216 pruebas unitarias al 100%.',
   highlights: [
-    '🛡️ Blindaje Universal safeFirestore: Interceptores safeSetDoc y safeUpdateDoc con sanitización recursiva cleanUndefined que garantizan cero errores de campo undefined en escrituras a Firestore, protegiendo Timestamps y FieldValues.',
-    '⚡ Sincronizador Oficial de Providencia 100% Operativo: Corregido el flujo de actualización de contrarecibos (incluyendo CR GT-993) eliminando campos undefined en notas y detalles de factura.',
-    '🪵 Logging de Errores y Diagnóstico: Registro estructurado en consola y Firestore (error_logs) que permite identificar y resolver anomalías al instante.',
-    '🧪 100% Pruebas Unitarias Verificadas: 207 pruebas unitarias aprobadas sin regresiones en lógica financiera ni modelos de datos.',
-    '⚡ Consola de Cuadre Ejecutivo Directo (Ctrl + E): Calibración en 1 clic de los 4 Pilares Maestros (Caja Chica, Andrés, Cartera Providencia y OCs).',
-    '💵 Saldo Oficial de Caja Chica Calibrado: Efectivo verificado a $844,526.90 y OCs concluidas archivadas.',
+    '📈 Precios Fluctuantes y Margen en Vivo: Detección automática del precio de venta desde la OC y selector rápido de costo con Andrés ($37/$38/$43/personalizado) con cálculo dinámico de margen $/kg y utilidad neta.',
+    '🧭 Stepper Operativo de 8 Pasos (OCLifecycleTracker): Vista paso a paso desde OC Recibida hasta Finiquito y Cobranza.',
+    '📲 Pedir a Andrés por WhatsApp: Modal interactivo para enviar la orden de maquila con kilos, especificaciones, precio acordado y fecha límite.',
+    '⚖️ Merma Tolerable (<2%): Cierre rápido formal para órdenes con ≥98% cumplido sin dejarlas como órdenes zombi.',
+    '📈 Alerta de Sobre-Entrega / Excedente: Notificación inmediata para consultar a Providencia si se factura o se descuenta del siguiente lote.',
+    '🔄 Sustitución de Factura Rechazada: Reasignación de nuevo folio SAT en estatus manual_review sin perder el historial de entregas de báscula.',
+    '🛡️ Semáforo Centinela en Vivo: Monitoreo continuo de salud financiera en el encabezado del Dashboard.',
+    '🧪 Suite de Pruebas al 100%: 216 pruebas unitarias aprobadas en 32 archivos.',
   ],
 };
 
