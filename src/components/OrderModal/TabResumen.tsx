@@ -59,8 +59,10 @@ export default function TabResumen() {
       {preview && (
         <OCPreviewModal
           parsed={preview}
-          onConfirm={() => {
-            applyParsedOC(preview);
+          fallbackSale={fallbackSale}
+          fallbackCost={fallbackCost}
+          onConfirm={(pricing) => {
+            applyParsedOC(preview, pricing);
             setPreview(null);
           }}
           onCancel={() => setPreview(null)}

@@ -1,7 +1,7 @@
 {
   "name": "control-bolsas-erp",
   "private": true,
-  "version": "9.10.1",
+  "version": "9.10.2",
   "type": "module",
   "description": "ERP Control Bolsas — Master Track. React + Vite + Firebase.",
   "scripts": {
@@ -21,7 +21,8 @@
     "deploy:staging": "firebase use staging && npm run build:staging && firebase deploy --only hosting,firestore",
     "deploy:prod": "firebase use prod && npm run build:prod && firebase deploy",
     "reauth": "autenticar_servicios.bat",
-    "backup": "sh scripts/backup.sh"
+    "backup": "sh scripts/backup.sh",
+    "version:bump": "node scripts/bump_version.js"
   },
   "dependencies": {
     "@types/file-saver": "^2.0.7",

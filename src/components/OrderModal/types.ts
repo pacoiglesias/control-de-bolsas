@@ -78,7 +78,7 @@ export interface OrderModalContextType {
   processPagoText: (text: string) => void;
   processParsedXml: (data: ParsedInvoiceData) => void;
   parseOCAndFill: (text: string) => void;
-  applyParsedOC: (parsed: ParsedOC) => void;
+  applyParsedOC: (parsed: ParsedOC, pricing?: { sellPrice?: number; costPrice?: number }) => void;
   emailClient: () => void;
   
   // --- Handlers: Productos ---

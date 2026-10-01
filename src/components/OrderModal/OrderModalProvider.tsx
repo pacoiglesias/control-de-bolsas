@@ -292,14 +292,17 @@ export function OrderModalProvider({
   // vista previa (OCPreviewModal) -- separado de parseOCAndFill para que
   // pegar el texto ya no escriba el formulario a ciegas. Antes, si el
   // parser interpretaba mal algo, el usuario se enteraba hasta despues de
-  // guardado (asi paso con el bug real de kilos: 120 en vez de 3,700).
-  function applyParsedOC(parsed: ParsedOC) {
+  // Aplica al formulario lo que ya se le mostro al usuario en el modal de
+  // vista previa (OCPreviewModal) -- ahora con calibración de precios customSellPrice y customCostPrice.
+  function applyParsedOC(parsed: ParsedOC, pricing?: { sellPrice?: number; costPrice?: number }) {
     setForm((f: any) => ({
       ...f,
       folio: parsed.folio || f.folio,
       oc: parsed.oc || f.oc,
       client: parsed.client || f.client,
       provider: parsed.provider || f.provider || provName,
+      customSellPrice: pricing?.sellPrice !== undefined ? String(pricing.sellPrice) : f.customSellPrice,
+      customCostPrice: pricing?.costPrice !== undefined ? String(pricing.costPrice) : f.customCostPrice,
       totalKilograms: parsed.totalKilograms > 0 ? parsed.totalKilograms.toString() : f.totalKilograms,
       estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : f.estimatedDeliveryDate,
       items: parsed.items.length > 0 ? [...f.items, ...parsed.items] : f.items,
@@ -308,7 +311,8 @@ export function OrderModalProvider({
     const detalle = parsed.items.length > 0
       ? `${parsed.items.length} artículo(s), ${parsed.totalKilograms.toLocaleString('es-MX')} kg`
       : `Kilos: ${parsed.totalKilograms > 0 ? parsed.totalKilograms : '?'}`;
-    toast(`OC aplicada. Folio: ${parsed.folio || '?'} · OC: ${parsed.oc || '?'} · ${detalle}`, 'ok');
+    const pricingMsg = pricing?.sellPrice ? ` · Venta: $${pricing.sellPrice}/kg · Costo: $${pricing.costPrice}/kg` : '';
+    toast(`OC aplicada. Folio: ${parsed.folio || '?'} · OC: ${parsed.oc || '?'} · ${detalle}${pricingMsg}`, 'ok');
   }
 
   // Se mantiene por compatibilidad (nadie mas la llama ya dentro de este

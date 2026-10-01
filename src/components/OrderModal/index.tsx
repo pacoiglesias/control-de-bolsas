@@ -7,6 +7,7 @@ import type { TabName } from './types';
 
 import { OrderModalProvider } from './OrderModalProvider';
 import { useOrderModal } from './OrderModalContext';
+import { useToast } from '../../context/ToastContext';
 import { FacturasCRModal } from './FacturasCRModal';
 import { confirmDialog } from '../../lib/confirmDialog';
 
@@ -49,9 +50,11 @@ function DocBadge({ type, value }: { type: keyof typeof BADGE; value?: string | 
 // ─── Shell principal del modal ─────────────────────────────────────────────────
 function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; initialOpenCR: boolean }) {
   const ctx = useOrderModal();
+  const toast = useToast();
   const {
     order,
     form,
+    set,
     readOnly,
     config,
     dynamicConfig,
@@ -216,11 +219,20 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
 
         {/* ── Pipeline Visual del Expediente ── */}
         <OrderStepper
-          order={order}
+          order={{
+            ...order,
+            customSellPrice: form.customSellPrice !== '' ? Number(form.customSellPrice) : order.customSellPrice,
+            customCostPrice: form.customCostPrice !== '' ? Number(form.customCostPrice) : order.customCostPrice,
+          }}
           activeTab={tab}
           onSelectTab={(t) => {
             if (t === 'facturas') setShowCRModal(true);
             else setTab(t as any);
+          }}
+          onUpdatePrices={(sell, cost) => {
+            set('customSellPrice', String(sell));
+            set('customCostPrice', String(cost));
+            toast(`Precios calibrados: Venta $${sell.toFixed(2)}/kg · Costo $${cost.toFixed(2)}/kg`, 'ok');
           }}
         />
 

@@ -14,14 +14,14 @@ export default function TabProductos() {
   const ctx = useOrderModal();
   const [pegandoOC, setPegandoOC] = useState(false);
   const [preview, setPreview] = useState<ParsedOC | null>(null);
-  const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast, order } = ctx;
+  const { form, setForm, config, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, deliveredByItem, toast, order, fallbackSale, fallbackCost } = ctx;
   const { products } = useProducts();
   const { addItem, updateItem, removeItem } = useOrderProducts(form.items, setForm, config, order?.id);
 
   // Aplica lo que ya se le mostro al usuario en OCPreviewModal -- separado
   // de la extraccion para que pegar el texto ya no escriba el formulario a
   // ciegas (ver el comentario de ocParser.ts sobre el bug real de kilos).
-  function aplicarPreview(parsed: ParsedOC) {
+  function aplicarPreview(parsed: ParsedOC, pricing?: { sellPrice?: number; costPrice?: number }) {
     const newFolio = form.folio || parsed.folio;
     const newOc = (form as any).oc || parsed.oc;
     const newProvider = form.provider || parsed.provider;
@@ -33,13 +33,16 @@ export default function TabProductos() {
       oc: newOc,
       provider: newProvider,
       client: newClient,
+      customSellPrice: pricing?.sellPrice !== undefined ? String(pricing.sellPrice) : f.customSellPrice,
+      customCostPrice: pricing?.costPrice !== undefined ? String(pricing.costPrice) : f.customCostPrice,
       items: [...f.items, ...parsed.items],
       totalKilograms: parsed.items.length > 0
         ? String(f.items.reduce((acc: number, it: PurchaseOrderItem) => acc + (it.quantity || 0), 0) + parsed.totalKilograms)
         : f.totalKilograms,
       estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : f.estimatedDeliveryDate,
     }));
-    toast(`OC aplicada: ${parsed.items.length} artículos, ${parsed.totalKilograms.toLocaleString('es-MX')} kg. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}.`, 'ok');
+    const pricingMsg = pricing?.sellPrice ? ` · Venta: $${pricing.sellPrice}/kg · Costo: $${pricing.costPrice}/kg` : '';
+    toast(`OC aplicada: ${parsed.items.length} artículos, ${parsed.totalKilograms.toLocaleString('es-MX')} kg. Folio: ${newFolio || 'N/A'} · OC: ${newOc || 'N/A'}${pricingMsg}.`, 'ok');
   }
 
   /**
@@ -111,7 +114,9 @@ export default function TabProductos() {
             {preview && (
               <OCPreviewModal
                 parsed={preview}
-                onConfirm={() => { aplicarPreview(preview); setPreview(null); }}
+                fallbackSale={fallbackSale}
+                fallbackCost={fallbackCost}
+                onConfirm={(pricing) => { aplicarPreview(preview, pricing); setPreview(null); }}
                 onCancel={() => setPreview(null)}
               />
             )}

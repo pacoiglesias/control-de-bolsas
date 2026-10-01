@@ -262,7 +262,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                   <option value="paid">🟡 Con el contador</option>
                   <option value="collected">✅ Recibida</option>
                   <option value="overdue">Contrarecibo vencido</option>
-                  <option value="manual_review">Revisión manual</option>
+                  <option value="manual_review">⚠️ En Revisión / Rechazada</option>
               </select>
               <div style={{ color: 'var(--bad)', fontWeight: 'bold', fontSize: '12px', marginTop: 4, minHeight: 18, visibility: isLate ? 'visible' : 'hidden' }}>
                 {isLate ? `⚠️ ${d} días de atraso` : ' '}
@@ -308,6 +308,83 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
               </div>
             </Field>
           </div>
+
+          {/* ── PANEL: FACTURA RECHAZADA / REASIGNACIÓN DE FOLIO (Fase 3.3) ── */}
+          {localInvoice.creditCycle.status === 'manual_review' && !readOnly && (
+            <div style={{
+              marginTop: 12,
+              background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(185,28,28,0.1) 100%)',
+              border: '1.5px solid rgba(239,68,68,0.5)',
+              borderRadius: 12,
+              padding: '14px 16px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontWeight: 800, color: '#dc2626', fontSize: 13 }}>
+                  🚫 Factura en Revisión / Rechazada
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>
+                  Reasigna el folio sin perder el historial de entregas
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                {/* Folio anterior (solo lectura, para referencia) */}
+                {localInvoice.folio && (
+                  <div style={{ background: 'rgba(239,68,68,0.07)', padding: '8px 10px', borderRadius: 8, border: '1px dashed rgba(239,68,68,0.3)' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', marginBottom: 2 }}>Folio Rechazado</div>
+                    <div style={{ fontFamily: 'monospace', fontWeight: 800, color: '#dc2626', fontSize: 13, textDecoration: 'line-through' }}>
+                      {localInvoice.folio}
+                    </div>
+                  </div>
+                )}
+
+                {/* Campo de nuevo folio */}
+                <div style={{ background: 'rgba(255,255,255,0.6)', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #10b981' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#065f46', textTransform: 'uppercase', marginBottom: 4 }}>Nuevo Folio SAT</div>
+                  <input
+                    className="input boxed mono"
+                    style={{ width: '100%', color: '#059669', fontWeight: 900, fontSize: 14 }}
+                    placeholder="Ej. E12345"
+                    defaultValue=""
+                    onBlur={(e) => {
+                      const nuevoFolio = e.target.value.trim().toUpperCase();
+                      if (!nuevoFolio) return;
+                      const folioAnterior = localInvoice.folio || '';
+                      const notaHistorial = `[${new Date().toLocaleDateString('es-MX')}] Folio cambiado de "${folioAnterior}" → "${nuevoFolio}" (Revisión/Rechazo)`;
+                      const notasActuales = (localInvoice.collection as any)?.rejectionNotes || '';
+                      updateField(['folio'], nuevoFolio);
+                      updateField(['creditCycle', 'status'], 'pending');
+                      updateField(['collection', 'rejectionNotes'],
+                        notasActuales ? `${notasActuales}\n${notaHistorial}` : notaHistorial
+                      );
+                      toast(`✅ Folio reasignado: ${nuevoFolio}. Estado vuelve a "Por cobrar". Guarda para confirmar.`, 'ok');
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  />
+                </div>
+              </div>
+
+              {/* Notas de Rechazo / Historial */}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#7f1d1d', textTransform: 'uppercase', marginBottom: 4 }}>Motivo de Rechazo / Historial</div>
+                <textarea
+                  rows={2}
+                  className="input boxed"
+                  style={{ width: '100%', fontSize: 12, resize: 'vertical', fontFamily: 'monospace' }}
+                  placeholder="Ej: Nombre emisor incorrecto, RFC equivocado, fecha fuera de periodo..."
+                  defaultValue={(localInvoice.collection as any)?.rejectionNotes || ''}
+                  onBlur={(e) => {
+                    updateField(['collection', 'rejectionNotes'], e.target.value);
+                    if (hasChanges) handleSave();
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: 8, fontSize: 11, color: '#7f1d1d', fontStyle: 'italic' }}>
+                ℹ️ Al ingresar el nuevo folio se restablecerá el estado a "Por cobrar" automáticamente. Las entregas no se modifican.
+              </div>
+            </div>
+          )}
 
           {localInvoice.items && localInvoice.items.length > 0 ? (
             <div style={{ marginTop: 16, background: 'var(--paper-sunk)', padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>

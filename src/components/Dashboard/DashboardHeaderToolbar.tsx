@@ -8,6 +8,7 @@ import { downloadExecutiveOnePagerPdf } from '../../lib/executiveOnePagerPdf';
 import { OfflineExcelSyncModal } from '../Offline/OfflineExcelSyncModal';
 import { motion } from 'framer-motion';
 import { triggerHaptic } from '../../lib/hapticEngine';
+import { CentinelaLivePill } from '../Audit/CentinelaLivePill';
 import type { NavigateFunction } from 'react-router-dom';
 import type { PurchaseOrder } from '../../lib/types';
 
@@ -173,6 +174,15 @@ export function DashboardHeaderToolbar({
               <span>{isHealing ? 'Reparando...' : 'Reparar Datos'}</span>
             </button>
           )}
+
+          {/* SEMÁFORO CENTINELA EN VIVO (HEALTH PILL) */}
+          <CentinelaLivePill
+            orders={globalOrders}
+            purchases={purchases}
+            expenses={expenses}
+            config={config}
+            onClick={() => nav('/auditoria')}
+          />
 
           {/* BOTÓN FRONT-ROW: CUADRE EJECUTIVO DIRECTO */}
           {onOpenCuadreEjecutivo && (

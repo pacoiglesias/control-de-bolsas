@@ -165,7 +165,90 @@ export default function TabEntregas() {
         )}
       </div>
 
-      {kilosFaltantes > 0.01 && (
+      {/* ── Alerta de Sobre-Entrega (Excedente) ── */}
+      {kilosPedidos > 0 && kilosEntregados > kilosPedidos + 0.01 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(109, 40, 217, 0.14) 100%)',
+          border: '1.5px solid #7c3aed',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#6d28d9', fontSize: 13.5 }}>
+              📈 Excedente de {(kilosEntregados - kilosPedidos).toLocaleString('es-MX')} kg sobre la OC
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+              {provName} entregó <strong>{kilosEntregados.toLocaleString('es-MX')} kg</strong> pero la OC era de <strong>{kilosPedidos.toLocaleString('es-MX')} kg</strong>.
+              Confirma con Providencia si se factura el excedente o se aplica como crédito al siguiente lote.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ background: '#7c3aed', color: '#fff', border: 'none', fontWeight: 800, fontSize: 11.5, padding: '5px 12px', borderRadius: 8 }}
+              onClick={() => {
+                const excedente = (kilosEntregados - kilosPedidos).toLocaleString('es-MX');
+                const text = `Hola, tenemos un excedente de ${excedente} kg en la entrega de ${form.client || 'Providencia'} (OC: ${form.oc || form.folio}). ¿Confirmamos si se factura el excedente o se descuenta del siguiente pedido?`;
+                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+              }}
+            >
+              📲 Aclarar por WhatsApp
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Banner Merma Tolerable: cierre rápido si ≥98% y faltan <150 kg ── */}
+      {!form.isClosedShort && kilosPedidos > 0 && kilosFaltantes > 0.01 && kilosFaltantes < 150 && kilosEntregados >= kilosPedidos * 0.98 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.14) 100%)',
+          border: '1.5px solid #10b981',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#065f46', fontSize: 13.5 }}>
+              ✅ Merma Tolerable — {(kilosEntregados / kilosPedidos * 100).toFixed(1)}% completado
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Solo faltan <strong>{kilosFaltantes.toLocaleString('es-MX')} kg</strong> ({((kilosFaltantes / kilosPedidos) * 100).toFixed(1)}% de merma).
+              Puedes cerrar la OC formalmente para que no quede como orden zombi en el dashboard.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            style={{ background: '#10b981', color: '#fff', border: 'none', fontWeight: 800, fontSize: 12, padding: '7px 16px', borderRadius: 8, boxShadow: '0 2px 8px rgba(16,185,129,0.3)' }}
+            onClick={async () => {
+              const ok = await confirmDialog({
+                message: `La OC tiene ${(kilosEntregados / kilosPedidos * 100).toFixed(1)}% entregado (faltan ${kilosFaltantes.toLocaleString('es-MX')} kg de merma tolerable).\n\n¿Cerrar la OC formalmente con ${kilosEntregados.toLocaleString('es-MX')} kg como entrega final?\n\nEsto eliminará la alerta de kilos pendientes y permitirá facturar el 100% entregado.`,
+              });
+              if (!ok) return;
+              triggerHaptic('success');
+              setForm((f: any) => ({ ...f, isClosedShort: true }));
+              toast(`🏁 OC cerrada con ${kilosEntregados.toLocaleString('es-MX')} kg. Haz clic en "Guardar cambios".`, 'ok');
+            }}
+          >
+            🏁 Cerrar OC con {kilosEntregados.toLocaleString('es-MX')} kg
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner general de kilos faltantes (fuera del rango de merma tolerable) ── */}
+      {kilosFaltantes > 0.01 && !(kilosFaltantes < 150 && kilosEntregados >= kilosPedidos * 0.98 && !form.isClosedShort) && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.12) 100%)',
           border: '1px solid #3b82f6',
