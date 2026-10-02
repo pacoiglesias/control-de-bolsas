@@ -28,6 +28,10 @@ export interface OcrResult {
   emisorRfc?: string;
   emisorNombre?: string;
   conceptos?: OcrConcepto[];
+  /** Indica el tipo de documento detectado para clasificación del modal */
+  docKind?: 'oc_providencia' | 'factura' | 'ticket' | 'contrarecibo' | 'desconocido';
+  /** Cantidad total de piezas en la OC (no kilos) */
+  totalPiezas?: number;
 }
 
 export async function extractTextFromPdf(file: File): Promise<string> {
@@ -121,6 +125,132 @@ export async function extractTextFromImage(file: File): Promise<string> {
 
 export function parseOcrData(text: string): OcrResult {
   const result: OcrResult = { rawText: text };
+  const upper = text.toUpperCase();
+
+  // ─── DETECCIÓN TEMPRANA: Orden de Compra de Providencia ─────────────────────
+  // Patrón: contiene "Orden de Compra" + folio 43/XXXX o 71/XXXX
+  // Estas OCs miden cantidades en PIEZAS, no en KG → no extraer kilos.
+  const isOcProvidencia =
+    /ORDEN\s*DE\s*COMPRA/i.test(text) &&
+    (/\b(43\/[0-9]{4,5})\b/.test(text) || /\b(71\/[0-9]{4,5})\b/.test(text) || /\bGRUPO\s*TEXTIL\s*PROVIDENCIA\b/i.test(text));
+
+  if (isOcProvidencia) {
+    result.docKind = 'oc_providencia';
+
+    // ── Folio: "No. Ord. de Compra: 43/9806"
+    const folioOcMatch = text.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra\s*[:#]?\s*([0-9]{2}\/[0-9]{4,6})/i)
+                      || text.match(/\b((?:43|71)\/[0-9]{4,6})\b/);
+    if (folioOcMatch?.[1]) result.folio = folioOcMatch[1].trim();
+
+    // ── CDB OC / número largo Providencia
+    const cdbMatch = text.match(/CDB\s*OC\s*[:#]?\s*([0-9]{10,15})/i)
+                  || text.match(/\b(12026[0-9]{6,10})\b/);
+    if (cdbMatch?.[1]) result.ocNumber = cdbMatch[1].trim();
+
+    // ── Fecha Pedido ("30-septiembre-20", "30-septiembre-2026", "30/09/2026")
+    const meses: Record<string, string> = {
+      enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06',
+      julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12',
+    };
+    const fechaPedidoMatch = text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}-[a-záéíóúñ]+-\d{2,4})/i)
+                           || text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i);
+    if (fechaPedidoMatch?.[1]) {
+      const partes = fechaPedidoMatch[1].match(/(\d{1,2})-([a-záéíóúñ]+)-(\d{2,4})/i);
+      if (partes) {
+        const mes = meses[partes[2].toLowerCase()] || '01';
+        const year = partes[3].length === 2 ? `20${partes[3]}` : partes[3];
+        result.fecha = `${year}-${mes}-${partes[1].padStart(2, '0')}`;
+      } else {
+        // Formato numérico DD/MM/YYYY
+        const numParts = fechaPedidoMatch[1].split(/[\/.-]/);
+        if (numParts.length === 3) {
+          const year = numParts[2].length === 2 ? `20${numParts[2]}` : numParts[2];
+          result.fecha = `${year}-${numParts[1].padStart(2,'0')}-${numParts[0].padStart(2,'0')}`;
+        }
+      }
+    }
+
+    // ── Parser de Conceptos / Artículos de la OC
+    // El formato del PDF de Providencia tiene los renglones separados:
+    //   <N>\nEGBOXXXXXX-SC\nDESCRIPCION\nCANTIDAD.0000\nPRECIO.0000\nDTOS.0000\nIMPORTE.0000
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const conceptos: OcrConcepto[] = [];
+    const codePattern = /^((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)$/i;
+    const numPattern = /^([\d,]+\.\d{2,4})$/;
+
+    let i = 0;
+    while (i < lines.length) {
+      // Buscar inicio de partida: línea que sea solo un número de artículo (1, 2, 3...)
+      if (/^\d{1,2}$/.test(lines[i]) && i + 1 < lines.length && codePattern.test(lines[i + 1])) {
+        const codigo = lines[i + 1].toUpperCase();
+        // La descripción puede ser 1 o 2 líneas antes de llegar al primer número
+        let descLines: string[] = [];
+        let j = i + 2;
+        while (j < lines.length && !numPattern.test(lines[j]) && !codePattern.test(lines[j]) && !/^\d{1,2}$/.test(lines[j])) {
+          descLines.push(lines[j]);
+          j++;
+        }
+        const descripcion = descLines.join(' ').trim() || 'Bolsa de Polietileno';
+        // Ahora extraer los 4 números: Cantidad, P.U., Dtos, Importe
+        const nums: number[] = [];
+        while (j < lines.length && nums.length < 4) {
+          const m = lines[j].match(/^([\d,]+\.\d{2,4})$/);
+          if (m) nums.push(parseFloat(m[1].replace(/,/g, '')));
+          else if (nums.length > 0) break; // salir si ya empezamos a leer y aparece texto
+          j++;
+        }
+        if (nums.length >= 1) {
+          const cantidad = nums[0];
+          const valorUnitario = nums.length >= 2 ? nums[1] : 0;
+          const importe = nums.length >= 4 ? nums[3] : (nums.length >= 1 ? nums[nums.length - 1] : cantidad * valorUnitario);
+          conceptos.push({ codigo, descripcion, cantidad, valorUnitario, importe });
+        }
+        i = j;
+      } else {
+        i++;
+      }
+    }
+
+    if (conceptos.length > 0) {
+      result.conceptos = conceptos;
+      result.totalPiezas = conceptos.reduce((acc, c) => acc + c.cantidad, 0);
+      // Usar totalPiezas como "kilos" para que el modal lo procese como cantidad
+      result.kilos = result.totalPiezas;
+      result.product = conceptos.map(c => `${c.codigo} · ${c.descripcion}`).join(' | ');
+    } else {
+      // Fallback: regex de cantidades .0000
+      const cantidades = [...text.matchAll(/([\d,]+)\.0{2,4}(?!\d)/g)]
+        .map(m => parseFloat(m[1].replace(/,/g, '')))
+        .filter(v => v >= 100 && v <= 100000 && !String(v).startsWith('43'));
+      if (cantidades.length > 0) {
+        result.totalPiezas = cantidades.reduce((a, b) => a + b, 0);
+        result.kilos = result.totalPiezas;
+      }
+      const productCodeMatch = text.match(/((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)/i);
+      const code = productCodeMatch ? productCodeMatch[1].toUpperCase() : 'S/C';
+      const productMatch = text.match(/(BOLSA[^\n\r]+)/i);
+      result.product = `${code !== 'S/C' ? code + ' · ' : ''}${productMatch ? productMatch[1].trim() : 'Bolsa de Polietileno'}`;
+    }
+
+    // ── SubTotal (tomar la última aparición antes de "107,500")
+    const subMatches = [...text.matchAll(/SubTotal\s*([\d,]+\.\d+)/gi)];
+    if (subMatches.length > 0) {
+      result.subTotal = parseFloat(subMatches[subMatches.length - 1][1].replace(/,/g, ''));
+      result.total = result.subTotal;
+    } else if (result.conceptos) {
+      result.subTotal = result.conceptos.reduce((acc, c) => acc + c.importe, 0);
+      result.total = result.subTotal;
+    }
+
+    // ── Receptor / Emisor
+    result.receptorRfc = 'GTP930115PU1';
+    result.receptorNombre = 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
+    result.emisorRfc = 'EDE1902136T2';
+    result.emisorNombre = 'ELEMENTAL DENIM';
+
+    return result;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   // 1. Parse Factura Folio (ej. Factura 6268)
   const facMatch = text.match(/Factura\s*[:#]?\s*([0-9]{3,8})/i) ||
@@ -197,15 +327,16 @@ export function parseOcrData(text: string): OcrResult {
   }
 
   // 7. Receptor / Emisor
-  if (text.includes('GTP930115PU1') || text.toUpperCase().includes('PROVIDENCIA')) {
+  if (text.includes('GTP930115PU1') || upper.includes('PROVIDENCIA')) {
     result.receptorRfc = 'GTP930115PU1';
     result.receptorNombre = 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
   }
-  if (text.includes('EDE1902136T2') || text.toUpperCase().includes('ELEMENTAL DENIM')) {
+  if (text.includes('EDE1902136T2') || upper.includes('ELEMENTAL DENIM')) {
     result.emisorRfc = 'EDE1902136T2';
     result.emisorNombre = 'ELEMENTAL DENIM';
   }
 
+  result.docKind = 'desconocido';
   return result;
 }
 

@@ -97,26 +97,44 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
             setDetectedOcNumber(scaleTicket.detectedOc || '');
             matchOrder(scaleTicket.detectedOc, undefined, scaleTicket.detectedDepartment);
           } else {
-            // Verificar si es Factura o Contrarecibo con OCR
+            // Verificar tipo de documento con OCR
             const ocr = parseOcrData(text);
-            const isCr = /CONTRARECIBO|GT-\d+|TH-\d+/i.test(text);
 
-            if (isCr) {
+            if (ocr.docKind === 'oc_providencia') {
+              // OC de Providencia: cantidades en piezas → kilos = totalPiezas
               setDocType('contrarecibo');
               setConfidence('alta');
+              setExtractedFolio(ocr.folio || ocr.ocNumber || '');
+              setExtractedUuid('');
+              setExtractedKilos(round2(ocr.kilos || ocr.totalPiezas || 0));
+              setExtractedSubtotal(round2(ocr.subTotal || 0));
+              setExtractedTotal(round2(ocr.total || 0));
+              setExtractedDate(ocr.fecha ? ocr.fecha : new Date().toISOString().split('T')[0]);
+              setDetectedOcNumber(ocr.ocNumber || ocr.folio || '');
+              matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+            } else if (/CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
+              setDocType('contrarecibo');
+              setConfidence('alta');
+              setExtractedFolio(ocr.folio || '');
+              setExtractedUuid(ocr.uuid || '');
+              setExtractedKilos(round2(ocr.kilos || 0));
+              setExtractedSubtotal(round2(ocr.subTotal || 0));
+              setExtractedTotal(round2(ocr.total || 0));
+              setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+              setDetectedOcNumber(ocr.ocNumber || '');
+              matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
             } else {
               setDocType('factura_cfdi');
               setConfidence('alta');
+              setExtractedFolio(ocr.folio || '');
+              setExtractedUuid(ocr.uuid || '');
+              setExtractedKilos(round2(ocr.kilos || 0));
+              setExtractedSubtotal(round2(ocr.subTotal || 0));
+              setExtractedTotal(round2(ocr.total || 0));
+              setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+              setDetectedOcNumber(ocr.ocNumber || '');
+              matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
             }
-
-            setExtractedFolio(ocr.folio || '');
-            setExtractedUuid(ocr.uuid || '');
-            setExtractedKilos(round2(ocr.kilos || 0));
-            setExtractedSubtotal(round2(ocr.subTotal || 0));
-            setExtractedTotal(round2(ocr.total || 0));
-            setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
-            setDetectedOcNumber(ocr.ocNumber || '');
-            matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
           }
         }
         // 3. CASO IMAGEN (Foto de ticket o remisión)
@@ -265,6 +283,35 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
         sound.playChaChing();
         triggerHaptic('cash');
         toast(`Entrega de ${extractedKilos.toLocaleString('es-MX')} kg registrada exitosamente en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
+      } else if (docType === 'contrarecibo' || docType === 'desconocido') {
+        // Guardar como documento adjunto de referencia en la OC
+        const noteEntry = {
+          id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          folio: extractedFolio || 'S/F',
+          date: Timestamp.fromDate(new Date(extractedDate)),
+          kilos: extractedKilos || 0,
+          docType: docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto',
+          notes: `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
+        };
+
+        const existingDeliveries = selectedOrder.deliveries || [];
+        // Solo añadir entrega si se capturaron kilos
+        const updatedDeliveries = extractedKilos > 0
+          ? [...existingDeliveries, {
+              ...noteEntry,
+              invoiced: false,
+              docFolio: noteEntry.folio,
+            }]
+          : existingDeliveries;
+
+        await updateDoc(orderRef, {
+          deliveries: updatedDeliveries,
+          updatedAt: Timestamp.now(),
+        });
+
+        sound.playChaChing();
+        triggerHaptic('cash');
+        toast(`Documento #${noteEntry.folio} registrado en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
       }
 
       onClose();
@@ -464,25 +511,32 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                 </div>
               )}
 
-              {(!extractedFolio || extractedKilos <= 0 || (docType === 'factura_cfdi' && extractedTotal <= 0)) && (
-                <div style={{
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
-                  fontSize: 12,
-                  color: '#fbbf24',
-                  lineHeight: 1.4,
-                }}>
-                  ✏️ <strong>Datos Faltantes Requeridos:</strong>
-                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                    {!extractedFolio && <li>Falta ingresar el <strong>Folio / No. Documento</strong>.</li>}
-                    {extractedKilos <= 0 && <li>Falta ingresar los <strong>Kilos Netos</strong>.</li>}
-                    {docType === 'factura_cfdi' && extractedTotal <= 0 && <li>Falta ingresar el <strong>Importe Total</strong>.</li>}
-                  </ul>
-                  <span style={{ fontSize: 11, opacity: 0.9 }}>Puedes capturarlos directamente en los campos de arriba antes de guardar.</span>
-                </div>
-              )}
+              {(() => {
+                const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
+                const missingKilos = kilosRequired && extractedKilos <= 0;
+                const missingFolio = !extractedFolio;
+                const missingTotal = docType === 'factura_cfdi' && extractedTotal <= 0;
+                if (!missingFolio && !missingKilos && !missingTotal) return null;
+                return (
+                  <div style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    fontSize: 12,
+                    color: '#fbbf24',
+                    lineHeight: 1.4,
+                  }}>
+                    ✏️ <strong>Datos Faltantes Requeridos:</strong>
+                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                      {missingFolio && <li>Falta ingresar el <strong>Folio / No. Documento</strong>.</li>}
+                      {missingKilos && <li>Falta ingresar los <strong>Kilos Netos</strong>.</li>}
+                      {missingTotal && <li>Falta ingresar el <strong>Importe Total</strong>.</li>}
+                    </ul>
+                    <span style={{ fontSize: 11, opacity: 0.9 }}>Puedes capturarlos directamente en los campos de arriba antes de guardar.</span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* COLUMNA 2: SELECCIÓN DE ORDEN Y DIAGNÓSTICO DE IMPACTO */}
@@ -561,7 +615,10 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
               type="button"
               className="btn btn-primary"
               onClick={handleConfirmAndApply}
-              disabled={saving || !selectedOrderId || extractedKilos <= 0}
+              disabled={saving || !selectedOrderId || (() => {
+                const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
+                return kilosRequired && extractedKilos <= 0;
+              })()}
               style={{
                 minHeight: 40,
                 padding: '8px 24px',
