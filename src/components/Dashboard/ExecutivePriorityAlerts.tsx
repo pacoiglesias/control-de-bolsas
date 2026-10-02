@@ -39,6 +39,34 @@ function totalKilosEntregados(order: any): number {
   return (order?.deliveries || []).reduce((s: number, d: any) => s + (Number(d.kilos) || 0), 0);
 }
 
+function isOrderOpenInProduction(o: any): boolean {
+  if (!o || o.isDeleted || o.isClosedShort) return false;
+  const st = (o.status || o.creditCycle?.status || '').toLowerCase();
+  if (st === 'collected' || st === 'paid' || st === 'closed' || st === 'concluida' || st === 'archivada') return false;
+
+  const oc = (o.oc || o.folio || o.id || '').toUpperCase().trim();
+  // Excluir Contrarecibos (ej: GT-962, TH-946, etc.) que no son órdenes de compra de producción
+  if (/^(?:GT|TH)-\d+$/i.test(oc) || /^(?:GT|TH)-\d+$/i.test(o.folio || '')) return false;
+
+  // Excluir órdenes maestras concluidas históricas
+  if (oc.includes('9713') || oc.includes('14114') || oc.includes('9774')) return false;
+
+  const totalKg = Number(o.totalKilograms) || (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+  const facturadosKg = totalKilosFacturados(o);
+  const entregadosKg = totalKilosEntregados(o);
+
+  const patioKg = Math.max(0, entregadosKg - facturadosKg);
+  const faltanKg = Math.max(0, totalKg - entregadosKg);
+
+  // Si no le faltan kilos por entregar y no tiene kilos en patio por facturar, y ya está facturada al 100%: YA ESTÁ CERRADA/CUMPLIDA
+  if (faltanKg <= 0.01 && patioKg <= 0.01 && facturadosKg >= totalKg && totalKg > 0) {
+    return false;
+  }
+
+  // Una orden abierta debe tener kilos pendientes por entregar, o kilos en patio pendientes de facturar, o estar en status pedido/producción
+  return (faltanKg > 0.01 || patioKg > 0.01 || st === 'pedido' || st === 'production' || st === 'activo');
+}
+
 function getDepartmentMeta(order: Partial<PurchaseOrder> | null | undefined, fallbackDept?: 'TH' | 'GT') {
   const oc = (order?.oc || order?.folio || order?.id || '').toUpperCase();
   const dept = ((order as any)?.department || '').toUpperCase();
@@ -152,30 +180,21 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     return oc === OC_GT_ACTIVE || oc === `OC-${OC_GT_ACTIVE}` || oc.includes('9784');
   }), [orders]);
 
-  // 2d. Detección Reactiva y Proactiva de TODAS las órdenes abiertas de Evelia (GT · Planta P4)
+  // 2d. Detección Reactiva y Proactiva de TODAS las órdenes ABIERTAS REALES de Evelia (GT · Planta P4)
   const eveliaOpenOrders = useMemo(() => {
     return (orders || []).filter(o => {
-      if (!o || (o as any).isDeleted || o.isClosedShort) return false;
       const meta = getDepartmentMeta(o);
       if (meta.department !== 'GT') return false;
-      const st = (o as any).status || o.creditCycle?.status;
-      if (st === 'collected') return false;
-      // Excluir 9713 si ya fue finiquitada
-      if ((o.oc || o.folio || '').includes('9713') && o.isClosedShort) return false;
-      return true;
+      return isOrderOpenInProduction(o);
     });
   }, [orders]);
 
-  // 1c. Detección Reactiva y Proactiva de TODAS las órdenes abiertas de Nava (TH · Almacén 1)
+  // 1c. Detección Reactiva y Proactiva de TODAS las órdenes ABIERTAS REALES de Nava (TH · Almacén 1)
   const navaOpenOrders = useMemo(() => {
     return (orders || []).filter(o => {
-      if (!o || (o as any).isDeleted || o.isClosedShort) return false;
       const meta = getDepartmentMeta(o);
       if (meta.department !== 'TH') return false;
-      const st = (o as any).status || o.creditCycle?.status;
-      if (st === 'collected') return false;
-      if ((o.oc || o.folio || '').includes('14114') && o.isClosedShort) return false;
-      return true;
+      return isOrderOpenInProduction(o);
     });
   }, [orders]);
 
@@ -523,7 +542,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     }> = [];
 
     (orders || []).forEach((o) => {
-      if (!o || (o as any).isDeleted || o.isClosedShort) return;
+      if (!o || (o as any).isDeleted || o.isClosedShort || !isOrderOpenInProduction(o)) return;
       const oc = (o.oc || o.folio || o.id || '').toUpperCase();
       const client = o.client || 'Providencia';
       const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
