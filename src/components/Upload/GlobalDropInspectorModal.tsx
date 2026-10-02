@@ -28,6 +28,10 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
   const [analyzing, setAnalyzing] = useState(true);
   const [docType, setDocType] = useState<DetectedDocType>('desconocido');
   const [confidence, setConfidence] = useState<'alta' | 'media' | 'baja'>('baja');
+  /** Subtipo de OC: 'oc_providencia' cuando el doc es una OC de Providencia */
+  const [ocKind, setOcKind] = useState<'oc_providencia' | null>(null);
+  /** Piezas totales detectadas en la OC (solo para docKind=oc_providencia) */
+  const [ocPiezasInfo, setOcPiezasInfo] = useState<{ totalPiezas: number; conceptos: Array<{ codigo: string; descripcion: string; cantidad: number; valorUnitario: number }> } | null>(null);
 
   // Datos extraídos
   const [extractedFolio, setExtractedFolio] = useState('');
@@ -104,6 +108,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
               // OC de Providencia: unidad de la OC = piezas; los kg vienen del ticket de báscula
               // → kilos queda en 0 hasta que se registre la entrega pesada
               setDocType('contrarecibo');
+              setOcKind('oc_providencia');
               setConfidence('alta');
               setExtractedFolio(ocr.folio || ocr.ocNumber || '');
               setExtractedUuid('');
@@ -112,6 +117,17 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
               setExtractedTotal(round2(ocr.total || 0));
               setExtractedDate(ocr.fecha ? ocr.fecha : new Date().toISOString().split('T')[0]);
               setDetectedOcNumber(ocr.ocNumber || ocr.folio || '');
+              if (ocr.totalPiezas || ocr.conceptos) {
+                setOcPiezasInfo({
+                  totalPiezas: ocr.totalPiezas || 0,
+                  conceptos: (ocr.conceptos || []).map(c => ({
+                    codigo: c.codigo || '',
+                    descripcion: c.descripcion,
+                    cantidad: c.cantidad,
+                    valorUnitario: c.valorUnitario,
+                  })),
+                });
+              }
               matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
             } else if (/CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
               setDocType('contrarecibo');
@@ -285,18 +301,23 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
         triggerHaptic('cash');
         toast(`Entrega de ${extractedKilos.toLocaleString('es-MX')} kg registrada exitosamente en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
       } else if (docType === 'contrarecibo' || docType === 'desconocido') {
-        // Guardar como documento adjunto de referencia en la OC
+        const isOcDoc = ocKind === 'oc_providencia';
         const noteEntry = {
           id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           folio: extractedFolio || 'S/F',
           date: Timestamp.fromDate(new Date(extractedDate)),
           kilos: extractedKilos || 0,
-          docType: docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto',
-          notes: `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
+          docType: isOcDoc ? 'oc_providencia' : (docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto'),
+          notes: isOcDoc
+            ? `OC Providencia #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · Entrega: ${extractedKilos.toLocaleString('es-MX')} kg` : ' · Pendiente de entrega (kilos por ticket de báscula)'}${ ocPiezasInfo ? ` · ${ocPiezasInfo.totalPiezas.toLocaleString('es-MX')} pzas pedidas` : ''}`
+            : `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
+          ocPiezas: isOcDoc && ocPiezasInfo ? ocPiezasInfo.totalPiezas : undefined,
+          conceptos: isOcDoc && ocPiezasInfo ? ocPiezasInfo.conceptos : undefined,
+          importe: extractedTotal || undefined,
         };
 
         const existingDeliveries = selectedOrder.deliveries || [];
-        // Solo añadir entrega si se capturaron kilos
+        // Registrar entrega solo si se capturaron kilos
         const updatedDeliveries = extractedKilos > 0
           ? [...existingDeliveries, {
               ...noteEntry,
@@ -312,7 +333,16 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
 
         sound.playChaChing();
         triggerHaptic('cash');
-        toast(`Documento #${noteEntry.folio} registrado en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
+        if (isOcDoc) {
+          toast(
+            extractedKilos > 0
+              ? `OC #${noteEntry.folio} aplicada: ${extractedKilos.toLocaleString('es-MX')} kg registrados en ${selectedOrder.folio || selectedOrder.oc}`
+              : `OC #${noteEntry.folio} registrada como referencia en ${selectedOrder.folio || selectedOrder.oc} — captura los kg al recibir la báscula`,
+            'ok'
+          );
+        } else {
+          toast(`Documento #${noteEntry.folio} registrado en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
+        }
       }
 
       onClose();
@@ -479,17 +509,25 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>Kilos (Neto)</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                    {ocKind === 'oc_providencia' ? '⚖️ Kg Recibidos en esta entrega' : 'Kilos (Neto)'}
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <input
                       type="number"
                       step="0.01"
                       value={extractedKilos || ''}
                       onChange={(e) => setExtractedKilos(parseFloat(e.target.value) || 0)}
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--paper)', color: '#047857', fontWeight: 900, fontSize: 14 }}
+                      placeholder={ocKind === 'oc_providencia' ? '0 = solo registro OC' : ''}
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: `1px solid ${ocKind === 'oc_providencia' ? 'rgba(16,185,129,0.5)' : 'var(--line)'}`, background: 'var(--paper)', color: '#047857', fontWeight: 900, fontSize: 14 }}
                     />
                     <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)' }}>kg</span>
                   </div>
+                  {ocKind === 'oc_providencia' && (
+                    <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginTop: 3 }}>
+                      Deja en 0 si aún no llega la báscula · captura aquí los kg pesados
+                    </div>
+                  )}
                 </div>
 
                 {docType === 'factura_cfdi' && (
@@ -505,6 +543,23 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                   </div>
                 )}
               </div>
+
+              {ocKind === 'oc_providencia' && ocPiezasInfo && (
+                <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', fontSize: 11, lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 900, color: '#047857', marginBottom: 4 }}>📦 Artículos en la OC:</div>
+                  {ocPiezasInfo.conceptos.map((c, i) => (
+                    <div key={i} style={{ color: 'var(--ink-soft)' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>{c.codigo}</span>
+                      {' · '}{c.descripcion.substring(0, 35)}
+                      {' · '}<strong>{c.cantidad.toLocaleString('es-MX')} pzas</strong>
+                      {' @ $'}{c.valorUnitario.toFixed(2)}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 4, fontWeight: 800, color: '#047857' }}>
+                    Total pedido: {ocPiezasInfo.totalPiezas.toLocaleString('es-MX')} pzas
+                  </div>
+                </div>
+              )}
 
               {detectedOcNumber && (
                 <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.25)', fontSize: 12, color: 'var(--ink)' }}>
