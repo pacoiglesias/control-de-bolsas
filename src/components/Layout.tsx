@@ -139,6 +139,7 @@ export default function Layout() {
 
     { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/audit', icon: '🛡️', label: 'Centinela & Auditoría', roles: ['admin'] },
+    { type: 'link', to: '/archivo-documentos', icon: '🗂️', label: 'Archivo de Documentos', roles: ['admin', 'manager'] },
     { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocios BI', roles: ['admin'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin', 'manager', 'viewer'] },
   ], []);

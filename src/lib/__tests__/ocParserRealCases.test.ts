@@ -282,5 +282,81 @@ Solicitó Autorizó Recibio
     expect(parsed.items[0].unitPrice).toBe(43);
     expect(parsed.items[0].amount).toBe(12814);
   });
+
+  const OC_12026439806_TEXT = `
+GRUPO TEXTIL PROVIDENCIA SA DE CV P4-ALM | sa |12026439806 |30/09/2026 13:00:47
+Orden de Compra
+12026439806
+Tel: 012464641015 FAX: 012464650830
+ , C.P. 
+No. Ord. de Compra: 43/9806
+Proveedor
+N0321 - ELEMENTAL DENIM 
+Fecha Pedido: 30-septiembre-20
+Fecha Entrega: 09-octubre-2026 
+CREDITO A 30 DIAS
+Lugar de Entrega:
+ELEMENTAL DENIM
+CDB OC: 12026439806
+Su Documento: 
+No. Articulo Cantidad P. U. Dtos Importe
+1 EGBO000017-SC 1,000.0000 BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color 43.0000 0.0000 43,000.0000
+2 EGBO000095-SC 1,500.0000 BOLSA POLIETILENO 120X 125 CM _Sin Color 43.0000 0.0000 64,500.0000
+0.0000 107,500.0000
+BOLSA PARA EMPAQUE COBERTOR-EDREDON
+SubTotal 107,500.0000
+Solicitó Autorizó Recibio
+  `;
+
+  it('extrae fielmente la OC 12026439806 (Doc 1: 43/9806, 2,500 kg, $107,500)', () => {
+    const parsed = parseOrdenDeCompra(OC_12026439806_TEXT);
+    expect(parsed.oc).toBe('12026439806');
+    expect(parsed.folio).toBe('43/9806');
+    expect(parsed.department).toBe('GT');
+    expect(parsed.totalKilograms).toBe(2500);
+    expect(parsed.items.length).toBe(2);
+    expect(parsed.items[0].code).toBe('EGBO000017-SC');
+    expect(parsed.items[0].quantity).toBe(1000);
+    expect(parsed.items[1].code).toBe('EGBO000095-SC');
+    expect(parsed.items[1].quantity).toBe(1500);
+  });
+
+  const OC_12026439807_TEXT = `
+GRUPO TEXTIL PROVIDENCIA SA DE CV P4-ALM | sa |12026439807 |30/09/2026 13:35:50
+Orden de Compra
+12026439807
+Tel: 012464641015 FAX: 012464650830
+ , C.P. 
+No. Ord. de Compra: 43/9807
+Proveedor
+N0321 - ELEMENTAL DENIM 
+Fecha Pedido: 30-septiembre-20
+Fecha Entrega: 12-octubre-2026 
+CREDITO A 30 DIAS
+Lugar de Entrega:
+ELEMENTAL DENIM
+CDB OC: 12026439807
+Su Documento: 
+No. Articulo Cantidad P. U. Dtos Importe
+1 EGBO000018-SC 1,000.0000 BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color 43.0000 0.0000 43,000.0000
+2 EGBO000094-SC 1,000.0000 BOLSA POLIETILENO 100 X 125 CM _Sin Color 43.0000 0.0000 43,000.0000
+3 EGBO000093-SC 1,000.0000 BOLSA POLIETILENO 100 X 95 CM _Sin Color 43.0000 0.0000 43,000.0000
+0.0000 129,000.0000
+BOLSA PARA EMPAQUE COBERTOR
+SubTotal 129,000.0000
+Solicitó Autorizó Recibio
+  `;
+
+  it('extrae fielmente la OC 12026439807 (Doc 2: 43/9807, 3,000 kg, $129,000)', () => {
+    const parsed = parseOrdenDeCompra(OC_12026439807_TEXT);
+    expect(parsed.oc).toBe('12026439807');
+    expect(parsed.folio).toBe('43/9807');
+    expect(parsed.department).toBe('GT');
+    expect(parsed.totalKilograms).toBe(3000);
+    expect(parsed.items.length).toBe(3);
+    expect(parsed.items[0].code).toBe('EGBO000018-SC');
+    expect(parsed.items[1].code).toBe('EGBO000094-SC');
+    expect(parsed.items[2].code).toBe('EGBO000093-SC');
+  });
 });
 

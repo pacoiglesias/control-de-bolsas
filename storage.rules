@@ -56,6 +56,17 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
 
+    // Archivo de documentos originales (PDFs, XMLs, imágenes subidas por el sistema
+    // a través de documentStorage.ts). Ruta: documentos/{tipo}/{mes}/{archivo}.
+    // Máximo 10 MB (OCs y facturas pueden ser documentos de varias páginas).
+    match /documentos/{docKind}/{month}/{fileName} {
+      allow read: if isManagerOrAdmin();
+      allow create: if isManagerOrAdmin()
+        && request.resource.size < 10 * 1024 * 1024;
+      allow update: if isManagerOrAdmin();
+      allow delete: if isManagerOrAdmin();
+    }
+
     match /identidad/{fileName} {
       allow read: if true;
       allow create: if isManagerOrAdmin()

@@ -1,5 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { createWorker } from 'tesseract.js';
+import { parseOrdenDeCompra } from './ocParser';
+import { parseProvidenciaPaymentPdf } from './providenciaPortalParser';
 
 // Worker de pdfjs-dist v4 — ya no usa eval (eliminado en v4.x).
 // Apuntamos al CDN de unpkg que sí tiene el worker v4 en el path correcto.
@@ -29,8 +31,8 @@ export interface OcrResult {
   emisorNombre?: string;
   conceptos?: OcrConcepto[];
   /** Indica el tipo de documento detectado para clasificación del modal */
-  docKind?: 'oc_providencia' | 'factura' | 'ticket' | 'contrarecibo' | 'desconocido';
-  /** Cantidad total de piezas en la OC (no kilos) */
+  docKind?: 'oc_providencia' | 'pago_providencia' | 'factura' | 'ticket' | 'contrarecibo' | 'desconocido';
+  /** Cantidad total de piezas / kilos en la OC */
   totalPiezas?: number;
 }
 
@@ -127,12 +129,34 @@ export function parseOcrData(text: string): OcrResult {
   const result: OcrResult = { rawText: text };
   const upper = text.toUpperCase();
 
-  // ─── DETECCIÓN TEMPRANA: Orden de Compra de Providencia ─────────────────────
-  // Patrón: contiene "Orden de Compra" + folio 43/XXXX o 71/XXXX
-  // Estas OCs miden cantidades en PIEZAS, no en KG → no extraer kilos.
+  // ─── 0. DETECCIÓN OFICIAL: Comprobante / Detalle de Pagos de Providencia ─────
+  // Formato: "DETALLE DE PAGOS", "PAGO: TR_4987", "Factura", "TH-990", "Importe"
+  const provPayment = parseProvidenciaPaymentPdf(text);
+  if (provPayment) {
+    result.docKind = 'pago_providencia';
+    result.folio = provPayment.facturaFolio || provPayment.transferRef || '';
+    result.ocNumber = provPayment.transferRef;
+    result.total = provPayment.amount;
+    result.subTotal = Math.round((provPayment.amount / 1.16) * 100) / 100;
+    result.kilos = 0; // En pago no se manejan kilos, es financiero
+    if (provPayment.paymentDate) {
+      const dp = provPayment.paymentDate.split('/');
+      if (dp.length === 3) {
+        result.fecha = `${dp[2]}-${dp[1].padStart(2, '0')}-${dp[0].padStart(2, '0')}`;
+      }
+    }
+    result.receptorRfc = 'GTP930115PU1';
+    result.receptorNombre = provPayment.department === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
+    result.product = `Pago Providencia ${provPayment.transferRef} · Fac #${provPayment.facturaFolio} · CR ${provPayment.contrareciboNumber}`;
+    return result;
+  }
+
+  // ─── 1. DETECCIÓN OFICIAL: Orden de Compra de Providencia ────────────────────
+  // Patrón: contiene "Orden de Compra" / "CDB OC" + folio 43/XXXX o 71/XXXX o 12026XXXXXX
+  // En las OCs de Providencia la cantidad solicitada (1,000, 1,500, etc.) representa los KILOS requeridos.
   const isOcProvidencia =
-    /ORDEN\s*DE\s*COMPRA/i.test(text) &&
-    (/\b(43\/[0-9]{4,5})\b/.test(text) || /\b(71\/[0-9]{4,5})\b/.test(text) || /\bGRUPO\s*TEXTIL\s*PROVIDENCIA\b/i.test(text));
+    (/ORDEN\s*DE\s*COMPRA/i.test(text) || /\bCDB\s*OC\b/i.test(text)) &&
+    (/\b((?:43|71)\/[0-9]{4,6})\b/.test(text) || /\b12026[0-9]{6,10}\b/.test(text) || /\bGRUPO\s*TEXTIL\s*PROVIDENCIA\b/i.test(text));
 
   if (isOcProvidencia) {
     result.docKind = 'oc_providencia';
@@ -144,99 +168,129 @@ export function parseOcrData(text: string): OcrResult {
 
     // ── CDB OC / número largo Providencia
     const cdbMatch = text.match(/CDB\s*OC\s*[:#]?\s*([0-9]{10,15})/i)
+                  || text.match(/Orden\s*de\s*Compra\s*\n\s*([0-9]{10,15})/i)
                   || text.match(/\b(12026[0-9]{6,10})\b/);
     if (cdbMatch?.[1]) result.ocNumber = cdbMatch[1].trim();
 
-    // ── Fecha Pedido ("30-septiembre-20", "30-septiembre-2026", "30/09/2026")
+    // ── Fecha Pedido con rectificación automática de año truncado ("30-septiembre-20" -> "2026-09-30")
     const meses: Record<string, string> = {
       enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06',
-      julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12',
+      julio: '07', agosto: '08', septiembre: '09', setiembre: '09', octubre: '10', noviembre: '11', diciembre: '12',
     };
+    const headerDateMatch = text.match(/\|\s*(\d{1,2}\/\d{1,2}\/(\d{4}))/);
+    const fechaEntregaMatch = text.match(/Fecha\s*Entrega\s*[:#]?\s*(\d{1,2}-[a-záéíóúñ]+-(\d{4}))/i);
+    let defaultYear = '2026';
+    if (headerDateMatch?.[2]) defaultYear = headerDateMatch[2];
+    else if (fechaEntregaMatch?.[2]) defaultYear = fechaEntregaMatch[2];
+
     const fechaPedidoMatch = text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}-[a-záéíóúñ]+-\d{2,4})/i)
                            || text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i);
     if (fechaPedidoMatch?.[1]) {
       const partes = fechaPedidoMatch[1].match(/(\d{1,2})-([a-záéíóúñ]+)-(\d{2,4})/i);
       if (partes) {
         const mes = meses[partes[2].toLowerCase()] || '01';
-        const year = partes[3].length === 2 ? `20${partes[3]}` : partes[3];
+        let year = partes[3];
+        if (year.length === 2) {
+          year = (year === '20' || year === '26') ? defaultYear : `20${year}`;
+        }
         result.fecha = `${year}-${mes}-${partes[1].padStart(2, '0')}`;
       } else {
         // Formato numérico DD/MM/YYYY
         const numParts = fechaPedidoMatch[1].split(/[\/.-]/);
         if (numParts.length === 3) {
-          const year = numParts[2].length === 2 ? `20${numParts[2]}` : numParts[2];
+          let year = numParts[2];
+          if (year.length === 2) {
+            year = (year === '20' || year === '26') ? defaultYear : `20${year}`;
+          }
           result.fecha = `${year}-${numParts[1].padStart(2,'0')}-${numParts[0].padStart(2,'0')}`;
         }
       }
+    } else if (headerDateMatch?.[1]) {
+      const parts = headerDateMatch[1].split('/');
+      result.fecha = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
     }
 
-    // ── Parser de Conceptos / Artículos de la OC
-    // El formato del PDF de Providencia tiene los renglones separados:
-    //   <N>\nEGBOXXXXXX-SC\nDESCRIPCION\nCANTIDAD.0000\nPRECIO.0000\nDTOS.0000\nIMPORTE.0000
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const conceptos: OcrConcepto[] = [];
-    const codePattern = /^((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)$/i;
-    const numPattern = /^([\d,]+\.\d{2,4})$/;
-
-    let i = 0;
-    while (i < lines.length) {
-      // Buscar inicio de partida: línea que sea solo un número de artículo (1, 2, 3...)
-      if (/^\d{1,2}$/.test(lines[i]) && i + 1 < lines.length && codePattern.test(lines[i + 1])) {
-        const codigo = lines[i + 1].toUpperCase();
-        // La descripción puede ser 1 o 2 líneas antes de llegar al primer número
-        let descLines: string[] = [];
-        let j = i + 2;
-        while (j < lines.length && !numPattern.test(lines[j]) && !codePattern.test(lines[j]) && !/^\d{1,2}$/.test(lines[j])) {
-          descLines.push(lines[j]);
-          j++;
-        }
-        const descripcion = descLines.join(' ').trim() || 'Bolsa de Polietileno';
-        // Ahora extraer los 4 números: Cantidad, P.U., Dtos, Importe
-        const nums: number[] = [];
-        while (j < lines.length && nums.length < 4) {
-          const m = lines[j].match(/^([\d,]+\.\d{2,4})$/);
-          if (m) nums.push(parseFloat(m[1].replace(/,/g, '')));
-          else if (nums.length > 0) break; // salir si ya empezamos a leer y aparece texto
-          j++;
-        }
-        if (nums.length >= 1) {
-          const cantidad = nums[0];
-          const valorUnitario = nums.length >= 2 ? nums[1] : 0;
-          const importe = nums.length >= 4 ? nums[3] : (nums.length >= 1 ? nums[nums.length - 1] : cantidad * valorUnitario);
-          conceptos.push({ codigo, descripcion, cantidad, valorUnitario, importe });
-        }
-        i = j;
-      } else {
-        i++;
-      }
-    }
-
-    if (conceptos.length > 0) {
-      result.conceptos = conceptos;
-      result.totalPiezas = conceptos.reduce((acc, c) => acc + c.cantidad, 0);
-      // kilos NO se asigna: la OC registra piezas, los kg vienen del ticket de báscula
-      result.product = conceptos.map(c => `${c.codigo} · ${c.descripcion}`).join(' | ');
+    // ── Parser Inteligente de Conceptos / Artículos de la OC
+    // Usamos el parser especializado parseOrdenDeCompra que soporta múltiples formatos de renglón y multi-línea
+    const parsedOc = parseOrdenDeCompra(text);
+    if (parsedOc.items && parsedOc.items.length > 0) {
+      result.conceptos = parsedOc.items.map(it => ({
+        codigo: it.code,
+        descripcion: it.description,
+        cantidad: it.quantity,
+        valorUnitario: it.unitPrice,
+        importe: it.amount,
+      }));
+      result.totalPiezas = parsedOc.totalKilograms;
+      // En la operación de bolsas, la unidad de entrega y medida es KILOS
+      result.kilos = parsedOc.totalKilograms;
+      result.product = result.conceptos.map(c => `${c.codigo} · ${c.descripcion}`).join(' | ');
+      if (!result.folio && parsedOc.folio) result.folio = parsedOc.folio;
+      if (!result.ocNumber && parsedOc.oc) result.ocNumber = parsedOc.oc;
     } else {
-      // Fallback: regex de cantidades .0000
-      const cantidades = [...text.matchAll(/([\d,]+)\.0{2,4}(?!\d)/g)]
-        .map(m => parseFloat(m[1].replace(/,/g, '')))
-        .filter(v => v >= 100 && v <= 100000 && !String(v).startsWith('43'));
-      if (cantidades.length > 0) {
-        result.totalPiezas = cantidades.reduce((a, b) => a + b, 0);
-        // kilos NO se asigna: las piezas no son kg; el peso viene del ticket de báscula
+      // Fallback: parser línea por línea
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const conceptos: OcrConcepto[] = [];
+      const codePattern = /^((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)$/i;
+      const numPattern = /^([\d,]+\.\d{2,4})$/;
+
+      let i = 0;
+      while (i < lines.length) {
+        if (/^\d{1,2}$/.test(lines[i]) && i + 1 < lines.length && codePattern.test(lines[i + 1])) {
+          const codigo = lines[i + 1].toUpperCase();
+          let descLines: string[] = [];
+          let j = i + 2;
+          while (j < lines.length && !numPattern.test(lines[j]) && !codePattern.test(lines[j]) && !/^\d{1,2}$/.test(lines[j])) {
+            descLines.push(lines[j]);
+            j++;
+          }
+          const descripcion = descLines.join(' ').trim() || 'Bolsa de Polietileno';
+          const nums: number[] = [];
+          while (j < lines.length && nums.length < 4) {
+            const m = lines[j].match(/^([\d,]+\.\d{2,4})$/);
+            if (m) nums.push(parseFloat(m[1].replace(/,/g, '')));
+            else if (nums.length > 0) break;
+            j++;
+          }
+          if (nums.length >= 1) {
+            const cantidad = nums[0];
+            const valorUnitario = nums.length >= 2 ? nums[1] : 0;
+            const importe = nums.length >= 4 ? nums[3] : (nums.length >= 1 ? nums[nums.length - 1] : cantidad * valorUnitario);
+            conceptos.push({ codigo, descripcion, cantidad, valorUnitario, importe });
+          }
+          i = j;
+        } else {
+          i++;
+        }
       }
-      const productCodeMatch = text.match(/((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)/i);
-      const code = productCodeMatch ? productCodeMatch[1].toUpperCase() : 'S/C';
-      const productMatch = text.match(/(BOLSA[^\n\r]+)/i);
-      result.product = `${code !== 'S/C' ? code + ' · ' : ''}${productMatch ? productMatch[1].trim() : 'Bolsa de Polietileno'}`;
+
+      if (conceptos.length > 0) {
+        result.conceptos = conceptos;
+        result.totalPiezas = conceptos.reduce((acc, c) => acc + c.cantidad, 0);
+        result.kilos = result.totalPiezas;
+        result.product = conceptos.map(c => `${c.codigo} · ${c.descripcion}`).join(' | ');
+      } else {
+        // Fallback de cantidades
+        const cantidades = [...text.matchAll(/([\d,]+)\.0{2,4}(?!\d)/g)]
+          .map(m => parseFloat(m[1].replace(/,/g, '')))
+          .filter(v => v >= 100 && v <= 100000 && !String(v).startsWith('43'));
+        if (cantidades.length > 0) {
+          result.totalPiezas = cantidades.reduce((a, b) => a + b, 0);
+          result.kilos = result.totalPiezas;
+        }
+        const productCodeMatch = text.match(/((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)/i);
+        const code = productCodeMatch ? productCodeMatch[1].toUpperCase() : 'S/C';
+        const productMatch = text.match(/(BOLSA[^\n\r]+)/i);
+        result.product = `${code !== 'S/C' ? code + ' · ' : ''}${productMatch ? productMatch[1].trim() : 'Bolsa de Polietileno'}`;
+      }
     }
 
-    // ── SubTotal (tomar la última aparición antes de "107,500")
+    // ── SubTotal
     const subMatches = [...text.matchAll(/SubTotal\s*([\d,]+\.\d+)/gi)];
     if (subMatches.length > 0) {
       result.subTotal = parseFloat(subMatches[subMatches.length - 1][1].replace(/,/g, ''));
       result.total = result.subTotal;
-    } else if (result.conceptos) {
+    } else if (result.conceptos && result.conceptos.length > 0) {
       result.subTotal = result.conceptos.reduce((acc, c) => acc + c.importe, 0);
       result.total = result.subTotal;
     }

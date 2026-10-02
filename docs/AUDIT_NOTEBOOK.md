@@ -1,3 +1,29 @@
+### Iteración 125: Ingesta Automática de OCs Multilínea en Kilos, Repositorio Oficial de Archivo de Documentos Originales y Ergonomía Táctil 44px (v9.10.3)
+[2026-10-02]
+Archivos: `src/lib/ocParser.ts`, `src/lib/ocr.ts`, `src/lib/providenciaPortalParser.ts`, `src/lib/documentStorage.ts`, `src/components/Upload/DocumentsArchive.tsx`, `src/pages/DocumentsArchivePage.tsx`, `src/components/Upload/GlobalDropInspectorModal.tsx`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/components/Dashboard/UniversalDocumentUploadModal.tsx`, `src/App.tsx`, `src/components/Layout.tsx`, `storage.rules`, `src/lib/__tests__/ocParserRealCases.test.ts`, `src/lib/__tests__/providenciaPortalParser.test.ts`, `src/lib/__tests__/ocrDocumentsAutoIngest.test.ts`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `package.json`, `functions/package.json`
+Problema:
+1. Al procesar órdenes de compra en PDF de Providencia (ej. OC 12026439806), pdf.js fragmentaba las filas en celdas multilínea no alineadas en una sola línea de texto, provocando la omisión de los kilos netos y la alerta "Falta ingresar los Kilos Netos".
+2. No existía un repositorio de archivo seguro en la nube donde los operadores pudieran consultar los PDFs, XMLs y comprobantes originales una vez confirmados, ni editarlos o eliminarlos con permisos de administrador.
+3. Se requería unificar y asegurar que todas las unidades de medida de bolsas se manejen estrictamente en KILOS (kg) y que la botonera cumpla la directiva de ergonomía táctil con touch targets mínimos de 44px y respuesta háptica.
+Solución:
+1. **Parser Multi-Formato Robusto para OCs Providencia:**
+   - Se implementó la heurística de Formato D en `ocParser.ts` y `ocr.ts`, detectando secuencias de celdas por tokens (código, descripción, cantidad/kilos, precio unitario e importes) asegurando extracción 100% canónica en KILOS para cualquier variante de distribución espacial de pdf.js.
+2. **Repositorio Oficial de Archivo de Documentos Originales (`documentStorage.ts` & `DocumentsArchive.tsx`):**
+   - Al confirmar documentos en `GlobalDropInspectorModal` o `UniversalDocumentUploadModal`, el binario original se respalda en Firebase Storage bajo `documentos/{tipo}/{mes}/` y sus metadatos en la colección `storedDocuments` de Firestore.
+   - Nueva pantalla dedicada `/documentos` (`DocumentsArchivePage.tsx`) con filtros por tipo, buscador reactivo, descarga de originales, edición in-situ de folios/notas y purga segura.
+   - Reglas de seguridad en `storage.rules` actualizadas para la nueva ruta `/documentos/{tipo}/{mes}/{archivo}` limitadas a 10 MB y usuarios autenticados autorizados.
+3. **Ergonomía Táctil y Feedback Sensorial:**
+   - Touch targets mínimos de 44px (`minHeight: 44`, `minWidth: 44`) en toda la botonera de filtrado, subida y edición.
+   - Micro-interacciones con Framer Motion y feedback háptico (`triggerHaptic`).
+4. **Verificación y Pruebas Unitarias:**
+   - 224 de 224 pruebas unitarias aprobadas en 33 suites (100% verde).
+   - Compilación completa de TypeScript cliente, Vite y Cloud Functions exitosa con 0 errores.
+Riesgo: 🟢 Cero / Bajo — Mejoras aditivas y defensivas con persistencia segura en Storage y Firestore, respaldadas por 224 pruebas unitarias.
+Estado: ✅ Verificado — 100% de pruebas pasando, compilación limpia.
+OKRs afectados: OKR 2 (Excelencia UX/UI), OKR 4 (Cero Fricción), OKR 5 (Integridad Matemática & Seguridad).
+
+---
+
 ### Iteración 124: Flujo Integral de OC de Punta a Punta, Precios Fluctuantes ($37/$38/$43), Contingencias Operativas y Respaldo Dual v9.10.2
 [2026-10-01]
 Archivos: `src/components/OCPreviewModal.tsx`, `src/components/OrderModal/OrderStepper.tsx`, `src/components/OrderModal/OCLifecycleTracker.tsx`, `src/components/OrderModal/WhatsAppOrderModal.tsx`, `src/components/OrderModal/OrderPriceModal.tsx`, `src/components/OrderModal/TabEntregas.tsx`, `src/components/OrderModal/InvoiceWidget.tsx`, `src/components/Audit/CentinelaLivePill.tsx`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/lib/__tests__/fluctuatingPricingAndLifecycle.test.ts`, `package.json`, `functions/package.json`, `docs/PLAN_IMPLEMENTACION_FLUJO_OC.md`, `scripts/bump_version.js`

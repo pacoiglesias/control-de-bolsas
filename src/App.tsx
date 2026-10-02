@@ -44,6 +44,7 @@ const FastEntry = lazy(() => import('./pages/FastEntry').then(m => ({ default: m
 const AuditSync = lazy(() => import('./pages/AuditSync'));
 const DataMining = lazy(() => import('./pages/DataMining'));
 const WizardContainer = lazy(() => import('./features/wizard/WizardContainer').then(m => ({ default: m.WizardContainer })));
+const DocumentsArchivePage = lazy(() => import('./pages/DocumentsArchivePage'));
 
 function RouteFallback() {
   return (
@@ -172,6 +173,7 @@ function Gate() {
             <Route path="centro-control" element={seccion(<ControlCenter />)} />
             <Route path="audit" element={seccion(<AuditSync />)} />
             <Route path="oc" element={seccion(<OcTracking />)} />
+            <Route path="archivo-documentos" element={seccion(<DocumentsArchivePage />)} />
             <Route path="mining" element={seccion(<DataMining />)} />
             <Route path="catalogo" element={seccion(<Catalog />)} />
             <Route path="captura-rapida" element={seccion(<FastEntry />)} />

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml } from '../providenciaPortalParser';
+import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml, parseProvidenciaPaymentPdf } from '../providenciaPortalParser';
 
 describe('parseProvidenciaContrareciboHtml', () => {
   it('parsea correctamente el volcado HTML del portal de Providencia con múltiples contrarecibos', () => {
@@ -116,5 +116,47 @@ Fecha Recepción: <strong>24/08/2026</strong><br>Fecha Pago: <strong>23/09/2026<
     expect(payment?.facturaFolio).toBe('6084');
     expect(payment?.observaciones).toBe('PAGO FAC#6084');
     expect(payment?.department).toBe('TH');
+  });
+
+  it('parsea con exactitud los PDFs de Detalle de Pagos de Providencia (TR_4987 y TR_4835)', () => {
+    const doc4Text = `
+02/10/2026 - 11:06:32 a. m.
+DETALLE DE PAGOS
+PAGO: TR_4987 TRANSFERENCIA: IMPORTE: 98,054.60 MXN
+Docto. SAP Docto.
+Pago Factura Detalle Fecha Pago Importe Moneda
+8/678 TR_4987 6198 TH-990 30/09/2026 98,054.60 MXN
+10/2/26, 7:06 PM Providencia | Recepción CFDI > Proveedores > Pagos > Pago: TR_4987
+https://apps.mundoprovidencia.com/rHoyProvidencia/portal/proveedores/@CGI-SCRIPTS@PROV-WEBSITE@v1.0/pagos/detalles/?id=56573&doc=T… 1/1
+    `;
+
+    const pay4 = parseProvidenciaPaymentPdf(doc4Text);
+    expect(pay4).not.toBeNull();
+    expect(pay4?.transferRef).toBe('TR_4987');
+    expect(pay4?.amount).toBe(98054.60);
+    expect(pay4?.facturaFolio).toBe('6198');
+    expect(pay4?.contrareciboNumber).toBe('TH-990');
+    expect(pay4?.paymentDate).toBe('30/09/2026');
+    expect(pay4?.department).toBe('TH');
+
+    const doc5Text = `
+29/09/2026 - 09:50:05 a. m.
+DETALLE DE PAGOS
+PAGO: TR_4835 TRANSFERENCIA: IMPORTE: 81,780.00 MXN
+Docto. SAP Docto.
+Pago Factura Detalle Fecha Pago Importe Moneda
+8/660 TR_4835 6167 TH-946 25/09/2026 81,780.00 MXN
+9/29/26, 5:50 PM Providencia | Recepción CFDI > Proveedores > Pagos > Pago: TR_4835
+https://apps.mundoprovidencia.com/rHoyProvidencia/portal/proveedores/@CGI-SCRIPTS@PROV-WEBSITE@v1.0/pagos/detalles/?id=56569&doc=T… 1/1
+    `;
+
+    const pay5 = parseProvidenciaPaymentPdf(doc5Text);
+    expect(pay5).not.toBeNull();
+    expect(pay5?.transferRef).toBe('TR_4835');
+    expect(pay5?.amount).toBe(81780.00);
+    expect(pay5?.facturaFolio).toBe('6167');
+    expect(pay5?.contrareciboNumber).toBe('TH-946');
+    expect(pay5?.paymentDate).toBe('25/09/2026');
+    expect(pay5?.department).toBe('TH');
   });
 });

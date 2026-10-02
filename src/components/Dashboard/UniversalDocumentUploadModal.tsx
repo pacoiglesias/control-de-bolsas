@@ -7,7 +7,7 @@ import { db, PATHS } from '../../lib/firebase';
 import { parseXmlInvoice, type ParsedInvoiceData } from '../../lib/xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from '../../lib/ocr';
 import { parseOrdenDeCompra } from '../../lib/ocParser';
-import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml, type ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
+import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml, parseProvidenciaPaymentPdf, type ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
 import { parseBankTransferReceipt, type ParsedBankTransfer } from '../../lib/bankReceiptParser';
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useToast } from '../../context/ToastContext';
@@ -871,6 +871,14 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         try {
           const text = await extractTextFromPdf(file);
           
+          // 0. Detectar si es un Detalle de Pagos oficial de Providencia (TR_xxxx, Factura, Contrarecibo)
+          const provPayment = parseProvidenciaPaymentPdf(text);
+          if (provPayment) {
+            const res = await processSingleProvidenciaPayment(provPayment, file.name);
+            results.push(res);
+            continue;
+          }
+
           // 1. Detectar si es un comprobante de transferencia bancaria (BBVA Net Cash / SPEI / CEP)
           const bankTransfer = parseBankTransferReceipt(text);
           if (bankTransfer) {

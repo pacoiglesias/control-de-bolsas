@@ -194,9 +194,91 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
     }
   }
 
+  // ─── Formato D: Último recurso numérico ─────────────────────────────────────
+  // Cuando pdfjs reconstruye cada celda de tabla en su propia línea (modo
+  // "vertical"), ninguno de los formatos anteriores puede leerlo porque no hay
+  // una sola línea que tenga todos los campos juntos.
+  // Estrategia: localizar TODOS los códigos de artículo en el texto (EGBO...,
+  // ENBO...) y luego extraer el primer bloque de 3-4 números que aparezca
+  // después de cada código: [cantidad] [precio_unitario] [descuento] [importe]
+  if (items.length === 0 && text) {
+    const codeRegex = /(?:EGBO|ENBO|[A-Z]{2,6})[0-9]{5,8}-[A-Z0-9]+/gi;
+    let codeMatch: RegExpExecArray | null;
+    const codePositions: { code: string; index: number }[] = [];
+    while ((codeMatch = codeRegex.exec(text)) !== null) {
+      codePositions.push({ code: codeMatch[0].toUpperCase(), index: codeMatch.index });
+    }
+
+    if (codePositions.length > 0) {
+      for (let ci = 0; ci < codePositions.length; ci++) {
+        const { code, index } = codePositions[ci];
+        // Segmento entre este código y el siguiente (o fin del texto)
+        const nextIndex = ci + 1 < codePositions.length ? codePositions[ci + 1].index : Math.min(text.length, index + 600);
+        const segment = text.substring(index + code.length, nextIndex);
+
+        // Descripción: texto antes del primer número del segmento
+        const firstNumInSeg = segment.search(/[0-9]/);
+        const desc = (firstNumInSeg > 0 ? segment.substring(0, firstNumInSeg) : segment)
+          .replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
+          // Limpiar etiquetas de columna que aparecen en el segmento
+          .replace(/\b(Cantidad|P\.?U\.?|Dtos|Importe|Articulo)\b/gi, '')
+          .trim();
+
+        // Todos los números del segmento (con decimales)
+        const numMatches = [...segment.matchAll(/([\d,]+\.[\d]{2,4})/g)]
+          .map((m) => Number(m[1].replace(/,/g, '')))
+          .filter((n) => !isNaN(n) && n >= 0);
+
+        if (numMatches.length >= 1) {
+          // Heurística: primer número grande (>=100) = kilos/cantidad
+          // Precio unitario típico = 43 (Providencia); Importe = Cant × PU
+          let quantity  = numMatches[0];
+          let unitPrice = 43;
+          let amount    = quantity * unitPrice;
+
+          if (numMatches.length >= 4) {
+            quantity  = numMatches[0];
+            unitPrice = numMatches[1];
+            // numMatches[2] = descuentos
+            amount    = numMatches[3];
+          } else if (numMatches.length >= 3) {
+            quantity  = numMatches[0];
+            unitPrice = numMatches[1];
+            amount    = numMatches[2];
+          } else if (numMatches.length === 2) {
+            quantity  = numMatches[0];
+            if (numMatches[1] > 0 && numMatches[1] < 200) {
+              unitPrice = numMatches[1];
+              amount    = quantity * unitPrice;
+            } else {
+              amount = numMatches[1];
+              // Inferir precio si el importe parece coherente
+              if (quantity > 0) unitPrice = Math.round((amount / quantity) * 100) / 100;
+            }
+          }
+
+          if (quantity > 0) {
+            items.push({
+              id: 'item_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+              code,
+              description: desc || 'Bolsa de Polietileno',
+              quantity,
+              unitPrice,
+              amount,
+              unit: 'Kilos',
+            });
+          }
+        }
+      }
+    }
+  }
+
   // Extraer folio, OC y proveedor
-  const ocMatch = text?.match(/CDB\s*OC:\s*([\w/]+)/i) || text?.match(/Orden\s*de\s*Compra\s*\n\s*(\d{8,14})/i);
-  const folioMatch = text?.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\s\n\r]+)/i);
+  const ocMatch = text?.match(/CDB\s*OC\s*[:#]?\s*([0-9A-Za-z/]+)/i)
+    || text?.match(/\b(12026[0-9]{6,10})\b/)
+    || text?.match(/Orden\s*de\s*Compra\s*\n\s*(\d{8,14})/i);
+  const folioMatch = text?.match(/No\.?\s*Ord(?:en)?\.?\s*de\s*Compra:\s*([^\s\n\r]+)/i)
+    || text?.match(/\b((?:43|71)\/[0-9]{4,6})\b/);
   const providerMatch = text?.match(/Proveedor\s*\n\s*([^\n]+)/i) || text?.match(/([Nn]\d{3,5}\s*-\s*[^\n]+)/);
   let provider = providerMatch ? providerMatch[1].trim() : '';
   if (/ELEMENTAL\s*DENIM|N0321/i.test(provider)) {
@@ -221,8 +303,9 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
     const dia = Number(fechaMatch[1]);
     const mes = MESES[fechaMatch[2].toLowerCase()];
     let anio = Number(fechaMatch[3]);
-    if (anio < 10) anio = 2026;
+    if (anio === 20 || anio < 10) anio = 2026;
     else if (anio < 100) anio += 2000;
+    if (anio === 2020 && text.includes('2026')) anio = 2026;
     if (!isNaN(dia) && mes !== undefined && !isNaN(anio)) {
       estimatedDeliveryDate = new Date(anio, mes, dia, 12, 0, 0);
     }

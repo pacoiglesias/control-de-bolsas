@@ -262,3 +262,83 @@ export function parseProvidenciaPaymentDetailHtml(content: string): ParsedProvid
     department,
   };
 }
+
+/**
+ * Parsea el texto extraído de un PDF oficial de Detalle de Pagos de Providencia
+ * (portal de proveedores apps.mundoprovidencia.com, formato:
+ *  "DETALLE DE PAGOS", "PAGO: TR_4987 TRANSFERENCIA: IMPORTE: 98,054.60 MXN",
+ *  "8/678 TR_4987 6198 TH-990 30/09/2026 98,054.60 MXN").
+ */
+export function parseProvidenciaPaymentPdf(text: string): ParsedProvidenciaPaymentData | null {
+  if (!text) return null;
+
+  const isPayment =
+    /DETALLE\s*DE\s*PAGOS?/i.test(text) ||
+    /Docto\.?\s*SAP.*Docto\.?\s*Pago/i.test(text) ||
+    (/PAGO:\s*TR_\d+/i.test(text) && /TRANSFERENCIA/i.test(text)) ||
+    /apps\.mundoprovidencia\.com.*pagos/i.test(text);
+
+  if (!isPayment) return null;
+
+  // 1. Transferencia / Docto. Pago (ej. TR_4987, TR_4835)
+  const trMatch = text.match(/PAGO:\s*(TR_\d+)/i) ||
+                  text.match(/\b(TR_\d+)\b/i);
+  const transferRef = trMatch ? trMatch[1].toUpperCase() : '';
+
+  // 2. Importe total del pago (ej. 98,054.60 MXN)
+  const importeMatch = text.match(/IMPORTE:\s*([\d,]+\.\d{2})\s*(?:MXN)?/i) ||
+                       text.match(/\b([\d,]+\.\d{2})\s*MXN\b/i);
+  const amount = importeMatch ? parseFloat(importeMatch[1].replace(/,/g, '')) : 0;
+
+  // 3. Fila de tabla de desglose:
+  // Docto. SAP | Docto. Pago | Factura | Detalle | Fecha Pago | Importe | Moneda
+  // Ej: 8/678 TR_4987 6198 TH-990 30/09/2026 98,054.60 MXN
+  // Ej: 8/660 TR_4835 6167 TH-946 25/09/2026 81,780.00 MXN
+  const rowMatch = text.match(/(?:([0-9]+\/[0-9]+)\s+)?(TR_\d+)\s+([0-9]{3,8})\s+((?:TH|GT)-[0-9]+)\s+([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})\s+([\d,]+\.\d{2})/i) ||
+                   text.match(/([0-9]+\/[0-9]+)\s+.*?\b(TR_\d+)\b.*?\b([0-9]{3,8})\b.*?\b((?:TH|GT)-[0-9]+)\b.*?\b([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})\b.*?([\d,]+\.\d{2})/i);
+
+  let doctoSap = '';
+  let facturaFolio = '';
+  let contrareciboNumber = '';
+  let paymentDate = '';
+  let rowAmount = 0;
+
+  if (rowMatch) {
+    doctoSap = rowMatch[1] || '';
+    facturaFolio = rowMatch[3] || '';
+    contrareciboNumber = rowMatch[4] ? rowMatch[4].toUpperCase() : '';
+    paymentDate = rowMatch[5] || '';
+    rowAmount = parseFloat(rowMatch[6].replace(/,/g, '')) || 0;
+  } else {
+    // Extracciones individuales de respaldo
+    const crMatch = text.match(/\b((?:TH|GT)-[0-9]+)\b/i);
+    if (crMatch) contrareciboNumber = crMatch[1].toUpperCase();
+
+    const facMatch = text.match(/Factura\s*[:#]?\s*([0-9]{3,8})/i) ||
+                     text.match(/\bTR_\d+\s+([0-9]{3,8})\b/i);
+    if (facMatch) facturaFolio = facMatch[1];
+
+    const dateMatch = text.match(/Fecha\s*Pago\s*[:#]?\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})/i) ||
+                      text.match(/\b([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})\b/);
+    if (dateMatch) paymentDate = dateMatch[1];
+
+    const sapMatch = text.match(/\b([0-9]+\/[0-9]+)\b/);
+    if (sapMatch) doctoSap = sapMatch[1];
+  }
+
+  const finalAmount = rowAmount > 0 ? rowAmount : amount;
+  const upperCr = contrareciboNumber.toUpperCase();
+  const department: 'TH' | 'GT' | 'OTHER' = upperCr.startsWith('TH') ? 'TH' : upperCr.startsWith('GT') ? 'GT' : 'OTHER';
+
+  return {
+    contrareciboNumber: upperCr,
+    paymentDate,
+    bancoCargo: 'TRANSFERENCIA',
+    transferRef,
+    amount: finalAmount,
+    currency: 'MXN',
+    observaciones: `Detalle de Pagos Providencia ${transferRef} - Factura #${facturaFolio} - CR ${upperCr}${doctoSap ? ` (SAP ${doctoSap})` : ''}`,
+    facturaFolio,
+    department,
+  };
+}

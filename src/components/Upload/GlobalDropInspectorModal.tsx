@@ -3,23 +3,25 @@ import { Modal } from '../ui';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { extractTextFromPdf, parseOcrData } from '../../lib/ocr';
 import { parseScaleTicket } from '../../lib/scaleTicketParser';
+import { parseProvidenciaPaymentPdf } from '../../lib/providenciaPortalParser';
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useToast } from '../../context/ToastContext';
 import { money } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { sound } from '../../lib/sounds';
 import { triggerHaptic } from '../../lib/hapticEngine';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, Delivery } from '../../lib/types';
 import { OC_TH_ACTIVE, OC_GT_ACTIVE } from '../../lib/constants';
+import { uploadDocument, type StoredDocKind } from '../../lib/documentStorage';
 
 interface GlobalDropInspectorModalProps {
   file: File;
   onClose: () => void;
 }
 
-type DetectedDocType = 'factura_cfdi' | 'ticket_bascula' | 'contrarecibo' | 'remision' | 'desconocido';
+type DetectedDocType = 'factura_cfdi' | 'ticket_bascula' | 'contrarecibo' | 'remision' | 'comprobante_pago' | 'desconocido';
 
 export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorModalProps) {
   const { orders } = useOrdersContext();
@@ -48,6 +50,8 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
   // Orden seleccionada para vincular
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  /** Estado del guardado del archivo original en Storage */
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Analizar archivo en el montaje
   useEffect(() => {
@@ -90,67 +94,97 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
           const text = await extractTextFromPdf(file);
           if (!active) return;
 
-          // Verificar si es un Ticket de Báscula
-          const scaleTicket = parseScaleTicket(text);
-          if (scaleTicket.kilosNeto && scaleTicket.kilosNeto > 0) {
-            setDocType('ticket_bascula');
-            setConfidence(scaleTicket.confidence === 'high' ? 'alta' : 'media');
-            setExtractedKilos(round2(scaleTicket.kilosNeto));
-            setExtractedFolio(scaleTicket.ticketFolio || '');
-            setExtractedDate(scaleTicket.dateStr || new Date().toISOString().split('T')[0]);
-            setDetectedOcNumber(scaleTicket.detectedOc || '');
-            matchOrder(scaleTicket.detectedOc, undefined, scaleTicket.detectedDepartment);
-          } else {
-            // Verificar tipo de documento con OCR
-            const ocr = parseOcrData(text);
-
-            if (ocr.docKind === 'oc_providencia') {
-              // OC de Providencia: unidad de la OC = piezas; los kg vienen del ticket de báscula
-              // → kilos queda en 0 hasta que se registre la entrega pesada
-              setDocType('contrarecibo');
-              setOcKind('oc_providencia');
-              setConfidence('alta');
-              setExtractedFolio(ocr.folio || ocr.ocNumber || '');
-              setExtractedUuid('');
-              setExtractedKilos(0); // los kg llegan con el ticket de báscula, no con la OC
-              setExtractedSubtotal(round2(ocr.subTotal || 0));
-              setExtractedTotal(round2(ocr.total || 0));
-              setExtractedDate(ocr.fecha ? ocr.fecha : new Date().toISOString().split('T')[0]);
-              setDetectedOcNumber(ocr.ocNumber || ocr.folio || '');
-              if (ocr.totalPiezas || ocr.conceptos) {
-                setOcPiezasInfo({
-                  totalPiezas: ocr.totalPiezas || 0,
-                  conceptos: (ocr.conceptos || []).map(c => ({
-                    codigo: c.codigo || '',
-                    descripcion: c.descripcion,
-                    cantidad: c.cantidad,
-                    valorUnitario: c.valorUnitario,
-                  })),
-                });
+          // 0. Detectar si es un Detalle de Pagos oficial de Providencia (TR_xxxx, Factura, Contrarecibo)
+          const provPayment = parseProvidenciaPaymentPdf(text);
+          if (provPayment) {
+            setDocType('comprobante_pago');
+            setConfidence('alta');
+            setExtractedFolio(provPayment.facturaFolio || provPayment.transferRef || '');
+            setExtractedUuid('');
+            setExtractedKilos(0);
+            setExtractedSubtotal(round2(provPayment.amount / 1.16));
+            setExtractedTotal(round2(provPayment.amount));
+            if (provPayment.paymentDate) {
+              const dp = provPayment.paymentDate.split('/');
+              if (dp.length === 3) {
+                setExtractedDate(`${dp[2]}-${dp[1].padStart(2, '0')}-${dp[0].padStart(2, '0')}`);
               }
-              matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
-            } else if (/CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
-              setDocType('contrarecibo');
-              setConfidence('alta');
-              setExtractedFolio(ocr.folio || '');
-              setExtractedUuid(ocr.uuid || '');
-              setExtractedKilos(round2(ocr.kilos || 0));
-              setExtractedSubtotal(round2(ocr.subTotal || 0));
-              setExtractedTotal(round2(ocr.total || 0));
-              setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
-              setDetectedOcNumber(ocr.ocNumber || '');
-              matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+            }
+            setDetectedOcNumber(provPayment.transferRef || '');
+            matchOrder(provPayment.transferRef, provPayment.facturaFolio, provPayment.department, provPayment.amount, provPayment.contrareciboNumber);
+          } else {
+            // Verificar si es un Ticket de Báscula
+            const scaleTicket = parseScaleTicket(text);
+            if (scaleTicket.kilosNeto && scaleTicket.kilosNeto > 0) {
+              setDocType('ticket_bascula');
+              setConfidence(scaleTicket.confidence === 'high' ? 'alta' : 'media');
+              setExtractedKilos(round2(scaleTicket.kilosNeto));
+              setExtractedFolio(scaleTicket.ticketFolio || '');
+              setExtractedDate(scaleTicket.dateStr || new Date().toISOString().split('T')[0]);
+              setDetectedOcNumber(scaleTicket.detectedOc || '');
+              matchOrder(scaleTicket.detectedOc, undefined, scaleTicket.detectedDepartment);
             } else {
-              setDocType('factura_cfdi');
-              setConfidence('alta');
-              setExtractedFolio(ocr.folio || '');
-              setExtractedUuid(ocr.uuid || '');
-              setExtractedKilos(round2(ocr.kilos || 0));
-              setExtractedSubtotal(round2(ocr.subTotal || 0));
-              setExtractedTotal(round2(ocr.total || 0));
-              setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
-              setDetectedOcNumber(ocr.ocNumber || '');
-              matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+              // Verificar tipo de documento con OCR
+              const ocr = parseOcrData(text);
+
+              if (ocr.docKind === 'pago_providencia') {
+                setDocType('comprobante_pago');
+                setConfidence('alta');
+                setExtractedFolio(ocr.folio || '');
+                setDetectedOcNumber(ocr.ocNumber || '');
+                setExtractedKilos(0);
+                setExtractedSubtotal(round2(ocr.subTotal || 0));
+                setExtractedTotal(round2(ocr.total || 0));
+                setExtractedDate(ocr.fecha ? ocr.fecha : new Date().toISOString().split('T')[0]);
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre, ocr.total);
+              } else if (ocr.docKind === 'oc_providencia') {
+                // OC de Providencia: todas las bolsas se entregan y miden en KILOS
+                // → Extraemos los kilos directamente de las cantidades pedidas
+                setDocType('contrarecibo');
+                setOcKind('oc_providencia');
+                setConfidence('alta');
+                setExtractedFolio(ocr.folio || ocr.ocNumber || '');
+                setExtractedUuid('');
+                setExtractedKilos(round2(ocr.kilos || ocr.totalPiezas || 0));
+                setExtractedSubtotal(round2(ocr.subTotal || 0));
+                setExtractedTotal(round2(ocr.total || 0));
+                setExtractedDate(ocr.fecha ? ocr.fecha : new Date().toISOString().split('T')[0]);
+                setDetectedOcNumber(ocr.ocNumber || ocr.folio || '');
+                if (ocr.totalPiezas || ocr.conceptos) {
+                  setOcPiezasInfo({
+                    totalPiezas: ocr.totalPiezas || 0,
+                    conceptos: (ocr.conceptos || []).map(c => ({
+                      codigo: c.codigo || '',
+                      descripcion: c.descripcion,
+                      cantidad: c.cantidad,
+                      valorUnitario: c.valorUnitario,
+                    })),
+                  });
+                }
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+              } else if (/CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
+                setDocType('contrarecibo');
+                setConfidence('alta');
+                setExtractedFolio(ocr.folio || '');
+                setExtractedUuid(ocr.uuid || '');
+                setExtractedKilos(round2(ocr.kilos || 0));
+                setExtractedSubtotal(round2(ocr.subTotal || 0));
+                setExtractedTotal(round2(ocr.total || 0));
+                setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+                setDetectedOcNumber(ocr.ocNumber || '');
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+              } else {
+                setDocType('factura_cfdi');
+                setConfidence('alta');
+                setExtractedFolio(ocr.folio || '');
+                setExtractedUuid(ocr.uuid || '');
+                setExtractedKilos(round2(ocr.kilos || 0));
+                setExtractedSubtotal(round2(ocr.subTotal || 0));
+                setExtractedTotal(round2(ocr.total || 0));
+                setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+                setDetectedOcNumber(ocr.ocNumber || '');
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+              }
             }
           }
         }
@@ -172,18 +206,30 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
       }
     }
 
-    function matchOrder(ocCandidate?: string, folioCandidate?: string, clientCandidate?: string) {
+    function matchOrder(
+      ocCandidate?: string,
+      folioCandidate?: string,
+      clientCandidate?: string,
+      amountCandidate?: number,
+      crCandidate?: string
+    ) {
       if (!orders || orders.length === 0) return;
 
       const cleanOc = (ocCandidate || '').replace(/[^0-9]/g, '');
       const cleanFolio = (folioCandidate || '').trim().toUpperCase();
       const cleanClient = (clientCandidate || '').toUpperCase();
+      const cleanCr = (crCandidate || '').trim().toUpperCase();
 
       const found = orders.find((o) => {
         if (!o || (o as any).isDeleted) return false;
         const oOc = (o.oc || o.folio || o.id || '').replace(/[^0-9]/g, '');
         if (cleanOc && oOc.includes(cleanOc)) return true;
         if (cleanFolio && (o.folio === cleanFolio || (o.invoices || []).some((i) => i.folio === cleanFolio))) return true;
+        if (cleanCr && (o.collection?.contrareciboNumber === cleanCr || (o.invoices || []).some((i) => i.collection?.contrareciboNumber === cleanCr))) return true;
+        if (amountCandidate && amountCandidate > 0) {
+          const invMatch = (o.invoices || []).some((i) => Math.abs((i.financials?.invoiceTotal || 0) - amountCandidate) < 1);
+          if (invMatch) return true;
+        }
         if (cleanClient.includes('TEXTIL HOGAR') && o.oc === OC_TH_ACTIVE) return true;
         if (cleanClient.includes('GRUPO TEXTIL') && o.oc === OC_GT_ACTIVE) return true;
         return false;
@@ -212,6 +258,70 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
   // Acción de Confirmación y Aplicación Atómica
   const handleConfirmAndApply = async () => {
     if (!selectedOrder) {
+      if (ocKind === 'oc_providencia') {
+        setSaving(true);
+        try {
+          const isTh = (extractedFolio?.includes('71') || detectedOcNumber?.includes('1202671'));
+          const newOrderDoc = {
+            folio: extractedFolio || detectedOcNumber || 'OC-NUEVA',
+            oc: detectedOcNumber || extractedFolio || 'OC-NUEVA',
+            client: isTh ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+            department: isTh ? 'TH' : 'GT',
+            departmentLocation: isTh ? 'TH-ALMACEN-1' : 'P4-ALM',
+            totalKilograms: extractedKilos || 0,
+            status: 'pedido',
+            creditCycle: { status: 'pedido' },
+            isClosedShort: false,
+            notes: `OC importada desde ${file.name}`,
+            invoices: [],
+            deliveries: [],
+            items: (ocPiezasInfo?.conceptos || []).map((c, idx) => ({
+              id: `item-${idx + 1}`,
+              code: c.codigo || 'S/C',
+              description: c.descripcion || 'Bolsa de Polietileno',
+              quantity: c.cantidad || extractedKilos || 0,
+              unitPrice: c.valorUnitario || 43,
+              amount: c.cantidad * (c.valorUnitario || 43),
+              unit: 'Kilos',
+            })),
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          };
+          const newDocRef = await addDoc(collection(db, PATHS.orders), newOrderDoc);
+          // Guardar PDF original en Firebase Storage
+          try {
+            setUploadingFile(true);
+            await uploadDocument({
+              file,
+              docKind: 'oc_providencia',
+              folio: newOrderDoc.folio,
+              ocNumber: newOrderDoc.oc,
+              orderId: newDocRef.id,
+              orderFolio: newOrderDoc.folio,
+              kilos: extractedKilos || 0,
+              total: extractedTotal || 0,
+              docDate: extractedDate,
+              notes: `OC importada desde ${file.name} — ${(ocPiezasInfo?.conceptos || []).length} artículo(s) detectados`,
+            });
+          } catch (storErr) {
+            console.warn('No se pudo subir el PDF original a Storage:', storErr);
+          } finally {
+            setUploadingFile(false);
+          }
+          sound.playChaChing();
+          triggerHaptic('cash');
+          toast(`✅ Nueva Orden de Compra ${newOrderDoc.folio} creada con éxito (${(extractedKilos || 0).toLocaleString('es-MX')} kg) — en Producción`, 'ok');
+          onClose();
+          return;
+        } catch (err: any) {
+          console.error('Error al crear OC:', err);
+          toast(`Error al crear OC: ${err.message}`, 'bad');
+          return;
+        } finally {
+          setSaving(false);
+        }
+      }
+
       toast('Por favor selecciona una Orden de Compra para aplicar el comprobante.', 'bad');
       return;
     }
@@ -220,7 +330,63 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
     try {
       const orderRef = doc(db, PATHS.orders, selectedOrder.id);
 
-      if (docType === 'factura_cfdi') {
+      if (docType === 'comprobante_pago') {
+        const updatedInvoices = [...(selectedOrder.invoices || [])];
+        const invIdx = updatedInvoices.findIndex((i: any) =>
+          (extractedFolio && i.folio === extractedFolio) ||
+          (detectedOcNumber && i.collection?.transferRef === detectedOcNumber) ||
+          (extractedTotal > 0 && Math.abs((i.financials?.invoiceTotal || 0) - extractedTotal) < 1)
+        );
+        const payTs = extractedDate ? Timestamp.fromDate(new Date(extractedDate)) : Timestamp.now();
+        if (invIdx !== -1 && updatedInvoices[invIdx]) {
+          const inv = updatedInvoices[invIdx];
+          inv.collection = {
+            ...(inv.collection || {}),
+            paidAmount: extractedTotal,
+            paidAt: payTs,
+            collectedAt: payTs,
+            transferRef: detectedOcNumber || extractedFolio,
+          };
+          inv.creditCycle = {
+            ...(inv.creditCycle || {}),
+            status: 'collected',
+          };
+        }
+
+        await updateDoc(orderRef, {
+          invoices: updatedInvoices,
+          'collection.paidAmount': extractedTotal,
+          'collection.paidAt': payTs,
+          'collection.transferRef': detectedOcNumber || extractedFolio,
+          'creditCycle.status': 'collected',
+          status: 'collected',
+          updatedAt: Timestamp.now(),
+        });
+
+        // Guardar PDF original en Firebase Storage
+        try {
+          setUploadingFile(true);
+          await uploadDocument({
+            file,
+            docKind: 'pago_providencia',
+            folio: extractedFolio || detectedOcNumber || 'S/F',
+            ocNumber: detectedOcNumber,
+            orderId: selectedOrder.id,
+            orderFolio: selectedOrder.folio || selectedOrder.oc,
+            kilos: 0,
+            total: extractedTotal,
+            docDate: extractedDate,
+            notes: `Pago TR ${detectedOcNumber} aplicado a OC ${selectedOrder.folio || selectedOrder.oc}`,
+          });
+        } catch (storErr) {
+          console.warn('No se pudo subir el PDF de pago a Storage:', storErr);
+        } finally {
+          setUploadingFile(false);
+        }
+        sound.playChaChing();
+        triggerHaptic('cash');
+        toast(`✅ Pago ${detectedOcNumber || extractedFolio} de ${money(extractedTotal)} aplicado con éxito a la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
+      } else if (docType === 'factura_cfdi') {
         const newInvoice: Invoice = {
           id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           folio: extractedFolio || 'S/F',
@@ -276,6 +442,26 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
           updatedAt: Timestamp.now(),
         });
 
+        // Guardar PDF/XML original en Firebase Storage
+        try {
+          setUploadingFile(true);
+          await uploadDocument({
+            file,
+            docKind: 'factura_cfdi',
+            folio: newInvoice.folio || 'S/F',
+            ocNumber: selectedOrder.oc || selectedOrder.folio,
+            orderId: selectedOrder.id,
+            orderFolio: selectedOrder.folio || selectedOrder.oc,
+            kilos: extractedKilos,
+            total: extractedTotal,
+            docDate: extractedDate,
+            notes: `Factura CFDI #${newInvoice.folio}${extractedUuid ? ' · UUID: ' + extractedUuid : ''}`,
+          });
+        } catch (storErr) {
+          console.warn('No se pudo subir la factura a Storage:', storErr);
+        } finally {
+          setUploadingFile(false);
+        }
         sound.playChaChing();
         triggerHaptic('cash');
         toast(`Factura #${newInvoice.folio} aplicada con éxito a la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
@@ -297,50 +483,98 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
           updatedAt: Timestamp.now(),
         });
 
+        // Guardar ticket original en Firebase Storage
+        try {
+          setUploadingFile(true);
+          await uploadDocument({
+            file,
+            docKind: docType === 'ticket_bascula' ? 'ticket_bascula' : 'remision',
+            folio: extractedFolio || `TKT-${Date.now()}`,
+            orderId: selectedOrder.id,
+            orderFolio: selectedOrder.folio || selectedOrder.oc,
+            kilos: extractedKilos,
+            total: 0,
+            docDate: extractedDate,
+            notes: `Ticket de báscula #${extractedFolio || 'S/N'} · ${extractedKilos.toLocaleString('es-MX')} kg`,
+          });
+        } catch (storErr) {
+          console.warn('No se pudo subir el ticket a Storage:', storErr);
+        } finally {
+          setUploadingFile(false);
+        }
         sound.playChaChing();
         triggerHaptic('cash');
         toast(`Entrega de ${extractedKilos.toLocaleString('es-MX')} kg registrada exitosamente en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
       } else if (docType === 'contrarecibo' || docType === 'desconocido') {
         const isOcDoc = ocKind === 'oc_providencia';
-        const noteEntry = {
-          id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          folio: extractedFolio || 'S/F',
-          date: Timestamp.fromDate(new Date(extractedDate)),
-          kilos: extractedKilos || 0,
-          docType: isOcDoc ? 'oc_providencia' : (docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto'),
-          notes: isOcDoc
-            ? `OC Providencia #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · Entrega: ${extractedKilos.toLocaleString('es-MX')} kg` : ' · Pendiente de entrega (kilos por ticket de báscula)'}${ ocPiezasInfo ? ` · ${ocPiezasInfo.totalPiezas.toLocaleString('es-MX')} pzas pedidas` : ''}`
-            : `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
-          ocPiezas: isOcDoc && ocPiezasInfo ? ocPiezasInfo.totalPiezas : undefined,
-          conceptos: isOcDoc && ocPiezasInfo ? ocPiezasInfo.conceptos : undefined,
-          importe: extractedTotal || undefined,
-        };
-
-        const existingDeliveries = selectedOrder.deliveries || [];
-        // Registrar entrega solo si se capturaron kilos
-        const updatedDeliveries = extractedKilos > 0
-          ? [...existingDeliveries, {
-              ...noteEntry,
-              invoiced: false,
-              docFolio: noteEntry.folio,
-            }]
-          : existingDeliveries;
-
-        await updateDoc(orderRef, {
-          deliveries: updatedDeliveries,
-          updatedAt: Timestamp.now(),
-        });
-
-        sound.playChaChing();
-        triggerHaptic('cash');
         if (isOcDoc) {
-          toast(
-            extractedKilos > 0
-              ? `OC #${noteEntry.folio} aplicada: ${extractedKilos.toLocaleString('es-MX')} kg registrados en ${selectedOrder.folio || selectedOrder.oc}`
-              : `OC #${noteEntry.folio} registrada como referencia en ${selectedOrder.folio || selectedOrder.oc} — captura los kg al recibir la báscula`,
-            'ok'
-          );
+          const updates: any = {
+            totalKilograms: extractedKilos || selectedOrder.totalKilograms || 0,
+            status: 'pedido',
+            isClosedShort: false,
+            updatedAt: Timestamp.now(),
+          };
+          if (ocPiezasInfo?.conceptos && ocPiezasInfo.conceptos.length > 0) {
+            updates.items = ocPiezasInfo.conceptos.map((c, idx) => ({
+              id: `item-${idx + 1}`,
+              code: c.codigo || 'S/C',
+              description: c.descripcion || 'Bolsa de Polietileno',
+              quantity: c.cantidad || extractedKilos || 0,
+              unitPrice: c.valorUnitario || 43,
+              amount: c.cantidad * (c.valorUnitario || 43),
+              unit: 'Kilos',
+            }));
+          }
+          await updateDoc(orderRef, updates);
+          sound.playChaChing();
+          triggerHaptic('cash');
+          toast(`✅ OC ${extractedFolio} sincronizada con ${extractedKilos.toLocaleString('es-MX')} kg en producción`, 'ok');
         } else {
+          const noteEntry = {
+            id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            folio: extractedFolio || 'S/F',
+            date: Timestamp.fromDate(new Date(extractedDate)),
+            kilos: extractedKilos || 0,
+            docType: docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto',
+            notes: `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
+            importe: extractedTotal || undefined,
+          };
+
+          const existingDeliveries = selectedOrder.deliveries || [];
+          const updatedDeliveries = extractedKilos > 0
+            ? [...existingDeliveries, {
+                ...noteEntry,
+                invoiced: false,
+                docFolio: noteEntry.folio,
+              }]
+            : existingDeliveries;
+
+          await updateDoc(orderRef, {
+            deliveries: updatedDeliveries,
+            updatedAt: Timestamp.now(),
+          });
+
+          // Guardar documento en Firebase Storage
+          try {
+            setUploadingFile(true);
+            await uploadDocument({
+              file,
+              docKind: (docType === 'contrarecibo' ? 'contrarecibo' : 'desconocido') as StoredDocKind,
+              folio: noteEntry.folio,
+              orderId: selectedOrder.id,
+              orderFolio: selectedOrder.folio || selectedOrder.oc,
+              kilos: extractedKilos || 0,
+              total: extractedTotal || 0,
+              docDate: extractedDate,
+              notes: `${docType === 'contrarecibo' ? 'Contrarecibo' : 'Documento adjunto'} #${noteEntry.folio}`,
+            });
+          } catch (storErr) {
+            console.warn('No se pudo subir el documento a Storage:', storErr);
+          } finally {
+            setUploadingFile(false);
+          }
+          sound.playChaChing();
+          triggerHaptic('cash');
           toast(`Documento #${noteEntry.folio} registrado en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
         }
       }
@@ -400,13 +634,14 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 24 }}>
-                {docType === 'factura_cfdi' ? '🧾' : docType === 'ticket_bascula' ? '⚖️' : docType === 'contrarecibo' ? '📑' : '📋'}
+                {docType === 'comprobante_pago' ? '💵' : docType === 'factura_cfdi' ? '🧾' : docType === 'ticket_bascula' ? '⚖️' : docType === 'contrarecibo' ? '📑' : '📋'}
               </span>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--ink)' }}>
+                  {docType === 'comprobante_pago' && 'Comprobante Oficial de Pago Providencia (TR)'}
                   {docType === 'factura_cfdi' && 'Factura Fiscal CFDI Detectada'}
                   {docType === 'ticket_bascula' && 'Ticket de Báscula / Entrada de Patio'}
-                  {docType === 'contrarecibo' && 'Contrarecibo / Comprobante de Portal'}
+                  {docType === 'contrarecibo' && (ocKind === 'oc_providencia' ? 'Orden de Compra Providencia Detectada' : 'Contrarecibo / Comprobante de Portal')}
                   {docType === 'remision' && 'Remisión de Entrega'}
                   {docType === 'desconocido' && 'Documento Requiere Clasificación Manual'}
                 </div>
@@ -417,6 +652,22 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
             </div>
 
             <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setDocType('comprobante_pago')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: docType === 'comprobante_pago' ? '#2563eb' : 'var(--paper-sunk)',
+                  color: docType === 'comprobante_pago' ? '#fff' : 'var(--ink-soft)',
+                }}
+              >
+                Pago TR
+              </button>
               <button
                 type="button"
                 onClick={() => setDocType('factura_cfdi')}
@@ -488,7 +739,9 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>Folio / Documento</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                    {docType === 'comprobante_pago' ? 'Docto. Pago / Factura' : 'Folio / Documento'}
+                  </label>
                   <input
                     type="text"
                     value={extractedFolio}
@@ -507,32 +760,30 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>
-                    {ocKind === 'oc_providencia' ? '⚖️ Kg Recibidos en esta entrega' : 'Kilos (Neto)'}
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={extractedKilos || ''}
-                      onChange={(e) => setExtractedKilos(parseFloat(e.target.value) || 0)}
-                      placeholder={ocKind === 'oc_providencia' ? '0 = solo registro OC' : ''}
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: `1px solid ${ocKind === 'oc_providencia' ? 'rgba(16,185,129,0.5)' : 'var(--line)'}`, background: 'var(--paper)', color: '#047857', fontWeight: 900, fontSize: 14 }}
-                    />
-                    <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)' }}>kg</span>
-                  </div>
-                  {ocKind === 'oc_providencia' && (
-                    <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginTop: 3 }}>
-                      Deja en 0 si aún no llega la báscula · captura aquí los kg pesados
-                    </div>
-                  )}
-                </div>
-
-                {docType === 'factura_cfdi' && (
+              <div style={{ display: 'grid', gridTemplateColumns: docType === 'comprobante_pago' ? '1fr' : '1fr 1fr', gap: 10 }}>
+                {docType !== 'comprobante_pago' && (
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>Total con IVA</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                      {ocKind === 'oc_providencia' ? '⚖️ Kilos Totales de la OC' : 'Kilos (Neto)'}
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={extractedKilos || ''}
+                        onChange={(e) => setExtractedKilos(parseFloat(e.target.value) || 0)}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: `1px solid ${ocKind === 'oc_providencia' ? 'rgba(16,185,129,0.5)' : 'var(--line)'}`, background: 'var(--paper)', color: '#047857', fontWeight: 900, fontSize: 14 }}
+                      />
+                      <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)' }}>kg</span>
+                    </div>
+                  </div>
+                )}
+
+                {(docType === 'factura_cfdi' || docType === 'comprobante_pago' || ocKind === 'oc_providencia') && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                      {docType === 'comprobante_pago' ? '💵 Monto Pagado (MXN)' : 'Importe Total'}
+                    </label>
                     <input
                       type="number"
                       step="0.01"
@@ -551,19 +802,19 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                     <div key={i} style={{ color: 'var(--ink-soft)' }}>
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>{c.codigo}</span>
                       {' · '}{c.descripcion.substring(0, 35)}
-                      {' · '}<strong>{c.cantidad.toLocaleString('es-MX')} pzas</strong>
+                      {' · '}<strong>{c.cantidad.toLocaleString('es-MX')} kg</strong>
                       {' @ $'}{c.valorUnitario.toFixed(2)}
                     </div>
                   ))}
                   <div style={{ marginTop: 4, fontWeight: 800, color: '#047857' }}>
-                    Total pedido: {ocPiezasInfo.totalPiezas.toLocaleString('es-MX')} pzas
+                    Total pedido: {ocPiezasInfo.totalPiezas.toLocaleString('es-MX')} kg
                   </div>
                 </div>
               )}
 
               {detectedOcNumber && (
                 <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.25)', fontSize: 12, color: 'var(--ink)' }}>
-                  🎯 <strong>OC Detectada en Texto:</strong> <span className="mono" style={{ fontWeight: 800 }}>{detectedOcNumber}</span>
+                  🎯 <strong>{docType === 'comprobante_pago' ? 'Referencia de Transferencia:' : 'OC Detectada en Texto:'}</strong> <span className="mono" style={{ fontWeight: 800 }}>{detectedOcNumber}</span>
                 </div>
               )}
 
@@ -571,7 +822,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                 const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
                 const missingKilos = kilosRequired && extractedKilos <= 0;
                 const missingFolio = !extractedFolio;
-                const missingTotal = docType === 'factura_cfdi' && extractedTotal <= 0;
+                const missingTotal = (docType === 'factura_cfdi' || docType === 'comprobante_pago') && extractedTotal <= 0;
                 if (!missingFolio && !missingKilos && !missingTotal) return null;
                 return (
                   <div style={{
@@ -625,7 +876,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                   fontSize: 13,
                 }}
               >
-                <option value="">-- Selecciona Orden de Compra --</option>
+                <option value="">{ocKind === 'oc_providencia' ? '-- Crear como Nueva Orden o Seleccionar Existente --' : '-- Selecciona Orden de Compra --'}</option>
                 {orders
                   .filter((o) => !o.isDeleted)
                   .map((o) => (
@@ -640,17 +891,25 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                   <div style={{ fontWeight: 800, color: 'var(--ink)', marginBottom: 4 }}>
                     📈 Impacto Operativo en {selectedOrder.folio || selectedOrder.oc}:
                   </div>
-                  <div style={{ color: '#047857' }}>
-                    • Entregas físicas: +{extractedKilos.toLocaleString('es-MX')} kg
-                  </div>
-                  {docType === 'factura_cfdi' && (
-                    <div style={{ color: '#2563eb' }}>
-                      • Kilos facturados: +{extractedKilos.toLocaleString('es-MX')} kg ({money(extractedTotal || extractedKilos * 43 * 1.16)})
+                  {docType === 'comprobante_pago' ? (
+                    <div style={{ color: '#10b981', fontWeight: 800 }}>
+                      • Pago aplicado: {money(extractedTotal)} (Ref: {detectedOcNumber || extractedFolio})
                     </div>
+                  ) : (
+                    <>
+                      <div style={{ color: '#047857' }}>
+                        • Entregas / Kilos: +{extractedKilos.toLocaleString('es-MX')} kg
+                      </div>
+                      {docType === 'factura_cfdi' && (
+                        <div style={{ color: '#2563eb' }}>
+                          • Kilos facturados: +{extractedKilos.toLocaleString('es-MX')} kg ({money(extractedTotal || extractedKilos * 43 * 1.16)})
+                        </div>
+                      )}
+                      <div style={{ color: 'var(--ink-soft)', marginTop: 4 }}>
+                        • Cumplimiento meta: {selectedOrder.totalKilograms ? ((extractedKilos / Number(selectedOrder.totalKilograms)) * 100).toFixed(1) : 0}% de avance
+                      </div>
+                    </>
                   )}
-                  <div style={{ color: 'var(--ink-soft)', marginTop: 4 }}>
-                    • Cumplimiento meta: {selectedOrder.totalKilograms ? ((extractedKilos / Number(selectedOrder.totalKilograms)) * 100).toFixed(1) : 0}% de avance
-                  </div>
                 </div>
               )}
             </div>
@@ -671,9 +930,14 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
               type="button"
               className="btn btn-primary"
               onClick={handleConfirmAndApply}
-              disabled={saving || !selectedOrderId || (() => {
+              disabled={saving || (() => {
+                const isOc = ocKind === 'oc_providencia';
+                if (isOc) return !extractedFolio && extractedKilos <= 0;
+                if (!selectedOrderId) return true;
                 const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
-                return kilosRequired && extractedKilos <= 0;
+                if (kilosRequired && extractedKilos <= 0) return true;
+                if (docType === 'comprobante_pago' && extractedTotal <= 0) return true;
+                return false;
               })()}
               style={{
                 minHeight: 40,
@@ -687,7 +951,15 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                 boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
               }}
             >
-              {saving ? '⏳ Aplicando...' : '✅ Confirmar y Aplicar al Sistema'}
+              {saving && uploadingFile
+                ? '☁️ Subiendo archivo...'
+                : saving
+                  ? '⏳ Aplicando...'
+                  : (ocKind === 'oc_providencia' && !selectedOrderId)
+                    ? '✅ Crear Nueva Orden de Compra en el Sistema'
+                    : docType === 'comprobante_pago'
+                      ? '✅ Aplicar Pago al Sistema'
+                      : '✅ Confirmar y Aplicar al Sistema'}
             </button>
           </div>
         </div>

@@ -6,6 +6,7 @@ export function GlobalDropzoneHUD() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const dragCounter = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleDragEnter = (e: DragEvent) => {
@@ -59,8 +60,26 @@ export function GlobalDropzoneHUD() {
     };
   }, []);
 
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDroppedFile(file);
+      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+      e.target.value = '';
+    }
+  };
+
   return (
     <>
+      {/* INPUT OCULTO para selección de archivo por click */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.xml,image/*"
+        style={{ display: 'none' }}
+        onChange={handleFileInputChange}
+      />
+
       <AnimatePresence>
         {isDraggingOver && (
           <motion.div
@@ -156,8 +175,8 @@ export function GlobalDropzoneHUD() {
                 {[
                   { icon: '🧾', label: 'Factura CFDI (PDF/XML)' },
                   { icon: '⚖️', label: 'Ticket de Báscula' },
-                  { icon: '📋', label: 'Remisión de Patio' },
-                  { icon: '📑', label: 'Contrarecibo Portal' },
+                  { icon: '📋', label: 'OC Providencia (PDF)' },
+                  { icon: '💵', label: 'Comprobante de Pago TR' },
                 ].map((tag) => (
                   <span
                     key={tag.label}
@@ -183,6 +202,37 @@ export function GlobalDropzoneHUD() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* BOTÓN FLOTANTE para abrir archivo por click (visible en esquina inferior derecha) */}
+      <motion.button
+        onClick={() => fileInputRef.current?.click()}
+        title="Subir comprobante PDF, XML o imagen"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 1.2, type: 'spring', stiffness: 280, damping: 22 }}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.95 }}
+        style={{
+          position: 'fixed',
+          bottom: 80,
+          right: 22,
+          zIndex: 9990,
+          width: 52,
+          height: 52,
+          borderRadius: '50%',
+          border: 'none',
+          background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+          color: '#fff',
+          fontSize: 22,
+          cursor: 'pointer',
+          boxShadow: '0 6px 24px rgba(99, 102, 241, 0.45)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        📄
+      </motion.button>
 
       {/* INSPECTOR Y PREVISUALIZADOR INTELIGENTE */}
       {droppedFile && (
