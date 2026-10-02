@@ -106,12 +106,15 @@ export default defineConfig(({ mode }) => {
         // El SDK de Firebase pesa; separarlo deja que el navegador lo cachee
         // entre despliegues en vez de volver a bajarlo con cada cambio de UI.
         manualChunks: {
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          'firebase-core': ['firebase/app', 'firebase/auth'],
+          'firebase-firestore': ['firebase/firestore'],
+          'firebase-storage': ['firebase/storage'],
           react: ['react', 'react-dom', 'react-router-dom'],
           motion: ['framer-motion'],
           excel: ['xlsx'],
           pdf: ['html2pdf.js'],              // html2pdf (jspdf interno)
-          ocr: ['pdfjs-dist', 'tesseract.js'],  // pdfjs + tesseract separados
+          pdfjs: ['pdfjs-dist'],             // pdfjs separado
+          tesseract: ['tesseract.js'],       // tesseract cargado bajo demanda
           archive: ['jszip'],
           charts: ['recharts'],              // recharts separado (102 kB gzip)
         },

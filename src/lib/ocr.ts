@@ -1,5 +1,4 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import { createWorker } from 'tesseract.js';
 import { parseOrdenDeCompra } from './ocParser';
 import { parseProvidenciaPaymentPdf } from './providenciaPortalParser';
 
@@ -111,6 +110,7 @@ function reconstructLinesFromTextContent(textContent: { items: any[] }): string 
 }
 
 export async function extractTextFromImage(file: File): Promise<string> {
+  const { createWorker } = await import('tesseract.js');
   try {
     const worker = await createWorker('spa');
     const ret = await worker.recognize(file);
