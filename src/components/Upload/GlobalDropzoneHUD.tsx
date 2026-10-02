@@ -4,7 +4,8 @@ import { GlobalDropInspectorModal } from './GlobalDropInspectorModal';
 
 export function GlobalDropzoneHUD() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const [fileQueue, setFileQueue] = useState<File[]>([]);
+  const [totalInBatch, setTotalInBatch] = useState(0);
   const dragCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -23,6 +24,9 @@ export function GlobalDropzoneHUD() {
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
     };
 
     const handleDragLeave = (e: DragEvent) => {
@@ -43,38 +47,58 @@ export function GlobalDropzoneHUD() {
 
       const files = e.dataTransfer?.files;
       if (files && files.length > 0) {
-        setDroppedFile(files[0]);
+        const list = Array.from(files);
+        setTotalInBatch(list.length);
+        setFileQueue(list);
       }
+    };
+
+    const handleOpenUpload = () => {
+      fileInputRef.current?.click();
     };
 
     window.addEventListener('dragenter', handleDragEnter);
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('drop', handleDrop);
+    window.addEventListener('open-global-file-upload', handleOpenUpload);
 
     return () => {
       window.removeEventListener('dragenter', handleDragEnter);
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('dragleave', handleDragLeave);
       window.removeEventListener('drop', handleDrop);
+      window.removeEventListener('open-global-file-upload', handleOpenUpload);
     };
   }, []);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setDroppedFile(file);
-      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const list = Array.from(files);
+      setTotalInBatch(list.length);
+      setFileQueue(list);
       e.target.value = '';
     }
   };
 
+  const currentFile = fileQueue[0] || null;
+
+  const handleModalClose = () => {
+    setFileQueue((prev) => {
+      const remaining = prev.slice(1);
+      if (remaining.length === 0) setTotalInBatch(0);
+      return remaining;
+    });
+  };
+
   return (
     <>
-      {/* INPUT OCULTO para selección de archivo por click */}
+      {/* INPUT OCULTO para selección de archivo por click (soporta múltiples archivos) */}
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept=".pdf,.xml,image/*"
         style={{ display: 'none' }}
         onChange={handleFileInputChange}
@@ -97,8 +121,25 @@ export function GlobalDropzoneHUD() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              pointerEvents: 'none',
+              pointerEvents: 'auto',
               padding: 24,
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              dragCounter.current = 0;
+              setIsDraggingOver(false);
+              const files = e.dataTransfer?.files;
+              if (files && files.length > 0) {
+                const list = Array.from(files);
+                setTotalInBatch(list.length);
+                setFileQueue(list);
+              }
             }}
           >
             <motion.div
@@ -235,10 +276,11 @@ export function GlobalDropzoneHUD() {
       </motion.button>
 
       {/* INSPECTOR Y PREVISUALIZADOR INTELIGENTE */}
-      {droppedFile && (
+      {currentFile && (
         <GlobalDropInspectorModal
-          file={droppedFile}
-          onClose={() => setDroppedFile(null)}
+          file={currentFile}
+          queuePosition={totalInBatch > 1 ? { current: totalInBatch - fileQueue.length + 1, total: totalInBatch } : undefined}
+          onClose={handleModalClose}
         />
       )}
     </>

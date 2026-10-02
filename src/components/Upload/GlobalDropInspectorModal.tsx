@@ -18,12 +18,13 @@ import { uploadDocument, type StoredDocKind } from '../../lib/documentStorage';
 
 interface GlobalDropInspectorModalProps {
   file: File;
+  queuePosition?: { current: number; total: number };
   onClose: () => void;
 }
 
 type DetectedDocType = 'factura_cfdi' | 'ticket_bascula' | 'contrarecibo' | 'remision' | 'comprobante_pago' | 'desconocido';
 
-export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorModalProps) {
+export function GlobalDropInspectorModal({ file, queuePosition, onClose }: GlobalDropInspectorModalProps) {
   const { orders } = useOrdersContext();
   const toast = useToast();
 
@@ -161,7 +162,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                     })),
                   });
                 }
-                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre, ocr.total, undefined, true);
               } else if (/CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
                 setDocType('contrarecibo');
                 setConfidence('alta');
@@ -172,7 +173,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                 setExtractedTotal(round2(ocr.total || 0));
                 setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
                 setDetectedOcNumber(ocr.ocNumber || '');
-                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre, ocr.total, undefined, false);
               } else {
                 setDocType('factura_cfdi');
                 setConfidence('alta');
@@ -183,7 +184,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                 setExtractedTotal(round2(ocr.total || 0));
                 setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
                 setDetectedOcNumber(ocr.ocNumber || '');
-                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre);
+                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre, ocr.total, undefined, false);
               }
             }
           }
@@ -211,9 +212,13 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
       folioCandidate?: string,
       clientCandidate?: string,
       amountCandidate?: number,
-      crCandidate?: string
+      crCandidate?: string,
+      isOcDocKind?: boolean
     ) {
-      if (!orders || orders.length === 0) return;
+      if (!orders || orders.length === 0) {
+        setSelectedOrderId('');
+        return;
+      }
 
       const cleanOc = (ocCandidate || '').replace(/[^0-9]/g, '');
       const cleanFolio = (folioCandidate || '').trim().toUpperCase();
@@ -230,17 +235,24 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
           const invMatch = (o.invoices || []).some((i) => Math.abs((i.financials?.invoiceTotal || 0) - amountCandidate) < 1);
           if (invMatch) return true;
         }
-        if (cleanClient.includes('TEXTIL HOGAR') && o.oc === OC_TH_ACTIVE) return true;
-        if (cleanClient.includes('GRUPO TEXTIL') && o.oc === OC_GT_ACTIVE) return true;
+        if (!isOcDocKind) {
+          if (cleanClient.includes('TEXTIL HOGAR') && o.oc === OC_TH_ACTIVE) return true;
+          if (cleanClient.includes('GRUPO TEXTIL') && o.oc === OC_GT_ACTIVE) return true;
+        }
         return false;
       });
 
       if (found) {
         setSelectedOrderId(found.id);
       } else {
-        // Fallback a la primera orden activa vigente
-        const defaultActive = orders.find((o) => o.oc === OC_TH_ACTIVE || o.oc === OC_GT_ACTIVE || !o.isClosedShort);
-        if (defaultActive) setSelectedOrderId(defaultActive.id);
+        if (isOcDocKind) {
+          // Nueva Orden de Compra detectada -> Mantener en blanco para dar de alta nuevo expediente
+          setSelectedOrderId('');
+        } else {
+          // Fallback a la primera orden activa vigente para otros tipos de documentos
+          const defaultActive = orders.find((o) => o.oc === OC_TH_ACTIVE || o.oc === OC_GT_ACTIVE || !o.isClosedShort);
+          if (defaultActive) setSelectedOrderId(defaultActive.id);
+        }
       }
     }
 
@@ -595,7 +607,9 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
           <span style={{ fontSize: 22 }}>🔍</span>
           <div>
             <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--ink)' }}>
-              Inspección y Previsualización Inteligente de Comprobante
+              {queuePosition && queuePosition.total > 1
+                ? `📄 Documento ${queuePosition.current} de ${queuePosition.total} — Inspección Inteligente`
+                : 'Inspección y Previsualización Inteligente de Comprobante'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
               {file.name} ({(file.size / 1024).toFixed(1)} KB)
@@ -886,7 +900,7 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                   ))}
               </select>
 
-              {selectedOrder && (
+              {selectedOrder ? (
                 <div style={{ padding: '12px', borderRadius: 12, background: 'var(--paper-sunk)', border: '1px solid var(--line)', fontSize: 12, lineHeight: 1.5 }}>
                   <div style={{ fontWeight: 800, color: 'var(--ink)', marginBottom: 4 }}>
                     📈 Impacto Operativo en {selectedOrder.folio || selectedOrder.oc}:
@@ -911,7 +925,26 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
                     </>
                   )}
                 </div>
-              )}
+              ) : ocKind === 'oc_providencia' ? (
+                <div style={{ padding: '14px', borderRadius: 12, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.35)', fontSize: 12.5, lineHeight: 1.55 }}>
+                  <div style={{ fontWeight: 900, color: '#047857', marginBottom: 6, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>✨</span>
+                    <span>NUEVO EXPEDIENTE DE PRODUCCIÓN:</span>
+                  </div>
+                  <div style={{ color: 'var(--ink)' }}>
+                    • <strong>Destino / Comprador:</strong> {extractedFolio?.includes('71') || detectedOcNumber?.includes('1202671') || detectedOcNumber?.startsWith('71/') ? '🏢 Textil Hogar (Lic. José Nava · Almacén 1)' : '🏭 Grupo Textil Providencia (Lic. Evelia · Planta P4)'}
+                  </div>
+                  <div style={{ color: '#047857', fontWeight: 800, marginTop: 4 }}>
+                    • <strong>Kilos Totales:</strong> {(extractedKilos || 0).toLocaleString('es-MX')} kg
+                  </div>
+                  <div style={{ color: '#2563eb', fontWeight: 700, marginTop: 2 }}>
+                    • <strong>Valor Estimado:</strong> {money((extractedKilos || 0) * 43 * 1.16)} MXN con IVA ($43.00/kg)
+                  </div>
+                  <div style={{ color: 'var(--ink-soft)', marginTop: 6, fontSize: 11.5 }}>
+                    Al confirmar, se registrará el nuevo expediente en Firestore, se programará la maquila con Andrés y se archivará el PDF original en Storage.
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 

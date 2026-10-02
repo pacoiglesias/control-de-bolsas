@@ -308,112 +308,193 @@ export function MobileBottomBar() {
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                {/* 1. Registrar Báscula */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowQuickSheet(false);
-                    triggerHaptic('medium');
-                    window.dispatchEvent(new CustomEvent('open-fast-delivery'));
-                  }}
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(30, 64, 175, 0.08) 100%)',
-                    border: '1px solid rgba(37, 99, 235, 0.4)',
-                    borderRadius: 14,
-                    padding: '12px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: 24 }}>🚚</span>
-                  <strong style={{ fontSize: 12.5, color: '#3b82f6' }}>Capturar Báscula</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Pesaje de chofer</span>
-                </button>
+              {/* SECCIÓN HERO: SUBIDA DIRECTA CON CÁMARA / ARCHIVO */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-soft, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+                  📸 Ingesta Inmediata (1 Toque)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8 }}>
+                  {/* Foto de Ticket / Subir PDF */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickSheet(false);
+                      triggerHaptic('medium');
+                      window.dispatchEvent(new CustomEvent('open-global-file-upload'));
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                      border: 'none',
+                      borderRadius: 14,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+                    }}
+                  >
+                    <span style={{ fontSize: 26 }}>📷</span>
+                    <div>
+                      <strong style={{ fontSize: 13, color: '#ffffff', display: 'block' }}>Foto o PDF</strong>
+                      <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.8)' }}>Cámara / Báscula / OC</span>
+                    </div>
+                  </button>
 
-                {/* 2. Emitir Factura */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowQuickSheet(false);
-                    triggerHaptic('medium');
-                    window.dispatchEvent(new CustomEvent('open-fast-invoice'));
-                  }}
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(180, 83, 9, 0.08) 100%)',
-                    border: '1px solid rgba(217, 119, 6, 0.4)',
-                    borderRadius: 14,
-                    padding: '12px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: 24 }}>🧾</span>
-                  <strong style={{ fontSize: 12.5, color: '#f59e0b' }}>Facturar Kilos</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Emisión de CFDI</span>
-                </button>
+                  {/* Ver Archivo de Documentos */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickSheet(false);
+                      triggerHaptic('light');
+                      navigate('/documentos');
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      borderRadius: 14,
+                      padding: '12px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: 22 }}>🗂️</span>
+                    <div>
+                      <strong style={{ fontSize: 12, color: '#10b981', display: 'block' }}>Archivo</strong>
+                      <span style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)' }}>Originales</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
 
-                {/* 3. Capturar Contrarecibo */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowQuickSheet(false);
-                    triggerHaptic('medium');
-                    navigate('/cobranza');
-                  }}
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%)',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                    borderRadius: 14,
-                    padding: '12px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: 24 }}>📋</span>
-                  <strong style={{ fontSize: 12.5, color: '#10b981' }}>Capturar CR</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Sello Providencia</span>
-                </button>
+              {/* SECCIÓN OPERACIÓN: CICLO 3-WAY MATCHING */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-soft, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+                  🏭 Ciclo Operativo (Patio ➔ Cobranza)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  {/* 1. Registrar Báscula */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickSheet(false);
+                      triggerHaptic('medium');
+                      window.dispatchEvent(new CustomEvent('open-fast-delivery'));
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(30, 64, 175, 0.06) 100%)',
+                      border: '1px solid rgba(37, 99, 235, 0.3)',
+                      borderRadius: 12,
+                      padding: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      minHeight: 48,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>🚚</span>
+                    <div>
+                      <strong style={{ fontSize: 12, color: '#3b82f6', display: 'block' }}>Báscula</strong>
+                      <span style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)' }}>Pesaje chofer</span>
+                    </div>
+                  </button>
 
-                {/* 4. Recibir a Caja */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowQuickSheet(false);
-                    triggerHaptic('cash');
-                    window.dispatchEvent(new CustomEvent('open-fast-cr-collection'));
-                  }}
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15) 0%, rgba(15, 118, 110, 0.08) 100%)',
-                    border: '1px solid rgba(13, 148, 136, 0.4)',
-                    borderRadius: 14,
-                    padding: '12px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: 24 }}>💵</span>
-                  <strong style={{ fontSize: 12.5, color: '#14b8a6' }}>Cobro a Caja</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Ingreso tesorería</span>
-                </button>
+                  {/* 2. Emitir Factura */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickSheet(false);
+                      triggerHaptic('medium');
+                      window.dispatchEvent(new CustomEvent('open-fast-invoice'));
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.12) 0%, rgba(180, 83, 9, 0.06) 100%)',
+                      border: '1px solid rgba(217, 119, 6, 0.3)',
+                      borderRadius: 12,
+                      padding: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      minHeight: 48,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>🧾</span>
+                    <div>
+                      <strong style={{ fontSize: 12, color: '#f59e0b', display: 'block' }}>Facturar</strong>
+                      <span style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)' }}>Kilos a CFDI</span>
+                    </div>
+                  </button>
 
-                {/* 5. Centinela Auto-Auditor */}
+                  {/* 3. Capturar Contrarecibo */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickSheet(false);
+                      triggerHaptic('medium');
+                      navigate('/cobranza');
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.06) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      borderRadius: 12,
+                      padding: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      minHeight: 48,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>📑</span>
+                    <div>
+                      <strong style={{ fontSize: 12, color: '#10b981', display: 'block' }}>Capturar CR</strong>
+                      <span style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)' }}>Sello Providencia</span>
+                    </div>
+                  </button>
+
+                  {/* 4. Recibir a Caja */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickSheet(false);
+                      triggerHaptic('cash');
+                      window.dispatchEvent(new CustomEvent('open-fast-cr-collection'));
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.12) 0%, rgba(15, 118, 110, 0.06) 100%)',
+                      border: '1px solid rgba(13, 148, 136, 0.3)',
+                      borderRadius: 12,
+                      padding: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      minHeight: 48,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>💵</span>
+                    <div>
+                      <strong style={{ fontSize: 12, color: '#14b8a6', display: 'block' }}>Cobro a Caja</strong>
+                      <span style={{ fontSize: 10, color: 'var(--ink-soft, #94a3b8)' }}>Tesorería</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* SECCIÓN HERRAMIENTAS DIRECTAS */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {/* Centinela */}
                 <button
                   type="button"
                   onClick={() => {
@@ -422,24 +503,22 @@ export function MobileBottomBar() {
                     navigate('/audit');
                   }}
                   style={{
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.08) 100%)',
-                    border: '1px solid rgba(99, 102, 241, 0.4)',
-                    borderRadius: 14,
-                    padding: '12px 10px',
+                    background: 'var(--paper-sunk, rgba(255, 255, 255, 0.05))',
+                    border: '1px solid var(--line, rgba(255, 255, 255, 0.12))',
+                    borderRadius: 10,
+                    padding: '8px 10px',
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 8,
                     cursor: 'pointer',
-                    textAlign: 'center',
+                    textAlign: 'left',
                   }}
                 >
-                  <span style={{ fontSize: 24 }}>🛡️</span>
-                  <strong style={{ fontSize: 12.5, color: '#818cf8' }}>Auto-Auditor</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Centinela SAP</span>
+                  <span style={{ fontSize: 18 }}>🛡️</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink, #fff)' }}>Centinela ERP</span>
                 </button>
 
-                {/* 6. Búsqueda Universal */}
+                {/* Búsqueda */}
                 <button
                   type="button"
                   onClick={() => {
@@ -448,21 +527,19 @@ export function MobileBottomBar() {
                     window.dispatchEvent(new CustomEvent('open-command-menu'));
                   }}
                   style={{
-                    background: 'linear-gradient(135deg, rgba(148, 163, 184, 0.15) 0%, rgba(100, 116, 139, 0.08) 100%)',
-                    border: '1px solid rgba(148, 163, 184, 0.4)',
-                    borderRadius: 14,
-                    padding: '12px 10px',
+                    background: 'var(--paper-sunk, rgba(255, 255, 255, 0.05))',
+                    border: '1px solid var(--line, rgba(255, 255, 255, 0.12))',
+                    borderRadius: 10,
+                    padding: '8px 10px',
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 8,
                     cursor: 'pointer',
-                    textAlign: 'center',
+                    textAlign: 'left',
                   }}
                 >
-                  <span style={{ fontSize: 24 }}>🔍</span>
-                  <strong style={{ fontSize: 12.5, color: '#cbd5e1' }}>Búsqueda</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--ink-soft, #94a3b8)' }}>Folio, OC o CR</span>
+                  <span style={{ fontSize: 18 }}>🔍</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink, #fff)' }}>Búsqueda</span>
                 </button>
               </div>
             </motion.div>
