@@ -184,7 +184,7 @@ export function parseOcrData(text: string): OcrResult {
     else if (fechaEntregaMatch?.[2]) defaultYear = fechaEntregaMatch[2];
 
     const fechaPedidoMatch = text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}-[a-záéíóúñ]+-\d{2,4})/i)
-                           || text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i);
+                           || text.match(/Fecha\s*Pedido\s*[:#]?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i);
     if (fechaPedidoMatch?.[1]) {
       const partes = fechaPedidoMatch[1].match(/(\d{1,2})-([a-záéíóúñ]+)-(\d{2,4})/i);
       if (partes) {
@@ -196,7 +196,7 @@ export function parseOcrData(text: string): OcrResult {
         result.fecha = `${year}-${mes}-${partes[1].padStart(2, '0')}`;
       } else {
         // Formato numérico DD/MM/YYYY
-        const numParts = fechaPedidoMatch[1].split(/[\/.-]/);
+        const numParts = fechaPedidoMatch[1].split(/[/.-]/);
         if (numParts.length === 3) {
           let year = numParts[2];
           if (year.length === 2) {
@@ -238,7 +238,7 @@ export function parseOcrData(text: string): OcrResult {
       while (i < lines.length) {
         if (/^\d{1,2}$/.test(lines[i]) && i + 1 < lines.length && codePattern.test(lines[i + 1])) {
           const codigo = lines[i + 1].toUpperCase();
-          let descLines: string[] = [];
+          const descLines: string[] = [];
           let j = i + 2;
           while (j < lines.length && !numPattern.test(lines[j]) && !codePattern.test(lines[j]) && !/^\d{1,2}$/.test(lines[j])) {
             descLines.push(lines[j]);
