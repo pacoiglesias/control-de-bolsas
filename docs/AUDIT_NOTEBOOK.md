@@ -1,3 +1,29 @@
+### Iteración 126: Identificación Proactiva Multi-Orden (Evelia / Nava), Ingesta Masiva en Cola por Drag & Drop y Centinela de Órdenes Concluidas
+[2026-10-02]
+Archivos: `src/components/Upload/GlobalDropInspectorModal.tsx`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `package.json`, `package-lock.json`
+Problema:
+1. Al arrastrar una nueva Orden de Compra de Providencia no vinculada previamente, el modal caía en un fallback asignándola erróneamente a órdenes anteriores de la misma planta en vez de ofrecer la creación de un nuevo expediente de producción.
+2. El Dashboard mostraba únicamente 1 orden activa fija por comprador, omitiendo órdenes simultáneas cuando Lic. Evelia o Lic. Nava tenían 2, 3 o más órdenes abiertas en proceso.
+3. Se mostraban registros y contrarecibos históricos cerrados (como GT-962 con 0 kg pendientes y 100% facturado), saturando innecesariamente la vista operativa del Dashboard.
+4. Se requería soporte para soltar múltiples documentos a la vez con procesamiento secuencial en cola.
+Solución:
+1. **Ingesta Masiva y Creación Atómica de Nuevas OCs (`GlobalDropInspectorModal.tsx` & `GlobalDropzoneHUD.tsx`):**
+   - Corrección en `matchOrder` para no forzar fallbacks a órdenes previas en nuevas OCs, mostrando la tarjeta interactiva `✨ NUEVO EXPEDIENTE DE PRODUCCIÓN`.
+   - Soporte de cola por lotes (`queuePosition: "📄 Documento X de Y"`) procesando múltiples archivos arrastrados o seleccionados secuencialmente.
+2. **Identificación Proactiva Multi-Orden (`ExecutivePriorityAlerts.tsx`):**
+   - Agrupación reactiva de `eveliaOpenOrders` y `navaOpenOrders`, mostrando un desglose intuitivo con Kilos, avance de entregas, facturación y botones de 1 toque (`⚡ Facturar`, `📲 Andrés WhatsApp`, `📂 Ver Expediente`).
+3. **Centinela de Exclusión de Órdenes Concluidas (`isOrderOpenInProduction`):**
+   - Exclusión automática de órdenes con `faltanKg <= 0.01 && patioKg <= 0.01 && facturadosKg >= totalKg` y contrarecibos históricos (`GT-962`, etc.), dejando el Dashboard 100% limpio y enfocado en la operación viva.
+4. **Auditoría de Dependencias y Despliegue:**
+   - `npm audit fix` aplicado de forma segura reduciendo vulnerabilidades.
+   - 224/224 pruebas unitarias pasando en Vitest (33 suites verdes).
+   - Despliegue exitoso a Firebase Hosting y actualización de respaldo dual (Git y USB D:).
+Riesgo: 🟢 Cero / Bajo — Filtrado canónico y mejora de ingesta no destructiva, validada con 224 tests.
+Estado: ✅ Verificado — 100% tests pasando, compilación de producción limpia, hosting activo.
+OKRs afectados: OKR 1 (Costes Firestore), OKR 2 (Excelencia UX/UI), OKR 3 (Rendimiento), OKR 4 (Cero Fricción), OKR 5 (Integridad Matemática).
+
+---
+
 ### Iteración 125: Ingesta Automática de OCs Multilínea en Kilos, Repositorio Oficial de Archivo de Documentos Originales y Ergonomía Táctil 44px (v9.10.3)
 [2026-10-02]
 Archivos: `src/lib/ocParser.ts`, `src/lib/ocr.ts`, `src/lib/providenciaPortalParser.ts`, `src/lib/documentStorage.ts`, `src/components/Upload/DocumentsArchive.tsx`, `src/pages/DocumentsArchivePage.tsx`, `src/components/Upload/GlobalDropInspectorModal.tsx`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/components/Dashboard/UniversalDocumentUploadModal.tsx`, `src/App.tsx`, `src/components/Layout.tsx`, `storage.rules`, `src/lib/__tests__/ocParserRealCases.test.ts`, `src/lib/__tests__/providenciaPortalParser.test.ts`, `src/lib/__tests__/ocrDocumentsAutoIngest.test.ts`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `package.json`, `functions/package.json`
