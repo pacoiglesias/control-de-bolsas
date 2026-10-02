@@ -101,12 +101,13 @@ export function GlobalDropInspectorModal({ file, onClose }: GlobalDropInspectorM
             const ocr = parseOcrData(text);
 
             if (ocr.docKind === 'oc_providencia') {
-              // OC de Providencia: cantidades en piezas → kilos = totalPiezas
+              // OC de Providencia: unidad de la OC = piezas; los kg vienen del ticket de báscula
+              // → kilos queda en 0 hasta que se registre la entrega pesada
               setDocType('contrarecibo');
               setConfidence('alta');
               setExtractedFolio(ocr.folio || ocr.ocNumber || '');
               setExtractedUuid('');
-              setExtractedKilos(round2(ocr.kilos || ocr.totalPiezas || 0));
+              setExtractedKilos(0); // los kg llegan con el ticket de báscula, no con la OC
               setExtractedSubtotal(round2(ocr.subTotal || 0));
               setExtractedTotal(round2(ocr.total || 0));
               setExtractedDate(ocr.fecha ? ocr.fecha : new Date().toISOString().split('T')[0]);

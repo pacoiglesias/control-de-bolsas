@@ -214,8 +214,7 @@ export function parseOcrData(text: string): OcrResult {
     if (conceptos.length > 0) {
       result.conceptos = conceptos;
       result.totalPiezas = conceptos.reduce((acc, c) => acc + c.cantidad, 0);
-      // Usar totalPiezas como "kilos" para que el modal lo procese como cantidad
-      result.kilos = result.totalPiezas;
+      // kilos NO se asigna: la OC registra piezas, los kg vienen del ticket de báscula
       result.product = conceptos.map(c => `${c.codigo} · ${c.descripcion}`).join(' | ');
     } else {
       // Fallback: regex de cantidades .0000
@@ -224,7 +223,7 @@ export function parseOcrData(text: string): OcrResult {
         .filter(v => v >= 100 && v <= 100000 && !String(v).startsWith('43'));
       if (cantidades.length > 0) {
         result.totalPiezas = cantidades.reduce((a, b) => a + b, 0);
-        result.kilos = result.totalPiezas;
+        // kilos NO se asigna: las piezas no son kg; el peso viene del ticket de báscula
       }
       const productCodeMatch = text.match(/((?:EGBO|ENBO)[0-9]{6}-[A-Z0-9]+)/i);
       const code = productCodeMatch ? productCodeMatch[1].toUpperCase() : 'S/C';
