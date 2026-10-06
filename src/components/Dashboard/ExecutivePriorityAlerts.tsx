@@ -498,13 +498,18 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     const activeEntregados = totalKilosEntregados(eveliaActiveOrder);
     const activeFacturados = totalKilosFacturados(eveliaActiveOrder);
     const activeRemanente = Math.max(0, activeKg - activeEntregados);
+    const pendientesFacturar = Math.max(0, activeEntregados - activeFacturados);
     eveliaBadge = `🏭 GT · Lic. Evelia`;
     eveliaBadgeColor = '#3b82f6';
     eveliaOcLabel = `OC: ${eveliaActiveOrder.oc || '12026439784'} (${eveliaActiveOrder.folio || '43/9784'})`;
-    eveliaStatusLabel = activeEntregados > 0 ? '⚡ En Suministro' : '📦 En Maquila';
-    eveliaTitle = `OC 43/9784 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
-    eveliaSubtitle = `Nueva orden oficial de Evelia en Planta P4. ${activeEntregados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg entregados, ${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.`;
-    eveliaBtn = activeEntregados > activeFacturados ? '⚡ Facturar Entregas' : '📦 Ver OC 9784';
+    eveliaStatusLabel = pendientesFacturar > 0 ? '⚡ 2,000 kg Entregados (Por Facturar)' : activeEntregados > 0 ? '⚡ En Suministro' : '📦 En Maquila';
+    eveliaTitle = pendientesFacturar > 0
+      ? `OC 43/9784 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (Faltan ${activeRemanente.toLocaleString('es-MX')} kg · Próxima Entrega: 13 de Octubre)`
+      : `OC 43/9784 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
+    eveliaSubtitle = pendientesFacturar > 0
+      ? `Remisión Oficial 6439784 sellada en P4 con ${activeEntregados.toLocaleString('es-MX')} kg listos para facturar ($${(activeEntregados * 43 * 1.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })} con IVA). Faltan ${activeRemanente.toLocaleString('es-MX')} kg programados para entregar el 13 de octubre.`
+      : `Nueva orden oficial de Evelia en Planta P4. ${activeEntregados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg entregados, ${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.`;
+    eveliaBtn = activeEntregados > activeFacturados ? '⚡ Facturar Entregas en Patio' : '📦 Ver OC 9784';
     eveliaTargetOrderId = eveliaActiveOrder.id || 'oc-12026439784';
   } else if (hasNewOc && isNewOcPendingInvoice) {
     const targetFolio = eveliaNewOcOrder?.folio || '43/9774';

@@ -5,12 +5,12 @@ import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
 export const config: FirebaseOptions = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDJxQ01MIPPVJImil2vMSkmJlz8x25NMhM',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'control-de-bolsas-89c88.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'control-de-bolsas-89c88',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'control-de-bolsas-89c88.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '530396814626',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:530396814626:web:26b6cc74aadd4efcee997b',
 };
 
 /** Si falta una variable, la app lo dice en pantalla en vez de fallar en blanco. */

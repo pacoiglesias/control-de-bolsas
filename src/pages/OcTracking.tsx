@@ -961,6 +961,11 @@ export default function OcTracking() {
                           ⚡ Por Facturar: {group.kilosPendientesFacturar.toLocaleString('es-MX')} kg
                         </div>
                       )}
+                      {group.order.estimatedDeliveryDate && group.kilosFaltantes > 0.01 && (
+                        <div style={{ background: 'rgba(59,130,246,0.15)', color: '#2563eb', padding: '4px 8px', borderRadius: 6, fontWeight: 700 }}>
+                          📅 Próxima Entrega: {fmtDate(group.order.estimatedDeliveryDate)} ({group.kilosFaltantes.toLocaleString('es-MX')} kg faltantes)
+                        </div>
+                      )}
                     </div>
 
                     {group.kilosPedidos > 0 && (

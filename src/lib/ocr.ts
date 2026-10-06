@@ -30,7 +30,7 @@ export interface OcrResult {
   emisorNombre?: string;
   conceptos?: OcrConcepto[];
   /** Indica el tipo de documento detectado para clasificación del modal */
-  docKind?: 'oc_providencia' | 'pago_providencia' | 'factura' | 'ticket' | 'contrarecibo' | 'desconocido';
+  docKind?: 'oc_providencia' | 'pago_providencia' | 'factura' | 'ticket' | 'contrarecibo' | 'remision' | 'desconocido';
   /** Cantidad total de piezas / kilos en la OC */
   totalPiezas?: number;
 }

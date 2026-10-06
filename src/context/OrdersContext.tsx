@@ -134,7 +134,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             processedAt: Timestamp.fromDate(new Date('2026-09-23T17:12:29Z')),
           } as unknown as PurchaseOrder]);
         }
-        // OC 12026439784 (GT - Evelia · 43/9784 · 5,100 kg) — activa pendiente de entrega
+        // OC 12026439784 (GT - Evelia · 43/9784 · 5,100 kg) — activa con entrega parcial de 2,000 kg (Remisión 6439784)
         if (!ocMap.has(OC_GT_ACTIVE)) {
           ocMap.set(OC_GT_ACTIVE, [{
             id: `oc-${OC_GT_ACTIVE}`,
@@ -146,6 +146,28 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             isClosedShort: false,
             creditCycle: { status: 'pedido' },
             invoices: [],
+            deliveries: [
+              {
+                id: 'del-gt-6439784',
+                date: Timestamp.fromDate(new Date('2026-10-05T12:00:00Z')),
+                kilos: 2000.00,
+                items: [
+                  { itemId: 'it-gt-9784-1', quantity: 500.00 },
+                  { itemId: 'it-gt-9784-2', quantity: 500.00 },
+                  { itemId: 'it-gt-9784-3', quantity: 1000.00 },
+                ],
+                invoiced: false,
+                docType: 'remision',
+                docFolio: '6439784',
+                notes: 'Remisión Oficial 6439784 sellada en P4 (Auditoría Interna Sello 1226, Beonedith Morales) y firmada por Evelia Castillo (5-10-26). Partidas: 500 kg (60+40x125), 500 kg (60+40x95) y 1,000 kg (60x40x115). PENDIENTE DE FACTURAR.',
+              }
+            ],
+            items: [
+              { id: 'it-gt-9784-1', code: 'EGBO000095-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X125CM C/400', quantity: 1500, deliveredQuantity: 500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+              { id: 'it-gt-9784-2', code: 'EGBO000093-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X95 CM C/400', quantity: 1600, deliveredQuantity: 500, unitPrice: 43.0, amount: 68800, unit: 'Kilos' },
+              { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60X40X115CM C/400', quantity: 2000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
+            ],
+            estimatedDeliveryDate: Timestamp.fromDate(new Date('2026-10-13T12:00:00Z')),
             processedAt: Timestamp.fromDate(new Date('2026-09-21T15:14:50Z')),
           } as unknown as PurchaseOrder]);
         }
@@ -659,6 +681,41 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
               return baseInv;
             });
             best.invoices = mergedGtInvoices;
+          } else if (canonicalKey === OC_GT_ACTIVE || canonicalKey === '12026439784' || canonicalKey.includes('43/9784') || best.oc === '12026439784' || best.folio === '43/9784') {
+            // 🎯 Reconciliación Oficial OC 12026439784 (GT · Evelia P4)
+            best.totalKilograms = 5100.0;
+            best.client = CLIENT_GT;
+            best.department = DEPT_GT_ALMACEN;
+            best.folio = '43/9784';
+            best.oc = '12026439784';
+            best.estimatedDeliveryDate = Timestamp.fromDate(new Date('2026-10-13T12:00:00Z'));
+            if (!best.items || best.items.length === 0) {
+              best.items = [
+                { id: 'it-gt-9784-1', code: 'EGBO000095-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X125CM C/400', quantity: 1500, deliveredQuantity: 500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+                { id: 'it-gt-9784-2', code: 'EGBO000093-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X95 CM C/400', quantity: 1600, deliveredQuantity: 500, unitPrice: 43.0, amount: 68800, unit: 'Kilos' },
+                { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60X40X115CM C/400', quantity: 2000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
+              ];
+            }
+            const currentDeliveries = best.deliveries || [];
+            if (!currentDeliveries.some((d: any) => d.docFolio === '6439784' || d.id === 'del-gt-6439784')) {
+              best.deliveries = [
+                {
+                  id: 'del-gt-6439784',
+                  date: Timestamp.fromDate(new Date('2026-10-05T12:00:00Z')),
+                  kilos: 2000.00,
+                  items: [
+                    { itemId: 'it-gt-9784-1', quantity: 500.00 },
+                    { itemId: 'it-gt-9784-2', quantity: 500.00 },
+                    { itemId: 'it-gt-9784-3', quantity: 1000.00 },
+                  ],
+                  invoiced: false,
+                  docType: 'remision',
+                  docFolio: '6439784',
+                  notes: 'Remisión Oficial 6439784 sellada en P4 (Auditoría Interna Sello 1226, Beonedith Morales) y firmada por Evelia Castillo (5-10-26). Partidas: 500 kg (60+40x125), 500 kg (60+40x95) y 1,000 kg (60x40x115). PENDIENTE DE FACTURAR.',
+                },
+                ...currentDeliveries,
+              ];
+            }
           }
 
           deduplicatedDocs.push(best);
