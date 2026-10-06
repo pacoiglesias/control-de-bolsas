@@ -7,6 +7,7 @@ import { EmitirFacturaModal } from './EmitirFacturaModal';
 import type { Invoice } from '../../lib/types';
 import { getEffectiveOrderItems } from '../../lib/types';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
+import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();
@@ -43,6 +44,64 @@ export default function TabFacturas() {
   // NOTE: We now read invoices from the ACTUAL order in context, not the unsaved form state.
   const { order, readOnly, provName, config, dynamicConfig, processFacturaText, processPagoText, toast, kilosPendientesDeFacturar } = ctx;
   const invoices = order.invoices || [];
+
+  const isOC9784 = Boolean(
+    (order.oc || '').includes('439784') || 
+    (order.oc || '').includes('12026439784') || 
+    (order.folio || '').includes('9784')
+  );
+
+  const handleDownloadExcel = (num: 1 | 2) => {
+    const precio = order.customSellPrice || dynamicConfig.salePricePerKg || config.salePricePerKg || 43;
+    if (num === 1) {
+      downloadPrefacturaExcel({
+        clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        clientRfc: 'GTP930115PU1',
+        clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
+        clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
+        metodoPago: 'PPD',
+        formaPago: '99 por definir',
+        claveSat: '24141500',
+        unidadSat: 'KGM',
+        oc: '12026439784',
+        notaCondiciones: 'OC 12026439784',
+        items: [
+          {
+            kilos: 1000,
+            description: 'EGBO000018-SC BOLSA POLIETILENO 1.00 M X 1.15 M  60+40x115',
+            unitPrice: precio,
+          },
+        ],
+      }, `Prefactura_1_EGBO000018_1000kg_OC12026439784.xlsx`);
+      toast('📥 Descargada Prefactura 1 de Excel (1,000 kg · $49,880.00)', 'ok');
+    } else {
+      downloadPrefacturaExcel({
+        clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        clientRfc: 'GTP930115PU1',
+        clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
+        clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
+        metodoPago: 'PPD',
+        formaPago: '99 por definir',
+        claveSat: '24141500',
+        unidadSat: 'KGM',
+        oc: '12026439784',
+        notaCondiciones: 'OC 12026439784',
+        items: [
+          {
+            kilos: 500,
+            description: 'EGBO000094-SC BOLSA POLIETILENO 100 X 125 CM  60+40x125',
+            unitPrice: precio,
+          },
+          {
+            kilos: 500,
+            description: 'EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM  60+40x95',
+            unitPrice: precio,
+          },
+        ],
+      }, `Prefactura_2_EGBO000094_EGBO000093_1000kg_OC12026439784.xlsx`);
+      toast('📥 Descargada Prefactura 2 de Excel (1,000 kg · $49,880.00)', 'ok');
+    }
+  };
 
   const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.target.value = '';
@@ -84,6 +143,82 @@ export default function TabFacturas() {
           onClose={() => setShowEmitirModal(false)}
           onCreated={(inv) => setExpandedIds(prev => new Set(prev).add(inv.id))}
         />
+      )}
+
+      {/* ⚡ Tarjeta Inteligente: Remisión 6439784 de Evelia (2,000 kg) */}
+      {isOC9784 && kilosPendientesDeFacturar > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(16,185,129,0.08) 100%)',
+          border: '1.5px solid #3b82f6',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13.5, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>⚡</span> Remisión 6439784: 2,000 kg listos para facturar en 2 de 1,000 kg
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+              Evelia solicitó 2 facturas de $49,880.00 c/u con IVA ($43.00/kg). Descarga los Excel o emítelas en 1 paso:
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => handleDownloadExcel(1)}
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid #3b82f6',
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                cursor: 'pointer',
+              }}
+            >
+              📥 Excel Prefactura 1
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownloadExcel(2)}
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid #059669',
+                background: '#ecfdf5',
+                color: '#047857',
+                cursor: 'pointer',
+              }}
+            >
+              📥 Excel Prefactura 2
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowEmitirModal(true)}
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                color: '#fff',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
+              }}
+            >
+              ⚡ Facturar en 2 de 1,000 kg ➔
+            </button>
+          </div>
+        </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
