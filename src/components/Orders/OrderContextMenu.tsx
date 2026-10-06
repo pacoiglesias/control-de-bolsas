@@ -16,6 +16,7 @@ interface OrderContextMenuProps {
   onClose: () => void;
   onOpenOrder: (order: PurchaseOrder, tab?: 'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas') => void;
   onQuickInvoice?: (order: PurchaseOrder) => void;
+  onOpenClientReport?: (order: PurchaseOrder) => void;
 }
 
 export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
@@ -25,6 +26,7 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
   onClose,
   onOpenOrder,
   onQuickInvoice,
+  onOpenClientReport,
 }) => {
   const toast = useToast();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,18 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
       >
         <span>👁️</span> <span>Abrir Expediente</span>
       </button>
+
+      {onOpenClientReport && (
+        <button
+          onClick={() => {
+            onOpenClientReport(order);
+            onClose();
+          }}
+          style={{ ...menuItemStyle, color: '#38bdf8' }}
+        >
+          <span>📊</span> <span>Reporte Avance para Cliente</span>
+        </button>
+      )}
 
       <button
         onClick={() => {

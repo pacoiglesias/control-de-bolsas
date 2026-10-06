@@ -19,6 +19,7 @@ import { TabAndresOrder } from './TabAndresOrder';
 import { OrderStepper } from './OrderStepper';
 import { NextActionBanner } from './NextActionBanner';
 import { EmitirFacturaModal } from './EmitirFacturaModal';
+import { OcClientStatusReport } from '../Orders/OcClientStatusReport';
 import { money, nombreClienteVisible } from '../../lib/format';
 import { useProducts } from '../../hooks/useProducts';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
@@ -81,6 +82,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
   // Estado local: ¿mostrar el modal de Facturas & CR? o Emitir Factura
   const [showCRModal, setShowCRModal] = useState(initialOpenCR);
   const [showEmitirFacturaModal, setShowEmitirFacturaModal] = useState(false);
+  const [showClientReportModal, setShowClientReportModal] = useState(false);
 
   // Antes, cerrar el expediente (X, Escape, clic afuera, o el boton
   // "Cancelar") descartaba SIEMPRE lo escrito sin avisar -- form vive en
@@ -322,6 +324,24 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
                 </span>
                 <span style={{ color: 'var(--ink-soft)' }}>Ver Historial →</span>
               </button>
+
+              {/* Botón: Reporte Cliente (WhatsApp, PDF, Excel) */}
+              <button
+                type="button"
+                onClick={() => { sound.playPop(); setShowClientReportModal(true); }}
+                style={{
+                  flex: '0 0 auto',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '12px 16px', borderRadius: 12, cursor: 'pointer',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)', color: '#38bdf8',
+                  fontWeight: 700, fontSize: 13.5,
+                }}
+                title="Generar y compartir Reporte de Avance para Cliente (WhatsApp, PDF, Excel)"
+              >
+                <span>📊</span>
+                <span>Reporte Cliente</span>
+              </button>
             </div>
           );
         })()}
@@ -469,6 +489,14 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
             setShowEmitirFacturaModal(false);
             sound.playChaChing();
           }}
+        />
+      )}
+
+      {/* ── Modal de Reporte de Avance para Cliente (WhatsApp / PDF / Excel) ── */}
+      {showClientReportModal && (
+        <OcClientStatusReport
+          order={order}
+          onClose={() => setShowClientReportModal(false)}
         />
       )}
     </>

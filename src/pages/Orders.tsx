@@ -23,6 +23,7 @@ import { ExcelDragDropModal } from '../components/Excel/ExcelDragDropModal';
 import { ProactiveCrHubModal } from '../components/Cobranza/ProactiveCrHubModal';
 import { OcClosureModal } from '../components/Orders/OcClosureModal';
 import { OcFulfillmentReportModal } from '../components/Orders/OcFulfillmentReportModal';
+import { OcClientStatusReport } from '../components/Orders/OcClientStatusReport';
 import { kilos, money, nombreClienteVisible, toDate } from '../lib/format';
 import { getOrderSummary, extractCr, round2 } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
@@ -53,6 +54,7 @@ export default function Orders() {
   const [showCrHubModal, setShowCrHubModal] = useState(false);
   const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
   const [showFulfillmentReport, setShowFulfillmentReport] = useState(false);
+  const [clientReportOrder, setClientReportOrder] = useState<PurchaseOrder | null>(null);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('radar');
@@ -1094,6 +1096,13 @@ export default function Orders() {
             setSelected(o);
           }}
           onQuickInvoice={(o) => setQuickCrOrder(o)}
+          onOpenClientReport={(o) => setClientReportOrder(o)}
+        />
+      )}
+      {clientReportOrder && (
+        <OcClientStatusReport
+          order={orders.find((o) => o.id === clientReportOrder.id) ?? clientReportOrder}
+          onClose={() => setClientReportOrder(null)}
         />
       )}
       {showExcelModal && (
