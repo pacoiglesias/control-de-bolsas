@@ -238,9 +238,9 @@ export const CANONICAL_GT_ITEMS_439753: PurchaseOrderItem[] = [
 ];
 
 export const CANONICAL_GT_ITEMS_439784: PurchaseOrderItem[] = [
-  { id: 'it-gt-9784-1', code: 'EGBO000095-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X125CM C/400', quantity: 1500, deliveredQuantity: 500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
-  { id: 'it-gt-9784-2', code: 'EGBO000093-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X95 CM C/400', quantity: 1600, deliveredQuantity: 500, unitPrice: 43.0, amount: 68800, unit: 'Kilos' },
-  { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60X40X115CM C/400', quantity: 2000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
+  { id: 'it-gt-9784-1', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM  60+40x125', quantity: 1500, deliveredQuantity: 500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+  { id: 'it-gt-9784-2', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM  60+40x95', quantity: 1600, deliveredQuantity: 500, unitPrice: 43.0, amount: 68800, unit: 'Kilos' },
+  { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M  60+40x115', quantity: 2000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
 ];
 
 export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOrderItem[] {
@@ -249,10 +249,11 @@ export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOr
   const text = `${order.department || ''} ${order.client || ''} ${order.oc || ''} ${order.folio || ''}`.toUpperCase();
   const is9784 = text.includes('43/9784') || text.includes('439784') || text.includes('12026439784') || text.includes('9784');
   if (is9784) {
-    const REQUIRED_CODES_9784 = ['EGBO000095-SC', 'EGBO000093-SC', 'EGBO000018-SC'];
     const existingCodes = (order.items || []).map(it => (it.code || '').toUpperCase());
-    const allPresent = REQUIRED_CODES_9784.every(c => existingCodes.some(ec => ec.includes(c)));
-    if (!allPresent || (order.items || []).length !== 3) {
+    const has18 = existingCodes.some(c => c.includes('EGBO000018'));
+    const has93 = existingCodes.some(c => c.includes('EGBO000093'));
+    const has94or95 = existingCodes.some(c => c.includes('EGBO000094') || c.includes('EGBO000095'));
+    if (!has18 || !has93 || !has94or95 || (order.items || []).length !== 3) {
       return CANONICAL_GT_ITEMS_439784;
     }
     if (order.items && order.items.length > 0) return order.items;

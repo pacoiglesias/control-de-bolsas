@@ -12,6 +12,7 @@ import { printConsolidatedPackage } from './orderModalPrint';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useOrders } from '../../hooks/useOrders';
 import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
+import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
 
 interface EmitirFacturaModalProps {
   order: PurchaseOrder;
@@ -300,21 +301,31 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
 
   const handleApplyPreset = (type: 'evelia_f1' | 'evelia_f2' | 'all' | 'half') => {
     if (type === 'evelia_f1') {
-      setConceptItems(prev => prev.map((it, idx) => {
-        if (idx === 0) return { ...it, quantity: 500, selected: true };
-        if (idx === 1) return { ...it, quantity: 500, selected: true };
-        return { ...it, quantity: 0, selected: false };
+      // Prefactura 1: 1,000 kg de EGBO000018-SC (60+40x115)
+      setConceptItems(prev => prev.map(it => {
+        const isPartida18 = (it.code || '').includes('EGBO000018');
+        return isPartida18 
+          ? { ...it, quantity: 1000, selected: true }
+          : { ...it, quantity: 0, selected: false };
       }));
-      toast('🎯 Factura 1 de Evelia seleccionada: 1,000.00 kg · $49,880.00 con IVA', 'ok');
+      toast('🎯 Prefactura 1 de Evelia seleccionada: 1,000.00 kg (EGBO000018-SC) · $49,880.00 con IVA', 'ok');
     } else if (type === 'evelia_f2') {
-      setConceptItems(prev => prev.map((it, idx) => {
-        if (idx === 2 || idx === prev.length - 1) return { ...it, quantity: 1000, selected: true };
+      // Prefactura 2: 500 kg de EGBO000094-SC + 500 kg de EGBO000093-SC
+      setConceptItems(prev => prev.map(it => {
+        const isPartida94 = (it.code || '').includes('EGBO000094') || (it.code || '').includes('EGBO000095');
+        const isPartida93 = (it.code || '').includes('EGBO000093');
+        if (isPartida94 || isPartida93) {
+          return { ...it, quantity: 500, selected: true };
+        }
         return { ...it, quantity: 0, selected: false };
       }));
-      toast('🎯 Factura 2 de Evelia seleccionada: 1,000.00 kg · $49,880.00 con IVA', 'ok');
+      toast('🎯 Prefactura 2 de Evelia seleccionada: 1,000.00 kg (EGBO000094 + EGBO000093) · $49,880.00 con IVA', 'ok');
     } else if (type === 'all') {
-      setConceptItems(prev => prev.map((it, idx) => {
-        const qty = idx === 0 ? 500 : idx === 1 ? 500 : idx === 2 ? 1000 : it.ocQuantity;
+      setConceptItems(prev => prev.map(it => {
+        const isPartida18 = (it.code || '').includes('EGBO000018');
+        const isPartida94 = (it.code || '').includes('EGBO000094') || (it.code || '').includes('EGBO000095');
+        const isPartida93 = (it.code || '').includes('EGBO000093');
+        const qty = isPartida18 ? 1000 : (isPartida94 || isPartida93) ? 500 : it.ocQuantity;
         return { ...it, quantity: qty, selected: true };
       }));
       toast('📦 Todo el lote seleccionado: 2,000.00 kg · $99,760.00 con IVA', 'ok');
@@ -324,6 +335,57 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
         return { ...it, quantity: half, selected: half > 0 };
       }));
       toast('⚖️ Kilos divididos al 50%', 'ok');
+    }
+  };
+
+  const handleDownloadPrefactura = (prefacturaNum: 1 | 2) => {
+    if (prefacturaNum === 1) {
+      downloadPrefacturaExcel({
+        clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        clientRfc: 'GTP930115PU1',
+        clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
+        clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
+        metodoPago: 'PPD',
+        formaPago: '99 por definir',
+        claveSat: '24141500',
+        unidadSat: 'KGM',
+        oc: '12026439784',
+        notaCondiciones: 'OC 12026439784',
+        items: [
+          {
+            kilos: 1000,
+            description: 'EGBO000018-SC BOLSA POLIETILENO 1.00 M X 1.15 M  60+40x115',
+            unitPrice: precio,
+          },
+        ],
+      }, `Prefactura_1_EGBO000018_1000kg_OC12026439784.xlsx`);
+      toast('📥 Descargada Prefactura 1 de Excel (1,000 kg · $49,880.00)', 'ok');
+    } else {
+      downloadPrefacturaExcel({
+        clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        clientRfc: 'GTP930115PU1',
+        clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
+        clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
+        metodoPago: 'PPD',
+        formaPago: '99 por definir',
+        claveSat: '24141500',
+        unidadSat: 'KGM',
+        oc: '12026439784',
+        notaCondiciones: 'OC 12026439784',
+        items: [
+          {
+            kilos: 500,
+            description: 'EGBO000094-SC BOLSA POLIETILENO 100 X 125 CM  60+40x125',
+            unitPrice: precio,
+          },
+          {
+            kilos: 500,
+            description: 'EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM  60+40x95',
+            unitPrice: precio,
+          },
+        ],
+      }, `Prefactura_2_EGBO000094_EGBO000093_1000kg_OC12026439784.xlsx`);
+      toast('📥 Descargada Prefactura 2 de Excel (1,000 kg · $49,880.00)', 'ok');
     }
   };
 
@@ -353,17 +415,19 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
       const issue = fromInputDate(issueDate) || new Date();
       const due = fromInputDate(dueDate) || addDays(issue, config.creditDays || 30);
 
-      const p1 = conceptItems[0] || { code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 60+40X125CM', unit: 'KGM' };
-      const p2 = conceptItems[1] || { code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 60+40X95CM', unit: 'KGM' };
-      const p3 = conceptItems[2] || { code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 60X40X115CM', unit: 'KGM' };
+      const p1 = conceptItems.find(it => (it.code || '').includes('EGBO000094') || (it.code || '').includes('EGBO000095')) || conceptItems[0] || { code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM  60+40x125', unit: 'KGM' };
+      const p2 = conceptItems.find(it => (it.code || '').includes('EGBO000093')) || conceptItems[1] || { code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM  60+40x95', unit: 'KGM' };
+      const p3 = conceptItems.find(it => (it.code || '').includes('EGBO000018')) || conceptItems[2] || { code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M  60+40x115', unit: 'KGM' };
 
+      // Factura 1 (1,000 kg): Partida EGBO000018-SC (60+40x115)
       const itemsF1: PurchaseOrderItem[] = [
-        { id: p1.id || 'it-1', code: p1.code, description: p1.description, quantity: 500, unit: p1.unit || 'KGM', unitPrice: precio, amount: 500 * precio },
-        { id: p2.id || 'it-2', code: p2.code, description: p2.description, quantity: 500, unit: p2.unit || 'KGM', unitPrice: precio, amount: 500 * precio },
+        { id: p3.id || 'it-gt-9784-3', code: p3.code || 'EGBO000018-SC', description: p3.description || 'BOLSA POLIETILENO 1.00 M X 1.15 M  60+40x115', quantity: 1000, unit: p3.unit || 'KGM', unitPrice: precio, amount: 1000 * precio },
       ];
 
+      // Factura 2 (1,000 kg): Partidas EGBO000094-SC + EGBO000093-SC (500+500 kg)
       const itemsF2: PurchaseOrderItem[] = [
-        { id: p3.id || 'it-3', code: p3.code, description: p3.description, quantity: 1000, unit: p3.unit || 'KGM', unitPrice: precio, amount: 1000 * precio },
+        { id: p1.id || 'it-gt-9784-1', code: p1.code || 'EGBO000094-SC', description: p1.description || 'BOLSA POLIETILENO 100 X 125 CM  60+40x125', quantity: 500, unit: p1.unit || 'KGM', unitPrice: precio, amount: 500 * precio },
+        { id: p2.id || 'it-gt-9784-2', code: p2.code || 'EGBO000093-SC', description: p2.description || 'BOLSA POLIETILENO 100 X 95 CM  60+40x95', quantity: 500, unit: p2.unit || 'KGM', unitPrice: precio, amount: 500 * precio },
       ];
 
       const inv1: Invoice = {
@@ -374,7 +438,7 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
         financials: computeFinancials(1000, { ...dynamicConfig, salePricePerKg: precio }),
         items: itemsF1,
         creditCycle: { status: 'facturado', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-        collection: { paidAmount: 0, contrareciboNumber: '', notes: 'Factura 1 de 2 · Remisión 6439784 (Partidas 1 y 2 · 500+500 kg)' },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: 'Factura 1 de 2 · Remisión 6439784 (Partida EGBO000018-SC · 1,000 kg)' },
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -387,7 +451,7 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
         financials: computeFinancials(1000, { ...dynamicConfig, salePricePerKg: precio }),
         items: itemsF2,
         creditCycle: { status: 'facturado', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-        collection: { paidAmount: 0, contrareciboNumber: '', notes: 'Factura 2 de 2 · Remisión 6439784 (Partida 3 · 1,000 kg)' },
+        collection: { paidAmount: 0, contrareciboNumber: '', notes: 'Factura 2 de 2 · Remisión 6439784 (Partidas EGBO000094-SC + EGBO000093-SC · 500+500 kg)' },
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -656,8 +720,8 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                           gap: 2,
                         }}
                       >
-                        <span>🎯 Factura 1 (1,000 kg)</span>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#3b82f6' }}>Partidas 1 y 2 (500+500 kg) · $49,880</span>
+                        <span>🎯 Prefactura 1 (1,000 kg)</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#3b82f6' }}>Partida EGBO000018-SC · $49,880</span>
                       </button>
 
                       <button
@@ -678,8 +742,8 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                           gap: 2,
                         }}
                       >
-                        <span>🎯 Factura 2 (1,000 kg)</span>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#059669' }}>Partida 3 (1,000 kg) · $49,880</span>
+                        <span>🎯 Prefactura 2 (1,000 kg)</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#059669' }}>EGBO000094 + EGBO000093 · $49,880</span>
                       </button>
 
                       <button
@@ -703,6 +767,53 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                         }}
                       >
                         <span>🚀 Emitir Ambas (1 Clic)</span>
+                      </button>
+                    </div>
+
+                    {/* Descarga directa de archivos Excel de prefactura oficiales */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, paddingTop: 4, borderTop: '1px dashed #bfdbfe' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadPrefactura(1)}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #3b82f6',
+                          background: 'rgba(59,130,246,0.1)',
+                          color: '#1d4ed8',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                        }}
+                        title="Descargar archivo Excel oficial con formato receptor para timbrar con los contadores"
+                      >
+                        <span>📥</span> Descargar Excel Prefactura 1 (.xlsx)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadPrefactura(2)}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #059669',
+                          background: 'rgba(5,150,105,0.1)',
+                          color: '#047857',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                        }}
+                        title="Descargar archivo Excel oficial con formato receptor para timbrar con los contadores"
+                      >
+                        <span>📥</span> Descargar Excel Prefactura 2 (.xlsx)
                       </button>
                     </div>
                   </div>
@@ -1482,8 +1593,8 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                     </div>
 
                     <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.3 }}>
-                      <div>• 500 kg: Bolsa 60+40X125 CM (EGBO000095-SC)</div>
-                      <div>• 500 kg: Bolsa 60+40X95 CM (EGBO000093-SC)</div>
+                      <div>• 1,000 kg: Bolsa 1.00 M X 1.15 M (EGBO000018-SC)</div>
+                      <div style={{ opacity: 0.5 }}>&nbsp;</div>
                     </div>
 
                     <div style={{ background: 'var(--paper)', padding: 10, borderRadius: 8, border: '1px solid var(--line)' }}>
@@ -1500,6 +1611,27 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                         <span style={{ color: '#2563eb' }}>$49,880.00 MXN</span>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPrefactura(1)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #3b82f6',
+                        background: 'rgba(59,130,246,0.08)',
+                        color: '#1d4ed8',
+                        fontWeight: 700,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>📥</span> Descargar Excel Prefactura 1 (.xlsx)
+                    </button>
 
                     <div>
                       <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink)', display: 'block', marginBottom: 4 }}>
@@ -1551,8 +1683,8 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                     </div>
 
                     <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.3 }}>
-                      <div>• 1,000 kg: Bolsa 60X40X115 CM (EGBO000018-SC)</div>
-                      <div style={{ opacity: 0.5 }}>&nbsp;</div>
+                      <div>• 500 kg: Bolsa 100 X 125 CM (EGBO000094-SC)</div>
+                      <div>• 500 kg: Bolsa 100 X 95 CM (EGBO000093-SC)</div>
                     </div>
 
                     <div style={{ background: 'var(--paper)', padding: 10, borderRadius: 8, border: '1px solid var(--line)' }}>
@@ -1569,6 +1701,27 @@ ${finalInvoiceItems.map(it => `• [${it.code || 'S/C'}] ${it.description} — $
                         <span style={{ color: '#059669' }}>$49,880.00 MXN</span>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPrefactura(2)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #059669',
+                        background: 'rgba(5,150,105,0.08)',
+                        color: '#047857',
+                        fontWeight: 700,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>📥</span> Descargar Excel Prefactura 2 (.xlsx)
+                    </button>
 
                     <div>
                       <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink)', display: 'block', marginBottom: 4 }}>
