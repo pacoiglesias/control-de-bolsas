@@ -22,6 +22,7 @@ import { db, PATHS } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from '../lib/types';
+import { OcClientStatusReport } from '../components/Orders/OcClientStatusReport';
 
 interface OcGroup {
   oc: string;
@@ -60,6 +61,7 @@ export default function OcTracking() {
   const [scope, setScope] = useState<'activas' | 'cerradas' | 'todas'>('activas');
   const [subFilter, setSubFilter] = useState<'todas' | 'por_entregar' | 'pendiente_factura' | 'en_cobranza'>('todas');
   const [search, setSearch] = useState('');
+  const [reportOrder, setReportOrder] = useState<PurchaseOrder | null>(null);
 
   // Agrupación y cálculo financiero/operativo sin duplicados
   const allOcGroups = useMemo<OcGroup[]>(() => {
@@ -1086,6 +1088,19 @@ export default function OcTracking() {
                       📲 WhatsApp
                     </button>
                     <button
+                      type="button"
+                      className="btn"
+                      style={{ fontSize: 11.5, padding: '6px 10px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', color: '#fff', border: 'none', fontWeight: 800 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerHaptic('medium');
+                        setReportOrder(group.order);
+                      }}
+                      title="Generar reporte de avance para el cliente"
+                    >
+                      📊 Reporte Cliente
+                    </button>
+                    <button
                       className="btn btn-primary"
                       style={{ fontSize: 11.5, padding: '6px 10px' }}
                       onClick={(e) => {
@@ -1297,6 +1312,13 @@ export default function OcTracking() {
           order={orders.find(o => o.id === orderParaEntrega.id) ?? orderParaEntrega}
           costPricePerKg={config.costPricePerKg || 38}
           onClose={() => setOrderParaEntrega(null)}
+        />
+      )}
+
+      {reportOrder && (
+        <OcClientStatusReport
+          order={orders.find(o => o.id === reportOrder.id) ?? reportOrder}
+          onClose={() => setReportOrder(null)}
         />
       )}
     </div>
