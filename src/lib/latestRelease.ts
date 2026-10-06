@@ -7,17 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.4: Ingesta de Remisiones Oficiales GT, Métricas en Vivo y Credenciales Firebase Robustas',
+  version: 'v9.10.5: Reporte de Avance OC para Cliente con Desglose por Partida y Exportación Excel Multi-Hoja',
   date: '06 de Octubre de 2026',
-  time: '09:15 PM',
-  summary: 'v9.10.4: Registro automático de la Remisión Oficial 6439784 (2,000 kg en 3 partidas, OC 12026439784 GT·Evelia·P4, 5-Oct-2026). Dashboard y AlertasEjecutivas actualizados con métricas en vivo: kg entregados, kg por facturar, kg faltantes y fecha próxima entrega (13 de Octubre). OcTracking muestra tarjeta de próxima entrega. OCR amplía docKind a "remision". Firebase.ts con credenciales fallback para resiliencia sin .env. 219 tests aprobados al 100%.',
+  time: '10:15 PM',
+  summary: 'v9.10.5: Implementación del reporte modal interactivo y exportable OcClientStatusReport para compartir el avance de Órdenes de Compra con clientes vía WhatsApp, Email, PDF/Impresión y Excel (.xlsx) multi-hoja con desglose por partida, entregas físicas y resumen financiero.',
   highlights: [
-    '📦 Remisión 6439784 Registrada: 2,000 kg en 3 partidas (500+500+1,000) sellados en P4 por Evelia Castillo (5-Oct-2026), vinculados a OC 12026439784. Estado: invoiced=false — PENDIENTE DE FACTURAR.',
-    '📊 Métricas en Vivo OC 43/9784: kilosEntregados=2,000 / kilosPendientesFacturar=2,000 / kilosFaltantes=3,100 / proximaEntrega=13 de Octubre.',
-    '⚡ AlertasEjecutivas Actualizadas: Muestra estado "2,000 kg Entregados (Por Facturar)" con monto ($99,760 con IVA) y fecha próxima entrega en tiempo real.',
-    '📅 OcTracking — Tarjeta Próxima Entrega: Badge azul con fecha y kg faltantes visible directamente en la lista de OCs activas.',
-    '🔒 Firebase.ts Resiliente: Credenciales de fallback hardcoded para que la app nunca quede en blanco si faltan variables de entorno .env.',
-    '🔍 OCR docKind "remision": El parser reconoce ahora Órdenes de Entrega/Remisiones selladas como tipo de documento propio.',
-    '🧪 219 Pruebas Unitarias al 100%: Suite completa en 32 archivos sin regresiones.',
+    '📊 Reporte Modal de Avance OC (OcClientStatusReport): Visualización ejecutiva del porcentaje de cumplimiento, kilos entregados, faltantes y por facturar.',
+    '📋 Desglose Partida por Partida: Avance individual de cada ítem de la OC mostrando pedido, entregado y faltante.',
+    '📑 Exportación a Excel Multi-Hoja (.xlsx): Generación de archivo Excel con Hoja 1 (Resumen General), Hoja 2 (Historial de Entregas) y Hoja 3 (Detalle por Partida).',
+    '📲 Compartir en 1 Clic: Integración para envío vía WhatsApp formatted, correo electrónico mailto, PDF impreso y copia al portapapeles.',
+    '⚡ Reflejo en Vivo: Cálculo automático y sincronización en tiempo real desde Firestore.',
   ],
 };
