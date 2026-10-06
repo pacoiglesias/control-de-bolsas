@@ -152,8 +152,31 @@ export function computeItemInvoiceBreakdown(
   deliveries.forEach((d) => {
     if (d.items && d.items.length > 0) {
       d.items.forEach((di) => {
+        const qty = Number(di.quantity) || 0;
         const key = di.itemId;
-        deliveredMap[key] = (deliveredMap[key] || 0) + (Number(di.quantity) || 0);
+        if (key) {
+          deliveredMap[key] = (deliveredMap[key] || 0) + qty;
+        }
+
+        // Búsqueda inteligente del ítem en effectiveItems para ligar por ID, Código y Descripción
+        const matchedItem = effectiveItems.find(it =>
+          it.id === di.itemId ||
+          (it.code && di.itemId && it.code.trim().toUpperCase() === di.itemId.trim().toUpperCase()) ||
+          (it.code && (di as any).code && it.code.trim().toUpperCase() === (di as any).code.trim().toUpperCase())
+        );
+        if (matchedItem) {
+          if (matchedItem.id && matchedItem.id !== key) {
+            deliveredMap[matchedItem.id] = (deliveredMap[matchedItem.id] || 0) + qty;
+          }
+          const itemCode = matchedItem.code ? matchedItem.code.trim().toLowerCase() : null;
+          if (itemCode && itemCode !== key) {
+            deliveredMap[itemCode] = (deliveredMap[itemCode] || 0) + qty;
+          }
+          const itemDesc = matchedItem.description ? matchedItem.description.trim().toLowerCase() : null;
+          if (itemDesc && itemDesc !== key && itemDesc !== itemCode) {
+            deliveredMap[itemDesc] = (deliveredMap[itemDesc] || 0) + qty;
+          }
+        }
       });
     }
   });
@@ -197,6 +220,8 @@ export function computeItemInvoiceBreakdown(
       itemDelivered = deliveredMap[itemKeyByCode];
     } else if (itemKeyByDesc && deliveredMap[itemKeyByDesc] !== undefined) {
       itemDelivered = deliveredMap[itemKeyByDesc];
+    } else if (it.deliveredQuantity && Number(it.deliveredQuantity) > 0) {
+      itemDelivered = Number(it.deliveredQuantity);
     }
 
     // Si existen entregas globales sin desglose por ítem, distribuir proporcionalmente
@@ -267,10 +292,20 @@ export function linkDeliveriesToInvoice(
         ? d.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0)
         : Number(d.kilos || 0);
 
-    if (!d.invoiced && dKilos > 0 && remaining > 0.001) {
-      const portion = Math.min(dKilos, remaining);
+    const alreadyInvoicedKg = Number((d as any).invoicedKilos || 0);
+    const availableKg = Math.max(0, dKilos - alreadyInvoicedKg);
+
+    if (!d.invoiced && availableKg > 0 && remaining > 0.001) {
+      const portion = Math.min(availableKg, remaining);
       remaining -= portion;
-      return { ...d, invoiced: true, invoiceId };
+      const newInvoicedKg = round2(alreadyInvoicedKg + portion);
+      const fullyInvoiced = newInvoicedKg >= (dKilos - 0.01);
+      return {
+        ...d,
+        invoiced: fullyInvoiced,
+        invoicedKilos: newInvoicedKg,
+        invoiceId: fullyInvoiced ? invoiceId : (d.invoiceId ? `${d.invoiceId}, ${invoiceId}` : invoiceId),
+      };
     }
     return d;
   });
