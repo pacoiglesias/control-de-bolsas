@@ -1,329 +1,58 @@
 import React, { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PurchaseOrder } from '../../lib/types';
-import { fmtDate, fmtDateFull, money, escapeHtml } from '../../lib/format';
+import { fmtDate, money } from '../../lib/format';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
+import { computeClientReportMetrics, pct } from '../../lib/clientReportTypes';
+import { buildClientReportWhatsappMsg } from '../../lib/clientReportWhatsApp';
+import { printClientReport } from '../../lib/clientReportPrint';
+import { exportClientReportToExcel } from '../../lib/clientReportExcel';
 
 interface OcClientStatusReportProps {
   order: PurchaseOrder;
   onClose: () => void;
 }
 
-function pct(a: number, b: number): number {
-  if (!b || !isFinite(b)) return 0;
-  return Math.min(100, Math.round((a / b) * 1000) / 10);
-}
-
 export const OcClientStatusReport: React.FC<OcClientStatusReportProps> = ({ order, onClose }) => {
   const { settings } = useSystemSettings();
   const [copied, setCopied] = useState(false);
 
-  // ── Métricas ────────────────────────────────────────────────────────────────
-  const metrics = useMemo(() => {
-    const totalKg = Number(order.totalKilograms) || 0;
-    const deliveries = order.deliveries || [];
-    const invoices = order.invoices || [];
+  const metrics = useMemo(() => computeClientReportMetrics(order), [order]);
+  const empresa = settings?.companyName || 'Elemental Denim Bolsas';
+  const folio = order.folio || order.oc || 'S/F';
+  const client = order.client || 'Cliente';
+  const nextDateStr = metrics.nextDate ? fmtDate(metrics.nextDate) : 'Por confirmar';
+  const fulfillColor = metrics.fulfillPct >= 98 ? '#10b981' : metrics.fulfillPct >= 50 ? '#3b82f6' : '#f59e0b';
 
-    const deliveredKg = deliveries.reduce((s, d) => s + (Number(d.kilos) || 0), 0);
-    const invoicedKg = invoices.reduce((s, i) => s + (Number(i.kilos) || 0), 0);
-    const pendingInvoiceKg = Math.max(0, deliveredKg - invoicedKg);
-    const remainingKg = Math.max(0, totalKg - deliveredKg);
-
-    const fulfillPct = pct(deliveredKg, totalKg);
-
-    const salePrice = order.financials?.salePricePerKg ?? 43;
-    const deliveredAmount = deliveredKg * salePrice;
-    const deliveredAmountIva = deliveredAmount * 1.16;
-    const pendingAmount = remainingKg * salePrice * 1.16;
-
-    const nextDate = order.estimatedDeliveryDate;
-    const items = order.items || [];
-
-    return {
-      totalKg,
-      deliveredKg,
-      invoicedKg,
-      pendingInvoiceKg,
-      remainingKg,
-      fulfillPct,
-      salePrice,
-      deliveredAmountIva,
-      pendingAmount,
-      nextDate,
-      deliveries,
-      items,
-    };
-  }, [order]);
-
-  // ── Generar mensaje WhatsApp ─────────────────────────────────────────────────
-  const buildWhatsappMsg = () => {
-    const m = metrics;
-    const client = order.client || 'Estimado cliente';
-    const folio = order.folio || order.oc || 'S/F';
-    const empresa = settings?.companyName || 'Elemental Denim Bolsas';
-    const today = new Date().toLocaleDateString('es-MX', { dateStyle: 'long' });
-    const nextDateStr = m.nextDate ? fmtDateFull(m.nextDate) : 'Por confirmar';
-
-    const deliveryLines = m.deliveries
-      .map((d, i) => {
-        const fecha = d.date ? fmtDate(d.date) : '—';
-        const docRef = d.docFolio ? ` (Rem. ${d.docFolio})` : '';
-        const factStatus = d.invoiced ? '✅ Facturado' : '⏳ Pdte. factura';
-        return `  ${i + 1}. ${fecha}${docRef}: *${Number(d.kilos).toLocaleString('es-MX')} kg* — ${factStatus}`;
-      })
-      .join('\n');
-
-    const itemLines = m.items
-      .map((it) => {
-        const pedido = Number(it.quantity);
-        const entregado = Number(it.deliveredQuantity || 0);
-        const falta = Math.max(0, pedido - entregado);
-        return `  • ${it.description}: ${entregado.toLocaleString('es-MX')} / ${pedido.toLocaleString('es-MX')} kg${falta > 0 ? ` (faltan ${falta.toLocaleString('es-MX')} kg)` : ' ✅'}`;
-      })
-      .join('\n');
-
-    return [
-      `📦 *REPORTE DE AVANCE — OC ${folio}*`,
-      `_${empresa} · ${today}_`,
-      ``,
-      `Estimado(a) ${client},`,
-      `Le compartimos el estado actualizado de su Orden de Compra:`,
-      ``,
-      `*📊 RESUMEN GENERAL*`,
-      `• OC Oficial: ${folio}`,
-      `• Total Pedido: *${m.totalKg.toLocaleString('es-MX')} kg*`,
-      `• Entregado a la fecha: *${m.deliveredKg.toLocaleString('es-MX')} kg* (${m.fulfillPct}%)`,
-      `• Pendiente de Entrega: *${m.remainingKg.toLocaleString('es-MX')} kg*`,
-      `• Próxima Entrega Programada: 📅 *${nextDateStr}*`,
-      ``,
-      m.deliveries.length > 0 ? `*🚚 HISTORIAL DE ENTREGAS*\n${deliveryLines}` : '',
-      ``,
-      m.items.length > 0 ? `*📋 DETALLE POR PARTIDA*\n${itemLines}` : '',
-      ``,
-      `*💰 RESUMEN FINANCIERO*`,
-      `• Material Entregado: ${money(m.deliveredAmountIva)} (c/IVA)`,
-      `• Material Pendiente: ${money(m.pendingAmount)} (c/IVA)`,
-      ``,
-      `Estamos a sus órdenes para cualquier aclaración.`,
-      `_${empresa}_`,
-    ]
-      .filter((l) => l !== '')
-      .join('\n');
-  };
-
-  // ── Imprimir / PDF ───────────────────────────────────────────────────────────
   const handlePrint = () => {
     triggerHaptic('medium');
-    const m = metrics;
-    const folio = order.folio || order.oc || 'S/F';
-    const client = order.client || 'Cliente';
-    const empresa = settings?.companyName || 'Elemental Denim Bolsas';
-    const today = new Date().toLocaleDateString('es-MX', { dateStyle: 'long' });
-    const nextDateStr = m.nextDate ? fmtDateFull(m.nextDate) : 'Por confirmar';
-
-    const deliveryRows = m.deliveries
-      .map((d, i) => {
-        const fecha = d.date ? fmtDate(d.date) : '—';
-        const docRef = escapeHtml(d.docFolio ? `Rem. ${d.docFolio}` : '—');
-        const factStatus = d.invoiced
-          ? '<span style="color:#16a34a;font-weight:700">✅ Facturado</span>'
-          : '<span style="color:#d97706;font-weight:700">⏳ Pdte. Factura</span>';
-        return `<tr style="border-bottom:1px solid #e5e7eb">
-          <td style="padding:8px 12px;color:#374151;font-weight:600">${i + 1}</td>
-          <td style="padding:8px 12px;color:#374151">${escapeHtml(fecha)}</td>
-          <td style="padding:8px 12px;color:#374151">${docRef}</td>
-          <td style="padding:8px 12px;text-align:right;font-weight:700;color:#1d4ed8">${Number(d.kilos).toLocaleString('es-MX')} kg</td>
-          <td style="padding:8px 12px;text-align:center">${factStatus}</td>
-          <td style="padding:8px 12px;font-size:12px;color:#6b7280;max-width:200px">${escapeHtml(d.notes || '')}</td>
-        </tr>`;
-      })
-      .join('');
-
-    const itemRows = m.items
-      .map((it) => {
-        const pedido = Number(it.quantity);
-        const entregado = Number(it.deliveredQuantity || 0);
-        const falta = Math.max(0, pedido - entregado);
-        const pctIt = pct(entregado, pedido);
-        const barColor = pctIt >= 100 ? '#16a34a' : pctIt >= 50 ? '#2563eb' : '#d97706';
-        return `<tr style="border-bottom:1px solid #f3f4f6">
-          <td style="padding:8px 12px;font-size:12px;color:#374151;max-width:280px">${escapeHtml(it.description)}<br><span style="color:#9ca3af;font-size:11px">${escapeHtml(it.code || '')}</span></td>
-          <td style="padding:8px 12px;text-align:right;color:#374151">${pedido.toLocaleString('es-MX')} kg</td>
-          <td style="padding:8px 12px;text-align:right;color:#16a34a;font-weight:700">${entregado.toLocaleString('es-MX')} kg</td>
-          <td style="padding:8px 12px;text-align:right;color:${falta > 0 ? '#dc2626' : '#16a34a'};font-weight:700">${falta > 0 ? falta.toLocaleString('es-MX') + ' kg' : '✅ Completo'}</td>
-          <td style="padding:8px 12px;min-width:120px">
-            <div style="background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden">
-              <div style="background:${barColor};height:8px;width:${pctIt}%;border-radius:4px"></div>
-            </div>
-            <div style="font-size:11px;text-align:right;color:#6b7280;margin-top:2px">${pctIt}%</div>
-          </td>
-        </tr>`;
-      })
-      .join('');
-
-    const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8" />
-<title>Reporte OC ${escapeHtml(folio)} — ${escapeHtml(client)}</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 24px 36px; color: #1f2937; background: #fff; }
-  h1 { font-size: 20px; font-weight: 800; margin: 0; }
-  h2 { font-size: 15px; font-weight: 700; margin: 24px 0 8px; color: #1e3a5f; border-bottom: 2px solid #dbeafe; padding-bottom: 6px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { background: #1e3a5f; color: #fff; padding: 8px 12px; font-weight: 700; text-align: left; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
-  .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
-  .kpi-label { font-size: 10px; text-transform: uppercase; font-weight: 700; color: #94a3b8; letter-spacing: .5px; }
-  .kpi-val { font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 2px; }
-  .kpi-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
-  .progress-bar { background: #e2e8f0; border-radius: 6px; height: 12px; overflow: hidden; margin-top: 8px; }
-  .progress-fill { background: linear-gradient(90deg, #2563eb, #3b82f6); height: 12px; border-radius: 6px; }
-  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
-  @media print { body { padding: 12px 20px; } }
-</style>
-</head>
-<body>
-<!-- HEADER -->
-<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px">
-  <div>
-    <div style="font-size:11px;color:#2563eb;font-weight:700;text-transform:uppercase;letter-spacing:1px">Reporte de Avance de Orden de Compra</div>
-    <h1>${escapeHtml(empresa)}</h1>
-    <div style="font-size:13px;color:#475569;margin-top:4px">📦 OC Oficial: <strong>${escapeHtml(folio)}</strong> · Cliente: <strong>${escapeHtml(client)}</strong></div>
-  </div>
-  <div style="text-align:right;font-size:12px;color:#64748b">
-    <div style="font-weight:700;font-size:14px;color:#1e3a5f">${escapeHtml(today)}</div>
-    <div>Generado desde Bolsas Elemental ERP</div>
-  </div>
-</div>
-
-<!-- KPIs -->
-<div class="kpi-grid">
-  <div class="kpi">
-    <div class="kpi-label">Total Pedido</div>
-    <div class="kpi-val">${m.totalKg.toLocaleString('es-MX')} kg</div>
-    <div class="kpi-sub">Orden de Compra ${escapeHtml(folio)}</div>
-  </div>
-  <div class="kpi" style="border-color:#bbf7d0;background:#f0fdf4">
-    <div class="kpi-label" style="color:#16a34a">Entregado</div>
-    <div class="kpi-val" style="color:#16a34a">${m.deliveredKg.toLocaleString('es-MX')} kg</div>
-    <div class="kpi-sub">${m.fulfillPct}% del total</div>
-  </div>
-  <div class="kpi" style="border-color:#fecaca;background:#fef2f2">
-    <div class="kpi-label" style="color:#dc2626">Pendiente de Entrega</div>
-    <div class="kpi-val" style="color:#dc2626">${m.remainingKg.toLocaleString('es-MX')} kg</div>
-    <div class="kpi-sub">${money(m.pendingAmount)} con IVA</div>
-  </div>
-  <div class="kpi" style="border-color:#bfdbfe;background:#eff6ff">
-    <div class="kpi-label" style="color:#2563eb">Próxima Entrega</div>
-    <div class="kpi-val" style="font-size:14px;color:#2563eb">${escapeHtml(nextDateStr)}</div>
-    <div class="kpi-sub">${m.remainingKg.toLocaleString('es-MX')} kg comprometidos</div>
-  </div>
-</div>
-
-<!-- BARRA DE PROGRESO -->
-<div style="margin:16px 0 24px">
-  <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px">
-    <span>Avance de Cumplimiento</span>
-    <span>${m.fulfillPct}%</span>
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" style="width:${m.fulfillPct}%"></div>
-  </div>
-</div>
-
-${m.deliveries.length > 0 ? `
-<!-- HISTORIAL DE ENTREGAS -->
-<h2>🚚 Historial de Entregas Físicas</h2>
-<table>
-  <thead>
-    <tr>
-      <th style="width:40px">#</th>
-      <th>Fecha</th>
-      <th>Documento / Remisión</th>
-      <th style="text-align:right">Kilos</th>
-      <th style="text-align:center">Estatus Factura</th>
-      <th>Notas</th>
-    </tr>
-  </thead>
-  <tbody>${deliveryRows}</tbody>
-  <tfoot>
-    <tr style="background:#f8fafc;font-weight:800">
-      <td colspan="3" style="padding:8px 12px;text-align:right;color:#1e3a5f">TOTAL ENTREGADO:</td>
-      <td style="padding:8px 12px;text-align:right;color:#2563eb;font-size:15px">${m.deliveredKg.toLocaleString('es-MX')} kg</td>
-      <td colspan="2"></td>
-    </tr>
-  </tfoot>
-</table>
-` : ''}
-
-${m.items.length > 0 ? `
-<!-- DETALLE POR PARTIDA -->
-<h2>📋 Detalle por Partida</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Descripción</th>
-      <th style="text-align:right">Pedido</th>
-      <th style="text-align:right">Entregado</th>
-      <th style="text-align:right">Faltante</th>
-      <th style="min-width:120px">Avance</th>
-    </tr>
-  </thead>
-  <tbody>${itemRows}</tbody>
-</table>
-` : ''}
-
-<!-- RESUMEN FINANCIERO -->
-<h2>💰 Resumen Financiero</h2>
-<table style="max-width:500px">
-  <tbody>
-    <tr style="background:#f8fafc"><td style="padding:8px 12px;color:#374151;font-weight:600">Material Entregado (c/IVA)</td><td style="padding:8px 12px;text-align:right;color:#16a34a;font-weight:800">${money(m.deliveredAmountIva)}</td></tr>
-    <tr><td style="padding:8px 12px;color:#374151;font-weight:600">Material Pendiente (c/IVA)</td><td style="padding:8px 12px;text-align:right;color:#dc2626;font-weight:800">${money(m.pendingAmount)}</td></tr>
-  </tbody>
-</table>
-
-<footer>
-  Reporte generado automáticamente por ${escapeHtml(empresa)} ERP · ${escapeHtml(today)}<br>
-  Documento informativo. Los montos están sujetos a verificación en la factura CFDI oficial.
-</footer>
-
-<script>window.onload = () => window.print();</script>
-</body>
-</html>`;
-
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    printClientReport({ order, metrics, companyName: empresa });
   };
 
-  // ── WhatsApp ─────────────────────────────────────────────────────────────────
   const handleWhatsApp = () => {
     triggerHaptic('medium');
-    const msg = buildWhatsappMsg();
+    const msg = buildClientReportWhatsappMsg({ order, metrics, companyName: empresa });
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  // ── Email ────────────────────────────────────────────────────────────────────
   const handleEmail = () => {
     triggerHaptic('light');
-    const folio = order.folio || order.oc || 'S/F';
-    const empresa = settings?.companyName || 'Elemental Denim Bolsas';
     const subject = encodeURIComponent(`Reporte de Avance OC ${folio} — ${empresa}`);
-    const body = encodeURIComponent(buildWhatsappMsg().replace(/\*/g, '').replace(/_/g, ''));
+    const body = encodeURIComponent(
+      buildClientReportWhatsappMsg({ order, metrics, companyName: empresa })
+        .replace(/\*/g, '')
+        .replace(/_/g, '')
+    );
     const email = order.clientEmail || '';
     window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
   };
 
-  // ── Copiar al portapapeles ───────────────────────────────────────────────────
   const handleCopy = async () => {
     triggerHaptic('light');
     try {
-      await navigator.clipboard.writeText(buildWhatsappMsg());
+      const msg = buildClientReportWhatsappMsg({ order, metrics, companyName: empresa });
+      await navigator.clipboard.writeText(msg);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
@@ -331,136 +60,13 @@ ${m.items.length > 0 ? `
     }
   };
 
-  // ── Excel Export ──────────────────────────────────────────────────────────────
   const handleExportExcel = () => {
     triggerHaptic('medium');
-    const m = metrics;
-    const folio = order.folio || order.oc || 'S/F';
-    const client = order.client || 'Cliente';
-    const empresa = settings?.companyName || 'Elemental Denim Bolsas';
-    const today = new Date().toLocaleDateString('es-MX', { dateStyle: 'long' });
-    const nextDateStr = m.nextDate ? fmtDate(m.nextDate) : 'Por confirmar';
-
-    const wb = XLSX.utils.book_new();
-
-    // ─── HOJA 1: RESUMEN ──────────────────────────────────────────────────────
-    const resumenData: (string | number)[][] = [
-      [`REPORTE DE AVANCE — OC ${folio}`],
-      [`${empresa} · Generado: ${today}`],
-      [''],
-      ['INFORMACIÓN DE LA ORDEN'],
-      ['OC Oficial', folio],
-      ['Cliente', client],
-      ['Empresa Proveedora', empresa],
-      ['Fecha del Reporte', today],
-      [''],
-      ['MÉTRICAS DE CUMPLIMIENTO'],
-      ['Concepto', 'Kilos', 'Monto (con IVA)'],
-      ['Total Pedido en OC', m.totalKg, m.totalKg * m.salePrice * 1.16],
-      ['Entregado a la Fecha', m.deliveredKg, m.deliveredAmountIva],
-      ['Pendiente de Entrega', m.remainingKg, m.pendingAmount],
-      ['Kilos Facturados', m.invoicedKg, m.invoicedKg * m.salePrice * 1.16],
-      ['Kilos Pendientes de Facturar', m.pendingInvoiceKg, m.pendingInvoiceKg * m.salePrice * 1.16],
-      [''],
-      ['Porcentaje de Cumplimiento', `${m.fulfillPct}%`],
-      ['Precio por Kilogramo (sin IVA)', m.salePrice],
-      ['Próxima Entrega Programada', nextDateStr],
-      ['Kilos Comprometidos Próxima Entrega', m.remainingKg],
-    ];
-
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
-
-    // Anchos de columna
-    wsResumen['!cols'] = [{ wch: 35 }, { wch: 18 }, { wch: 22 }];
-
-    // Estilos básicos en celda A1 (título)
-    if (wsResumen['A1']) wsResumen['A1'].s = { font: { bold: true, sz: 14 } };
-
-    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
-
-    // ─── HOJA 2: HISTORIAL DE ENTREGAS ────────────────────────────────────────
-    const entregasHeaders = ['#', 'Fecha', 'Remisión / Folio', 'Kilos Entregados', 'Estatus Factura', 'Factura ID', 'Notas / Observaciones'];
-    const entregasRows = m.deliveries.map((d, i) => [
-      i + 1,
-      d.date ? fmtDate(d.date) : '—',
-      d.docFolio ? `Rem. ${d.docFolio}` : (d.docType || '—'),
-      Number(d.kilos) || 0,
-      d.invoiced ? 'FACTURADO' : 'PENDIENTE DE FACTURAR',
-      d.invoiceId || '—',
-      d.notes || '',
-    ]);
-
-    // Fila de totales
-    const totalEntregado = m.deliveries.reduce((s, d) => s + (Number(d.kilos) || 0), 0);
-    entregasRows.push(['', '', 'TOTAL ENTREGADO:', totalEntregado, '', '', '']);
-
-    const wsEntregas = XLSX.utils.aoa_to_sheet([entregasHeaders, ...entregasRows]);
-    wsEntregas['!cols'] = [
-      { wch: 5 }, { wch: 14 }, { wch: 20 }, { wch: 18 },
-      { wch: 24 }, { wch: 18 }, { wch: 40 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsEntregas, 'Historial de Entregas');
-
-    // ─── HOJA 3: DETALLE POR PARTIDA ──────────────────────────────────────────
-    const partidasHeaders = [
-      'Código', 'Descripción del Producto',
-      'Kilos Pedidos (OC)', 'Kilos Entregados', 'Kilos Faltantes',
-      '% Avance', 'Valor Pendiente (c/IVA)', 'Estatus',
-    ];
-    const partidasRows = m.items.map((it) => {
-      const pedido = Number(it.quantity) || 0;
-      const entregado = Number(it.deliveredQuantity || 0);
-      const falta = Math.max(0, pedido - entregado);
-      const avance = pedido > 0 ? Math.round((entregado / pedido) * 1000) / 10 : 0;
-      const valorPendiente = falta * m.salePrice * 1.16;
-      const estatus = falta <= 0 ? 'COMPLETO ✓' : falta < pedido * 0.1 ? 'CASI COMPLETO' : 'PENDIENTE';
-      return [
-        it.code || '—',
-        it.description,
-        pedido,
-        entregado,
-        falta,
-        `${avance}%`,
-        valorPendiente,
-        estatus,
-      ];
-    });
-
-    // Fila de totales partidas
-    const totalPedido = m.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-    const totalEntregadoP = m.items.reduce((s, it) => s + (Number(it.deliveredQuantity || 0)), 0);
-    const totalFaltaP = Math.max(0, totalPedido - totalEntregadoP);
-    partidasRows.push([
-      '', 'TOTALES',
-      totalPedido, totalEntregadoP, totalFaltaP,
-      `${totalPedido > 0 ? Math.round((totalEntregadoP / totalPedido) * 1000) / 10 : 0}%`,
-      totalFaltaP * m.salePrice * 1.16,
-      '',
-    ]);
-
-    const wsPartidas = XLSX.utils.aoa_to_sheet([partidasHeaders, ...partidasRows]);
-    wsPartidas['!cols'] = [
-      { wch: 18 }, { wch: 45 }, { wch: 18 }, { wch: 18 },
-      { wch: 18 }, { wch: 12 }, { wch: 22 }, { wch: 18 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsPartidas, 'Detalle por Partida');
-
-    // ─── Descargar ────────────────────────────────────────────────────────────
-    const fileName = `Reporte_OC_${folio.replace(/\//g, '-')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    exportClientReportToExcel({ order, metrics, companyName: empresa });
   };
-
-  // ── Render ───────────────────────────────────────────────────────────────────
-
-  const m = metrics;
-  const folio = order.folio || order.oc || 'S/F';
-  const client = order.client || 'Cliente';
-  const nextDateStr = m.nextDate ? fmtDate(m.nextDate) : 'Por confirmar';
-  const fulfillColor = m.fulfillPct >= 98 ? '#10b981' : m.fulfillPct >= 50 ? '#3b82f6' : '#f59e0b';
 
   return (
     <AnimatePresence>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -486,7 +92,7 @@ ${m.items.length > 0 ? `
             overflow: 'hidden',
           }}
         >
-          {/* ── Header ── */}
+          {/* Header */}
           <div style={{
             padding: '20px 24px', display: 'flex', justifyContent: 'space-between',
             alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)',
@@ -498,11 +104,11 @@ ${m.items.length > 0 ? `
               </div>
               <div style={{ fontSize: 20, fontWeight: 900, color: '#f8fafc' }}>OC {folio}</div>
               <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
-                {client} · {settings?.companyName || 'Elemental Denim Bolsas'}
+                {client} · {empresa}
               </div>
             </div>
 
-            {/* Botones de acción */}
+            {/* Action Buttons */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button onClick={handleCopy} style={btnStyle('#475569')}>
                 {copied ? '✅ Copiado' : '📋 Copiar'}
@@ -519,34 +125,39 @@ ${m.items.length > 0 ? `
               <button onClick={handleExportExcel} style={btnStyle('#059669')}>
                 📊 Excel
               </button>
-              <button onClick={onClose} style={{
-                background: 'transparent', border: 'none', color: '#94a3b8',
-                fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '2px 6px',
-              }}>×</button>
+              <button
+                onClick={onClose}
+                aria-label="Cerrar modal"
+                style={{
+                  background: 'transparent', border: 'none', color: '#94a3b8',
+                  fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '2px 6px',
+                }}
+              >
+                ×
+              </button>
             </div>
           </div>
 
-          {/* ── Body ── */}
+          {/* Body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
             {/* KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-              <KpiTile label="Total OC" value={`${m.totalKg.toLocaleString('es-MX')} kg`} sub={`OC ${folio}`} color="#94a3b8" />
-              <KpiTile label="✅ Entregado" value={`${m.deliveredKg.toLocaleString('es-MX')} kg`} sub={`${m.fulfillPct}% del total`} color="#10b981" />
-              <KpiTile label="⏳ Faltante" value={`${m.remainingKg.toLocaleString('es-MX')} kg`} sub={money(m.pendingAmount) + ' c/IVA'} color={m.remainingKg > 0 ? '#f59e0b' : '#10b981'} />
-              <KpiTile label="📅 Próxima Entrega" value={nextDateStr} sub={`${m.remainingKg.toLocaleString('es-MX')} kg comprometidos`} color="#60a5fa" />
+              <KpiTile label="Total OC" value={`${metrics.totalKg.toLocaleString('es-MX')} kg`} sub={`OC ${folio}`} color="#94a3b8" />
+              <KpiTile label="✅ Entregado" value={`${metrics.deliveredKg.toLocaleString('es-MX')} kg`} sub={`${metrics.fulfillPct}% del total`} color="#10b981" />
+              <KpiTile label="⏳ Faltante" value={`${metrics.remainingKg.toLocaleString('es-MX')} kg`} sub={money(metrics.pendingAmount) + ' c/IVA'} color={metrics.remainingKg > 0 ? '#f59e0b' : '#10b981'} />
+              <KpiTile label="📅 Próxima Entrega" value={nextDateStr} sub={`${metrics.remainingKg.toLocaleString('es-MX')} kg comprometidos`} color="#60a5fa" />
             </div>
 
             {/* Barra de progreso */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
                 <span>Avance de Cumplimiento</span>
-                <span style={{ color: fulfillColor }}>{m.fulfillPct}%</span>
+                <span style={{ color: fulfillColor }}>{metrics.fulfillPct}%</span>
               </div>
               <div style={{ height: 14, background: 'rgba(255,255,255,0.08)', borderRadius: 8, overflow: 'hidden' }}>
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${m.fulfillPct}%` }}
+                  animate={{ width: `${metrics.fulfillPct}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   style={{
                     height: '100%', borderRadius: 8,
@@ -556,13 +167,13 @@ ${m.items.length > 0 ? `
                 />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                <span>{m.deliveredKg.toLocaleString('es-MX')} kg entregados</span>
-                <span>{m.remainingKg.toLocaleString('es-MX')} kg restantes</span>
+                <span>{metrics.deliveredKg.toLocaleString('es-MX')} kg entregados</span>
+                <span>{metrics.remainingKg.toLocaleString('es-MX')} kg restantes</span>
               </div>
             </div>
 
             {/* Entregas */}
-            {m.deliveries.length > 0 && (
+            {metrics.deliveries.length > 0 && (
               <section>
                 <SectionTitle>🚚 Historial de Entregas</SectionTitle>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -577,7 +188,7 @@ ${m.items.length > 0 ? `
                     </tr>
                   </thead>
                   <tbody>
-                    {m.deliveries.map((d, i) => (
+                    {metrics.deliveries.map((d, i) => (
                       <tr key={d.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={tdS}><span style={{ fontWeight: 700, color: '#94a3b8' }}>{i + 1}</span></td>
                         <td style={tdS}><span style={{ fontWeight: 600, color: '#e2e8f0' }}>{d.date ? fmtDate(d.date) : '—'}</span></td>
@@ -601,7 +212,7 @@ ${m.items.length > 0 ? `
                   <tfoot>
                     <tr style={{ borderTop: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.02)' }}>
                       <td colSpan={3} style={{ padding: '8px 10px', textAlign: 'right', color: '#94a3b8', fontWeight: 700, fontSize: 12 }}>TOTAL ENTREGADO:</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#10b981', fontSize: 15 }}>{m.deliveredKg.toLocaleString('es-MX')} kg</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#10b981', fontSize: 15 }}>{metrics.deliveredKg.toLocaleString('es-MX')} kg</td>
                       <td colSpan={2} />
                     </tr>
                   </tfoot>
@@ -610,11 +221,11 @@ ${m.items.length > 0 ? `
             )}
 
             {/* Detalle por partida */}
-            {m.items.length > 0 && (
+            {metrics.items.length > 0 && (
               <section>
                 <SectionTitle>📋 Detalle por Partida</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {m.items.map((it, i) => {
+                  {metrics.items.map((it, i) => {
                     const pedido = Number(it.quantity);
                     const entregado = Number(it.deliveredQuantity || 0);
                     const falta = Math.max(0, pedido - entregado);
@@ -671,20 +282,19 @@ ${m.items.length > 0 ? `
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 16px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', textTransform: 'uppercase' }}>Material Entregado (c/IVA)</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#10b981', marginTop: 4 }}>{money(m.deliveredAmountIva)}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{m.deliveredKg.toLocaleString('es-MX')} kg × ${m.salePrice}/kg + IVA</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#10b981', marginTop: 4 }}>{money(metrics.deliveredAmountIva)}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{metrics.deliveredKg.toLocaleString('es-MX')} kg × ${metrics.salePrice}/kg + IVA</div>
                 </div>
                 <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '12px 16px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase' }}>Pendiente de Entrega (c/IVA)</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#f59e0b', marginTop: 4 }}>{money(m.pendingAmount)}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{m.remainingKg.toLocaleString('es-MX')} kg restantes · Fecha: {nextDateStr}</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#f59e0b', marginTop: 4 }}>{money(metrics.pendingAmount)}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{metrics.remainingKg.toLocaleString('es-MX')} kg restantes · Fecha: {nextDateStr}</div>
                 </div>
               </div>
             </section>
-
           </div>
 
-          {/* ── Footer ── */}
+          {/* Footer */}
           <div style={{
             padding: '12px 24px', borderTop: '1px solid rgba(255,255,255,0.07)',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -701,8 +311,6 @@ ${m.items.length > 0 ? `
     </AnimatePresence>
   );
 };
-
-// ── Sub-componentes internos ──────────────────────────────────────────────────
 
 function KpiTile({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (

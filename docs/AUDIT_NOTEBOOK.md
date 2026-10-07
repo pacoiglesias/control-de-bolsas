@@ -1,3 +1,26 @@
+### Iteración 129: Refactor Modular de OcClientStatusReport y Separación de Responsabilidades (v9.10.11)
+[2026-10-07]
+Archivos: `src/components/Orders/OcClientStatusReport.tsx`, `src/lib/clientReportTypes.ts`, `src/lib/clientReportWhatsApp.ts`, `src/lib/clientReportPrint.ts`, `src/lib/clientReportExcel.ts`, `src/lib/__tests__/clientReportModules.test.ts`, `docs/AUDIT_NOTEBOOK.md`
+Problema:
+1. `OcClientStatusReport.tsx` superaba 740 líneas de código, mezclando en un único archivo la capa de presentación visual, exportación cruda de Excel (`xlsx`), armado de plantillas de WhatsApp, impresión HTML y cómputo de métricas.
+2. Dificultad para probar unitariamente las métricas de avance y los textos de mensajería sin montar el árbol completo de componentes React.
+Solución:
+1. **Separación de Responsabilidades & Clean Architecture:**
+   - Extraída la lógica de cálculo y tipos a `src/lib/clientReportTypes.ts` (`computeClientReportMetrics`, `pct`).
+   - Extraído el formateador de WhatsApp a `src/lib/clientReportWhatsApp.ts` (`buildClientReportWhatsappMsg`).
+   - Extraído el renderizado de impresión/PDF a `src/lib/clientReportPrint.ts` (`printClientReport`).
+   - Extraída la generación de hojas de cálculo a `src/lib/clientReportExcel.ts` (`exportClientReportToExcel`), permitiendo mejor code-splitting dinámico de la librería `xlsx`.
+2. **Reducción Drástica de Código en Componente Visual:**
+   - `OcClientStatusReport.tsx` reducido de 743 a 267 líneas (-64%), enfocado puramente en renderizado UI Obsidian Dark, animaciones Framer Motion y controles táctiles de 1-toque.
+3. **Cobertura de Pruebas Automatizadas:**
+   - Creada suite `src/lib/__tests__/clientReportModules.test.ts` con 3 pruebas validando exactitud matemática de cumplimiento, cálculo de IVA y formato de mensaje WhatsApp.
+   - 228 / 228 pruebas unitarias aprobadas al 100%.
+Riesgo: 🟢 Cero / Bajo — Refactor puro de modularización sin alterar la interfaz de usuario ni los contratos de datos.
+Estado: ✅ Verificado — 228 tests verdes, build 100% exitoso.
+OKRs afectados: OKR 2 (Excelencia UX/UI), OKR 4 (Cero Fricción), OKR 5 (Integridad Matemática).
+
+---
+
 ### Iteración 128: Tarifas Flotantes Dinámicas de Maquila (Andrés), Corrección de Comisión Financiera y Simuladores Ágiles (v9.10.10)
 [2026-10-07]
 Archivos: `src/components/FloatingKiloCalculator.tsx`, `src/components/Dashboard/CashFlowSimulatorWidget.tsx`, `src/components/OCPreviewModal.tsx`, `src/components/OrderModal/OrderPriceModal.tsx`, `AGENTS.md`, `docs/AUDIT_NOTEBOOK.md`
