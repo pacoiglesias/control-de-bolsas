@@ -26,6 +26,7 @@ export interface CameraScanResult {
   detectedProductCode?: string;
   detectedProductDescription?: string;
   comparison?: OcComparisonResult;
+  detectedPartidas?: { code: string; kilos: number }[];
 }
 
 interface CameraTicketScannerModalProps {
@@ -262,6 +263,7 @@ export function CameraTicketScannerModal({
       detectedProductCode: parsedResult?.detectedProductCodes?.[0] || undefined,
       detectedProductDescription: parsedResult?.detectedProductDescription || undefined,
       comparison: effectiveComparison || undefined,
+      detectedPartidas: parsedResult?.detectedPartidas || undefined,
     });
     onClose();
   };

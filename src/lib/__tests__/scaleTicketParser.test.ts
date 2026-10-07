@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseScaleTicket, matchScaleTicketWithOrders } from '../scaleTicketParser';
+import { parseScaleTicket, matchScaleTicketWithOrders, distributeKilosAcrossItems } from '../scaleTicketParser';
 
 describe('scaleTicketParser (Báscula Patio Providencia y Tickets de Pesaje)', () => {
   it('extrae correctamente el Peso Neto explícito, ticket, fecha y placas', () => {
@@ -164,5 +164,82 @@ describe('matchScaleTicketWithOrders (Comparación Inteligente con OC)', () => {
     expect(match.status).toBe('over_delivery');
     expect(match.statusMessage).toContain('Alerta de Exceso');
     expect(match.statusMessage).toContain('+1,500');
+  });
+});
+
+describe('distributeKilosAcrossItems (Reparto Inteligente Multipartida)', () => {
+  const items = [
+    { id: 'item-1', code: 'EGBO000018-SC', description: 'BOLSA 40X60', quantity: 2000 },
+    { id: 'item-2', code: 'EGBO000094-SC', description: 'BOLSA 50X70', quantity: 1500 },
+    { id: 'item-3', code: 'EGBO000095-SC', description: 'BOLSA 60X90', quantity: 1500 },
+  ];
+
+  it('distribuye secuencialmente llenando partidas pendientes', () => {
+    // 2,500 kg deben llenar los 2,000 kg de item-1 y 500 kg de item-2
+    const allocations = distributeKilosAcrossItems(2500, items, {});
+
+    expect(allocations).toHaveLength(3);
+    expect(allocations[0].allocatedKg).toBe(2000);
+    expect(allocations[0].remainingAfterKg).toBe(0);
+
+    expect(allocations[1].allocatedKg).toBe(500);
+    expect(allocations[1].remainingAfterKg).toBe(1000);
+
+    expect(allocations[2].allocatedKg).toBe(0);
+    expect(allocations[2].remainingAfterKg).toBe(1500);
+  });
+
+  it('toma en cuenta entregas previas por partida al calcular faltantes', () => {
+    // item-1 ya tiene 1,500 kg entregados (le faltan 500 kg)
+    const prevDeliveries = {
+      'item-1': 1500,
+    };
+
+    // Entrega de 1,200 kg: 500 kg van a item-1 (para completarlo), y 700 kg van a item-2
+    const allocations = distributeKilosAcrossItems(1200, items, prevDeliveries);
+
+    expect(allocations[0].previouslyDeliveredKg).toBe(1500);
+    expect(allocations[0].pendingKg).toBe(500);
+    expect(allocations[0].allocatedKg).toBe(500);
+    expect(allocations[0].remainingAfterKg).toBe(0);
+
+    expect(allocations[1].allocatedKg).toBe(700);
+    expect(allocations[1].remainingAfterKg).toBe(800);
+  });
+
+  it('asigna el 100% a la única partida si solo hay 1 producto', () => {
+    const singleItem = [
+      { id: 'it-single', code: 'EGBO000018-SC', description: 'BOLSA UNICA', quantity: 5000 },
+    ];
+    const allocations = distributeKilosAcrossItems(3200, singleItem, {});
+
+    expect(allocations).toHaveLength(1);
+    expect(allocations[0].allocatedKg).toBe(3200);
+    expect(allocations[0].remainingAfterKg).toBe(1800);
+  });
+});
+
+describe('scaleTicketParser Multipartidas en texto OCR', () => {
+  it('detecta múltiples renglones de partidas con sus respectivos kilos', () => {
+    const rawMultipartidaTicket = `
+      GRUPO TEXTIL PROVIDENCIA SA DE CV
+      ORDEN DE ENTREGA - BASCULA
+      OC: 12026439784
+      FOLIO: 6439784
+      FECHA: 28/09/2026
+      
+      PARTIDA 1: EGBO000018-SC BOLSA 40X60  1,000.00 KG
+      PARTIDA 2: EGBO000094-SC BOLSA 50X70    500.00 KG
+      PARTIDA 3: EGBO000095-SC BOLSA 60X90    500.00 KG
+      
+      PESO TOTAL NETO: 2,000.00 KG
+    `;
+
+    const parsed = parseScaleTicket(rawMultipartidaTicket);
+    expect(parsed.kilosNeto).toBe(2000);
+    expect(parsed.ticketFolio).toBe('6439784');
+    expect(parsed.detectedPartidas).toBeDefined();
+    expect(parsed.detectedPartidas?.length).toBeGreaterThanOrEqual(3);
+    expect(parsed.detectedPartidas?.some((p) => p.code === 'EGBO000018-SC' && p.kilos === 1000)).toBe(true);
   });
 });

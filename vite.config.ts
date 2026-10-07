@@ -100,23 +100,24 @@ export default defineConfig(({ mode }) => {
   build: {
     outDir: 'dist',
     sourcemap: 'hidden', // genera .map para debugging pero no los expone en el bundle
-    chunkSizeWarningLimit: 500,  // estándar recomendado (antes: 1000)
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // El SDK de Firebase pesa; separarlo deja que el navegador lo cachee
-        // entre despliegues en vez de volver a bajarlo con cada cambio de UI.
-        manualChunks: {
-          'firebase-core': ['firebase/app', 'firebase/auth'],
-          'firebase-firestore': ['firebase/firestore'],
-          'firebase-storage': ['firebase/storage'],
-          react: ['react', 'react-dom', 'react-router-dom'],
-          motion: ['framer-motion'],
-          excel: ['xlsx'],
-          pdf: ['html2pdf.js'],              // html2pdf (jspdf interno)
-          pdfjs: ['pdfjs-dist'],             // pdfjs separado
-          tesseract: ['tesseract.js'],       // tesseract cargado bajo demanda
-          archive: ['jszip'],
-          charts: ['recharts'],              // recharts separado (102 kB gzip)
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('firebase/app') || id.includes('firebase/auth')) return 'firebase-core';
+            if (id.includes('firebase/firestore')) return 'firebase-firestore';
+            if (id.includes('firebase/storage')) return 'firebase-storage';
+            if (id.includes('framer-motion')) return 'motion';
+            if (id.includes('xlsx')) return 'excel';
+            if (id.includes('html2pdf.js')) return 'pdf';
+            if (id.includes('jspdf')) return 'jspdf';
+            if (id.includes('pdfjs-dist')) return 'pdfjs';
+            if (id.includes('tesseract.js')) return 'tesseract';
+            if (id.includes('jszip')) return 'archive';
+            if (id.includes('recharts')) return 'charts';
+            if (id.includes('react') || id.includes('scheduler')) return 'react-vendor';
+          }
         },
       },
     },

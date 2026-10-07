@@ -7,15 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.12: Ergonomía Visual & Operativa, Filtro Departamental TH/GT y Atajos de Báscula',
+  version: 'v9.10.13: Fase 1 — Code-Splitting Granular & Distribución Inteligente Multipartida en Báscula',
   date: '07 de Octubre de 2026',
-  time: '04:35 PM',
-  summary: 'v9.10.12: Optimización integral visual y operativa: Selector rápido de planta (TH · Nava vs GT · Evelia) y acceso directo a las dos OCs flagship activas en Expedientes; botón proactivo de registro de entregas de báscula en filas con kilos pendientes; armonización de badges departamentales con paleta oficial Obsidian Dark; elevación sticky de cabecera de tablas con blur reforzado y badge luminoso en modo discreto.',
+  time: '05:25 PM',
+  summary: 'v9.10.13: Fase 1 de optimización estructural completada: Code-splitting granular de vendors pesados (PDF, Excel, Firebase, Charts, Motion) eliminando advertencias monolíticas de Vite; algoritmo de auto-distribución proporcional y secuencial por partida en báscula (QuickDeliveryModal) respetando entregas previas y soporte de extracción multipartida en OCR de tickets con control manual interactivo.',
   highlights: [
-    '🏢 Selector Departamental Rápido (TH / GT): Filtro instantáneo de 1-toque en la pantalla de Expedientes para alternar entre Textil Hogar (Ing. Nava) y Grupo Textil (Lic. Evelia) sin necesidad de búsquedas textuales repetitivas.',
-    '🎯 Acceso Directo a OCs Activas Flagship: Pills dedicados para saltar directamente a la OC 12026439784 (GT 43/9784 · 5,100 kg) y OC 120267114302 (TH 71/14302 · 8,000 kg).',
-    '🚚 Botón Proactivo [+ Entrega]: Resaltado visual en esmeralda proactivo en la barra de acciones de cada fila cuando restan kilos por surtir, abriendo directamente el capturador de remisiones de báscula.',
-    '💎 Estética Obsidian Dark & Sticky Headers: Encabezados de tabla elevados con borde definido y blur de 20px para una lectura nítida durante el desplazamiento vertical, más badge luminoso en el modo discreto.',
+    '⚡ Code-Splitting Granular de Chunks Vite: Aislamiento modular de bibliotecas pesadas en bundles independientes (firebase-core, firebase-firestore, firebase-storage, motion, excel, pdf, jspdf, pdfjs, tesseract, archive, charts, react-vendor), reduciendo sustancialmente el tiempo de carga inicial y eliminando avisos de bundle monolítico.',
+    '📦 Auto-Distribución Multipartida en Báscula: Al registrar entregas físicas de OCs con múltiples renglones (e.g. Providencia EGBO000018, EGBO000094, EGBO000095), el sistema desglosa los kilos automáticamente respetando lo ya entregado y lo pendiente por producto.',
+    '✏️ Control Manual Interactivo por Partida: Panel interactivo en QuickDeliveryModal que permite a la operación alternar entre reparto inteligente automático y ajuste manual por renglón con sincronización en tiempo real al total de la remisión.',
+    '📸 Ingesta Multipartida por OCR de Tickets: Extracción automática de múltiples renglones con código EGBO y kilos individuales desde tickets escaneados por cámara o subidos como imagen.',
   ],
 };
 

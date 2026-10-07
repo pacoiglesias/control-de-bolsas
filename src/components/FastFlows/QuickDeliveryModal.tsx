@@ -12,6 +12,8 @@ import { sound } from '../../lib/sounds';
 import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
 import { findDuplicateRemision } from '../../lib/duplicateGuards';
 import { getEffectiveOrderItems } from '../../lib/types';
+import { distributeKilosAcrossItems } from '../../lib/scaleTicketParser';
+import { computeDeliveredTotals } from '../../lib/deliveries';
 import { CameraTicketScannerModal, type CameraScanResult } from '../Recepcion/CameraTicketScannerModal';
 
 interface QuickDeliveryModalProps {
@@ -80,10 +82,34 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
     docFolio: string;
     notes: string;
     remainingKg: number;
+    items?: { itemId: string; quantity: number }[];
   } | null>(null);
+
+  // Detección de partidas efectivas de la OC seleccionada
+  const orderItems = useMemo(() => {
+    return selectedInfo ? getEffectiveOrderItems(selectedInfo.order) : [];
+  }, [selectedInfo]);
+
+  // Totales acumulados previos por partida
+  const deliveredTotals = useMemo(() => {
+    if (!selectedInfo) return { deliveredByItem: {}, kilosEntregados: 0 };
+    return computeDeliveredTotals(selectedInfo.order.deliveries ?? [], orderItems);
+  }, [selectedInfo, orderItems]);
+
+  // Reparto automático de kilos entre partidas según pendientes
+  const autoAllocations = useMemo(() => {
+    const k = Number(kilos) || 0;
+    return distributeKilosAcrossItems(k, orderItems, deliveredTotals.deliveredByItem);
+  }, [kilos, orderItems, deliveredTotals]);
+
+  // Modo manual de ajuste por partida si el usuario desea control individual
+  const [manualBreakdownActive, setManualBreakdownActive] = useState(false);
+  const [customItemQuantities, setCustomItemQuantities] = useState<Record<string, number | ''>>({});
 
   const handleSelectOrder = (oId: string) => {
     setSelectedOrderId(oId);
+    setManualBreakdownActive(false);
+    setCustomItemQuantities({});
     const info = pendingOrders.find((p) => p.order.id === oId);
     if (info) {
       setKilos(info.faltante);
@@ -117,6 +143,19 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
     try {
       const orderRef = doc(db, PATHS.orders, selectedInfo.order.id);
 
+      // Calcular partidas a persistir
+      const finalDeliveryItems = (orderItems.length > 0)
+        ? orderItems.map((it) => {
+            const q = manualBreakdownActive
+              ? (Number(customItemQuantities[it.id]) || 0)
+              : (autoAllocations.find((a) => a.itemId === it.id)?.allocatedKg || 0);
+            return {
+              itemId: it.id,
+              quantity: round2(q),
+            };
+          }).filter((it) => it.quantity > 0)
+        : undefined;
+
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(orderRef);
         if (!snap.exists()) {
@@ -136,6 +175,7 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
           driver: driver.trim() || 'Andrés',
           docType,
           docFolio: docFolio.trim(),
+          items: finalDeliveryItems && finalDeliveryItems.length > 0 ? finalDeliveryItems : undefined,
           invoiced: false,
           notes: notes.trim() || `Entrega directa de ${k.toLocaleString('es-MX')} kg - Almacén Providencia`,
         };
@@ -160,6 +200,7 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
         docFolio: docFolio.trim(),
         notes: notes.trim(),
         remainingKg: round2(Math.max(0, selectedInfo.faltante - k)),
+        items: finalDeliveryItems && finalDeliveryItems.length > 0 ? finalDeliveryItems : undefined,
       });
     } catch (err: any) {
       console.error(err);
@@ -280,6 +321,43 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
                 </strong>
               </div>
             </div>
+
+            {/* Desglose de partidas registradas en esta entrega */}
+            {completedDelivery.items && completedDelivery.items.length > 1 && (
+              <div
+                style={{
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 800, color: '#047857', marginBottom: 4 }}>
+                  📦 Desglose Registrado por Partida:
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {completedDelivery.items.map((it) => {
+                    const meta = orderItems.find((o) => o.id === it.itemId);
+                    return (
+                      <span
+                        key={it.itemId}
+                        style={{
+                          background: 'var(--paper)',
+                          border: '1px solid var(--line)',
+                          borderRadius: 6,
+                          padding: '2px 8px',
+                          fontWeight: 700,
+                          fontSize: 11,
+                        }}
+                      >
+                        <strong>{meta?.code || it.itemId}:</strong> {it.quantity.toLocaleString('es-MX')} kg
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── BOTÓN ESTRELLA 1: FACTURAR DE INMEDIATO ── */}
             <button
@@ -643,6 +721,146 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
                     })()}
                   </div>
 
+                  {/* Desglose Multipartida (si la OC tiene más de 1 partida) */}
+                  {orderItems.length > 1 && (
+                    <div
+                      style={{
+                        background: 'var(--paper-sunk)',
+                        border: '1px solid var(--line)',
+                        borderRadius: 12,
+                        padding: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 14 }}>📦</span>
+                          <span style={{ fontSize: 12, fontWeight: 800 }}>
+                            Desglose por Partidas ({orderItems.length})
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic();
+                            if (!manualBreakdownActive) {
+                              const map: Record<string, number | ''> = {};
+                              autoAllocations.forEach((a) => {
+                                map[a.itemId] = a.allocatedKg;
+                              });
+                              setCustomItemQuantities(map);
+                              setManualBreakdownActive(true);
+                            } else {
+                              setManualBreakdownActive(false);
+                            }
+                          }}
+                          style={{
+                            fontSize: 11,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            border: '1px solid var(--line)',
+                            background: manualBreakdownActive ? 'rgba(59, 130, 246, 0.15)' : 'var(--paper)',
+                            color: manualBreakdownActive ? '#3b82f6' : 'var(--ink-soft)',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {manualBreakdownActive ? '⚡ Reparto Inteligente' : '✏️ Ajustar Manual'}
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {orderItems.map((it) => {
+                          const allocation = autoAllocations.find((a) => a.itemId === it.id);
+                          const allocatedVal = manualBreakdownActive
+                            ? (customItemQuantities[it.id] ?? 0)
+                            : (allocation?.allocatedKg ?? 0);
+                          const pendingKg = allocation?.pendingKg ?? Math.max(0, (Number(it.quantity) || 0) - (deliveredTotals.deliveredByItem[it.id] ?? 0));
+
+                          return (
+                            <div
+                              key={it.id}
+                              style={{
+                                background: 'var(--paper)',
+                                border: '1px solid var(--line)',
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                fontSize: 12,
+                              }}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <strong style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>
+                                    {it.code || 'PARTIDA'}
+                                  </strong>
+                                  <span style={{ color: 'var(--ink-soft)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {it.description}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+                                  Pedido: {(Number(it.quantity) || 0).toLocaleString('es-MX')} kg · Pendiente: {pendingKg.toLocaleString('es-MX')} kg
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {manualBreakdownActive ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={customItemQuantities[it.id] ?? ''}
+                                      onChange={(e) => {
+                                        const v: number | '' = e.target.value === '' ? '' : Number(e.target.value);
+                                        const nextMap: Record<string, number | ''> = { ...customItemQuantities, [it.id]: v };
+                                        setCustomItemQuantities(nextMap);
+                                        const sum = round2(Object.values(nextMap).reduce((acc: number, val) => acc + (Number(val) || 0), 0));
+                                        setKilos(sum);
+                                      }}
+                                      style={{
+                                        width: 80,
+                                        padding: '4px 6px',
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                        fontFamily: 'monospace',
+                                        textAlign: 'right',
+                                        borderRadius: 6,
+                                        border: '1px solid var(--line)',
+                                        background: 'var(--paper-sunk)',
+                                        color: 'var(--ink)',
+                                      }}
+                                    />
+                                    <span style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>kg</span>
+                                  </div>
+                                ) : (
+                                  <span
+                                    style={{
+                                      background: Number(allocatedVal) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                                      color: Number(allocatedVal) > 0 ? '#10b981' : 'var(--ink-soft)',
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      fontWeight: 800,
+                                      fontSize: 12,
+                                      fontFamily: 'monospace',
+                                    }}
+                                  >
+                                    +{Number(allocatedVal).toLocaleString('es-MX')} kg
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 3. Tipo de Documento y Folio */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
@@ -797,6 +1015,28 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
               if (matched) {
                 setSelectedOrderId(result.suggestedOrderId);
                 // No sobreescribir los kilos del ticket con el faltante de la OC
+              }
+            }
+
+            // Si el ticket contiene partidas individuales detectadas por OCR
+            if (result.detectedPartidas && result.detectedPartidas.length > 0) {
+              const targetOrder = pendingOrders.find((p) => p.order.id === (result.suggestedOrderId || selectedOrderId));
+              if (targetOrder) {
+                const effItems = getEffectiveOrderItems(targetOrder.order);
+                const map: Record<string, number | ''> = {};
+                let sumP = 0;
+                result.detectedPartidas.forEach((dp) => {
+                  const mItem = effItems.find((it) => it.code === dp.code || it.id === dp.code);
+                  if (mItem) {
+                    map[mItem.id] = dp.kilos;
+                    sumP += dp.kilos;
+                  }
+                });
+                if (Object.keys(map).length > 0) {
+                  setCustomItemQuantities(map);
+                  setManualBreakdownActive(true);
+                  if (sumP > 0) setKilos(round2(sumP));
+                }
               }
             }
 

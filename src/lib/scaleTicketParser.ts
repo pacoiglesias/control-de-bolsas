@@ -1,3 +1,5 @@
+import { round2 } from './finance';
+
 /**
  * Parser especializado para Tickets de Báscula (Patio Providencia, Báscula Pública y Trailers)
  */
@@ -15,6 +17,7 @@ export interface ParsedScaleTicket {
   detectedDepartment?: 'TH' | 'GT';
   detectedProductCodes: string[];
   detectedProductDescription?: string;
+  detectedPartidas?: { code: string; kilos: number }[];
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -158,6 +161,29 @@ export function parseScaleTicket(text: string): ParsedScaleTicket {
   const productCodeMatches = [...normalized.matchAll(/\b((?:EGBO|ENBO)[0-9]{6}(?:-[A-Z0-9]+)?)\b/g)];
   if (productCodeMatches.length > 0) {
     result.detectedProductCodes = Array.from(new Set(productCodeMatches.map((m) => m[1])));
+  }
+
+  // 10b. Extraer posibles partidas individuales con cantidades (Multipartida)
+  const detectedPartidas: { code: string; kilos: number }[] = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const upperLine = line.toUpperCase();
+    const codeM = upperLine.match(/\b((?:EGBO|ENBO)[0-9]{6}(?:-[A-Z0-9]+)?)\b/);
+    if (codeM && codeM.index !== undefined) {
+      const afterCode = upperLine.substring(codeM.index + codeM[0].length);
+      const kgMatch = afterCode.match(/([\d,]+(?:\.\d+)?)\s*(?:KG|KGS|KILOS)\b/) ||
+                      upperLine.match(/([\d,]+(?:\.\d+)?)\s*(?:KG|KGS|KILOS)\b/) ||
+                      afterCode.match(/([\d,]+(?:\.\d{2})?)\b/);
+      if (kgMatch) {
+        const parsedKg = cleanNumber(kgMatch[1]);
+        if (parsedKg > 0 && parsedKg < 50000) {
+          detectedPartidas.push({ code: codeM[1], kilos: parsedKg });
+        }
+      }
+    }
+  }
+  if (detectedPartidas.length > 0) {
+    result.detectedPartidas = detectedPartidas;
   }
 
   // 11. Extraer Descripción de Producto
@@ -333,5 +359,78 @@ export function matchScaleTicketWithOrders(
     matchedBy: matchReason,
     score: highestScore,
   };
+}
+
+export interface ItemDeliveryAllocation {
+  itemId: string;
+  code?: string;
+  description: string;
+  orderedKg: number;
+  previouslyDeliveredKg: number;
+  pendingKg: number;
+  allocatedKg: number;
+  remainingAfterKg: number;
+}
+
+/**
+ * Distribuye inteligentemente los kilos de una entrega entre las partidas de una OC.
+ * Respeta entregas previas y prioriza partidas pendientes con lógica proporcional/secuencial.
+ */
+export function distributeKilosAcrossItems(
+  deliveryKilos: number,
+  orderItems: any[],
+  previouslyDeliveredByItem: Record<string, number> = {}
+): ItemDeliveryAllocation[] {
+  const totalToAllocate = Math.max(0, Number(deliveryKilos) || 0);
+  if (!orderItems || orderItems.length === 0) return [];
+
+  // Calcular saldos pendientes de cada partida
+  const itemsWithPending: ItemDeliveryAllocation[] = orderItems.map((it) => {
+    const orderedKg = Number(it.quantity) || 0;
+    const previouslyDeliveredKg = previouslyDeliveredByItem[it.id] ?? previouslyDeliveredByItem[it.code] ?? (it.deliveredQuantity ?? 0);
+    const pendingKg = Math.max(0, round2(orderedKg - previouslyDeliveredKg));
+    return {
+      itemId: it.id || it.code || 'item',
+      code: it.code || '',
+      description: it.description || 'Bolsa',
+      orderedKg,
+      previouslyDeliveredKg: round2(previouslyDeliveredKg),
+      pendingKg,
+      allocatedKg: 0,
+      remainingAfterKg: pendingKg,
+    };
+  });
+
+  // Si solo hay 1 partida, todo va a esa partida
+  if (itemsWithPending.length === 1) {
+    const single = itemsWithPending[0];
+    const allocated = totalToAllocate;
+    single.allocatedKg = round2(allocated);
+    single.remainingAfterKg = Math.max(0, round2(single.pendingKg - allocated));
+    return itemsWithPending;
+  }
+
+  // Distribuir secuencialmente llenando partidas pendientes
+  let remainingDeliveryKg = totalToAllocate;
+
+  for (const item of itemsWithPending) {
+    if (remainingDeliveryKg <= 0.001) break;
+
+    const fillKg = Math.min(remainingDeliveryKg, item.pendingKg);
+    if (fillKg > 0) {
+      item.allocatedKg = round2(fillKg);
+      item.remainingAfterKg = Math.max(0, round2(item.pendingKg - fillKg));
+      remainingDeliveryKg = round2(remainingDeliveryKg - fillKg);
+    }
+  }
+
+  // Si aún queda sobrante después de llenar todas las partidas al 100%, asignarlo a la última partida
+  if (remainingDeliveryKg > 0.001 && itemsWithPending.length > 0) {
+    const lastItem = itemsWithPending[itemsWithPending.length - 1];
+    lastItem.allocatedKg = round2(lastItem.allocatedKg + remainingDeliveryKg);
+    lastItem.remainingAfterKg = 0;
+  }
+
+  return itemsWithPending;
 }
 
