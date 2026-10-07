@@ -57,7 +57,7 @@ export default function Orders() {
   const [clientReportOrder, setClientReportOrder] = useState<PurchaseOrder | null>(null);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
-  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('radar');
+  const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('list');
   
   const [page, setPage] = useState(1);
   const pageSize = 30;

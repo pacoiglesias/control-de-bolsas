@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { money, kilos, fmtDate, toDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
@@ -16,6 +16,8 @@ interface WeekProjection {
   crs: Array<{ cr: string; amount: number; dept: string; folios: string[]; dueDate: Date }>;
 }
 
+const COST_CHIPS = [34, 37, 38, 42];
+
 export function CashFlowSimulatorWidget({
   orders,
   config,
@@ -24,8 +26,15 @@ export function CashFlowSimulatorWidget({
   config: FinancialConfig;
 }) {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
-  const costKg = config?.costPricePerKg || 38;
+  const [simulatedCostKg, setSimulatedCostKg] = useState<number>(config?.costPricePerKg || 38);
   const commRate = config?.commissionRate || 0.08;
+
+  useEffect(() => {
+    if (config?.costPricePerKg) {
+      setSimulatedCostKg(config.costPricePerKg);
+    }
+  }, [config?.costPricePerKg]);
+
 
   // Proyección de 4 semanas de Septiembre 2026
   const weekProjections = useMemo(() => {
@@ -92,13 +101,13 @@ export function CashFlowSimulatorWidget({
       });
     });
 
-    // Calcular capacidad de compra con Andrés
+    // Calcular capacidad de compra con Andrés según tarifa flotante
     weeks.forEach((w) => {
-      w.andresKgCapacity = w.netCashFlow > 0 ? w.netCashFlow / costKg : 0;
+      w.andresKgCapacity = w.netCashFlow > 0 && simulatedCostKg > 0 ? w.netCashFlow / simulatedCostKg : 0;
     });
 
     return weeks;
-  }, [orders, costKg, commRate]);
+  }, [orders, simulatedCostKg, commRate]);
 
   const currentW = weekProjections.find((w) => w.weekNum === selectedWeek) || weekProjections[0];
 
@@ -122,33 +131,86 @@ export function CashFlowSimulatorWidget({
             </h3>
           </div>
           <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--ink-soft)' }}>
-            Proyección de cobro neto a Providencia y capacidad de anticipo para toneladas con Andrés ($38/kg).
+            Proyección de cobro neto a Providencia y capacidad de anticipo con Andrés según tarifa flotante (${simulatedCostKg}/kg).
           </p>
         </div>
 
-        {/* Selector de Semanas */}
-        <div style={{ display: 'flex', gap: 6, background: 'var(--paper-sunk)', padding: 4, borderRadius: 10 }}>
-          {weekProjections.map((w) => (
-            <button
-              key={w.weekNum}
-              type="button"
-              className={`btn ${selectedWeek === w.weekNum ? '' : 'secondary'}`}
+        {/* Controles: Tarifa Flotante y Selector de Semanas */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Selector de Tarifa de Maquila */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-soft)' }}>
+              Costo Andrés:
+            </span>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {COST_CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  style={{
+                    fontSize: 10.5,
+                    padding: '3px 7px',
+                    fontWeight: 800,
+                    borderRadius: 6,
+                    border: simulatedCostKg === chip ? '1.5px solid #10b981' : '1px solid var(--line)',
+                    background: simulatedCostKg === chip ? 'rgba(16, 185, 129, 0.25)' : 'var(--paper)',
+                    color: simulatedCostKg === chip ? '#10b981' : 'var(--ink)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setSimulatedCostKg(chip);
+                  }}
+                >
+                  ${chip}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              step="0.5"
+              min="1"
+              value={simulatedCostKg}
+              onChange={(e) => setSimulatedCostKg(parseFloat(e.target.value) || 0)}
               style={{
-                fontSize: 11.5,
-                padding: '5px 12px',
-                fontWeight: 800,
-                background: selectedWeek === w.weekNum ? '#059669' : undefined,
-                color: selectedWeek === w.weekNum ? '#fff' : undefined,
-                border: 'none',
+                width: 48,
+                padding: '2px 4px',
+                borderRadius: 6,
+                border: '1px solid var(--line)',
+                background: 'var(--paper)',
+                color: '#10b981',
+                fontSize: 11,
+                fontWeight: 900,
+                fontFamily: 'monospace',
+                textAlign: 'center',
               }}
-              onClick={() => {
-                triggerHaptic('light');
-                setSelectedWeek(w.weekNum);
-              }}
-            >
-              {w.label}
-            </button>
-          ))}
+            />
+          </div>
+
+          {/* Selector de Semanas */}
+          <div style={{ display: 'flex', gap: 6, background: 'var(--paper-sunk)', padding: 4, borderRadius: 10 }}>
+            {weekProjections.map((w) => (
+              <button
+                key={w.weekNum}
+                type="button"
+                className={`btn ${selectedWeek === w.weekNum ? '' : 'secondary'}`}
+                style={{
+                  fontSize: 11.5,
+                  padding: '5px 12px',
+                  fontWeight: 800,
+                  background: selectedWeek === w.weekNum ? '#059669' : undefined,
+                  color: selectedWeek === w.weekNum ? '#fff' : undefined,
+                  border: 'none',
+                }}
+                onClick={() => {
+                  triggerHaptic('light');
+                  setSelectedWeek(w.weekNum);
+                }}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -205,7 +267,7 @@ export function CashFlowSimulatorWidget({
             {kilos(currentW.andresKgCapacity)}
           </div>
           <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.7)', marginTop: 2 }}>
-            {(currentW.andresKgCapacity / 1000).toFixed(2)} Toneladas a $38/kg
+            {(currentW.andresKgCapacity / 1000).toFixed(2)} Toneladas a ${simulatedCostKg}/kg
           </div>
         </div>
       </div>

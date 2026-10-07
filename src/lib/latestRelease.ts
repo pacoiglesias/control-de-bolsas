@@ -7,15 +7,17 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.7: OCR Multidireccional con Auto-Rotación, Ingesta de Remisiones Físicas y Conciliación TH 120267114302 (Factura 6363)',
+  version: 'v9.10.10: Tarifas Flotantes de Maquila, Precisión Financiera y Simuladores Ágiles',
   date: '07 de Octubre de 2026',
-  time: '07:45 AM',
-  summary: 'v9.10.7: Motor OCR resiliente con detección multi-ángulo y auto-rotación automática (0°, 90°, 270°, 180°) para fotografías tomadas de lado con celular, ingesta inteligente de Remisiones Físicas con desglose de todas las partidas y kilos (5,899.80 kg), resolución automática de alias de OC (12026114099 ➔ 120267114302 TH Nava), activación de OCR directo en el Global Dropzone e integración de Factura 6363 ($74,820.00 MXN / 1,500 kg).',
+  time: '09:40 AM',
+  summary: 'v9.10.10: Soporte nativo para tarifas fluctuantes de maquila con Andrés ($34, $37, $38, $42, $43) reconociendo que los costos cambian por lote y tipo de resina. Enlace dinámico de simuladores a Firestore (useConfig), cálculo exacto de honorarios del contador (8% sobre Subtotal antes de IVA) y selector interactivo de tarifas en el simulador de flujo semanal.',
   highlights: [
-    '🔄 OCR con Auto-Rotación (0°, 90°, 180°, 270°): Canvas de preprocesamiento que evalúa la orientación del texto antes de extraer, reconociendo fotos de celular tomadas de forma vertical o apaisada.',
-    '📋 Ingesta Inteligente de Remisiones Físicas: Parser especializado que extrae todas las partidas de la tabla física (1,000 + 1,000 + 1,000 + 500 + 915.15 + 984.65 + 500 = 5,899.80 kg), subtotales y totales sin truncar.',
-    '🎯 Mapeo Automático de Alias de OC: Reconocimiento del número impreso en remisión 12026114099 vinculándolo directamente a la OC oficial activa de Textil Hogar 120267114302 (Folio 71/14302 · Nava).',
-    '📥 OCR Activado en Global Dropzone: Al arrastrar o soltar imágenes en cualquier pantalla, el sistema ahora ejecuta OCR completo y extrae kilos, folio, fecha y OC automáticamente.',
-    '🧾 Conciliación Oficial Factura 6363: Registro y vinculación de Factura 6363 ($74,820.00 MXN / 1,500 kg) amparando las partidas 2 y 7 de la remisión con 4,399.80 kg remanentes para facturar.',
+    '✨ Tarifas Flotantes de Maquila (Andrés): Eliminación de costos rígidos hardcodeados; simuladores con chips rápidos ($34 maquila base, $37 recuperado, $38 estándar, $42 virgen, $43 pigmentado) y entrada numérica abierta para cualquier precio negociado.',
+    '📐 Fuente Única de Verdad (useConfig): La Calculadora Kilos a Pesos ahora toma por defecto los precios reales guardados en Firestore en lugar de valores estáticos.',
+    '💰 Corrección de Fórmula Financiera: Comisión del contador calculada estrictamente sobre el Subtotal (8.0% sin IVA), mostrando la Utilidad Operativa Neta real y margen por kilo con alertas visuales de rentabilidad.',
+    '🔮 Simulador de Flujo Semanal Dinámico: Selector interactivo de costo de maquila en el CashFlowSimulatorWidget para proyectar en tiempo real cuántas toneladas se pueden fondear ante cualquier precio con Andrés.',
+    '📊 Conciliación Oficial OC 12026439784 Activa: 3,350 kg entregados / 1,750 kg faltantes con Factura 6353 y Remisión 6439784 cuadradas al centavo.',
   ],
 };
+
+

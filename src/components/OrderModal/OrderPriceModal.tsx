@@ -74,14 +74,15 @@ export const OrderPriceModal: React.FC<OrderPriceModalProps> = ({
             <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', display: 'block', marginBottom: 6 }}>
               Costo Compra ({provName})
             </label>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-              {[37, 38, 43].map((p) => (
+            <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+              {[34, 37, 38, 42, 43].map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setCostPrice(p)}
                   style={{
                     flex: 1,
+                    minWidth: 28,
                     padding: '3px 4px',
                     borderRadius: 6,
                     fontSize: 11,

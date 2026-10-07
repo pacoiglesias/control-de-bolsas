@@ -15,13 +15,11 @@ import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
 import { NotificationsCenter } from './NotificationsCenter';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { GlobalSearchModal } from './Navigation/GlobalSearchModal';
 import { KeyboardShortcutsModal } from './Navigation/KeyboardShortcutsModal';
 import { OfflineIndicator } from './ui/OfflineIndicator';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileBottomBar } from './Navigation/MobileBottomBar';
 import { AuditCentinelaBadge } from './Audit/AuditCentinelaBadge';
-import { GlobalSpeedFab } from './Navigation/GlobalSpeedFab';
 import { SidebarLiveStatus, SidebarFastActions } from './Navigation/SidebarWidgets';
 import { money } from '../lib/format';
 
@@ -45,7 +43,6 @@ export default function Layout() {
   const { settings } = useSystemSettings();
   const { isPrivate, togglePrivacy } = usePrivacy();
   const [navOpen, setNavOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
@@ -73,10 +70,7 @@ export default function Layout() {
       const target = e.target as HTMLElement | null;
       const isInput = target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e' && !isInput) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e' && !isInput) {
         e.preventDefault();
         (async () => {
           try {
@@ -108,16 +102,13 @@ export default function Layout() {
         setShortcutsOpen((prev) => !prev);
       }
     };
-    const handleOpenCommand = () => setSearchOpen(true);
     const handleOpenShortcuts = () => setShortcutsOpen(true);
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('open-command-menu', handleOpenCommand);
     window.addEventListener('open-shortcuts-modal', handleOpenShortcuts);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('open-command-menu', handleOpenCommand);
       window.removeEventListener('open-shortcuts-modal', handleOpenShortcuts);
     };
   }, [toast]);
@@ -125,22 +116,18 @@ export default function Layout() {
   const navItems = useMemo<NavItem[]>(() => [
     { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },
     
-    { type: 'group', label: 'OPERACIONES & PEDIDOS', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/proceso-compra', icon: '🪄', label: 'Nuevo Proceso de Compra', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y OCs', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/captura-rapida', icon: '⚖️', label: 'Báscula & Entregas', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de SKUs', roles: ['admin', 'manager'] },
+    { type: 'group', label: 'OPERACIÓN Y BÁSCULA', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC & Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y Facturas', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de Productos', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'FINANZAS & COBRANZA', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: '🧾', label: `Cobranza Providencia`, roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: '🏭', label: `Compras & Andrés`, roles: ['admin'] },
+    { type: 'group', label: 'FINANZAS & CUENTAS', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/cobranza', icon: '🧾', label: 'Cobranza Providencia', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: '🏭', label: 'Compras & Andrés', roles: ['admin'] },
     { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
 
-    { type: 'group', label: 'CONTROL & AUDITORÍA', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/audit', icon: '🛡️', label: 'Centinela & Auditoría', roles: ['admin'] },
-    { type: 'link', to: '/archivo-documentos', icon: '🗂️', label: 'Archivo de Documentos', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/mining', icon: '📈', label: 'Inteligencia de Negocios BI', roles: ['admin'] },
+    { type: 'group', label: 'CONTROL ERP', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/audit', icon: '🛡️', label: 'Auditoría & Centinela', roles: ['admin'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin', 'manager', 'viewer'] },
   ], []);
 
@@ -237,78 +224,6 @@ export default function Layout() {
           <kbd className="search-kbd">Ctrl K</kbd>
         </button>
 
-        {/* Acceso Rápido Directo: Capturar Entrega / Báscula */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-fast-delivery'))}
-          title="Captura Rápida de Entrega / Báscula (kilos, remisión y chofer)"
-          style={{
-            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(29, 78, 216, 0.3) 100%)',
-            border: '1px solid rgba(59, 130, 246, 0.4)',
-            color: '#60a5fa',
-            borderRadius: 8,
-            padding: '5px 10px',
-            fontSize: 11.5,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-          className="desktop-only-block"
-        >
-          <span>⚖️</span>
-          <span>+ Entrega</span>
-        </button>
-
-        {/* Acceso Rápido Directo: Factura CFDI */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-fast-invoice'))}
-          title="Captura Rápida de Factura CFDI"
-          style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.3) 100%)',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            color: '#34d399',
-            borderRadius: 8,
-            padding: '5px 10px',
-            fontSize: 11.5,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-          className="desktop-only-block"
-        >
-          <span>🧾</span>
-          <span>+ Factura</span>
-        </button>
-
-        {/* Acceso Rápido Directo: Auto-Captura Documento */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-fast-upload'))}
-          title="Subir o Pegar Documento (OC, Factura, Contrarecibo o Lote ZIP)"
-          style={{
-            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(109, 40, 217, 0.3) 100%)',
-            border: '1px solid rgba(139, 92, 246, 0.4)',
-            color: '#a78bfa',
-            borderRadius: 8,
-            padding: '5px 10px',
-            fontSize: 11.5,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-          className="desktop-only-block"
-        >
-          <span>⚡</span>
-          <span>Auto-Subir</span>
-        </button>
-
         <span className="spacer" />
         <AuditCentinelaBadge />
         <OnlineUsers />
@@ -316,6 +231,17 @@ export default function Layout() {
           <OfflineIndicator />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Botón de Calculadora Rápida de Kilos */}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-kilo-calculator'))}
+            aria-label="Calculadora de Kilos y Precios"
+            title="Calculadora Rápida de Kilos, Facturación y Comisiones (🧮)"
+          >
+            🧮
+          </button>
+
           {/* Botón de Modo Privado / Discreto */}
           <button
             type="button"
@@ -493,8 +419,6 @@ export default function Layout() {
       </div>
 
       <MobileBottomBar />
-      <GlobalSpeedFab />
-      <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <KeyboardShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );

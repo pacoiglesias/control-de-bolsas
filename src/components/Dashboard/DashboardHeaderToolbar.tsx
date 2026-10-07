@@ -48,6 +48,7 @@ export function DashboardHeaderToolbar({
   onAutoHeal,
   isHealing,
   onOpenCuadreEjecutivo,
+  onOpenQuickEdit,
 }: {
   nav: NavigateFunction;
   toast: (msg: string, tone?: 'info' | 'ok' | 'bad') => void;
@@ -76,6 +77,7 @@ export function DashboardHeaderToolbar({
   onAutoHeal?: () => void;
   isHealing?: boolean;
   onOpenCuadreEjecutivo?: () => void;
+  onOpenQuickEdit?: () => void;
 }) {
   const [showOfflineModal, setShowOfflineModal] = useState(false);
 
@@ -352,6 +354,15 @@ export function DashboardHeaderToolbar({
                     onClick={() => { setShowReportsMenu(false); onAutoHeal(); }}
                   >
                     {isHealing ? '⏳ Auto-Sanando...' : '✨ Auto-Sanar Base de Datos'}
+                  </button>
+                )}
+                {onOpenQuickEdit && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#f59e0b', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => { setShowReportsMenu(false); onOpenQuickEdit(); }}
+                  >
+                    ⚡ Parámetros & Precios ERP
                   </button>
                 )}
               </div>

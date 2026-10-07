@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import CobranzaContext from './CobranzaContext';
-import { IconClipboardList, IconClock, IconCoins, IconCheckCircle, IconFileText, IconScale } from '../ui/icons';
+import { IconClipboardList, IconClock, IconCoins, IconCheckCircle } from '../ui/icons';
 
 /**
  * FIX (v8.9.8, split de Cobranza/index.tsx — 85KB): barra de tabs con
@@ -9,46 +9,117 @@ import { IconClipboardList, IconClock, IconCoins, IconCheckCircle, IconFileText,
 export default function CobranzaTabsNav() {
   const { activeTab, setActiveTab, data } = useContext(CobranzaContext)!;
 
+  const operationalTabs = [
+    { key: 'tablero', label: 'Tablero Kanban', icon: <IconClipboardList size={16} />, badge: null },
+    { key: 'pendientes', label: 'Pendientes', icon: <IconClock size={16} />, badge: data.open.length, color: '#f59e0b' },
+    { key: 'pagadas', label: 'Por Recoger', icon: <IconCoins size={16} />, badge: data.paid.length, color: '#3b82f6' },
+    { key: 'recogidas', label: 'Recogidas', icon: <IconCheckCircle size={16} />, badge: data.collected.length, color: '#10b981' },
+  ];
+
+  const toolTabs = [
+    { key: 'calendario', label: '📅 Calendario', title: 'Calendario de proyección de cobros de los viernes' },
+    { key: 'rep', label: '🏦 Monitor REP', title: 'Monitor de Complementos de Pago SAT (REP / TR)' },
+    { key: 'contabilidad', label: '📑 Liquidación', title: 'Liquidación a Contabilidad y Cortes' },
+    { key: 'estado_cuenta', label: '⚖️ Espejo Providencia', title: 'Estado de Cuenta y Validación Espejo' },
+    { key: 'three_way', label: '🛡️ 3-Way Match', title: 'Conciliación Canónica: OC ➔ Báscula ➔ Factura SAT' },
+  ];
+
   return (
-    <div className="tabs" style={{ marginBottom: 20, marginTop: 20 }}>
-      <button className={`tab ${activeTab === 'tablero' ? 'active' : ''}`} onClick={() => setActiveTab('tablero')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <IconClipboardList size={16} /> Tablero (Kanban)
-      </button>
-      <button className={`tab ${activeTab === 'calendario' ? 'active' : ''}`} onClick={() => setActiveTab('calendario')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: activeTab === 'calendario' ? '#059669' : undefined }}>
-        📅 Calendario de Cobro
-      </button>
-      <button className={`tab ${activeTab === 'rep' ? 'active' : ''}`} onClick={() => setActiveTab('rep')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: activeTab === 'rep' ? '#d97706' : undefined }}>
-        🏦 Monitor REP / Fiscal
-      </button>
-      <button className={`tab ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <IconClock size={16} /> Pendientes de Cobro ({data.open.length})
-      </button>
-      <button className={`tab ${activeTab === 'pagadas' ? 'active' : ''}`} onClick={() => setActiveTab('pagadas')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <IconCoins size={16} /> Por Recoger Efectivo ({data.paid.length})
-      </button>
-      <button className={`tab ${activeTab === 'recogidas' ? 'active' : ''}`} onClick={() => setActiveTab('recogidas')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <IconCheckCircle size={16} /> Historial: Recogidos ({data.collected.length})
-      </button>
-      <button className={`tab ${activeTab === 'contabilidad' ? 'active' : ''}`} onClick={() => setActiveTab('contabilidad')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <IconFileText size={16} /> Liquidación a Contabilidad
-      </button>
-      <button className={`tab ${activeTab === 'estado_cuenta' ? 'active' : ''}`} onClick={() => setActiveTab('estado_cuenta')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <IconScale size={16} /> Estado de Cuenta (Espejo)
-      </button>
-      <button
-        className={`tab ${activeTab === 'three_way' ? 'active' : ''}`}
-        onClick={() => setActiveTab('three_way')}
+    <div style={{ marginBottom: 20, marginTop: 16 }}>
+      {/* Barra de Control de Cobranza (Segmented Control Táctil ≥ 44px) */}
+      <div
         style={{
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
           gap: 6,
-          background: activeTab === 'three_way' ? 'rgba(5, 150, 105, 0.15)' : undefined,
-          color: activeTab === 'three_way' ? '#059669' : undefined,
-          fontWeight: 700,
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(12px)',
+          padding: 4,
+          borderRadius: 14,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
-        🛡️ Conciliación 3-Way Match
-      </button>
+        {operationalTabs.map((t) => {
+          const isActive = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key as any)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                minHeight: 44,
+                borderRadius: 10,
+                border: isActive ? '1px solid rgba(37, 99, 235, 0.4)' : '1px solid transparent',
+                background: isActive ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.25) 0%, rgba(29, 78, 216, 0.15) 100%)' : 'transparent',
+                color: isActive ? '#60a5fa' : 'var(--ink-soft)',
+                fontWeight: isActive ? 800 : 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t.icon}
+              <span>{t.label}</span>
+              {t.badge !== null && t.badge > 0 && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: 999,
+                    background: isActive ? (t.color ? `${t.color}33` : 'rgba(255,255,255,0.2)') : 'rgba(255,255,255,0.06)',
+                    color: t.color || '#fff',
+                    border: `1px solid ${t.color ? `${t.color}44` : 'rgba(255,255,255,0.1)'}`,
+                  }}
+                >
+                  {t.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        <div style={{ width: 1, height: 24, background: 'rgba(255, 255, 255, 0.12)', margin: '0 4px', flexShrink: 0 }} />
+
+        {/* Herramientas Fiscales & Auditoría (Pills Rápidas) */}
+        {toolTabs.map((t) => {
+          const isActive = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key as any)}
+              title={t.title}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                minHeight: 38,
+                borderRadius: 8,
+                border: isActive ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)',
+                background: isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                color: isActive ? '#34d399' : '#94a3b8',
+                fontWeight: isActive ? 700 : 500,
+                fontSize: 12,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

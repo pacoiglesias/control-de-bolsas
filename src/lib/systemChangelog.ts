@@ -6,6 +6,18 @@ export { LATEST_RELEASE };
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   LATEST_RELEASE,
   {
+    version: 'v9.10.8: Conciliación Oficial de OC 12026439784 (GT Evelia / P4), Integración Factura 6353 y Corrección de Kilos Faltantes (1,750 kg)',
+    date: '07 de Octubre de 2026',
+    time: '08:45 AM',
+    summary: 'Conciliación oficial y sincronización en Firestore de la Orden de Compra 12026439784 (Grupo Textil Providencia · P4 Evelia). Integración formal de la Factura 6353 timbrada ante el SAT ($67,338.00 MXN / 1,350.00 kg), vinculación de la Remisión 6439784 (2,000.00 kg) amparando las dos facturas de $49,880.00 MXN próximas a emitir, y corrección del avance de entrega: 3,350.00 kg entregados (65.7%) y 1,750.00 kg faltantes reales por entregar.',
+    highlights: [
+      '🧾 Integración de Factura 6353 (UUID 7E1F2FE9...): Timbrada el 01-10-2026 por $67,338.00 MXN (1,350 kg) amparando 600 kg de EGBO000017-SC (100% cubierto) y 750 kg de EGBO000095-SC.',
+      '📑 Vinculación de Remisión 6439784 (2,000 kg): Desglose para las 2 facturas de $49,880.00 MXN ($99,760.00 MXN total) pendientes de timbrar: 1,000 kg de EGBO000018-SC (100% cubierto), 500 kg de EGBO000094-SC y 500 kg de EGBO000093-SC.',
+      '⚖️ Corrección de Kilos Reales de la OC: Avance real ajustado a 3,350.00 kg entregados de 5,100.00 kg pactados, restando únicamente 1,750.00 kg por entregar (750 kg EGBO000095-SC + 500 kg EGBO000094-SC + 500 kg EGBO000093-SC).',
+      '📊 Sincronización en Vivo en Firestore & Reporte al Cliente: Visualización inmediata en OcClientStatusReport, OcTracking y Dashboard sin desfases.',
+    ],
+  },
+  {
     version: 'v9.10.2: Flujo Integral de OC de Punta a Punta, Precios Fluctuantes y Contingencias Operativas',
     date: '01 de Octubre de 2026',
     time: '08:35 PM',

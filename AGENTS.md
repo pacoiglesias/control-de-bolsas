@@ -13,9 +13,8 @@ Este sistema administra la operación industrial, logística de báscula, maquil
 
 1. **Precios y Tarifas Oficiales:**
    * **Precio de Venta Oficial:** `$43.00 MXN / kg` + 16% IVA = `$49.88 MXN / kg`.
-   * **Costo Base Homologado:** `$38.00 MXN / kg`.
-   * **Costo de Maquila (Andrés):** `$34.00 MXN / kg`.
-   * **Comisión de Cobranza (Contador):** `8.0% del SUBTOTAL` (antes de IVA).
+   * **Tarifas Flotantes de Maquila (Andrés):** No son estáticas ni fijas. Fluctúan por lote, tipo de resina y negociación (ej. `$34` maquila pura, `$37` recuperado económico, `$38` estándar de referencia, `$42` virgen cristal, `$43` pigmentado). Los simuladores deben soportar selección dinámica por presets y lectura desde configuración (`useConfig`).
+   * **Comisión de Cobranza (Contador):** `8.0% del SUBTOTAL` (antes de IVA, sobre facturación Providencia).
    * **Convención de Saldos de Andrés (`historicalDebtAndres`):**
      * Positivo (`+`): Saldo a favor de Andrés (anticipos otorgados).
      * Negativo (`-`): Deuda pendiente de la empresa con Andrés.

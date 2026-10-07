@@ -1,3 +1,57 @@
+### Iteración 128: Tarifas Flotantes Dinámicas de Maquila (Andrés), Corrección de Comisión Financiera y Simuladores Ágiles (v9.10.10)
+[2026-10-07]
+Archivos: `src/components/FloatingKiloCalculator.tsx`, `src/components/Dashboard/CashFlowSimulatorWidget.tsx`, `src/components/OCPreviewModal.tsx`, `src/components/OrderModal/OrderPriceModal.tsx`, `AGENTS.md`, `docs/AUDIT_NOTEBOOK.md`
+Problema:
+1. La propuesta anterior asumía erróneamente una "tarifa oficial de maquila fija de $34.00/kg" para Andrés. En la realidad operativa, las tarifas de maquila son variables y fluctuantes (dependiendo del tipo de resina, virgen vs recuperado, pigmento, calibre y lote pactado: $34, $37, $38, $42, $43).
+2. Simuladores como `FloatingKiloCalculator` estaban inicializados de forma rígida en $42.00 o $38.00 sin enlace dinámico a la configuración de Firestore (`useConfig()`) ni chips rápidos para probar escenarios fluctuantes.
+3. En `FloatingKiloCalculator`, la comisión del contador se calculaba erróneamente como el 8% del Total con IVA (`totalFactura * 0.08`) en lugar del 8.0% del Subtotal antes de IVA (`subtotalVenta * 0.08`).
+4. `CashFlowSimulatorWidget` tenía texto hardcodeado con "$38/kg" y no permitía al usuario simular la capacidad de anticipo con Andrés ante diferentes precios por kilo.
+Solución:
+1. **Single Source of Truth (SSOT) & Tarifas Flotantes:**
+   - Enlace canónico de `FloatingKiloCalculator` con `useConfig()` para tomar por defecto los parámetros guardados en Firestore (`salePricePerKg` y `costPricePerKg`).
+   - Implementación de chips rápidos de fluctuación de maquila (`[$34] [$37] [$38] [$42] [$43]`) y de venta (`[$43] [$45] [$48]`) con entrada numérica abierta para cualquier precio negociado.
+   - Presets unificados de costo en `OCPreviewModal` y `OrderPriceModal` integrando el espectro completo ($34 a $43).
+2. **Corrección de Fórmula Financiera:**
+   - Comisión del contador corregida al 8.0% del Subtotal (`round2(subtotalVenta * commRate)`).
+   - Cálculo transparente de Utilidad Neta Real (`subtotalVenta - costoAndres - comisionContador`), Margen por kg y Reparto 50%.
+   - Alerta visual en tiempo real de margen positivo, punto de equilibrio o pérdida operativa si el costo pactado supera el ingreso neto.
+3. **Simulador de Flujo Semanal Interactivo (`CashFlowSimulatorWidget`):**
+   - Selector interactivo de costo de maquila de Andrés con chips inmediatos ($34, $37, $38, $42) e input libre, recalculando en vivo la capacidad en toneladas de cada semana.
+4. **Verificación y Pruebas:**
+   - Tipos de TypeScript estrictos sin errores y pruebas unitarias financieras validadas.
+Riesgo: 🟢 Cero / Bajo — Precisión financiera mejorada y mayor flexibilidad para el usuario en cotizaciones.
+Estado: ✅ Verificado — 225 tests verdes, build 100% exitoso.
+OKRs afectados: OKR 2 (Excelencia UX/UI), OKR 4 (Cero Fricción), OKR 5 (Integridad Matemática).
+
+---
+
+### Iteración 127: Cero Elementos Flotantes Invasivos, Paleta Unificada Ctrl+K y Barra Segmentada Obsidian de Cobranza (v9.10.9)
+[2026-10-07]
+Archivos: `src/pages/Dashboard.tsx`, `src/components/Dashboard/DashboardHeaderToolbar.tsx`, `src/components/Cobranza/CobranzaTabsNav.tsx`, `src/components/Layout.tsx`, `src/components/Navigation/SidebarWidgets.tsx`, `src/components/FloatingKiloCalculator.tsx`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`
+Problema:
+1. El Dashboard aún contenía un botón flotante circular invasivo (`AdminFloatingButton`) en la esquina inferior derecha que se encimaba sobre las tablas y métricas del ERP.
+2. La pantalla de Cobranza (`/cobranza`) presentaba 9 pestañas horizontales planas sin jerarquía visual, saturando la vista en resoluciones de laptop y desbordando el ancho del viewport.
+3. Existían colisiones de eventos de búsqueda (doble modal con `GlobalSearchModal` y `CommandPalette`) al presionar `Ctrl + K`.
+4. El menú lateral presentaba desbordamiento vertical debido a widgets sobredimensionados de acciones rápidas.
+Solución:
+1. **Eliminación Total de Elementos Flotantes:**
+   - Desmontado el FAB `AdminFloatingButton` del Dashboard, integrando el acceso a `⚡ Parámetros & Precios ERP` directamente en la barra de herramientas superior (`DashboardHeaderToolbar`).
+   - Removido `GlobalSpeedFab` y rediseñada la calculadora de kilos en un diálogo modal no intrusivo sin botón fijo persistente.
+2. **Barra Segmentada Obsidian de Cobranza (`CobranzaTabsNav.tsx`):**
+   - Reorganización en dos niveles claros: Operación Principal (`Tablero Kanban`, `Pendientes`, `Por Recoger`, `Recogidas`) y Herramientas Fiscales & Cierre (`Calendario`, `Monitor REP`, `Liquidación`, `Espejo`, `3-Way Match`).
+   - Cumplimiento riguroso de ergonomía táctil con touch targets mínimos de 44px (`minHeight: 44`), badges en vivo y cero desbordamiento visual.
+3. **Consolidación de Navegación y Paleta Universal:**
+   - Unificación exclusiva de `CommandPalette` (`Ctrl + K`) como punto único de búsqueda y despacho de acciones rápidas.
+   - Menú lateral compacto con micro-barra de 4 acciones de 1 toque (`⚖️ Báscula`, `🧾 Factura`, `⚡ Subir`, `🧮 Kilos`), eliminando la barra de desplazamiento vertical.
+4. **Verificación y Pruebas:**
+   - 225/225 pruebas unitarias pasando en Vitest (33 suites al 100%).
+   - Compilación completa de producción de TypeScript, Vite y Cloud Functions con 0 errores.
+Riesgo: 🟢 Cero / Bajo — Limpieza visual y ergonómica no disruptiva con integridad matemática intacta.
+Estado: ✅ Verificado — 225 tests verdes, build 100% exitoso.
+OKRs afectados: OKR 1 (Coste Firestore), OKR 2 (Excelencia UX/UI), OKR 3 (Rendimiento Web), OKR 4 (Cero Fricción), OKR 5 (Integridad Matemática).
+
+---
+
 ### Iteración 126: Identificación Proactiva Multi-Orden (Evelia / Nava), Ingesta Masiva en Cola por Drag & Drop y Centinela de Órdenes Concluidas
 [2026-10-02]
 Archivos: `src/components/Upload/GlobalDropInspectorModal.tsx`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/components/Dashboard/ExecutivePriorityAlerts.tsx`, `package.json`, `package-lock.json`

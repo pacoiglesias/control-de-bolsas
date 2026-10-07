@@ -181,7 +181,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             processedAt: Timestamp.fromDate(new Date('2026-09-23T17:12:29Z')),
           } as unknown as PurchaseOrder]);
         }
-        // OC 12026439784 (GT - Evelia · 43/9784 · 5,100 kg) — activa con entrega parcial de 2,000 kg (Remisión 6439784)
+        // OC 12026439784 (GT - Evelia · 43/9784 · 5,100 kg) — activa con Factura 6353 (1,350 kg) y Remisión 6439784 (2,000 kg)
         if (!ocMap.has(OC_GT_ACTIVE)) {
           ocMap.set(OC_GT_ACTIVE, [{
             id: `oc-${OC_GT_ACTIVE}`,
@@ -192,27 +192,79 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             totalKilograms: 5100.00,
             isClosedShort: false,
             creditCycle: { status: 'pedido' },
-            invoices: [],
+            invoices: [
+              {
+                id: 'inv-6353',
+                orderId: `oc-${OC_GT_ACTIVE}`,
+                folio: '6353',
+                uuid: '7E1F2FE9-0D09-418E-8D29-1358A7664920',
+                kilos: 1350.00,
+                client: CLIENT_GT,
+                oc: OC_GT_ACTIVE,
+                financials: {
+                  salePricePerKg: 43.0,
+                  costPricePerKg: 34.0,
+                  commissionRate: 0.08,
+                  saleTotal: 58050.0,
+                  invoiceTotal: 67338.0,
+                  costTotal: 45900.0,
+                  commission: 4644.0,
+                  netCashFlow: 16794.0,
+                },
+                items: [
+                  { id: 'it-gt-9784-1', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M (80+20+20x160)', quantity: 600, unit: 'Kilos', unitPrice: 43, amount: 25800 },
+                  { id: 'it-gt-9784-2', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 (80+20+20X125)', quantity: 750, unit: 'Kilos', unitPrice: 43, amount: 32250 },
+                ],
+                creditCycle: {
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-10-01T16:17:09Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-10-31T23:59:59Z')),
+                },
+                collection: {
+                  paidAmount: 0,
+                  contrareciboNumber: '',
+                  notes: 'Factura 6353 timbrada ante el SAT el 01-10-2026 amparando OC 12026439784 por $67,338.00 MXN',
+                },
+                createdAt: Timestamp.fromDate(new Date('2026-10-01T16:17:09Z')),
+                updatedAt: Timestamp.fromDate(new Date('2026-10-01T16:28:19Z')),
+              }
+            ],
             deliveries: [
+              {
+                id: 'del-gt-6353',
+                date: Timestamp.fromDate(new Date('2026-10-01T16:17:09Z')),
+                kilos: 1350.00,
+                items: [
+                  { itemId: 'it-gt-9784-1', quantity: 600.00 },
+                  { itemId: 'it-gt-9784-2', quantity: 750.00 },
+                ],
+                invoiced: true,
+                invoiceFolio: '6353',
+                docType: 'factura',
+                docFolio: '6353',
+                notes: 'Entrega de 1,350 kg amparada y facturada en CFDI 6353 emitida el 01-10-2026. Partidas: 600 kg (80+20+20x160) y 750 kg (80+20+20x125). FACTURADA.',
+              },
               {
                 id: 'del-gt-6439784',
                 date: Timestamp.fromDate(new Date('2026-10-05T12:00:00Z')),
                 kilos: 2000.00,
                 items: [
-                  { itemId: 'it-gt-9784-1', quantity: 500.00 },
-                  { itemId: 'it-gt-9784-2', quantity: 500.00 },
                   { itemId: 'it-gt-9784-3', quantity: 1000.00 },
+                  { itemId: 'it-gt-9784-4', quantity: 500.00 },
+                  { itemId: 'it-gt-9784-5', quantity: 500.00 },
                 ],
                 invoiced: false,
                 docType: 'remision',
                 docFolio: '6439784',
-                notes: 'Remisión Oficial 6439784 sellada en P4 (Auditoría Interna Sello 1226, Beonedith Morales) y firmada por Evelia Castillo (5-10-26). Partidas: 500 kg (60+40x125), 500 kg (60+40x95) y 1,000 kg (60x40x115). PENDIENTE DE FACTURAR.',
+                notes: 'Remisión Oficial 6439784 sellada en P4 (Auditoría Interna Sello 1226, Beonedith Morales) y firmada por Evelia Castillo (5-10-26). Partidas: 1,000 kg (60+40x115), 500 kg (60+40x125) y 500 kg (60+40x95). PENDIENTE DE FACTURAR (Ampara las 2 facturas de $49,880.00).',
               }
             ],
             items: [
-              { id: 'it-gt-9784-1', code: 'EGBO000095-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X125CM C/400', quantity: 1500, deliveredQuantity: 500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
-              { id: 'it-gt-9784-2', code: 'EGBO000093-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X95 CM C/400', quantity: 1600, deliveredQuantity: 500, unitPrice: 43.0, amount: 68800, unit: 'Kilos' },
-              { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60X40X115CM C/400', quantity: 2000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
+              { id: 'it-gt-9784-1', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M (80+20+20x160)', quantity: 600, deliveredQuantity: 600, unitPrice: 43.0, amount: 25800, unit: 'Kilos' },
+              { id: 'it-gt-9784-2', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM (80+20+20X125)', quantity: 1500, deliveredQuantity: 750, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+              { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M (60+40x115)', quantity: 1000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+              { id: 'it-gt-9784-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM (60+40x125)', quantity: 1000, deliveredQuantity: 500, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+              { id: 'it-gt-9784-5', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM (60+40x95)', quantity: 1000, deliveredQuantity: 500, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
             ],
             estimatedDeliveryDate: Timestamp.fromDate(new Date('2026-10-13T12:00:00Z')),
             processedAt: Timestamp.fromDate(new Date('2026-09-21T15:14:50Z')),
@@ -736,33 +788,91 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             best.folio = '43/9784';
             best.oc = '12026439784';
             best.estimatedDeliveryDate = Timestamp.fromDate(new Date('2026-10-13T12:00:00Z'));
-            if (!best.items || best.items.length === 0) {
-              best.items = [
-                { id: 'it-gt-9784-1', code: 'EGBO000095-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X125CM C/400', quantity: 1500, deliveredQuantity: 500, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
-                { id: 'it-gt-9784-2', code: 'EGBO000093-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60+40X95 CM C/400', quantity: 1600, deliveredQuantity: 500, unitPrice: 43.0, amount: 68800, unit: 'Kilos' },
-                { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA DE POLIETILENO COLOR NATURAL 60X40X115CM C/400', quantity: 2000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
-              ];
-            }
-            const currentDeliveries = best.deliveries || [];
-            if (!currentDeliveries.some((d: any) => d.docFolio === '6439784' || d.id === 'del-gt-6439784')) {
-              best.deliveries = [
-                {
-                  id: 'del-gt-6439784',
-                  date: Timestamp.fromDate(new Date('2026-10-05T12:00:00Z')),
-                  kilos: 2000.00,
-                  items: [
-                    { itemId: 'it-gt-9784-1', quantity: 500.00 },
-                    { itemId: 'it-gt-9784-2', quantity: 500.00 },
-                    { itemId: 'it-gt-9784-3', quantity: 1000.00 },
-                  ],
-                  invoiced: false,
-                  docType: 'remision',
-                  docFolio: '6439784',
-                  notes: 'Remisión Oficial 6439784 sellada en P4 (Auditoría Interna Sello 1226, Beonedith Morales) y firmada por Evelia Castillo (5-10-26). Partidas: 500 kg (60+40x125), 500 kg (60+40x95) y 1,000 kg (60x40x115). PENDIENTE DE FACTURAR.',
+            
+            // Garantizar las 5 partidas oficiales de la OC
+            best.items = [
+              { id: 'it-gt-9784-1', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M (80+20+20x160)', quantity: 600, deliveredQuantity: 600, unitPrice: 43.0, amount: 25800, unit: 'Kilos' },
+              { id: 'it-gt-9784-2', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM (80+20+20X125)', quantity: 1500, deliveredQuantity: 750, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },
+              { id: 'it-gt-9784-3', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M (60+40x115)', quantity: 1000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+              { id: 'it-gt-9784-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM (60+40x125)', quantity: 1000, deliveredQuantity: 500, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+              { id: 'it-gt-9784-5', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM (60+40x95)', quantity: 1000, deliveredQuantity: 500, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
+            ];
+
+            // Garantizar Factura 6353 en invoices
+            const currentInvoices = (best.invoices || []).filter((inv: any) => inv && inv.folio);
+            if (!currentInvoices.some((inv: any) => inv.folio === '6353' || inv.id === 'inv-6353')) {
+              currentInvoices.unshift({
+                id: 'inv-6353',
+                orderId: best.id,
+                folio: '6353',
+                uuid: '7E1F2FE9-0D09-418E-8D29-1358A7664920',
+                kilos: 1350.00,
+                client: CLIENT_GT,
+                oc: '12026439784',
+                financials: {
+                  salePricePerKg: 43.0,
+                  costPricePerKg: 34.0,
+                  commissionRate: 0.08,
+                  saleTotal: 58050.0,
+                  invoiceTotal: 67338.0,
+                  costTotal: 45900.0,
+                  commission: 4644.0,
+                  netCashFlow: 16794.0,
                 },
-                ...currentDeliveries,
-              ];
+                items: [
+                  { id: 'it-gt-9784-1', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M (80+20+20x160)', quantity: 600, unit: 'Kilos', unitPrice: 43, amount: 25800 },
+                  { id: 'it-gt-9784-2', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 (80+20+20X125)', quantity: 750, unit: 'Kilos', unitPrice: 43, amount: 32250 },
+                ],
+                creditCycle: {
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-10-01T16:17:09Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-10-31T23:59:59Z')),
+                },
+                collection: {
+                  paidAmount: 0,
+                  contrareciboNumber: '',
+                  notes: 'Factura 6353 timbrada ante el SAT el 01-10-2026 amparando OC 12026439784 por $67,338.00 MXN',
+                },
+                createdAt: Timestamp.fromDate(new Date('2026-10-01T16:17:09Z')),
+                updatedAt: Timestamp.fromDate(new Date('2026-10-01T16:28:19Z')),
+              });
             }
+            best.invoices = currentInvoices;
+
+            // Garantizar las 2 entregas oficiales (1,350 kg de F-6353 + 2,000 kg de Remisión 6439784 = 3,350 kg)
+            const canonicalDeliveries = [
+              {
+                id: 'del-gt-6353',
+                date: Timestamp.fromDate(new Date('2026-10-01T16:17:09Z')),
+                kilos: 1350.00,
+                items: [
+                  { itemId: 'it-gt-9784-1', quantity: 600.00 },
+                  { itemId: 'it-gt-9784-2', quantity: 750.00 },
+                ],
+                invoiced: true,
+                invoiceFolio: '6353',
+                docType: 'factura' as const,
+                docFolio: '6353',
+                notes: 'Entrega de 1,350 kg amparada y facturada en CFDI 6353 emitida el 01-10-2026. Partidas: 600 kg (80+20+20x160) y 750 kg (80+20+20x125). FACTURADA.',
+              },
+              {
+                id: 'del-gt-6439784',
+                date: Timestamp.fromDate(new Date('2026-10-05T12:00:00Z')),
+                kilos: 2000.00,
+                items: [
+                  { itemId: 'it-gt-9784-3', quantity: 1000.00 },
+                  { itemId: 'it-gt-9784-4', quantity: 500.00 },
+                  { itemId: 'it-gt-9784-5', quantity: 500.00 },
+                ],
+                invoiced: false,
+                docType: 'remision' as const,
+                docFolio: '6439784',
+                notes: 'Remisión Oficial 6439784 sellada en P4 (Auditoría Interna Sello 1226, Beonedith Morales) y firmada por Evelia Castillo (5-10-26). Partidas: 1,000 kg (60+40x115), 500 kg (60+40x125) y 500 kg (60+40x95). PENDIENTE DE FACTURAR (Ampara las 2 facturas de $49,880.00).',
+              }
+            ];
+
+            const existingDeliveries = (best.deliveries || []).filter((d: any) => d.id !== 'del-gt-6353' && d.id !== 'del-gt-6439784' && d.docFolio !== '6439784' && d.docFolio !== '6353');
+            best.deliveries = [...canonicalDeliveries, ...existingDeliveries];
           }
 
           deduplicatedDocs.push(best);

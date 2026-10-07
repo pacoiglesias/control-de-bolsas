@@ -131,18 +131,19 @@ export function OCPreviewModal({
                 </span>
               </div>
 
-              {/* Botones de precios frecuentes de Andrés ($37, $38, $43) */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                {[37, 38, 43].map((priceOption) => (
+              {/* Botones de precios frecuentes de Andrés ($34, $37, $38, $42, $43) */}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+                {[34, 37, 38, 42, 43].map((priceOption) => (
                   <button
                     key={priceOption}
                     type="button"
                     onClick={() => setCostPrice(priceOption)}
                     style={{
                       flex: 1,
-                      padding: '4px 6px',
+                      minWidth: 32,
+                      padding: '4px 4px',
                       borderRadius: 6,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 800,
                       cursor: 'pointer',
                       border: costPrice === priceOption ? '1.5px solid #059669' : '1px solid var(--line)',
@@ -151,7 +152,7 @@ export function OCPreviewModal({
                       transition: 'all 0.15s ease',
                     }}
                   >
-                    ${priceOption}.00
+                    ${priceOption}
                   </button>
                 ))}
               </div>

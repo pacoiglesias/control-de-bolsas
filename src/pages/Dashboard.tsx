@@ -38,7 +38,6 @@ import { DashboardSystemStatusFooter } from '../components/Dashboard/DashboardSy
 import { DashboardModalsHost } from '../components/Dashboard/DashboardModalsHost';
 import { MobileQuickDock } from '../components/Dashboard/MobileQuickDock';
 import { AdminQuickEditPanel } from '../components/Dashboard/AdminQuickEditPanel';
-import { AdminFloatingButton } from '../components/Dashboard/AdminFloatingButton';
 import { ConsolaCuadreEjecutivoModal } from '../components/Dashboard/ConsolaCuadreEjecutivoModal';
 import type { PipelineStageKey } from '../components/Dashboard/MoneyFlowPipeline';
 
@@ -409,6 +408,7 @@ export default function Dashboard() {
         onAutoHeal={handleAutoHeal}
         isHealing={isHealing}
         onOpenCuadreEjecutivo={() => setShowCuadreModal(true)}
+        onOpenQuickEdit={role === 'admin' ? () => setShowQuickEdit(true) : undefined}
         globalOrders={globalOrders}
         purchases={purchases}
         expenses={expenses}
@@ -597,19 +597,16 @@ export default function Dashboard() {
         pendingCollectionsCount={pendingCollectionsCount}
       />
 
-      {/* 8. Panel de Edición Rápida Flotante (Admin) */}
+      {/* 8. Panel de Edición Rápida (Admin) */}
       {role === 'admin' && (
-        <>
-          <AdminFloatingButton onClick={() => setShowQuickEdit(true)} />
-          <AdminQuickEditPanel
-            open={showQuickEdit}
-            onClose={() => setShowQuickEdit(false)}
-            config={config as any}
-            saldoAndres={k.deudaAndres ?? 0}
-            totalPagadoAndres={k.totalPagadoAndres ?? 0}
-            totalPurchasesCost={k.totalPurchasesCost ?? 0}
-          />
-        </>
+        <AdminQuickEditPanel
+          open={showQuickEdit}
+          onClose={() => setShowQuickEdit(false)}
+          config={config as any}
+          saldoAndres={k.deudaAndres ?? 0}
+          totalPagadoAndres={k.totalPagadoAndres ?? 0}
+          totalPurchasesCost={k.totalPurchasesCost ?? 0}
+        />
       )}
 
       {/* 9. Consola de Cuadre Ejecutivo Directo & Protegido (Ctrl + E) */}
