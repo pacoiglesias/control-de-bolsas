@@ -46,6 +46,11 @@ export function OrderRowActions({
 
   const invoiceCount = (order.invoices || []).length;
   const hasPendingKilos = kilosPendientesDeFacturar > 0.01;
+  const totalPed = (order.items && order.items.length > 0)
+    ? order.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0)
+    : Number(order.totalKilograms) || 0;
+  const totalEnt = (order.deliveries || []).reduce((acc, d) => acc + (Number(d.kilos) || (d.items || []).reduce((subAcc: number, it: any) => subAcc + (Number(it.quantity) || 0), 0)), 0);
+  const hasPendingDeliveries = !order.isClosedShort && totalPed > totalEnt;
 
   return (
     <div className="ora-toolbar">
@@ -89,12 +94,12 @@ export function OrderRowActions({
       {/* 4. Entrega de Báscula */}
       <button
         type="button"
-        className="ora-btn ora-btn--ghost"
+        className={`ora-btn ${hasPendingDeliveries ? 'ora-btn--delivery-pending' : 'ora-btn--ghost'}`}
         onClick={handleFastDelivery}
-        title="Registrar ticket de entrega de báscula"
+        title={hasPendingDeliveries ? `Registrar ticket de báscula (Faltan ${(totalPed - totalEnt).toLocaleString('es-MX')} kg)` : 'Registrar ticket de entrega de báscula'}
       >
         <span aria-hidden="true">🚚</span>
-        <span>Entrega</span>
+        <span>{hasPendingDeliveries ? '+ Entrega' : 'Entrega'}</span>
       </button>
 
       {/* 5. Conceptos / Partidas */}

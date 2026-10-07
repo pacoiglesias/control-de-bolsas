@@ -499,16 +499,17 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--paper-raised, #1e293b);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: var(--ink-soft);
   font-weight: 700;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding-bottom: 14px;
-  border-bottom: none;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line-soft);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 .data-table tbody tr:hover td {
   background-color: #fff;
@@ -1227,6 +1228,20 @@ textarea.input {
 .ora-btn--invoice-pending:hover {
   background: rgba(217, 119, 6, 0.2);
   border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Variante: Entrega con kilos pendientes por entregar — esmeralda proactivo */
+.ora-btn--delivery-pending {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.35);
+  font-weight: 700;
+}
+.ora-btn--delivery-pending:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  color: #047857;
   transform: translateY(-1px);
 }
 

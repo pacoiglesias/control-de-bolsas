@@ -250,12 +250,27 @@ export default function Layout() {
             aria-label={isPrivate ? "Modo Discreto Activo (Clic para mostrar cifras)" : "Modo Visible (Clic para ocultar cifras)"}
             title={isPrivate ? "Modo Discreto Activo: Las cifras sensibles están ocultas en público. Clic para mostrar." : "Modo Visible: Clic para ocultar cifras sensibles en público."}
             style={{
+              position: 'relative',
               background: isPrivate ? 'rgba(245, 158, 11, 0.15)' : undefined,
               color: isPrivate ? '#f59e0b' : undefined,
               borderColor: isPrivate ? 'rgba(245, 158, 11, 0.4)' : undefined,
             }}
           >
             {isPrivate ? '🙈' : '👁️'}
+            {isPrivate && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 7,
+                  right: 7,
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: '#f59e0b',
+                  boxShadow: '0 0 6px #f59e0b',
+                }}
+              />
+            )}
           </button>
           
           {/* Botón de Atajos de Teclado */}

@@ -25,7 +25,7 @@ import { OcClosureModal } from '../components/Orders/OcClosureModal';
 import { OcFulfillmentReportModal } from '../components/Orders/OcFulfillmentReportModal';
 import { OcClientStatusReport } from '../components/Orders/OcClientStatusReport';
 import { kilos, money, nombreClienteVisible, toDate } from '../lib/format';
-import { getOrderSummary, extractCr, round2 } from '../lib/finance';
+import { getOrderSummary, extractCr, round2, inferDepartment } from '../lib/finance';
 import type { OrderStatus, PurchaseOrder } from '../lib/types';
 import { useTheme } from '../context/ThemeContext';
 
@@ -48,6 +48,7 @@ export default function Orders() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
+  const [plantFilter, setPlantFilter] = useState<'ALL' | 'TH' | 'GT'>('ALL');
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [quickCrOrder, setQuickCrOrder] = useState<PurchaseOrder | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
@@ -146,6 +147,13 @@ export default function Orders() {
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtradas = conResumen.filter(({ o, s }) => {
+      // Filtrado por departamento/planta (TH Nava vs GT Evelia)
+      if (plantFilter !== 'ALL') {
+        const d = inferDepartment(o) || (o.department?.toUpperCase().includes('TH') ? 'TH' : o.department?.toUpperCase().includes('GT') ? 'GT' : null);
+        if (plantFilter === 'TH' && d !== 'TH') return false;
+        if (plantFilter === 'GT' && d !== 'GT') return false;
+      }
+
       // El estatus sale del resumen, igual que el contador del chip y que la
       // columna Estado. Antes el filtro leia o.creditCycle.status (el campo
       // viejo de la raiz): el chip decia "Vencidas (5)" y la tabla salia vacia.
@@ -219,7 +227,7 @@ export default function Orders() {
       const deudaB = b.s.invoiceTotal - b.s.paidAmount;
       return dir * (deudaA - deudaB);
     });
-  }, [conResumen, filter, search, sortBy, sortDir]);
+  }, [conResumen, filter, search, sortBy, sortDir, plantFilter]);
 
   const paginatedRows = useMemo(() => {
     return rows.slice(0, page * pageSize);
@@ -247,10 +255,10 @@ export default function Orders() {
     };
   }, [page, rows.length, pageSize]);
 
-  // Resetear página al cambiar filtro o búsqueda
+  // Resetear página al cambiar filtro, búsqueda o planta
   useEffect(() => {
     setPage(1);
-  }, [filter, search]);
+  }, [filter, search, plantFilter]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: conResumen.length };
@@ -506,6 +514,150 @@ export default function Orders() {
         title="Listado"
         hint={`${rows.length} de ${orders.length}`}
       >
+
+        {/* Selector Rápido de Planta & Acceso Directo a OCs Oficiales */}
+        <div
+          className="no-print"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            padding: '10px 14px',
+            margin: '8px 16px 0 16px',
+            background: 'var(--paper-sunk)',
+            borderRadius: 12,
+            border: '1px solid var(--line-soft)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              🏢 Planta:
+            </span>
+            <button
+              type="button"
+              className={`btn-small ${plantFilter === 'ALL' ? 'btn-primary' : ''}`}
+              onClick={() => { triggerHaptic('light'); setPlantFilter('ALL'); }}
+              style={{
+                minHeight: 32,
+                borderRadius: 8,
+                padding: '4px 12px',
+                fontSize: 11.5,
+                fontWeight: plantFilter === 'ALL' ? 800 : 600,
+                background: plantFilter === 'ALL' ? 'var(--accent)' : 'transparent',
+                color: plantFilter === 'ALL' ? '#fff' : 'var(--ink)',
+                border: '1px solid ' + (plantFilter === 'ALL' ? 'var(--accent)' : 'var(--line-soft)'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              🌟 Ambas ({conResumen.length})
+            </button>
+            <button
+              type="button"
+              className={`btn-small ${plantFilter === 'TH' ? 'btn-primary' : ''}`}
+              onClick={() => { triggerHaptic('light'); setPlantFilter('TH'); }}
+              style={{
+                minHeight: 32,
+                borderRadius: 8,
+                padding: '4px 12px',
+                fontSize: 11.5,
+                fontWeight: plantFilter === 'TH' ? 800 : 600,
+                background: plantFilter === 'TH' ? '#2563eb' : 'transparent',
+                color: plantFilter === 'TH' ? '#fff' : '#3b82f6',
+                border: '1px solid ' + (plantFilter === 'TH' ? '#2563eb' : 'rgba(59, 130, 246, 0.3)'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              🟦 TH · Nava ({conResumen.filter(({ o }) => inferDepartment(o) === 'TH' || o.department?.toUpperCase().includes('TH')).length})
+            </button>
+            <button
+              type="button"
+              className={`btn-small ${plantFilter === 'GT' ? 'btn-primary' : ''}`}
+              onClick={() => { triggerHaptic('light'); setPlantFilter('GT'); }}
+              style={{
+                minHeight: 32,
+                borderRadius: 8,
+                padding: '4px 12px',
+                fontSize: 11.5,
+                fontWeight: plantFilter === 'GT' ? 800 : 600,
+                background: plantFilter === 'GT' ? '#7c3aed' : 'transparent',
+                color: plantFilter === 'GT' ? '#fff' : '#8b5cf6',
+                border: '1px solid ' + (plantFilter === 'GT' ? '#7c3aed' : 'rgba(124, 58, 237, 0.3)'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              🟪 GT · Evelia ({conResumen.filter(({ o }) => inferDepartment(o) === 'GT' || o.department?.toUpperCase().includes('GT')).length})
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-soft)' }}>🎯 OCs Activas:</span>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                const found = orders.find(o => (o.oc || '').includes('12026439784') || (o.folio || '').includes('43/9784') || (o.folio || '').includes('6439784'));
+                if (found) {
+                  setInitialModalTab('resumen');
+                  setSelected(found);
+                } else {
+                  setSearch('12026439784');
+                }
+              }}
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 8,
+                background: 'rgba(124, 58, 237, 0.12)',
+                color: '#a78bfa',
+                border: '1px solid rgba(124, 58, 237, 0.35)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="Abrir expediente de OC 12026439784 (GT · Evelia · 5,100 kg)"
+            >
+              <span>🟪</span>
+              <span>GT 43/9784 (5,100 kg)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                const found = orders.find(o => (o.oc || '').includes('120267114302') || (o.folio || '').includes('71/14302') || (o.folio || '').includes('67114302'));
+                if (found) {
+                  setInitialModalTab('resumen');
+                  setSelected(found);
+                } else {
+                  setSearch('120267114302');
+                }
+              }}
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 8,
+                background: 'rgba(37, 99, 235, 0.12)',
+                color: '#60a5fa',
+                border: '1px solid rgba(37, 99, 235, 0.35)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="Abrir expediente de OC 120267114302 (TH · Nava · 8,000 kg)"
+            >
+              <span>🟦</span>
+              <span>TH 71/14302 (8,000 kg)</span>
+            </button>
+          </div>
+        </div>
 
         <SavedViewsBar
           currentFilter={filter}
@@ -858,25 +1010,30 @@ export default function Orders() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
                           <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{nombreClienteVisible(o.client)}</span>
                           {(() => {
+                            const dept = inferDepartment(o);
                             const d = (o.department || '').toUpperCase();
                             const c = (o.client || '').toUpperCase();
-                            const isTH = d.includes('TH') || c.includes('TH') || c.includes('NAVA');
-                            const isGT = d.includes('GT') || d.includes('P4') || c.includes('GT') || c.includes('EVELIA');
+                            const isTH = dept === 'TH' || d.includes('TH') || c.includes('TH') || c.includes('NAVA');
+                            const isGT = dept === 'GT' || d.includes('GT') || d.includes('P4') || c.includes('GT') || c.includes('EVELIA');
                             if (!isTH && !isGT && !o.department) return null;
                             return (
                               <span
                                 style={{
                                   fontSize: '0.72em',
                                   fontWeight: 800,
-                                  padding: '1px 6px',
-                                  borderRadius: 4,
+                                  padding: '2px 7px',
+                                  borderRadius: 5,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
                                   textTransform: 'uppercase',
-                                  background: isTH ? 'rgba(59, 130, 246, 0.12)' : isGT ? 'rgba(16, 185, 129, 0.12)' : 'var(--paper-sunk)',
-                                  color: isTH ? '#2563eb' : isGT ? '#059669' : 'var(--ink-soft)',
-                                  border: isTH ? '1px solid rgba(59, 130, 246, 0.25)' : isGT ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--line-soft)',
+                                  letterSpacing: '0.03em',
+                                  background: isTH ? 'rgba(37, 99, 235, 0.12)' : isGT ? 'rgba(124, 58, 237, 0.12)' : 'var(--paper-sunk)',
+                                  color: isTH ? '#2563eb' : isGT ? '#7c3aed' : 'var(--ink-soft)',
+                                  border: isTH ? '1px solid rgba(37, 99, 235, 0.3)' : isGT ? '1px solid rgba(124, 58, 237, 0.3)' : '1px solid var(--line-soft)',
                                 }}
                               >
-                                {isTH ? 'TH · Nava' : isGT ? 'GT · Evelia' : o.department}
+                                {isTH ? '🟦 TH · Nava' : isGT ? '🟪 GT · Evelia' : o.department}
                               </span>
                             );
                           })()}

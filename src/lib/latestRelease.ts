@@ -7,15 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.11: Refactor Modular de Reportes a Clientes y Arquitectura Limpia',
+  version: 'v9.10.12: Ergonomía Visual & Operativa, Filtro Departamental TH/GT y Atajos de Báscula',
   date: '07 de Octubre de 2026',
-  time: '01:50 PM',
-  summary: 'v9.10.11: Modularización arquitectónica del generador de reportes de avance de orden de compra (OcClientStatusReport). Se desacoplaron los módulos de cálculo financiero (clientReportTypes), exportación de hojas de cálculo (clientReportExcel), mensajería WhatsApp (clientReportWhatsApp) e impresión HTML (clientReportPrint), reduciendo el componente en un 64% con 228 pruebas unitarias pasando al 100%.',
+  time: '04:35 PM',
+  summary: 'v9.10.12: Optimización integral visual y operativa: Selector rápido de planta (TH · Nava vs GT · Evelia) y acceso directo a las dos OCs flagship activas en Expedientes; botón proactivo de registro de entregas de báscula en filas con kilos pendientes; armonización de badges departamentales con paleta oficial Obsidian Dark; elevación sticky de cabecera de tablas con blur reforzado y badge luminoso en modo discreto.',
   highlights: [
-    '🧩 Arquitectura Modular DDD: Desacoplamiento total del reporte de avance en submódulos especializados de <200 líneas, facilitando pruebas unitarias y optimizando el bundle con code-splitting.',
-    '📊 Precisión de Cumplimiento en Tiempo Real: Métricas de kilos entregados, facturados y faltantes probadas y blindadas contra divisiones por cero.',
-    '📱 Plantillas WhatsApp & Excel Separadas: Generación limpia de mensajes con formato oficial y exportación en 3 hojas (Resumen, Entregas, Partidas).',
-    '🧪 Suite de Pruebas Expandida: 228/228 pruebas pasando (34 suites al 100%).',
+    '🏢 Selector Departamental Rápido (TH / GT): Filtro instantáneo de 1-toque en la pantalla de Expedientes para alternar entre Textil Hogar (Ing. Nava) y Grupo Textil (Lic. Evelia) sin necesidad de búsquedas textuales repetitivas.',
+    '🎯 Acceso Directo a OCs Activas Flagship: Pills dedicados para saltar directamente a la OC 12026439784 (GT 43/9784 · 5,100 kg) y OC 120267114302 (TH 71/14302 · 8,000 kg).',
+    '🚚 Botón Proactivo [+ Entrega]: Resaltado visual en esmeralda proactivo en la barra de acciones de cada fila cuando restan kilos por surtir, abriendo directamente el capturador de remisiones de báscula.',
+    '💎 Estética Obsidian Dark & Sticky Headers: Encabezados de tabla elevados con borde definido y blur de 20px para una lectura nítida durante el desplazamiento vertical, más badge luminoso en el modo discreto.',
   ],
 };
 

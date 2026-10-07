@@ -10,24 +10,25 @@ describe('Client Report Modular Architecture Tests', () => {
     oc: '12026439784',
     client: 'Grupo Textil Providencia',
     totalKilograms: 5100,
-    estimatedDeliveryDate: '2026-10-15',
+    estimatedDeliveryDate: '2026-10-15' as any,
     financials: {
       salePricePerKg: 43,
       costPricePerKg: 38,
       commissionRate: 0.08,
-    },
+      netCashFlow: 25500,
+    } as any,
     invoices: [
       { id: 'inv1', folio: '6353', kilos: 1350 } as any,
     ],
     deliveries: [
-      { id: 'd1', kilos: 1350, invoiced: true, docFolio: '6353' },
-      { id: 'd2', kilos: 2000, invoiced: false, docFolio: '6439784' },
+      { id: 'd1', kilos: 1350, invoiced: true, docFolio: '6353', date: '2026-10-01' } as any,
+      { id: 'd2', kilos: 2000, invoiced: false, docFolio: '6439784', date: '2026-10-05' } as any,
     ],
     items: [
-      { id: 'i1', description: 'Bolsa 60x90', quantity: 3000, deliveredQuantity: 2000 },
-      { id: 'i2', description: 'Bolsa 90x120', quantity: 2100, deliveredQuantity: 1350 },
+      { id: 'i1', description: 'Bolsa 60x90', quantity: 3000, deliveredQuantity: 2000, unit: 'kg', unitPrice: 43, amount: 129000 } as any,
+      { id: 'i2', description: 'Bolsa 90x120', quantity: 2100, deliveredQuantity: 1350, unit: 'kg', unitPrice: 43, amount: 90300 } as any,
     ],
-  };
+  } as unknown as PurchaseOrder;
 
   it('computes metrics accurately with canonical financial rounding', () => {
     const metrics = computeClientReportMetrics(mockOrder);
