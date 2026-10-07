@@ -129,7 +129,54 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 creditCycle: { status: 'facturado' },
                 orderId: `oc-${OC_TH_ACTIVE}`,
                 oc: OC_TH_ACTIVE,
-              } as Invoice
+              } as Invoice,
+              {
+                id: 'inv-6363',
+                folio: '6363',
+                uuid: '43E53F15-865E-4FF7-A2F3-2A47AB99F8B7',
+                kilos: 1500.00,
+                financials: {
+                  saleTotal: 64500.00,
+                  invoiceTotal: 74820.00,
+                  costTotal: 57000.00,
+                  commission: 5160.00,
+                  netCashFlow: 12660.00,
+                  tradeMargin: 7500.00,
+                  salePricePerKg: 43.0,
+                  costPricePerKg: 38.0,
+                },
+                creditCycle: {
+                  status: 'facturado',
+                  issueDate: Timestamp.fromDate(new Date('2026-10-06T12:12:09Z')),
+                },
+                orderId: `oc-${OC_TH_ACTIVE}`,
+                oc: OC_TH_ACTIVE,
+                items: [
+                  { id: 'it-6363-1', code: 'EGBO000113-SC', description: 'BULTO 48 + 17 + 17 *80 CM', quantity: 1000.0, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
+                  { id: 'it-6363-2', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'Kilos' },
+                ],
+              } as Invoice,
+            ],
+            deliveries: [
+              {
+                id: 'del-th-rem-280926',
+                date: Timestamp.fromDate(new Date('2026-09-28T12:00:00Z')),
+                kilos: 5899.80,
+                invoiced: false,
+                invoicedKilos: 1500.00,
+                docType: 'remision',
+                docFolio: 'REM-280926',
+                notes: 'Remisión física del 28/09/2026 (7 partidas · 5,899.80 kg total). Factura 6363 amparó 1,500 kg (BULTO 48+17+17X80 y BOLSA 50x55). Pendientes por facturar: 4,399.80 kg.',
+                items: [
+                  { itemId: 'it-th-rem-1', quantity: 1000.00 }, // 60x80
+                  { itemId: 'it-th-rem-2', quantity: 1000.00 }, // 48+17+17x80 (facturado en F-6363)
+                  { itemId: 'it-th-rem-3', quantity: 1000.00 }, // 48+17+17x100
+                  { itemId: 'it-th-rem-4', quantity: 500.00 },  // 30x40
+                  { itemId: 'it-th-rem-5', quantity: 915.15 },  // 48+17+17x140
+                  { itemId: 'it-th-rem-6', quantity: 984.65 },  // 55x126
+                  { itemId: 'it-th-rem-7', quantity: 500.00 },  // 50x55 (facturado en F-6363)
+                ],
+              },
             ],
             processedAt: Timestamp.fromDate(new Date('2026-09-23T17:12:29Z')),
           } as unknown as PurchaseOrder]);

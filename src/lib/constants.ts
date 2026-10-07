@@ -59,7 +59,14 @@ export const MASTER_OCS = [OC_TH_ACTIVE, OC_GT_ACTIVE, OC_TH_NAVA, OC_GT_EVELIA,
 /** Detecta si un string corresponde a la OC de TH (Nava) */
 export function isOcTH(s: string): boolean {
   const clean = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return clean.includes('14302') || clean.includes('120267114302') || clean.includes('14114') || clean.includes('120267114114');
+  return (
+    clean.includes('14302') ||
+    clean.includes('120267114302') ||
+    clean.includes('14114') ||
+    clean.includes('120267114114') ||
+    clean.includes('12026114099') ||
+    clean.includes('114099')
+  );
 }
 
 /** Detecta si un string corresponde a una OC oficial de GT (Evelia) */

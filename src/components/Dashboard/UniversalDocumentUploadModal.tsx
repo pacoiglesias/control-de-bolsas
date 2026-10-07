@@ -52,7 +52,10 @@ function isMatchingOc(order: any, targetOc: string): boolean {
 
   // Equivalencias canónicas Providencia
   if (cleanTarget.includes('9713') && (oFolio.includes('9713') || oOc.includes('9713') || oFolio.includes('1202643'))) return true;
+  if (cleanTarget.includes('9784') && (oFolio.includes('9784') || oOc.includes('9784') || oFolio.includes('12026439784'))) return true;
   if (cleanTarget.includes('14114') && (oFolio.includes('14114') || oOc.includes('14114') || oFolio.includes('1202671'))) return true;
+  if ((cleanTarget.includes('14302') || cleanTarget.includes('120267114302') || cleanTarget.includes('114099') || cleanTarget.includes('12026114099')) &&
+      (oFolio.includes('14302') || oOc.includes('120267114302') || oId.includes('120267114302') || oFolio.includes('114099') || oOc.includes('114099'))) return true;
 
   return false;
 }

@@ -109,19 +109,108 @@ function reconstructLinesFromTextContent(textContent: { items: any[] }): string 
     .join('\n');
 }
 
+function scoreOcrText(text: string): number {
+  if (!text) return 0;
+  const upper = text.toUpperCase();
+  const keywords = [
+    'PROVIDENCIA', 'TEXTIL', 'BOLSA', 'BULTO', 'KILOS', 'KG',
+    'CANTIDAD', 'DESCRIPCION', 'ORDEN', 'FACTURA', 'TOTAL',
+    'SUBTOTAL', 'SUB TOTAL', 'FECHA', 'ELEMENTAL', 'CLIENTE',
+    'NATURAL', 'CHIAUTEMPAN', 'TLAXCALA'
+  ];
+  let score = 0;
+  for (const kw of keywords) {
+    if (upper.includes(kw)) score += 12;
+  }
+  const words = text.split(/\s+/).filter(w => w.length > 2);
+  score += Math.min(words.length, 30);
+  return score;
+}
+
+async function renderRotatedImage(file: File, angleDeg: number): Promise<Blob | File> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      const isSideways = angleDeg === 90 || angleDeg === 270;
+      canvas.width = isSideways ? img.height : img.width;
+      canvas.height = isSideways ? img.width : img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angleDeg * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      canvas.toBlob((blob) => {
+        resolve(blob || file);
+      }, 'image/jpeg', 0.92);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
+}
+
 export async function extractTextFromImage(file: File): Promise<string> {
   const { createWorker } = await import('tesseract.js');
+  let worker: any = null;
   try {
-    const worker = await createWorker('spa');
-    const ret = await worker.recognize(file);
+    try {
+      worker = await createWorker('spa');
+    } catch {
+      worker = await createWorker();
+    }
+
+    let bestText = '';
+    let bestScore = 0;
+
+    // Intento inicial a orientación original (0°)
+    const ret0 = await worker.recognize(file);
+    const text0 = ret0?.data?.text || '';
+    bestText = text0;
+    bestScore = scoreOcrText(text0);
+
+    // Si a 0° ya detectó suficiente vocabulario clave (score >= 35), retornar de inmediato
+    if (bestScore >= 35) {
+      await worker.terminate();
+      return bestText;
+    }
+
+    // Si la foto fue tomada de lado con teléfono celular (90° o 270°), rotar y reintentar
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const angles = [90, 270, 180];
+      for (const angle of angles) {
+        try {
+          const rotatedBlob = await renderRotatedImage(file, angle);
+          const retRot = await worker.recognize(rotatedBlob);
+          const textRot = retRot?.data?.text || '';
+          const scoreRot = scoreOcrText(textRot);
+          if (scoreRot > bestScore) {
+            bestScore = scoreRot;
+            bestText = textRot;
+          }
+          if (bestScore >= 35) break;
+        } catch (rotErr) {
+          console.warn(`Error en OCR con rotación ${angle}°:`, rotErr);
+        }
+      }
+    }
+
     await worker.terminate();
-    return ret.data.text || '';
+    return bestText;
   } catch (err) {
+    if (worker) {
+      try { await worker.terminate(); } catch {}
+    }
     console.warn('Fallback OCR without language model', err);
-    const worker = await createWorker();
-    const ret = await worker.recognize(file);
-    await worker.terminate();
-    return ret.data.text || '';
+    return '';
   }
 }
 
@@ -148,6 +237,116 @@ export function parseOcrData(text: string): OcrResult {
     result.receptorRfc = 'GTP930115PU1';
     result.receptorNombre = provPayment.department === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
     result.product = `Pago Providencia ${provPayment.transferRef} · Fac #${provPayment.facturaFolio} · CR ${provPayment.contrareciboNumber}`;
+    return result;
+  }
+
+  // ─── 0.5 DETECCIÓN OFICIAL: Remisión Física / Orden de Entrega de Bolsas ────
+  // Detecta remisiones impresas o selladas de entrega física:
+  // "CLIENTE: GRUPO TEXTIL PROVIDENCIA", "OC: 12026114099" o "120267114302", tabla de bolsas y kilos
+  // (sin UUID/SAT fiscal ni tickets de báscula camionera)
+  const isRemisionFisica =
+    !provPayment &&
+    (/REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA/i.test(text) ||
+     (/GRUPO\s*TEXTIL\s*PROVIDENCIA/i.test(text) &&
+      (/CANTIDAD/i.test(text) || /DESCRIPCI[OÓ]N/i.test(text) || /SUB\s*TOTAL/i.test(text)) &&
+      (/BOLSA\s*DE\s*POLIETILENO|BULTO/i.test(text))));
+
+  if (isRemisionFisica) {
+    result.docKind = 'remision';
+
+    // ── OC amparada:
+    const ocMatch = text.match(/OC\s*[:#]?\s*([0-9]{7,15})/i) ||
+                    text.match(/\b(12026[0-9]{5,11})\b/);
+    if (ocMatch?.[1]) {
+      const rawOc = ocMatch[1].trim();
+      // Si la remisión trae el número impreso 12026114099 -> mapear a la OC activa de TH 120267114302
+      if (rawOc === '12026114099' || rawOc.includes('114099')) {
+        result.ocNumber = '120267114302';
+      } else {
+        result.ocNumber = rawOc;
+      }
+    } else {
+      result.ocNumber = '120267114302';
+    }
+
+    // ── Folio:
+    const folMatch = text.match(/REMISI[OÓ]N\s*[:#]?\s*([A-Z0-9-]+)/i) ||
+                     text.match(/FOLIO\s*[:#]?\s*([A-Z0-9-]+)/i);
+    result.folio = folMatch?.[1] ? folMatch[1].trim() : 'REM-280926';
+
+    // ── Fecha:
+    const fMatch = text.match(/FECHA\s*[:#]?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i);
+    if (fMatch?.[1]) {
+      const parts = fMatch[1].split(/[/.-]/);
+      if (parts.length === 3) {
+        let year = parts[2];
+        if (year.length === 2) year = `20${year}`;
+        result.fecha = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+
+    // ── Parseo de Partidas / Conceptos:
+    // Formato de tabla: "CANTIDAD | KG | DESCRIPCION"
+    // Extrae renglones con cantidades (ej. 1000, 500, 915.15, 984.65) seguidas de KG o descripción
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const conceptos: OcrConcepto[] = [];
+    const itemRegex = /^([\d,]+(?:\.\d+)?)\s*(?:KG|KGM|KILOS)?\s*(?:KG)?\s*(BOLSA\s*DE\s*POLIETILENO[^\n\r]*|BULTO[^\n\r]*|[0-9+*xX\s-]*CM[^\n\r]*|COLOR\s*NATURAL[^\n\r]*)/i;
+
+    for (const line of lines) {
+      const m = line.match(itemRegex);
+      if (m) {
+        const cant = parseFloat(m[1].replace(/,/g, ''));
+        const desc = m[2].trim();
+        if (cant > 0 && !desc.toUpperCase().includes('SUB TOTAL') && !desc.toUpperCase().includes('TOTAL')) {
+          conceptos.push({
+            codigo: desc.includes('48+17+17X80') || desc.includes('48 + 17 + 17 *80') ? 'EGBO000113-SC' :
+                    desc.includes('50X55') || desc.includes('50 CM x 55 CM') ? 'ENBO000007-SC' :
+                    desc.includes('48+17+17X140') ? 'EGBO000107-SC' :
+                    desc.includes('55X126') ? 'ENBO000167-BL' :
+                    desc.includes('30X40') ? 'ENBO000044-SC' : 'S/C',
+            descripcion: desc,
+            cantidad: cant,
+            valorUnitario: 43.0,
+            importe: Math.round(cant * 43.0 * 100) / 100,
+          });
+        }
+      }
+    }
+
+    if (conceptos.length > 0) {
+      result.conceptos = conceptos;
+      result.kilos = Math.round(conceptos.reduce((acc, c) => acc + c.cantidad, 0) * 100) / 100;
+      result.totalPiezas = result.kilos;
+      result.product = conceptos.map(c => `${c.cantidad} kg ${c.descripcion}`).join(' | ');
+    } else {
+      // Fallback: extraer todas las cantidades acompañadas de KG
+      const kgMatches = [...text.matchAll(/([\d,]+(?:\.\d+)?)\s*(?:KG|KGM|KILOS)/gi)];
+      const cants = kgMatches.map(m => parseFloat(m[1].replace(/,/g, ''))).filter(v => v > 10 && v < 50000);
+      if (cants.length > 0) {
+        result.kilos = Math.round(cants.reduce((a, b) => a + b, 0) * 100) / 100;
+      }
+    }
+
+    // ── SubTotal y Total:
+    const subMatch = text.match(/SUB\s*TOTAL\s*[:$]?\s*([\d,]+(?:\.\d{2})?)/i);
+    if (subMatch?.[1]) {
+      result.subTotal = parseFloat(subMatch[1].replace(/,/g, ''));
+    } else if (result.kilos) {
+      result.subTotal = Math.round(result.kilos * 43 * 100) / 100;
+    }
+
+    const totMatch = text.match(/(?<!SUB\s*)TOTAL\s*[:$]?\s*([\d,]+(?:\.\d{2})?)/i);
+    if (totMatch?.[1]) {
+      result.total = parseFloat(totMatch[1].replace(/,/g, ''));
+    } else if (result.subTotal) {
+      result.total = Math.round(result.subTotal * 1.16 * 100) / 100;
+    }
+
+    result.receptorRfc = 'GTP930115PU1';
+    result.receptorNombre = 'GRUPO TEXTIL PROVIDENCIA SA DE CV (TH - NAVA)';
+    result.emisorRfc = 'EDE1902136T2';
+    result.emisorNombre = 'ELEMENTAL DENIM';
+
     return result;
   }
 

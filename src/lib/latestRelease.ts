@@ -7,15 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.6: Emisión Dual Simultánea y Facturación Inteligente en 1 Clic para Remisión 6439784 (Lic. Evelia Castillo / GT)',
-  date: '06 de Octubre de 2026',
-  time: '11:15 PM',
-  summary: 'v9.10.6: Implementación del asistente de división inteligente de remisiones y emisión dual simultánea en 1 clic para la remisión oficial 6439784 (2,000 kg entregados en Planta P4) solicitada por la Lic. Evelia Castillo para ser facturada en dos facturas de 1,000 kg ($49,880.00 c/u con IVA). Corrección integral de la conciliación de entregas por partida y prevención de duplicados.',
+  version: 'v9.10.7: OCR Multidireccional con Auto-Rotación, Ingesta de Remisiones Físicas y Conciliación TH 120267114302 (Factura 6363)',
+  date: '07 de Octubre de 2026',
+  time: '07:45 AM',
+  summary: 'v9.10.7: Motor OCR resiliente con detección multi-ángulo y auto-rotación automática (0°, 90°, 270°, 180°) para fotografías tomadas de lado con celular, ingesta inteligente de Remisiones Físicas con desglose de todas las partidas y kilos (5,899.80 kg), resolución automática de alias de OC (12026114099 ➔ 120267114302 TH Nava), activación de OCR directo en el Global Dropzone e integración de Factura 6363 ($74,820.00 MXN / 1,500 kg).',
   highlights: [
-    '⚡ Emisión Dual Simultánea en 1 Clic: Nuevo modal asistido que genera y timbra en un solo paso ambas facturas (Factura 1 de 1,000 kg: 500+500 kg y Factura 2 de 1,000 kg: 1,000 kg) vinculadas a la OC 12026439784.',
-    '🎯 Atajos de 1 Clic en Emisión Guiada: Botones directos para cargar instantáneamente Factura 1 (1,000 kg · $49,880), Factura 2 (1,000 kg · $49,880) o Lote Completo (2,000 kg · $99,760).',
-    '📦 Corrección del Desglose Canónico de Partidas (OC 43/9784): Asignación canónica estricta de las 3 partidas reales (EGBO000095-SC, EGBO000093-SC, EGBO000018-SC) evitando duplicidad de kilos en entregas.',
-    '🔒 Conciliación Inteligente de Remisiones Parciales: Enlace seguro que descuenta de forma escalonada los kilos facturados en la remisión sin cerrarla prematuramente hasta amparar los 2,000 kg totales.',
-    '🛡️ Blindaje de Folios Duplicados: Validación en tiempo real tanto individual como dual contra toda la base de datos de órdenes.',
+    '🔄 OCR con Auto-Rotación (0°, 90°, 180°, 270°): Canvas de preprocesamiento que evalúa la orientación del texto antes de extraer, reconociendo fotos de celular tomadas de forma vertical o apaisada.',
+    '📋 Ingesta Inteligente de Remisiones Físicas: Parser especializado que extrae todas las partidas de la tabla física (1,000 + 1,000 + 1,000 + 500 + 915.15 + 984.65 + 500 = 5,899.80 kg), subtotales y totales sin truncar.',
+    '🎯 Mapeo Automático de Alias de OC: Reconocimiento del número impreso en remisión 12026114099 vinculándolo directamente a la OC oficial activa de Textil Hogar 120267114302 (Folio 71/14302 · Nava).',
+    '📥 OCR Activado en Global Dropzone: Al arrastrar o soltar imágenes en cualquier pantalla, el sistema ahora ejecuta OCR completo y extrae kilos, folio, fecha y OC automáticamente.',
+    '🧾 Conciliación Oficial Factura 6363: Registro y vinculación de Factura 6363 ($74,820.00 MXN / 1,500 kg) amparando las partidas 2 y 7 de la remisión con 4,399.80 kg remanentes para facturar.',
   ],
 };

@@ -181,4 +181,49 @@ https://apps.mundoprovidencia.com/rHoyProvidencia/portal/proveedores/@CGI-SCRIPT
     expect(res.fecha).toBe('2026-09-25');
     expect(res.kilos).toBe(0);
   });
+
+  // Documento 6: Remisión Física de Entregas 28/09/2026 (OC 12026114099 -> TH 120267114302)
+  const DOC6_REMISION_TH_28092026 = `
+FECHA: 28/09/2026
+CLIENTE: GRUPO TEXTIL PROVIDENCIA SA DE CV
+TELEFONO: 2464641015
+DIRECCIÓN: HIDALGO NORTE COLONIA CENTRO C.P. 90800 STA ANA CHIAUTEMPAN, TLAXCALA MEXICO
+CONTACTO:
+OC: 12026114099
+
+CANTIDAD DESCRIPCION
+1000 KG BOLSA DE POLIETILENO COLOR NATURAL 60X80 CM C/250
+1000 KG BOLSA DE POLIETILENO COLOR NATURAL 48+17+17X80 C/250
+1000 KG BOLSA DE POLIETILENO COLOR NATURAL 48+17+17X100 CM C/250
+500 KG BOLSA DE POLIETILENO COLOR NATURAL 30X40 CM C/150
+915.15 KG BOLSA DE POLIETILENO COLOR NATURAL 48+17+17X140 C/250
+984.65 KG BOLSA DE POLIETILENO COLOR NATURAL 55X126 CM C/150
+500 KG BOLSA DE POLIETILENO COLOR NATURAL 50X55 CM C/150
+
+SUB TOTAL $149,839.95
+IVA $23,974.39
+TOTAL $173,814.34
+
+ELEMENTAL DENIM
+EDE1902136T2
+  `;
+
+  it('procesa Documento 6: Remisión Física TH 28/09/2026 con 7 partidas, 5,899.80 kg y mapeo a OC 120267114302', () => {
+    const res = parseOcrData(DOC6_REMISION_TH_28092026);
+    expect(res.docKind).toBe('remision');
+    expect(res.ocNumber).toBe('120267114302');
+    expect(res.fecha).toBe('2026-09-28');
+    expect(res.kilos).toBe(5899.80);
+    expect(res.subTotal).toBe(149839.95);
+    expect(res.total).toBe(173814.34);
+    expect(res.conceptos?.length).toBe(7);
+    expect(res.conceptos?.[0].cantidad).toBe(1000);
+    expect(res.conceptos?.[1].codigo).toBe('EGBO000113-SC');
+    expect(res.conceptos?.[1].cantidad).toBe(1000);
+    expect(res.conceptos?.[4].cantidad).toBe(915.15);
+    expect(res.conceptos?.[5].cantidad).toBe(984.65);
+    expect(res.conceptos?.[6].codigo).toBe('ENBO000007-SC');
+    expect(res.conceptos?.[6].cantidad).toBe(500);
+  });
 });
+
