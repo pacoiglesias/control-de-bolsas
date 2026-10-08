@@ -513,15 +513,32 @@ export function parseOcrData(text: string): OcrResult {
     result.folio = facMatch[1].trim();
   }
 
-  // 2. Parse OC Number — captura: CONDICIONES DE PAGO OC XXXXXXX, OC XXXXXXX, Orden XXXXXXX,
-  //    o el patrón canónico de Providencia 12026XXXXXXX (11-13 dígitos).
-  //    También detecta números largos de OC pegados solos en el texto.
-  const ocMatch = text.match(/CONDICIONES\s*DE\s*PAGO\s*(?:OC|O\.C\.|ORDEN)?\s*[:#]?\s*([0-9]{7,15})/i) ||
-                  text.match(/(?:OC|Orden\s*de\s*Compra|O\.C\.|Pedido|Orden)\s*[:#]?\s*([0-9]{7,15})/i) ||
-                  text.match(/\b(12026[0-9]{5,11})\b/) ||
-                  text.match(/\b([0-9]{10,15})\b/);  // Número largo genérico como último recurso
-  if (ocMatch && ocMatch[1]) {
-    result.ocNumber = ocMatch[1].trim();
+  // 2. Parse OC Number — captura:
+  //    - Patrón canónico de Providencia 12026XXXXXXX (11-13 dígitos, ej: 120267114302, 12026439784)
+  //    - Folios con diagonal oficial (71/14302, 43/9784)
+  //    - CONDICIONES DE PAGO [: ] [OC] [: ] XXXXXXX
+  //    - OC / Orden de Compra / Pedido XXXXXXX
+  const canonicalDirectOcMatch = text.match(/\b(12026[0-9]{5,11})\b/);
+  const diagonalOcMatch = text.match(/\b(71\/14302|43\/9784|43\/9713|71\/14114)\b/i);
+  const condPagoOcMatch = text.match(/CONDICIONES\s*DE\s*PAGO\s*[:#]?\s*(?:OC|O\.C\.|ORDEN)?\s*[:#]?\s*([0-9]{7,15})/i);
+  const genericOcMatch = text.match(/(?:OC|Orden\s*de\s*Compra|O\.C\.|Pedido|Orden)\s*[:#]?\s*([0-9]{7,15})/i);
+  const longNumMatch = text.match(/\b([0-9]{10,15})\b/);
+
+  if (canonicalDirectOcMatch && canonicalDirectOcMatch[1]) {
+    result.ocNumber = canonicalDirectOcMatch[1].trim();
+  } else if (diagonalOcMatch && diagonalOcMatch[1]) {
+    const raw = diagonalOcMatch[1].toUpperCase();
+    if (raw === '71/14302') result.ocNumber = '120267114302';
+    else if (raw === '43/9784') result.ocNumber = '12026439784';
+    else if (raw === '43/9713') result.ocNumber = '12026439713';
+    else if (raw === '71/14114') result.ocNumber = '120267114114';
+    else result.ocNumber = raw;
+  } else if (condPagoOcMatch && condPagoOcMatch[1]) {
+    result.ocNumber = condPagoOcMatch[1].trim();
+  } else if (genericOcMatch && genericOcMatch[1]) {
+    result.ocNumber = genericOcMatch[1].trim();
+  } else if (longNumMatch && longNumMatch[1]) {
+    result.ocNumber = longNumMatch[1].trim();
   }
 
   // Si no se encontró folio explícito, pero sí OC

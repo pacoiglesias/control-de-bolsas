@@ -133,6 +133,32 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 oc: OC_TH_ACTIVE,
               } as Invoice,
               {
+                id: 'inv-6334',
+                folio: '6334',
+                uuid: '849D6D0F-6A89-43B8-883E-148669295EBC',
+                kilos: 1500.00,
+                financials: {
+                  saleTotal: 64500.00,
+                  invoiceTotal: 74820.00,
+                  costTotal: 57000.00,
+                  commission: 5160.00,
+                  netCashFlow: 12660.00,
+                  tradeMargin: 7500.00,
+                  salePricePerKg: 43.0,
+                  costPricePerKg: 38.0,
+                },
+                creditCycle: {
+                  status: 'facturado',
+                  issueDate: Timestamp.fromDate(new Date('2026-09-29T10:52:08Z')),
+                },
+                orderId: `oc-${OC_TH_ACTIVE}`,
+                oc: OC_TH_ACTIVE,
+                items: [
+                  { id: 'it-6334-1', code: 'ENBO000088-SC', description: 'BOLSA POLIETILENO 80 CM X 60 CM', quantity: 1000.0, unitPrice: 43.0, amount: 43000.0, unit: 'Kilos' },
+                  { id: 'it-6334-2', code: 'ENBO000044-SC', description: 'BOLSA POLIETILENO 30 X 40 CM', quantity: 500.0, unitPrice: 43.0, amount: 21500.0, unit: 'Kilos' },
+                ],
+              } as Invoice,
+              {
                 id: 'inv-6363',
                 folio: '6363',
                 uuid: '43E53F15-865E-4FF7-A2F3-2A47AB99F8B7',

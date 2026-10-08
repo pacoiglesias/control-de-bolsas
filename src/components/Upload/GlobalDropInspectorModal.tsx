@@ -58,6 +58,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
 
   // Orden seleccionada para vincular
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const [ocAssignmentDoubt, setOcAssignmentDoubt] = useState(false);
+  const [autoAssignedOcTag, setAutoAssignedOcTag] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   /** Estado del guardado del archivo original en Storage */
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -262,51 +264,74 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
     function matchOrder(
       ocCandidate?: string,
       folioCandidate?: string,
-      clientCandidate?: string,
+      _clientCandidate?: string,
       amountCandidate?: number,
       crCandidate?: string,
-      isOcDocKind?: boolean
+      _isOcDocKind?: boolean
     ) {
       if (!orders || orders.length === 0) {
         setSelectedOrderId('');
+        setOcAssignmentDoubt(true);
+        setAutoAssignedOcTag(null);
         return;
       }
 
       const cleanOc = (ocCandidate || '').replace(/[^0-9]/g, '');
       const cleanFolio = (folioCandidate || '').trim().toUpperCase();
-      const cleanClient = (clientCandidate || '').toUpperCase();
       const cleanCr = (crCandidate || '').trim().toUpperCase();
 
-      const found = orders.find((o) => {
+      // 1. Detección Canónica Oficial Directa
+      let found = orders.find((o) => {
         if (!o || (o as any).isDeleted) return false;
         const oOc = (o.oc || o.folio || o.id || '').replace(/[^0-9]/g, '');
-        if (cleanOc && oOc.includes(cleanOc)) return true;
-        if ((cleanOc.includes('114099') || cleanOc.includes('14302')) && (o.oc === OC_TH_ACTIVE || oOc.includes('14302'))) return true;
-        if ((cleanOc.includes('9784') || cleanOc.includes('439784')) && (o.oc === OC_GT_ACTIVE || oOc.includes('9784'))) return true;
-        if (cleanFolio && (o.folio === cleanFolio || (o.invoices || []).some((i) => i.folio === cleanFolio))) return true;
-        if (cleanCr && (o.collection?.contrareciboNumber === cleanCr || (o.invoices || []).some((i) => i.collection?.contrareciboNumber === cleanCr))) return true;
-        if (amountCandidate && amountCandidate > 0) {
-          const invMatch = (o.invoices || []).some((i) => Math.abs((i.financials?.invoiceTotal || 0) - amountCandidate) < 1);
-          if (invMatch) return true;
-        }
-        if (!isOcDocKind) {
-          if (cleanClient.includes('TEXTIL HOGAR') && o.oc === OC_TH_ACTIVE) return true;
-          if (cleanClient.includes('GRUPO TEXTIL') && o.oc === OC_GT_ACTIVE) return true;
-        }
+        // Coincidencia exacta o contenida de OC
+        if (cleanOc && cleanOc.length >= 4 && (oOc.includes(cleanOc) || cleanOc.includes(oOc))) return true;
+        // Alias canónicos oficiales TH (120267114302 · 71/14302)
+        if ((cleanOc.includes('14302') || cleanOc.includes('67114302') || cleanOc.includes('114099')) &&
+            (o.oc === OC_TH_ACTIVE || oOc.includes('14302') || (o.folio || '').includes('14302'))) return true;
+        // Alias canónicos oficiales GT (12026439784 · 43/9784)
+        if ((cleanOc.includes('9784') || cleanOc.includes('6439784') || cleanOc.includes('439784')) &&
+            (o.oc === OC_GT_ACTIVE || oOc.includes('9784') || (o.folio || '').includes('9784'))) return true;
+        // OCs históricas finiquitadas
+        if (cleanOc.includes('9713') && (o.oc?.includes('9713') || o.folio?.includes('9713'))) return true;
+        if (cleanOc.includes('14114') && (o.oc?.includes('14114') || o.folio?.includes('14114'))) return true;
         return false;
       });
 
+      // 2. Coincidencia por Folio de factura previamente registrada
+      if (!found && cleanFolio) {
+        found = orders.find((o) => {
+          if (!o || (o as any).isDeleted) return false;
+          return o.folio === cleanFolio || (o.invoices || []).some((i) => i.folio === cleanFolio);
+        });
+      }
+
+      // 3. Coincidencia por Contrarecibo
+      if (!found && cleanCr) {
+        found = orders.find((o) => {
+          if (!o || (o as any).isDeleted) return false;
+          return o.collection?.contrareciboNumber === cleanCr || (o.invoices || []).some((i) => i.collection?.contrareciboNumber === cleanCr);
+        });
+      }
+
+      // 4. Coincidencia por Importe exacto en facturas existentes
+      if (!found && amountCandidate && amountCandidate > 0) {
+        found = orders.find((o) => {
+          if (!o || (o as any).isDeleted) return false;
+          return (o.invoices || []).some((i) => Math.abs((i.financials?.invoiceTotal || 0) - amountCandidate) < 1);
+        });
+      }
+
       if (found) {
         setSelectedOrderId(found.id);
+        setOcAssignmentDoubt(false);
+        const deptTag = (found.client?.includes('TH') || (found.department || '').includes('TH')) ? 'TH (José Nava)' : 'GT (Lic. Evelia)';
+        setAutoAssignedOcTag(`🎯 OC Asignada en Automático: ${found.folio || found.oc} · ${deptTag}`);
       } else {
-        if (isOcDocKind) {
-          // Nueva Orden de Compra detectada -> Mantener en blanco para dar de alta nuevo expediente
-          setSelectedOrderId('');
-        } else {
-          // Fallback a la primera orden activa vigente para otros tipos de documentos
-          const defaultActive = orders.find((o) => o.oc === OC_TH_ACTIVE || o.oc === OC_GT_ACTIVE || !o.isClosedShort);
-          if (defaultActive) setSelectedOrderId(defaultActive.id);
-        }
+        // En caso de no detectar número unívoco de OC: NUNCA asignar a ciegas ni por omisión
+        setSelectedOrderId('');
+        setOcAssignmentDoubt(true);
+        setAutoAssignedOcTag(null);
       }
     }
 
@@ -1018,26 +1043,68 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                 🏢 Orden de Compra Destino
               </div>
 
+              {autoAssignedOcTag && (
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                  color: '#10b981',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}>
+                  <span>✓</span>
+                  <span>{autoAssignedOcTag}</span>
+                </div>
+              )}
+
+              {ocAssignmentDoubt && !selectedOrderId && (
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1.5px solid rgba(245, 158, 11, 0.5)',
+                  color: '#fbbf24',
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                }}>
+                  <div style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚠️</span>
+                    <span>¿A cuál Orden de Compra corresponde esta Factura?</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, opacity: 0.9, marginTop: 4 }}>
+                    No se detectó un número de OC inequívoco en el documento. Por favor selecciona a cuál orden asignarla:
+                  </div>
+                </div>
+              )}
+
               <select
                 value={selectedOrderId}
-                onChange={(e) => setSelectedOrderId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedOrderId(e.target.value);
+                  if (e.target.value) setOcAssignmentDoubt(false);
+                }}
                 style={{
                   width: '100%',
                   padding: '9px 12px',
                   borderRadius: 10,
-                  border: '1px solid var(--line)',
+                  border: ocAssignmentDoubt && !selectedOrderId ? '2px solid #f59e0b' : '1px solid var(--line)',
+                  boxShadow: ocAssignmentDoubt && !selectedOrderId ? '0 0 12px rgba(245, 158, 11, 0.35)' : 'none',
                   background: 'var(--paper)',
                   color: 'var(--ink)',
                   fontWeight: 800,
                   fontSize: 13,
                 }}
               >
-                <option value="">{ocKind === 'oc_providencia' ? '-- Crear como Nueva Orden o Seleccionar Existente --' : '-- Selecciona Orden de Compra --'}</option>
+                <option value="">{ocKind === 'oc_providencia' ? '-- Crear como Nueva Orden o Seleccionar Existente --' : '-- Selecciona Orden de Compra (Requerido) --'}</option>
                 {orders
                   .filter((o) => !o.isDeleted)
                   .map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.folio || o.oc} · {o.client?.includes('TH') ? 'TH (José Nava)' : 'GT (Evelia)'} · {(Number(o.totalKilograms) || 0).toLocaleString()} kg
+                      {o.folio || o.oc} · {o.client?.includes('TH') || (o.department || '').includes('TH') ? 'TH (José Nava)' : 'GT (Evelia)'} · {(Number(o.totalKilograms) || 0).toLocaleString()} kg
                     </option>
                   ))}
               </select>

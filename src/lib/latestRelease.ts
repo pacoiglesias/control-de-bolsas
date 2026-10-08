@@ -7,15 +7,14 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.16: Extracción Multipartida de Facturas CFDI, Detección Reactiva de Duplicados y Certificación Móvil/Excel',
+  version: 'v9.10.17: Conciliación Integral de Facturas TH (OC 120267114302), Asignación Canónica Inequívoca y Alertas Dinámicas',
   date: '08 de Octubre de 2026',
-  time: '07:35 AM',
-  summary: 'v9.10.16: Suma acumulativa exacta de todas las partidas de facturas CFDI (solución de la discrepancia de 500 kg vs 1,000 kg en Factura 6368 y 1,500 kg en Factura 6363); eliminación definitiva de colisiones entre SUBTOTAL y TOTAL mediante lookbehind negativo; extracción precisa de fecha de emisión fiscal; detección analítica en tiempo real de facturas duplicadas en el inspector de comprobantes; y certificación 100% de la app móvil y respaldos multi-hoja de Excel con 252 pruebas unitarias en 37 suites.',
+  time: '10:25 AM',
+  summary: 'v9.10.17: Conciliación oficial de las 3 facturas CFDI amparadas en la orden de Textil Hogar (OC 120267114302 · José Nava): F-6307 (1,986 kg), F-6334 (1,500 kg) y F-6363 (1,500 kg) para un total facturado de 4,986.00 kg ($248,701.68 con IVA) y 3,014.00 kg pendientes por surtir; dinamización 100% reactiva de la tarjeta de alertas prioritarias de Nava en el Dashboard (eliminación de textos fijos); erradicación de asignaciones silenciosas por omisión en el inspector de comprobantes con banner interactivo de confirmación en caso de duda.',
   highlights: [
-    '⚖️ Suma Integral de Partidas CFDI: Motor OCR actualizado para recorrer y sumar el 100% de los renglones de cantidad (KGM) de la factura (ej. 500 kg + 500 kg = 1,000 kg en folio 6368; 1,000 kg + 500 kg = 1,500 kg en folio 6363), respaldado por corroboración matemática contra el subtotal oficial ($43.00/kg).',
-    '🎯 Desacoplamiento Estricto de Subtotal y Total: Corrección de colisión donde la etiqueta SUBTOTAL era capturada como TOTAL; ahora el sistema lee independientemente Subtotal ($43,000.00) y Total con IVA 16% ($49,880.00).',
-    '📅 Extracción de Fecha de Emisión Fiscal: Lectura directa de fecha timbrada del CFDI (ej. 2026-10-07) evitando defaults involuntarios al día en curso.',
-    '🚨 Detección Reactiva de Facturas Duplicadas: El inspector evalúa en tiempo real si el folio o UUID ya existe en cualquier orden de compra del ERP, alertando visualmente al usuario y bloqueando dobles registros involuntarios.',
-    '📱 App Móvil & Respaldos Excel Certificados: Validación de navegación PWA móvil (MobileBottomBar con badges dinámicos y modales táctiles bottom-sheet) y respaldos Excel de 5 hojas (.xlsx) con 252 pruebas unitarias aprobadas al 100%.',
+    '🏢 Conciliación Oficial TH 120267114302: Registro exacto de las 3 facturas fiscales (F-6307 por 1,986 kg, F-6334 por 1,500 kg y F-6363 por 1,500 kg), acumulando 4,986.00 kg timbrados (62% de la meta de 8,000 kg) y $248,701.68 MXN amparados.',
+    '📊 Tarjeta de Dashboard 100% Dinámica: Erradicación del texto estático F-6307 en ExecutivePriorityAlerts; ahora calcula en tiempo real folios timbrados, kilos facturados, montos con IVA, porcentaje de avance y kilos faltantes por maquilar con Andrés (3,014 kg).',
+    '🎯 Asignación Inequívoca de OC al Subir Facturas: Motor OCR ampliado para leer con máxima precisión el campo CONDICIONES DE PAGO y patrones canónicos 120267114302 (TH) y 12026439784 (GT).',
+    '⚠️ Pregunta Interactiva en Caso de Duda: Si un documento no contiene una OC unívoca, el sistema suspende asignaciones por omisión (eliminando defaults ciegos a Evelia) y despliega un banner de consulta obligando a confirmar la orden destino.',
   ],
 };

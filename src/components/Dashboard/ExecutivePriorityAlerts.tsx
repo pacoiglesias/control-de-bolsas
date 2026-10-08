@@ -463,14 +463,34 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     const activeKg = Number(navaActiveOrder.totalKilograms) || 8000.0;
     const activeEntregados = totalKilosEntregados(navaActiveOrder);
     const activeFacturados = totalKilosFacturados(navaActiveOrder);
-    const activeRemanente = Math.max(0, activeKg - activeEntregados);
+    const validInvoices = (navaActiveOrder.invoices || []).filter(i => (i as any).status !== 'cancelled');
+    const foliosStr = validInvoices.map(i => `F-${i.folio} (${(Number(i.kilos) || 0).toLocaleString('es-MX')} kg)`).join(', ');
+    const totalFacturadoMonto = validInvoices.reduce((acc, i) => acc + (i.financials?.invoiceTotal || ((Number(i.kilos) || 0) * saleKg * (1 + ivaRate))), 0);
+    const pendientesFacturar = Math.max(0, activeEntregados - activeFacturados);
+    const faltantesEntrega = Math.max(0, activeKg - activeEntregados);
+
     navaBadge = '🏢 TH · José Nava';
     navaBadgeColor = '#3b82f6';
     navaOcLabel = `OC: ${navaActiveOrder.oc || '120267114302'} (${navaActiveOrder.folio || '71/14302'})`;
-    navaStatusLabel = activeEntregados > 0 ? '⚡ En Suministro' : '📦 En Maquila';
-    navaTitle = `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
-    navaSubtitle = `Nueva orden oficial de Textil Hogar (José Nava). F-6307 timbrada (1,986 kg en revisión). ${activeRemanente > 0 ? `${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.` : 'Surtido completo.'}`;
-    navaBtn = activeEntregados > activeFacturados ? '⚡ Facturar Entregas' : '📦 Ver OC 14302';
+    navaStatusLabel = pendientesFacturar > 0
+      ? `⚡ ${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg Entregados (Por Facturar)`
+      : activeFacturados > 0
+      ? `⚡ En Suministro (${Math.round(activeFacturados).toLocaleString('es-MX')} kg facturados)`
+      : activeEntregados > 0
+      ? '⚡ En Suministro'
+      : '📦 En Maquila';
+
+    navaTitle = pendientesFacturar > 0
+      ? `OC 71/14302 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg por facturar · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg)`
+      : activeFacturados > 0
+      ? `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Facturados (${Math.round((activeFacturados / activeKg) * 100)}%)`
+      : `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
+
+    navaSubtitle = validInvoices.length > 0
+      ? `Orden oficial de Textil Hogar (José Nava). ${foliosStr} timbradas por un total de ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg (${money(totalFacturadoMonto)} con IVA). ${faltantesEntrega > 0 ? `Restan ${faltantesEntrega.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.` : 'Surtido de 8,000 kg completo.'}`
+      : `Nueva orden oficial de Textil Hogar (José Nava). ${activeEntregados > 0 ? `${activeEntregados.toLocaleString('es-MX')} kg entregados.` : ''} ${faltantesEntrega.toLocaleString('es-MX')} kg en proceso de maquila con Andrés.`;
+
+    navaBtn = pendientesFacturar > 0 ? '⚡ Facturar Entregas en Patio' : '📦 Ver OC 14302';
     navaTargetOrderId = navaActiveOrder.id || 'oc-120267114302';
   }
 
