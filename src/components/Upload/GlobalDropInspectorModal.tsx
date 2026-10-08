@@ -63,6 +63,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
   const [saving, setSaving] = useState(false);
   /** Estado del guardado del archivo original en Storage */
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [autoApplyCountdown, setAutoApplyCountdown] = useState<number | null>(null);
+  const [autoApplyPaused, setAutoApplyPaused] = useState(false);
 
   // Analizar archivo en el montaje
   useEffect(() => {
@@ -718,6 +720,42 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
     }
   };
 
+  useEffect(() => {
+    if (
+      analyzing ||
+      autoApplyPaused ||
+      saving ||
+      !selectedOrderId ||
+      ocAssignmentDoubt ||
+      duplicateStatus?.isDuplicate
+    ) {
+      setAutoApplyCountdown(null);
+      return;
+    }
+
+    setAutoApplyCountdown(2);
+    const interval = setInterval(() => {
+      setAutoApplyCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleConfirmAndApply();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [
+    analyzing,
+    autoApplyPaused,
+    saving,
+    selectedOrderId,
+    ocAssignmentDoubt,
+    duplicateStatus?.isDuplicate,
+  ]);
+
   return (
     <Modal
       title={
@@ -1178,6 +1216,46 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               ) : null}
             </div>
           </div>
+
+          {/* BANNER DE AUTO-APLICACIÓN INTELIGENTE */}
+          {autoApplyCountdown !== null && !saving && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 16px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.22) 100%)',
+                border: '1.5px solid rgba(16, 185, 129, 0.45)',
+                color: '#047857',
+                fontWeight: 800,
+                fontSize: 12.5,
+                margin: '12px 0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>⚡</span>
+                <span>Auto-Aplicando al ERP y respaldando en la nube en {autoApplyCountdown}s...</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutoApplyPaused(true)}
+                style={{
+                  border: 'none',
+                  background: 'rgba(0, 0, 0, 0.12)',
+                  color: '#065f46',
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                ⏸️ Pausar para Revisar
+              </button>
+            </div>
+          )}
 
           {/* BOTONES DE ACCIÓN */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', borderTop: '1px solid var(--line)', paddingTop: 14 }}>

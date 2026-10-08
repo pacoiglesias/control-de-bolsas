@@ -16,6 +16,8 @@ import { money } from '../../lib/format';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { logAction } from '../../lib/logger';
 import { findDuplicateOrderFolio } from '../../lib/duplicateGuards';
+import { uploadDocument } from '../../lib/documentStorage';
+import { matchOrderCanonical } from '../../lib/autoDocumentPipeline';
 interface UniversalDocumentUploadModalProps {
   onClose: () => void;
 }
@@ -76,7 +78,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
   const toast = useToast();
 
   // Función Central de Ingesta Atómica por Factura
-  const processSingleXml = async (xmlData: ParsedInvoiceData, originName: string): Promise<ProcessedResultItem> => {
+  const processSingleXml = async (xmlData: ParsedInvoiceData, originName: string, originalFile?: File): Promise<ProcessedResultItem> => {
     try {
       if (xmlData.tipoComprobante === 'P' || xmlData.complementoPago) {
         return {
@@ -119,8 +121,8 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         },
       };
 
-      // 1. Buscar coincidencia en órdenes
-      const match = orders.find((o) => {
+      // 1. Buscar coincidencia canónica en órdenes
+      const match = matchOrderCanonical(orders, ocTarget, xmlData.folio, xmlData.total) || orders.find((o) => {
         if (!o) return false;
         if (ocTarget && isMatchingOc(o, ocTarget)) return true;
         if (xmlData.folio && (o.folio === xmlData.folio || (o.invoices || []).some((i) => i.folio === xmlData.folio))) return true;
@@ -190,7 +192,27 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
           deliveries: updatedDeliveries,
           status: isComplete ? 'facturado' : (prevStatus === 'pedido' ? 'facturado' : prevStatus),
           isClosedShort: isComplete ? true : (match.isClosedShort ?? false),
+          updatedAt: serverTimestamp(),
         });
+
+        if (originalFile) {
+          try {
+            await uploadDocument({
+              file: originalFile,
+              docKind: 'factura_cfdi',
+              folio: xmlData.folio || 'S/F',
+              ocNumber: match.oc || match.folio,
+              orderId: match.id,
+              orderFolio: match.folio || match.oc,
+              kilos: totalKilos,
+              total: xmlData.total || 0,
+              docDate: xmlData.fecha ? xmlData.fecha.split('T')[0] : new Date().toISOString().split('T')[0],
+              notes: `Factura CFDI #${xmlData.folio}${xmlData.uuid ? ' · UUID: ' + xmlData.uuid : ''}`,
+            });
+          } catch (storErr) {
+            console.warn('No se pudo respaldar en Storage:', storErr);
+          }
+        }
 
         await logAction(user?.email, 'Factura XML Vinculada', { orderId: match.id, folio: xmlData.folio, kilos: totalKilos });
 
@@ -818,7 +840,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         try {
           const text = await file.text();
           const xmlData = parseXmlInvoice(text);
-          const res = await processSingleXml(xmlData, file.name);
+          const res = await processSingleXml(xmlData, file.name, file);
           results.push(res);
         } catch (e: any) {
           results.push({
@@ -929,7 +951,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                 importe: kilosVal * 43,
               }],
             };
-            const res = await processSingleXml(parsedInvoiceFromPdf, file.name);
+            const res = await processSingleXml(parsedInvoiceFromPdf, file.name, file);
             results.push(res);
           } else {
             // Documento de remisión o báscula
