@@ -6,6 +6,17 @@ export { LATEST_RELEASE };
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   LATEST_RELEASE,
   {
+    version: 'v9.10.15: Blindaje Anti-Undefined en Firestore, Parser Resiliente de Facturas CFDI y Certificación Integral de Entregas',
+    date: '08 de Octubre de 2026',
+    time: '04:15 AM',
+    summary: 'v9.10.15: Erradicación definitiva del error Function updateDoc() called with invalid data. Unsupported field value: undefined mediante sanitización recursiva cleanUndefined() y wrappers atómicos safeUpdateDoc() / safeAddDoc(); soporte para facturas CFDI con conceptos multipartida y remisiones físicas de patio; auditoría y certificación de todas las órdenes de compra activas en Firestore.',
+    highlights: [
+      '🛡️ Sanitización Recursiva Anti-Undefined: Implementación de cleanUndefined() y safeUpdateDoc() para interceptar y purgar cualquier clave undefined antes de la invocación al SDK de Firestore.',
+      '🧾 Ingesta Robusta de Facturas y Remisiones: Soporte nativo para extracción de folios, UUIDs, kilos netos y montos sin colisiones ni valores indefinidos.',
+      '⚖️ Auditoría Centinela y Certificación de OCs: Verificación estricta de balance de kilos y estados financieros en órdenes activas de Textil Hogar y Grupo Textil Providencia.',
+    ],
+  },
+  {
     version: 'v9.10.14: Fase 2 — Índices Compuestos Firestore & Optimización Reactiva de Caché',
     date: '07 de Octubre de 2026',
     time: '08:30 PM',

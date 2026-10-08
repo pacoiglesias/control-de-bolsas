@@ -23,8 +23,9 @@ export async function exportToExcel() {
     if (o.isDeleted) return;
 
     (o.invoices || []).forEach((inv: any) => {
+      if (!inv) return;
       const cr = extractCr(inv, o);
-      const invTotal = round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * 43 * 1.16));
+      const invTotal = round2(inv.financials?.invoiceTotal ?? ((Number(inv.kilos) || 0) * 43 * 1.16));
       const subtotal = round2(inv.financials?.subtotal ?? (invTotal / 1.16));
       const iva = round2(invTotal - subtotal);
       const comision = round2(inv.financials?.commission ?? (subtotal * 0.08));
@@ -61,7 +62,7 @@ export async function exportToExcel() {
         FechaEmision: issueObj ? issueObj.toLocaleDateString('es-MX') : '',
         FechaVencimiento: dueObj ? dueObj.toLocaleDateString('es-MX') : 'En Revisión',
         DiagnosticoVencimiento: estatusVencimiento,
-        KilosBascula: inv.kilos || 0,
+        KilosBascula: Number(inv.kilos) || 0,
         Subtotal: subtotal,
         IVA_16: iva,
         TotalFactura_cIVA: invTotal,
@@ -81,11 +82,12 @@ export async function exportToExcel() {
   const maquilaRows: any[] = [];
   ordersSnap.docs.forEach((doc) => {
     const o = doc.data();
-    if (o.isDeleted) return;
+    if (!o || o.isDeleted) return;
 
     (o.deliveries || []).forEach((del: any, idx: number) => {
+      if (!del) return;
       const delDate = toDate(del.date);
-      const k = del.kilos || 0;
+      const k = Number(del.kilos) || 0;
       const unitCost = Number(o.customCostPrice || 38.00);
       const costo = round2(k * unitCost);
 
@@ -103,19 +105,22 @@ export async function exportToExcel() {
   });
 
   // 3. MOVIMIENTOS DE CAJA CHICA Y PAGOS
-  const cajaRows = expensesSnap.docs.map((doc) => {
-    const data = doc.data();
-    const dDate = toDate(data.date);
-    return {
-      Fecha: dDate ? dDate.toLocaleDateString('es-MX') : '',
-      Tipo: data.type === 'ingreso' ? '🟢 INGRESO' : '🔴 EGRESO',
-      Categoria: data.category || 'General',
-      Concepto: data.concept || '',
-      BeneficiarioProveedor: data.provider || '',
-      Monto: data.amount || 0,
-      Notas: data.notes || '',
-    };
-  });
+  const cajaRows = expensesSnap.docs
+    .map((doc) => {
+      const data = doc.data();
+      if (!data) return null;
+      const dDate = toDate(data.date);
+      return {
+        Fecha: dDate ? dDate.toLocaleDateString('es-MX') : '',
+        Tipo: data.type === 'ingreso' ? '🟢 INGRESO' : '🔴 EGRESO',
+        Categoria: data.category || 'General',
+        Concepto: data.concept || '',
+        BeneficiarioProveedor: data.provider || '',
+        Monto: Number(data.amount) || 0,
+        Notas: data.notes || '',
+      };
+    })
+    .filter(Boolean);
 
   // 4. BALANZA Y RESUMEN EJECUTIVO
   const totalCarteraCrs = carteraRows.filter(r => r.Contrarecibo !== 'PENDIENTE').reduce((s, r) => s + r.TotalFactura_cIVA, 0);

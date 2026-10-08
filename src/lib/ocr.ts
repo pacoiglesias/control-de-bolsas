@@ -243,9 +243,11 @@ export function parseOcrData(text: string): OcrResult {
   // ─── 0.5 DETECCIÓN OFICIAL: Remisión Física / Orden de Entrega de Bolsas ────
   // Detecta remisiones impresas o selladas de entrega física:
   // "CLIENTE: GRUPO TEXTIL PROVIDENCIA", "OC: 12026114099" o "120267114302", tabla de bolsas y kilos
-  // (sin UUID/SAT fiscal ni tickets de báscula camionera)
+  const isCfdiInvoice = /CFDI|FOLIO\s*FISCAL|SELLO\s*DIGITAL|TIMBRE\s*FISCAL|Factura\s*[0-9]{3,8}/i.test(text);
+
   const isRemisionFisica =
     !provPayment &&
+    !isCfdiInvoice &&
     (/REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA/i.test(text) ||
      (/GRUPO\s*TEXTIL\s*PROVIDENCIA/i.test(text) &&
       (/CANTIDAD/i.test(text) || /DESCRIPCI[OÓ]N/i.test(text) || /SUB\s*TOTAL/i.test(text)) &&
@@ -536,26 +538,74 @@ export function parseOcrData(text: string): OcrResult {
     result.uuid = uuidMatch[1].trim().toUpperCase();
   }
 
-  // 4. Parse Kilos
-  const kilosMatch = text.match(/([\d,]+(?:\.\d+)?)\s*(?:KGM|KILOGRAMO|KG|KGS|KILOS)/i);
-  if (kilosMatch && kilosMatch[1]) {
-    result.kilos = parseFloat(kilosMatch[1].replace(/,/g, ''));
+  // 3.5 Parse Fecha de Emisión del CFDI
+  const fechaEmisionMatch =
+    text.match(/FECHA\s*Y\s*HORA\s*DE\s*EMISI[OÓ]N\s*(?:DE\s*CFDI)?\s*[:#]?\s*(\d{4}-\d{2}-\d{2})/i) ||
+    text.match(/FECHA\s*Y\s*HORA\s*DE\s*CERTIFICACI[OÓ]N\s*[:#]?\s*(\d{4}-\d{2}-\d{2})/i) ||
+    text.match(/\|(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}\|/) ||
+    text.match(/FECHA\s*[:#]?\s*(\d{4}-\d{2}-\d{2})/i);
+
+  if (fechaEmisionMatch && fechaEmisionMatch[1]) {
+    result.fecha = fechaEmisionMatch[1];
+  } else {
+    const fMatchDdmmyyyy = text.match(/FECHA\s*[:#]?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i);
+    if (fMatchDdmmyyyy && fMatchDdmmyyyy[1]) {
+      const parts = fMatchDdmmyyyy[1].split(/[/.-]/);
+      if (parts.length === 3) {
+        let year = parts[2];
+        if (year.length === 2) year = `20${year}`;
+        result.fecha = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
   }
 
-  // 5. Parse Subtotal y Total
-  const subTotalMatch = text.match(/SUBTOTAL\s*\$?\s*([\d,]+\.\d{2})/i);
+  // 4. Parse Kilos (SUMAR TODAS LAS PARTIDAS Y RENGLONES DEL CFDI)
+  const kgConceptMatches = [
+    ...text.matchAll(/([\d,]+(?:\.\d+)?)\s*(?:KGM\s*-\s*KILOGRAMO|KGM|KILOGRAMO|KG|KGS|KILOS)\b/gi),
+  ];
+
+  const parsedKilos = kgConceptMatches
+    .map((m) => parseFloat(m[1].replace(/,/g, '')))
+    .filter((k) => k > 0 && !isNaN(k));
+
+  if (parsedKilos.length > 0) {
+    result.kilos = Math.round(parsedKilos.reduce((a, b) => a + b, 0) * 100) / 100;
+  }
+
+  // 5. Parse Subtotal y Total (NUNCA confundir SUBTOTAL con TOTAL)
+  const subTotalMatch =
+    text.match(/SUBTOTAL\s*[:$]?\s*([\d,]+\.\d{2})/i) ||
+    text.match(/SUB\s*TOTAL\s*[:$]?\s*([\d,]+\.\d{2})/i);
   if (subTotalMatch && subTotalMatch[1]) {
     result.subTotal = parseFloat(subTotalMatch[1].replace(/,/g, ''));
   }
 
-  const totalMatch = text.match(/TOTAL\s*\$?\s*([\d,]+\.\d{2})/i);
+  // Lookbehind negativo para NUNCA capturar el "TOTAL" de "SUBTOTAL"
+  const totalMatch =
+    text.match(/(?<!SUB\s*|SUB)TOTAL\s*[:$]?\s*([\d,]+\.\d{2})/i) ||
+    text.match(/\bTOTAL\s*[:$]?\s*([\d,]+\.\d{2})/i);
   if (totalMatch && totalMatch[1]) {
-    result.total = parseFloat(totalMatch[1].replace(/,/g, ''));
-  } else {
-    const moneyMatches = [...text.matchAll(/\$\s*([\d,]+\.\d{2})/g)];
-    if (moneyMatches.length > 0) {
-      const amounts = moneyMatches.map(m => parseFloat(m[1].replace(/,/g, '')));
-      result.total = Math.max(...amounts);
+    const parsedTot = parseFloat(totalMatch[1].replace(/,/g, ''));
+    if (!result.subTotal || parsedTot >= result.subTotal) {
+      result.total = parsedTot;
+    }
+  }
+
+  if (result.subTotal && !result.total) {
+    result.total = Math.round(result.subTotal * 1.16 * 100) / 100;
+  } else if (result.total && !result.subTotal) {
+    result.subTotal = Math.round((result.total / 1.16) * 100) / 100;
+  }
+
+  // Corroboración analítica: Si el subtotal cuadra con tarifa oficial $43/kg
+  // y los kilos detectados fueron incompletos (ej. 500 kg detectados pero subtotal es 43,000 que equivale a 1,000 kg),
+  // asegurar el total amparado por el importe facturado.
+  if (result.subTotal && result.subTotal > 0) {
+    const kilosSegunSubtotal = Math.round((result.subTotal / 43.0) * 100) / 100;
+    if (!result.kilos || result.kilos <= 0) {
+      result.kilos = kilosSegunSubtotal;
+    } else if (kilosSegunSubtotal > result.kilos && Math.abs((result.kilos * 43) - result.subTotal) > 10) {
+      result.kilos = kilosSegunSubtotal;
     }
   }
 
@@ -588,7 +638,7 @@ export function parseOcrData(text: string): OcrResult {
     result.emisorNombre = 'ELEMENTAL DENIM';
   }
 
-  result.docKind = 'desconocido';
+  result.docKind = (result.uuid || /CFDI|Factura/i.test(text)) ? 'factura' : 'desconocido';
   return result;
 }
 

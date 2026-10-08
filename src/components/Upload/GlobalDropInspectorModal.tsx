@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from '../../lib/ocr';
@@ -321,8 +321,39 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
   // Orden seleccionada para mostrar impacto
   const selectedOrder = orders.find((o) => o.id === selectedOrderId);
 
+  // Detección analítica de duplicidad / estatus del documento en todo el ERP
+  const duplicateStatus = useMemo(() => {
+    if (!extractedFolio && !extractedUuid) return null;
+    const cleanFolio = extractedFolio?.trim().toUpperCase();
+    const cleanUuid = extractedUuid?.trim().toUpperCase();
+
+    for (const o of orders) {
+      if (!o || (o as any).isDeleted) continue;
+      const matchInv = (o.invoices || []).find((inv) => {
+        if (!inv) return false;
+        if (cleanFolio && inv.folio?.trim().toUpperCase() === cleanFolio) return true;
+        if (cleanUuid && inv.uuid?.trim().toUpperCase() === cleanUuid) return true;
+        return false;
+      });
+      if (matchInv) {
+        return {
+          isDuplicate: true,
+          order: o,
+          invoice: matchInv,
+          isSameOrder: o.id === selectedOrderId,
+        };
+      }
+    }
+    return { isDuplicate: false };
+  }, [orders, extractedFolio, extractedUuid, selectedOrderId]);
+
   // Acción de Confirmación y Aplicación Atómica
   const handleConfirmAndApply = async () => {
+    if (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate) {
+      triggerHaptic('error');
+      toast(`⚠️ La Factura #${extractedFolio} ya se encuentra registrada en la orden ${duplicateStatus.order?.folio || duplicateStatus.order?.oc}. No se duplicó.`, 'bad');
+      return;
+    }
     if (!selectedOrder) {
       if (ocKind === 'oc_providencia') {
         setSaving(true);
@@ -803,6 +834,55 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                 📊 Datos Extraídos del Documento
               </div>
 
+              {/* Banner de Validación Analítica: Duplicada vs Nueva */}
+              {docType === 'factura_cfdi' && duplicateStatus?.isDuplicate && (
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1.5px solid rgba(239, 68, 68, 0.4)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    color: '#f87171',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>🚨</span>
+                  <div>
+                    <div style={{ fontWeight: 900, fontSize: 12, color: '#ef4444' }}>
+                      FACTURA YA REGISTRADA / DUPLICADA
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, lineHeight: 1.4 }}>
+                      La Factura <strong>#{extractedFolio}</strong> ya está dada de alta en la orden{' '}
+                      <strong>{duplicateStatus.order?.folio || duplicateStatus.order?.oc}</strong> amparando{' '}
+                      <strong>{(duplicateStatus.invoice?.kilos || 0).toLocaleString('es-MX')} kg</strong> por{' '}
+                      <strong>{money(duplicateStatus.invoice?.financials?.invoiceTotal || 0)}</strong>.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {docType === 'factura_cfdi' && !duplicateStatus?.isDuplicate && extractedFolio && (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 11.5,
+                    color: '#10b981',
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>✨</span>
+                  <span>Factura Nueva · No registrada previamente en el ERP</span>
+                </div>
+              )}
+
               {imagePreviewUrl && (
                 <div style={{ textAlign: 'center', marginBottom: 4, background: 'var(--paper-sunk)', padding: 6, borderRadius: 10, border: '1px solid var(--line)' }}>
                   <img
@@ -962,32 +1042,54 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                   ))}
               </select>
 
-              {selectedOrder ? (
-                <div style={{ padding: '12px', borderRadius: 12, background: 'var(--paper-sunk)', border: '1px solid var(--line)', fontSize: 12, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 800, color: 'var(--ink)', marginBottom: 4 }}>
-                    📈 Impacto Operativo en {selectedOrder.folio || selectedOrder.oc}:
-                  </div>
-                  {docType === 'comprobante_pago' ? (
-                    <div style={{ color: '#10b981', fontWeight: 800 }}>
-                      • Pago aplicado: {money(extractedTotal)} (Ref: {detectedOcNumber || extractedFolio})
+              {selectedOrder ? (() => {
+                const totalKilos = Number(selectedOrder.totalKilograms) || 0;
+                const entKilos = (selectedOrder.deliveries || []).reduce((a, d) => a + (Number(d?.kilos) || 0), 0);
+                const facKilos = (selectedOrder.invoices || []).reduce((a, i) => a + (Number(i?.kilos) || 0), 0);
+                const pendFacturar = Math.max(0, entKilos - facKilos);
+
+                return (
+                  <div style={{ padding: '12px', borderRadius: 12, background: 'var(--paper-sunk)', border: '1px solid var(--line)', fontSize: 12, lineHeight: 1.55 }}>
+                    <div style={{ fontWeight: 800, color: 'var(--ink)', marginBottom: 6 }}>
+                      📈 Impacto Operativo en {selectedOrder.folio || selectedOrder.oc}:
                     </div>
-                  ) : (
-                    <>
-                      <div style={{ color: '#047857' }}>
-                        • Entregas / Kilos: +{extractedKilos.toLocaleString('es-MX')} kg
+                    {docType === 'comprobante_pago' ? (
+                      <div style={{ color: '#10b981', fontWeight: 800 }}>
+                        • Pago aplicado: {money(extractedTotal)} (Ref: {detectedOcNumber || extractedFolio})
                       </div>
-                      {docType === 'factura_cfdi' && (
-                        <div style={{ color: '#2563eb' }}>
-                          • Kilos facturados: +{extractedKilos.toLocaleString('es-MX')} kg ({money(extractedTotal || extractedKilos * 43 * 1.16)})
+                    ) : (
+                      <>
+                        <div style={{ color: 'var(--ink-soft)' }}>
+                          • Meta autorizada: <strong>{totalKilos.toLocaleString('es-MX')} kg</strong>
                         </div>
-                      )}
-                      <div style={{ color: 'var(--ink-soft)', marginTop: 4 }}>
-                        • Cumplimiento meta: {selectedOrder.totalKilograms ? ((extractedKilos / Number(selectedOrder.totalKilograms)) * 100).toFixed(1) : 0}% de avance
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : ocKind === 'oc_providencia' ? (
+                        <div style={{ color: '#047857' }}>
+                          • Báscula entregada: <strong>{entKilos.toLocaleString('es-MX')} kg</strong> · Ya facturados: <strong>{facKilos.toLocaleString('es-MX')} kg</strong>
+                        </div>
+                        <div style={{ color: '#d97706', fontWeight: 700 }}>
+                          • Pendiente de facturar en patio: <strong>{pendFacturar.toLocaleString('es-MX')} kg</strong>
+                        </div>
+                        {docType === 'factura_cfdi' && (
+                          <div style={{ color: '#2563eb', fontWeight: 800, marginTop: 4, background: 'rgba(37, 99, 235, 0.08)', padding: '6px 10px', borderRadius: 8 }}>
+                            • Esta Factura (#{extractedFolio}): <strong>+{extractedKilos.toLocaleString('es-MX')} kg</strong> ({money(extractedTotal || extractedKilos * 43 * 1.16)})
+                            {pendFacturar >= extractedKilos ? (
+                              <div style={{ color: '#047857', fontWeight: 700, fontSize: 11, marginTop: 2 }}>
+                                ✅ Cuadre exacto: Ampara {extractedKilos.toLocaleString('es-MX')} kg entregados pendientes de CFDI.
+                              </div>
+                            ) : (
+                              <div style={{ color: '#d97706', fontWeight: 700, fontSize: 11, marginTop: 2 }}>
+                                ℹ️ Se registrará entrega complementaria amparada por esta factura.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ color: 'var(--ink-faint)', marginTop: 4, fontSize: 11 }}>
+                          • Cumplimiento meta: {totalKilos ? (((facKilos + (docType === 'factura_cfdi' ? extractedKilos : 0)) / totalKilos) * 100).toFixed(1) : 0}% de avance
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })() : ocKind === 'oc_providencia' ? (
                 <div style={{ padding: '14px', borderRadius: 12, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.35)', fontSize: 12.5, lineHeight: 1.55 }}>
                   <div style={{ fontWeight: 900, color: '#047857', marginBottom: 6, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>✨</span>
@@ -1025,36 +1127,47 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               type="button"
               className="btn btn-primary"
               onClick={handleConfirmAndApply}
-              disabled={saving || (() => {
-                const isOc = ocKind === 'oc_providencia';
-                if (isOc) return !extractedFolio && extractedKilos <= 0;
-                if (!selectedOrderId) return true;
-                const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
-                if (kilosRequired && extractedKilos <= 0) return true;
-                if (docType === 'comprobante_pago' && extractedTotal <= 0) return true;
-                return false;
-              })()}
+              disabled={
+                saving ||
+                (docType === 'factura_cfdi' && !!duplicateStatus?.isDuplicate) ||
+                (() => {
+                  const isOc = ocKind === 'oc_providencia';
+                  if (isOc) return !extractedFolio && extractedKilos <= 0;
+                  if (!selectedOrderId) return true;
+                  const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
+                  if (kilosRequired && extractedKilos <= 0) return true;
+                  if (docType === 'comprobante_pago' && extractedTotal <= 0) return true;
+                  return false;
+                })()
+              }
               style={{
                 minHeight: 40,
                 padding: '8px 24px',
                 borderRadius: 10,
                 fontWeight: 900,
                 fontSize: 13,
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                background: (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate)
+                  ? '#64748b'
+                  : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 color: '#fff',
                 border: 'none',
-                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                boxShadow: (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate)
+                  ? 'none'
+                  : '0 4px 14px rgba(16, 185, 129, 0.4)',
+                cursor: (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate) ? 'not-allowed' : 'pointer',
               }}
             >
               {saving && uploadingFile
                 ? '☁️ Subiendo archivo...'
                 : saving
                   ? '⏳ Aplicando...'
-                  : (ocKind === 'oc_providencia' && !selectedOrderId)
-                    ? '✅ Crear Nueva Orden de Compra en el Sistema'
-                    : docType === 'comprobante_pago'
-                      ? '✅ Aplicar Pago al Sistema'
-                      : '✅ Confirmar y Aplicar al Sistema'}
+                  : (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate)
+                    ? '⚠️ Factura ya Registrada (Duplicada)'
+                    : (ocKind === 'oc_providencia' && !selectedOrderId)
+                      ? '✅ Crear Nueva Orden de Compra en el Sistema'
+                      : docType === 'comprobante_pago'
+                        ? '✅ Aplicar Pago al Sistema'
+                        : '✅ Confirmar y Aplicar al Sistema'}
             </button>
           </div>
         </div>

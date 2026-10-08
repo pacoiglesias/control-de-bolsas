@@ -225,5 +225,61 @@ EDE1902136T2
     expect(res.conceptos?.[6].codigo).toBe('ENBO000007-SC');
     expect(res.conceptos?.[6].cantidad).toBe(500);
   });
+
+  // Documento 7: Factura CFDI 6363 con 2 partidas (1,000 kg + 500 kg = 1,500 kg)
+  const DOC7_FACTURA_6363 = `
+ELEMENTAL DENIM EDE1902136T2
+Factura 6363
+FOLIO FISCAL (UUID) 43E53F15-865E-4FF7-A2F3-2A47AB99F8B7
+FECHA Y HORA DE EMISIÓN DE CFDI 2026-10-06T12:12:09
+CLIENTE GRUPO TEXTIL PROVIDENCIA GTP930115PU1
+CONCEPTOS
+Cantidad Unidad Descripción Precio Unitario Objeto Imp. Importe
+ 1,000.00 KGM - KILOGRAMO EGBO000113-SC BULTO 48 + 17 + 17 *80 CM $ 43.00 02 $ 43,000.00
+ 500.00 KGM - KILOGRAMO ENBO000007-SC BOLSA POLIETILENO 50 CM x 55 CM $ 43.00 02 $ 21,500.00
+CONDICIONES DE PAGO OC 120267114302
+SUBTOTAL $ 64,500.00
+TRASLADO IVA TASA 0.160000 $ 10,320.00
+TOTAL $ 74,820.00
+  `;
+
+  it('procesa Factura 6363 sumando TODAS las partidas: 1,000 + 500 = 1,500 kg (no solo el primer renglón)', () => {
+    const res = parseOcrData(DOC7_FACTURA_6363);
+    expect(res.folio).toBe('6363');
+    expect(res.uuid).toBe('43E53F15-865E-4FF7-A2F3-2A47AB99F8B7');
+    expect(res.ocNumber).toBe('120267114302');
+    expect(res.fecha).toBe('2026-10-06');
+    expect(res.kilos).toBe(1500);
+    expect(res.subTotal).toBe(64500);
+    expect(res.total).toBe(74820);
+  });
+
+  // Documento 8: Factura CFDI 6368 con 2 partidas de 500 kg cada una = 1,000 kg total
+  const DOC8_FACTURA_6368 = `
+ELEMENTAL DENIM EDE1902136T2
+Factura 6368
+FOLIO FISCAL (UUID) C87994D1-096C-4581-9F31-5079148AE13C
+FECHA Y HORA DE EMISIÓN DE CFDI 2026-10-07T10:23:35
+CLIENTE GRUPO TEXTIL PROVIDENCIA GTP930115PU1
+CONCEPTOS
+Cantidad Unidad Descripción Precio Unitario Objeto Imp. Importe
+ 500.00 KGM - KILOGRAMO EGBO000018-SC BOLSA POLIETILENO 1.00 M X 1.15 M $ 43.00 02 $ 21,500.00
+ 500.00 KGM - KILOGRAMO EGBO000095-SC BOLSA POLIETILENO 120X 125 CM $ 43.00 02 $ 21,500.00
+CONDICIONES DE PAGO OC 12026439784
+SUBTOTAL $ 43,000.00
+TRASLADO IVA TASA 0.160000 $ 6,880.00
+TOTAL $ 49,880.00
+  `;
+
+  it('procesa Factura 6368 sumando 500 + 500 = 1,000 kg, subtotal 43,000 y total 49,880', () => {
+    const res = parseOcrData(DOC8_FACTURA_6368);
+    expect(res.folio).toBe('6368');
+    expect(res.uuid).toBe('C87994D1-096C-4581-9F31-5079148AE13C');
+    expect(res.ocNumber).toBe('12026439784');
+    expect(res.fecha).toBe('2026-10-07');
+    expect(res.kilos).toBe(1000);
+    expect(res.subTotal).toBe(43000);
+    expect(res.total).toBe(49880);
+  });
 });
 

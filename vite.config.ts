@@ -31,6 +31,8 @@ export default defineConfig(({ mode }) => {
         name: 'Control Bolsas ERP',
         short_name: 'ERP Providencia',
         description: 'ERP de Control de Bolsas y Facturación',
+        lang: 'es-MX',
+        start_url: '/',
         theme_color: '#09090b',
         background_color: '#ffffff',
         display: 'standalone',

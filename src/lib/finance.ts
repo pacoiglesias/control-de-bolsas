@@ -357,7 +357,24 @@ export function agingBucket(due: Date | null | undefined): AgingKey {
 }
 
 export function getOrderSummary(o: PurchaseOrder) {
-  const invoices: Invoice[] = o.invoices && o.invoices.length > 0 ? o.invoices : [];
+  if (!o) {
+    return {
+      kilosDelivered: 0,
+      kilosInvoiced: 0,
+      invoiceTotal: 0,
+      saleTotal: 0,
+      commission: 0,
+      netCashFlow: 0,
+      tradeMargin: 0,
+      realizedProfit: 0,
+      paidAmount: 0,
+      status: 'pedido' as const,
+      maxDaysLate: null,
+      invoices: [],
+      deliveries: [],
+    };
+  }
+  const invoices: Invoice[] = (o.invoices || []).filter(Boolean);
   // Esta sintesis de factura es para expedientes VIEJOS migrados sin
   // trazabilidad de facturas, donde "tener folio" era la unica senal
   // disponible de que ya se habia facturado. Pero si el expediente tiene
@@ -380,10 +397,10 @@ export function getOrderSummary(o: PurchaseOrder) {
     });
   }
 
-  const deliveries: Delivery[] = o.deliveries && o.deliveries.length > 0 ? o.deliveries : [];
+  const deliveries: Delivery[] = (o.deliveries || []).filter(Boolean);
   // Si no hay entregas, no asumimos que entregaron los kilos pedidos. Asumimos como minimo lo facturado.
   if (deliveries.length === 0 && invoices.length > 0) {
-    const fallbackKilos = invoices.reduce((acc, i) => acc + (i.kilos || 0), 0);
+    const fallbackKilos = invoices.reduce((acc, i) => acc + (i ? Number(i.kilos || 0) : 0), 0);
     if (fallbackKilos > 0) {
       deliveries.push({
         id: o.id + '-del0',
@@ -394,13 +411,14 @@ export function getOrderSummary(o: PurchaseOrder) {
   }
 
   const rawDelivered = deliveries.reduce((a, d) => {
+    if (!d) return a;
     if (d.items && d.items.length > 0) {
-      return a + d.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+      return a + d.items.reduce((sum, it) => sum + Number(it?.quantity || 0), 0);
     }
     return a + Number(d.kilos || 0);
   }, 0);
 
-  const totalInvoicedKilos = invoices.reduce((acc, i) => acc + Number(i.kilos || 0), 0);
+  const totalInvoicedKilos = invoices.reduce((acc, i) => acc + (i ? Number(i.kilos || 0) : 0), 0);
   const kilosDelivered = round2(Math.max(rawDelivered, totalInvoicedKilos));
   
   let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
@@ -410,6 +428,7 @@ export function getOrderSummary(o: PurchaseOrder) {
   let maxDaysLate: number | null = null;
 
   for (const i of invoices) {
+    if (!i) continue;
     kilosInvoiced = kilosInvoiced.plus(Number(i.kilos || 0));
     invoiceTotal = invoiceTotal.plus(i.financials?.invoiceTotal || 0);
     saleTotal = saleTotal.plus(i.financials?.saleTotal || 0);
