@@ -1,4 +1,5 @@
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { safeUpdateDoc } from './safeFirestore';
 import { db, PATHS } from './firebase';
 import { camposInvoices } from './invoiceOps';
 import type { PurchaseOrder } from './types';
@@ -84,7 +85,7 @@ export async function processExcelImport(file: File): Promise<ExcelImportSummary
               // camposInvoices() mantiene invoiceStatuses en sincronía con
               // invoices, aunque esta importación no toca creditCycle.status
               // hoy -- blindaje ante cambios futuros en este archivo.
-              await updateDoc(docRef, {
+              await safeUpdateDoc(docRef, {
                 folio: order.folio,
                 ...camposInvoices(currentInvoices),
               });

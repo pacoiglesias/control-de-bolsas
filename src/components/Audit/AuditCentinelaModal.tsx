@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Modal } from '../ui';
 import { money } from '../../lib/format';
 import type { AuditHealthReport, AuditAnomaly } from '../../lib/auditEngine';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { triggerHaptic } from '../../lib/hapticEngine';
@@ -58,7 +59,7 @@ export function AuditCentinelaModal({
     try {
       if (anomaly.autoFixType === 'align_oc_to_deliveries' && anomaly.orderId) {
         const orderRef = doc(db, PATHS.orders, anomaly.orderId);
-        await updateDoc(orderRef, {
+        await safeUpdateDoc(orderRef, {
           isClosedShort: true,
           updatedAt: Timestamp.now(),
         });

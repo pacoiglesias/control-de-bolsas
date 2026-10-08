@@ -23,7 +23,6 @@ import {
 } from 'firebase/storage';
 import {
   collection,
-  addDoc,
   getDocs,
   deleteDoc,
   doc,
@@ -31,8 +30,8 @@ import {
   orderBy,
   where,
   Timestamp,
-  updateDoc,
 } from 'firebase/firestore';
+import { safeUpdateDoc, safeAddDoc } from './safeFirestore';
 import { storage, db } from './firebase';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -149,7 +148,7 @@ export async function uploadDocument(opts: UploadDocumentOptions): Promise<Store
     mimeType: file.type || 'application/pdf',
   };
 
-  const docRef = await addDoc(collection(db, DOCS_COLLECTION), meta);
+  const docRef = await safeAddDoc(collection(db, DOCS_COLLECTION), meta);
 
   return { id: docRef.id, ...meta };
 }
@@ -195,7 +194,7 @@ export async function updateStoredDocument(
   docId: string,
   updates: Partial<Pick<StoredDocument, 'folio' | 'notes' | 'orderId' | 'orderFolio' | 'kilos' | 'total' | 'docDate'>>,
 ): Promise<void> {
-  await updateDoc(doc(db, DOCS_COLLECTION, docId), updates);
+  await safeUpdateDoc(doc(db, DOCS_COLLECTION, docId), updates);
 }
 
 // ─── Eliminar documento ───────────────────────────────────────────────────────

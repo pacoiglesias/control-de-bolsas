@@ -1,5 +1,6 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
-import { doc, writeBatch, Timestamp, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, writeBatch, Timestamp, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { useOrdersContext } from '../context/OrdersContext';
@@ -473,7 +474,7 @@ export default function AuditSync() {
               targetInv.folio = value.trim();
             }
           }
-          await updateDoc(orderRef, {
+          await safeUpdateDoc(orderRef, {
             ...camposInvoices(invoices),
             folio: field === 'folio' ? value.trim() : order.folio,
             oc: field === 'oc' ? value.trim() : order.oc,
@@ -482,19 +483,19 @@ export default function AuditSync() {
           });
         } else {
           if (field === 'contrarecibo') {
-            await updateDoc(orderRef, {
+            await safeUpdateDoc(orderRef, {
               'collection.contrareciboNumber': value.trim().toUpperCase(),
               'collection.contrareciboDate': value.trim() ? Timestamp.now() : null,
               updatedAt: serverTimestamp(),
             });
           } else if (field === 'estatus') {
-            await updateDoc(orderRef, {
+            await safeUpdateDoc(orderRef, {
               status: value,
               'creditCycle.status': value,
               updatedAt: serverTimestamp(),
             });
           } else if (field === 'folio' || field === 'oc') {
-            await updateDoc(orderRef, {
+            await safeUpdateDoc(orderRef, {
               folio: field === 'folio' ? value.trim() : order.folio,
               oc: field === 'oc' ? value.trim() : order.oc,
               updatedAt: serverTimestamp(),
@@ -522,13 +523,13 @@ export default function AuditSync() {
             return inv;
           });
 
-          await updateDoc(orderRef, {
+          await safeUpdateDoc(orderRef, {
             ...camposInvoices(updatedInvoices),
             totalKilograms: numKilos,
             updatedAt: serverTimestamp(),
           });
         } else {
-          await updateDoc(orderRef, {
+          await safeUpdateDoc(orderRef, {
             totalKilograms: numKilos,
             updatedAt: serverTimestamp(),
           });
@@ -560,13 +561,13 @@ export default function AuditSync() {
             paidAmount: row.totalFactura,
           };
         }
-        await updateDoc(orderRef, {
+        await safeUpdateDoc(orderRef, {
           ...camposInvoices(invoices),
           status: 'paid',
           updatedAt: serverTimestamp(),
         });
       } else {
-        await updateDoc(orderRef, {
+        await safeUpdateDoc(orderRef, {
           status: 'paid',
           'creditCycle.status': 'paid',
           'collection.paidAmount': row.totalFactura,

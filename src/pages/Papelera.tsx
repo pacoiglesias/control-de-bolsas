@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { collection, query, where, limit, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, doc, deleteField } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -48,7 +49,7 @@ export default function Papelera() {
 
     setBusyId(item.id);
     try {
-      await updateDoc(doc(db, PATHS.orders, item.id), {
+      await safeUpdateDoc(doc(db, PATHS.orders, item.id), {
         isDeleted: deleteField(),
         deletedAt: deleteField(),
         deletedBy: deleteField(),

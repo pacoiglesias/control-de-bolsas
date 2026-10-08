@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { confirmDialog } from '../../lib/confirmDialog';
 import type { PurchaseOrder } from '../../lib/types';
@@ -240,7 +241,7 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
             });
             if (!ok) return;
             try {
-              await updateDoc(doc(db, PATHS.orders, order.id), { isClosedShort: false });
+              await safeUpdateDoc(doc(db, PATHS.orders, order.id), { isClosedShort: false });
               toast(`🔓 OC ${order.folio || order.oc} reabierta`, 'ok');
             } catch (err: any) {
               toast(`Error al reabrir: ${err.message}`, 'bad');
@@ -251,7 +252,7 @@ export const OrderContextMenu: React.FC<OrderContextMenuProps> = ({
             });
             if (!ok) return;
             try {
-              await updateDoc(doc(db, PATHS.orders, order.id), { isClosedShort: true });
+              await safeUpdateDoc(doc(db, PATHS.orders, order.id), { isClosedShort: true });
               toast(`🔒 OC ${order.folio || order.oc} cerrada exitosamente`, 'ok');
             } catch (err: any) {
               toast(`Error al cerrar OC: ${err.message}`, 'bad');

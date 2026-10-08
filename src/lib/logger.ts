@@ -1,4 +1,5 @@
-import { addDoc, collection, serverTimestamp, updateDoc, type DocumentReference } from 'firebase/firestore';
+import { collection, serverTimestamp, type DocumentReference } from 'firebase/firestore';
+import { safeUpdateDoc, safeAddDoc } from './safeFirestore';
 import { db } from './firebase';
 
 export async function logError(error: unknown, context?: Record<string, unknown>) {
@@ -15,7 +16,7 @@ export async function logError(error: unknown, context?: Record<string, unknown>
       }
     }
 
-    await addDoc(collection(db, 'error_logs'), {
+    await safeAddDoc(collection(db, 'error_logs'), {
       message,
       stack,
       context: safeContext,
@@ -37,7 +38,7 @@ export async function logAction(userEmail: string | undefined | null, action: st
     // firestore.rules compara ambos con .lower() y una mayuscula de mas basta
     // para que la escritura de bitacora sea rechazada. Como el catch de abajo
     // se traga el error, el fallo seria invisible.
-    await addDoc(collection(db, 'system_logs'), {
+    await safeAddDoc(collection(db, 'system_logs'), {
       user: userEmail.toLowerCase().trim(),
       action,
       details,
@@ -63,7 +64,7 @@ export async function safeDeleteDoc(userEmail: string | undefined | null, docRef
   });
 
   // 2. Ejecutar el soft delete
-  await updateDoc(docRef, {
+  await safeUpdateDoc(docRef, {
     isDeleted: true,
     deletedAt: serverTimestamp(),
     deletedBy: userEmail

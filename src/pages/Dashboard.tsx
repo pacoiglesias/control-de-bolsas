@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
-import { doc, getDoc, collection, addDoc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { db, PATHS, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
@@ -284,7 +285,7 @@ export default function Dashboard() {
       invoices[invIndex].creditCycle.status = 'collected';
       invoices[invIndex].collection = { ...invoices[invIndex].collection, collectedAt: Timestamp.now() };
 
-      await updateDoc(orderRef, { invoices });
+      await safeUpdateDoc(orderRef, { invoices });
 
       await addDoc(collection(db, PATHS.expenses), {
         date: Timestamp.now(),

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { money, fmtDate, toDate } from '../../lib/format';
 import { extractCr } from '../../lib/finance';
@@ -112,7 +113,7 @@ export default function RepMonitorView({ orders }: { orders: PurchaseOrder[] }) 
       });
 
       const orderRef = doc(db, PATHS.orders, editingItem.orderId);
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         invoices: updatedInvoices,
       });
 

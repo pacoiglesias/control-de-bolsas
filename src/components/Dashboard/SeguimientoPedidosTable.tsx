@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { Card, Empty } from '../ui';
 import { InlineQuickEdit } from '../ui/InlineQuickEdit';
@@ -52,7 +53,7 @@ export function SeguimientoPedidosTable({
         },
       }));
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         'collection.contrareciboNumber': cleanCr,
         invoices: updatedInvoices,
         updatedAt: serverTimestamp(),
@@ -83,7 +84,7 @@ export function SeguimientoPedidosTable({
         ];
       }
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         invoices: updatedInvoices,
         updatedAt: serverTimestamp(),
       });
@@ -120,7 +121,7 @@ export function SeguimientoPedidosTable({
 
     try {
       const orderRef = doc(db, PATHS.orders, order.id);
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         isClosedShort: true,
         updatedAt: serverTimestamp(),
       });

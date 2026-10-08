@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { getOrderSummary, inferDepartment } from '../lib/finance';
 import { kilos as fmtKilos } from '../lib/format';
@@ -77,7 +78,7 @@ export function DeliveryDueBanner({ orders }: { orders: PurchaseOrder[] }) {
     e.stopPropagation();
     triggerHaptic('light');
     try {
-      await updateDoc(doc(db, PATHS.orders, order.id), {
+      await safeUpdateDoc(doc(db, PATHS.orders, order.id), {
         isClosedShort: true,
         status: (order.invoices && order.invoices.length > 0) ? 'facturado' : 'completado',
       });

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { motion } from 'framer-motion';
 import { db, PATHS } from '../lib/firebase';
 import { useProducts } from '../hooks/useProducts';
@@ -534,7 +535,7 @@ function EditProductDrawer({ product, onClose }: { product: any; onClose: () => 
     }
     setBusy(true);
     try {
-      await updateDoc(doc(db, PATHS.products, product.id), {
+      await safeUpdateDoc(doc(db, PATHS.products, product.id), {
         code: form.code.trim(),
         description: form.description.trim(),
         unit: form.unit.trim(),

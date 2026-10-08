@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { db, PATHS } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { logAction } from '../lib/logger';
@@ -124,14 +125,14 @@ export function QuickCrModal({ order, invoice, onClose }: QuickCrModalProps) {
             creditCycle: {
               ...inv.creditCycle,
               status: inv.creditCycle?.status === 'pedido' || inv.creditCycle?.status === 'facturado' ? 'pending' : inv.creditCycle?.status || 'pending',
-              dueDate: parsedDueDate || inv.creditCycle?.dueDate,
+              ...(parsedDueDate ? { dueDate: parsedDueDate } : (inv.creditCycle?.dueDate ? { dueDate: inv.creditCycle.dueDate } : {})),
             }
           };
         }
         return inv;
       });
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         'collection.contrareciboNumber': cleanCr,
         'collection.contrareciboDate': Timestamp.now(),
         'creditCycle.status': order.creditCycle?.status === 'pedido' || order.creditCycle?.status === 'facturado' ? 'pending' : order.creditCycle?.status || 'pending',

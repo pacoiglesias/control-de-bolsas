@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { useOrdersContext } from '../../context/OrdersContext';
@@ -230,7 +231,7 @@ export const ProactiveCrHubModal: React.FC<ProactiveCrHubModalProps> = ({ isOpen
         updatePayload['creditCycle.status'] = 'pending';
       }
 
-      await updateDoc(orderRef, updatePayload);
+      await safeUpdateDoc(orderRef, updatePayload);
 
       confetti({ particleCount: 40, spread: 50, origin: { y: 0.7 } });
       sound.playChaChing();

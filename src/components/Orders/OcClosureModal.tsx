@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, updateDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
+import { doc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { PurchaseOrder, OcClosureAudit } from '../../lib/types';
 import { kilos, money } from '../../lib/format';
@@ -79,7 +80,7 @@ const OcClosureModalContent: React.FC<OcClosureModalContentProps> = ({ order, on
       const orderRef = doc(db, PATHS.orders, order.id);
 
       if (reopen) {
-        await updateDoc(orderRef, {
+        await safeUpdateDoc(orderRef, {
           isClosedShort: false,
           closureAudit: deleteField(),
           updatedAt: serverTimestamp(),
@@ -102,7 +103,7 @@ const OcClosureModalContent: React.FC<OcClosureModalContentProps> = ({ order, on
           closureNotes: notes.trim() || '',
         };
 
-        await updateDoc(orderRef, {
+        await safeUpdateDoc(orderRef, {
           isClosedShort: true,
           closureAudit: closureData,
           updatedAt: serverTimestamp(),

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { doc, serverTimestamp, updateDoc, writeBatch, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, writeBatch, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, PATHS, storage } from '../lib/firebase';
@@ -309,7 +310,7 @@ export default function Settings() {
 
   async function tocarConfig() {
     try {
-      await updateDoc(doc(db, PATHS.config, PATHS.configFinancials), { updatedAt: serverTimestamp() });
+      await safeUpdateDoc(doc(db, PATHS.config, PATHS.configFinancials), { updatedAt: serverTimestamp() });
     } catch {
       // Document may not exist yet
     }

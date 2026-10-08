@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { money } from '../../lib/format';
 import { useToast } from '../../context/ToastContext';
@@ -123,7 +124,7 @@ export const SmartPasteCrModal: React.FC<SmartPasteCrModalProps> = ({
         return inv;
       });
 
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         'collection.contrareciboNumber': parsedData.cr,
         invoices: updatedInvoices,
         updatedAt: serverTimestamp(),

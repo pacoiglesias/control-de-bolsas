@@ -10,11 +10,19 @@ import { money } from '../../lib/format';
 import { round2 } from '../../lib/finance';
 import { sound } from '../../lib/sounds';
 import { triggerHaptic } from '../../lib/hapticEngine';
-import { doc, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
+import { doc, collection, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc, safeAddDoc } from '../../lib/safeFirestore';
+import { cleanUndefined } from '../../lib/cleanUndefined';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, Delivery } from '../../lib/types';
 import { OC_TH_ACTIVE, OC_GT_ACTIVE } from '../../lib/constants';
 import { uploadDocument, type StoredDocKind } from '../../lib/documentStorage';
+
+function toSafeTimestamp(dateStr?: string): Timestamp {
+  if (!dateStr) return Timestamp.now();
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? Timestamp.now() : Timestamp.fromDate(d);
+}
 
 interface GlobalDropInspectorModalProps {
   file: File;
@@ -345,7 +353,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
           };
-          const newDocRef = await addDoc(collection(db, PATHS.orders), newOrderDoc);
+          const newDocRef = await safeAddDoc(collection(db, PATHS.orders), newOrderDoc);
           // Guardar PDF original en Firebase Storage
           try {
             setUploadingFile(true);
@@ -395,7 +403,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           (detectedOcNumber && i.collection?.transferRef === detectedOcNumber) ||
           (extractedTotal > 0 && Math.abs((i.financials?.invoiceTotal || 0) - extractedTotal) < 1)
         );
-        const payTs = extractedDate ? Timestamp.fromDate(new Date(extractedDate)) : Timestamp.now();
+        const payTs = toSafeTimestamp(extractedDate);
         if (invIdx !== -1 && updatedInvoices[invIdx]) {
           const inv = updatedInvoices[invIdx];
           inv.collection = {
@@ -411,8 +419,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           };
         }
 
-        await updateDoc(orderRef, {
-          invoices: updatedInvoices,
+        await safeUpdateDoc(orderRef, {
+          invoices: cleanUndefined(updatedInvoices),
           'collection.paidAmount': extractedTotal,
           'collection.paidAt': payTs,
           'collection.transferRef': detectedOcNumber || extractedFolio,
@@ -445,27 +453,34 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         triggerHaptic('cash');
         toast(`✅ Pago ${detectedOcNumber || extractedFolio} de ${money(extractedTotal)} aplicado con éxito a la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
       } else if (docType === 'factura_cfdi') {
+        const safeDate = toSafeTimestamp(extractedDate);
+        const invFolio = extractedFolio?.trim() || 'S/F';
+        const numKilos = Number(extractedKilos) || 0;
+        const sellPrice = selectedOrder.customSellPrice || 43;
+        const subtotal = extractedSubtotal || round2(numKilos * sellPrice);
+        const total = extractedTotal || round2(numKilos * sellPrice * 1.16);
+
         const newInvoice: Invoice = {
           id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          folio: extractedFolio || 'S/F',
-          uuid: extractedUuid || undefined,
-          kilos: extractedKilos,
+          folio: invFolio,
+          ...(extractedUuid?.trim() ? { uuid: extractedUuid.trim() } : {}),
+          kilos: numKilos,
           financials: {
-            salePricePerKg: selectedOrder.customSellPrice || 43,
+            salePricePerKg: sellPrice,
             costPricePerKg: 38,
-            saleTotal: extractedSubtotal || round2(extractedKilos * (selectedOrder.customSellPrice || 43)),
-            invoiceTotal: extractedTotal || round2(extractedKilos * (selectedOrder.customSellPrice || 43) * 1.16),
-            costTotal: round2(extractedKilos * 38),
-            commission: round2(extractedSubtotal * 0.08),
-            netCashFlow: round2(extractedTotal - (extractedKilos * 38) - (extractedSubtotal * 0.08)),
-            tradeMargin: round2(extractedSubtotal - (extractedKilos * 38)),
+            saleTotal: subtotal,
+            invoiceTotal: total,
+            costTotal: round2(numKilos * 38),
+            commission: round2(subtotal * 0.08),
+            netCashFlow: round2(total - (numKilos * 38) - (subtotal * 0.08)),
+            tradeMargin: round2(subtotal - (numKilos * 38)),
           },
           creditCycle: {
             status: 'pending',
-            issueDate: Timestamp.fromDate(new Date(extractedDate)),
+            issueDate: safeDate,
           },
           orderId: selectedOrder.id,
-          oc: selectedOrder.oc || selectedOrder.folio,
+          oc: selectedOrder.oc || selectedOrder.folio || '',
         };
 
         const existingInvoices = selectedOrder.invoices || [];
@@ -481,12 +496,12 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         const existingDeliveries = selectedOrder.deliveries || [];
         const updatedDeliveries = [...existingDeliveries];
 
-        if (extractedKilos > 0) {
+        if (numKilos > 0) {
           updatedDeliveries.push({
             id: `del-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            date: Timestamp.fromDate(new Date(extractedDate)),
-            kilos: extractedKilos,
-            notes: `Entrega física amparada por Factura #${newInvoice.folio} (${extractedKilos.toLocaleString('es-MX')} kg)`,
+            date: safeDate,
+            kilos: numKilos,
+            notes: `Entrega física amparada por Factura #${newInvoice.folio} (${numKilos.toLocaleString('es-MX')} kg)`,
             invoiced: true,
             invoiceId: newInvoice.id,
             docType: 'factura',
@@ -494,9 +509,9 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           });
         }
 
-        await updateDoc(orderRef, {
-          invoices: [...existingInvoices, newInvoice],
-          deliveries: updatedDeliveries,
+        await safeUpdateDoc(orderRef, {
+          invoices: cleanUndefined([...existingInvoices, newInvoice]),
+          deliveries: cleanUndefined(updatedDeliveries),
           updatedAt: Timestamp.now(),
         });
 
@@ -510,8 +525,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
             ocNumber: selectedOrder.oc || selectedOrder.folio,
             orderId: selectedOrder.id,
             orderFolio: selectedOrder.folio || selectedOrder.oc,
-            kilos: extractedKilos,
-            total: extractedTotal,
+            kilos: numKilos,
+            total: total,
             docDate: extractedDate,
             notes: `Factura CFDI #${newInvoice.folio}${extractedUuid ? ' · UUID: ' + extractedUuid : ''}`,
           });
@@ -525,19 +540,20 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         toast(`Factura #${newInvoice.folio} aplicada con éxito a la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
       } else if (docType === 'ticket_bascula' || docType === 'remision') {
         // Registrar Entrega de Báscula
+        const safeDeliveryDate = toSafeTimestamp(extractedDate);
         const newDelivery: Delivery = {
           id: `del-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          date: Timestamp.fromDate(new Date(extractedDate)),
-          kilos: extractedKilos,
-          notes: `Ingreso de báscula ticket #${extractedFolio || 'S/N'} (${extractedKilos.toLocaleString('es-MX')} kg)`,
+          date: safeDeliveryDate,
+          kilos: Number(extractedKilos) || 0,
+          notes: `Ingreso de báscula ticket #${extractedFolio || 'S/N'} (${(Number(extractedKilos) || 0).toLocaleString('es-MX')} kg)`,
           invoiced: false,
           docType: 'remision',
-          docFolio: extractedFolio || undefined,
+          ...(extractedFolio?.trim() ? { docFolio: extractedFolio.trim() } : {}),
         };
 
         const existingDeliveries = selectedOrder.deliveries || [];
-        await updateDoc(orderRef, {
-          deliveries: [...existingDeliveries, newDelivery],
+        await safeUpdateDoc(orderRef, {
+          deliveries: cleanUndefined([...existingDeliveries, newDelivery]),
           updatedAt: Timestamp.now(),
         });
 
@@ -550,10 +566,10 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
             folio: extractedFolio || `TKT-${Date.now()}`,
             orderId: selectedOrder.id,
             orderFolio: selectedOrder.folio || selectedOrder.oc,
-            kilos: extractedKilos,
+            kilos: Number(extractedKilos) || 0,
             total: 0,
             docDate: extractedDate,
-            notes: `Ticket de báscula #${extractedFolio || 'S/N'} · ${extractedKilos.toLocaleString('es-MX')} kg`,
+            notes: `Ticket de báscula #${extractedFolio || 'S/N'} · ${(Number(extractedKilos) || 0).toLocaleString('es-MX')} kg`,
           });
         } catch (storErr) {
           console.warn('No se pudo subir el ticket a Storage:', storErr);
@@ -562,7 +578,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         }
         sound.playChaChing();
         triggerHaptic('cash');
-        toast(`Entrega de ${extractedKilos.toLocaleString('es-MX')} kg registrada exitosamente en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
+        toast(`Entrega de ${(Number(extractedKilos) || 0).toLocaleString('es-MX')} kg registrada exitosamente en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
       } else if (docType === 'contrarecibo' || docType === 'desconocido') {
         const isOcDoc = ocKind === 'oc_providencia';
         if (isOcDoc) {
@@ -583,19 +599,19 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               unit: 'Kilos',
             }));
           }
-          await updateDoc(orderRef, updates);
+          await safeUpdateDoc(orderRef, updates);
           sound.playChaChing();
           triggerHaptic('cash');
-          toast(`✅ OC ${extractedFolio} sincronizada con ${extractedKilos.toLocaleString('es-MX')} kg en producción`, 'ok');
+          toast(`✅ OC ${extractedFolio} sincronizada con ${(extractedKilos || 0).toLocaleString('es-MX')} kg en producción`, 'ok');
         } else {
           const noteEntry = {
             id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            folio: extractedFolio || 'S/F',
-            date: Timestamp.fromDate(new Date(extractedDate)),
-            kilos: extractedKilos || 0,
+            folio: extractedFolio?.trim() || 'S/F',
+            date: toSafeTimestamp(extractedDate),
+            kilos: Number(extractedKilos) || 0,
             docType: docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto',
             notes: `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
-            importe: extractedTotal || undefined,
+            ...(extractedTotal ? { importe: extractedTotal } : {}),
           };
 
           const existingDeliveries = selectedOrder.deliveries || [];
@@ -607,8 +623,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               }]
             : existingDeliveries;
 
-          await updateDoc(orderRef, {
-            deliveries: updatedDeliveries,
+          await safeUpdateDoc(orderRef, {
+            deliveries: cleanUndefined(updatedDeliveries),
             updatedAt: Timestamp.now(),
           });
 
@@ -621,7 +637,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               folio: noteEntry.folio,
               orderId: selectedOrder.id,
               orderFolio: selectedOrder.folio || selectedOrder.oc,
-              kilos: extractedKilos || 0,
+              kilos: Number(extractedKilos) || 0,
               total: extractedTotal || 0,
               docDate: extractedDate,
               notes: `${docType === 'contrarecibo' ? 'Contrarecibo' : 'Documento adjunto'} #${noteEntry.folio}`,

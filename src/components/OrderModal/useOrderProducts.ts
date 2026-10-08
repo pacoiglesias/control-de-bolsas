@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import type { PurchaseOrderItem, FinancialConfig } from '../../lib/types';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { round2 } from '../../lib/finance';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 
 export function useOrderProducts(
@@ -15,7 +16,7 @@ export function useOrderProducts(
   const syncToFirebase = useCallback(async (nextItems: PurchaseOrderItem[], sumKg: number) => {
     if (!orderId) return;
     try {
-      await updateDoc(doc(db, PATHS.orders, orderId), {
+      await safeUpdateDoc(doc(db, PATHS.orders, orderId), {
         items: nextItems,
         totalKilograms: sumKg > 0 ? String(sumKg) : '',
       });

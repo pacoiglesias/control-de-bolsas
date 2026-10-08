@@ -7,17 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.14: Fase 2 — Índices Compuestos Firestore & Optimización Reactiva de Caché',
+  version: 'v9.10.15: Blindaje Integral contra Campos Undefined en Escrituras de Firestore e Ingesta Inteligente de Comprobantes PDF/CFDI',
   date: '07 de Octubre de 2026',
-  time: '08:30 PM',
-  summary: 'v9.10.14: Fase 2 de optimización estructural completada: Despliegue de índices compuestos de Firestore (purchaseOrders, stored_documents, history, notifications, maquilaDeliveries, expenses, system_logs); supresión de re-renders redundantes en listeners reactivos ({ includeMetadataChanges: false } y guardrail docChanges().length === 0 en Invoices, Expenses, Purchases, Products, Presence y MaquilaDeliveries); segregación en memoria de órdenes activas vs concluidas.',
+  time: '09:15 PM',
+  summary: 'v9.10.15: Blindaje integral contra campos undefined en escrituras a Cloud Firestore (solución definitiva del error Unsupported field value: undefined al ingresar facturas PDF sin UUID como 6363_EDE1902136T2_06102026011126.pdf en GlobalDropInspectorModal); intercepción y sanitización recursiva universal en todas las llamadas updateDoc/addDoc del sistema con safeFirestore (safeUpdateDoc, safeSetDoc, safeAddDoc) y cleanUndefined; conversión resiliente de fechas toSafeTimestamp; y suite de 245 pruebas unitarias al 100% en 36 suites.',
   highlights: [
-    '⚡ Índices Compuestos en Firestore: Cobertura total en firestore.indexes.json para consultas multi-campo en documentos almacenados (docKind + uploadedAt, orderId + uploadedAt), historial (userId + type + lastUsed), notificaciones, entregas de maquila, gastos y bitácoras.',
-    '🛡️ Supresión de Re-Renders Dobles y Metadata: Estandarización de { includeMetadataChanges: false } y centinela de detección de cambios de documentos en los 6 contextos y hooks reactivos clave, blindando la UI contra re-evaluaciones innecesarias ante ACKs locales.',
-    '📊 Segregación de Órdenes Activas vs Concluidas: OrdersContext expone subconjuntos memoizados (activeOrders y closedOrders) optimizando el rendimiento de cómputo en Dashboard, Expedientes y Tracking.',
-    '🧪 Cobertura Integral de Pruebas: 238 pruebas unitarias pasando al 100% (35 suites) con validación estricta de TypeScript 5 sin errores.',
+    '🛡️ Blindaje Total en GlobalDropInspectorModal: Solución del fallo crítico al registrar facturas en comprobantes PDF (como folio 6363); eliminación de asignaciones uuid: undefined, docFolio: undefined e importe: undefined, blindando la orden purchaseOrders/oc-120267114302 y cualquier otra OC contra rechazos de Firestore.',
+    '⚡ Capa de Persistencia Segura (safeFirestore): Sustitución de updateDoc y addDoc directos en todos los componentes del ERP (Inspector de Comprobantes, Facturación Rápida, Conclusión de OCs, Contrarecibos, Monitor REP, Papelera, Catálogo, Almacenamiento de Documentos, Logs y Notificaciones) por safeUpdateDoc y safeAddDoc con auto-sanitización.',
+    '🧹 Sanitizador Recursivo Universal (cleanUndefined): Omisión estricta de propiedades undefined en objetos de cualquier profundidad, mapas con notación de punto (dot-notation), arrays y colecciones embebidas, preservando intactas las instancias de Date, Timestamp y FieldValues (serverTimestamp(), deleteField()).',
+    '📅 Validación Resiliente de Fechas (toSafeTimestamp): Helper unificado que valida la integridad de fechas extraídas por OCR evitando excepciones por cadenas vacías o malformadas.',
+    '🧪 245 Pruebas Unitarias al 100%: 36 suites de pruebas pasando con cero errores y validación estricta de tipos en TypeScript 5.',
   ],
 };
-
-
-

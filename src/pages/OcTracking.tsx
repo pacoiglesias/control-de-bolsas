@@ -19,7 +19,8 @@ import { generateDeliveryRemissionPdf } from '../lib/deliveryRemissionPdf';
 import { triggerHaptic } from '../lib/hapticEngine';
 import { confirmDialog } from '../lib/confirmDialog';
 import { db, PATHS } from '../lib/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../lib/safeFirestore';
 import type { TabName } from '../components/OrderModal/types';
 import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from '../lib/types';
 import { OcClientStatusReport } from '../components/Orders/OcClientStatusReport';
@@ -356,7 +357,7 @@ export default function OcTracking() {
 
     try {
       const orderRef = doc(db, PATHS.orders, group.order.id);
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         isClosedShort: true,
         updatedAt: serverTimestamp(),
       });
@@ -379,7 +380,7 @@ export default function OcTracking() {
 
     try {
       const orderRef = doc(db, PATHS.orders, group.order.id);
-      await updateDoc(orderRef, {
+      await safeUpdateDoc(orderRef, {
         isClosedShort: false,
         updatedAt: serverTimestamp(),
       });

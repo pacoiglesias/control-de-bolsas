@@ -30,7 +30,11 @@ export async function setDocData<T extends DocumentData>(collectionName: string,
 
 export async function updateDocData<T extends DocumentData>(collectionName: string, id: string, data: UpdateData<T>): Promise<void> {
   const docRef = doc(db, collectionName, id);
-  await updateDoc(docRef, cleanUndefined(data) as any);
+  const sanitized = cleanUndefined(data);
+  if (!sanitized || (typeof sanitized === 'object' && Object.keys(sanitized).length === 0)) {
+    return;
+  }
+  await updateDoc(docRef, sanitized as any);
 }
 
 export async function deleteDocById(collectionName: string, id: string): Promise<void> {

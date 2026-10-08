@@ -4,7 +4,8 @@ import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useToast } from '../../context/ToastContext';
 import { fromInputDate, toInputDate, fmtDateTime } from '../../lib/format';
 import { round2, validateOrderWeightGuardrail } from '../../lib/finance';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 
 import { useMaquilaDeliveries } from '../../hooks/useMaquilaDeliveries';
 import { db, PATHS } from '../../lib/firebase';
@@ -111,7 +112,7 @@ export default function TabEntregas() {
     
     // 3. Marca la entrega como asignada en Firestore
     try {
-      await updateDoc(doc(db, PATHS.maquilaDeliveries, d.id), { status: 'assigned' });
+      await safeUpdateDoc(doc(db, PATHS.maquilaDeliveries, d.id), { status: 'assigned' });
       toast('Entrega importada correctamente', 'ok');
       setShowPortal(false);
     } catch(e) {

@@ -6,13 +6,12 @@ import {
   limit,
   getDocs,
   doc,
-  updateDoc,
   writeBatch,
-  addDoc,
   serverTimestamp,
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { safeUpdateDoc, safeAddDoc } from '../lib/safeFirestore';
 
 export interface NotificationItem {
   id: string;
@@ -101,7 +100,7 @@ export const markAsRead = async (notificationId: string): Promise<void> => {
 
   try {
     const ref = doc(db, 'notifications', notificationId);
-    await updateDoc(ref, {
+    await safeUpdateDoc(ref, {
       read: true,
       readAt: serverTimestamp(),
     });
@@ -154,7 +153,7 @@ export const createNotification = async (
   saveLocalNotifications([newItem, ...current]);
 
   try {
-    const docRef = await addDoc(collection(db, 'notifications'), {
+    const docRef = await safeAddDoc(collection(db, 'notifications'), {
       userId: userId || 'todos',
       message,
       type,

@@ -1,8 +1,8 @@
 // src/lib/cleanUndefined.ts
 /**
- * Recursively traverses an object and replaces any undefined values with null.
+ * Recursively traverses an object and removes any undefined values.
  * Preserves Date, Firestore Timestamp, and FieldValue instances.
- * This is required because Firestore does not accept undefined fields.
+ * This is required because Firestore does not accept undefined fields anywhere in documents, maps, or arrays.
  */
 export function cleanUndefined<T>(obj: T): T {
   if (obj === undefined) {
@@ -23,13 +23,13 @@ export function cleanUndefined<T>(obj: T): T {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => cleanUndefined(item)) as any;
+    return obj
+      .filter((item) => item !== undefined)
+      .map((item) => cleanUndefined(item)) as any;
   }
   const result: any = {};
   for (const [key, value] of Object.entries(obj as any)) {
-    if (value === undefined) {
-      result[key] = null;
-    } else {
+    if (value !== undefined) {
       result[key] = cleanUndefined(value);
     }
   }

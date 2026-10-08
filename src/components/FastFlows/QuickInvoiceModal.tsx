@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, Timestamp } from 'firebase/firestore';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { useOrders } from '../../hooks/useOrders';
@@ -425,7 +426,7 @@ export function QuickInvoiceModal({
         ...camposInvoices(updatedInvoices),
       };
 
-      await updateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);
+      await safeUpdateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);
 
       triggerHaptic('success');
       toast('✅ Factura emitida con conceptos desglosados y kilos descontados exitosamente', 'ok');
