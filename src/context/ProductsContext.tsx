@@ -24,10 +24,16 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       limit(1000)
     );
     
+    let initialLoad = true;
     const unsub = onSnapshot(
       q,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: false },
       (snap) => {
+        if (!initialLoad && snap.docChanges().length === 0) {
+          return;
+        }
+        initialLoad = false;
+
         const items = snap.docs
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...d.data() } as Product));

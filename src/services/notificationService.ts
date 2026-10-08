@@ -70,6 +70,7 @@ export const subscribeNotifications = (
 
     return onSnapshot(
       q,
+      { includeMetadataChanges: false },
       (snapshot) => {
         const items = snapshot.docs.map((d) => ({
           id: d.id,

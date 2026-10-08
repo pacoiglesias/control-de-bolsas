@@ -22,10 +22,16 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
     // exclusiones silenciosas por falta de campos en documentos viejos.
     // Asumimos que PATHS.invoices será 'invoices'.
     const q = query(collection(db, PATHS.invoices), limit(1000));
+    let initialLoad = true;
     const unsub = onSnapshot(
       q,
       { includeMetadataChanges: false },
       (snap) => {
+        if (!initialLoad && snap.docChanges().length === 0) {
+          return;
+        }
+        initialLoad = false;
+
         const docs = snap.docs
           .map((d) => ({ id: d.id, ...(d.data() as Omit<Invoice, 'id'>) }))
           .filter((inv) => inv.creditCycle?.status !== 'collected');

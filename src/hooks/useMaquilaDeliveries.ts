@@ -26,9 +26,16 @@ export function useMaquilaDeliveries() {
       where('status', '==', 'pending')
     );
     
+    let initialLoad = true;
     const unsub = onSnapshot(
       q,
+      { includeMetadataChanges: false },
       (snap) => {
+        if (!initialLoad && snap.docChanges().length === 0) {
+          return;
+        }
+        initialLoad = false;
+
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as MaquilaDelivery));
         // Sort locally
         items.sort((a, b) => {

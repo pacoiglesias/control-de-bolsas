@@ -52,7 +52,7 @@ export function usePresence() {
   // Listen to others
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(collection(db, 'presence'), (snap) => {
+    const unsub = onSnapshot(collection(db, 'presence'), { includeMetadataChanges: false }, (snap) => {
       const now = Date.now();
       const users: UserPresence[] = [];
       snap.forEach(doc => {

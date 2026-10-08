@@ -23,6 +23,8 @@ interface OrdersState {
   orders: PurchaseOrder[];
   loading: boolean;
   error: string | null;
+  activeOrders: PurchaseOrder[];
+  closedOrders: PurchaseOrder[];
 }
 
 const Ctx = createContext<OrdersState | null>(null);
@@ -899,7 +901,18 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  const value = useMemo(() => ({ orders, loading, error }), [orders, loading, error]);
+  const activeOrders = useMemo(() => {
+    return orders.filter((o) => !o.isClosedShort && o.creditCycle?.status !== 'completed');
+  }, [orders]);
+
+  const closedOrders = useMemo(() => {
+    return orders.filter((o) => o.isClosedShort || o.creditCycle?.status === 'completed');
+  }, [orders]);
+
+  const value = useMemo(
+    () => ({ orders, loading, error, activeOrders, closedOrders }),
+    [orders, loading, error, activeOrders, closedOrders]
+  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
