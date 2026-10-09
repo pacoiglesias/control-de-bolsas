@@ -1,5 +1,23 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.30] - 09 Octubre 2026 (Erradicación Integral de Precios Fijos $43/$38, Blindaje de Precios Flotantes, Cobertura Ampliada a 319 Pruebas y Despliegue de Producción)
+
+### 🚫 Erradicación de Fallbacks Fijos ($43 y $38)
+- **Eliminación Total de Fallbacks:** Se eliminaron todas las ocurrencias residuales de precios hardcodeados (`|| 43`, `|| 38`) en la totalidad de la aplicación (componentes de recepción, modales de entrega, facturación, calculadoras y reportes ejecutivos).
+- **Detención de Cálculos Falsos:** Cuando falta un precio de venta o maquila pactado, el sistema suspende cálculos automáticos, muestra explícitamente "SIN PRECIO" / "PENDIENTE DE REVISIÓN" y levanta banderas de auditoría fiscal sin inventar números.
+- **Respeto a Valores Legítimos de $0.00:** Manejo mediante coalescencia nula (`??`) para admitir bonificaciones, muestras o ajustes legítimos capturados por el usuario.
+
+### 🧪 Suite de Pruebas Unitarias y de Integración (319 Pasadas)
+- **Nuevas Suites:** Cobertura extendida incorporada para motor de auditoría (`auditEngineMore.test.ts`), sanación de datos (`autoHealEngineMore.test.ts`), formateo resiliente (`formatMore.test.ts`) y motor háptico/atajos (`hapticEngine.test.ts`).
+- **Resiliencia en Entornos Mock:** Blindaje contra ausencias de DOM/Window en vitest.
+
+### 🚀 Calidad, Empaquetado y Publicación
+- **Typecheck & Linter Limpios:** 0 errores TypeScript (`npx tsc --noEmit`), 0 advertencias ESLint (`npm run lint`).
+- **Empaquetado y Despliegue Exitoso:** Build de frontend PWA y Cloud Functions ejecutado y publicado en Firebase Hosting (`https://control-de-bolsas-89c88.web.app`).
+- **Respaldo Local Generado:** Archivo `backup_control_bolsas_v9.10.30.zip` generado y verificado.
+
+---
+
 ## [v9.10.29] - 09 Octubre 2026 (Correcciones TypeScript de Null-Safety en Exportador Excel, Dependencia react-is y Build de Producción en Verde)
 
 ### 🔧 Null-Safety y Precisión Financiera en Exportación Excel
