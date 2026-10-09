@@ -226,38 +226,67 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       return;
     }
     if (allOrders && allOrders.length > 0) {
-      const duplicadoGlobal = allOrders.find(o => 
+      const duplicadoGlobalUuid = allOrders.find(o => 
         (o.invoices || []).some((i: any) => 
-          i.folio?.trim().toUpperCase() === finalFolio.toUpperCase() ||
-          i.folio?.trim().toUpperCase() === data.uuid.toUpperCase() ||
-          i.collection?.sapDocument?.trim().toUpperCase() === data.uuid.toUpperCase()
+          (i.uuid && i.uuid.trim().toUpperCase() === data.uuid.toUpperCase()) ||
+          (i.collection?.sapDocument && i.collection.sapDocument.trim().toUpperCase() === data.uuid.toUpperCase())
         )
       );
-      if (duplicadoGlobal) {
+      if (duplicadoGlobalUuid) {
         await confirmDialog({
-          title: '⚠️ Factura XML ya registrada en otra Orden',
-          message: `La Factura #${finalFolio} (UUID: ${data.uuid}) ya fue registrada en la Orden #${duplicadoGlobal.folio || duplicadoGlobal.oc} del cliente ${duplicadoGlobal.client || 'Desconocido'}.\n\nSe omitió la importación duplicada.`,
+          title: '⚠️ Factura XML ya registrada en otra Orden (Mismo UUID)',
+          message: `El UUID fiscal ${data.uuid} (Factura #${finalFolio}) ya fue registrado en la Orden #${duplicadoGlobalUuid.folio || duplicadoGlobalUuid.oc} del cliente ${duplicadoGlobalUuid.client || 'Desconocido'}.\n\nSe omitió la importación duplicada.`,
           confirmLabel: 'Entendido',
           cancelLabel: 'Cerrar',
         });
         return;
       }
+
+      // Si solo coincide el folio pero el UUID es distinto, advertir
+      const duplicadoFolio = allOrders.find(o =>
+        (o.invoices || []).some((i: any) =>
+          i.folio?.trim().toUpperCase() === finalFolio.toUpperCase() &&
+          (!i.uuid || i.uuid.trim().toUpperCase() !== data.uuid.toUpperCase())
+        )
+      );
+      if (duplicadoFolio) {
+        const proceder = await confirmDialog({
+          title: '⚠️ Folio de Factura Existente con Distinto UUID',
+          message: `La Factura #${finalFolio} ya existe en la Orden #${duplicadoFolio.folio || duplicadoFolio.oc}, pero el archivo XML actual tiene un UUID fiscal distinto (${data.uuid}).\n\n¿Deseas importarla como un documento independiente para revisión contable?`,
+          confirmLabel: 'Importar para Revisión',
+          cancelLabel: 'Cancelar',
+        });
+        if (!proceder) return;
+      }
     }
 
     // Extraer conceptos desde el XML
+    const currentOrder = (allOrders || []).find((o: any) => o.id === orderId);
+    const effectiveSellPrice = currentOrder?.customSellPrice || currentOrder?.financials?.salePricePerKg || config?.salePricePerKg || 43;
+    const effectiveCostPrice = currentOrder?.customCostPrice || currentOrder?.financials?.costPricePerKg || config?.costPricePerKg || 38;
+    const effectiveCommissionRate = currentOrder?.financials?.commissionRate ?? config?.commissionRate ?? 0.08;
+
     const xmlItems: PurchaseOrderItem[] = (data.conceptos || []).map((c, idx) => ({
       id: 'inv_item_' + Date.now().toString(36) + '_' + idx,
       code: c.codigo || c.claveProdServ || '24141500',
       description: c.descripcion || 'Bolsa de Polietileno',
       quantity: c.cantidad || 0,
       unit: c.claveUnidad || 'Kilos',
-      unitPrice: c.valorUnitario || config?.salePricePerKg || 43,
-      amount: c.importe || ((c.cantidad || 0) * (c.valorUnitario || 43)),
+      unitPrice: c.valorUnitario || effectiveSellPrice,
+      amount: c.importe || ((c.cantidad || 0) * (c.valorUnitario || effectiveSellPrice)),
     }));
 
     const totalKilos = xmlItems.reduce((s, it) => s + (it.quantity || 0), 0);
     const subtotal = data.subTotal || xmlItems.reduce((s, it) => s + it.amount, 0);
     const total = data.total || (subtotal * 1.16);
+
+    const costTotal = Math.round(totalKilos * effectiveCostPrice * 100) / 100;
+    const commission = Math.round(subtotal * effectiveCommissionRate * 100) / 100;
+    const netCashFlow = Math.round((subtotal - costTotal - commission) * 100) / 100;
+    const tradeMargin = Math.round((subtotal - costTotal) * 100) / 100;
+
+    const isEstimatedPrice = !currentOrder?.customSellPrice && !data.subTotal;
+    const isEstimatedCost = !currentOrder?.customCostPrice;
 
     // Asegurar que la fecha viene con la zona horaria correcta
     const issue = new Date(data.fecha + 'Z'); 
@@ -266,19 +295,25 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     const newInvoice: Invoice = {
       id: Date.now().toString(),
       orderId: orderId,
+      uuid: data.uuid,
       folio: finalFolio,
       kilos: totalKilos,
-      oc: data.ocNumber || '',
+      oc: data.ocNumber || currentOrder?.oc || '',
       items: xmlItems.length > 0 ? xmlItems : undefined,
+      isEstimatedPrice,
+      isEstimatedCost,
       financials: {
-        salePricePerKg: config?.salePricePerKg || 43,
-        costPricePerKg: config?.costPricePerKg || 38,
-        commissionRate: config?.commissionRate || 0.08,
+        salePricePerKg: effectiveSellPrice,
+        costPricePerKg: effectiveCostPrice,
+        commissionRate: effectiveCommissionRate,
         saleTotal: subtotal,
-        costTotal: totalKilos * (config?.costPricePerKg || 38),
-        commission: subtotal * (config?.commissionRate || 0.08),
+        costTotal: costTotal,
+        commission: commission,
         invoiceTotal: total,
-        netCashFlow: subtotal - (totalKilos * (config?.costPricePerKg || 38)) - (subtotal * (config?.commissionRate || 0.08)),
+        netCashFlow: netCashFlow,
+        tradeMargin: tradeMargin,
+        isEstimatedPrice,
+        isEstimatedCost,
       },
       creditCycle: { 
         status: 'pending', 

@@ -141,6 +141,12 @@ service cloud.firestore {
       allow write: if isManagerOrAdmin();
     }
 
+    // Colección de metadatos de documentos originales (documentStorage.ts)
+    match /storedDocuments/{docId} {
+      allow read, write: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
     // Copias completas del estado del respaldo HTML.
     // El documento padre guarda solo metadatos; el contenido pesado vive en la
     // subcoleccion blob/ para no descargarlo al listar.

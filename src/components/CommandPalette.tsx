@@ -169,7 +169,8 @@ export function CommandPalette() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsOpen((prev) => !prev);
+        // Redirigir unificadamente a la búsqueda universal
+        window.dispatchEvent(new CustomEvent('open-global-search'));
         triggerHaptic('light');
       }
       if (e.key === 'Escape' && isOpen) {
@@ -177,7 +178,7 @@ export function CommandPalette() {
       }
     };
     const handleCustomOpen = () => {
-      setIsOpen(true);
+      window.dispatchEvent(new CustomEvent('open-global-search'));
       triggerHaptic('light');
     };
 

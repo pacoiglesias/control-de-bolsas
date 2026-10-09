@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useProducts } from '../../hooks/useProducts';
+import { useAuth } from '../../context/AuthContext';
 import { money } from '../../lib/format';
 import { normalizarTexto } from '../../lib/finance';
 import type { PurchaseOrder } from '../../lib/types';
@@ -25,25 +26,43 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   const navigate = useNavigate();
   const { orders, loading } = useOrdersContext();
   const { products } = useProducts();
+  const { role } = useAuth();
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setQuery('');
+      setDebouncedQuery('');
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
-  const results = useMemo<SearchResultItem[]>(() => {
-    const q = normalizarTexto(query.trim());
+  // Debounce para optimizar el rendimiento y evitar recalcular en cada tecla
+  useEffect(() => {
+    if (!query) {
+      setDebouncedQuery('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [query]);
 
+  const results = useMemo<SearchResultItem[]>(() => {
+    const q = normalizarTexto(debouncedQuery.trim());
+
+    const canManage = role === 'admin' || role === 'manager';
+    const cmdCat = 'Comandos Rápidos' as const;
     const staticCommands: SearchResultItem[] = [
+      ...(canManage ? [
       {
         id: 'cmd-wizard',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '🪄 Nuevo Proceso de Compra (Wizard Unificado)',
         subtitle: 'Flujo guiado paso a paso: OC ➔ Báscula ➔ Factura SAT',
         onSelect: () => {
@@ -53,17 +72,17 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-new-order',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '➕ Nuevo Expediente / Orden de Compra',
         subtitle: 'Crear una nueva orden de fabricación o venta',
         onSelect: () => {
           navigate('/ordenes?nueva=1');
           onClose();
         },
-      },
+      }] : []),
       {
         id: 'cmd-calculator',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '🧮 Calculadora Rápida de Kilos $/kg',
         subtitle: 'Simulador flotante de costos con maquila y facturación',
         onSelect: () => {
@@ -73,7 +92,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-balanza',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '⚖️ Balanza de Comprobación y Cotejo 4-Way',
         subtitle: 'Cotejar cartera de clientes, caja y cuenta con maquila',
         onSelect: () => {
@@ -83,7 +102,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-andres',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '🏭 Compras & Estado de Cuenta Andrés',
         subtitle: 'Ver saldo de maquilador, abonos y kilos fabricados',
         onSelect: () => {
@@ -93,7 +112,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-caja',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '💵 Efectivo en Caja & Movimientos',
         subtitle: 'Control de flujo de efectivo, abonos a Andrés y retiros',
         onSelect: () => {
@@ -103,7 +122,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-portal',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '🌐 Portal Maquilador (Andrés)',
         subtitle: 'Abrir portal interactivo de entrega para talleres',
         onSelect: () => {
@@ -113,7 +132,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-master-excel',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '📊 Descargar Base de Datos Maestra (.xlsx)',
         subtitle: 'Exportar todas las hojas del ERP a un archivo Excel multi-hoja',
         onSelect: () => {
@@ -123,7 +142,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-one-pager',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '📄 Reporte Ejecutivo One-Pager (PDF)',
         subtitle: 'Descargar resumen directivo oficial en 1 sola página',
         onSelect: () => {
@@ -133,7 +152,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       },
       {
         id: 'cmd-settings',
-        category: 'Comandos Rápidos',
+        category: cmdCat,
         title: '⚙️ Ajustes & Configuración del Sistema',
         subtitle: 'Precios base, departamentos y seguridad',
         onSelect: () => {
@@ -341,7 +360,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     scoredMatches.sort((a, b) => b.score - a.score);
 
     return scoredMatches.slice(0, 16).map((s) => s.item);
-  }, [query, orders, products, navigate, onClose]);
+  }, [debouncedQuery, orders, products, navigate, onClose, role]);
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -554,8 +573,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             color: 'rgba(255, 255, 255, 0.4)',
           }}
         >
-          <span>Navega con <b>↑ ↓</b> y selecciona con <b>ENTER</b></span>
-          <span>Control Bolsas ERP · v9.10.24 Enterprise</span>
+          <span>Navega con <b>↑ ↓</b> · <b>ENTER</b> para abrir · <b>ESC</b> para cerrar · Atajo: <b>Ctrl+K</b> / <b>Ctrl+/</b></span>
+          <span>Control Bolsas ERP · v9.10 Enterprise</span>
         </div>
       </div>
     </div>
@@ -586,12 +605,14 @@ export const GlobalSearchHost: React.FC = () => {
 
     window.addEventListener('open-global-search', handleOpen);
     window.addEventListener('open-command-menu', handleOpen);
+    window.addEventListener('open-command-palette', handleOpen);
     window.addEventListener('close-global-search', handleClose);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('open-global-search', handleOpen);
       window.removeEventListener('open-command-menu', handleOpen);
+      window.removeEventListener('open-command-palette', handleOpen);
       window.removeEventListener('close-global-search', handleClose);
       window.removeEventListener('keydown', handleKeyDown);
     };

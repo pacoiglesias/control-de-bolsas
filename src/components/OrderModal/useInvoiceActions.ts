@@ -3,7 +3,7 @@ import { doc, runTransaction, Timestamp, serverTimestamp } from 'firebase/firest
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
-import { computeFinancials, type FinanceConfigCore } from '../../lib/finance';
+import type { FinanceConfigCore } from '../../lib/finance';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { logAction } from '../../lib/logger';
@@ -37,24 +37,60 @@ export function useInvoiceActions() {
 
           const existingSaleTotal = updatedInvoice.financials?.saleTotal;
           const existingInvoiceTotal = updatedInvoice.financials?.invoiceTotal;
+          const k = Number(updatedInvoice.kilos) || 0;
 
-          const baseFinancials = computeFinancials(updatedInvoice.kilos, {
-            ...dynamicConfig,
-            salePricePerKg: updatedInvoice.financials?.salePricePerKg || dynamicConfig.salePricePerKg,
-            costPricePerKg: updatedInvoice.financials?.costPricePerKg || dynamicConfig.costPricePerKg,
-            commissionRate: updatedInvoice.financials?.commissionRate || dynamicConfig.commissionRate,
-          });
+          // Jerarquía de precios y costos:
+          // 1. Valores capturados en la factura
+          // 2. Valores capturados a nivel orden de compra
+          // 3. Configuración efectiva / fallback
+          const salePrice = updatedInvoice.financials?.salePricePerKg || order.customSellPrice || dynamicConfig.salePricePerKg;
+          const costPrice = updatedInvoice.financials?.costPricePerKg || order.customCostPrice || dynamicConfig.costPricePerKg;
+          const commRate = updatedInvoice.financials?.commissionRate ?? order.financials?.commissionRate ?? dynamicConfig.commissionRate ?? 0.08;
+
+          const hasRealSaleTotal = existingSaleTotal !== undefined && existingSaleTotal !== null && Number(existingSaleTotal) > 0;
+          const saleTotal = hasRealSaleTotal ? Number(existingSaleTotal) : Math.round(k * salePrice * 100) / 100;
+
+          const hasRealInvoiceTotal = existingInvoiceTotal !== undefined && existingInvoiceTotal !== null && Number(existingInvoiceTotal) > 0;
+          const ivaMultiplier = 1 + (dynamicConfig.ivaRate ?? 0.16);
+          const invoiceTotal = hasRealInvoiceTotal ? Number(existingInvoiceTotal) : Math.round(saleTotal * ivaMultiplier * 100) / 100;
+
+          const costTotal = Math.round(k * costPrice * 100) / 100;
+          const commBase = dynamicConfig.commissionBase === 'total' ? invoiceTotal : saleTotal;
+          const commission = Math.round(commBase * commRate * 100) / 100;
+          const netCashFlow = Math.round((saleTotal - costTotal - commission) * 100) / 100;
+          const tradeMargin = Math.round((saleTotal - costTotal) * 100) / 100;
+
+          const isEstimatedPrice = !order.customSellPrice && !updatedInvoice.financials?.salePricePerKg && !hasRealSaleTotal;
+          const isEstimatedCost = !order.customCostPrice && !updatedInvoice.financials?.costPricePerKg;
 
           const finalFinancials = {
-            ...baseFinancials,
-            ...(existingSaleTotal && existingSaleTotal > 0 ? { saleTotal: existingSaleTotal } : {}),
-            ...(existingInvoiceTotal && existingInvoiceTotal > 0 ? { invoiceTotal: existingInvoiceTotal } : {}),
+            salePricePerKg: salePrice,
+            costPricePerKg: costPrice,
+            commissionRate: commRate,
+            saleTotal,
+            invoiceTotal,
+            costTotal,
+            commission,
+            netCashFlow,
+            tradeMargin,
+            isEstimatedPrice,
+            isEstimatedCost,
           };
+
+          // Normalización canónica de estados: 'revision' -> 'in_review'
+          let rawStatus = updatedInvoice.creditCycle?.status || 'pending';
+          if ((rawStatus as string) === 'revision') rawStatus = 'in_review';
 
           const finalInv: Invoice = {
             ...updatedInvoice,
             folio: finalFolio,
             financials: finalFinancials,
+            isEstimatedPrice,
+            isEstimatedCost,
+            creditCycle: {
+              ...updatedInvoice.creditCycle,
+              status: rawStatus,
+            },
             collection: updatedInvoice.collection
               ? {
                   ...updatedInvoice.collection,
@@ -75,17 +111,34 @@ export function useInvoiceActions() {
             newInvoicesArray.push(finalInv);
           }
 
-          // Validate duplicates
+          // Validación de duplicados con ámbito de UUID vs Folio
           if (finalFolio !== 'S/N') {
             const upperFolio = finalFolio.toUpperCase();
             if (currentInvoices.some((x) => x.id !== updatedInvoice.id && x.folio?.toUpperCase() === upperFolio)) {
               throw new Error(`El folio de factura ${finalFolio} ya está en este expediente.`);
             }
+
             const globalDup = findDuplicateInvoiceFolio(allOrders || [], finalFolio, updatedInvoice.id);
             if (globalDup && globalDup.orderFolio !== (order.folio || order.oc)) {
-              throw new Error(
-                `🚨 La factura #${finalFolio} ya está registrada en la OC #${globalDup.orderFolio} (${globalDup.client}).`
-              );
+              // Buscar la factura existente en la otra orden para cotejar UUIDs
+              const otherOrder = (allOrders || []).find((o) => (o.folio || o.oc) === globalDup.orderFolio);
+              const otherInv = (otherOrder?.invoices || []).find((i: any) => i.folio?.trim().toUpperCase() === upperFolio);
+
+              const currentUuid = (updatedInvoice.uuid || (updatedInvoice as any).uuidFiscal || '').trim().toLowerCase();
+              const otherUuid = (otherInv?.uuid || (otherInv as any)?.uuidFiscal || '').trim().toLowerCase();
+
+              if (currentUuid && otherUuid && currentUuid !== otherUuid) {
+                // Mismo folio pero distinto UUID fiscal: advertir y marcar para revisión en lugar de bloqueo ciego
+                finalInv.creditCycle = {
+                  ...finalInv.creditCycle,
+                  status: 'manual_review',
+                };
+              } else {
+                // Mismo UUID o folios sin UUID diferenciador: bloqueo por duplicidad
+                throw new Error(
+                  `🚨 La factura #${finalFolio} ya está registrada en la OC #${globalDup.orderFolio} (${globalDup.client}).`
+                );
+              }
             }
           }
 

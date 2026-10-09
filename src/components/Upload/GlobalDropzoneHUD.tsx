@@ -227,7 +227,7 @@ export function GlobalDropzoneHUD() {
           return copy;
         });
 
-        const result = await applyDocumentFast(analysis);
+        const result = await applyDocumentFast(analysis, null, orders);
 
         setBatchQueue((prev) => {
           const copy = [...prev];
@@ -299,7 +299,7 @@ export function GlobalDropzoneHUD() {
     });
 
     try {
-      const result = await applyDocumentFast(currentItem.analysis, chosenOrder);
+      const result = await applyDocumentFast(currentItem.analysis, chosenOrder, orders);
       setBatchQueue((prev) => {
         const copy = [...prev];
         if (copy[currentIndex]) {

@@ -158,27 +158,52 @@ export function matchOrderCanonical(
 }
 
 /**
- * 🛡️ Verifica si el folio o UUID ya existe en alguna orden activa
+ * 🛡️ Verifica si el folio o UUID ya existe en alguna orden activa.
+ * Distingue duplicado estricto por UUID frente a colisión de folio con UUID distinto.
  */
 export function findExistingInvoice(
   orders: PurchaseOrder[],
   folioCandidate?: string,
   uuidCandidate?: string
-): { isDuplicate: boolean; order?: PurchaseOrder; invoice?: Invoice } {
+): { isDuplicate: boolean; hasFolioCollision?: boolean; order?: PurchaseOrder; invoice?: Invoice } {
   if (!folioCandidate && !uuidCandidate) return { isDuplicate: false };
-  const cleanFolio = folioCandidate?.trim().toUpperCase();
-  const cleanUuid = uuidCandidate?.trim().toUpperCase();
+
+  // Detección automática por si los parámetros se enviaron invertidos
+  const isLikelyUuid = (str?: string) =>
+    !!str && (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim()) || str.trim().length === 36);
+
+  let rawFolio = folioCandidate;
+  let rawUuid = uuidCandidate;
+
+  if (isLikelyUuid(rawFolio) && !isLikelyUuid(rawUuid)) {
+    // Invertidos
+    rawUuid = folioCandidate;
+    rawFolio = uuidCandidate;
+  }
+
+  const cleanFolio = rawFolio?.trim().toUpperCase();
+  const cleanUuid = rawUuid?.trim().toLowerCase();
 
   for (const o of orders) {
     if (!o || (o as any).isDeleted) continue;
-    const matchInv = (o.invoices || []).find((inv) => {
-      if (!inv) return false;
-      if (cleanFolio && inv.folio?.trim().toUpperCase() === cleanFolio) return true;
-      if (cleanUuid && inv.uuid?.trim().toUpperCase() === cleanUuid) return true;
-      return false;
-    });
-    if (matchInv) {
-      return { isDuplicate: true, order: o, invoice: matchInv };
+    for (const inv of o.invoices || []) {
+      if (!inv) continue;
+      const invUuid = (inv.uuid || (inv as any).uuidFiscal || '').trim().toLowerCase();
+      const invFolio = inv.folio?.trim().toUpperCase();
+
+      // 1. Coincidencia idéntica por UUID fiscal SAT (duplicado absoluto)
+      if (cleanUuid && invUuid && cleanUuid === invUuid) {
+        return { isDuplicate: true, order: o, invoice: inv };
+      }
+
+      // 2. Coincidencia por folio
+      if (cleanFolio && invFolio && cleanFolio === invFolio) {
+        if (cleanUuid && invUuid && cleanUuid !== invUuid) {
+          // Mismo folio pero distinto UUID SAT: no bloquear como duplicado ciego, marcar colisión para revisión
+          return { isDuplicate: false, hasFolioCollision: true, order: o, invoice: inv };
+        }
+        return { isDuplicate: true, order: o, invoice: inv };
+      }
     }
   }
   return { isDuplicate: false };
@@ -187,29 +212,45 @@ export function findExistingInvoice(
 /**
  * 🛡️ Verifica si una remisión o ticket de báscula ya existe en alguna orden activa
  * Soporta entregas con folio, entregas sin folio y detección estricta por límites de palabra.
+ * Detecta coincidencia exacta (duplicado) y coincidencia aproximada (advertencia/revisión).
  */
 export function findExistingDelivery(
   orders: PurchaseOrder[],
   folioCandidate?: string,
   kilosCandidate?: number,
   dateCandidate?: string
-): { isDuplicate: boolean; order?: PurchaseOrder; delivery?: Delivery; reason?: string } {
+): { isDuplicate: boolean; isSuspectDuplicate?: boolean; order?: PurchaseOrder; delivery?: Delivery; reason?: string } {
   const cleanFolio = folioCandidate?.trim().toUpperCase();
   const kilos = kilosCandidate ? round2(kilosCandidate) : 0;
 
   for (const o of orders) {
     if (!o || (o as any).isDeleted) continue;
-    const matchDeliv = (o.deliveries || []).find((d) => {
-      if (!d) return false;
+    for (const d of o.deliveries || []) {
+      if (!d) continue;
       const dFolio = d.docFolio?.trim().toUpperCase();
+      const dKilos = Number(d.kilos) || 0;
 
       // 1. Coincidencia por folio exacto de remisión/ticket
-      if (cleanFolio && dFolio && dFolio === cleanFolio) return true;
+      if (cleanFolio && dFolio && dFolio === cleanFolio) {
+        return {
+          isDuplicate: true,
+          order: o,
+          delivery: d,
+          reason: `Remisión/Ticket #${cleanFolio} (${dKilos} kg) ya registrado en OC ${o.folio || o.oc}`,
+        };
+      }
 
       // 2. Coincidencia por folio en notas usando límites de palabra para evitar falsos positivos
       if (cleanFolio && cleanFolio.length >= 4 && d.notes) {
         const wordRegex = new RegExp(`\\b${cleanFolio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-        if (wordRegex.test(d.notes)) return true;
+        if (wordRegex.test(d.notes)) {
+          return {
+            isDuplicate: true,
+            order: o,
+            delivery: d,
+            reason: `Remisión/Ticket #${cleanFolio} referenciado en notas de OC ${o.folio || o.oc}`,
+          };
+        }
       }
 
       // 3. Coincidencia de entrega SIN FOLIO o por mismo pesaje exacto y misma fecha
@@ -218,25 +259,32 @@ export function findExistingDelivery(
           ? d.date.toDate().toISOString().split('T')[0]
           : (d.date instanceof Date ? d.date.toISOString().split('T')[0] : String(d.date).split('T')[0]);
 
-        if (dDateStr === dateCandidate && Math.abs((d.kilos || 0) - kilos) < 0.05) {
+        if (dDateStr === dateCandidate && Math.abs(dKilos - kilos) < 0.05) {
           // Si ambos carecen de folio, o uno no tiene folio y el pesaje es idéntico al gramo
           if (!cleanFolio || !dFolio || cleanFolio === dFolio) {
-            return true;
+            return {
+              isDuplicate: true,
+              order: o,
+              delivery: d,
+              reason: `Entrega de ${kilos} kg del ${dateCandidate} ya registrada en OC ${o.folio || o.oc}`,
+            };
+          }
+        }
+
+        // 4. Coincidencia aproximada: misma fecha o cercana (+/- 1 día) con pesaje muy cercano (< 1% o < 2 kg)
+        if (Math.abs(dKilos - kilos) <= Math.max(2, kilos * 0.01)) {
+          const diffDays = Math.abs(new Date(dDateStr).getTime() - new Date(dateCandidate).getTime()) / (1000 * 3600 * 24);
+          if (diffDays <= 1) {
+            return {
+              isDuplicate: false,
+              isSuspectDuplicate: true,
+              order: o,
+              delivery: d,
+              reason: `⚠️ Posible entrega duplicada: pesaje similar de ${dKilos} kg el ${dDateStr} ya existe en OC ${o.folio || o.oc}. Verifique físicamente.`,
+            };
           }
         }
       }
-
-      return false;
-    });
-
-    if (matchDeliv) {
-      const fol = matchDeliv.docFolio || cleanFolio || 'S/F';
-      return {
-        isDuplicate: true,
-        order: o,
-        delivery: matchDeliv,
-        reason: `Remisión/Ticket #${fol} (${matchDeliv.kilos} kg) ya registrado en OC ${o.folio || o.oc}`,
-      };
     }
   }
 
@@ -562,7 +610,8 @@ export async function analyzeDocumentFast(
  */
 export async function applyDocumentFast(
   analysis: PipelineAnalysis,
-  targetOrderOverride?: PurchaseOrder | null
+  targetOrderOverride?: PurchaseOrder | null,
+  allOrdersContext?: PurchaseOrder[]
 ): Promise<PipelineApplyResult> {
   const targetOrder = targetOrderOverride || analysis.matchedOrder || analysis.duplicateOrder;
 
@@ -682,9 +731,28 @@ export async function applyDocumentFast(
     const dueDateTimestamp = dueDateStr ? Timestamp.fromDate(new Date(`${dueDateStr}T12:00:00Z`)) : null;
 
     let appliedCount = 0;
-    const targetOrdersToUpdate = targetOrder ? [targetOrder] : [];
+    const modifiedOrderFolios: string[] = [];
 
-    for (const ord of targetOrdersToUpdate) {
+    // Resolver el conjunto de órdenes a evaluar (si cubre varias órdenes de compra)
+    let candidateOrders: PurchaseOrder[] = [];
+    if (facFolios.length > 0 && allOrdersContext && allOrdersContext.length > 0) {
+      candidateOrders = allOrdersContext.filter((ord) => {
+        if (!ord || (ord as any).isDeleted) return false;
+        return (ord.invoices || []).some((inv: any) => {
+          const invF = (inv.folio || inv.id || '').trim().toUpperCase();
+          return facFolios.some((f) => {
+            const cleanF = f.trim().toUpperCase();
+            return invF === cleanF || invF.endsWith(cleanF) || cleanF.endsWith(invF);
+          });
+        });
+      });
+    }
+
+    if (candidateOrders.length === 0 && targetOrder) {
+      candidateOrders = [targetOrder];
+    }
+
+    for (const ord of candidateOrders) {
       if (!ord || (ord as any).isDeleted) continue;
       let orderModified = false;
       const updatedInvoices = (ord.invoices || []).map((inv: any) => {
@@ -724,6 +792,7 @@ export async function applyDocumentFast(
       });
 
       if (orderModified && ord.id) {
+        modifiedOrderFolios.push(ord.folio || ord.oc || ord.id);
         const ordRef = doc(db, PATHS.orders, ord.id);
         await safeUpdateDoc(ordRef, {
           invoices: cleanUndefined(updatedInvoices),
@@ -754,6 +823,7 @@ export async function applyDocumentFast(
     }
 
     const facSummary = facFolios.length > 0 ? `Factura(s) #${facFolios.join(', #')}` : 'facturas asociadas';
+    const orderScopeStr = modifiedOrderFolios.length > 1 ? ` en ${modifiedOrderFolios.join(', ')}` : '';
 
     if (appliedCount === 0) {
       if (facFolios.length === 0) {
@@ -785,7 +855,7 @@ export async function applyDocumentFast(
 
     return {
       success: true,
-      message: `Contrarecibo ${crFolio} vinculado automáticamente a ${facSummary}${dueDateStr ? ` (Pago programado: ${dueDateStr})` : ''}.`,
+      message: `Contrarecibo ${crFolio} vinculado automáticamente a ${facSummary}${orderScopeStr}${dueDateStr ? ` (Pago programado: ${dueDateStr})` : ''}.`,
       docType: 'contrarecibo',
       folio: crFolio,
       kilos: 0,
@@ -986,11 +1056,12 @@ export async function applyDocumentFast(
 
     const updatedInvoices = [...(targetOrder.invoices || [])];
 
-    // Verificar si el pago ya fue aplicado en alguna factura de esta orden
+    // Verificar si el pago ya fue aplicado en alguna factura de esta orden con clave idempotente
     const yaAplicado = updatedInvoices.some((i: any) => {
       if (i.collection?.transferRef && i.collection.transferRef.toUpperCase() === paymentRefKey) return true;
       return (i.collection?.paymentsHistory || []).some((p: any) =>
         (p.reference && p.reference.toUpperCase() === paymentRefKey) ||
+        (p.receiptId && p.receiptId.toUpperCase() === paymentRefKey) ||
         (Math.abs((p.amount || 0) - paymentAmount) < 0.1 && (p.notes || '').includes(analysis.file.name))
       );
     });
@@ -1057,18 +1128,23 @@ export async function applyDocumentFast(
 
     if (invIdx !== -1 && updatedInvoices[invIdx]) {
       const inv = updatedInvoices[invIdx];
-      const prevPaid = Number(inv.collection?.paidAmount) || 0;
-      const newPaid = round2(prevPaid + paymentAmount);
-      const invTotal = inv.financials?.invoiceTotal || (inv.kilos * (inv.financials?.salePricePerKg || 43) * 1.16);
-      const isInvoiceFullyPaid = newPaid >= (invTotal - 0.5);
-
       const newPaymentHistoryEntry = {
         id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        receiptId: analysis.folio || analysis.detectedOcNumber || paymentRefKey,
         amount: paymentAmount,
         date: safeDate,
         reference: paymentRefKey,
-        notes: `Abono de $${paymentAmount} vía ${analysis.file.name}`,
+        invoiceId: inv.id || inv.folio || '',
+        invoiceFolio: inv.folio || '',
+        notes: `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} vía ${analysis.file.name}`,
       };
+
+      const existingHistory = Array.isArray(inv.collection?.paymentsHistory) ? inv.collection.paymentsHistory : [];
+      const updatedHistory = [...existingHistory, newPaymentHistoryEntry];
+      // Derivar el nuevo paidAmount directamente del historial acumulado de pagos
+      const newPaid = round2(updatedHistory.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0));
+      const invTotal = inv.financials?.invoiceTotal || (inv.kilos * (inv.financials?.salePricePerKg || 43) * 1.16);
+      const isInvoiceFullyPaid = newPaid >= (invTotal - 0.5);
 
       inv.collection = {
         ...(inv.collection || {}),
@@ -1076,7 +1152,7 @@ export async function applyDocumentFast(
         paidAt: safeDate,
         collectedAt: isInvoiceFullyPaid ? safeDate : inv.collection?.collectedAt,
         transferRef: paymentRefKey,
-        paymentsHistory: [...(inv.collection?.paymentsHistory || []), newPaymentHistoryEntry],
+        paymentsHistory: updatedHistory,
       };
       inv.creditCycle = {
         ...(inv.creditCycle || {}),
