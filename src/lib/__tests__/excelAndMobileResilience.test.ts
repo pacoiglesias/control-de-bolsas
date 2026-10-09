@@ -65,9 +65,9 @@ describe('Excel Backups & Mobile Data Verification Suite', () => {
       ],
       invoices: [
         {
-          id: 'inv-6302',
+          id: 'inv-9999',
           orderId: 'oc-gt-test',
-          folio: '6302',
+          folio: '9999',
           kilos: 2000,
           collection: { contrareciboNumber: '' },
           creditCycle: { status: 'pending', issueDate: new Date('2026-09-22') as any, dueDate: new Date('2026-10-22') as any },

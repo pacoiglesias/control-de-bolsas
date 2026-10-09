@@ -10,6 +10,11 @@ import { useToast } from '../../context/ToastContext';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import {
   CARTERA_OFICIAL,
+  TOTAL_CARTERA_OFICIAL,
+  TOTAL_FACTURAS_REVISION_OFICIAL,
+  TOTAL_VENCIDOS_OFICIAL,
+  CR_VENCIDO_OFICIAL,
+  DEUDA_TOTAL_PROVIDENCIA_OFICIAL,
   SALDO_CAJA_ACTUAL,
 } from '../../lib/constants';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
@@ -75,9 +80,9 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
 
   // ── Métricas de Cartera en Vivo ─────────────────────────────────────────
   const carteraInfo = useMemo(() => {
-    const totalCrs = CARTERA_OFICIAL.reduce((sum, c) => sum + c.monto, 0);
-    const revision = 113925.92; // F-6302 ($39,105.92) + F-6307 ($74,820.00)
-    const totalDeuda = totalCrs + revision;
+    const totalCrs = TOTAL_CARTERA_OFICIAL;
+    const revision = TOTAL_FACTURAS_REVISION_OFICIAL; // F-6363 ($74,820) + F-6367 ($49,880) + F-6368 ($49,880)
+    const totalDeuda = DEUDA_TOTAL_PROVIDENCIA_OFICIAL;
     return {
       totalCrs,
       revision,
@@ -834,16 +839,16 @@ export const ConsolaCuadreEjecutivoModal: React.FC<ConsolaCuadreEjecutivoModalPr
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
                         <div style={{ padding: '10px 12px', borderRadius: 8, background: '#09090b', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>10 CRs Vigentes:</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>12 CRs Vigentes:</div>
                           <div style={{ fontSize: 14, fontWeight: 800, color: '#34d399', marginTop: 2 }}>{money(carteraInfo.totalCrs)}</div>
                         </div>
                         <div style={{ padding: '10px 12px', borderRadius: 8, background: '#09090b', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>En Revisión (F-6302/6307):</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>En Revisión (F-6363/6367/6368):</div>
                           <div style={{ fontSize: 14, fontWeight: 800, color: '#fbbf24', marginTop: 2 }}>{money(carteraInfo.revision)}</div>
                         </div>
                         <div style={{ padding: '10px 12px', borderRadius: 8, background: '#09090b', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>Vencidos (TH-946):</div>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: '#f87171', marginTop: 2 }}>{money(81780.00)}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>Vencidos ({CR_VENCIDO_OFICIAL}):</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#f87171', marginTop: 2 }}>{money(TOTAL_VENCIDOS_OFICIAL)}</div>
                         </div>
                       </div>
 

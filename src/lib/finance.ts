@@ -36,10 +36,19 @@ export function extractCr(
 ): string {
   // 1. Si se pasa una factura individual explícita
   if (inv && (inv.id !== o?.id || (inv as any).folio !== o?.folio || (inv as any).kilos !== undefined)) {
+    // Si la factura está explícitamente en revisión sin CR propio, no heredar de orden ni canonical
+    if ((inv as any)?.creditCycle?.status === 'revision' && !(inv as any)?.collection?.contrareciboNumber) {
+      return '';
+    }
     const invCr = ((inv as any)?.collection?.contrareciboNumber || (inv as any)?.contrarecibo || '').trim();
     if (invCr) return invCr;
     const f1 = ((inv as any)?.folio || '').trim().toUpperCase();
     if (f1.startsWith('TH-') || f1.startsWith('GT-')) return f1;
+
+    // Si la factura está en revisión, evitar asignar CR canónico automáticamente
+    if ((inv as any)?.creditCycle?.status === 'revision') {
+      return '';
+    }
 
     // Mapeo Canónico contra el Padrón Oficial de Cartera Providencia
     if (f1) {
@@ -385,6 +394,9 @@ export function getOrderSummary(o: PurchaseOrder) {
   // exista ninguna factura real, exactamente el caso de un expediente
   // recien capturado con "Pendiente de Facturar".
   const tieneEntregasExplicitas = (o.deliveries?.length || 0) > 0;
+  const isReconstructedInvoice = Boolean(
+    (o.invoices || []).length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))
+  );
   if (invoices.length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
     invoices.push({
       id: o.id + '-inv0',
@@ -398,6 +410,9 @@ export function getOrderSummary(o: PurchaseOrder) {
   }
 
   const deliveries: Delivery[] = (o.deliveries || []).filter(Boolean);
+  const isReconstructedDelivery = Boolean(
+    deliveries.length === 0 && invoices.length > 0
+  );
   // Si no hay entregas, no asumimos que entregaron los kilos pedidos. Asumimos como minimo lo facturado.
   if (deliveries.length === 0 && invoices.length > 0) {
     const fallbackKilos = invoices.reduce((acc, i) => acc + (i ? Number(i.kilos || 0) : 0), 0);
@@ -410,6 +425,10 @@ export function getOrderSummary(o: PurchaseOrder) {
     }
   }
 
+  const isHistoricalIncomplete = Boolean(
+    isReconstructedInvoice || isReconstructedDelivery || (o as any).isHistorical || ((o.totalKilograms || 0) > 0 && (o.deliveries || []).length === 0)
+  );
+
   const rawDelivered = deliveries.reduce((a, d) => {
     if (!d) return a;
     if (d.items && d.items.length > 0) {
@@ -419,7 +438,9 @@ export function getOrderSummary(o: PurchaseOrder) {
   }, 0);
 
   const totalInvoicedKilos = invoices.reduce((acc, i) => acc + (i ? Number(i.kilos || 0) : 0), 0);
-  const kilosDelivered = round2(Math.max(rawDelivered, totalInvoicedKilos));
+  // Auditoría: si hay entregas explícitas, respetar los kilos reales de báscula (rawDelivered)
+  // sin forzarlos artificialmente al mayor entre facturado y entregado.
+  const kilosDelivered = round2(tieneEntregasExplicitas ? rawDelivered : (rawDelivered > 0 ? rawDelivered : totalInvoicedKilos));
   
   let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
   let tradeMargin = new Decimal(0), realizedProfit = new Decimal(0);
@@ -515,7 +536,10 @@ export function getOrderSummary(o: PurchaseOrder) {
     realizedProfit: round2(realizedProfit.toNumber()),
     paidAmount: round2(paidAmount.toNumber()),
     status,
-    maxDaysLate
+    maxDaysLate,
+    isReconstructedDelivery,
+    isReconstructedInvoice,
+    isHistoricalIncomplete,
   };
 }
 

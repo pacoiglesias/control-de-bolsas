@@ -1,4 +1,5 @@
 import type { NavigateFunction } from 'react-router-dom';
+import { PriorityActionQueue } from '../PriorityActionQueue';
 import { ExecutivePriorityAlerts } from '../ExecutivePriorityAlerts';
 import { MorningBriefingWidget } from '../MorningBriefingWidget';
 import { CashFlowSimulatorWidget } from '../CashFlowSimulatorWidget';
@@ -37,7 +38,16 @@ export function DashboardExecutiveView({
 }: DashboardExecutiveViewProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 0. Asistente Matutino de 3 Tareas Clave */}
+      {/* 0. Lista de Trabajo Priorizada (Atención Inmediata del Día) */}
+      <PriorityActionQueue
+        orders={seguimientoOrders}
+        config={config}
+        onOpenQuickInvoice={onOpenQuickInvoice}
+        onOpenQuickCollection={onOpenQuickCollection}
+        onOpenQuickDelivery={onOpenQuickDelivery}
+      />
+
+      {/* 0.5 Asistente Matutino de Tareas Clave */}
       <MorningBriefingWidget
         orders={seguimientoOrders}
         config={config}

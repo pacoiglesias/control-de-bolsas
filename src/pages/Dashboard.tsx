@@ -31,6 +31,7 @@ import { DashboardHeaderToolbar } from '../components/Dashboard/DashboardHeaderT
 import { ModernKpiGrid } from '../components/Dashboard/ModernKpiGrid';
 import { DashboardViewModeTabs, type DashboardViewMode } from '../components/Dashboard/DashboardViewModeTabs';
 import { DashboardExecutiveView } from '../components/Dashboard/views/DashboardExecutiveView';
+import { DashboardBasculaView } from '../components/Dashboard/views/DashboardBasculaView';
 import { DashboardOrdersView } from '../components/Dashboard/views/DashboardOrdersView';
 import { DashboardCollectionView } from '../components/Dashboard/views/DashboardCollectionView';
 import { DashboardProductionView } from '../components/Dashboard/views/DashboardProductionView';
@@ -92,7 +93,13 @@ export default function Dashboard() {
   // Filtros y Espacios de Trabajo
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [monthFilter, setMonthFilter] = useState<string>('ALL');
-  const [viewMode, setViewMode] = useState<DashboardViewMode>('executive');
+  const [viewMode, setViewMode] = useState<DashboardViewMode>(() => {
+    const saved = localStorage.getItem('preferred_job_view');
+    if (saved && ['executive', 'bascula', 'orders', 'collection', 'production', 'pnl', 'all'].includes(saved)) {
+      return saved as DashboardViewMode;
+    }
+    return 'executive';
+  });
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<PipelineStageKey | null>(null);
 
   // Estados de Modales y Drawers
@@ -113,6 +120,8 @@ export default function Dashboard() {
   const [showReportsMenu, setShowReportsMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showQuickEdit, setShowQuickEdit] = useState(false);
+  const [showDiferenciasModal, setShowDiferenciasModal] = useState(false);
+  const [showCierreDiarioModal, setShowCierreDiarioModal] = useState(false);
 
   // Cerrar menús desplegables al hacer clic fuera
   useEffect(() => {
@@ -410,6 +419,8 @@ export default function Dashboard() {
         isHealing={isHealing}
         onOpenCuadreEjecutivo={() => setShowCuadreModal(true)}
         onOpenQuickEdit={role === 'admin' ? () => setShowQuickEdit(true) : undefined}
+        onOpenDiferencias={() => setShowDiferenciasModal(true)}
+        onOpenCierreDiario={() => setShowCierreDiarioModal(true)}
         globalOrders={globalOrders}
         purchases={purchases}
         expenses={expenses}
@@ -453,6 +464,18 @@ export default function Dashboard() {
               setShowQuickInvoice(true);
             }}
             onOpenQuickCollection={() => setShowQuickCollection(true)}
+            onOpenQuickDelivery={(orderId) => {
+              if (orderId) setSelectedDeliveryOrderId(orderId);
+              setShowQuickDelivery(true);
+            }}
+            onOpenUniversalUpload={() => setShowUniversalUpload(true)}
+          />
+        )}
+
+        {viewMode === 'bascula' && (
+          <DashboardBasculaView
+            orders={globalOrders}
+            nav={nav}
             onOpenQuickDelivery={(orderId) => {
               if (orderId) setSelectedDeliveryOrderId(orderId);
               setShowQuickDelivery(true);
@@ -521,6 +544,10 @@ export default function Dashboard() {
 
       {/* 6. Modales y Drawers Centralizados */}
       <DashboardModalsHost
+        showDiferenciasModal={showDiferenciasModal}
+        setShowDiferenciasModal={setShowDiferenciasModal}
+        showCierreDiarioModal={showCierreDiarioModal}
+        setShowCierreDiarioModal={setShowCierreDiarioModal}
         showContrarecibosDrawer={showContrarecibosDrawer}
         setShowContrarecibosDrawer={setShowContrarecibosDrawer}
         showSeguimientoDrawer={showSeguimientoDrawer}

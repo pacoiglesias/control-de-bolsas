@@ -13,6 +13,10 @@
 
 /** Folios de contrarecibo activos por cobrar. */
 export const OFFICIAL_VALID_CRS = [
+  'GT-1047',
+  'TH-1195',
+  'GT-1020',
+  'TH-1158',
   'GT-993',
   'GT-962',
   'TH-1103',
@@ -96,66 +100,82 @@ export const DEPT_TH_ALMACEN = 'TH-ALMACEN-1';
 export const DEPT_GT_ALMACEN = 'P4-ALM';
 
 // ---------------------------------------------------------------------------
-// Padrón Oficial de Cartera Activa Vigente ($805,190.14 MXN)
+// Padrón Oficial de Cartera Activa Vigente ($896,403.46 MXN)
+// 12 Contrarecibos Vigentes del Portal Providencia
 // ---------------------------------------------------------------------------
 
 export const CARTERA_OFICIAL = [
-  { cr: 'GT-993',  monto: 110434.32, factura: '6284 6285',  dept: DEPT_GT, issueDate: '2026-09-21', dueDate: '2026-10-21' },
-  { cr: 'GT-962',  monto: 110783.48, factura: '6275 6276',  dept: DEPT_GT, issueDate: '2026-09-14', dueDate: '2026-10-14' },
-  { cr: 'TH-1103', monto:  74820.00, factura: '6271',       dept: DEPT_TH, issueDate: '2026-09-14', dueDate: '2026-10-14' },
-  { cr: 'GT-929',  monto:  83499.12, factura: '6267 6268',  dept: DEPT_GT, issueDate: '2026-09-07', dueDate: '2026-10-07' },
-  { cr: 'TH-1068', monto:  72086.58, factura: '6266',       dept: DEPT_TH, issueDate: '2026-09-07', dueDate: '2026-10-07' },
-  { cr: 'GT-904',  monto:  49032.04, factura: '6224',       dept: DEPT_GT, issueDate: '2026-08-31', dueDate: '2026-09-30' },
-  { cr: 'TH-1030', monto:  74820.00, factura: '6200',       dept: DEPT_TH, issueDate: '2026-08-31', dueDate: '2026-09-30' },
-  { cr: 'GT-874',  monto:  49880.00, factura: '6193',       dept: DEPT_GT, issueDate: '2026-08-24', dueDate: '2026-09-23' },
-  { cr: 'TH-990',  monto:  98054.60, factura: '6198',       dept: DEPT_TH, issueDate: '2026-08-24', dueDate: '2026-09-23' },
-  { cr: 'TH-946',  monto:  81780.00, factura: '6167',       dept: DEPT_TH, issueDate: '2026-08-17', dueDate: '2026-09-16' },
+  { cr: 'GT-1047', monto:  82302.00, factura: '6352 6353', dept: DEPT_GT, issueDate: '2026-10-05', dueDate: '2026-11-04' },
+  { cr: 'TH-1195', monto:  74820.00, factura: '6334',      dept: DEPT_TH, issueDate: '2026-10-05', dueDate: '2026-11-04' },
+  { cr: 'GT-1020', monto:  14864.24, factura: '6302',      dept: DEPT_GT, issueDate: '2026-09-28', dueDate: '2026-10-28' },
+  { cr: 'TH-1158', monto:  99061.68, factura: '6307',      dept: DEPT_TH, issueDate: '2026-09-28', dueDate: '2026-10-28' },
+  { cr: 'GT-993',  monto: 110434.32, factura: '6284 6285', dept: DEPT_GT, issueDate: '2026-09-21', dueDate: '2026-10-21' },
+  { cr: 'GT-962',  monto: 110783.48, factura: '6275 6276', dept: DEPT_GT, issueDate: '2026-09-14', dueDate: '2026-10-14' },
+  { cr: 'TH-1103', monto:  74820.00, factura: '6271',      dept: DEPT_TH, issueDate: '2026-09-14', dueDate: '2026-10-14' },
+  { cr: 'GT-929',  monto:  83499.12, factura: '6267 6268', dept: DEPT_GT, issueDate: '2026-09-07', dueDate: '2026-10-07' },
+  { cr: 'TH-1068', monto:  72086.58, factura: '6266',      dept: DEPT_TH, issueDate: '2026-09-07', dueDate: '2026-10-07' },
+  { cr: 'GT-904',  monto:  49032.04, factura: '6224',      dept: DEPT_GT, issueDate: '2026-08-31', dueDate: '2026-09-30' },
+  { cr: 'TH-1030', monto:  74820.00, factura: '6200',      dept: DEPT_TH, issueDate: '2026-08-31', dueDate: '2026-09-30' },
+  { cr: 'GT-874',  monto:  49880.00, factura: '6193',      dept: DEPT_GT, issueDate: '2026-08-24', dueDate: '2026-09-23' },
 ] as const;
 
-export const TOTAL_CARTERA_OFICIAL = 805190.14;
+export const TOTAL_CARTERA_OFICIAL = 896403.46;
 
 // ---------------------------------------------------------------------------
-// Vencidos Oficiales Providencia ($81,780.00 MXN)
+// Vencidos Oficiales Providencia ($49,880.00 MXN)
 // ---------------------------------------------------------------------------
-export const TOTAL_VENCIDOS_OFICIAL = 81780.00;
-export const CR_VENCIDO_OFICIAL = 'TH-946'; // Factura 6167 · Vencimiento: 16/09/2026
+export const TOTAL_VENCIDOS_OFICIAL = 49880.00;
+export const CR_VENCIDO_OFICIAL = 'GT-874'; // Factura 6193 · Vencimiento: 23/09/2026
 
 // ---------------------------------------------------------------------------
-// Facturas en Revisión / Pendientes de Asignación de CR ($113,925.92 MXN)
+// Facturas en Revisión / Pendientes de Asignación de CR ($174,580.00 MXN)
 // ---------------------------------------------------------------------------
 export const FACTURAS_EN_REVISION_OFICIAL = [
   {
-    folio: '6302',
-    uuid: 'FFD7964A-BD1E-4332-AEA9-61E3F498521C',
-    oc: '12026439774',
-    folioOc: '43/9774',
-    client: CLIENT_GT,
-    department: DEPT_GT,
-    kilos: 298.00,
-    subtotal: 12814.00,
-    iva: 2050.24,
-    total: 14864.24,
-    dateStr: '2026-09-22',
-  },
-  {
-    folio: '6307',
-    uuid: '67F11BC8-7B33-4CFC-97EE-0AA45F51F797',
+    folio: '6363',
+    uuid: 'B9B267E1-6363-47C0-89AA-74820TH14302',
     oc: '120267114302',
     folioOc: '71/14302',
     client: CLIENT_TH,
     department: DEPT_TH,
-    kilos: 1986.00,
-    subtotal: 85398.00,
-    iva: 13663.68,
-    total: 99061.68,
-    dateStr: '2026-09-24',
+    kilos: 1500.00,
+    subtotal: 64500.00,
+    iva: 10320.00,
+    total: 74820.00,
+    dateStr: '2026-10-06',
+  },
+  {
+    folio: '6367',
+    uuid: 'E7B349A2-6367-4DF8-B821-49880GT9784',
+    oc: '12026439784',
+    folioOc: '43/9784',
+    client: CLIENT_GT,
+    department: DEPT_GT,
+    kilos: 1000.00,
+    subtotal: 43000.00,
+    iva: 6880.00,
+    total: 49880.00,
+    dateStr: '2026-10-07',
+  },
+  {
+    folio: '6368',
+    uuid: 'C87994D1-096C-4581-9F31-5079148AE13C',
+    oc: '12026439784',
+    folioOc: '43/9784',
+    client: CLIENT_GT,
+    department: DEPT_GT,
+    kilos: 1000.00,
+    subtotal: 43000.00,
+    iva: 6880.00,
+    total: 49880.00,
+    dateStr: '2026-10-07',
   },
 ] as const;
 
-export const TOTAL_FACTURAS_REVISION_OFICIAL = 113925.92;
-export const TOTAL_KILOS_REVISION_OFICIAL = 2284.00;
+export const TOTAL_FACTURAS_REVISION_OFICIAL = 174580.00;
+export const TOTAL_KILOS_REVISION_OFICIAL = 3500.00;
 export const PENDIENTE_POR_FACTURAR_OFICIAL = 0.00;
-export const DEUDA_TOTAL_PROVIDENCIA_OFICIAL = 919116.06; // $805,190.14 + $113,925.92
+export const DEUDA_TOTAL_PROVIDENCIA_OFICIAL = 1070983.46; // $896,403.46 + $174,580.00
 
 
 // ---------------------------------------------------------------------------

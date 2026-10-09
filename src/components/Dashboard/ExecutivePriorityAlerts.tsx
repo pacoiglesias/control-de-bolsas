@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { doc, Timestamp } from 'firebase/firestore';
+import { db, PATHS } from '../../lib/firebase';
+import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { OcClosureModal } from '../Orders/OcClosureModal';
-import { money, toDate } from '../../lib/format';
+import { Modal } from '../ui';
+import { money, toDate, fmtDate, fmtDayAndDate, toInputDate } from '../../lib/format';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -12,6 +16,11 @@ import {
   OC_GT_ACTIVE,
   CARTERA_OFICIAL,
   TOTAL_CARTERA_OFICIAL,
+  TOTAL_VENCIDOS_OFICIAL,
+  TOTAL_FACTURAS_REVISION_OFICIAL,
+  FACTURAS_EN_REVISION_OFICIAL,
+  DEUDA_TOTAL_PROVIDENCIA_OFICIAL,
+  CR_VENCIDO_OFICIAL,
   isOcTH,
   isOcGT,
 } from '../../lib/constants';
@@ -22,6 +31,7 @@ import {
   openWhatsAppMessage,
 } from '../../lib/whatsappReminder';
 import { ThreeWayMatchingBadge } from '../ui/ThreeWayMatchingBadge';
+import { extractCr } from '../../lib/finance';
 
 interface ExecutivePriorityAlertsProps {
   orders: PurchaseOrder[];
@@ -124,6 +134,35 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   const nav = useNavigate();
   const toast = useToast();
   const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
+  const [editingDateOrder, setEditingDateOrder] = useState<PurchaseOrder | null>(null);
+  const [selectedDateInput, setSelectedDateInput] = useState<string>('');
+  const [savingDeliveryDate, setSavingDeliveryDate] = useState<boolean>(false);
+
+  const handleOpenDateModal = (order: PurchaseOrder) => {
+    setEditingDateOrder(order);
+    const existing = toInputDate(order.estimatedDeliveryDate);
+    setSelectedDateInput(existing || new Date().toISOString().slice(0, 10));
+  };
+
+  const handleSaveDeliveryDate = async () => {
+    if (!editingDateOrder || !selectedDateInput) return;
+    setSavingDeliveryDate(true);
+    try {
+      const parsedDate = new Date(selectedDateInput + 'T12:00:00');
+      await safeUpdateDoc(doc(db, PATHS.orders, editingDateOrder.id), {
+        estimatedDeliveryDate: Timestamp.fromDate(parsedDate),
+        updatedAt: Timestamp.now(),
+      });
+      toast(`Próxima entrega de ${editingDateOrder.folio || editingDateOrder.oc} programada para el ${selectedDateInput}`, 'ok');
+      setEditingDateOrder(null);
+    } catch (err: any) {
+      console.error('[ExecutivePriorityAlerts] Error al guardar fecha:', err);
+      toast('Error al guardar fecha de entrega', 'bad');
+    } finally {
+      setSavingDeliveryDate(false);
+    }
+  };
+
   const [eveliaCompletedArchived, setEveliaCompletedArchived] = useState(() => {
     return localStorage.getItem('evelia_completed_pod_archived') === 'true';
   });
@@ -310,7 +349,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         const st = inv.creditCycle?.status;
         const amt = inv.financials?.invoiceTotal ?? entry.monto;
         const isPaid = st === 'paid' || st === 'collected';
-        const cr = (inv.collection?.contrareciboNumber || order.collection?.contrareciboNumber || '').trim().toUpperCase();
+        const cr = extractCr(inv, order).trim().toUpperCase();
 
         if (!isPaid && amt > 0) {
           if (!cr || !OFFICIAL_VALID_CRS.includes(cr as any)) {
@@ -337,7 +376,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         if (!inv) return;
         const st = inv.creditCycle?.status;
         const isPaid = st === 'paid' || st === 'collected';
-        const cr = (inv.collection?.contrareciboNumber || masterOrder.collection?.contrareciboNumber || '').trim().toUpperCase();
+        const cr = extractCr(inv, masterOrder).trim().toUpperCase();
         const amt = inv.financials?.invoiceTotal ?? 0;
         if (!isPaid && amt > 0 && (!cr || !OFFICIAL_VALID_CRS.includes(cr as any))) {
           sinCrMonto += amt;
@@ -354,7 +393,6 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   // 7. Facturas huérfanas de Contrarecibo emitidas hace más de 72 horas (3 días hábiles)
   const orphanInvoices = useMemo(() => {
     const now = Date.now();
-    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
     const orphans: Array<{
       orderId: string;
       orderFolio: string;
@@ -376,33 +414,59 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
         if (!inv) return;
         const st = inv.creditCycle?.status;
         const isPaid = st === 'paid' || st === 'collected';
-        const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
-        const hasCr = cr.length > 0 && OFFICIAL_VALID_CRS.includes(cr.toUpperCase() as any);
+        const cr = extractCr(inv, o).trim();
+        const hasCr = cr.length > 0 && (
+          (OFFICIAL_VALID_CRS as readonly string[]).includes(cr.toUpperCase()) ||
+          cr.toUpperCase().startsWith('TH-') ||
+          cr.toUpperCase().startsWith('GT-')
+        );
 
-        if (!isPaid && !hasCr) {
-          const issueDate = toDate(inv.creditCycle?.issueDate);
-          const issueTime = issueDate ? issueDate.getTime() : now - THREE_DAYS_MS - 1000;
-          const diffDays = Math.max(1, Math.floor((now - issueTime) / (24 * 60 * 60 * 1000)));
+        if (!isPaid && !hasCr && ((inv.kilos || 0) > 0 || (inv.financials?.invoiceTotal || 0) > 0)) {
+          const issueDate = toDate(inv.creditCycle?.issueDate || inv.fecha);
+          const issueTime = issueDate ? issueDate.getTime() : now;
+          const diffDays = Math.max(0, Math.floor((now - issueTime) / (24 * 60 * 60 * 1000)));
 
-          if (diffDays >= 3) {
-            const monto = inv.financials?.invoiceTotal || (inv.kilos || 0) * saleKg * (1 + ivaRate);
-            orphans.push({
-              orderId: o.id,
-              orderFolio: o.folio || o.oc || o.id || 'S/F',
-              department: dept,
-              buyer,
-              invoiceFolio: inv.folio || inv.id,
-              kilos: inv.kilos || 0,
-              monto,
-              daysPending: diffDays,
-            });
-          }
+          const monto = inv.financials?.invoiceTotal || (inv.kilos || 0) * saleKg * (1 + ivaRate);
+          orphans.push({
+            orderId: o.id,
+            orderFolio: o.folio || o.oc || o.id || 'S/F',
+            department: dept,
+            buyer,
+            invoiceFolio: inv.folio || inv.id,
+            kilos: inv.kilos || 0,
+            monto,
+            daysPending: diffDays,
+          });
         }
       });
     });
 
     return orphans;
   }, [orders, saleKg, ivaRate]);
+
+  // Facturas en Revisión reales (sin Contrarecibo)
+  const inReviewList = useMemo(() => {
+    if (orphanInvoices && orphanInvoices.length > 0) {
+      return orphanInvoices.map((o) => ({
+        folio: o.invoiceFolio,
+        monto: o.monto,
+        kilos: o.kilos,
+        buyer: o.buyer,
+        department: o.department,
+        days: o.daysPending,
+      }));
+    }
+    return FACTURAS_EN_REVISION_OFICIAL.map((f) => ({
+      folio: f.folio,
+      monto: f.total,
+      kilos: f.kilos,
+      buyer: f.department === 'TH' ? 'Lic. José Nava' : 'Lic. Evelia',
+      department: f.department,
+      days: 1,
+    }));
+  }, [orphanInvoices]);
+
+  const totalInReviewMonto = inReviewList.reduce((s, x) => s + x.monto, 0);
 
   const handleClaimCrWhatsApp = (dept: 'TH' | 'GT') => {
     const relevant = orphanInvoices.filter((inv) => inv.department === dept);
@@ -458,6 +522,11 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     : `⚡ Facturar Remanente`;
   let navaTargetOrderId = navaOrder?.id || `oc-${OC_TH_NAVA}`;
 
+  // Variables cronológicas para la tarjeta ejecutiva de Nava
+  let navaFechaEntregaStr = '14 de Octubre';
+  let navaCrDueDateStr = '04/Nov/2026';
+  let navaFaltantesMaquila = 0;
+
   // Si existe la OC Activa de Nava (OC 120267114302 · 8,000 kg), priorizarla en pantalla automáticamente
   if (navaActiveOrder) {
     const activeKg = Number(navaActiveOrder.totalKilograms) || 8000.0;
@@ -468,6 +537,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     const totalFacturadoMonto = validInvoices.reduce((acc, i) => acc + (i.financials?.invoiceTotal || ((Number(i.kilos) || 0) * saleKg * (1 + ivaRate))), 0);
     const pendientesFacturar = Math.max(0, activeEntregados - activeFacturados);
     const faltantesEntrega = Math.max(0, activeKg - activeEntregados);
+    navaFaltantesMaquila = faltantesEntrega;
+
+    // Fechas dinámicas
+    const navaEstimatedDate = toDate(navaActiveOrder.estimatedDeliveryDate);
+    navaFechaEntregaStr = navaEstimatedDate ? fmtDayAndDate(navaEstimatedDate) : '14 de Octubre';
+
+    const navaCrInvoices = validInvoices.filter(i => !!i.collection?.contrareciboNumber);
+    const navaCrNumbers = Array.from(new Set(navaCrInvoices.map(i => i.collection?.contrareciboNumber).filter(Boolean)));
+    const latestCrInvoice = navaCrInvoices[0];
+    const navaCrDueDate = toDate(latestCrInvoice?.creditCycle?.dueDate || latestCrInvoice?.collection?.contrareciboDate);
+    navaCrDueDateStr = navaCrDueDate ? fmtDate(navaCrDueDate) : '04/Nov/2026';
 
     navaBadge = '🏢 TH · José Nava';
     navaBadgeColor = '#3b82f6';
@@ -481,14 +561,14 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
       : '📦 En Maquila';
 
     navaTitle = pendientesFacturar > 0
-      ? `OC 71/14302 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg por facturar · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg)`
+      ? `OC 71/14302 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg por facturar · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg · Próxima Entrega: ${navaFechaEntregaStr})`
       : activeFacturados > 0
-      ? `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Facturados (${Math.round((activeFacturados / activeKg) * 100)}%)`
-      : `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
+      ? `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Facturados (${Math.round((activeFacturados / activeKg) * 100)}% · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg · Próxima Entrega: ${navaFechaEntregaStr})`
+      : `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro (Próxima Entrega: ${navaFechaEntregaStr})`;
 
     navaSubtitle = validInvoices.length > 0
-      ? `Orden oficial de Textil Hogar (José Nava). ${foliosStr} timbradas por un total de ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg (${money(totalFacturadoMonto)} con IVA). ${faltantesEntrega > 0 ? `Restan ${faltantesEntrega.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.` : 'Surtido de 8,000 kg completo.'}`
-      : `Nueva orden oficial de Textil Hogar (José Nava). ${activeEntregados > 0 ? `${activeEntregados.toLocaleString('es-MX')} kg entregados.` : ''} ${faltantesEntrega.toLocaleString('es-MX')} kg en proceso de maquila con Andrés.`;
+      ? `Orden oficial de Textil Hogar (José Nava). ${foliosStr} timbradas por un total de ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg (${money(totalFacturadoMonto)} con IVA). ${navaCrNumbers.length > 0 ? `CR ${navaCrNumbers.join(', ')} asignado (Pago: ${navaCrDueDateStr}). ` : ''}${faltantesEntrega > 0 ? `Restan ${faltantesEntrega.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés (Próxima entrega: ${navaFechaEntregaStr}).` : 'Surtido de 8,000 kg completo.'}`
+      : `Nueva orden oficial de Textil Hogar (José Nava). ${activeEntregados > 0 ? `${activeEntregados.toLocaleString('es-MX')} kg entregados.` : ''} ${faltantesEntrega.toLocaleString('es-MX')} kg programados con Andrés para el ${navaFechaEntregaStr}.`;
 
     navaBtn = pendientesFacturar > 0 ? '⚡ Facturar Entregas en Patio' : '📦 Ver OC 14302';
     navaTargetOrderId = navaActiveOrder.id || 'oc-120267114302';
@@ -513,22 +593,34 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   let eveliaBtn = `📋 Solicitar Nueva OC`;
   let eveliaTargetOrderId = eveliaOrder?.id || `oc-${OC_GT_EVELIA}`;
 
+  let eveliaFechaEntregaStr = '13 de Octubre';
+  let eveliaFaltantesMaquila = 0;
+
   if (eveliaActiveOrder) {
     const activeKg = Number(eveliaActiveOrder.totalKilograms) || 5100.0;
     const activeEntregados = totalKilosEntregados(eveliaActiveOrder);
     const activeFacturados = totalKilosFacturados(eveliaActiveOrder);
     const activeRemanente = Math.max(0, activeKg - activeEntregados);
     const pendientesFacturar = Math.max(0, activeEntregados - activeFacturados);
+    eveliaFaltantesMaquila = activeRemanente;
+
+    const eveliaEstimatedDate = toDate(eveliaActiveOrder.estimatedDeliveryDate);
+    eveliaFechaEntregaStr = eveliaEstimatedDate ? fmtDayAndDate(eveliaEstimatedDate) : '13 de Octubre';
+
     eveliaBadge = `🏭 GT · Lic. Evelia`;
     eveliaBadgeColor = '#3b82f6';
     eveliaOcLabel = `OC: ${eveliaActiveOrder.oc || '12026439784'} (${eveliaActiveOrder.folio || '43/9784'})`;
-    eveliaStatusLabel = pendientesFacturar > 0 ? '⚡ 2,000 kg Entregados (Por Facturar)' : activeEntregados > 0 ? '⚡ En Suministro' : '📦 En Maquila';
+    eveliaStatusLabel = pendientesFacturar > 0
+      ? `⚡ ${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg Entregados (Por Facturar)`
+      : activeEntregados > 0
+      ? '⚡ En Suministro'
+      : '📦 En Maquila';
     eveliaTitle = pendientesFacturar > 0
-      ? `OC 43/9784 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (Faltan ${activeRemanente.toLocaleString('es-MX')} kg · Próxima Entrega: 13 de Octubre)`
-      : `OC 43/9784 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro`;
+      ? `OC 43/9784 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (Faltan ${activeRemanente.toLocaleString('es-MX')} kg · Próxima Entrega: ${eveliaFechaEntregaStr})`
+      : `OC 43/9784 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro (Próxima Entrega: ${eveliaFechaEntregaStr})`;
     eveliaSubtitle = pendientesFacturar > 0
-      ? `Remisión Oficial 6439784 sellada en P4 con ${activeEntregados.toLocaleString('es-MX')} kg listos para facturar ($${(activeEntregados * 43 * 1.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })} con IVA). Faltan ${activeRemanente.toLocaleString('es-MX')} kg programados para entregar el 13 de octubre.`
-      : `Nueva orden oficial de Evelia en Planta P4. ${activeEntregados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg entregados, ${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés.`;
+      ? `Remisión Oficial 6439784 sellada en P4 con ${activeEntregados.toLocaleString('es-MX')} kg listos para facturar ($${(activeEntregados * 43 * 1.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })} con IVA). Faltan ${activeRemanente.toLocaleString('es-MX')} kg programados para entregar el ${eveliaFechaEntregaStr}.`
+      : `Nueva orden oficial de Evelia en Planta P4. ${activeEntregados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg entregados, ${activeRemanente.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés (Próxima entrega: ${eveliaFechaEntregaStr}).`;
     eveliaBtn = activeEntregados > activeFacturados ? '⚡ Facturar Entregas en Patio' : '📦 Ver OC 9784';
     eveliaTargetOrderId = eveliaActiveOrder.id || 'oc-12026439784';
   } else if (hasNewOc && isNewOcPendingInvoice) {
@@ -711,10 +803,10 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             <span style={{ fontSize: 24 }}>🚨</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 900, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                Centinela Proactivo: {orphanInvoices.length} Factura{orphanInvoices.length > 1 ? 's' : ''} Sin Contrarecibo (&gt; 72 hrs)
+                Centinela Proactivo: {orphanInvoices.length} Factura{orphanInvoices.length > 1 ? 's' : ''} Sin Contrarecibo
               </div>
               <div style={{ fontSize: 12, color: 'var(--ink, #fff)', marginTop: 2 }}>
-                {orphanInvoices.map((i) => `F-${i.invoiceFolio} (${money(i.monto)})`).join(' · ')}
+                {orphanInvoices.map((i) => `F-${i.invoiceFolio} (${money(i.monto)} · ${i.daysPending === 0 ? 'hoy' : `${i.daysPending}d`})`).join(' · ')}
               </div>
             </div>
           </div>
@@ -781,10 +873,10 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             <span style={{ fontSize: 18 }}>🏛️</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink)' }}>
-                Deuda Total Providencia: {money(919116.06)}
+                Deuda Total Providencia: {money(DEUDA_TOTAL_PROVIDENCIA_OFICIAL)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
-                10 Contrarecibos vigentes ($805,190.14) + 2 Facturas en revisión ($113,925.92)
+                {CARTERA_OFICIAL.length} Contrarecibos vigentes ({money(TOTAL_CARTERA_OFICIAL)}) + 3 Facturas en revisión ({money(TOTAL_FACTURAS_REVISION_OFICIAL)})
               </div>
             </div>
           </div>
@@ -809,40 +901,54 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           </button>
         </div>
 
-        {/* Barra Visual de Proporciones */}
-        <div style={{ height: 12, borderRadius: 999, overflow: 'hidden', display: 'flex', background: 'rgba(255,255,255,0.06)' }}>
-          <div
-            style={{ width: `${(723410.14 / 919116.06) * 100}%`, background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)' }}
-            title={`Vigente al corriente: ${money(723410.14)} (78.7%)`}
-          />
-          <div
-            style={{ width: `${(81780.00 / 919116.06) * 100}%`, background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)' }}
-            title={`Vencido (CR TH-946): ${money(81780.00)} (8.9%)`}
-          />
-          <div
-            style={{ width: `${(113925.92 / 919116.06) * 100}%`, background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)' }}
-            title={`En Revisión (F-6302 y F-6307): ${money(113925.92)} (12.4%)`}
-          />
-        </div>
+        {/* Barra Visual de Proporciones Dinámica */}
+        {(() => {
+          const totalDeuda = DEUDA_TOTAL_PROVIDENCIA_OFICIAL;
+          const vencido = TOTAL_VENCIDOS_OFICIAL; // $49,880.00 (GT-874)
+          const enRevision = TOTAL_FACTURAS_REVISION_OFICIAL; // $174,580.00 (F-6363, F-6367, F-6368)
+          const vigenteAlCorriente = TOTAL_CARTERA_OFICIAL - vencido; // $846,523.46
+          const pctVigente = ((vigenteAlCorriente / totalDeuda) * 100).toFixed(1);
+          const pctVencido = ((vencido / totalDeuda) * 100).toFixed(1);
+          const pctRevision = ((enRevision / totalDeuda) * 100).toFixed(1);
 
-        {/* Leyenda interactiva */}
-        <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap', fontSize: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
-            <span style={{ color: 'var(--ink-soft)' }}>Vigente al Corriente:</span>
-            <strong style={{ color: '#047857' }}>{money(723410.14)}</strong>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
-            <span style={{ color: 'var(--ink-soft)' }}>Vencido (TH-946):</span>
-            <strong style={{ color: '#dc2626' }}>{money(81780.00)}</strong>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
-            <span style={{ color: 'var(--ink-soft)' }}>En Revisión (F-6302 / 6307):</span>
-            <strong style={{ color: '#d97706' }}>{money(113925.92)}</strong>
-          </div>
-        </div>
+          return (
+            <>
+              <div style={{ height: 12, borderRadius: 999, overflow: 'hidden', display: 'flex', background: 'rgba(255,255,255,0.06)' }}>
+                <div
+                  style={{ width: `${pctVigente}%`, background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)' }}
+                  title={`Vigente al corriente: ${money(vigenteAlCorriente)} (${pctVigente}%)`}
+                />
+                <div
+                  style={{ width: `${pctVencido}%`, background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)' }}
+                  title={`Vencido (CR ${CR_VENCIDO_OFICIAL}): ${money(vencido)} (${pctVencido}%)`}
+                />
+                <div
+                  style={{ width: `${pctRevision}%`, background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)' }}
+                  title={`En Revisión (F-6363, F-6367, F-6368): ${money(enRevision)} (${pctRevision}%)`}
+                />
+              </div>
+
+              {/* Leyenda interactiva */}
+              <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap', fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
+                  <span style={{ color: 'var(--ink-soft)' }}>Vigente al Corriente:</span>
+                  <strong style={{ color: '#047857' }}>{money(vigenteAlCorriente)}</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
+                  <span style={{ color: 'var(--ink-soft)' }}>Vencido ({CR_VENCIDO_OFICIAL}):</span>
+                  <strong style={{ color: '#dc2626' }}>{money(vencido)}</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
+                  <span style={{ color: 'var(--ink-soft)' }}>En Revisión (F-6363, 6367, 6368):</span>
+                  <strong style={{ color: '#d97706' }}>{money(enRevision)}</strong>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* GRID PRINCIPAL DE ALERTAS EJECUTIVAS */}
@@ -1062,6 +1168,59 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 {(navaActiveOrder || navaOrder) && (
                   <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%' }}>
                     <ThreeWayMatchingBadge order={(navaActiveOrder || navaOrder)!} compact />
+                  </div>
+                )}
+
+                {navaActiveOrder && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      fontSize: 11.5,
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span>
+                        🚚 <strong>Próxima Entrega Maquila:</strong>{' '}
+                        <span style={{ color: '#60a5fa', fontWeight: 800 }}>{navaFechaEntregaStr}</span>
+                        {navaFaltantesMaquila > 0 && ` (${Math.round(navaFaltantesMaquila).toLocaleString('es-MX')} kg con Andrés)`}
+                      </span>
+                      {navaCrDueDateStr && (
+                        <span>
+                          💰 <strong>CR TH-1195:</strong> Pago Oficial{' '}
+                          <span style={{ color: '#34d399', fontWeight: 800 }}>{navaCrDueDateStr}</span> ($74,820.00)
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDateModal(navaActiveOrder)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'rgba(59, 130, 246, 0.2)',
+                        color: '#60a5fa',
+                        border: '1px solid rgba(59, 130, 246, 0.4)',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                      title="Definir o cambiar la fecha programada de entrega con Andrés"
+                    >
+                      <span>📅</span>
+                      <span>Programar Entrega</span>
+                    </button>
                   </div>
                 )}
               </>
@@ -1533,6 +1692,57 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                       <ThreeWayMatchingBadge order={(eveliaActiveOrder || eveliaNewOcOrder || eveliaOrder)!} compact />
                     </div>
                   )}
+
+                  {eveliaActiveOrder && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        fontSize: 11.5,
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span>
+                          🚚 <strong>Próxima Entrega P4:</strong>{' '}
+                          <span style={{ color: '#60a5fa', fontWeight: 800 }}>{eveliaFechaEntregaStr}</span>
+                          {eveliaFaltantesMaquila > 0 && ` (${Math.round(eveliaFaltantesMaquila).toLocaleString('es-MX')} kg con Andrés)`}
+                        </span>
+                        <span>
+                          💰 <strong>CR GT-1047:</strong> Pago Oficial{' '}
+                          <span style={{ color: '#34d399', fontWeight: 800 }}>04/Nov/2026</span> ($82,302.00)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDateModal(eveliaActiveOrder)}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: 'rgba(59, 130, 246, 0.2)',
+                          color: '#60a5fa',
+                          border: '1px solid rgba(59, 130, 246, 0.4)',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        title="Definir o cambiar la fecha programada de entrega en Planta P4"
+                      >
+                        <span>📅</span>
+                        <span>Programar Entrega</span>
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1739,11 +1949,19 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             </div>
 
             <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--ink, #fff)', letterSpacing: '-0.3px', lineHeight: 1.25 }}>
-              2 Facturas en Revisión: F-6302 y F-6307
+              {inReviewList.length > 0
+                ? `${inReviewList.length} Factura${inReviewList.length > 1 ? 's' : ''} en Revisión: ${inReviewList.map((i) => `F-${i.folio}`).join(', ')}`
+                : '✅ 0 Facturas en Revisión'}
             </div>
 
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft, rgba(255,255,255,0.7))', marginTop: 8, lineHeight: 1.45 }}>
-              Total <strong>$113,925.92 MXN</strong> (F-6302 por $14,864.24 y F-6307 por $99,061.68) pendientes de asignación de Contrarecibo en portal <code style={{ fontSize: 11 }}>apps.mundoprovidencia.com</code>.
+              {inReviewList.length > 0 ? (
+                <>
+                  Total <strong>{money(totalInReviewMonto)}</strong> ({inReviewList.map((i) => `F-${i.folio} por ${money(i.monto)}`).join(' · ')}) pendientes de asignación de Contrarecibo en portal <code style={{ fontSize: 11 }}>apps.mundoprovidencia.com</code>.
+                </>
+              ) : (
+                'Todas las facturas emitidas cuentan con contrarecibo oficial asignado.'
+              )}
             </div>
           </div>
 
@@ -2106,6 +2324,104 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
           );
         })}
       </div>
+
+      {/* MODAL DE PROGRAMACIÓN DE FECHA DE ENTREGA */}
+      {editingDateOrder && (
+        <Modal
+          title={`📅 Programar Próxima Entrega · OC ${editingDateOrder.folio || editingDateOrder.oc}`}
+          onClose={() => setEditingDateOrder(null)}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
+              Define la fecha en que Andrés entregará el siguiente embarque de maquila para surtir los kilos faltantes de esta orden.
+            </p>
+
+            {/* Presets rápidos */}
+            <div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-soft)', marginBottom: 6 }}>
+                Fechas frecuentes:
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Lun 13 Oct', value: '2026-10-13' },
+                  { label: 'Mar 14 Oct', value: '2026-10-14' },
+                  { label: 'Mié 15 Oct', value: '2026-10-15' },
+                  { label: 'Jue 16 Oct', value: '2026-10-16' },
+                  { label: 'Vie 17 Oct', value: '2026-10-17' },
+                ].map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    className="btn"
+                    onClick={() => setSelectedDateInput(p.value)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: selectedDateInput === p.value ? 800 : 600,
+                      background: selectedDateInput === p.value ? 'rgba(59, 130, 246, 0.3)' : 'var(--paper-sunk)',
+                      color: selectedDateInput === p.value ? '#60a5fa' : 'var(--ink)',
+                      border: `1px solid ${selectedDateInput === p.value ? '#3b82f6' : 'var(--line)'}`,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--ink)' }}>
+                Fecha Seleccionada:
+              </label>
+              <input
+                type="date"
+                value={selectedDateInput}
+                onChange={(e) => setSelectedDateInput(e.target.value)}
+                className="input"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  background: 'var(--paper-sunk)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setEditingDateOrder(null)}
+                style={{ padding: '8px 16px', borderRadius: 10 }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveDeliveryDate}
+                disabled={savingDeliveryDate || !selectedDateInput}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {savingDeliveryDate ? 'Guardando...' : '💾 Confirmar Fecha'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* MODAL DE CIERRE Y AUDITORÍA DE OC */}
       {closingOrder && (

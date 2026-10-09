@@ -62,29 +62,45 @@ export function parseProvidenciaContrareciboHtml(content: string): ParsedContrar
       }
     }
 
-    // 2. Extraer todas las partidas de facturas amparadas en el HTML
+    // 2. Extraer todas las partidas de facturas amparadas en HTML o Texto Plano (PDF)
     const rowRegex = /<tr[^>]*name="l_\d+"[^>]*>\s*<td[^>]*>([0-9]{3,8})<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([0-9,]+\.[0-9]{2})<\/td>/gi;
     const rowMatches = [...text.matchAll(rowRegex)];
 
+    // En texto plano de PDFs de Providencia las filas siguen el formato:
+    // "6352 2 / 415 14,964.00 PMX"
+    const textRowRegex = /\b([0-9]{3,8})\b\s+([0-9]+\s*\/\s*[0-9]+)\s+([0-9,]+\.[0-9]{2})\s*(?:PMX|MXN)?/gi;
+    const textRowMatches = [...text.matchAll(textRowRegex)];
+
     // 5. Fechas de Recepción y Pago
     const fecRecMatch = text.match(/Fecha\s*Recepci[oó]n:\s*<strong>([0-9]{2}\/[0-9]{2}\/[0-9]{4})<\/strong>/i) ||
-                        text.match(/Fecha\s*Recepci[oó]n:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i);
-    const fechaRecepcion = fecRecMatch ? fecRecMatch[1].trim() : undefined;
+                        text.match(/Fecha\s*Recepci[oó]n:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) ||
+                        text.match(/Recepci[oó]n[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i);
+    let fechaRecepcion = fecRecMatch ? fecRecMatch[1].trim() : undefined;
 
     const fecPagoMatch = text.match(/Fecha\s*Pago:\s*<strong>([0-9]{2}\/[0-9]{2}\/[0-9]{4})<\/strong>/i) ||
-                         text.match(/Fecha\s*Pago:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i);
-    const fechaPago = fecPagoMatch ? fecPagoMatch[1].trim() : undefined;
+                         text.match(/Fecha\s*Pago:\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) ||
+                         text.match(/Pago[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i);
+    let fechaPago = fecPagoMatch ? fecPagoMatch[1].trim() : undefined;
+
+    // Cadena Original con estructura oficial: 1|2026|TH-1195|05/10/2026|EDE1902136T2|74820|04/11/2026
+    const cadDetails = text.match(/1\|\d{4}\|((?:TH|GT)-[0-9]+)\|(\d{2}\/\d{2}\/\d{4})\|[A-Z0-9-]+\|([0-9.]+)\|(\d{2}\/\d{2}\/\d{4})/i);
+    if (cadDetails) {
+      if (!contrareciboNumber) contrareciboNumber = cadDetails[1].toUpperCase();
+      if (!fechaRecepcion) fechaRecepcion = cadDetails[2];
+      if (!fechaPago) fechaPago = cadDetails[4];
+    }
 
     // 6. Cadena Original
-    const cadMatch = text.match(/1\|\d{4}\|[A-Z0-9-]+\|[^<]+/);
+    const cadMatch = text.match(/1\|\d{4}\|[A-Z0-9-]+\|[^<\n\r]+/);
     const cadenaOriginal = cadMatch ? cadMatch[0].trim() : undefined;
 
     // 7. Sello Digital
-    const selloMatch = text.match(/Sello\s*digital[\s\S]*?<td[^>]*align="center">([\s\S]*?)<\/td>/i);
+    const selloMatch = text.match(/Sello\s*digital[\s\S]*?<td[^>]*align="center">([\s\S]*?)<\/td>/i) ||
+                       text.match(/Sello\s*digital\s*\n\s*([A-Za-z0-9+/=]{40,})/i);
     const selloDigital = selloMatch ? selloMatch[1].replace(/<[^>]+>/g, '').trim() : undefined;
 
     // 8. Departamento TH vs GT
-    const upperCr = contrareciboNumber.toUpperCase();
+    const upperCr = (contrareciboNumber || (cadDetails ? cadDetails[1] : '')).toUpperCase();
     const department: 'TH' | 'GT' | 'OTHER' = upperCr.startsWith('TH') ? 'TH' : upperCr.startsWith('GT') ? 'GT' : 'OTHER';
 
     if (rowMatches.length > 0) {
@@ -101,27 +117,33 @@ export function parseProvidenciaContrareciboHtml(content: string): ParsedContrar
           department,
         });
       }
+    } else if (textRowMatches.length > 0) {
+      for (const trm of textRowMatches) {
+        results.push({
+          contrareciboNumber: upperCr,
+          facturaFolio: trm[1].trim(),
+          serieControlInterno: trm[2].trim(),
+          importe: parseFloat(trm[3].replace(/,/g, '')),
+          fechaRecepcion,
+          fechaPago,
+          cadenaOriginal,
+          selloDigital,
+          department,
+        });
+      }
     } else {
-      // 2. Factura Folio fallback (HTML y texto plano de PDFs)
+      // Fallback para factura única o formatos no tabulares
       const facMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>\s*<td[^>]*>([0-9]{3,8})<\/td>/i) ||
                        text.match(/Factura\s*No\.[\s\S]*?<td[^>]*>([0-9]{3,8})<\/td>/i) ||
                        text.match(/Factura\s*(?:No\.?)?[:\s]*F?-?([0-9]{3,8})/i) ||
-                       text.match(/F-([0-9]{3,8})/i);
+                       text.match(/F-([0-9]{3,8})/i) ||
+                       text.match(/\b([0-9]{4,6})\b\s+[0-9\s/]+\s+([0-9,]+\.[0-9]{2})/);
       const facturaFolio = facMatch ? facMatch[1].trim() : '';
 
-      // 3. Serie / Control Interno
       const serieMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>[\s\S]*?<td[^>]*>([0-9\s/]+)<\/td>/i) ||
                          text.match(/Serie[:\s]*([A-Z0-9\s/]+)/i);
       const serieControlInterno = serieMatch ? serieMatch[1].trim() : undefined;
 
-      // 4. Fechas en texto plano si no se detectaron en HTML
-      const plainFecPago = !fechaPago ? (text.match(/Fecha\s*(?:Probable\s*de\s*)?Pago[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || text.match(/Pago[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i)) : null;
-      const effectiveFechaPago = fechaPago || (plainFecPago ? plainFecPago[1].trim() : undefined);
-
-      const plainFecRec = !fechaRecepcion ? (text.match(/Fecha\s*(?:de\s*)?Recepci[oó]n[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || text.match(/Recepci[oó]n[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i)) : null;
-      const effectiveFechaRecepcion = fechaRecepcion || (plainFecRec ? plainFecRec[1].trim() : undefined);
-
-      // 5. Importe (HTML o texto plano)
       const importeMatch = text.match(/<tr[^>]*name="l_\d+"[^>]*>[\s\S]*?<td[^>]*>([0-9,]+\.[0-9]{2})<\/td>/i) ||
                            text.match(/1\|\d{4}\|[A-Z0-9-]+\|[^|]+\|[^|]+\|([0-9.]+)\|/) ||
                            text.match(/Total[:\s]*\$?\s*([0-9,]+\.[0-9]{2})/i) ||
@@ -137,8 +159,8 @@ export function parseProvidenciaContrareciboHtml(content: string): ParsedContrar
           facturaFolio,
           serieControlInterno,
           importe,
-          fechaRecepcion: effectiveFechaRecepcion,
-          fechaPago: effectiveFechaPago,
+          fechaRecepcion,
+          fechaPago,
           cadenaOriginal,
           selloDigital,
           department,

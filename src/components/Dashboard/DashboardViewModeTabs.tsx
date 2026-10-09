@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { sound } from '../../lib/sounds';
 
-export type DashboardViewMode = 'executive' | 'orders' | 'collection' | 'production' | 'pnl' | 'all';
+export type DashboardViewMode = 'executive' | 'bascula' | 'orders' | 'collection' | 'production' | 'pnl' | 'all';
 
 interface TabDef {
   key: DashboardViewMode;
@@ -17,7 +17,7 @@ interface TabDef {
  * Selector de espacio de trabajo — Pastilla Magnética Deslizante (Spring Physics)
  * ✅ a11y: role="tablist", aria-selected, aria-controls
  * ✅ Touch targets: mínimo 44px
- * ✅ Badge animado en Expedientes con conteo de OCs activas
+ * ✅ Vistas por Puesto de Trabajo (Báscula, Cobranza, Administración)
  */
 export function DashboardViewModeTabs({
   viewMode,
@@ -37,6 +37,13 @@ export function DashboardViewModeTabs({
       label: 'Resumen Ejecutivo',
       shortLabel: 'Resumen',
       accentColor: 'var(--accent)',
+    },
+    {
+      key: 'bascula',
+      icon: '⚖️',
+      label: 'Báscula & Patio',
+      shortLabel: 'Báscula',
+      accentColor: '#ea580c',
     },
     {
       key: 'orders',
@@ -78,23 +85,106 @@ export function DashboardViewModeTabs({
   ];
 
   return (
-    <div
-      role="tablist"
-      aria-label="Espacio de trabajo del dashboard"
-      style={{
-        display: 'flex',
-        gap: 4,
-        marginBottom: 24,
-        background: 'var(--paper-sunk)',
-        padding: '5px 6px',
-        borderRadius: 18,
-        border: '1px solid var(--line-soft)',
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
-        WebkitOverflowScrolling: 'touch',
-        msOverflowStyle: 'none',
-      }}
-    >
+    <div style={{ marginBottom: 24 }}>
+      {/* Selector Rápido de Puestos de Operación */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 10,
+          flexWrap: 'wrap',
+          gap: 8,
+          padding: '0 4px',
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-soft)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <span>👤 Vistas por Puesto:</span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => {
+              sound.playPop?.();
+              localStorage.setItem('preferred_job_view', 'bascula');
+              setViewMode('bascula');
+            }}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 8,
+              fontSize: 11.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              border: viewMode === 'bascula' ? '1.5px solid #ea580c' : '1px solid var(--line-soft)',
+              background: viewMode === 'bascula' ? '#fff7ed' : 'var(--paper)',
+              color: viewMode === 'bascula' ? '#c2410c' : 'var(--ink-soft)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            ⚖️ Báscula (Entregas & Patio)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              sound.playPop?.();
+              localStorage.setItem('preferred_job_view', 'collection');
+              setViewMode('collection');
+            }}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 8,
+              fontSize: 11.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              border: viewMode === 'collection' ? '1.5px solid #0284c7' : '1px solid var(--line-soft)',
+              background: viewMode === 'collection' ? '#f0f9ff' : 'var(--paper)',
+              color: viewMode === 'collection' ? '#0369a1' : 'var(--ink-soft)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            💳 Cobranza (Facturas & CRs)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              sound.playPop?.();
+              localStorage.setItem('preferred_job_view', 'executive');
+              setViewMode('executive');
+            }}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 8,
+              fontSize: 11.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              border: viewMode === 'executive' ? '1.5px solid var(--accent)' : '1px solid var(--line-soft)',
+              background: viewMode === 'executive' ? 'var(--paper-sunk)' : 'var(--paper)',
+              color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            🏢 Administración (Excepciones & Cuadre)
+          </button>
+        </div>
+      </div>
+
+      {/* Barra de Pestañas Deslizante */}
+      <div
+        role="tablist"
+        aria-label="Espacio de trabajo del dashboard"
+        style={{
+          display: 'flex',
+          gap: 4,
+          background: 'var(--paper-sunk)',
+          padding: '5px 6px',
+          borderRadius: 18,
+          border: '1px solid var(--line-soft)',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+          msOverflowStyle: 'none',
+        }}
+      >
       {tabs.map((t) => {
         const isActive = viewMode === t.key;
         return (
@@ -206,6 +296,7 @@ export function DashboardViewModeTabs({
           .tab-label-short { display: inline !important; }
         }
       `}</style>
+      </div>
     </div>
   );
 }

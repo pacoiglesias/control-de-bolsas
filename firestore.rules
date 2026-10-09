@@ -280,13 +280,20 @@ service cloud.firestore {
       // para broadcast ('todos'), o si eres superAdmin. Las Cloud Functions
       // usan el Admin SDK y no pasan por estas reglas, por lo que las
       // notificaciones del sistema siguen funcionando sin cambios.
+      // Auditoría: creación de alertas globales ('todos') reservada a administradores.
+      // Usuarios regulares solo pueden crear notificaciones dirigidas a su propio UID.
       allow create: if isAuthenticatedUser()
         && (
           request.resource.data.userId == request.auth.uid
-          || request.resource.data.userId == 'todos'
+          || ((request.resource.data.userId == 'todos') && (isAdmin() || isSuperAdmin()))
           || isSuperAdmin()
         );
-      allow update: if isAuthenticatedUser() && (resource.data.userId == request.auth.uid || resource.data.userId == 'todos' || isSuperAdmin());
+      allow update: if isAuthenticatedUser()
+        && (
+          (resource.data.userId == request.auth.uid)
+          || isAdmin()
+          || isSuperAdmin()
+        );
       allow delete: if isSuperAdmin();
     }
 

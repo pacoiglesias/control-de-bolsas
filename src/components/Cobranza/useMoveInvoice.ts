@@ -1,8 +1,8 @@
 import { useRef } from 'react';
-import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
+import { doc, Timestamp, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
-import { computeCommissionFromInvoiceTotal } from '../../lib/finance';
+import { computeCommissionFromInvoiceTotal, extractCr } from '../../lib/finance';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { promptDialog } from '../../lib/promptDialog';
 import type { PurchaseOrder } from '../../lib/types';
@@ -35,60 +35,55 @@ export function useMoveInvoice({
     const inv = o.invoices?.find(i => i.id === invoiceId);
     if (!inv) return;
 
-    const cr = inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber;
-    let currentCol = '';
-    if (inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue') {
-      currentCol = cr ? 'colPorCobrar' : 'colRevision';
-    } else if (inv.creditCycle.status === 'paid') {
+    const cr = (inv.collection?.contrareciboNumber || extractCr(inv, o)).trim();
+    const st = (inv.creditCycle?.status || '').toLowerCase();
+
+    let currentCol: 'colRevision' | 'colPorCobrar' | 'colContador' | 'colCaja' | '' = '';
+    if (st === 'paid') {
       currentCol = 'colContador';
-    } else if (inv.creditCycle.status === 'collected') {
+    } else if (st === 'collected') {
       currentCol = 'colCaja';
+    } else if (st === 'revision' || !cr) {
+      currentCol = 'colRevision';
+    } else {
+      currentCol = 'colPorCobrar';
     }
 
     if (currentCol === targetCol) return;
 
-    let newStatus = inv.creditCycle.status;
+    let newCreditStatus: string = inv.creditCycle.status;
     let newCr = inv.collection?.contrareciboNumber;
     let expenseData: any = null;
 
     if (targetCol === 'colRevision') {
       if (currentCol !== 'colPorCobrar') {
-         toast('Solo puedes regresar a Revisión desde Por Cobrar.', 'bad'); return;
+        toast('Solo puedes regresar a Revisión desde Por Cobrar.', 'bad'); return;
       }
-      if (o.collection?.contrareciboNumber) {
-        toast('El Contrarecibo está a nivel Expediente. Edita el expediente para borrarlo.', 'bad');
-        return;
-      }
-      // Antes esto borraba el CR en silencio -- el usuario lo movia de
-      // vuelta sin darse cuenta de que perdia el numero, y al intentar
-      // regresarlo el sistema se lo volvia a pedir desde cero, como si
-      // nunca lo hubiera tenido. Ahora se confirma explicitamente, y el
-      // numero que se borra se recuerda para poder restaurarlo con un
-      // clic si fue un movimiento accidental.
-      const crActual = inv.collection?.contrareciboNumber || '';
-      if (!(await confirmDialog(`Esto borra el número de Contrarecibo (${crActual}) de esta factura. ¿Seguro que quieres moverla a Revisión?`))) {
+      const crActual = inv.collection?.contrareciboNumber || extractCr(inv, o) || '';
+      if (!(await confirmDialog(`Esto retira el número de Contrarecibo (${crActual || 'asignado'}) de esta factura y la coloca en Revisión del Portal. ¿Seguro que deseas continuar?`))) {
         return;
       }
       if (crActual) crRecordados.current[invoiceId] = crActual;
-      newStatus = 'pending';
-      newCr = undefined; // Se usará undefined para limpiarlo después
+      newCreditStatus = 'revision';
+      newCr = '';
     } else if (targetCol === 'colPorCobrar') {
       if (currentCol === 'colRevision') {
-         const crAnterior = crRecordados.current[invoiceId] || '';
-         const promptCr = await promptDialog({
-           message: crAnterior ? `Ingresa el número de Contrarecibo (CR):\n\n(Antes tenía "${crAnterior}" — bórralo del cuadro si es un número distinto)` : 'Ingresa el número de Contrarecibo (CR):',
-           defaultValue: crAnterior,
-         });
-         if (!promptCr) return;
-         newCr = promptCr.trim();
+        const crAnterior = crRecordados.current[invoiceId] || '';
+        const promptCr = await promptDialog({
+          message: crAnterior ? `Ingresa el número de Contrarecibo (CR):\n\n(Anteriormente: "${crAnterior}")` : 'Ingresa el número de Contrarecibo (CR, ej. GT-1047 o TH-1195):',
+          defaultValue: crAnterior,
+        });
+        if (!promptCr || !promptCr.trim()) return;
+        newCr = promptCr.trim().toUpperCase();
+        newCreditStatus = 'pending';
       } else if (currentCol === 'colContador') {
-         newStatus = 'pending';
+        newCreditStatus = 'pending';
       } else {
-         toast('Movimiento no permitido.', 'bad'); return;
+        toast('Movimiento no permitido.', 'bad'); return;
       }
     } else if (targetCol === 'colContador') {
       if (currentCol === 'colPorCobrar') {
-         newStatus = 'paid';
+         newCreditStatus = 'paid';
       } else if (currentCol === 'colCaja') {
          if (!(await confirmDialog('¿Seguro que quieres deshacer la recolección? Se registrará un egreso de reversión en Caja para cuadrar.'))) return;
 
@@ -108,7 +103,7 @@ export function useMoveInvoice({
            type: 'egreso',
            createdAt: Timestamp.now(),
          };
-         newStatus = 'paid';
+         newCreditStatus = 'paid';
       } else {
          toast('Movimiento no permitido.', 'bad'); return;
       }
@@ -132,7 +127,7 @@ export function useMoveInvoice({
            type: 'ingreso',
            createdAt: Timestamp.now(),
          };
-         newStatus = 'collected';
+         newCreditStatus = 'collected';
       } else {
          toast('Solo puedes mover a Caja desde la columna del Contador.', 'bad'); return;
       }
@@ -150,9 +145,14 @@ export function useMoveInvoice({
           const collectionUpdate = { ...x.collection };
 
           if (targetCol === 'colRevision') {
-             delete collectionUpdate.contrareciboNumber;
+             collectionUpdate.contrareciboNumber = '';
+             collectionUpdate.contrareciboPortalStatus = 'sin_numero';
           } else if (newCr !== undefined) {
              collectionUpdate.contrareciboNumber = newCr;
+             collectionUpdate.contrareciboPortalStatus = 'generado';
+             if (!collectionUpdate.contrareciboDate) {
+               collectionUpdate.contrareciboDate = Timestamp.now();
+             }
           }
 
           if (targetCol === 'colContador' && currentCol === 'colPorCobrar') {
@@ -170,13 +170,24 @@ export function useMoveInvoice({
 
           return {
             ...x,
-            creditCycle: { ...x.creditCycle, status: newStatus as any },
+            creditCycle: { ...x.creditCycle, status: newCreditStatus as any },
             collection: collectionUpdate
           };
         });
 
         if (!nuevas) throw new Error('La factura no está en el expediente');
-        tx.update(ref, camposInvoices(nuevas));
+        const orderUpdatePayload: any = {
+          ...camposInvoices(nuevas),
+          updatedAt: serverTimestamp(),
+        };
+        if (targetCol === 'colRevision') {
+          orderUpdatePayload['collection.contrareciboNumber'] = '';
+          orderUpdatePayload['collection.contrareciboPortalStatus'] = 'sin_numero';
+        } else if (newCr) {
+          orderUpdatePayload['collection.contrareciboNumber'] = newCr;
+          orderUpdatePayload['collection.contrareciboPortalStatus'] = 'generado';
+        }
+        tx.update(ref, orderUpdatePayload);
 
         // ==== MIGRACION V2: Dual-write ====
         const invModificada = nuevas.find(x => x.id === invoiceId);

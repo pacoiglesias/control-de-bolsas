@@ -281,5 +281,74 @@ TOTAL $ 49,880.00
     expect(res.subTotal).toBe(43000);
     expect(res.total).toBe(49880);
   });
+
+  // Documento 9: Contrarecibo Oficial TH-1195 en formato PDF
+  const DOC9_CONTRARECIBO_TH1195 = `
+08/10/2026
+11:26:11 a. m.
+GRUPO TEXTIL PROVIDENCIA SA DE CV
+HIDALGO NORTE 7 CENTRO.
+SANTA ANA CHIAUTEMPAN TLAX . C. P. 90800
+GRUPO TEXTIL PROVIDENCIA
+CONTRA RECIBO
+Recibimos de:  ELEMENTAL DENIM  [ PR50823 ]
+Las siguientes facturas para su revisión:
+No. TH-1195
+Factura No. Serie/Número (Control Interno) Importe
+6334 8 / 839 74,820.00 PMX
+74,820.00
+Fecha Recepción: 05/10/2026
+Fecha Pago: 04/11/2026
+Cadena Original
+1|2026|TH-1195|05/10/2026|EDE1902136T2|74820|04/11/2026
+Sello digital
+rWMxeNwlixFG/UsW7TCWJ8id8SPRAKnz4qxEEXmEys/iaY0reP5VzQaf1V1utEB62xiZ2HQIU1N9db92MC4BWQ==
+https://apps.mundoprovidencia.com/rHoyProvidencia/portal/proveedores/@CGI-SCRIPTS@PROV-WEBSITE@v1.0/contrarecibos/consultar/?id=1202...
+  `;
+
+  it('procesa Contrarecibo Oficial TH-1195 vinculando Factura 6334, total 74,820 y fecha pago 04/11/2026', () => {
+    const res = parseOcrData(DOC9_CONTRARECIBO_TH1195);
+    expect(res.docKind).toBe('contrarecibo');
+    expect(res.contrarecibo).toBe('TH-1195');
+    expect(res.facturaFolios).toEqual(['6334']);
+    expect(res.total).toBe(74820);
+    expect(res.dueDate).toBe('2026-11-04');
+    expect(res.fecha).toBe('2026-10-05');
+  });
+
+  // Documento 10: Contrarecibo Oficial GT-1047 en formato PDF con múltiples facturas
+  const DOC10_CONTRARECIBO_GT1047 = `
+08/10/2026
+11:25:22 a. m.
+GRUPO TEXTIL PROVIDENCIA SA DE CV
+HIDALGO NORTE 7 CENTRO.
+SANTA ANA CHIAUTEMPAN TLAX . C. P. 90800
+GRUPO TEXTIL PROVIDENCIA
+CONTRA RECIBO
+Recibimos de:  ELEMENTAL DENIM  [ PR50823 ]
+Las siguientes facturas para su revisión:
+No. GT-1047
+Factura No. Serie/Número (Control Interno) Importe
+6352 2 / 415 14,964.00 PMX
+6353 2 / 416 67,338.00 PMX
+82,302.00
+Fecha Recepción: 05/10/2026
+Fecha Pago: 04/11/2026
+Cadena Original
+1|2026|GT-1047|05/10/2026|EDE1902136T2|82302|04/11/2026
+Sello digital
+MOKfYy9UeFlTWTp0qXe4hdOARDEJOftu9M659M8C2ZPlr2IoZEts9oSkyZDLOHeiu2RcAtJNXborOKJ7c0K9Sw==
+https://apps.mundoprovidencia.com/rHoyProvidencia/portal/proveedores/@CGI-SCRIPTS@PROV-WEBSITE@v1.0/contrarecibos/consultar/?id=1202...
+  `;
+
+  it('procesa Contrarecibo Oficial GT-1047 con multipartida (F-6352 + F-6353) acumulando total 82,302 y fecha pago 04/11/2026', () => {
+    const res = parseOcrData(DOC10_CONTRARECIBO_GT1047);
+    expect(res.docKind).toBe('contrarecibo');
+    expect(res.contrarecibo).toBe('GT-1047');
+    expect(res.facturaFolios).toEqual(['6352', '6353']);
+    expect(res.total).toBe(82302);
+    expect(res.dueDate).toBe('2026-11-04');
+    expect(res.fecha).toBe('2026-10-05');
+  });
 });
 

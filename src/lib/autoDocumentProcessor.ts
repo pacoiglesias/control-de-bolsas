@@ -614,7 +614,9 @@ export async function executeAutoAssignContrarecibo(
     await safeUpdateDoc(orderRef, {
       ...camposInvoices(updatedInvoices),
       collection: updatedCollection,
-      status: 'facturado',
+      'creditCycle.status': 'in_review',
+      'creditCycle.dueDate': parsedDueDate || targetOrder.creditCycle?.dueDate,
+      status: 'in_review',
       updatedAt: Timestamp.now(),
     });
   }

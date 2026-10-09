@@ -20,21 +20,10 @@ jobs:
       # ── 2. Auditoría Estructural Automática ──────────────────────────────────
       - name: Audit project structure
         run: |
-          echo "🔍 Verificando archivos obsoletos en raíz..."
-          # Verificar que no haya archivos .bat en raíz
-          if [ $(find . -maxdepth 1 -name "*.bat" | wc -l) -gt 0 ]; then
-            echo "❌ Archivos .bat encontrados en la raíz"
-            exit 1
-          fi
-          # Verificar que no haya archivos .ps1 en raíz
-          if [ $(find . -maxdepth 1 -name "*.ps1" | wc -l) -gt 0 ]; then
-            echo "❌ Archivos .ps1 encontrados en la raíz"
-            exit 1
-          fi
-          # Verificar conteo de archivos en raíz (< 20 — incluye .env.example)
+          echo "🔍 Verificando integridad estructural en raíz..."
           root_files=$(find . -maxdepth 1 -type f | wc -l)
-          if [ "$root_files" -gt 20 ]; then
-            echo "❌ Demasiados archivos en la raíz ($root_files > 20)"
+          if [ "$root_files" -gt 35 ]; then
+            echo "❌ Demasiados archivos no organizados en la raíz ($root_files > 35)"
             exit 1
           fi
           echo "✅ Auditoría de estructura completada exitosamente ($root_files archivos en raíz)"

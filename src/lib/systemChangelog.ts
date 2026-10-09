@@ -6,6 +6,55 @@ export { LATEST_RELEASE };
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   LATEST_RELEASE,
   {
+    version: 'v9.10.21: Estandarización Cronológica Total, Fechas Vivas de Maquila y Cobro en Tarjetas Ejecutivas y Pipeline Visual',
+    date: '08 de Octubre de 2026',
+    time: '02:45 PM',
+    summary: 'v9.10.21: Estandarización y simetría total de fechas en el Dashboard para las órdenes activas de Textil Hogar (OC 71/14302 · José Nava) y Grupo Textil (OC 43/9784 · Lic. Evelia). Incorporación de fechas reales dinámicas de emisión, última entrega, próxima entrega programada de maquila con Andrés y fechas oficiales de cobro de contrarecibos (04/Nov/2026); enriquecimiento visual de ThreeWayMatchingBadge con micro-badges y tooltips cronológicos; nuevo modal interactivo para programar o actualizar la fecha de entrega con Andrés en un solo toque.',
+    highlights: [
+      '📅 Simetría Cronológica en Alertas Ejecutivas: Se integraron fechas de próxima entrega y cobro en la tarjeta de José Nava (TH), igualando la visibilidad temporal de Evelia (GT) y eliminando textos estáticos o cableados.',
+      '🚚 Gestión y Programación de Próxima Entrega: Nueva franja interactiva con botón "Programar Entrega" para fijar o reprogramar en Firestore la fecha del siguiente viaje de maquila de Andrés con presets rápidos.',
+      '⏱️ ThreeWayMatchingBadge con Fechas Clave: Cada paso del flujo (OC → Báscula → Factura → CR) despliega ahora su fecha correspondiente (Emisión, Última entrega / Próxima entrega, Fecha último CFDI, y Fecha oficial de pago del CR).',
+      '💰 Visibilidad Directa de Cobro de Contrarecibos: Despliegue transparente de las fechas de pago oficiales (ej. CR TH-1195 con cobro 04/Nov por $74,820 y CR GT-1047 con cobro 04/Nov por $82,302).',
+    ],
+  },
+  {
+    version: 'v9.10.20: Reconocimiento Autónomo e Inteligente de Contrarecibos Providencia (Cero Captura Manual)',
+    date: '08 de Octubre de 2026',
+    time: '02:25 PM',
+    summary: 'v9.10.20: Erradicación total de la captura manual de Contrarecibos en PDF, HTML e imágenes. Reparación del pipeline de subida universal, dropzone global y receptor inteligente para detectar automáticamente folios de CR (TH-1195, GT-1047), multipartidas de facturas amparadas (F-6352, F-6353, F-6334), fechas de recepción y pago (04/11/2026), e importes totales, vinculando y actualizando las órdenes de inmediato en Firestore y respaldando el archivo original en Storage.',
+    highlights: [
+      '🤖 Ingesta Inteligente de Contrarecibos 100% Automatizada: Reconocimiento instantáneo al soltar o seleccionar PDFs oficiales de Contrarecibo de Providencia sin requerir teclear datos a mano.',
+      '🔗 Vinculación Automática a Facturas y Órdenes: Extracción de facturas amparadas simples y compuestas, asignando número de CR, fecha de vencimiento y estatus en revisión/cobro a las órdenes oficiales activas (TH 120267114302 y GT 12026439784).',
+      '🛡️ Corrección de Clasificación Falsa de Factura: Se eliminó el conflicto donde el sello digital del contrarecibo lo clasificaba erróneamente como un CFDI nuevo, garantizando que el sistema entienda que es un documento de cobro.',
+      '☁️ Respaldo Automático en Storage y Trazabilidad: Almacenamiento seguro del PDF original en Firebase Storage categorizado como "contrarecibo" con bitácora de auditoría auditada.',
+    ],
+  },
+  {
+    version: 'v9.10.19: Conciliación de Contrarecibos TH-1195 / GT-1047, Registro de F-6368 y Centinela Universal de Facturas Pendientes de CR',
+    date: '08 de Octubre de 2026',
+    time: '11:55 AM',
+    summary: 'v9.10.19: Incorporación oficial de los nuevos Contrarecibos TH-1195 (ampara Factura 6334 por $74,820.00) y GT-1047 (ampara Facturas 6352 y 6353 por $82,302.00 con pago 04/11/2026); registro en base de datos de producción de la Factura 6368 en OC 12026439784 (1,000 kg · $49,880.00 con IVA); eliminación de la restricción de 72 horas en el Centinela Proactivo para visibilizar inmediatamente todas las facturas en trámite de contrarecibo (F-6307, F-6363 y F-6368).',
+    highlights: [
+      '📑 Nuevos Contrarecibos Providencia Conciliados: Integración oficial de CR TH-1195 (F-6334 por $74,820.00) y CR GT-1047 (F-6352 y F-6353 por $82,302.00) con fecha programada de pago para el 04 de Noviembre de 2026.',
+      '🏭 Registro Oficial de Factura 6368 (GT Evelia): Ingreso en Firestore de F-6368 (UUID C87994D1-096C-4581-9F31-5079148AE13C) completando 2,350 kg facturados para OC 12026439784 (Remisión 6439784 de P4).',
+      '🚨 Centinela Universal de Facturas sin CR: Corrección del filtro temporal que ocultaba facturas de menos de 72 horas de emitidas; ahora Factura 6363 (TH) y Factura 6368 (GT) son visibles de inmediato en el panel de espera de contrarecibo con sus días exactos transcurridos.',
+      '🛡️ Padrón Oficial Actualizado: Inclusión de TH-1195 y GT-1047 en OFFICIAL_VALID_CRS para consistencia en dashboards, reportes ejecutivos y semáforo de cobranza.',
+    ],
+  },
+  {
+    version: 'v9.10.18: Ingesta Inteligente Touchless (Zero-Click), Respaldo Automático en Storage y Reactividad en Tiempo Real',
+    date: '08 de Octubre de 2026',
+    time: '10:50 AM',
+    summary: 'v9.10.18: Implementación del nuevo motor FastTrack Touchless (autoDocumentPipeline) para ingesta masiva de facturas CFDI, tickets de báscula, remisiones y pagos sin requerir confirmaciones manuales ni botones de actualización; respaldo binario automático y persistente en Firebase Storage (uploadDocument) con metadatos asociados; deduplicación atómica garantizada y resolución interactiva en un toque únicamente ante casos de ambigüedad genuina de OC; reactividad instantánea vía onSnapshot en todo el ERP.',
+    highlights: [
+      '⚡ Ingesta Inteligente Touchless (Zero-Click): Al soltar o seleccionar facturas o comprobantes, el sistema los procesa en lote a máxima velocidad, extrae datos fiscales/operativos, identifica la OC canónica y los aplica al ERP sin clics intermedios.',
+      '☁️ Respaldo Automático en Firebase Storage: Todos los documentos subidos (PDF, XML e imágenes) se almacenan de inmediato en la nube mediante uploadDocument con metadatos, tamaño y ruta para consulta y auditoría histórica.',
+      '🔄 Reactividad en Vivo sin Botón de Actualizar: Las escrituras atómicas en Firestore actualizan la estampa serverTimestamp(), provocando un refresco instantáneo en el Dashboard, Métricas, Inventario en Patio y Cobranza.',
+      '🛡️ Resolución Proactiva en Caso de Duda: Si un archivo no contiene OC unívoca, el HUD se pausa de forma elegante y solicita asignación en un solo toque con botones directos (TH Nava / GT Evelia) antes de continuar la cola.',
+      '🚫 Deduplicación Fiscal Robusta: Facturas previamente registradas por folio o UUID son detectadas al instante y conservadas sin duplicar balances.',
+    ],
+  },
+  {
     version: 'v9.10.17: Conciliación Integral de Facturas TH (OC 120267114302), Asignación Canónica Inequívoca y Alertas Dinámicas',
     date: '08 de Octubre de 2026',
     time: '10:25 AM',

@@ -160,8 +160,8 @@ export default function Cobranza() {
       if (PAID_CRS_SET.has(cr)) return false;
       const st = x.inv.creditCycle?.status;
       if (isPaidOrCollected(st)) return false;
-      // Facturas activas o en revisión (facturado, pending, overdue, manual_review, pedido)
-      return st === 'pending' || st === 'overdue' || st === 'facturado' || st === 'manual_review' || st === 'pedido';
+      // Facturas activas o en revisión (facturado, pending, overdue, manual_review, pedido, revision)
+      return st === 'pending' || st === 'overdue' || st === 'facturado' || st === 'manual_review' || st === 'pedido' || st === 'revision' || !st;
     });
 
     const porCliente: Record<string, Record<AgingKey, number> & { total: number }> = {};
@@ -307,6 +307,8 @@ export default function Cobranza() {
           return d !== null && d <= 0 && d >= -15;
         })
         .reduce((a, x) => a + saldo(x.inv), 0),
+      enRevisionCount: lista.filter((x) => !x.hasCr).length,
+      enRevisionMonto: lista.filter((x) => !x.hasCr).reduce((a, x) => a + x.saldo, 0),
     };
   }, [orders, config]);
 

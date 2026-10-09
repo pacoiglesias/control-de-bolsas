@@ -194,40 +194,12 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
               };
             }
 
-            // B) Es una Factura / CFDI en PDF (SAT / Blikon / Elemental Denim)
-            const isFactura =
-              lowerPdf.includes('factura') ||
-              lowerPdf.includes('folio fiscal') ||
-              lowerPdf.includes('uuid') ||
-              lowerPdf.includes('cfdi') ||
-              lowerPdf.includes('sello digital');
-
-            if (isFactura) {
-              const ocr = parseOcrData(pdfText);
-              return {
-                type: 'pdf_document',
-                rawText: pdfText,
-                fileName: file.name,
-                uuid: ocr.uuid,
-                folio: ocr.folio,
-                oc: ocr.ocNumber,
-                ocFolio: ocr.ocNumber,
-                kilos: ocr.kilos,
-                subtotal: ocr.subTotal,
-                iva: ocr.total && ocr.subTotal ? ocr.total - ocr.subTotal : undefined,
-                total: ocr.total,
-                client: ocr.receptorNombre || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-                department: ocr.ocNumber && ocr.ocNumber.startsWith('1202671') ? 'TH' : 'GT',
-                date: ocr.fecha || new Date().toISOString().split('T')[0],
-                confidence: 0.95,
-              };
-            }
-
-            // C) Es un Contrarecibo oficial de Providencia en PDF
+            // B) Es un Contrarecibo oficial de Providencia en PDF
             const isContrarecibo =
               (lowerPdf.includes('contrarecibo') ||
                 lowerPdf.includes('contra recibo') ||
                 lowerPdf.includes('mundoprovidencia') ||
+                /1\|\d{4}\|(?:TH|GT)-/i.test(pdfText) ||
                 /(?:TH|GT)-\d{3,5}/i.test(pdfText)) &&
               !lowerPdf.includes('orden de compra');
 
@@ -250,10 +222,55 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
                   dueDate: first.fechaPago,
                   date: first.fechaRecepcion || new Date().toISOString().split('T')[0],
                   department: dept,
-                  client: dept === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA)',
+                  client: dept === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
                   confidence: 1.0,
                 };
               }
+            }
+
+            // C) Es una Factura / CFDI en PDF (SAT / Blikon / Elemental Denim)
+            const isFactura =
+              lowerPdf.includes('factura') ||
+              lowerPdf.includes('folio fiscal') ||
+              lowerPdf.includes('uuid') ||
+              lowerPdf.includes('cfdi') ||
+              lowerPdf.includes('sello digital');
+
+            if (isFactura) {
+              const ocr = parseOcrData(pdfText);
+              if (ocr.docKind === 'contrarecibo') {
+                return {
+                  type: 'contrarecibo',
+                  rawText: pdfText,
+                  fileName: file.name,
+                  contrarecibo: ocr.contrarecibo || ocr.folio,
+                  folio: ocr.facturaFolios?.[0] || ocr.folio,
+                  facturaFolios: ocr.facturaFolios || [],
+                  total: ocr.total,
+                  dueDate: ocr.dueDate,
+                  date: ocr.fecha || new Date().toISOString().split('T')[0],
+                  department: (ocr.contrarecibo || '').startsWith('TH') ? 'TH' : 'GT',
+                  client: (ocr.contrarecibo || '').startsWith('TH') ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+                  confidence: 1.0,
+                };
+              }
+              return {
+                type: 'pdf_document',
+                rawText: pdfText,
+                fileName: file.name,
+                uuid: ocr.uuid,
+                folio: ocr.folio,
+                oc: ocr.ocNumber,
+                ocFolio: ocr.ocNumber,
+                kilos: ocr.kilos,
+                subtotal: ocr.subTotal,
+                iva: ocr.total && ocr.subTotal ? ocr.total - ocr.subTotal : undefined,
+                total: ocr.total,
+                client: ocr.receptorNombre || 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+                department: ocr.ocNumber && ocr.ocNumber.startsWith('1202671') ? 'TH' : 'GT',
+                date: ocr.fecha || new Date().toISOString().split('T')[0],
+                confidence: 0.95,
+              };
             }
           }
         } catch (pdfErr) {

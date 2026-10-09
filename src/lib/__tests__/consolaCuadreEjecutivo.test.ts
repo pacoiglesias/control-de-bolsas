@@ -20,11 +20,11 @@ describe('Consola de Cuadre Ejecutivo Directo', () => {
 
   it('cuadra el saldo oficial de cartera Providencia en los 4 rubros maestros', () => {
     const totalCrs = CARTERA_OFICIAL.reduce((sum, c) => sum + c.monto, 0);
-    const revision = 113925.92; // F-6302 ($39,105.92) + F-6307 ($74,820.00)
+    const revision = 174580.00; // F-6363 ($74,820.00) + F-6367 ($49,880.00) + F-6368 ($49,880.00)
     const totalDeuda = round2(totalCrs + revision);
 
-    expect(totalCrs).toBe(805190.14);
-    expect(totalDeuda).toBe(919116.06);
+    expect(totalCrs).toBe(896403.46);
+    expect(totalDeuda).toBe(1070983.46);
     expect(SALDO_CAJA_ACTUAL).toBe(844526.90);
   });
 });

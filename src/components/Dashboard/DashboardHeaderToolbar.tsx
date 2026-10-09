@@ -49,6 +49,8 @@ export function DashboardHeaderToolbar({
   isHealing,
   onOpenCuadreEjecutivo,
   onOpenQuickEdit,
+  onOpenDiferencias,
+  onOpenCierreDiario,
 }: {
   nav: NavigateFunction;
   toast: (msg: string, tone?: 'info' | 'ok' | 'bad') => void;
@@ -78,6 +80,8 @@ export function DashboardHeaderToolbar({
   isHealing?: boolean;
   onOpenCuadreEjecutivo?: () => void;
   onOpenQuickEdit?: () => void;
+  onOpenDiferencias?: () => void;
+  onOpenCierreDiario?: () => void;
 }) {
   const [showOfflineModal, setShowOfflineModal] = useState(false);
 
@@ -213,6 +217,64 @@ export function DashboardHeaderToolbar({
             >
               <span style={{ fontSize: 15 }}>⚡</span>
               <span>Cuadre Rápido</span>
+            </button>
+          )}
+
+          {/* BOTÓN FRONT-ROW: PANTALLA DE DIFERENCIAS (4-WAY MATCHING) */}
+          {onOpenDiferencias && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(37, 99, 235, 0.12) 100%)',
+                border: '1px solid rgba(59, 130, 246, 0.45)',
+                color: '#60a5fa',
+                fontWeight: 800,
+                fontSize: 13,
+                padding: '9px 14px',
+                borderRadius: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                triggerHaptic('light');
+                onOpenDiferencias();
+              }}
+              title="Pantalla de Diferencias: Comparativa cruzada Pedido vs Báscula vs Factura vs Cobro"
+            >
+              <span style={{ fontSize: 15 }}>⚖️</span>
+              <span>Diferencias 4-Way</span>
+            </button>
+          )}
+
+          {/* BOTÓN FRONT-ROW: CIERRE DIARIO */}
+          {onOpenCierreDiario && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)',
+                border: '1px solid rgba(16, 185, 129, 0.45)',
+                color: '#34d399',
+                fontWeight: 800,
+                fontSize: 13,
+                padding: '9px 14px',
+                borderRadius: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                triggerHaptic('light');
+                onOpenCierreDiario();
+              }}
+              title="Cierre Diario: Resumen de entregas, facturas, cobros y checklist operativo"
+            >
+              <span style={{ fontSize: 15 }}>🏁</span>
+              <span>Cierre Diario</span>
             </button>
           )}
 

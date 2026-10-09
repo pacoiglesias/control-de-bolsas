@@ -24,7 +24,7 @@ export interface OrderModalFormState {
   isClosedShort: boolean;
 }
 
-export type TabName = 'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas';
+export type TabName = 'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas' | 'historial';
 
 export interface ComputedInvoice {
   inv: Invoice;

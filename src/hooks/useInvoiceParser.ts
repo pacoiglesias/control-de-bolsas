@@ -150,12 +150,16 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     const totalMatch = text.match(/TOTAL\s*\$?\s*([\d,]+\.\d{2})/i);
     
     // Extraer conceptos/partidas detalladas de la factura
-    const items = extractInvoiceItemsFromText(text, config?.salePricePerKg || 43);
+    const salePrice = config?.salePricePerKg ?? 43;
+    const costPrice = config?.costPricePerKg ?? 38;
+    const commRate = config?.commissionRate ?? 0.08;
+
+    const items = extractInvoiceItemsFromText(text, salePrice);
     const calculatedKilos = items.reduce((s, it) => s + (it.quantity || 0), 0);
     const finalKilos = kilos > 0 ? kilos : calculatedKilos;
 
     const calculatedSubtotal = items.reduce((s, it) => s + (it.amount || 0), 0);
-    const subtotal = subtotalMatch ? Number(subtotalMatch[1].replace(/,/g, '')) : (calculatedSubtotal > 0 ? calculatedSubtotal : (finalKilos * (config?.salePricePerKg || 43)));
+    const subtotal = subtotalMatch ? Number(subtotalMatch[1].replace(/,/g, '')) : (calculatedSubtotal > 0 ? calculatedSubtotal : (finalKilos * salePrice));
     const total = totalMatch ? Number(totalMatch[1].replace(/,/g, '')) : (subtotal * 1.16);
 
     const newInvoice: Invoice = {
@@ -166,14 +170,14 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       oc: oc,
       items: items.length > 0 ? items : undefined,
       financials: {
-        salePricePerKg: config?.salePricePerKg || 43,
-        costPricePerKg: config?.costPricePerKg || 38,
-        commissionRate: config?.commissionRate || 0.08,
+        salePricePerKg: salePrice,
+        costPricePerKg: costPrice,
+        commissionRate: commRate,
         saleTotal: subtotal,
-        costTotal: finalKilos * (config?.costPricePerKg || 38),
-        commission: subtotal * (config?.commissionRate || 0.08),
+        costTotal: finalKilos * costPrice,
+        commission: subtotal * commRate,
         invoiceTotal: total,
-        netCashFlow: subtotal - (finalKilos * (config?.costPricePerKg || 38)) - (subtotal * (config?.commissionRate || 0.08)),
+        netCashFlow: subtotal - (finalKilos * costPrice) - (subtotal * commRate),
       },
       creditCycle: { 
         status: 'pending', 

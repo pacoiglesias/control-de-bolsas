@@ -57,7 +57,7 @@ export default function Orders() {
   const [showFulfillmentReport, setShowFulfillmentReport] = useState(false);
   const [clientReportOrder, setClientReportOrder] = useState<PurchaseOrder | null>(null);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
-  const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas'>('resumen');
+  const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas' | 'historial'>('resumen');
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('list');
   
   const [page, setPage] = useState(1);
@@ -92,7 +92,8 @@ export default function Orders() {
 
   useEffect(() => {
     if (params.get('nueva') === '1') {
-      setInitialModalTab(params.get('tab') === 'productos' ? 'productos' : 'resumen');
+      const targetTab = params.get('tab');
+      setInitialModalTab((targetTab as any) || 'resumen');
       setSelected({
         id: doc(collection(db, PATHS.orders)).id,
         creditCycle: { status: 'pedido' }
@@ -109,9 +110,14 @@ export default function Orders() {
     if (!abrirId || orders.length === 0) return;
     const found = orders.find((o) => o.id === abrirId);
     if (found) {
+      const targetTab = params.get('tab');
+      if (targetTab) {
+        setInitialModalTab(targetTab as any);
+      }
       setSelected(found);
       const newParams = new URLSearchParams(params);
       newParams.delete('abrir');
+      newParams.delete('tab');
       setParams(newParams, { replace: true });
     }
   }, [params, orders, setParams]);

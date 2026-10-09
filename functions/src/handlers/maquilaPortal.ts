@@ -34,19 +34,19 @@ const MAQUILA_PIN_BLOQUEO_MINUTOS = 15;
  */
 async function validarPinMaquila(db: FirebaseFirestore.Firestore, pinIntentado: string): Promise<void> {
   const ref = db.doc(MAQUILA_PIN_REF_PATH);
-  await db.runTransaction(async (tx) => {
+  const outcome = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const data = snap.data() || {};
     const realPin = data.pin;
     if (!realPin) {
-      throw new HttpsError('failed-precondition', 'El PIN del portal no esta configurado. Contacta al administrador.');
+      return { status: 'not_configured' as const };
     }
 
     const ahora = Date.now();
     const bloqueadoHastaMs = data.pinLockedUntil ? (data.pinLockedUntil as FirebaseFirestore.Timestamp).toMillis() : 0;
     if (bloqueadoHastaMs > ahora) {
       const minutosRestantes = Math.ceil((bloqueadoHastaMs - ahora) / 60000);
-      throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes} minuto(s).`);
+      return { status: 'locked' as const, minutosRestantes };
     }
 
     if (pinIntentado === realPin) {
@@ -54,7 +54,7 @@ async function validarPinMaquila(db: FirebaseFirestore.Firestore, pinIntentado: 
       if (data.pinFailedAttempts || data.pinLockedUntil) {
         tx.update(ref, { pinFailedAttempts: FieldValue.delete(), pinLockedUntil: FieldValue.delete() });
       }
-      return;
+      return { status: 'ok' as const };
     }
 
     const intentosPrevios = bloqueadoHastaMs > 0 ? 0 : (data.pinFailedAttempts || 0);
@@ -62,11 +62,24 @@ async function validarPinMaquila(db: FirebaseFirestore.Firestore, pinIntentado: 
     if (intentos >= MAQUILA_PIN_MAX_INTENTOS) {
       const bloqueadoHasta = Timestamp.fromMillis(ahora + MAQUILA_PIN_BLOQUEO_MINUTOS * 60000);
       tx.update(ref, { pinFailedAttempts: 0, pinLockedUntil: bloqueadoHasta });
-      throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${MAQUILA_PIN_BLOQUEO_MINUTOS} minuto(s).`);
+      return { status: 'newly_locked' as const, minutos: MAQUILA_PIN_BLOQUEO_MINUTOS };
     }
     tx.update(ref, { pinFailedAttempts: intentos });
-    throw new HttpsError('permission-denied', 'PIN incorrecto');
+    return { status: 'wrong_pin' as const, intentosRestantes: MAQUILA_PIN_MAX_INTENTOS - intentos };
   });
+
+  if (outcome.status === 'not_configured') {
+    throw new HttpsError('failed-precondition', 'El PIN del portal no está configurado. Contacta al administrador.');
+  }
+  if (outcome.status === 'locked') {
+    throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${outcome.minutosRestantes} minuto(s).`);
+  }
+  if (outcome.status === 'newly_locked') {
+    throw new HttpsError('resource-exhausted', `Demasiados intentos fallidos. Intenta de nuevo en ${outcome.minutos} minuto(s).`);
+  }
+  if (outcome.status === 'wrong_pin') {
+    throw new HttpsError('permission-denied', 'PIN incorrecto');
+  }
 }
 
 // Force deploy to fix CORS/IAM policy

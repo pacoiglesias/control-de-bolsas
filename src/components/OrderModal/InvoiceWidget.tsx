@@ -13,6 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import { promptDialog } from '../../lib/promptDialog';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
 import { openWhatsAppMessage } from '../../lib/whatsappReminder';
+import { FinancialHelpTooltip } from '../ui/FinancialHelpTooltip';
 
 interface InvoiceWidgetProps {
   invoice: Invoice;
@@ -233,14 +234,14 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                 {localInvoice.folio && <CopyButton text={localInvoice.folio} />}
               </div>
             </Field>
-            <Field label="Kilos Facturados">
+            <Field label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>Kilos Facturados <FinancialHelpTooltip concept="kilos_facturados" /></span>}>
               <input className="input boxed mono" type="number" step="0.01" value={localInvoice.kilos} 
                 onChange={e => updateField(['kilos'], Number(e.target.value))}
                 onBlur={() => { if (hasChanges) handleSave(); }}
                 onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
                 disabled={readOnly} />
             </Field>
-            <Field label="Contrarecibo (CR)">
+            <Field label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>Contrarecibo (CR) <FinancialHelpTooltip concept="contrarecibo" /></span>}>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input className="input boxed mono" value={localInvoice.collection?.contrareciboNumber || ''} 
                   disabled={readOnly}
@@ -597,24 +598,48 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
           
           <div className="calc-box" style={{ marginTop: 16 }}>
             <div className="calc-line">
-              <span>Venta (Total Factura)</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                Subtotal (Base Imponible) <FinancialHelpTooltip concept="subtotal" />
+              </span>
+              <span className="mono">{money(fin.saleTotal || (fin.invoiceTotal ? fin.invoiceTotal / 1.16 : 0))}</span>
+            </div>
+            <div className="calc-line">
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                IVA Trasladado (16%) <FinancialHelpTooltip concept="iva" />
+              </span>
+              <span className="mono">{money(fin.invoiceTotal - (fin.saleTotal || (fin.invoiceTotal ? fin.invoiceTotal / 1.16 : 0)))}</span>
+            </div>
+            <div className="calc-line" style={{ fontWeight: 700 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                Total Factura c/IVA <FinancialHelpTooltip concept="total_con_iva" />
+              </span>
               <span className="mono">{money(fin.invoiceTotal)}</span>
             </div>
             <div className="calc-line">
-              <span>Costo de Compra (Kilos a ${provName})</span>
+              <span>Costo Maquila (${provName})</span>
               <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.costTotal)}</span>
             </div>
-            <div className="calc-line" style={{ borderTop: '1px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
-              <strong>Utilidad Bruta</strong>
-              <strong className="mono">{money(fin.invoiceTotal - (fin.costTotal || 0))}</strong>
-            </div>
             <div className="calc-line">
-              <span>Comisión del Contador</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                Comisión Contador (8% s/Subtotal) <FinancialHelpTooltip concept="comision_contador" />
+              </span>
               <span className="mono" style={{ color: 'var(--bad)' }}>- {money(fin.commission)}</span>
             </div>
             <div className="calc-line total" style={{ borderTop: '2px solid var(--line)', paddingTop: 6, marginTop: 6 }}>
-              <span>💰 UTILIDAD NETA (Ganancia Real)</span>
-              <span className="mono" style={{ color: 'var(--ok)' }}>{money(fin.invoiceTotal - (fin.costTotal || 0) - (fin.commission || 0))}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 800 }}>
+                💰 Margen Neto Real (Sin IVA: $1.56/kg) <FinancialHelpTooltip concept="margen_bruto" />
+              </span>
+              <span className="mono" style={{ color: 'var(--ok)', fontWeight: 800 }}>
+                {money((fin.saleTotal || (fin.invoiceTotal / 1.16)) - (fin.costTotal || 0) - (fin.commission || 0))}
+              </span>
+            </div>
+            <div className="calc-line" style={{ paddingTop: 4, opacity: 0.85, fontSize: 12 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                🏦 Flujo Bruto en Banco (Antes de pagar IVA: $8.44/kg) <FinancialHelpTooltip concept="flujo_caja" />
+              </span>
+              <span className="mono">
+                {money(fin.invoiceTotal - (fin.costTotal || 0) - (fin.commission || 0))}
+              </span>
             </div>
           </div>
         </div>

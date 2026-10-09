@@ -15,6 +15,7 @@ import TabResumen from './TabResumen';
 import TabProductos from './TabProductos';
 import TabEntregas from './TabEntregas';
 import TabFacturas from './TabFacturas';
+import TabHistorial from './TabHistorial';
 import { TabAndresOrder } from './TabAndresOrder';
 import { OrderStepper } from './OrderStepper';
 import { NextActionBanner } from './NextActionBanner';
@@ -128,6 +129,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
     { key: 'andres',    label: `🏭 Pedido a ${provName}` },
     { key: 'entregas',  label: '🚛 Entregas', count: form.deliveries.length, alert: hasUninvoicedDeliveries },
     { key: 'facturas',  label: '🧾 Facturas & Cobros', count: invoiceCount, alert: hasUninvoicedDeliveries },
+    { key: 'historial', label: '📜 Historial & Trazabilidad' },
   ];
 
   return (
@@ -411,6 +413,7 @@ function OrderModalShell({ onClose, initialOpenCR }: { onClose: () => void; init
               {tab === 'andres'    && <TabAndresOrder order={order} config={config} customCostPrice={form.customCostPrice} customSellPrice={form.customSellPrice} />}
               {tab === 'entregas'  && <TabEntregas />}
               {tab === 'facturas'  && <TabFacturas />}
+              {tab === 'historial' && <TabHistorial />}
             </motion.div>
           </AnimatePresence>
         </div>

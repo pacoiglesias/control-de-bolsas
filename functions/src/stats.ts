@@ -1,5 +1,5 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { round2, type FinanceConfigCore } from "./shared/finance.core";
@@ -514,138 +514,9 @@ export const recalcDashboardStats = onCall(
       }
     };
 
-    const OFFICIAL_CR_MAP: Record<string, { issueDate: string; dueDate: string; total: number; department: string }> = {
-      'TH-912': { issueDate: '2026-08-10', dueDate: '2026-09-09', total: 79826.00, department: 'TH' },
-      'TH-879': { issueDate: '2026-08-03', dueDate: '2026-09-02', total: 136300.00, department: 'TH' },
-      'TH-836': { issueDate: '2026-07-27', dueDate: '2026-08-26', total: 106720.17, department: 'TH' },
-      'GT-742': { issueDate: '2026-07-20', dueDate: '2026-08-19', total: 54520.00, department: 'GT' },
-      'TH-804': { issueDate: '2026-07-20', dueDate: '2026-08-19', total: 136300.00, department: 'TH' },
-      'GT-713': { issueDate: '2026-07-13', dueDate: '2026-08-12', total: 69001.60, department: 'GT' },
-      'TH-768': { issueDate: '2026-07-13', dueDate: '2026-08-12', total: 125254.25, department: 'TH' },
-      'GT-651': { issueDate: '2026-06-29', dueDate: '2026-07-29', total: 106477.56, department: 'GT' },
-      'GT-624': { issueDate: '2026-06-22', dueDate: '2026-07-22', total: 98136.00, department: 'GT' },
-      'GT-597': { issueDate: '2026-06-15', dueDate: '2026-07-15', total: 107420.76, department: 'GT' },
-    };
-
-    // FIX (v8.9.2): esta función se llama "recalcDashboardStats" y su propio
-    // comentario de arriba dice que solo reconstruye los contadores del
-    // Dashboard sin tocar los expedientes -- pero aquí abajo, hasta hace un
-    // momento, había un borrado físico y permanente de CUALQUIER expediente
-    // que no apareciera en el mapa OFFICIAL_CR_MAP de 10 contrarecibos
-    // (aparentemente escrito para una limpieza puntual de datos de prueba en
-    // algún momento del desarrollo). Como recalcDashboardStats es una función
-    // que cualquier admin puede volver a llamar cuando quiera desde el botón
-    // "Recalcular Indicadores", eso significaba que CUALQUIER expediente
-    // real creado después de que se escribió ese mapa -- es decir, prácticamente
-    // todo tu trabajo actual -- se borraba para siempre la próxima vez que
-    // alguien recalculara. Se quita por completo: esta función ya nunca borra
-    // nada, solo suma y cuenta lo que ya existe.
-
-    // Garantizar los 10 Contrarecibos Oficiales (solo los RECREA si faltan o
-    // fueron borrados -- nunca sobreescribe uno que ya existe y sigue activo)
-    for (const [crNumber, crData] of Object.entries(OFFICIAL_CR_MAP)) {
-      const crDocId = `cr-${crNumber.toLowerCase().replace(/[^a-z0-9_-]/g, '')}`;
-      const crDocRef = db.collection(COL_ORDERS).doc(crDocId);
-      const existingDoc = await crDocRef.get();
-
-      const issueTs = Timestamp.fromDate(new Date(`${crData.issueDate}T12:00:00`));
-      const dueTs = Timestamp.fromDate(new Date(`${crData.dueDate}T12:00:00`));
-      const subtotal = Math.round((crData.total / 1.16) * 100) / 100;
-      const comision = Math.round((subtotal * 0.08) * 100) / 100;
-      const kilosCalc = Math.round((subtotal / 43) * 100) / 100;
-
-      if (!existingDoc.exists || existingDoc.data()?.isDeleted) {
-        await crDocRef.set({
-          id: crDocId,
-          folio: crNumber,
-          oc: crNumber,
-          client: crData.department === 'TH' ? 'GRUPO TEXTIL PROVIDENCIA SA DE CV (TH)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV (GT)',
-          department: crData.department,
-          totalKilograms: kilosCalc,
-          status: 'pending',
-          isDeleted: false,
-          invoices: [
-            {
-              id: `inv-${crNumber.toLowerCase()}`,
-              orderId: crDocId,
-              folio: crNumber,
-              kilos: kilosCalc,
-              creditCycle: {
-                status: 'pending',
-                dueDate: dueTs,
-                issueDate: issueTs,
-              },
-              collection: {
-                contrareciboNumber: crNumber,
-                paidAmount: 0,
-              },
-              financials: {
-                salePricePerKg: 43,
-                costPricePerKg: 42,
-                commissionRate: 0.08,
-                invoiceTotal: crData.total,
-                subtotal: subtotal,
-                commission: comision,
-              },
-            }
-          ],
-          invoiceStatuses: ['pending'],
-          collection: {
-            contrareciboNumber: crNumber,
-            receivedAmount: 0,
-            dueDate: dueTs,
-            status: 'pending',
-          },
-          createdAt: issueTs,
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-      }
-    }
-
-    // 3. Garantizar Factura 6167
-    const oc6167Id = 'oc-120267114014';
-    const doc6167Ref = db.collection(COL_ORDERS).doc(oc6167Id);
-    const existing6167 = await doc6167Ref.get();
-    const issue6167Ts = Timestamp.fromDate(new Date('2026-08-10T10:48:40'));
-    const subtotal6167 = Math.round((81780.00 / 1.16) * 100) / 100;
-    const comision6167 = Math.round((subtotal6167 * 0.08) * 100) / 100;
-    const kilos6167 = Math.round((subtotal6167 / 43) * 100) / 100;
-
-    if (!existing6167.exists || existing6167.data()?.isDeleted) {
-      await doc6167Ref.set({
-        id: oc6167Id,
-        folio: '6167',
-        oc: '120267114014',
-        client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-        department: 'GT',
-        totalKilograms: kilos6167,
-        status: 'facturado',
-        isDeleted: false,
-        invoices: [
-          {
-            id: 'inv-6167',
-            orderId: oc6167Id,
-            folio: '6167',
-            kilos: kilos6167,
-            creditCycle: {
-              status: 'facturado',
-              issueDate: issue6167Ts,
-            },
-            financials: {
-              salePricePerKg: 43,
-              costPricePerKg: 42,
-              commissionRate: 0.08,
-              invoiceTotal: 81780.00,
-              subtotal: subtotal6167,
-              commission: comision6167,
-            },
-          }
-        ],
-        invoiceStatuses: ['facturado'],
-        createdAt: issue6167Ts,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    }
+    // Auditoría: recalcDashboardStats es ESTRICTAMENTE DE SOLO LECTURA sobre
+    // purchaseOrders. Nunca recrea, resucita ni muta ningún documento de la
+    // colección operativa, garantizando la integridad de los expedientes.
 
     const LOTE = 300;
     let ultimo: FirebaseFirestore.QueryDocumentSnapshot | null = null;

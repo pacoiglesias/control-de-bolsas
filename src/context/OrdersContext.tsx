@@ -309,7 +309,12 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             department: DEPT_GT_ALMACEN,
             totalKilograms: 298.00,
             isClosedShort: false,
-            creditCycle: { status: 'facturado' },
+            collection: {
+              contrareciboNumber: 'GT-1020',
+              contrareciboDate: Timestamp.fromDate(new Date('2026-09-28T12:00:00Z')),
+              contrareciboPortalStatus: 'generado',
+            },
+            creditCycle: { status: 'pending', dueDate: Timestamp.fromDate(new Date('2026-10-28T12:00:00Z')) },
             invoices: [
               {
                 id: 'inv-6302',
@@ -317,7 +322,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
                 uuid: 'FFD7964A-BD1E-4332-AEA9-61E3F498521C',
                 kilos: 298.00,
                 financials: { invoiceTotal: 14864.24 },
-                creditCycle: { status: 'facturado' },
+                creditCycle: {
+                  status: 'pending',
+                  issueDate: Timestamp.fromDate(new Date('2026-09-22T11:58:13Z')),
+                  dueDate: Timestamp.fromDate(new Date('2026-10-28T12:00:00Z')),
+                },
+                collection: {
+                  contrareciboNumber: 'GT-1020',
+                  contrareciboDate: Timestamp.fromDate(new Date('2026-09-28T12:00:00Z')),
+                  contrareciboPortalStatus: 'generado',
+                },
                 orderId: `oc-${OC_GT_REVISION}`,
                 oc: OC_GT_REVISION,
               } as Invoice

@@ -13,7 +13,7 @@ interface GlobalSearchModalProps {
 
 interface SearchResultItem {
   id: string;
-  category: 'Órdenes & OCs' | 'Productos' | 'Comandos Rápidos';
+  category: 'Órdenes & OCs' | 'Facturas' | 'Contrarecibos' | 'Báscula & Entregas' | 'UUID SAT & Fiscal' | 'Pagos & Bancos' | 'Productos' | 'Comandos Rápidos';
   title: string;
   subtitle: string;
   badge?: string;
@@ -117,24 +117,20 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       return staticCommands;
     }
 
-    const orderResults: SearchResultItem[] = (orders || [])
-      .filter((o: PurchaseOrder) => {
-        const folioMatch = normalizarTexto(o.folio || o.oc || '').includes(q);
-        const clientMatch = normalizarTexto(o.client || '').includes(q);
-        const invoiceMatch = (o.invoices || []).some((inv: any) =>
-          normalizarTexto(inv.folio || '').includes(q)
-        );
-        const crMatch = (o.invoices || []).some((inv: any) =>
-          normalizarTexto(inv.collection?.contrareciboNumber || '').includes(q)
-        );
-        const driverMatch = (o.deliveries || []).some((d: any) =>
-          normalizarTexto(d.driver || d.docFolio || '').includes(q)
-        );
-        const descMatch = normalizarTexto((o as any).productDescription || (o as any).notes || '').includes(q);
-        return folioMatch || clientMatch || invoiceMatch || crMatch || driverMatch || descMatch;
-      })
-      .slice(0, 8)
-      .map((o: PurchaseOrder) => {
+    const invoiceResults: SearchResultItem[] = [];
+    const crResults: SearchResultItem[] = [];
+    const uuidResults: SearchResultItem[] = [];
+    const bankResults: SearchResultItem[] = [];
+    const deliveryResults: SearchResultItem[] = [];
+    const orderResults: SearchResultItem[] = [];
+
+    (orders || []).forEach((o: PurchaseOrder) => {
+      const folioNorm = normalizarTexto(o.folio || o.oc || '');
+      const clientNorm = normalizarTexto(o.client || '');
+      const descNorm = normalizarTexto((o as any).productDescription || (o as any).notes || '');
+
+      // 1. Coincidencia directa de Orden de Compra
+      if (folioNorm.includes(q) || clientNorm.includes(q) || descNorm.includes(q)) {
         const totalKg = o.totalKilograms || 0;
         const totalAmount = (o.invoices || []).reduce(
           (acc: number, inv: any) => acc + (Number(inv.financials?.invoiceTotal) || Number(inv.financials?.subtotal) || 0),
@@ -145,10 +141,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
           .filter(Boolean)
           .join(', ');
 
-        return {
+        orderResults.push({
           id: `order-${o.id}`,
           category: 'Órdenes & OCs',
-          title: `OC ${o.folio || o.oc || 'S/F'} — ${o.client || 'Sin Cliente'}`,
+          title: `📁 OC ${o.folio || o.oc || 'S/F'} — ${o.client || 'Sin Cliente'}`,
           subtitle: `${totalKg.toLocaleString('es-MX')} kg • ${money(totalAmount)}${crs ? ` • CR: ${crs}` : ''}`,
           badge: o.provider || 'Andrés',
           badgeColor: '#a78bfa',
@@ -156,8 +152,109 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             navigate(`/ordenes?abrir=${o.id}`);
             onClose();
           },
-        };
+        });
+      }
+
+      // 2. Coincidencias en Facturas, UUIDs, Contrarecibos y Pagos
+      (o.invoices || []).forEach((inv: any, idx: number) => {
+        const invFolioNorm = normalizarTexto(inv.folio || '');
+        const invUuidNorm = normalizarTexto(inv.uuid || (inv as any).uuidFiscal || '');
+        const invCrNorm = normalizarTexto(inv.collection?.contrareciboNumber || '');
+        const invRefNorm = normalizarTexto(
+          `${inv.collection?.transferRef || ''} ${inv.collection?.sapDocument || ''} ${inv.collection?.paymentDocument || ''} ${inv.collection?.bankReference || ''}`
+        );
+
+        // A) Folio de Factura
+        if (invFolioNorm && invFolioNorm.includes(q)) {
+          const invKg = Number(inv.kilos || 0);
+          const invTot = Number(inv.financials?.invoiceTotal || inv.financials?.subtotal || 0);
+          invoiceResults.push({
+            id: `inv-${o.id}-${inv.id || idx}`,
+            category: 'Facturas',
+            title: `🧾 Factura F-${inv.folio} · ${money(invTot)}`,
+            subtitle: `${invKg.toLocaleString('es-MX')} kg en OC ${o.folio || o.oc || 'S/F'} (${o.client || 'Cliente'})`,
+            badge: inv.creditCycle?.status === 'revision' ? 'En Revisión' : 'Facturada',
+            badgeColor: inv.creditCycle?.status === 'revision' ? '#f59e0b' : '#38bdf8',
+            onSelect: () => {
+              navigate(`/ordenes?abrir=${o.id}&tab=facturas`);
+              onClose();
+            },
+          });
+        }
+
+        // B) UUID SAT
+        if (invUuidNorm && invUuidNorm.includes(q)) {
+          const rawUuid = inv.uuid || (inv as any).uuidFiscal || '';
+          uuidResults.push({
+            id: `uuid-${o.id}-${inv.id || idx}`,
+            category: 'UUID SAT & Fiscal',
+            title: `🔐 UUID Fiscal SAT: ${rawUuid.substring(0, 8)}...${rawUuid.substring(rawUuid.length - 6)}`,
+            subtitle: `Factura F-${inv.folio || 'S/F'} · OC ${o.folio || o.oc || 'S/F'} (${o.client || 'Cliente'})`,
+            badge: 'SAT CFDI',
+            badgeColor: '#10b981',
+            onSelect: () => {
+              navigate(`/ordenes?abrir=${o.id}&tab=facturas`);
+              onClose();
+            },
+          });
+        }
+
+        // C) Contrarecibo
+        if (invCrNorm && invCrNorm.includes(q)) {
+          const crNum = inv.collection?.contrareciboNumber || '';
+          crResults.push({
+            id: `cr-${o.id}-${inv.id || idx}`,
+            category: 'Contrarecibos',
+            title: `📑 Contrarecibo CR ${crNum}`,
+            subtitle: `Ampara F-${inv.folio || 'S/F'} en OC ${o.folio || o.oc || 'S/F'} (${o.client || 'Cliente'})`,
+            badge: 'Providencia CR',
+            badgeColor: '#0ea5e9',
+            onSelect: () => {
+              navigate(`/ordenes?abrir=${o.id}&tab=facturas`);
+              onClose();
+            },
+          });
+        }
+
+        // D) Referencia Bancaria / SPEI
+        if (invRefNorm && invRefNorm.includes(q)) {
+          const ref = inv.collection?.transferRef || inv.collection?.sapDocument || inv.collection?.paymentDocument || 'Ref Bancaria';
+          bankResults.push({
+            id: `bank-${o.id}-${inv.id || idx}`,
+            category: 'Pagos & Bancos',
+            title: `🏦 Ref. Bancaria / SPEI: ${ref}`,
+            subtitle: `Cobro de Factura F-${inv.folio || 'S/F'} · OC ${o.folio || o.oc || 'S/F'}`,
+            badge: 'Pago Conciliado',
+            badgeColor: '#22c55e',
+            onSelect: () => {
+              navigate(`/ordenes?abrir=${o.id}&tab=facturas`);
+              onClose();
+            },
+          });
+        }
       });
+
+      // 3. Coincidencias en Báscula y Remisiones
+      (o.deliveries || []).forEach((d: any, idx: number) => {
+        const dFolioNorm = normalizarTexto(d.docFolio || '');
+        const dDriverNorm = normalizarTexto(d.driver || '');
+        if ((dFolioNorm && dFolioNorm.includes(q)) || (dDriverNorm && dDriverNorm.includes(q))) {
+          const dKg = Number(d.kilos || 0);
+          deliveryResults.push({
+            id: `del-${o.id}-${d.id || idx}`,
+            category: 'Báscula & Entregas',
+            title: `⚖️ Remisión / Báscula #${d.docFolio || 'S/F'} · ${dKg.toLocaleString('es-MX')} kg`,
+            subtitle: `OC ${o.folio || o.oc || 'S/F'} · ${d.driver ? `Chofer: ${d.driver}` : 'Báscula en patio'}${d.invoiced ? ' (Facturada)' : ' (Pendiente facturar)'}`,
+            badge: d.invoiced ? 'Facturada' : 'Por Facturar',
+            badgeColor: d.invoiced ? '#38bdf8' : '#f97316',
+            onSelect: () => {
+              navigate(`/ordenes?abrir=${o.id}&tab=entregas`);
+              onClose();
+            },
+          });
+        }
+      });
+    });
 
     const productResults: SearchResultItem[] = (products || [])
       .filter((p: any) => {
@@ -165,7 +262,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         const codeMatch = normalizarTexto(p.code || '').includes(q);
         return nameMatch || codeMatch;
       })
-      .slice(0, 5)
+      .slice(0, 4)
       .map((p: any) => ({
         id: `prod-${p.id}`,
         category: 'Productos',
@@ -183,7 +280,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       normalizarTexto(cmd.title).includes(q) || normalizarTexto(cmd.subtitle).includes(q)
     );
 
-    return [...orderResults, ...productResults, ...matchedCommands];
+    return [
+      ...invoiceResults.slice(0, 4),
+      ...crResults.slice(0, 4),
+      ...deliveryResults.slice(0, 4),
+      ...uuidResults.slice(0, 2),
+      ...bankResults.slice(0, 2),
+      ...orderResults.slice(0, 4),
+      ...productResults,
+      ...matchedCommands,
+    ];
   }, [query, orders, products, navigate, onClose]);
 
   // Keyboard navigation
@@ -371,7 +477,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
           }}
         >
           <span>Navega con <b>↑ ↓</b> y selecciona con <b>ENTER</b></span>
-          <span>Control Bolsas ERP · v8.9.17</span>
+          <span>Control Bolsas ERP · v9.10.23 Enterprise</span>
         </div>
       </div>
     </div>

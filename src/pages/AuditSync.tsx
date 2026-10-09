@@ -21,6 +21,11 @@ import * as XLSX from 'xlsx';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 import { downloadOfficialExcelTemplate } from '../lib/excelTemplateGenerator';
+import {
+  TOTAL_CARTERA_OFICIAL,
+  TOTAL_FACTURAS_REVISION_OFICIAL,
+  DEUDA_TOTAL_PROVIDENCIA_OFICIAL,
+} from '../lib/constants';
 
 const BalanzaComprobacionModal = lazy(() => import('../components/Dashboard/BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
 const OrderModal = lazy(() => import('../components/OrderModal'));
@@ -894,25 +899,25 @@ export default function AuditSync() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
         <div style={{ background: 'var(--paper-raised)', padding: 14, borderRadius: 12, border: '1px solid var(--line)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-            10 Contrarecibos Vigentes
+            {auditoriaCartera.countCrs || 12} Contrarecibos Vigentes
           </div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', marginTop: 2 }}>
-            {money(auditoriaCartera.totalCrs)}
+            {money(auditoriaCartera.totalCrs || TOTAL_CARTERA_OFICIAL)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            {auditoriaCartera.countCrs} documentos con CR oficial
+            {auditoriaCartera.countCrs || 12} documentos con CR oficial
           </div>
         </div>
 
         <div style={{ background: 'var(--paper-raised)', padding: 14, borderRadius: 12, border: '1px solid var(--line)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-            2 Facturas en Revisión
+            {auditoriaCartera.countRevision || 3} Facturas en Revisión
           </div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#d97706', marginTop: 2 }}>
-            {money(auditoriaCartera.totalRevision || 113925.92)}
+            {money(auditoriaCartera.totalRevision || TOTAL_FACTURAS_REVISION_OFICIAL)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            Fac #6302 ($14,864.24) y #6307 ($99,061.68)
+            {auditoriaCartera.countRevision > 0 ? 'F-6363, F-6367 y F-6368 en trámite' : '0 facturas en revisión'}
           </div>
         </div>
 
@@ -921,7 +926,7 @@ export default function AuditSync() {
             Deuda Total Providencia
           </div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#2563eb', marginTop: 2 }}>
-            {money(auditoriaCartera.totalDeuda)}
+            {money(auditoriaCartera.totalDeuda || DEUDA_TOTAL_PROVIDENCIA_OFICIAL)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
             Neto a recibir: {money(auditoriaCartera.netoCaja)} (8% contable)

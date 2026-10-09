@@ -45,7 +45,7 @@ export function FacturasSinCRPanel({ orders, onOpenOrder }: FacturasSinCRPanelPr
       // Factura emitida genuinamente que aún no recibe CR
       if (st === 'facturado' || st === 'manual_review' || st === 'in_review' || (inv.folio && inv.folio.trim().length > 0)) {
         let dias = 0;
-        const dt = toDate(inv.creditCycle?.issueDate || o.estimatedDeliveryDate || o.processedAt);
+        const dt = toDate(inv.creditCycle?.issueDate || (inv as any).fecha || o.estimatedDeliveryDate || o.processedAt);
         if (dt) {
           dias = Math.max(0, Math.round((hoy - dt.getTime()) / 86400000));
         }

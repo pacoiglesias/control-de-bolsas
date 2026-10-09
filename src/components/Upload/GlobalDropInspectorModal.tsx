@@ -175,17 +175,53 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                   });
                 }
                 matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre, ocr.total, undefined, true);
-              } else if (/CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
+              } else if (ocr.docKind === 'contrarecibo' || /CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
                 setDocType('contrarecibo');
                 setConfidence('alta');
-                setExtractedFolio(ocr.folio || '');
+                const crFolio = ocr.contrarecibo || ocr.folio || '';
+                setExtractedFolio(crFolio);
                 setExtractedUuid(ocr.uuid || '');
-                setExtractedKilos(round2(ocr.kilos || 0));
+                setExtractedKilos(0);
                 setExtractedSubtotal(round2(ocr.subTotal || 0));
                 setExtractedTotal(round2(ocr.total || 0));
-                setExtractedDate(ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]);
+                setExtractedDate(ocr.dueDate || (ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]));
                 setDetectedOcNumber(ocr.ocNumber || '');
-                matchOrder(ocr.ocNumber, ocr.folio, ocr.receptorNombre, ocr.total, undefined, false);
+
+                // Buscar orden por facturas amparadas primero (ej. Factura 6334, 6352, 6353)
+                let matchedByInvoice = false;
+                if (ocr.facturaFolios && ocr.facturaFolios.length > 0) {
+                  for (const ff of ocr.facturaFolios) {
+                    const foundOrd = orders.find(
+                      (o) => !o.isDeleted && (o.invoices || []).some((inv) => inv.folio === ff || inv.folio?.includes(ff) || (inv.id && inv.id.includes(ff)))
+                    );
+                    if (foundOrd) {
+                      setSelectedOrderId(foundOrd.id);
+                      setOcAssignmentDoubt(false);
+                      const deptTag = (foundOrd.client?.includes('TH') || (foundOrd.department || '').includes('TH')) ? 'TH (José Nava)' : 'GT (Lic. Evelia)';
+                      setAutoAssignedOcTag(`🎯 Contrarecibo amparando F-${ocr.facturaFolios.join(', F-')} en ${foundOrd.folio || foundOrd.oc} · ${deptTag}`);
+                      matchedByInvoice = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (!matchedByInvoice) {
+                  const isThCr = crFolio.startsWith('TH-') || (ocr.receptorNombre || '').includes('TH');
+                  const isGtCr = crFolio.startsWith('GT-') || (ocr.receptorNombre || '').includes('GT');
+                  const fallbackOrd = orders.find(o => !o.isDeleted && (
+                    (isThCr && (o.oc === OC_TH_ACTIVE || (o.folio || '').includes('14302') || (o.department || '').includes('TH'))) ||
+                    (isGtCr && (o.oc === OC_GT_ACTIVE || (o.folio || '').includes('9784') || (o.department || '').includes('GT')))
+                  ));
+
+                  if (fallbackOrd) {
+                    setSelectedOrderId(fallbackOrd.id);
+                    setOcAssignmentDoubt(false);
+                    const deptTag = isThCr ? 'TH (José Nava)' : 'GT (Lic. Evelia)';
+                    setAutoAssignedOcTag(`🎯 Contrarecibo ${crFolio} asignado a expediente oficial ${fallbackOrd.folio || fallbackOrd.oc} · ${deptTag}`);
+                  } else {
+                    matchOrder(ocr.ocNumber, ocr.facturaFolios?.[0] || ocr.folio, ocr.receptorNombre, ocr.total, crFolio, false);
+                  }
+                }
               } else {
                 setDocType('factura_cfdi');
                 setConfidence('alta');
@@ -219,7 +255,53 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           } else {
             const ocr = parseOcrData(text);
 
-            if (ocr.docKind === 'remision' || /REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA|BOLSA\s*DE\s*POLIETILENO/i.test(text)) {
+            if (ocr.docKind === 'contrarecibo' || /CONTRARECIBO|GT-\d+|TH-\d+/i.test(text)) {
+              setDocType('contrarecibo');
+              setConfidence('alta');
+              const crFolio = ocr.contrarecibo || ocr.folio || '';
+              setExtractedFolio(crFolio);
+              setExtractedUuid(ocr.uuid || '');
+              setExtractedKilos(0);
+              setExtractedSubtotal(round2(ocr.subTotal || 0));
+              setExtractedTotal(round2(ocr.total || 0));
+              setExtractedDate(ocr.dueDate || (ocr.fecha ? ocr.fecha.split('T')[0] : new Date().toISOString().split('T')[0]));
+              setDetectedOcNumber(ocr.ocNumber || '');
+
+              let matchedByInvoice = false;
+              if (ocr.facturaFolios && ocr.facturaFolios.length > 0) {
+                for (const ff of ocr.facturaFolios) {
+                  const foundOrd = orders.find(
+                    (o) => !o.isDeleted && (o.invoices || []).some((inv) => inv.folio === ff || inv.folio?.includes(ff) || (inv.id && inv.id.includes(ff)))
+                  );
+                  if (foundOrd) {
+                    setSelectedOrderId(foundOrd.id);
+                    setOcAssignmentDoubt(false);
+                    const deptTag = (foundOrd.client?.includes('TH') || (foundOrd.department || '').includes('TH')) ? 'TH (José Nava)' : 'GT (Lic. Evelia)';
+                    setAutoAssignedOcTag(`🎯 Contrarecibo amparando F-${ocr.facturaFolios.join(', F-')} en ${foundOrd.folio || foundOrd.oc} · ${deptTag}`);
+                    matchedByInvoice = true;
+                    break;
+                  }
+                }
+              }
+
+              if (!matchedByInvoice) {
+                const isThCr = crFolio.startsWith('TH-') || (ocr.receptorNombre || '').includes('TH');
+                const isGtCr = crFolio.startsWith('GT-') || (ocr.receptorNombre || '').includes('GT');
+                const fallbackOrd = orders.find(o => !o.isDeleted && (
+                  (isThCr && (o.oc === OC_TH_ACTIVE || (o.folio || '').includes('14302') || (o.department || '').includes('TH'))) ||
+                  (isGtCr && (o.oc === OC_GT_ACTIVE || (o.folio || '').includes('9784') || (o.department || '').includes('GT')))
+                ));
+
+                if (fallbackOrd) {
+                  setSelectedOrderId(fallbackOrd.id);
+                  setOcAssignmentDoubt(false);
+                  const deptTag = isThCr ? 'TH (José Nava)' : 'GT (Lic. Evelia)';
+                  setAutoAssignedOcTag(`🎯 Contrarecibo ${crFolio} asignado a expediente oficial ${fallbackOrd.folio || fallbackOrd.oc} · ${deptTag}`);
+                } else {
+                  matchOrder(ocr.ocNumber, ocr.facturaFolios?.[0] || ocr.folio, ocr.receptorNombre, ocr.total, crFolio, false);
+                }
+              }
+            } else if (ocr.docKind === 'remision' || /REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA|BOLSA\s*DE\s*POLIETILENO/i.test(text)) {
               setDocType('remision');
               setConfidence('alta');
               setExtractedFolio(ocr.folio || 'REM-280926');
@@ -661,14 +743,77 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           sound.playChaChing();
           triggerHaptic('cash');
           toast(`✅ OC ${extractedFolio} sincronizada con ${(extractedKilos || 0).toLocaleString('es-MX')} kg en producción`, 'ok');
+        } else if (docType === 'contrarecibo') {
+          const crNumber = extractedFolio?.trim() || 'CR-S/N';
+          const dueDateTs = toSafeTimestamp(extractedDate);
+          let appliedCount = 0;
+
+          const updatedInvoices = (selectedOrder.invoices || []).map((inv: any) => {
+            const matchesFolio = (extractedFolio && (inv.folio === extractedFolio || inv.folio?.includes(extractedFolio)));
+            const isPendingWithoutCr = !inv.collection?.contrareciboNumber;
+            const matchesAmount = extractedTotal > 0 && Math.abs((inv.financials?.invoiceTotal || 0) - extractedTotal) < 1;
+
+            if (matchesFolio || matchesAmount || isPendingWithoutCr) {
+              appliedCount++;
+              return {
+                ...inv,
+                collection: {
+                  ...(inv.collection || {}),
+                  contrareciboNumber: crNumber,
+                  contrareciboDate: dueDateTs,
+                  contrareciboPortalStatus: 'generado',
+                  notes: `Amparada con Contrarecibo ${crNumber}.${extractedDate ? ` Pago programado: ${extractedDate}` : ''}`,
+                },
+                creditCycle: {
+                  ...(inv.creditCycle || {}),
+                  status: 'in_review',
+                  dueDate: dueDateTs,
+                },
+              };
+            }
+            return inv;
+          });
+
+          await safeUpdateDoc(orderRef, {
+            invoices: cleanUndefined(updatedInvoices),
+            'collection.contrareciboNumber': crNumber,
+            'collection.contrareciboDate': dueDateTs,
+            'collection.contrareciboPortalStatus': 'generado',
+            'creditCycle.status': 'in_review',
+            status: 'in_review',
+            updatedAt: Timestamp.now(),
+          });
+
+          try {
+            setUploadingFile(true);
+            await uploadDocument({
+              file,
+              docKind: 'contrarecibo',
+              folio: crNumber,
+              orderId: selectedOrder.id,
+              orderFolio: selectedOrder.folio || selectedOrder.oc,
+              kilos: 0,
+              total: extractedTotal || 0,
+              docDate: extractedDate,
+              notes: `Contrarecibo ${crNumber} vinculado a la OC ${selectedOrder.folio || selectedOrder.oc}`,
+            });
+          } catch (storErr) {
+            console.warn('No se pudo subir el contrarecibo a Storage:', storErr);
+          } finally {
+            setUploadingFile(false);
+          }
+
+          sound.playChaChing();
+          triggerHaptic('cash');
+          toast(`✅ Contrarecibo ${crNumber} (${money(extractedTotal || 0)}) vinculado exitosamente a ${appliedCount} factura(s) en la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
         } else {
           const noteEntry = {
             id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             folio: extractedFolio?.trim() || 'S/F',
             date: toSafeTimestamp(extractedDate),
             kilos: Number(extractedKilos) || 0,
-            docType: docType === 'contrarecibo' ? 'contrarecibo' : 'adjunto',
-            notes: `Documento adjunto: ${docType === 'contrarecibo' ? 'Contrarecibo' : 'Doc. Manual'} #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
+            docType: 'adjunto',
+            notes: `Documento adjunto #${extractedFolio || 'S/F'}${extractedKilos > 0 ? ` · ${extractedKilos.toLocaleString('es-MX')} kg` : ''}`,
             ...(extractedTotal ? { importe: extractedTotal } : {}),
           };
 
@@ -686,19 +831,18 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
             updatedAt: Timestamp.now(),
           });
 
-          // Guardar documento en Firebase Storage
           try {
             setUploadingFile(true);
             await uploadDocument({
               file,
-              docKind: (docType === 'contrarecibo' ? 'contrarecibo' : 'desconocido') as StoredDocKind,
+              docKind: 'desconocido' as StoredDocKind,
               folio: noteEntry.folio,
               orderId: selectedOrder.id,
               orderFolio: selectedOrder.folio || selectedOrder.oc,
               kilos: Number(extractedKilos) || 0,
               total: extractedTotal || 0,
               docDate: extractedDate,
-              notes: `${docType === 'contrarecibo' ? 'Contrarecibo' : 'Documento adjunto'} #${noteEntry.folio}`,
+              notes: `Documento adjunto #${noteEntry.folio}`,
             });
           } catch (storErr) {
             console.warn('No se pudo subir el documento a Storage:', storErr);
@@ -720,33 +864,12 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
     }
   };
 
+  // Control de Confirmación y Auto-Aplicación
+  // Regla de Integridad: Facturas y comprobantes de pago NUNCA se auto-aplican a ciegas;
+  // requieren confirmación explícita humana para garantizar conciliación exacta.
   useEffect(() => {
-    if (
-      analyzing ||
-      autoApplyPaused ||
-      saving ||
-      !selectedOrderId ||
-      ocAssignmentDoubt ||
-      duplicateStatus?.isDuplicate
-    ) {
-      setAutoApplyCountdown(null);
-      return;
-    }
-
-    setAutoApplyCountdown(2);
-    const interval = setInterval(() => {
-      setAutoApplyCountdown((prev) => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleConfirmAndApply();
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
+    // Desactivado auto-apply automático para prevenir registros accidentales por coincidencia dudosa
+    setAutoApplyCountdown(null);
   }, [
     analyzing,
     autoApplyPaused,

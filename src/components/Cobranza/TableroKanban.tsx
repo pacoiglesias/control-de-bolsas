@@ -331,23 +331,50 @@ export default function TableroKanban() {
           onClick={(e) => e.stopPropagation()}
         >
           {!cr ? (
-            <button
-              className="btn btn-primary"
-              style={{
-                flex: 1,
-                padding: '4px 8px',
-                fontSize: 11,
-                background: '#2563eb',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                fontWeight: 700,
-              }}
-              onClick={() => setQuickCrTarget({ o, inv })}
-            >
-              📝 Asignar CR
-            </button>
-          ) : inv.creditCycle.status === 'pending' || inv.creditCycle.status === 'overdue' ? (
+            <div style={{ display: 'flex', gap: 4, width: '100%' }}>
+              <button
+                className="btn btn-primary"
+                style={{
+                  flex: 1,
+                  padding: '4px 6px',
+                  fontSize: 10.5,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+                title="Mover a columna Por Cobrar solicitando el Contrarecibo oficial"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveInvoice(o.id, inv.id, 'colPorCobrar');
+                }}
+              >
+                ➡️ Por Cobrar
+              </button>
+              <button
+                className="btn"
+                style={{
+                  padding: '4px 8px',
+                  fontSize: 10.5,
+                  background: 'var(--paper-sunk)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+                title="Capturar Contrarecibo en modal detallado"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setQuickCrTarget({ o, inv });
+                }}
+              >
+                📝 CR
+              </button>
+            </div>
+          ) : inv.creditCycle.status !== 'paid' && inv.creditCycle.status !== 'collected' ? (
             <>
               <button
                 className="btn btn-primary"
@@ -361,9 +388,12 @@ export default function TableroKanban() {
                   borderRadius: 6,
                   fontWeight: 700,
                 }}
-                onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveInvoice(o.id, inv.id, 'colContador');
+                }}
               >
-                💸 Cobro Rápido
+                💸 Cobrado (Contador)
               </button>
               <button
                 className="btn"
@@ -376,7 +406,8 @@ export default function TableroKanban() {
                   border: '1px solid var(--line)',
                   borderRadius: 6,
                 }}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   const notice = generateCollectionNotice({
                     cliente: nombreClienteVisible(o.client) || 'Grupo Textil Providencia',
                     folioFactura: inv.folio || o.folio || 'S/N',
@@ -389,6 +420,24 @@ export default function TableroKanban() {
                 }}
               >
                 📋
+              </button>
+              <button
+                className="btn"
+                title="Regresar a Revisión (borra CR)"
+                style={{
+                  padding: '4px 6px',
+                  fontSize: 11,
+                  background: 'var(--paper-sunk)',
+                  color: 'var(--ink-soft)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveInvoice(o.id, inv.id, 'colRevision');
+                }}
+              >
+                ↩️
               </button>
             </>
           ) : inv.creditCycle.status === 'paid' ? (
@@ -405,7 +454,10 @@ export default function TableroKanban() {
                   borderRadius: 6,
                   fontWeight: 700,
                 }}
-                onClick={() => moveInvoice(o.id, inv.id, 'colCaja')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveInvoice(o.id, inv.id, 'colCaja');
+                }}
               >
                 ✅ Recibir en Caja
               </button>
@@ -420,7 +472,10 @@ export default function TableroKanban() {
                   border: '1px solid var(--line)',
                   borderRadius: 6,
                 }}
-                onClick={() => moveInvoice(o.id, inv.id, 'colPorCobrar')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveInvoice(o.id, inv.id, 'colPorCobrar');
+                }}
               >
                 ↩️
               </button>
@@ -437,9 +492,12 @@ export default function TableroKanban() {
                 border: '1px solid var(--line)',
                 borderRadius: 6,
               }}
-              onClick={() => moveInvoice(o.id, inv.id, 'colContador')}
+              onClick={(e) => {
+                e.stopPropagation();
+                moveInvoice(o.id, inv.id, 'colContador');
+              }}
             >
-              ↩️ Revertir
+              ↩️ Revertir a Contador
             </button>
           ) : null}
 

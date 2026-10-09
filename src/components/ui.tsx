@@ -405,7 +405,7 @@ export function Field({
   children,
   full,
 }: {
-  label: string;
+  label: ReactNode;
   children: ReactNode;
   full?: boolean;
 }) {

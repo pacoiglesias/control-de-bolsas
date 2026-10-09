@@ -1,6 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseOrdenDeCompra } from './ocParser';
-import { parseProvidenciaPaymentPdf } from './providenciaPortalParser';
+import { parseProvidenciaPaymentPdf, parseProvidenciaContrareciboHtml } from './providenciaPortalParser';
 
 // Worker de pdfjs-dist v4 — ya no usa eval (eliminado en v4.x).
 // Apuntamos al CDN de unpkg que sí tiene el worker v4 en el path correcto.
@@ -33,6 +33,10 @@ export interface OcrResult {
   docKind?: 'oc_providencia' | 'pago_providencia' | 'factura' | 'ticket' | 'contrarecibo' | 'remision' | 'desconocido';
   /** Cantidad total de piezas / kilos en la OC */
   totalPiezas?: number;
+  /** Datos enriquecidos si el documento es un Contrarecibo */
+  contrarecibo?: string;
+  facturaFolios?: string[];
+  dueDate?: string;
 }
 
 export async function extractTextFromPdf(file: File): Promise<string> {
@@ -238,6 +242,44 @@ export function parseOcrData(text: string): OcrResult {
     result.receptorNombre = provPayment.department === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
     result.product = `Pago Providencia ${provPayment.transferRef} · Fac #${provPayment.facturaFolio} · CR ${provPayment.contrareciboNumber}`;
     return result;
+  }
+
+  // ─── 0.2 DETECCIÓN OFICIAL: Contrarecibo de Providencia (HTML o PDF) ────────
+  // Formato: "CONTRA RECIBO", "No. TH-1195", "No. GT-1047", "Cadena Original 1|2026|..."
+  const isContrareciboDoc =
+    (upper.includes('CONTRA RECIBO') || upper.includes('CONTRARECIBO') || /1\|\d{4}\|(?:TH|GT)-/i.test(text) || /(?:TH|GT)-\d{3,5}/i.test(text)) &&
+    !upper.includes('ORDEN DE COMPRA');
+
+  if (isContrareciboDoc) {
+    const parsedCrs = parseProvidenciaContrareciboHtml(text);
+    if (parsedCrs.length > 0) {
+      const first = parsedCrs[0];
+      result.docKind = 'contrarecibo';
+      result.folio = first.contrareciboNumber || '';
+      result.contrarecibo = first.contrareciboNumber || '';
+      result.facturaFolios = parsedCrs.map(c => c.facturaFolio).filter(Boolean);
+      result.total = parsedCrs.reduce((sum, c) => sum + (c.importe || 0), 0);
+      result.subTotal = Math.round((result.total / 1.16) * 100) / 100;
+      result.kilos = 0; // En contrarecibo no se declaran kilos, ampara facturas
+
+      if (first.fechaPago) {
+        const fp = first.fechaPago.split('/');
+        if (fp.length === 3) {
+          result.dueDate = `${fp[2]}-${fp[1].padStart(2, '0')}-${fp[0].padStart(2, '0')}`;
+        }
+      }
+      if (first.fechaRecepcion) {
+        const fr = first.fechaRecepcion.split('/');
+        if (fr.length === 3) {
+          result.fecha = `${fr[2]}-${fr[1].padStart(2, '0')}-${fr[0].padStart(2, '0')}`;
+        }
+      }
+
+      result.receptorRfc = 'GTP930115PU1';
+      result.receptorNombre = first.department === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV';
+      result.product = `Contrarecibo ${first.contrareciboNumber} amparando Factura(s) ${result.facturaFolios.join(', ')}`;
+      return result;
+    }
   }
 
   // ─── 0.5 DETECCIÓN OFICIAL: Remisión Física / Orden de Entrega de Bolsas ────

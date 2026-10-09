@@ -21,8 +21,14 @@ const BalanzaComprobacionModal = lazy(() => import('./BalanzaComprobacionModal')
 // 🚀 Lazy loading de módulos pesados (72KB + 53KB → excluidos del bundle inicial)
 const UniversalDocumentUploadModal = lazy(() => import('./UniversalDocumentUploadModal').then(m => ({ default: m.UniversalDocumentUploadModal })));
 const PagarAndresModal = lazy(() => import('../Compras/PagarAndresModal').then(m => ({ default: m.PagarAndresModal })));
+const PantallaDiferenciasModal = lazy(() => import('../Audit/PantallaDiferenciasModal').then(m => ({ default: m.PantallaDiferenciasModal })));
+const DailyClosingModal = lazy(() => import('./DailyClosingModal').then(m => ({ default: m.DailyClosingModal })));
 
 export interface DashboardModalsHostProps {
+  showDiferenciasModal?: boolean;
+  setShowDiferenciasModal?: (v: boolean) => void;
+  showCierreDiarioModal?: boolean;
+  setShowCierreDiarioModal?: (v: boolean) => void;
   showContrarecibosDrawer: boolean;
   setShowContrarecibosDrawer: (v: boolean) => void;
   showSeguimientoDrawer: boolean;
@@ -75,6 +81,8 @@ export interface DashboardModalsHostProps {
 
 export function DashboardModalsHost(props: DashboardModalsHostProps) {
   const {
+    showDiferenciasModal, setShowDiferenciasModal,
+    showCierreDiarioModal, setShowCierreDiarioModal,
     showContrarecibosDrawer, setShowContrarecibosDrawer,
     showSeguimientoDrawer, setShowSeguimientoDrawer,
     showQuickInvoice, setShowQuickInvoice, selectedInvoiceOrderId, setSelectedInvoiceOrderId,
@@ -219,6 +227,24 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
 
         {showUniversalUpload && setShowUniversalUpload && (
           <UniversalDocumentUploadModal onClose={() => setShowUniversalUpload(false)} />
+        )}
+
+        {showDiferenciasModal && setShowDiferenciasModal && (
+          <PantallaDiferenciasModal
+            orders={globalOrders}
+            config={config}
+            onClose={() => setShowDiferenciasModal(false)}
+          />
+        )}
+
+        {showCierreDiarioModal && setShowCierreDiarioModal && (
+          <DailyClosingModal
+            orders={globalOrders}
+            expenses={expenses}
+            config={config}
+            saldoCaja={saldoCaja}
+            onClose={() => setShowCierreDiarioModal(false)}
+          />
         )}
       </Suspense>
     </>

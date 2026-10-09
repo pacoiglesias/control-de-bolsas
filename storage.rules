@@ -49,10 +49,9 @@ service firebase.storage {
     // functions/src/index.ts, MAX_MB en src/pages/Upload.tsx y SECURITY.md.
     match /uploads/{fileName} {
       allow read: if isManagerOrAdmin();
-      allow create: if isManagerOrAdmin()
+      allow create, update: if isManagerOrAdmin()
         && request.resource.size < 5 * 1024 * 1024
         && (request.resource.contentType == 'application/pdf' || request.resource.contentType == 'application/xml' || request.resource.contentType == 'text/xml');
-      allow update: if isManagerOrAdmin();
       allow delete: if isAdmin();
     }
 
@@ -61,18 +60,17 @@ service firebase.storage {
     // Máximo 10 MB (OCs y facturas pueden ser documentos de varias páginas).
     match /documentos/{docKind}/{month}/{fileName} {
       allow read: if isManagerOrAdmin();
-      allow create: if isManagerOrAdmin()
-        && request.resource.size < 10 * 1024 * 1024;
-      allow update: if isManagerOrAdmin();
-      allow delete: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin()
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType == 'application/pdf' || request.resource.contentType == 'application/xml' || request.resource.contentType == 'text/xml' || request.resource.contentType.matches('image/.*'));
+      allow delete: if isAdmin();
     }
 
     match /identidad/{fileName} {
       allow read: if true;
-      allow create: if isManagerOrAdmin()
+      allow create, update: if isManagerOrAdmin()
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
-      allow update: if isManagerOrAdmin();
       allow delete: if isAdmin();
     }
 

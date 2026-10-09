@@ -7,7 +7,7 @@ import { db, PATHS } from '../../lib/firebase';
 import { parseXmlInvoice, type ParsedInvoiceData } from '../../lib/xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from '../../lib/ocr';
 import { parseOrdenDeCompra } from '../../lib/ocParser';
-import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml, parseProvidenciaPaymentPdf, type ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
+import { parseProvidenciaContrareciboHtml, parseProvidenciaPaymentDetailHtml, parseProvidenciaPaymentPdf, type ParsedProvidenciaPaymentData, type ParsedContrareciboPortalData } from '../../lib/providenciaPortalParser';
 import { parseBankTransferReceipt, type ParsedBankTransfer } from '../../lib/bankReceiptParser';
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useToast } from '../../context/ToastContext';
@@ -18,6 +18,8 @@ import { logAction } from '../../lib/logger';
 import { findDuplicateOrderFolio } from '../../lib/duplicateGuards';
 import { uploadDocument } from '../../lib/documentStorage';
 import { matchOrderCanonical } from '../../lib/autoDocumentPipeline';
+import { cleanUndefined } from '../../lib/cleanUndefined';
+import { OC_TH_ACTIVE, OC_GT_ACTIVE } from '../../lib/constants';
 interface UniversalDocumentUploadModalProps {
   onClose: () => void;
 }
@@ -822,6 +824,184 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
     }
   };
 
+  // Procesador Oficial de Contrarecibos de Providencia (PDF, HTML o Imagen)
+  const processSingleContrarecibo = async (
+    parsedCrs: ParsedContrareciboPortalData[],
+    sourceName: string,
+    file?: File
+  ): Promise<ProcessedResultItem[]> => {
+    const results: ProcessedResultItem[] = [];
+    if (!parsedCrs || parsedCrs.length === 0) return results;
+
+    const first = parsedCrs[0];
+    const crNumber = first.contrareciboNumber || 'CR-S/N';
+    const dept = first.department; // 'TH' | 'GT' | 'OTHER'
+    const totalCr = parsedCrs.reduce((acc, c) => acc + (c.importe || 0), 0);
+    const dueDateStr = first.fechaPago;
+    
+    // Parse due date timestamp
+    let dueDateTs: Timestamp | null = null;
+    if (dueDateStr) {
+      const parts = dueDateStr.split('/');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (!isNaN(d.getTime())) dueDateTs = Timestamp.fromDate(d);
+      } else {
+        const d = new Date(dueDateStr);
+        if (!isNaN(d.getTime())) dueDateTs = Timestamp.fromDate(d);
+      }
+    }
+
+    const facturaFolios = parsedCrs.map(c => c.facturaFolio).filter(Boolean);
+
+    // Buscar las órdenes correspondientes a las facturas amparadas
+    const ordersToUpdate: { order: any; invoiceIndices: number[] }[] = [];
+
+    for (const fol of facturaFolios) {
+      const cleanFol = fol.trim().toUpperCase();
+      for (const o of orders) {
+        if (!o || (o as any).isDeleted) continue;
+        const invs = o.invoices || [];
+        const idx = invs.findIndex((inv: any) => {
+          const invFol = (inv.folio || '').trim().toUpperCase();
+          return invFol === cleanFol || invFol.includes(cleanFol) || cleanFol.includes(invFol);
+        });
+        if (idx !== -1) {
+          let entry = ordersToUpdate.find(e => e.order.id === o.id);
+          if (!entry) {
+            entry = { order: o, invoiceIndices: [] };
+            ordersToUpdate.push(entry);
+          }
+          if (!entry.invoiceIndices.includes(idx)) {
+            entry.invoiceIndices.push(idx);
+          }
+          break;
+        }
+      }
+    }
+
+    // Si no se encontró por folio de factura, buscar por departamento oficial (TH o GT)
+    if (ordersToUpdate.length === 0) {
+      const targetOrder = orders.find(o => {
+        if (!o || (o as any).isDeleted) return false;
+        if (dept === 'TH' || crNumber.startsWith('TH-')) {
+          return o.oc === OC_TH_ACTIVE || (o.folio || '').includes('14302') || (o.department || '').includes('TH');
+        }
+        if (dept === 'GT' || crNumber.startsWith('GT-')) {
+          return o.oc === OC_GT_ACTIVE || (o.folio || '').includes('9784') || (o.department || '').includes('GT');
+        }
+        return false;
+      });
+
+      if (targetOrder) {
+        ordersToUpdate.push({ order: targetOrder, invoiceIndices: [] });
+      }
+    }
+
+    if (ordersToUpdate.length > 0) {
+      for (const { order, invoiceIndices } of ordersToUpdate) {
+        const updatedInvoices = [...(order.invoices || [])];
+        if (invoiceIndices.length > 0) {
+          for (const idx of invoiceIndices) {
+            if (updatedInvoices[idx]) {
+              const inv = updatedInvoices[idx];
+              inv.collection = {
+                ...(inv.collection || {}),
+                contrareciboNumber: crNumber,
+                contrareciboDate: dueDateTs || Timestamp.now(),
+                contrareciboPortalStatus: 'generado',
+                notes: `Amparada con Contrarecibo ${crNumber}.${dueDateStr ? ` Pago programado: ${dueDateStr}` : ''}`,
+              };
+              inv.creditCycle = {
+                ...(inv.creditCycle || {}),
+                status: 'in_review',
+                ...(dueDateTs ? { dueDate: dueDateTs } : {}),
+              };
+            }
+          }
+        } else {
+          // Si no coincidieron índices directos, actualizar la última factura pendiente de CR
+          const lastPendingIdx = updatedInvoices.findIndex(inv => !inv.collection?.contrareciboNumber);
+          if (lastPendingIdx !== -1) {
+            const inv = updatedInvoices[lastPendingIdx];
+            inv.collection = {
+              ...(inv.collection || {}),
+              contrareciboNumber: crNumber,
+              contrareciboDate: dueDateTs || Timestamp.now(),
+              contrareciboPortalStatus: 'generado',
+            };
+            inv.creditCycle = {
+              ...(inv.creditCycle || {}),
+              status: 'in_review',
+              ...(dueDateTs ? { dueDate: dueDateTs } : {}),
+            };
+          }
+        }
+
+        await safeUpdateDoc(doc(db, PATHS.orders, order.id), {
+          invoices: cleanUndefined(updatedInvoices),
+          'collection.contrareciboNumber': crNumber,
+          'collection.contrareciboDate': dueDateTs || Timestamp.now(),
+          'collection.contrareciboPortalStatus': 'generado',
+          'creditCycle.status': 'in_review',
+          status: 'in_review',
+          updatedAt: serverTimestamp(),
+        });
+
+        if (file) {
+          try {
+            await uploadDocument({
+              file,
+              docKind: 'contrarecibo',
+              folio: crNumber,
+              orderId: order.id,
+              orderFolio: order.folio || order.oc,
+              kilos: 0,
+              total: totalCr,
+              docDate: first.fechaRecepcion || new Date().toISOString().split('T')[0],
+              notes: `Contrarecibo ${crNumber} amparando Factura(s) ${facturaFolios.join(', ')}`,
+            });
+          } catch (e) {
+            console.warn('Error al subir contrarecibo a Storage:', e);
+          }
+        }
+
+        await logAction(user?.email, 'Contrarecibo Providencia Vinculado', {
+          orderId: order.id,
+          cr: crNumber,
+          facturas: facturaFolios,
+          total: totalCr,
+          fechaPago: dueDateStr,
+        });
+
+        results.push({
+          id: `cr-${Date.now()}-${crNumber}`,
+          fileName: sourceName,
+          folio: crNumber,
+          oc: order.folio || order.oc || crNumber,
+          kilos: 0,
+          total: totalCr,
+          status: 'success',
+          message: `Contrarecibo ${crNumber} (${money(totalCr)}) vinculado exitosamente a Factura(s) ${facturaFolios.join(', ')} en OC ${order.folio || order.oc}. Pago programado: ${dueDateStr || 'Pendiente'}.`,
+          orderId: order.id,
+        });
+      }
+    } else {
+      results.push({
+        id: `cr-err-${Date.now()}-${crNumber}`,
+        fileName: sourceName,
+        folio: crNumber,
+        oc: 'N/A',
+        kilos: 0,
+        total: totalCr,
+        status: 'error',
+        message: `No se localizó la orden ni las facturas amparadas por el Contrarecibo ${crNumber} (${facturaFolios.join(', ')}).`,
+      });
+    }
+
+    return results;
+  };
+
   // Manejo de Múltiples Archivos Arrastrados o Subidos (XML, HTML, PDF, Imágenes)
   const handleFiles = async (fileList: FileList | File[]) => {
     triggerHaptic('light');
@@ -864,18 +1044,8 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
           } else {
             const parsedCrs = parseProvidenciaContrareciboHtml(text);
             if (parsedCrs.length > 0) {
-              for (const cr of parsedCrs) {
-                results.push({
-                  id: `cr-${Date.now()}-${cr.contrareciboNumber}`,
-                  fileName: file.name,
-                  folio: cr.facturaFolio || cr.contrareciboNumber,
-                  oc: cr.contrareciboNumber,
-                  kilos: 0,
-                  total: cr.importe,
-                  status: 'success',
-                  message: `Contrarecibo ${cr.contrareciboNumber} importado desde HTML ($${cr.importe.toLocaleString('es-MX', { minimumFractionDigits: 2 })})`,
-                });
-              }
+              const crResults = await processSingleContrarecibo(parsedCrs, file.name, file);
+              results.push(...crResults);
             } else {
               throw new Error('No se detectaron datos de pago ni contrarecibos en el archivo HTML');
             }
@@ -913,6 +1083,22 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
           }
 
           const ocr = parseOcrData(text);
+
+          // 1.5 Detectar si es un Contrarecibo oficial de Providencia (PDF)
+          const isContrareciboDoc =
+            ocr.docKind === 'contrarecibo' ||
+            ((/CONTRA\s*RECIBO|CONTRARECIBO/i.test(text) || /1\|\d{4}\|(?:TH|GT)-/i.test(text) || /(?:TH|GT)-\d{3,5}/i.test(text)) &&
+             !/ORDEN\s*DE\s*COMPRA/i.test(text));
+
+          if (isContrareciboDoc) {
+            const parsedCrs = parseProvidenciaContrareciboHtml(text);
+            if (parsedCrs.length > 0) {
+              const crResults = await processSingleContrarecibo(parsedCrs, file.name, file);
+              results.push(...crResults);
+              continue;
+            }
+          }
+
           const folio = ocr.folio || file.name.replace('.pdf', '');
           const kilosVal = ocr.kilos || 0;
           const totalVal = ocr.total || (kilosVal * 43 * 1.16);
@@ -1106,6 +1292,22 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
           }
 
           const ocr = parseOcrData(text);
+
+          // 1.5 Detectar si es foto o captura de Contrarecibo oficial de Providencia
+          const isContrareciboDoc =
+            ocr.docKind === 'contrarecibo' ||
+            ((/CONTRA\s*RECIBO|CONTRARECIBO/i.test(text) || /1\|\d{4}\|(?:TH|GT)-/i.test(text) || /(?:TH|GT)-\d{3,5}/i.test(text)) &&
+             !/ORDEN\s*DE\s*COMPRA/i.test(text));
+
+          if (isContrareciboDoc) {
+            const parsedCrs = parseProvidenciaContrareciboHtml(text);
+            if (parsedCrs.length > 0) {
+              const crResults = await processSingleContrarecibo(parsedCrs, file.name, file);
+              results.push(...crResults);
+              continue;
+            }
+          }
+
           const folio = ocr.folio || file.name.replace(/\.[^/.]+$/, '');
           const kilosVal = ocr.kilos || 0;
           const totalVal = ocr.total || (kilosVal * 43 * 1.16);
@@ -1347,83 +1549,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         const parsedCrs = parseProvidenciaContrareciboHtml(text);
         if (parsedCrs.length === 0) throw new Error('No se detectaron folios de Contrarecibo en el texto.');
 
-        const results: ProcessedResultItem[] = [];
-
-        for (const cr of parsedCrs) {
-          // Buscar orden y factura correspondiente
-          let targetOrder: any = null;
-          let targetInvoiceIndex = -1;
-
-          for (const o of orders) {
-            if (!o || (o as any).isDeleted) continue;
-            const invs = o.invoices || [];
-            const idx = invs.findIndex((inv: any) => {
-              if (cr.facturaFolio && (inv.folio === cr.facturaFolio || inv.id === cr.facturaFolio)) return true;
-              if (cr.importe > 0 && Math.abs((inv.financials?.invoiceTotal || 0) - cr.importe) < 1) return true;
-              return false;
-            });
-            if (idx !== -1) {
-              targetOrder = o;
-              targetInvoiceIndex = idx;
-              break;
-            }
-          }
-
-          if (targetOrder && targetInvoiceIndex !== -1) {
-            const updatedInvoices = [...targetOrder.invoices];
-            const inv = updatedInvoices[targetInvoiceIndex];
-
-            // Parsear fechas
-            const parseDateParts = (dStr?: string) => {
-              if (!dStr) return null;
-              const p = dStr.split('/');
-              if (p.length === 3) return new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
-              return null;
-            };
-
-            const recDate = parseDateParts(cr.fechaRecepcion);
-            const dueDate = parseDateParts(cr.fechaPago);
-
-            inv.collection = {
-              ...(inv.collection || {}),
-              contrareciboNumber: cr.contrareciboNumber,
-              contrareciboDate: recDate ? Timestamp.fromDate(recDate) : Timestamp.now(),
-            };
-            inv.creditCycle = {
-              ...(inv.creditCycle || {}),
-              status: 'pending',
-              dueDate: dueDate ? Timestamp.fromDate(dueDate) : null,
-            };
-
-            await safeUpdateDoc(doc(db, PATHS.orders, targetOrder.id), {
-              invoices: updatedInvoices,
-            });
-
-            results.push({
-              id: `cr-${Date.now()}-${cr.contrareciboNumber}`,
-              fileName: 'Portal Providencia',
-              folio: inv.folio || cr.facturaFolio || 'S/F',
-              oc: targetOrder.folio || targetOrder.oc || 'OC',
-              kilos: inv.kilos || 0,
-              total: cr.importe || inv.financials?.invoiceTotal || 0,
-              status: 'success',
-              message: `Contrarecibo ${cr.contrareciboNumber} asignado a Factura #${inv.folio} (Vence: ${cr.fechaPago || '30 días'})`,
-              orderId: targetOrder.id,
-            });
-          } else {
-            results.push({
-              id: `cr-warn-${Date.now()}-${cr.contrareciboNumber}`,
-              fileName: 'Portal Providencia',
-              folio: cr.facturaFolio || 'S/F',
-              oc: cr.contrareciboNumber,
-              kilos: 0,
-              total: cr.importe,
-              status: 'warning',
-              message: `Contrarecibo ${cr.contrareciboNumber} detectado ($${cr.importe.toLocaleString('es-MX', { minimumFractionDigits: 2 })}). Asigna la factura.`,
-            });
-          }
-        }
-
+        const results = await processSingleContrarecibo(parsedCrs, 'Portal Providencia (Pegado)');
         setBatchResults(results);
         const successCount = results.filter(r => r.status === 'success').length;
         triggerHaptic(successCount > 0 ? 'success' : 'warning');
@@ -1439,6 +1565,19 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         setProcessing(true);
         setProgressMsg('Analizando texto / remisión pegada...');
         const ocr = parseOcrData(text);
+
+        if (ocr.docKind === 'contrarecibo') {
+          const parsedCrs = parseProvidenciaContrareciboHtml(text);
+          if (parsedCrs.length > 0) {
+            const crResults = await processSingleContrarecibo(parsedCrs, 'Contrarecibo Pegado');
+            setBatchResults(crResults);
+            const successCount = crResults.filter(r => r.status === 'success').length;
+            triggerHaptic(successCount > 0 ? 'success' : 'warning');
+            toast(`✅ Contrarecibo asignado al instante`, 'ok');
+            return;
+          }
+        }
+
         const kilosVal = ocr.kilos || 0;
         const totalVal = ocr.total || kilosVal * 43 * 1.16;
         const folio = ocr.folio || 'REM-PEGADA';

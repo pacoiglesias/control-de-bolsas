@@ -152,6 +152,38 @@ export default function CobranzaStats() {
           Comisiones: {money(data.comisiones)}
         </div>
       </motion.div>
+
+      {/* 5. Facturas en Trámite de CR (Revisión Portal) */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18 }}
+        style={{
+          background: (data.enRevisionCount || 0) > 0 ? 'rgba(245, 158, 11, 0.08)' : 'var(--paper-raised)',
+          border: (data.enRevisionCount || 0) > 0 ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--line-soft)',
+          borderRadius: 'var(--radius)',
+          padding: '14px 18px',
+          boxShadow: 'var(--shadow-sm)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: (data.enRevisionCount || 0) > 0 ? '#d97706' : 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            En Trámite de CR
+          </span>
+          <span className="badge" style={{ fontSize: 10.5, fontWeight: 700, background: (data.enRevisionCount || 0) > 0 ? 'rgba(245, 158, 11, 0.2)' : 'var(--paper-sunk)', color: (data.enRevisionCount || 0) > 0 ? '#d97706' : 'var(--ink-soft)' }}>
+            {data.enRevisionCount || 0} {(data.enRevisionCount || 0) === 1 ? 'factura' : 'facturas'}
+          </span>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: (data.enRevisionCount || 0) > 0 ? '#d97706' : 'var(--ink)', margin: '6px 0 2px', letterSpacing: '-0.02em' }}>
+          <AnimatedNumber value={data.enRevisionMonto || 0} format="money" />
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+          {(data.enRevisionCount || 0) > 0 ? 'Pendiente de asignar en portal' : '0 facturas en revisión'}
+        </div>
+      </motion.div>
     </div>
   );
 }

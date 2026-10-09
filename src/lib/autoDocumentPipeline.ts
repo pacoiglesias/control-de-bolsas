@@ -57,6 +57,9 @@ export interface PipelineAnalysis {
     totalPiezas: number;
     conceptos: Array<{ codigo: string; descripcion: string; cantidad: number; valorUnitario: number }>;
   };
+  contrareciboNumber?: string;
+  facturaFolios?: string[];
+  dueDate?: string;
 }
 
 export interface PipelineApplyResult {
@@ -200,6 +203,9 @@ export async function analyzeDocumentFast(
   let detectedOcNumber = '';
   let rawText = '';
   let ocPiezasInfo: PipelineAnalysis['ocPiezasInfo'];
+  let contrareciboNumber = '';
+  let facturaFolios: string[] = [];
+  let dueDate = '';
 
   try {
     // 1. CASO XML CFDI
@@ -271,7 +277,17 @@ export async function analyzeDocumentFast(
             docDate = ocr.fecha ? ocr.fecha.split('T')[0] : docDate;
             detectedOcNumber = ocr.ocNumber || '';
 
-            if (ocr.docKind === 'pago_providencia') {
+            if (ocr.docKind === 'contrarecibo') {
+              docType = 'contrarecibo';
+              confidence = 'alta';
+              folio = ocr.contrarecibo || ocr.folio || '';
+              contrareciboNumber = ocr.contrarecibo || ocr.folio || '';
+              facturaFolios = ocr.facturaFolios || [];
+              dueDate = ocr.dueDate || '';
+              total = round2(ocr.total || 0);
+              subtotal = round2(ocr.subTotal || 0);
+              docDate = ocr.fecha || docDate;
+            } else if (ocr.docKind === 'pago_providencia') {
               docType = 'comprobante_pago';
               confidence = 'alta';
             } else if (ocr.docKind === 'oc_providencia') {
@@ -322,7 +338,17 @@ export async function analyzeDocumentFast(
         docDate = ocr.fecha ? ocr.fecha.split('T')[0] : docDate;
         detectedOcNumber = ocr.ocNumber || '';
 
-        if (ocr.docKind === 'remision' || /REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA/i.test(text)) {
+        if (ocr.docKind === 'contrarecibo') {
+          docType = 'contrarecibo';
+          confidence = 'alta';
+          folio = ocr.contrarecibo || ocr.folio || '';
+          contrareciboNumber = ocr.contrarecibo || ocr.folio || '';
+          facturaFolios = ocr.facturaFolios || [];
+          dueDate = ocr.dueDate || '';
+          total = round2(ocr.total || 0);
+          subtotal = round2(ocr.subTotal || 0);
+          docDate = ocr.fecha || docDate;
+        } else if (ocr.docKind === 'remision' || /REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA/i.test(text)) {
           docType = 'remision';
           confidence = 'alta';
         } else if (ocr.uuid || /CFDI|FACTURA/i.test(text)) {
@@ -341,21 +367,38 @@ export async function analyzeDocumentFast(
   }
 
   // Matching de Orden
-  const matchedOrder = matchOrderCanonical(orders, detectedOcNumber, folio, total);
+  let matchedOrder = matchOrderCanonical(orders, detectedOcNumber, folio, total);
+
+  if (docType === 'contrarecibo' && facturaFolios.length > 0) {
+    for (const ff of facturaFolios) {
+      const foundOrd = orders.find(
+        (o) => !o.isDeleted && (o.invoices || []).some((inv) => inv.folio === ff || inv.id === ff || inv.id === `inv-${ff}`)
+      );
+      if (foundOrd) {
+        matchedOrder = foundOrd;
+        break;
+      }
+    }
+  }
 
   // Duplicados
   const dupCheck = findExistingInvoice(orders, folio, uuid);
 
   let autoAssignedLabel: string | null = null;
   if (matchedOrder) {
-    const deptTag =
-      matchedOrder.client?.includes('TH') || (matchedOrder.department || '').includes('TH')
-        ? 'TH (José Nava)'
-        : 'GT (Lic. Evelia)';
-    autoAssignedLabel = `🎯 OC Asignada: ${matchedOrder.folio || matchedOrder.oc} · ${deptTag}`;
+    if (docType === 'contrarecibo') {
+      const facStr = facturaFolios.length > 0 ? `Factura(s) #${facturaFolios.join(', #')}` : 'facturas asociadas';
+      autoAssignedLabel = `🎯 Contrarecibo amparando ${facStr} en ${matchedOrder.folio || matchedOrder.oc}`;
+    } else {
+      const deptTag =
+        matchedOrder.client?.includes('TH') || (matchedOrder.department || '').includes('TH')
+          ? 'TH (José Nava)'
+          : 'GT (Lic. Evelia)';
+      autoAssignedLabel = `🎯 OC Asignada: ${matchedOrder.folio || matchedOrder.oc} · ${deptTag}`;
+    }
   }
 
-  const needsClarification = !matchedOrder && docType !== 'oc_providencia';
+  const needsClarification = !matchedOrder && docType !== 'oc_providencia' && docType !== 'contrarecibo';
 
   return {
     file,
@@ -375,6 +418,9 @@ export async function analyzeDocumentFast(
     needsClarification,
     rawText,
     ocPiezasInfo,
+    contrareciboNumber,
+    facturaFolios,
+    dueDate,
   };
 }
 
@@ -479,13 +525,114 @@ export async function applyDocumentFast(
   const orderRef = doc(db, PATHS.orders, targetOrder.id);
   const safeDate = toSafeTimestamp(analysis.docDate);
 
+  // 3.5 APLICACIÓN DE CONTRARECIBO OFICIAL
+  if (analysis.docType === 'contrarecibo') {
+    const crFolio = analysis.contrareciboNumber || analysis.folio || 'CR-S/N';
+    const facFolios = analysis.facturaFolios || [];
+    const dueDateStr = analysis.dueDate;
+    const dueDateTimestamp = dueDateStr ? Timestamp.fromDate(new Date(`${dueDateStr}T12:00:00Z`)) : null;
+
+    let appliedCount = 0;
+    const targetOrdersToUpdate = targetOrder ? [targetOrder] : [];
+
+    for (const ord of targetOrdersToUpdate) {
+      if (!ord || (ord as any).isDeleted) continue;
+      let orderModified = false;
+      const updatedInvoices = (ord.invoices || []).map((inv: any) => {
+        const matchesFolio = facFolios.some((f) => f === inv.folio || f === inv.id || inv.folio?.includes(f));
+        const matchesSingle = targetOrdersToUpdate.length === 1 && facFolios.length <= 1 && !inv.collection?.contrareciboNumber;
+
+        if (matchesFolio || matchesSingle) {
+          orderModified = true;
+          appliedCount++;
+          return {
+            ...inv,
+            collection: {
+              ...inv.collection,
+              contrareciboNumber: crFolio,
+              notes: `Amparada con Contrarecibo ${crFolio}.${dueDateStr ? ` Pago programado: ${dueDateStr}` : ''}`.trim(),
+            },
+            creditCycle: {
+              ...inv.creditCycle,
+              status: 'in_review' as const,
+              ...(dueDateTimestamp ? { dueDate: dueDateTimestamp } : {}),
+            },
+          };
+        }
+        return inv;
+      });
+
+      if (orderModified) {
+        const ordRef = doc(db, PATHS.orders, ord.id);
+        await safeUpdateDoc(ordRef, {
+          invoices: cleanUndefined(updatedInvoices),
+          'collection.contrareciboNumber': crFolio,
+          'collection.contrareciboDate': dueDateTimestamp || Timestamp.now(),
+          'collection.contrareciboPortalStatus': 'generado',
+          'creditCycle.status': 'in_review',
+          status: 'in_review',
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    try {
+      await uploadDocument({
+        file: analysis.file,
+        docKind: 'contrarecibo',
+        folio: crFolio,
+        orderId: targetOrder?.id,
+        orderFolio: targetOrder?.folio || targetOrder?.oc,
+        kilos: 0,
+        total: analysis.total,
+        docDate: analysis.docDate,
+        notes: `Contrarecibo ${crFolio} amparando factura(s) ${facFolios.join(', ')}`,
+      });
+    } catch (e) {
+      console.warn('Error al subir contrarecibo a Storage:', e);
+    }
+
+    const facSummary = facFolios.length > 0 ? `Factura(s) #${facFolios.join(', #')}` : 'facturas asociadas';
+
+    if (appliedCount === 0) {
+      return {
+        success: true,
+        isDuplicate: true,
+        message: `El Contrarecibo ${crFolio} ya había sido vinculado a ${facSummary}. Se conservó el registro oficial sin duplicados.`,
+        docType: 'contrarecibo',
+        folio: crFolio,
+        kilos: 0,
+        total: analysis.total,
+        orderId: targetOrder?.id,
+        orderFolio: targetOrder?.folio || targetOrder?.oc,
+        orderClient: targetOrder?.client,
+      };
+    }
+
+    return {
+      success: true,
+      message: `Contrarecibo ${crFolio} vinculado automáticamente a ${facSummary}${dueDateStr ? ` (Pago programado: ${dueDateStr})` : ''}.`,
+      docType: 'contrarecibo',
+      folio: crFolio,
+      kilos: 0,
+      total: analysis.total,
+      orderId: targetOrder?.id,
+      orderFolio: targetOrder?.folio || targetOrder?.oc,
+      orderClient: targetOrder?.client,
+    };
+  }
+
   // 4. APLICACIÓN DE FACTURA CFDI
   if (analysis.docType === 'factura_cfdi') {
     const invFolio = analysis.folio?.trim() || 'S/F';
     const numKilos = Number(analysis.kilos) || 0;
-    const sellPrice = targetOrder.customSellPrice || 43;
+    const sellPrice = targetOrder.customSellPrice || targetOrder.financials?.salePricePerKg || 43;
+    const costPrice = targetOrder.customCostPrice || targetOrder.financials?.costPricePerKg || 38;
+    const commRate = targetOrder.financials?.commissionRate ?? 0.08;
     const subtotal = analysis.subtotal || round2(numKilos * sellPrice);
-    const total = analysis.total || round2(numKilos * sellPrice * 1.16);
+    const total = analysis.total || round2(subtotal * 1.16);
+    const costTotal = round2(numKilos * costPrice);
+    const commission = round2(subtotal * commRate);
 
     const newInvoice: Invoice = {
       id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -494,13 +641,14 @@ export async function applyDocumentFast(
       kilos: numKilos,
       financials: {
         salePricePerKg: sellPrice,
-        costPricePerKg: 38,
+        costPricePerKg: costPrice,
+        commissionRate: commRate,
         saleTotal: subtotal,
         invoiceTotal: total,
-        costTotal: round2(numKilos * 38),
-        commission: round2(subtotal * 0.08),
-        netCashFlow: round2(total - numKilos * 38 - subtotal * 0.08),
-        tradeMargin: round2(subtotal - numKilos * 38),
+        costTotal,
+        commission,
+        netCashFlow: round2(subtotal - costTotal - commission),
+        tradeMargin: round2(subtotal - costTotal),
       },
       creditCycle: {
         status: 'pending',
@@ -568,6 +716,30 @@ export async function applyDocumentFast(
   // 5. APLICACIÓN DE TICKET DE BÁSCULA O REMISIÓN
   if (analysis.docType === 'ticket_bascula' || analysis.docType === 'remision') {
     const numKilos = Number(analysis.kilos) || 0;
+    const cleanDocFolio = analysis.folio?.trim();
+
+    // Blindaje antiduplicados y reintentos: checar si el ticket ya existe en entregas
+    const existingDeliveries = targetOrder.deliveries || [];
+    const yaRegistrada = cleanDocFolio && existingDeliveries.some((d) => {
+      const existingF = d.docFolio?.trim().toUpperCase();
+      return existingF && existingF === cleanDocFolio.toUpperCase();
+    });
+
+    if (yaRegistrada) {
+      return {
+        success: true,
+        isDuplicate: true,
+        message: `La Remisión / Ticket #${cleanDocFolio} (${numKilos.toLocaleString('es-MX')} kg) ya fue registrado previamente en ${targetOrder.folio || targetOrder.oc}. Se conservó sin duplicar los kilos.`,
+        docType: analysis.docType,
+        folio: cleanDocFolio,
+        kilos: numKilos,
+        total: 0,
+        orderId: targetOrder.id,
+        orderFolio: targetOrder.folio || targetOrder.oc,
+        orderClient: targetOrder.client,
+      };
+    }
+
     const newDelivery: Delivery = {
       id: `del-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       date: safeDate,
@@ -575,10 +747,9 @@ export async function applyDocumentFast(
       notes: `Ingreso de báscula ticket #${analysis.folio || 'S/N'} (${numKilos.toLocaleString('es-MX')} kg)`,
       invoiced: false,
       docType: 'remision',
-      ...(analysis.folio?.trim() ? { docFolio: analysis.folio.trim() } : {}),
+      ...(cleanDocFolio ? { docFolio: cleanDocFolio } : {}),
     };
 
-    const existingDeliveries = targetOrder.deliveries || [];
     await safeUpdateDoc(orderRef, {
       deliveries: cleanUndefined([...existingDeliveries, newDelivery]),
       updatedAt: serverTimestamp(),
@@ -625,26 +796,35 @@ export async function applyDocumentFast(
 
     if (invIdx !== -1 && updatedInvoices[invIdx]) {
       const inv = updatedInvoices[invIdx];
+      const prevPaid = Number(inv.collection?.paidAmount) || 0;
+      const newPaid = prevPaid + analysis.total;
+      const invTotal = inv.financials?.invoiceTotal || (inv.kilos * 43 * 1.16);
+      const isInvoiceFullyPaid = newPaid >= (invTotal - 1.0);
+
       inv.collection = {
         ...(inv.collection || {}),
-        paidAmount: analysis.total,
+        paidAmount: newPaid,
         paidAt: safeDate,
-        collectedAt: safeDate,
+        collectedAt: isInvoiceFullyPaid ? safeDate : inv.collection?.collectedAt,
         transferRef: analysis.detectedOcNumber || analysis.folio,
       };
       inv.creditCycle = {
         ...(inv.creditCycle || {}),
-        status: 'collected',
+        status: isInvoiceFullyPaid ? 'collected' : (inv.creditCycle?.status || 'pending'),
       };
     }
 
+    const totalOrderInvoiced = updatedInvoices.reduce((sum, i) => sum + (i.financials?.invoiceTotal || (i.kilos * 43 * 1.16)), 0);
+    const totalOrderPaid = updatedInvoices.reduce((sum, i) => sum + (Number(i.collection?.paidAmount) || 0), 0);
+    const isOrderFullyCollected = totalOrderInvoiced > 0 && totalOrderPaid >= (totalOrderInvoiced - 1.0);
+
     await safeUpdateDoc(orderRef, {
       invoices: cleanUndefined(updatedInvoices),
-      'collection.paidAmount': analysis.total,
+      'collection.paidAmount': totalOrderPaid,
       'collection.paidAt': safeDate,
       'collection.transferRef': analysis.detectedOcNumber || analysis.folio,
-      'creditCycle.status': 'collected',
-      status: 'collected',
+      'creditCycle.status': isOrderFullyCollected ? 'collected' : (targetOrder.creditCycle?.status || 'pending'),
+      status: isOrderFullyCollected ? 'collected' : ((targetOrder as any).status || 'pending'),
       updatedAt: serverTimestamp(),
     });
 
