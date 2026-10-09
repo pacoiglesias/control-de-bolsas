@@ -953,8 +953,16 @@ export function evaluateThreeWayMatch(
   const deliveryKg = totalDeliveredKg;
   const diffKg = round2(Math.abs(deliveryKg - invoiceKg));
 
-  const unitPrice = round2(inv?.financials?.salePricePerKg || 43.0);
-  const invoiceTotal = round2(inv?.financials?.invoiceTotal || (invoiceKg * unitPrice * 1.16));
+  const rawUnitPrice =
+    inv?.financials?.salePricePerKg !== undefined && inv?.financials?.salePricePerKg !== null
+      ? inv.financials.salePricePerKg
+      : (order?.customSellPrice !== undefined && order?.customSellPrice !== null
+          ? order.customSellPrice
+          : (order?.financials?.salePricePerKg !== undefined && order?.financials?.salePricePerKg !== null
+              ? order.financials.salePricePerKg
+              : 43.0));
+  const unitPrice = round2(rawUnitPrice);
+  const invoiceTotal = round2(inv?.financials?.invoiceTotal !== undefined && inv?.financials?.invoiceTotal !== null ? inv.financials.invoiceTotal : (invoiceKg * unitPrice * 1.16));
   const expectedTotal = round2(deliveryKg * unitPrice * 1.16);
   const diffMoney = round2(Math.abs(invoiceTotal - expectedTotal));
 

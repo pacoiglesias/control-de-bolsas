@@ -39,6 +39,26 @@ export function GlobalDropzoneHUD() {
   // Modal inspector manual para casos excepcionales
   const [manualInspectFile, setManualInspectFile] = useState<File | null>(null);
 
+  // Estados de control para importación forzada segura y aclaraciones interactivas
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
+  const [forceReplaceCr, setForceReplaceCr] = useState<boolean>(false);
+  const [auditNote, setAuditNote] = useState<string>('');
+  const [showConfirmationSummary, setShowConfirmationSummary] = useState<boolean>(false);
+
+  // Sincronizar selección inicial cuando cambia el documento en revisión
+  useEffect(() => {
+    if (currentIndex >= 0 && currentIndex < batchQueue.length) {
+      const itm = batchQueue[currentIndex];
+      const defaultOrd = itm?.analysis?.duplicateOrder || itm?.analysis?.matchedOrder;
+      setSelectedOrderId(defaultOrd?.id || '');
+      setSelectedInvoiceId('');
+      setForceReplaceCr(false);
+      setAuditNote('');
+      setShowConfirmationSummary(false);
+    }
+  }, [currentIndex, batchQueue]);
+
   // Escuchar Drag & Drop global y eventos de subida
   useEffect(() => {
     const handleDragEnter = (e: DragEvent) => {
@@ -265,9 +285,7 @@ export function GlobalDropzoneHUD() {
           }
           return copy;
         });
-        setTimeout(() => {
-          setCurrentIndex(idx + 1);
-        }, 800);
+        // No auto-avanzar ciegamente en error para permitir revisión del operador
       }
     },
     [orders, toast]
@@ -285,57 +303,22 @@ export function GlobalDropzoneHUD() {
     }
   }, [currentIndex, isProcessing, batchQueue, processItemAt]);
 
-  // Resolver aclaración del usuario
-  const handleResolveClarification = async (chosenOrder: PurchaseOrder) => {
-    if (currentIndex < 0 || currentIndex >= batchQueue.length) return;
-    const currentItem = batchQueue[currentIndex];
-    if (!currentItem || !currentItem.analysis) return;
-
-    triggerHaptic('medium');
-    setBatchQueue((prev) => {
-      const copy = [...prev];
-      if (copy[currentIndex]) copy[currentIndex] = { ...copy[currentIndex], status: 'applying' };
-      return copy;
-    });
-
-    try {
-      const result = await applyDocumentFast(currentItem.analysis, chosenOrder, orders);
-      setBatchQueue((prev) => {
-        const copy = [...prev];
-        if (copy[currentIndex]) {
-          copy[currentIndex] = {
-            ...copy[currentIndex],
-            status: result.success ? 'success' : 'error',
-            result,
-            errorMessage: result.success ? undefined : result.message,
-          };
-        }
-        return copy;
-      });
-
-      if (result.success) {
-        sound.playChaChing();
-        triggerHaptic('cash');
-        toast(`✅ Asignado con éxito a ${chosenOrder.folio || chosenOrder.oc}`, 'ok');
-      }
-
-      // Continuar con el siguiente
-      setTimeout(() => {
-        setCurrentIndex(currentIndex + 1);
-      }, 550);
-    } catch (err: any) {
-      console.error('Error al aplicar orden elegida:', err);
-      toast(`Error al aplicar: ${err.message}`, 'bad');
-      setTimeout(() => {
-        setCurrentIndex(currentIndex + 1);
-      }, 800);
-    }
-  };
-
-  const handleForceApplyCurrent = async () => {
+  const handleForceApplyCurrent = async (explicitTargetOrder?: PurchaseOrder) => {
     if (currentIndex < 0 || currentIndex >= batchQueue.length) return;
     const item = batchQueue[currentIndex];
     if (!item || !item.analysis) return;
+
+    // EXIGIR orden explícita: nunca recurrir a una orden arbitraria (orders[0])
+    const target =
+      explicitTargetOrder ||
+      (selectedOrderId ? orders.find((o) => o.id === selectedOrderId) : null) ||
+      item.analysis.matchedOrder ||
+      item.analysis.duplicateOrder;
+
+    if (!target) {
+      toast('⚠️ Debe seleccionar explícitamente la Orden de Compra destino.', 'bad');
+      return;
+    }
 
     triggerHaptic('medium');
     setBatchQueue((prev) => {
@@ -346,7 +329,26 @@ export function GlobalDropzoneHUD() {
 
     try {
       item.analysis.forceApply = true;
-      const target = item.analysis.duplicateOrder || item.analysis.matchedOrder || orders[0];
+      if (forceReplaceCr) item.analysis.forceReplaceCr = true;
+      if (selectedInvoiceId) item.analysis.targetInvoiceIdOverride = selectedInvoiceId;
+
+      const reasonDesc =
+        item.analysis.suspectReason ||
+        (item.analysis.hasFolioCollision
+          ? 'Colisión de Folio Fiscal'
+          : item.analysis.hasCrCollision
+          ? 'Conflicto de Contrarrecibo Previo'
+          : item.analysis.multipleInvoicesCandidate
+          ? 'Selección Manual de Factura Destino'
+          : 'Asignación Manual de Orden');
+
+      item.analysis.manualDecisionAudit = {
+        user: 'Operador',
+        date: new Date().toISOString(),
+        reason: reasonDesc,
+        note: auditNote || 'Aprobado tras revisión de datos y advertencias en pantalla.',
+      };
+
       const result = await applyDocumentFast(item.analysis, target, orders);
       setBatchQueue((prev) => {
         const copy = [...prev];
@@ -364,17 +366,26 @@ export function GlobalDropzoneHUD() {
       if (result.success) {
         sound.playChaChing();
         triggerHaptic('cash');
-        toast('✅ Aplicado con confirmación de operador', 'ok');
+        toast(`✅ Aplicado a ${target.folio || target.oc} con registro de auditoría`, 'ok');
+      } else {
+        toast(`⚠️ ${result.message}`, 'bad');
       }
 
-      setTimeout(() => {
-        setCurrentIndex(currentIndex + 1);
-      }, 550);
+      setShowConfirmationSummary(false);
     } catch (err: any) {
       toast(`Error al aplicar: ${err.message}`, 'bad');
-      setTimeout(() => {
-        setCurrentIndex(currentIndex + 1);
-      }, 800);
+      setBatchQueue((prev) => {
+        const copy = [...prev];
+        if (copy[currentIndex]) {
+          copy[currentIndex] = {
+            ...copy[currentIndex],
+            status: 'error',
+            errorMessage: err.message,
+          };
+        }
+        return copy;
+      });
+      setShowConfirmationSummary(false);
     }
   };
 
@@ -772,231 +783,424 @@ export function GlobalDropzoneHUD() {
                   ) : null}
                 </div>
 
-                {/* TARJETA DE PREGUNTA INTERACTIVA SEGÚN TIPO DE INCERTIDUMBRE */}
-                {currentItem.status === 'needs_clarification' && currentItem.analysis?.isSuspectDuplicate && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    style={{
-                      padding: 16,
-                      borderRadius: 16,
-                      background: 'rgba(234, 88, 12, 0.15)',
-                      border: '1.5px solid rgba(234, 88, 12, 0.55)',
-                      marginTop: 4,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 18 }}>⚠️</span>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#fb923c' }}>
-                        Pesaje sospechoso en báscula ({currentItem.analysis.kilos.toLocaleString('es-MX')} kg)
-                      </div>
-                    </div>
-                    <div style={{ margin: '0 0 10px 0', fontSize: 12, color: 'rgba(255, 255, 255, 0.9)', lineHeight: 1.4 }}>
-                      <div><strong>Orden relacionada:</strong> {currentItem.analysis.duplicateOrder?.folio || currentItem.analysis.duplicateOrder?.oc || 'Expediente'}</div>
-                      <div><strong>Fecha del documento:</strong> {currentItem.analysis.docDate}</div>
-                      <div><strong>Motivo:</strong> {currentItem.analysis.suspectReason || 'Mismo pesaje registrado en fecha coincidente'}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                      <button
-                        onClick={handleForceApplyCurrent}
-                        style={{
-                          flex: '1 1 140px',
-                          padding: '8px 12px',
-                          borderRadius: 10,
-                          border: '1px solid #ea580c',
-                          background: 'rgba(234, 88, 12, 0.35)',
-                          color: '#fff',
-                          fontSize: 11,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        ✓ Registrar como nueva entrega física
-                      </button>
-                      <button
-                        onClick={() => handleDiscardCurrent('Omitido por el operador como duplicado sospechoso confirmado.')}
-                        style={{
-                          flex: '1 1 120px',
-                          padding: '8px 12px',
-                          borderRadius: 10,
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          color: '#f87171',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        ✕ Omitir (Es duplicado)
-                      </button>
-                    </div>
-                  </motion.div>
+                {/* BOTONES DE NAVEGACIÓN MANUAL SI EL DOCUMENTO YA FUE APLICADO O TIENE ERROR */}
+                {currentItem.status === 'success' && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                    <button
+                      onClick={() => setCurrentIndex(currentIndex + 1)}
+                      style={{
+                        padding: '7px 16px',
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                      }}
+                    >
+                      {currentIndex + 1 < batchQueue.length ? 'Siguiente documento →' : 'Ver resumen final ✓'}
+                    </button>
+                  </div>
                 )}
 
-                {currentItem.status === 'needs_clarification' && currentItem.analysis?.hasFolioCollision && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    style={{
-                      padding: 16,
-                      borderRadius: 16,
-                      background: 'rgba(239, 68, 68, 0.15)',
-                      border: '1.5px solid rgba(239, 68, 68, 0.55)',
-                      marginTop: 4,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 18 }}>🚨</span>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171' }}>
-                        Colisión de Folio Fiscal #{currentItem.analysis.folio} (UUID SAT Distinto)
-                      </div>
-                    </div>
-                    <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'rgba(255, 255, 255, 0.9)', lineHeight: 1.4 }}>
-                      El folio ya existe en {currentItem.analysis.duplicateOrder?.folio || currentItem.analysis.duplicateOrder?.oc || 'otra orden'}, pero el archivo actual tiene un UUID fiscal SAT diferente.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                      <button
-                        onClick={handleForceApplyCurrent}
-                        style={{
-                          flex: '1 1 140px',
-                          padding: '8px 12px',
-                          borderRadius: 10,
-                          border: '1px solid #ef4444',
-                          background: 'rgba(239, 68, 68, 0.35)',
-                          color: '#fff',
-                          fontSize: 11,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        ✓ Importar para revisión contable
-                      </button>
-                      <button
-                        onClick={() => handleDiscardCurrent('Descartado por colisión de folio fiscal.')}
-                        style={{
-                          flex: '1 1 120px',
-                          padding: '8px 12px',
-                          borderRadius: 10,
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        ✕ Cancelar archivo
-                      </button>
-                    </div>
-                  </motion.div>
+                {currentItem.status === 'error' && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                    <button
+                      onClick={() => processItemAt(currentIndex, batchQueue)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 10,
+                        background: '#f59e0b',
+                        color: '#fff',
+                        border: 'none',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ↻ Reintentar
+                    </button>
+                    <button
+                      onClick={() => setCurrentIndex(currentIndex + 1)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 10,
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        color: '#e2e8f0',
+                        border: 'none',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Omitir y siguiente →
+                    </button>
+                  </div>
                 )}
 
-                {/* TARJETA DE PREGUNTA INTERACTIVA SI HAY DUDA DE OC GENÉRICA */}
-                {currentItem.status === 'needs_clarification' && !currentItem.analysis?.isSuspectDuplicate && !currentItem.analysis?.hasFolioCollision && (
+                {/* TARJETA INTERACTIVA DE ACLARACIÓN Y CONFIRMACIÓN EXPLÍCITA */}
+                {currentItem.status === 'needs_clarification' && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
+                    initial={{ opacity: 0, scale: 0.97 }}
                     animate={{ opacity: 1, scale: 1 }}
                     style={{
                       padding: 16,
                       borderRadius: 16,
-                      background: 'rgba(245, 158, 11, 0.12)',
-                      border: '1.5px solid rgba(245, 158, 11, 0.45)',
+                      background: currentItem.analysis?.hasFolioCollision || currentItem.analysis?.hasCrCollision
+                        ? 'rgba(239, 68, 68, 0.14)'
+                        : currentItem.analysis?.isSuspectDuplicate
+                        ? 'rgba(234, 88, 12, 0.14)'
+                        : 'rgba(245, 158, 11, 0.12)',
+                      border: `1.5px solid ${
+                        currentItem.analysis?.hasFolioCollision || currentItem.analysis?.hasCrCollision
+                          ? 'rgba(239, 68, 68, 0.5)'
+                          : currentItem.analysis?.isSuspectDuplicate
+                          ? 'rgba(234, 88, 12, 0.5)'
+                          : 'rgba(245, 158, 11, 0.45)'
+                      }`,
                       marginTop: 4,
                     }}
                   >
+                    {/* ENCABEZADO Y MOTIVO DE LA ALERTA */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 18 }}>❓</span>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#fbbf24' }}>
-                        ¿A cuál Orden de Compra corresponde esta Factura #{currentItem.analysis?.folio || 'S/F'}?
+                      <span style={{ fontSize: 18 }}>
+                        {currentItem.analysis?.hasFolioCollision
+                          ? '🚨'
+                          : currentItem.analysis?.hasCrCollision
+                          ? '⚠️'
+                          : currentItem.analysis?.isSuspectDuplicate
+                          ? '⚠️'
+                          : '❓'}
+                      </span>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          color:
+                            currentItem.analysis?.hasFolioCollision || currentItem.analysis?.hasCrCollision
+                              ? '#f87171'
+                              : currentItem.analysis?.isSuspectDuplicate
+                              ? '#fb923c'
+                              : '#fbbf24',
+                        }}
+                      >
+                        {currentItem.analysis?.hasFolioCollision
+                          ? `Colisión de Folio Fiscal #${currentItem.analysis.folio} (UUID SAT Distinto)`
+                          : currentItem.analysis?.hasCrCollision
+                          ? `Conflicto de Contrarrecibo (#${currentItem.analysis.existingCr})`
+                          : currentItem.analysis?.isSuspectDuplicate
+                          ? `Pesaje sospechoso en báscula (${currentItem.analysis.kilos.toLocaleString('es-MX')} kg)`
+                          : currentItem.analysis?.multipleInvoicesCandidate
+                          ? 'Múltiples facturas con saldo pendiente'
+                          : `Asignación requerida para ${currentItem.analysis?.docType || 'documento'}`}
                       </div>
                     </div>
-                    <p style={{ margin: '0 0 12px 0', fontSize: 12, color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.4 }}>
-                      El documento no especifica el número canónico de OC. Selecciona la orden en 1 toque para no
-                      alterar balances:
-                    </p>
 
-                    {/* BOTONES DIRECTOS DE 1 TOQUE */}
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                      {/* Botón TH Nava */}
-                      {orders
-                        .filter((o) => (o.oc || o.folio || '').includes('14302') || o.client?.includes('TH'))
-                        .slice(0, 1)
-                        .map((o) => (
-                          <button
-                            key={o.id}
-                            onClick={() => handleResolveClarification(o)}
+                    <div style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.9)', marginBottom: 12, lineHeight: 1.4 }}>
+                      {currentItem.analysis?.hasFolioCollision && (
+                        <span>El folio ya existe en {currentItem.analysis.duplicateOrder?.folio || currentItem.analysis.duplicateOrder?.oc || 'otra orden'} con un UUID fiscal SAT diferente. Seleccione explícitamente la orden de destino.</span>
+                      )}
+                      {currentItem.analysis?.hasCrCollision && (
+                        <span>Una de las facturas amparadas ya cuenta con el contrarrecibo <strong>#{currentItem.analysis.existingCr}</strong>. Se requiere confirmación para cambiarlo a <strong>#{currentItem.analysis.newCr || currentItem.analysis.folio}</strong>.</span>
+                      )}
+                      {currentItem.analysis?.isSuspectDuplicate && (
+                        <span>{currentItem.analysis.suspectReason || 'Existe un pesaje idéntico o muy cercano en la misma fecha. Verifique si es una entrega real independiente.'}</span>
+                      )}
+                      {!currentItem.analysis?.hasFolioCollision && !currentItem.analysis?.hasCrCollision && !currentItem.analysis?.isSuspectDuplicate && (
+                        <span>El documento no especifica un número de orden canónico inequívoco. Seleccione la Orden de Compra para evitar alterar balances.</span>
+                      )}
+                    </div>
+
+                    {!showConfirmationSummary ? (
+                      /* PASO 1: SELECCIÓN EXPLÍCITA DE ORDEN Y OPCIONES */
+                      <div>
+                        {/* Selector de Orden */}
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                            Orden de Compra Destino (Obligatoria):
+                          </label>
+                          <select
+                            value={selectedOrderId}
+                            onChange={(e) => setSelectedOrderId(e.target.value)}
                             style={{
-                              flex: '1 1 180px',
-                              padding: '10px 14px',
-                              borderRadius: 12,
-                              border: '1.5px solid #3b82f6',
-                              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(29, 78, 216, 0.4) 100%)',
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 10,
+                              background: 'rgba(15, 23, 42, 0.85)',
+                              border: '1px solid rgba(255, 255, 255, 0.25)',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            <option value="">-- Seleccionar Orden de Compra --</option>
+                            {orders
+                              .filter((o) => o && !(o as any).isDeleted)
+                              .map((o) => (
+                                <option key={o.id} value={o.id}>
+                                  {o.folio || o.oc} · {o.client || 'Sin cliente'} · {Number(o.totalKilograms || 0).toLocaleString('es-MX')} kg
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        {/* Botones de 1 Toque Canónicos */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                          {orders
+                            .filter((o) => (o.oc || o.folio || '').includes('14302') || o.client?.includes('TH'))
+                            .slice(0, 1)
+                            .map((o) => (
+                              <button
+                                key={o.id}
+                                onClick={() => setSelectedOrderId(o.id)}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 8,
+                                  border: selectedOrderId === o.id ? '2px solid #3b82f6' : '1px solid rgba(59, 130, 246, 0.4)',
+                                  background: selectedOrderId === o.id ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.15)',
+                                  color: '#fff',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                🏢 TH (José Nava · 71/14302)
+                              </button>
+                            ))}
+                          {orders
+                            .filter((o) => (o.oc || o.folio || '').includes('9784') || o.client?.includes('GT'))
+                            .slice(0, 1)
+                            .map((o) => (
+                              <button
+                                key={o.id}
+                                onClick={() => setSelectedOrderId(o.id)}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 8,
+                                  border: selectedOrderId === o.id ? '2px solid #10b981' : '1px solid rgba(16, 185, 129, 0.4)',
+                                  background: selectedOrderId === o.id ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.15)',
+                                  color: '#fff',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                🏭 GT (Lic. Evelia · 43/9784)
+                              </button>
+                            ))}
+                        </div>
+
+                        {/* Si hay candidatas de factura para pago */}
+                        {currentItem.analysis?.candidateInvoices && currentItem.analysis.candidateInvoices.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                              Factura Destino para el Abono:
+                            </label>
+                            <select
+                              value={selectedInvoiceId}
+                              onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: 10,
+                                background: 'rgba(15, 23, 42, 0.85)',
+                                border: '1px solid rgba(255, 255, 255, 0.25)',
+                                color: '#fff',
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                            >
+                              <option value="">-- Seleccionar Factura --</option>
+                              {currentItem.analysis.candidateInvoices.map((ci) => (
+                                <option key={ci.id} value={ci.id}>
+                                  Factura #{ci.folio || ci.id} · Saldo pendiente: ${ci.balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Si hay colisión de contrarrecibo */}
+                        {currentItem.analysis?.hasCrCollision && (
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 10,
+                              background: 'rgba(239, 68, 68, 0.2)',
+                              border: '1px solid rgba(239, 68, 68, 0.5)',
+                              marginBottom: 10,
+                            }}
+                          >
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
+                              <input
+                                type="checkbox"
+                                checked={forceReplaceCr}
+                                onChange={(e) => setForceReplaceCr(e.target.checked)}
+                              />
+                              Confirmar reemplazo de CR #{currentItem.analysis.existingCr} por #{currentItem.analysis.newCr || currentItem.analysis.folio}
+                            </label>
+                          </div>
+                        )}
+
+                        {/* Botones de acción Paso 1 */}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                          <button
+                            onClick={() => {
+                              if (!selectedOrderId) {
+                                toast('⚠️ Seleccione una orden destino antes de continuar.', 'bad');
+                                return;
+                              }
+                              setShowConfirmationSummary(true);
+                            }}
+                            style={{
+                              flex: '1 1 140px',
+                              padding: '9px 14px',
+                              borderRadius: 10,
+                              border: 'none',
+                              background: '#3b82f6',
                               color: '#fff',
                               fontSize: 12,
                               fontWeight: 800,
                               cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              gap: 2,
                             }}
                           >
-                            <span>🏢 TH · José Nava</span>
-                            <span style={{ fontSize: 10, color: '#93c5fd', fontWeight: 600 }}>
-                              OC 71/14302 (8,000 kg)
-                            </span>
+                            Revisar Resumen y Confirmar →
                           </button>
-                        ))}
-
-                      {/* Botón GT Evelia */}
-                      {orders
-                        .filter((o) => (o.oc || o.folio || '').includes('9784') || o.client?.includes('GT'))
-                        .slice(0, 1)
-                        .map((o) => (
                           <button
-                            key={o.id}
-                            onClick={() => handleResolveClarification(o)}
+                            onClick={handleOpenManualInspector}
                             style={{
-                              flex: '1 1 180px',
-                              padding: '10px 14px',
-                              borderRadius: 12,
-                              border: '1.5px solid #10b981',
-                              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.4) 100%)',
+                              padding: '9px 12px',
+                              borderRadius: 10,
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              color: '#e2e8f0',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🔍 Inspeccionar
+                          </button>
+                          <button
+                            onClick={() => handleDiscardCurrent('Cancelado por el operador sin modificar órdenes ni facturas.')}
+                            style={{
+                              flex: '1 1 110px',
+                              padding: '9px 14px',
+                              borderRadius: 10,
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              color: '#94a3b8',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ✕ Cancelar Archivo
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* PASO 2: RESUMEN PREVIO DE CONFIRMACIÓN Y AUDITORÍA */
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 12,
+                            background: 'rgba(0, 0, 0, 0.35)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            marginBottom: 10,
+                            fontSize: 11,
+                            color: '#e2e8f0',
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          <div><strong>📄 Archivo:</strong> {currentItem.file.name}</div>
+                          <div><strong>🏷️ Tipo de documento:</strong> {currentItem.analysis?.docType}</div>
+                          <div>
+                            <strong>🎯 Orden elegida:</strong>{' '}
+                            {orders.find((o) => o.id === selectedOrderId)?.folio || orders.find((o) => o.id === selectedOrderId)?.oc || selectedOrderId}
+                          </div>
+                          <div>
+                            <strong>⚠️ Advertencia amparada:</strong>{' '}
+                            {currentItem.analysis?.suspectReason || (currentItem.analysis?.hasFolioCollision ? 'Colisión de Folio Fiscal SAT' : 'Asignación manual')}
+                          </div>
+                        </div>
+
+                        {/* Campo de auditoría */}
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                            Motivo / Justificación de la decisión manual (Auditoría):
+                          </label>
+                          <input
+                            type="text"
+                            value={auditNote}
+                            onChange={(e) => setAuditNote(e.target.value)}
+                            placeholder="Ej. Verificado físicamente con remisión de planta"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              background: 'rgba(15, 23, 42, 0.85)',
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              color: '#fff',
+                              fontSize: 11,
+                            }}
+                          />
+                        </div>
+
+                        {/* Botones de acción Paso 2 */}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => handleForceApplyCurrent()}
+                            style={{
+                              flex: '1 1 140px',
+                              padding: '9px 14px',
+                              borderRadius: 10,
+                              border: 'none',
+                              background: '#10b981',
                               color: '#fff',
                               fontSize: 12,
                               fontWeight: 800,
                               cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              gap: 2,
                             }}
                           >
-                            <span>🏭 GT · Lic. Evelia</span>
-                            <span style={{ fontSize: 10, color: '#a7f3d0', fontWeight: 600 }}>
-                              OC 43/9784 (5,100 kg)
-                            </span>
+                            ✓ Confirmar e Importar Ahora
                           </button>
-                        ))}
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                      <button
-                        onClick={handleOpenManualInspector}
-                        style={{
-                          border: 'none',
-                          background: 'rgba(255, 255, 255, 0.1)',
-                          color: '#e2e8f0',
-                          padding: '6px 12px',
-                          borderRadius: 8,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        🔍 Inspeccionar en Detalle
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => setShowConfirmationSummary(false)}
+                            style={{
+                              padding: '9px 12px',
+                              borderRadius: 10,
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              color: '#e2e8f0',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ← Cambiar Orden
+                          </button>
+                          <button
+                            onClick={() => handleDiscardCurrent('Cancelado por el operador en pantalla de resumen.')}
+                            style={{
+                              padding: '9px 12px',
+                              borderRadius: 10,
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              color: '#f87171',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ✕ Cancelar
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
               </div>

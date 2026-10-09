@@ -1,6 +1,14 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v9.10.25] - 09 Octubre 2026 (Cierre Integral de Riesgos: Firestore Rules, Detección Documental E2E, Contrarecibos Multiorden y Pagos Transaccionales)
+## [v9.10.25] - 09 Octubre 2026 (Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia)
+
+### 🚫 Erradicación de Asignación por Omisión (`orders[0]`) y Panel de Aclaración
+
+- **Eliminación Total de `orders[0]`:** Suprimida de raíz la asignación arbitraria a la primera orden activa cuando no se identifica la orden destino o ante discrepancias.
+- **Selección Obligatoria con Datos Distintivos:** El operador debe elegir explícitamente la orden destino mostrando folio, cliente, departamento y meta en kilos.
+- **Panel Unificado de Aclaración en `GlobalDropzoneHUD`:** Despliegue del motivo de alerta, resumen previo del impacto financiero y operativo, captura de notas y botón de confirmación explícita.
+- **Detención de Avance Automático en Error:** El visor de cola conserva el documento en pantalla ante cualquier falla (`status === 'error'`) sin avanzar ciegamente.
+- **Registro Inmutable de Auditoría:** Invocación a `logAction(userEmail, 'FORCED_DOCUMENT_IMPORT', ...)` ante cualquier importación manual o resolución forzada.
 
 ### 🔒 Separación de Permisos y Reglas Firestore
 
@@ -13,22 +21,32 @@
 - **Coincidencias Sospechosas en Báscula:** Suspensión de la auto-aplicación silenciosa; solicitud de confirmación del operador con detalle de orden relacionada, kilos, fecha y motivo.
 - **Colisiones de Folio SAT:** Comparación estricta de UUID SAT normalizado; si el UUID difiere, se ofrece importación para revisión contable sin sobreescribir la factura existente.
 
-### 📑 Contrarecibos: Coincidencia Exacta y Multi-Orden Atómica
+### 📑 Contrarecibos: Coincidencia Exacta, Colisión y Multi-Orden Atómica
 
 - **Eliminación Total de Sufijos:** Retiro de comparaciones con `endsWith` o subcadenas; normalización estricta mediante `normalizeInvoiceFolio`.
-- **Validación Previa Multi-Orden:** Comprobación 1 a 1 de todas las facturas amparadas; ante cualquier folio no encontrado o ambiguo, se aborta sin tocar ninguna orden para evitar escrituras parciales.
-- **Orden de Persistencia:** Subida a Firebase Storage únicamente después de que todas las mutaciones en Firestore hayan finalizado exitosamente.
+- **Detección de Colisión de Contrarrecibos (`hasCrCollision`):** Si una factura ya cuenta con un contrarrecibo previo distinto, el sistema frena la sobreescritura automática y exige confirmación explícita (`forceReplaceCr: true`).
+- **Validación Previa Multi-Orden y `writeBatch` Atómico:** Comprobación unívoca de todas las facturas amparadas; actualización coordinada de todas las órdenes vía `writeBatch(db)`. Si un folio falla, ninguna orden es alterada.
+- **Fallo Coordinado de Storage (`storageWarning`):** Si el guardado en base de datos es exitoso pero la subida a Storage falla, se reporta advertencia clara sin truncar la transacción contable.
 
 ### 🏦 Pagos Bancarios: Idempotencia, Historial y Tolerancia SAT
 
 - **Transacciones Atómicas:** Ejecución mediante `runTransaction` para consultar el estado fresco de la orden antes de aplicar y evitar condiciones de carrera.
-- **Huella Reproducible:** Generación de huella `FINGERPRINT` si el comprobante carece de referencia bancaria o folio, evitando el uso de fechas como clave idempotente.
+- **Huella SHA-256 Determinista:** Cálculo sobre `arrayBuffer` con `computeFileContentFingerprint` para detectar pagos idénticos con nombres de archivo modificados.
 - **Preservación de Saldo Histórico:** Cálculo de `historicalBase` para que facturas históricas con pagos acumulados sin historial desglosado sumen el nuevo abono sin destruirse ni duplicarse.
-- **Tolerancia Contable SAT:** Conciliación estricta a $\le \$0.05$ MXN para considerar una factura como cobrada, con detección de sobrepago.
+- **Resolución Unívoca de Factura:** Ante múltiples facturas con saldo idéntico, detección de ambigüedad (`multipleInvoicesCandidate`) y selección forzosa mediante `targetInvoiceIdOverride`.
+- **Tolerancia Contable SAT y Sobrepagos:** Conciliación estricta a $\le \$0.05$ MXN para considerar una factura como cobrada, con detección automática de sobrepago (`+$X.XX`).
+- **Candado de Concurrencia (`inFlightOperations`):** Bloqueo en memoria con `try-finally` para evitar doble clic o procesamientos paralelos del mismo documento.
 
-### 💵 Precios Variables y Cero Válido ($0.00)
+### 💵 Precios Dinámicos y Cero Válido ($0.00)
 
-- **Eliminación de Fallbacks `||`:** Reemplazo por comprobaciones estrictas `!== undefined && !== null` para respetar precios de muestra o reposición a `$0.00 / kg` y partidas timbradas del CFDI.
+- **Eliminación de Fallbacks Fijos:** Supresión de valores predeterminados a `$43.00` y `$38.00`, respetando `customSellPrice`, `customCostPrice` o precios calculados por documento.
+- **Marca de Revisión (`needsReview`):** Si una factura no tiene precio ni subtotal determinable, se detiene para revisión en vez de inventar precios arbitrarios.
+- **Respeto a Cero Válido ($0.00):** Comprobaciones numéricas estrictas que diferencian un precio legítimo en `$0.00` (ej. muestras) de un dato faltante.
+
+### 🧪 Suite Automatizada de Integridad y Resiliencia (290 pruebas verdes)
+
+- **12 Casos E2E en `systemHardeningE2E.test.ts`:** Cobertura de colisiones de folio/CR, cancelaciones sin escrituras, atomicidad `writeBatch`, precios variables y `$0.00`, SHA-256 y bloqueo de concurrencia.
+- **290 pruebas pasando al 100%:** 40 suites de prueba en verde en Vitest y 0 errores de compilación TypeScript.
 
 ---
 

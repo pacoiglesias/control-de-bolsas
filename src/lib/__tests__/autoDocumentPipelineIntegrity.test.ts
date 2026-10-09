@@ -74,7 +74,7 @@ describe('Integridad del Pipeline de Documentos Automático (v9.10.24)', () => {
           netCashFlow: 16794.0,
         },
         collection: {
-          contrareciboNumber: 'CR-9901',
+          contrareciboNumber: '',
           transferRef: 'SPEI-778899',
           paymentsHistory: [
             {

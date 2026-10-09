@@ -200,7 +200,9 @@ export default function Dashboard() {
       (o.invoices || []).forEach(inv => {
         const st = inv.creditCycle?.status;
         const paidAmt = inv.collection?.paidAmount || 0;
-        const total = inv.financials?.invoiceTotal ?? (Number(inv.kilos || 0) * (config?.salePricePerKg || 43) * (1 + (config?.ivaRate || 0.16)));
+        const salePrice = inv.financials?.salePricePerKg ?? o.customSellPrice ?? o.financials?.salePricePerKg ?? config?.salePricePerKg ?? 43;
+        const ivaRate = config?.ivaRate ?? 0.16;
+        const total = inv.financials?.invoiceTotal ?? (Number(inv.kilos || 0) * salePrice * (1 + ivaRate));
         if (st === 'paid' || st === 'collected' || (paidAmt >= total && total > 0)) return;
         if (total <= 0) return;
 
