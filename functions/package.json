@@ -19,7 +19,7 @@
     "decimal.js-light": "^2.5.1",
     "fast-xml-parser": "^5.10.1",
     "firebase-admin": "^12.7.0",
-    "firebase-functions": "^7.3.2",
+    "firebase-functions": "^7.4.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
