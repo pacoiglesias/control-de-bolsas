@@ -42,12 +42,42 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
     const staticCommands: SearchResultItem[] = [
       {
+        id: 'cmd-wizard',
+        category: 'Comandos Rápidos',
+        title: '🪄 Nuevo Proceso de Compra (Wizard Unificado)',
+        subtitle: 'Flujo guiado paso a paso: OC ➔ Báscula ➔ Factura SAT',
+        onSelect: () => {
+          navigate('/proceso-compra');
+          onClose();
+        },
+      },
+      {
         id: 'cmd-new-order',
         category: 'Comandos Rápidos',
         title: '➕ Nuevo Expediente / Orden de Compra',
         subtitle: 'Crear una nueva orden de fabricación o venta',
         onSelect: () => {
           navigate('/ordenes?nueva=1');
+          onClose();
+        },
+      },
+      {
+        id: 'cmd-calculator',
+        category: 'Comandos Rápidos',
+        title: '🧮 Calculadora Rápida de Kilos $/kg',
+        subtitle: 'Simulador flotante de costos con maquila y facturación',
+        onSelect: () => {
+          window.dispatchEvent(new CustomEvent('open-kilo-calculator'));
+          onClose();
+        },
+      },
+      {
+        id: 'cmd-balanza',
+        category: 'Comandos Rápidos',
+        title: '⚖️ Balanza de Comprobación y Cotejo 4-Way',
+        subtitle: 'Cotejar cartera de clientes, caja y cuenta con maquila',
+        onSelect: () => {
+          navigate('/audit');
           onClose();
         },
       },
@@ -483,3 +513,42 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     </div>
   );
 };
+
+/**
+ * 🌐 Host global para abrir la búsqueda rápida desde cualquier módulo o atajo
+ */
+export const GlobalSearchHost: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    const handleClose = () => setIsOpen(false);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === '/' || (e.shiftKey && e.key.toLowerCase() === 'f')) && !isInput) {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('open-global-search', handleOpen);
+    window.addEventListener('open-command-menu', handleOpen);
+    window.addEventListener('close-global-search', handleClose);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('open-global-search', handleOpen);
+      window.removeEventListener('open-command-menu', handleOpen);
+      window.removeEventListener('close-global-search', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  return <GlobalSearchModal isOpen={isOpen} onClose={() => setIsOpen(false)} />;
+};
+

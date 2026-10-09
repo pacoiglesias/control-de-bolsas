@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { addDays } from '../lib/finance';
+import { confirmDialog } from '../lib/confirmDialog';
 import type { Invoice, PurchaseOrderItem } from '../lib/types';
 import type { FinanceConfigCore } from '../lib/finance';
 import type { ParsedInvoiceData } from '../lib/xmlParser';
@@ -133,7 +134,12 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     // Validación Antiduplicados
     const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
     if (currentInvoicesFolios.includes(finalFolio.toUpperCase())) {
-      toast(`La Factura #${finalFolio} ya existe en este mismo expediente.`, 'bad');
+      await confirmDialog({
+        title: '⚠️ Factura ya registrada en esta OC',
+        message: `La Factura #${finalFolio} ya existe dentro de este mismo expediente.\n\nPara evitar descuadrar el balance de kilos y facturación, no se permite registrar dos veces el mismo folio en una orden.`,
+        confirmLabel: 'Entendido',
+        cancelLabel: 'Cerrar',
+      });
       return;
     }
     if (allOrders && allOrders.length > 0) {
@@ -141,7 +147,12 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
         (o.invoices || []).some((i: any) => i.folio?.trim().toUpperCase() === finalFolio.toUpperCase())
       );
       if (duplicadoGlobal) {
-        toast(`La Factura #${finalFolio} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
+        await confirmDialog({
+          title: '⚠️ Factura ya registrada en otra Orden',
+          message: `La Factura #${finalFolio} ya fue registrada previamente en la Orden #${duplicadoGlobal.folio || duplicadoGlobal.oc} del cliente ${duplicadoGlobal.client || 'Desconocido'}.\n\nSe conservó la factura original sin duplicar.`,
+          confirmLabel: 'Entendido',
+          cancelLabel: 'Cerrar',
+        });
         return;
       }
     }
@@ -206,7 +217,12 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     // Validación Antiduplicados
     const currentInvoicesFolios = invoices.map(i => i.folio?.trim().toUpperCase()).filter(Boolean);
     if (currentInvoicesFolios.includes(finalFolio.toUpperCase()) || currentInvoicesFolios.includes(data.uuid.toUpperCase())) {
-      toast(`La Factura #${finalFolio} ya existe en este mismo expediente.`, 'bad');
+      await confirmDialog({
+        title: '⚠️ Factura XML ya registrada en esta OC',
+        message: `La Factura #${finalFolio} (UUID: ${data.uuid}) ya existe dentro de este expediente.\n\nSe omitió para conservar la integridad contable.`,
+        confirmLabel: 'Entendido',
+        cancelLabel: 'Cerrar',
+      });
       return;
     }
     if (allOrders && allOrders.length > 0) {
@@ -218,7 +234,12 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
         )
       );
       if (duplicadoGlobal) {
-        toast(`La Factura #${finalFolio} ya fue registrada previamente en el expediente del cliente ${duplicadoGlobal.client || 'Desconocido'}.`, 'bad');
+        await confirmDialog({
+          title: '⚠️ Factura XML ya registrada en otra Orden',
+          message: `La Factura #${finalFolio} (UUID: ${data.uuid}) ya fue registrada en la Orden #${duplicadoGlobal.folio || duplicadoGlobal.oc} del cliente ${duplicadoGlobal.client || 'Desconocido'}.\n\nSe omitió la importación duplicada.`,
+          confirmLabel: 'Entendido',
+          cancelLabel: 'Cerrar',
+        });
         return;
       }
     }

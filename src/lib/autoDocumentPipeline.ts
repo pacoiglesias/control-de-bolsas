@@ -185,6 +185,61 @@ export function findExistingInvoice(
 }
 
 /**
+ * 🛡️ Verifica si una remisión o ticket de báscula ya existe en alguna orden activa
+ */
+export function findExistingDelivery(
+  orders: PurchaseOrder[],
+  folioCandidate?: string,
+  kilosCandidate?: number,
+  dateCandidate?: string
+): { isDuplicate: boolean; order?: PurchaseOrder; delivery?: Delivery; reason?: string } {
+  const cleanFolio = folioCandidate?.trim().toUpperCase();
+  const kilos = kilosCandidate ? round2(kilosCandidate) : 0;
+
+  for (const o of orders) {
+    if (!o || (o as any).isDeleted) continue;
+    const matchDeliv = (o.deliveries || []).find((d) => {
+      if (!d) return false;
+      const dFolio = d.docFolio?.trim().toUpperCase();
+      // 1. Coincidencia por folio exacto de remisión/ticket
+      if (cleanFolio && dFolio && dFolio === cleanFolio) return true;
+
+      // 2. Coincidencia por folio contenido en notas
+      if (cleanFolio && cleanFolio.length >= 4 && d.notes?.toUpperCase().includes(cleanFolio)) {
+        return true;
+      }
+
+      // 3. Coincidencia por kilos exactos y fecha idéntica en la misma orden
+      if (kilos > 0 && Math.abs((d.kilos || 0) - kilos) < 0.5) {
+        if (dateCandidate && d.date) {
+          const dDateStr = typeof d.date.toDate === 'function'
+            ? d.date.toDate().toISOString().split('T')[0]
+            : (d.date instanceof Date ? d.date.toISOString().split('T')[0] : String(d.date).split('T')[0]);
+          if (dDateStr === dateCandidate && cleanFolio && cleanFolio === dFolio) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    });
+
+    if (matchDeliv) {
+      const fol = matchDeliv.docFolio || cleanFolio || 'S/F';
+      return {
+        isDuplicate: true,
+        order: o,
+        delivery: matchDeliv,
+        reason: `Remisión/Ticket #${fol} (${matchDeliv.kilos} kg) ya registrado en OC ${o.folio || o.oc}`,
+      };
+    }
+  }
+
+  return { isDuplicate: false };
+}
+
+
+/**
  * ⚡ Analiza cualquier archivo en alta velocidad
  */
 export async function analyzeDocumentFast(
@@ -382,10 +437,18 @@ export async function analyzeDocumentFast(
   }
 
   // Duplicados
-  const dupCheck = findExistingInvoice(orders, folio, uuid);
+  let dupCheck: { isDuplicate: boolean; order?: PurchaseOrder; invoice?: Invoice; delivery?: Delivery; reason?: string } = { isDuplicate: false };
+
+  if (docType === 'factura_cfdi') {
+    dupCheck = findExistingInvoice(orders, folio, uuid);
+  } else if (docType === 'ticket_bascula' || docType === 'remision') {
+    dupCheck = findExistingDelivery(orders, folio, kilos, docDate);
+  }
 
   let autoAssignedLabel: string | null = null;
-  if (matchedOrder) {
+  if (dupCheck.isDuplicate) {
+    autoAssignedLabel = `⚠️ YA REGISTRADO: Omitido para evitar duplicar (${dupCheck.order?.folio || dupCheck.order?.oc || 'Expediente'})`;
+  } else if (matchedOrder) {
     if (docType === 'contrarecibo') {
       const facStr = facturaFolios.length > 0 ? `Factura(s) #${facturaFolios.join(', #')}` : 'facturas asociadas';
       autoAssignedLabel = `🎯 Contrarecibo amparando ${facStr} en ${matchedOrder.folio || matchedOrder.oc}`;
@@ -720,23 +783,27 @@ export async function applyDocumentFast(
 
     // Blindaje antiduplicados y reintentos: checar si el ticket ya existe en entregas
     const existingDeliveries = targetOrder.deliveries || [];
-    const yaRegistrada = cleanDocFolio && existingDeliveries.some((d) => {
-      const existingF = d.docFolio?.trim().toUpperCase();
-      return existingF && existingF === cleanDocFolio.toUpperCase();
-    });
+    const yaRegistrada =
+      analysis.isDuplicate ||
+      (cleanDocFolio &&
+        existingDeliveries.some((d) => {
+          const existingF = d.docFolio?.trim().toUpperCase();
+          return existingF && existingF === cleanDocFolio.toUpperCase();
+        }));
 
     if (yaRegistrada) {
+      const ordTarget = analysis.duplicateOrder || targetOrder;
       return {
         success: true,
         isDuplicate: true,
-        message: `La Remisión / Ticket #${cleanDocFolio} (${numKilos.toLocaleString('es-MX')} kg) ya fue registrado previamente en ${targetOrder.folio || targetOrder.oc}. Se conservó sin duplicar los kilos.`,
+        message: `La Remisión / Ticket #${cleanDocFolio || 'S/N'} (${numKilos.toLocaleString('es-MX')} kg) ya fue registrado previamente en ${ordTarget.folio || ordTarget.oc}. Se conservó sin duplicar los kilos.`,
         docType: analysis.docType,
-        folio: cleanDocFolio,
+        folio: cleanDocFolio || '',
         kilos: numKilos,
         total: 0,
-        orderId: targetOrder.id,
-        orderFolio: targetOrder.folio || targetOrder.oc,
-        orderClient: targetOrder.client,
+        orderId: ordTarget.id,
+        orderFolio: ordTarget.folio || ordTarget.oc,
+        orderClient: ordTarget.client,
       };
     }
 

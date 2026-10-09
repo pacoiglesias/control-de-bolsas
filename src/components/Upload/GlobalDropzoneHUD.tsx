@@ -166,6 +166,15 @@ export function GlobalDropzoneHUD() {
 
         // Caso Duplicado
         if (analysis.isDuplicate) {
+          const docKindLabel =
+            analysis.docType === 'ticket_bascula'
+              ? 'Ticket de Báscula'
+              : analysis.docType === 'remision'
+              ? 'Remisión'
+              : analysis.docType === 'contrarecibo'
+              ? 'Contrarecibo'
+              : 'Factura';
+
           setBatchQueue((prev) => {
             const copy = [...prev];
             if (copy[idx]) {
@@ -176,7 +185,7 @@ export function GlobalDropzoneHUD() {
                 result: {
                   success: true,
                   isDuplicate: true,
-                  message: `Factura #${analysis.folio} ya registrada en ${analysis.duplicateOrder?.folio || analysis.duplicateOrder?.oc}. Omitida sin duplicar.`,
+                  message: `${docKindLabel} #${analysis.folio || 'S/N'} ya registrada en ${analysis.duplicateOrder?.folio || analysis.duplicateOrder?.oc || 'Expediente'}. Omitida sin duplicar.`,
                   docType: analysis.docType,
                   folio: analysis.folio,
                   kilos: analysis.kilos,

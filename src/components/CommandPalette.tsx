@@ -167,7 +167,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsOpen((prev) => !prev);
         triggerHaptic('light');
@@ -182,12 +182,12 @@ export function CommandPalette() {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('open-command-menu', handleCustomOpen);
-    window.addEventListener('open-command-menu', handleCustomOpen);
+    document.addEventListener('open-simple-command-palette', handleCustomOpen);
+    window.addEventListener('open-simple-command-palette', handleCustomOpen);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('open-command-menu', handleCustomOpen);
-      window.removeEventListener('open-command-menu', handleCustomOpen);
+      document.removeEventListener('open-simple-command-palette', handleCustomOpen);
+      window.removeEventListener('open-simple-command-palette', handleCustomOpen);
     };
   }, [isOpen]);
 
