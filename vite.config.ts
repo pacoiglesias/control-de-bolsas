@@ -156,9 +156,12 @@ export default defineConfig(({ mode }) => {
         'src/lib/export.ts',
         'src/lib/exportOfflineHTML.ts',
         'src/lib/importExcel.ts',
+        'src/lib/clientReportExcel.ts',
+        'src/lib/clientReportPrint.ts',
         // ── Dependencias de Firebase/DOM/Browser ──
         'src/lib/bridge.ts',
         'src/lib/cloudBackup.ts',
+        'src/lib/documentStorage.ts',
         'src/lib/logger.ts',
         'src/lib/ocr.ts',
         'src/lib/offlineQueue.ts',
@@ -171,6 +174,7 @@ export default defineConfig(({ mode }) => {
         'src/lib/soundEffects.ts',
         'src/lib/sounds.ts',
         'src/lib/systemChangelog.ts',
+        'src/lib/latestRelease.ts',
         'src/lib/constants.ts',
         // ── Mirrors de Firestore (sin lógica propia) ──
         'src/lib/fillInvoicesMirror.ts',

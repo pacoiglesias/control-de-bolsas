@@ -55,6 +55,42 @@ export async function computeFileContentFingerprint(file: File): Promise<string 
   return null;
 }
 
+/**
+ * 🔑 Genera una clave canónica y robusta para payment_receipts.
+ * Integra la referencia bancaria oficial o huella SHA-256 junto con la factura amparada,
+ * preservando trazabilidad bancaria y permitiendo pagos legítimos multi-factura sin bloqueos erróneos.
+ */
+export function generateRobustReceiptKey(
+  reference: string,
+  invoiceIdOrFolio: string,
+  sha256Fingerprint?: string | null
+): string {
+  const targetInvCleanId = (invoiceIdOrFolio || 'INV')
+    .replace(/[^A-Z0-9_]/gi, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 24)
+    .toUpperCase();
+
+  if (sha256Fingerprint) {
+    const cleanSha = sha256Fingerprint.replace(/[^A-Z0-9]/gi, '').slice(0, 32).toUpperCase();
+    return `SHA256_${cleanSha}_INV_${targetInvCleanId}`;
+  }
+
+  const strongBankRef = (reference || '').trim().toUpperCase();
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c64e6d;
+  for (let i = 0; i < strongBankRef.length; i++) {
+    const ch = strongBankRef.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const cleanRef = strongBankRef.replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').slice(0, 32);
+  const hexHash = ((h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')).slice(0, 12);
+  return `BANK_${cleanRef}_INV_${targetInvCleanId}_${hexHash}`;
+}
+
 export type PipelineDocType =
   | 'factura_cfdi'
   | 'ticket_bascula'
@@ -1852,20 +1888,14 @@ export async function applyDocumentFast(
     // Clave canónica de referencia para el pago
     const paymentRefKey = strongBankRef || (sha256Key ? `SHA256-${sha256Key}` : '');
 
-    // Generar clave de almacenamiento en payment_receipts que no colisione tras normalizar caracteres.
-    // Usamos la huella SHA-256 (si existe) o un prefijo limpio con hash determinista de los caracteres originales.
-    const sanitizedReceiptKey = sha256Key
-      ? `SHA256_${sha256Key}`
-      : (() => {
-          let hash = 5381;
-          for (let i = 0; i < strongBankRef.length; i++) {
-            hash = ((hash << 5) + hash) + strongBankRef.charCodeAt(i);
-            hash |= 0;
-          }
-          const cleanRef = strongBankRef.replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').slice(0, 36);
-          const hexHash = (hash >>> 0).toString(16).padStart(8, '0');
-          return `BANK_${cleanRef}_${hexHash}`;
-        })();
+    // Generar clave de almacenamiento canónica en payment_receipts con identidad bancaria robusta.
+    // Combina la referencia bancaria oficial / huella SHA-256 junto con el identificador de la factura
+    // para asegurar trazabilidad exacta sin bloquear pagos legítimos multi-factura.
+    const sanitizedReceiptKey = generateRobustReceiptKey(
+      paymentRefKey,
+      matchedInv.id || matchedInv.folio || 'INV',
+      sha256Key
+    );
 
     // Auditoría obligatoria con identidad real si la decisión fue forzada o manual
     if (analysis.manualDecisionAudit || analysis.forceApply) {
@@ -1932,22 +1962,6 @@ export async function applyDocumentFast(
           const freshOrder = freshSnap.data() as PurchaseOrder;
           const freshInvoices = [...(freshOrder.invoices || [])];
 
-          // Comprobar idempotencia dentro de las facturas de la orden
-          const alreadyAppliedInOrder = freshInvoices.some((i: any) => {
-            if (i.collection?.transferRef && i.collection.transferRef.toUpperCase() === paymentRefKey) return true;
-            return (i.collection?.paymentsHistory || []).some((p: any) =>
-              (p.reference && p.reference.toUpperCase() === paymentRefKey) ||
-              (p.receiptId && p.receiptId.toUpperCase() === paymentRefKey) ||
-              (p.trackingKey && p.trackingKey.toUpperCase() === paymentRefKey) ||
-              (p.fileSha256 && p.fileSha256.toUpperCase() === paymentRefKey)
-            );
-          });
-
-          if (alreadyAppliedInOrder) {
-            wasAlreadyAppliedInDb = true;
-            return;
-          }
-
           const freshInvIdx = freshInvoices.findIndex((i: any) =>
             normalizeInvoiceFolio(i.folio || i.id) === normalizeInvoiceFolio(matchedInv.folio || matchedInv.id)
           );
@@ -1957,6 +1971,24 @@ export async function applyDocumentFast(
           }
 
           const fInv = freshInvoices[freshInvIdx];
+
+          // Comprobar idempotencia en la factura destino:
+          // Solo se considera duplicado si este pago ya fue aplicado A ESTA FACTURA ESPECÍFICA.
+          // Esto preserva referencias bancarias oficiales y permite transferencias legítimas que amparan múltiples facturas.
+          const alreadyAppliedInThisInvoice =
+            (fInv.collection?.transferRef && fInv.collection.transferRef.toUpperCase() === paymentRefKey) ||
+            (fInv.collection?.paymentsHistory || []).some((p: any) =>
+              (p.reference && p.reference.toUpperCase() === paymentRefKey) ||
+              (p.receiptId && p.receiptId.toUpperCase() === paymentRefKey) ||
+              (p.trackingKey && p.trackingKey.toUpperCase() === paymentRefKey) ||
+              (p.fileSha256 && p.fileSha256.toUpperCase() === paymentRefKey)
+            );
+
+          if (alreadyAppliedInThisInvoice) {
+            wasAlreadyAppliedInDb = true;
+            return;
+          }
+
           const prevPaid = Number(fInv.collection?.paidAmount) || 0;
           const existingHistory = Array.isArray(fInv.collection?.paymentsHistory) ? fInv.collection.paymentsHistory : [];
           const existingHistorySum = round2(existingHistory.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0));
@@ -2014,10 +2046,11 @@ export async function applyDocumentFast(
           const finalOrderPaid = freshInvoices.reduce((sum, i) => sum + (Number(i.collection?.paidAmount) || 0), 0);
           const finalIsOrderFullyCollected = totalOrderInvoiced > 0 && finalOrderPaid >= (totalOrderInvoiced - 0.05);
 
-          // Registrar en payment_receipts la idempotencia compartida
+          // Registrar en payment_receipts la idempotencia compartida y trazabilidad con estado 'applied'
           txn.set(receiptRef, {
             receiptKey: sanitizedReceiptKey,
             canonicalRef: paymentRefKey,
+            status: 'applied',
             orderId: targetOrder.id,
             orderFolio: targetOrder.folio || targetOrder.oc,
             invoiceId: fInv.id,

@@ -343,6 +343,7 @@ describe('Blindaje de Identidad de Pagos, Seguridad de Reglas y Precios Cero ($0
         oc: 'OC-DISCREPANCIA',
         folio: 'DISC-01',
         client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        customSellPrice: 43.0,
         deliveries: [
           {
             id: 'del-sp1',
@@ -369,18 +370,36 @@ describe('Blindaje de Identidad de Pagos, Seguridad de Reglas y Precios Cero ($0
       expect(evalResult.reason).toContain('Discrepancia de peso');
     });
 
-    it('aplica tarifa oficial de Providencia ($43.00/kg) cuando no existe precio personalizado explícito', () => {
-      const orderDefaultPrice: PurchaseOrder = {
-        id: 'ord-default-price',
+    it('detiene el cálculo automático y marca DISCREPANCY cuando falta el precio sin inventar un fallback $43', () => {
+      const orderMissingPrice: PurchaseOrder = {
+        id: 'ord-missing-price',
         oc: '12026439784',
         folio: '43/9784',
         client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
         totalKilograms: 1000,
         deliveries: [{ id: 'del-d1', kilos: 1000, date: '2026-10-09' as any, invoiced: true }],
-        invoices: [{ id: 'inv-d1', orderId: 'ord-default-price', folio: '6353', kilos: 1000, creditCycle: { status: 'facturado' } }],
+        invoices: [{ id: 'inv-d1', orderId: 'ord-missing-price', folio: '6353', kilos: 1000, creditCycle: { status: 'facturado' } }],
       };
 
-      const evalResult = evaluateThreeWayMatch(orderDefaultPrice);
+      const evalResult = evaluateThreeWayMatch(orderMissingPrice);
+      expect(evalResult.status).toBe('DISCREPANCY');
+      expect(evalResult.unitPrice).toBe(0);
+      expect(evalResult.reason).toContain('Precio de venta por kg no determinado');
+    });
+
+    it('calcula correctamente cuando existe un precio capturado y confirmado de Providencia', () => {
+      const orderConfirmedPrice: PurchaseOrder = {
+        id: 'ord-confirmed-price',
+        oc: '12026439784',
+        folio: '43/9784',
+        customSellPrice: 43.0,
+        client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
+        totalKilograms: 1000,
+        deliveries: [{ id: 'del-d1', kilos: 1000, date: '2026-10-09' as any, invoiced: true }],
+        invoices: [{ id: 'inv-d1', orderId: 'ord-confirmed-price', folio: '6353', kilos: 1000, creditCycle: { status: 'facturado' } }],
+      };
+
+      const evalResult = evaluateThreeWayMatch(orderConfirmedPrice);
       expect(evalResult.unitPrice).toBe(43.0);
       expect(evalResult.expectedTotal).toBe(Math.round(1000 * 43.0 * 1.16 * 100) / 100);
     });

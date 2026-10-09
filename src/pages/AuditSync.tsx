@@ -105,8 +105,8 @@ export default function AuditSync() {
 
   // Pestaña Ajustador Masivo
   const [batchTarget] = useState<'all' | 'pending' | 'providencia'>('pending');
-  const [batchSalePrice, setBatchSalePrice] = useState<number>(config.salePricePerKg ?? 43);
-  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg ?? 38);
+  const [batchSalePrice, setBatchSalePrice] = useState<number>(config.salePricePerKg ?? 0);
+  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg ?? 0);
 
   // Pestaña Archivo Excel Tradicional
   const [file, setFile] = useState<File | null>(null);
@@ -129,7 +129,7 @@ export default function AuditSync() {
 
     activeOrders.forEach((o) => {
       const invoices = o.invoices || [];
-      const defaultSale = config.salePricePerKg ?? 43;
+      const defaultSale = config.salePricePerKg ?? null;
       const pVenta = o.customSellPrice ?? defaultSale;
 
       if (invoices.length === 0) {
@@ -317,8 +317,8 @@ export default function AuditSync() {
       rawOrder: PurchaseOrder;
     }[] = [];
 
-    const defaultSale = config.salePricePerKg ?? 43;
-    const defaultCost = config.costPricePerKg ?? 38;
+    const defaultSale = config.salePricePerKg ?? null;
+    const defaultCost = config.costPricePerKg ?? null;
     const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {

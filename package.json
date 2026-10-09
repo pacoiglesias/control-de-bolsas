@@ -1,7 +1,7 @@
 {
   "name": "control-bolsas-erp",
   "private": true,
-  "version": "9.10.28",
+  "version": "9.10.29",
   "type": "module",
   "description": "ERP Control Bolsas — Master Track. React + Vite + Firebase.",
   "scripts": {
@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage --reporter=default --reporter=json --outputFile=coverage/coverage.json",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run src/lib/__tests__/firestoreRulesRealEmulator.test.ts\"",
     "lint": "eslint . --report-unused-disable-directives",
     "typecheck": "tsc --noEmit",
     "clean": "sh scripts/utils.sh clean",
@@ -38,6 +39,7 @@
     "react-dom": "^18.3.1",
     "react-firebase-hooks": "^5.1.1",
     "react-hot-toast": "^2.6.0",
+    "react-is": "^19.3.0",
     "react-router-dom": "^7.18.2",
     "recharts": "^3.10.1",
     "tesseract.js": "^7.0.0",
@@ -45,6 +47,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

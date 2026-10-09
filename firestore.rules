@@ -7,8 +7,11 @@ service cloud.firestore {
     // y fallback de arranque seguro para correos institucionales verificados.
     function hasAdminClaim() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
+        && ('email_verified' in request.auth.token && request.auth.token.email_verified == true)
+        && (
+          ('admin' in request.auth.token && request.auth.token.admin == true)
+          || ('role' in request.auth.token && request.auth.token.role == 'admin')
+        );
     }
 
     function hasAdminDoc() {
@@ -29,8 +32,8 @@ service cloud.firestore {
     // Usuarios -> Agregar, y ESA sí se puede revocar de verdad.
     function isBootstrapOwner() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email != null
+        && ('email_verified' in request.auth.token && request.auth.token.email_verified == true)
+        && ('email' in request.auth.token && request.auth.token.email != null)
         && (
           request.auth.token.email == "paco.iglesias@gmail.com" ||
           request.auth.token.email == "pacoismael@gmail.com"
@@ -44,7 +47,7 @@ service cloud.firestore {
     // Un usuario existe en la plataforma si es admin o tiene documento de usuario normal/manager.
     function isAuthenticatedUser() {
       return request.auth != null
-        && request.auth.token.email_verified == true
+        && ('email_verified' in request.auth.token && request.auth.token.email_verified == true)
         && (
           isAdmin()
           || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
@@ -314,7 +317,7 @@ service cloud.firestore {
 
     // Idempotencia compartida y registro inmutable de comprobantes de pago procesados.
     // Solo accesible por gerencia/administración para evitar exposición de datos bancarios.
-    // Validación estricta de esquema para impedir que un usuario cree identificadores arbitrarios que bloqueen pagos legítimos.
+    // Validación de esquema que soporta estados: pending_review, applied y rejected, permitiendo revisiones operativas sin bloquear pagos legítimos.
     match /payment_receipts/{receiptId} {
       allow read: if isManagerOrAdmin();
       allow create: if isManagerOrAdmin()
@@ -324,14 +327,29 @@ service cloud.firestore {
         && request.resource.data.amount is number
         && request.resource.data.amount > 0
         && (
-          (request.resource.data.trackingKey is string && request.resource.data.trackingKey.size() > 0)
-          || (request.resource.data.bankReference is string && request.resource.data.bankReference.size() > 0)
-          || (request.resource.data.fileSha256 is string && request.resource.data.fileSha256.size() >= 32)
+          !('status' in request.resource.data)
+          || (request.resource.data.status in ['applied', 'pending_review', 'rejected'])
+        )
+        && (
+          (request.resource.data.trackingKey != null && request.resource.data.trackingKey is string && request.resource.data.trackingKey.size() > 0)
+          || (request.resource.data.bankReference != null && request.resource.data.bankReference is string && request.resource.data.bankReference.size() > 0)
+          || (request.resource.data.fileSha256 != null && request.resource.data.fileSha256 is string && request.resource.data.fileSha256.size() >= 32)
         )
         && request.resource.data.appliedAt != null
         && request.resource.data.appliedBy is string
         && request.resource.data.appliedBy.size() > 0;
-      allow update: if false;
+
+      // Permitir que Manager o Admin resuelvan comprobantes (ej. de pending_review a applied o rejected)
+      // garantizando la inmutabilidad de la clave, orden y monto original.
+      allow update: if isManagerOrAdmin()
+        && request.resource.data.receiptKey == resource.data.receiptKey
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.amount == resource.data.amount
+        && (
+          !('status' in request.resource.data)
+          || (request.resource.data.status in ['applied', 'pending_review', 'rejected'])
+        );
+
       allow delete: if isSuperAdmin();
     }
 

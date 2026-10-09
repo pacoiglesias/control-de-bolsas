@@ -1,15 +1,25 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.29] - 09 Octubre 2026 (Correcciones TypeScript de Null-Safety en Exportador Excel, Dependencia react-is y Build de Producción en Verde)
+
+### 🔧 Null-Safety y Precisión Financiera en Exportación Excel
+- **Protección de Parámetros Flotantes:** En `masterExcelExporter.ts`, los campos `saleKg` y `costKg` ahora manejan apropiadamente el tipo `number | null`. Si no hay precio configurado en el sistema, la exportación reporta `"SIN PRECIO"` y detiene la multiplicación automática para evitar valores `NaN` o falsas inferencias.
+- **Resolución de Dependencias en Empaquetado:** Se resolvió la importación de `react-is` requerida por `recharts` para que Vite y Rollup generen los bundles de producción sin inconsistencias.
+- **Limpieza de Tipos:** Se eliminó la importación huérfana de `expect` en `firestoreRulesRealEmulator.test.ts` (TS6133).
+- **Resultados de Verificación:** 305 pruebas pasando (1 suite de emulador omitida condicionalmente sin emulador activo), Typecheck 0 errores, ESLint 0 warnings y Build de producción 100% exitoso.
+
+---
+
 ## [v9.10.28] - 09 Octubre 2026 (Blindaje Criptográfico de Pagos Bancarios, Reglas Firestore de Esquema, Preservación de Cero y Cero Warnings)
 
 ### 🔒 Blindaje Criptográfico y Eliminación de Referencias Débiles en Pagos
 - **Rechazo de Referencias Débiles:** Se erradicó el auto-aplicar comprobantes de pago basados exclusivamente en el folio de la orden, número de OC o nombre de archivo (`pago.pdf` + monto).
 - **Identidad Obligatoria:** Exige clave de rastreo SPEI oficial, referencia bancaria autorizada o huella criptográfica SHA-256 binaria del comprobante; en su defecto, envía a revisión manual obligatoria con motivo explícito.
-- **Identificadores Libres de Colisión:** Generación canónica de claves de almacenamiento mediante hashing determinista DJB2 (`BANK_${cleanRef}_${hexHash}` o `SHA256_${sha256Key}`).
+- **Identidad Compuesta y Robusta:** Generación canónica determinista de claves de almacenamiento (`BANK_${cleanRef}_INV_${cleanInv}_${hexHash}` o `SHA256_${cleanSha}_INV_${cleanInv}`) combinando la referencia oficial, la factura amparada y mezcla de bits para evitar falsos bloqueos en pagos multi-factura y deduplicación segura sin afirmar claves libres de colisión.
 
-### 🛡️ Reglas de Seguridad de Firestore Hardened (`/payment_receipts`)
-- **Validación Estricta de Esquema:** Reglas de base de datos que requieren rol de gerencia o administración (`isManagerOrAdmin`), correspondencia obligatoria de `receiptKey == receiptId`, `orderId` válido, monto mayor a cero, referencia bancaria o huella SHA-256 no vacía, y sellos de auditoría `appliedAt` y `appliedBy`.
-- **Prevención de Bloqueo Arbitrario de IDs:** Se impide registrar comprobantes con claves desalineadas del documento para neutralizar ataques de secuestro de identificadores.
+### 🛡️ Reglas de Seguridad de Firestore con Ciclo de Vida (`/payment_receipts`)
+- **Validación Estricta de Esquema y Estados:** Reglas de base de datos que requieren rol de gerencia o administración (`isManagerOrAdmin`), soporte explícito para estados (`applied`, `pending_review`, `rejected`), correspondencia obligatoria de `receiptKey == receiptId`, `orderId` válido, monto mayor a cero, referencia bancaria o huella SHA-256 no vacía, y sellos de auditoría `appliedAt` y `appliedBy`.
+- **Actualización Controlada para Revisión:** Gerencia y administración pueden actualizar notas, motivos de rechazo y transicionar el estado sin modificar claves, orden o monto inmutable.
 
 ### 💵 Preservación Universal de Precio Cero ($0.00)
 - **Coalescencia Nula (`??`):** Reemplazo sistemático de operadores `|| 43` y `|| 38` en todos los generadores de reportes, cálculo de utilidad neta, banners de entregas sin facturar, calculadora flotante de kilos, generador de prefacturas y sincronizador de Excel.

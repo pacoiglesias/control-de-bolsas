@@ -27,8 +27,8 @@ export function buildMasterExcelWorkbook({
   settings,
 }: MasterExcelExportParams): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
-  const saleKg = config?.salePricePerKg || 43;
-  const costKg = config?.costPricePerKg || 38;
+  const saleKg = config?.salePricePerKg !== undefined && config?.salePricePerKg !== null ? config.salePricePerKg : null;
+  const costKg = config?.costPricePerKg !== undefined && config?.costPricePerKg !== null ? config.costPricePerKg : null;
   const provName = settings?.providerName || 'Andrés';
 
   // ─────────────────────────────────────────────────────────────────
@@ -75,11 +75,11 @@ export function buildMasterExcelWorkbook({
     [],
     ['💵 PARÁMETROS Y MÁRGENES DE OPERACIÓN'],
     ['Concepto', 'Monto Oficial', 'Fórmula de Negocio'],
-    ['Precio de Venta a Providencia', saleKg, `$${saleKg.toFixed(2)} + 16% IVA = $${(saleKg * 1.16).toFixed(2)}/kg`],
-    ['Costo de Compra a Andrés', costKg, `$${costKg.toFixed(2)}/kg neto (Cero mermas)`],
-    ['Margen Bruto de Operación', saleKg - costKg, `$${(saleKg - costKg).toFixed(2)}/kg bruto`],
-    ['Comisión Retención Contador', round2(saleKg * 0.08), `8% sobre subtotal = $${(saleKg * 0.08).toFixed(2)}/kg`],
-    ['Flujo Neto Efectivo a Caja', round2(saleKg * 1.16 - costKg - saleKg * 0.08), `$8.44 por cada kilogramo entregado`],
+    ['Precio de Venta a Providencia', saleKg !== null ? saleKg : 'POR DETERMINAR', saleKg !== null ? `$${saleKg.toFixed(2)} + 16% IVA = $${(saleKg * 1.16).toFixed(2)}/kg` : 'Requiere captura manual en configuración'],
+    ['Costo de Compra a Andrés', costKg !== null ? costKg : 'POR DETERMINAR', costKg !== null ? `$${costKg.toFixed(2)}/kg neto (Cero mermas)` : 'Tarifa flotante según lote pactado'],
+    ['Margen Bruto de Operación', (saleKg !== null && costKg !== null) ? round2(saleKg - costKg) : 'PENDIENTE DE REVISIÓN', (saleKg !== null && costKg !== null) ? `$${(saleKg - costKg).toFixed(2)}/kg bruto` : 'Cálculo detenido por tarifas no definidas'],
+    ['Comisión Retención Contador', saleKg !== null ? round2(saleKg * 0.08) : 'PENDIENTE', saleKg !== null ? `8% sobre subtotal = $${(saleKg * 0.08).toFixed(2)}/kg` : 'Sujeto a precio de venta final'],
+    ['Flujo Neto Efectivo a Caja', (saleKg !== null && costKg !== null) ? round2(saleKg * 1.16 - costKg - saleKg * 0.08) : 'PENDIENTE', (saleKg !== null && costKg !== null) ? `$${round2(saleKg * 1.16 - costKg - saleKg * 0.08).toFixed(2)} por kg entregado` : 'Requiere parámetros completos'],
   ];
 
   const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
@@ -167,7 +167,7 @@ export function buildMasterExcelWorkbook({
     (o.invoices || []).forEach((inv) => {
       if (!inv) return;
       const cr = extractCr(inv, o);
-      const sub = round2(inv.financials?.saleTotal ?? (Number(inv.kilos || 0) * saleKg));
+      const sub = round2(inv.financials?.saleTotal ?? (saleKg !== null ? Number(inv.kilos || 0) * saleKg : 0));
       const tot = round2(inv.financials?.invoiceTotal ?? (sub * 1.16));
       const iva = round2(tot - sub);
       const paid = round2(inv.collection?.paidAmount || (inv.creditCycle?.status === 'collected' ? tot : 0));
@@ -232,8 +232,8 @@ export function buildMasterExcelWorkbook({
       (p as any).orderId || (p as any).ocFolio || 'General',
       round2(Number(p.expectedKilos) || 0),
       round2(Number(p.receivedKilos) || 0),
-      round2(Number(p.pricePerKg) || costKg),
-      round2(Number(p.totalAmount) || ((Number(p.receivedKilos) || 0) * costKg)),
+      p.pricePerKg != null ? round2(Number(p.pricePerKg)) : (costKg !== null ? round2(costKg) : 'SIN PRECIO'),
+      p.totalAmount != null ? round2(Number(p.totalAmount)) : (costKg !== null ? round2((Number(p.receivedKilos) || 0) * costKg) : 'SIN PRECIO'),
       p.status || 'pedido',
       pDate ? fmtDate(pDate) : '',
       p.notes || ''

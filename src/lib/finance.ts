@@ -960,7 +960,26 @@ export function evaluateThreeWayMatch(
           ? order.customSellPrice
           : (order?.financials?.salePricePerKg !== undefined && order?.financials?.salePricePerKg !== null
               ? order.financials.salePricePerKg
-              : 43.0));
+              : null));
+
+  if (rawUnitPrice === null) {
+    return {
+      status: 'DISCREPANCY',
+      isPerfect: false,
+      hasDelivery,
+      hasInvoice,
+      hasCr,
+      deliveryKg,
+      invoiceKg,
+      diffKg,
+      crNumber: cr,
+      unitPrice: 0,
+      invoiceTotal: round2(inv?.financials?.invoiceTotal ?? 0),
+      expectedTotal: 0,
+      diffMoney: 0,
+      reason: 'Precio de venta por kg no determinado en la orden ni en la factura. Cálculo detenido para revisión sin suponer tarifas fijas.',
+    };
+  }
 
   const unitPrice = round2(rawUnitPrice);
   const invoiceTotal = round2(inv?.financials?.invoiceTotal !== undefined && inv?.financials?.invoiceTotal !== null ? inv.financials.invoiceTotal : (invoiceKg * unitPrice * 1.16));

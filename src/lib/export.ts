@@ -25,13 +25,18 @@ export async function exportToExcel() {
     (o.invoices || []).forEach((inv: any) => {
       if (!inv) return;
       const cr = extractCr(inv, o);
-      const invTotal = round2(inv.financials?.invoiceTotal ?? ((Number(inv.kilos) || 0) * 43 * 1.16));
-      const subtotal = round2(inv.financials?.subtotal ?? (invTotal / 1.16));
-      const iva = round2(invTotal - subtotal);
-      const comision = round2(inv.financials?.commission ?? (subtotal * 0.08));
-      const netoCaja = round2(invTotal - comision);
+      const invUnitPrice = inv.financials?.salePricePerKg ?? o.customSellPrice ?? o.financials?.salePricePerKg ?? null;
+      const invTotal = inv.financials?.invoiceTotal !== undefined && inv.financials?.invoiceTotal !== null
+        ? round2(inv.financials.invoiceTotal)
+        : (invUnitPrice !== null ? round2((Number(inv.kilos) || 0) * invUnitPrice * 1.16) : null);
+      const subtotal = inv.financials?.subtotal !== undefined && inv.financials?.subtotal !== null
+        ? round2(inv.financials.subtotal)
+        : (invTotal !== null ? round2(invTotal / 1.16) : null);
+      const iva = (invTotal !== null && subtotal !== null) ? round2(invTotal - subtotal) : null;
+      const comision = subtotal !== null ? round2(inv.financials?.commission ?? (subtotal * 0.08)) : null;
+      const netoCaja = (invTotal !== null && comision !== null) ? round2(invTotal - comision) : null;
       const pagado = round2(inv.collection?.paidAmount ?? 0);
-      const saldo = round2(Math.max(0, invTotal - pagado));
+      const saldo = invTotal !== null ? round2(Math.max(0, invTotal - pagado)) : null;
 
       const issueObj = toDate(inv.creditCycle?.issueDate);
       const dueObj = toDate(inv.creditCycle?.dueDate);
@@ -88,16 +93,18 @@ export async function exportToExcel() {
       if (!del) return;
       const delDate = toDate(del.date);
       const k = Number(del.kilos) || 0;
-      const unitCost = o.customCostPrice !== undefined && o.customCostPrice !== null ? Number(o.customCostPrice) : 38.00;
-      const costo = round2(k * unitCost);
+      const unitCost = o.customCostPrice !== undefined && o.customCostPrice !== null
+        ? Number(o.customCostPrice)
+        : (del.pricePerKg !== undefined && del.pricePerKg !== null ? Number(del.pricePerKg) : null);
+      const costo = unitCost !== null ? round2(k * unitCost) : null;
 
       maquilaRows.push({
         Fecha: delDate ? delDate.toLocaleDateString('es-MX') : '',
         OrdenCompra: o.oc || o.folio || 'S/N',
         DocumentoEntrega: del.docType ? `${del.docType.toUpperCase()} ${del.docFolio || ''}` : `Entrega #${idx + 1}`,
         KilosBascula: k,
-        CostoUnitario: unitCost,
-        CostoMaquilaTotal: costo,
+        CostoUnitario: unitCost !== null ? unitCost : 'POR DETERMINAR',
+        CostoMaquilaTotal: costo !== null ? costo : 'REQUIERE REVISIÓN',
         ChoferTransporte: del.driver || 'Andrés Chofer',
         Placas: del.plates || '',
       });

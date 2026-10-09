@@ -1311,7 +1311,7 @@ export default function OcTracking() {
       {orderParaEntrega && (
         <RegistrarEntregaModal
           order={orders.find(o => o.id === orderParaEntrega.id) ?? orderParaEntrega}
-          costPricePerKg={config.costPricePerKg || 38}
+          costPricePerKg={orderParaEntrega.customCostPrice ?? config.costPricePerKg ?? 0}
           onClose={() => setOrderParaEntrega(null)}
         />
       )}

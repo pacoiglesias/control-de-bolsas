@@ -697,6 +697,7 @@ describe('Asistente de Conciliación 3-Way Match', () => {
   it('detecta discrepancia cuando la factura difiere en kilos de la báscula', () => {
     const o = orden({
       totalKilograms: 1000,
+      customSellPrice: 43.0,
       deliveries: [{ id: 'd1', kilos: 950 } as any],
       invoices: [
         {
@@ -720,6 +721,7 @@ describe('Asistente de Conciliación 3-Way Match', () => {
       folio: '120267114014',
       oc: '120267114014',
       totalKilograms: 1000,
+      customSellPrice: 43.0,
       deliveries: [{ id: 'd1', kilos: 1000 } as any],
       invoices: [
         {

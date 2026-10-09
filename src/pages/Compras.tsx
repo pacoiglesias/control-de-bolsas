@@ -333,14 +333,14 @@ export default function Compras() {
                     const ord = orderById.get(p.id);
                     const orderedKg = p.expectedKilos || Number(ord?.totalKilograms) || 0;
                     const receivedKg = p.receivedKilos || 0;
-                    const costKg = p.pricePerKg || currentCostPerKg || 38;
+                    const costKg = p.pricePerKg ?? currentCostPerKg ?? null;
                     return {
                       folio: ord?.folio || ord?.oc || p.id,
                       client: ord?.client ? nombreClienteVisible(ord.client) : 'Providencia',
                       orderedKg,
                       receivedKg,
-                      costPerKg: costKg,
-                      totalCost: receivedKg * costKg,
+                      costPerKg: costKg !== null ? costKg : 0,
+                      totalCost: costKg !== null ? receivedKg * costKg : 0,
                       status: p.status || 'pedido',
                       deliveryDate: p.date,
                     };

@@ -116,9 +116,10 @@ export default function CajaChica() {
     (orders || []).forEach((o) => {
       (o?.invoices || []).forEach((inv) => {
         if (inv?.creditCycle?.status === 'paid') {
+          const salePrice = inv.financials?.salePricePerKg ?? o.customSellPrice ?? o.financials?.salePricePerKg ?? config?.salePricePerKg ?? null;
           const totalFactura =
             inv.financials?.invoiceTotal ??
-            (inv.kilos ?? 0) * (config?.salePricePerKg ?? 43) * (1 + (config?.ivaRate ?? 0.16));
+            (salePrice !== null ? (inv.kilos ?? 0) * salePrice * (1 + (config?.ivaRate ?? 0.16)) : 0);
           const comm = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(totalFactura, config as any);
           const net = round2(totalFactura - comm);
           bruto = round2(bruto + totalFactura);

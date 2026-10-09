@@ -113,9 +113,10 @@ jobs:
       - name: Deploy Firestore rules, indexes y Storage rules
         uses: w9jds/firebase-action@v14.11.1
         with:
-          args: deploy --only firestore:rules,firestore:indexes,storage
+          args: deploy --only firestore:rules,firestore:indexes,storage --project control-de-bolsas-89c88
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: control-de-bolsas-89c88
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -146,9 +147,10 @@ jobs:
       - name: Deploy Cloud Functions
         uses: w9jds/firebase-action@v14.11.1
         with:
-          args: deploy --only functions
+          args: deploy --only functions --project control-de-bolsas-89c88
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: control-de-bolsas-89c88
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -176,7 +178,8 @@ jobs:
       - name: Deploy Hosting
         uses: w9jds/firebase-action@v14.11.1
         with:
-          args: deploy --only hosting
+          args: deploy --only hosting --project control-de-bolsas-89c88
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: control-de-bolsas-89c88
