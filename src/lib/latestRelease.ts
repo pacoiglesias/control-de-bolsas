@@ -7,16 +7,16 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.26: Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia',
+  version: 'v9.10.27: Rediseño Visual y Operativo Diario, Comparador de Facturas y Saldos en Pagos, Centro de Atención Unificado y Formularios Claros',
   date: '09 de Octubre de 2026',
-  time: '09:15 AM',
-  summary: 'v9.10.26: Refuerzo integral de confiabilidad, seguridad y operatividad del ERP: Erradicación definitiva de asignaciones arbitrarias a órdenes por omisión (eliminación de orders[0]); panel unificado de aclaración y confirmación en GlobalDropzoneHUD con selección obligatoria de orden destino, resumen previo y auditoría formal (logAction); contrarrecibos multiorden con validación previa de todos los folios, prevención de colisiones (hasCrCollision), escrituras atómicas (writeBatch) y reporte coordinado de Storage (storageWarning); cálculos financieros sin fallbacks fijos a $43 o $38, distinguiendo $0.00 legítimo de precio ausente (needsReview); deduplicación determinista por contenido binario (SHA-256), candado de concurrencia en memoria (inFlightOperations); y suite de 290 pruebas automatizadas en verde.',
+  time: '10:20 AM',
+  summary: 'v9.10.27: Traducción total del endurecimiento técnico a mejoras visuales y operativas de interfaz diaria: Centro de Atención Requerida Hoy unificado en el Dashboard sin widgets repetidos, con acceso directo a facturar entrega, cobrar vencidos o aclarar documentos; comparador visual de facturas en el HUD de pagos con desglose interactivo de total, pagos anteriores, saldo antes y saldo después de cada abono; semáforos de alta legibilidad en el listado de órdenes (Folio, Cliente, Kilos, Facturación c/IVA y Saldo Vivo); formularios ordenados por tarea con campos obligatorios marcados con asterisco (*); y 295 pruebas unitarias 100% en verde.',
   highlights: [
-    '🚫 Erradicación de Asignación por Omisión (orders[0]): Ningún documento se asigna a ciegas; si no hay orden coincidente o se fuerza la importación, el operador debe seleccionar obligatoriamente la orden destino con datos distintivos visibles.',
-    '📋 Panel de Aclaración y Confirmación con Auditoría: Interfaz en GlobalDropzoneHUD que despliega motivos claros, resumen previo con impacto contable, captura de notas y registro inmutable en auditoría (FORCED_DOCUMENT_IMPORT). Sin avance automático ciego en errores.',
-    '📑 Contrarrecibos Multiorden Atómicos y Protección de Colisión: Validación estricta de todos los folios amparados; detección de colisión con contrarrecibos previos (hasCrCollision); actualización atómica mediante writeBatch(db); y reporte coordinado si Storage falla (storageWarning: true).',
-    '💵 Precios Dinámicos y Cero Válido ($0.00): Eliminación de fallbacks estáticos a $43 o $38 en compras, ventas y conciliación; distinción entre $0.00 legítimo y precio ausente (needsReview: true); selección obligatoria ante múltiples facturas con saldo idéntico; y detección de sobrepagos (+X.XX).',
-    '🔒 Deduplicación por SHA-256 y Bloqueo de Doble Clic: Cálculo determinista de huella SHA-256 sobre arrayBuffer para detectar archivos idénticos con nombres cambiados; candado en memoria inFlightOperations con try-finally que bloquea clics concurrentes.',
-    '🧪 Suite E2E de Resiliencia (290 pruebas verdes): 12 nuevos escenarios de prueba en systemHardeningE2E.test.ts cubriendo colisiones, rechazos limpios, cancelaciones sin escrituras, concurrencia y validaciones financieras.',
+    '🎯 Centro Operativo "Atención Requerida Hoy": Unificación del panel principal del Dashboard, eliminando redundancias para priorizar órdenes con alertas, facturas por timbrar, cobranza vencida y pagos por conciliar con botones directos de acción.',
+    '💳 Comparador y Desglose Financiero de Facturas y Saldos: Visualización instantánea del impacto de un abono (Total Factura, Pagos Anteriores, Saldo Antes y Saldo Después con aviso de liquidación 100%) antes de confirmar en el HUD de pagos.',
+    '📊 Tabla de Órdenes con Semáforo y Lectura Clara: Distinción visual entre facturación c/IVA, cobrado efectivo y saldo pendiente con badges accesibles de alto contraste, reduciendo la necesidad de abrir múltiples pantallas.',
+    '📝 Formularios Estructurados por Tareas: Marcación explícita de campos obligatorios (*) en datos de orden, precios de venta y costos de maquila, conservando la información ante errores recuperables.',
+    '🛡️ Transacciones Atómicas e Idempotencia con Trazabilidad: Deduplicación binaria SHA-256, atomicidad con writeBatch en contrarrecibos multiorden y registro obligatorio en auditoría.',
+    '🧪 295 Pruebas Unitarias y E2E 100% en Verde: Aislamiento determinista en 40 suites sin peticiones gRPC externas.',
   ],
 };

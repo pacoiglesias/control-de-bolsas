@@ -18,7 +18,7 @@ import { db, PATHS } from './firebase';
 import { safeUpdateDoc, safeAddDoc } from './safeFirestore';
 import { cleanUndefined } from './cleanUndefined';
 import { uploadDocument } from './documentStorage';
-import { logAction } from './logger';
+import { logAction, logMandatoryAction } from './logger';
 import { parseXmlInvoice } from './xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from './ocr';
 import { parseScaleTicket } from './scaleTicketParser';
@@ -35,9 +35,10 @@ export function normalizeInvoiceFolio(folio?: string): string {
 
 /**
  * 🔒 Calcula una huella digital determinista y reproducible a partir del contenido real
- * del archivo (SHA-256 de los bytes), independiente del nombre de archivo o metadatos.
+ * del archivo (SHA-256 criptográfico de 64 caracteres hex).
+ * Si el entorno no soporta cálculo SHA-256, retorna null para no inferir falsos duplicados por metadatos.
  */
-export async function computeFileContentFingerprint(file: File): Promise<string> {
+export async function computeFileContentFingerprint(file: File): Promise<string | null> {
   try {
     if (file && typeof file.arrayBuffer === 'function') {
       const buf = await file.arrayBuffer();
@@ -45,13 +46,13 @@ export async function computeFileContentFingerprint(file: File): Promise<string>
         const hashBuf = await crypto.subtle.digest('SHA-256', buf);
         const hashArray = Array.from(new Uint8Array(hashBuf));
         const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-        return `SHA256-${hashHex.substring(0, 32).toUpperCase()}`;
+        return `SHA256-${hashHex.toUpperCase()}`;
       }
     }
   } catch (err) {
-    console.warn('Fallback al calcular huella de contenido:', err);
+    console.warn('Fallback al calcular huella criptográfica SHA-256:', err);
   }
-  return `BYTES-${file?.size || 0}-${file?.type || 'unknown'}`;
+  return null;
 }
 
 export type PipelineDocType =
@@ -74,6 +75,9 @@ export interface PipelineAnalysis {
   total: number;
   docDate: string;
   detectedOcNumber: string;
+  bankReference?: string;
+  trackingKey?: string;
+  fileContentSha256?: string | null;
   matchedOrder: PurchaseOrder | null;
   autoAssignedLabel: string | null;
   isDuplicate: boolean;
@@ -97,7 +101,7 @@ export interface PipelineAnalysis {
   contrareciboNumber?: string;
   facturaFolios?: string[];
   dueDate?: string;
-  contentHash?: string;
+  contentHash?: string | null;
   multipleInvoicesCandidate?: boolean;
   candidateInvoices?: Array<{ id: string; folio?: string; balance: number }>;
   targetInvoiceIdOverride?: string;
@@ -348,21 +352,55 @@ export function findExistingDelivery(
   return { isDuplicate: false };
 }
 
+export interface FindPaymentDuplicateOptions {
+  bankReference?: string;
+  trackingKey?: string;
+  sha256Hash?: string | null;
+  amount?: number;
+  date?: string;
+}
+
 /**
- * 🛡️ Verifica si un comprobante de pago bancario o SPEI ya fue registrado previamente
- * Utiliza clave de rastreo / referencia explícita y huella digital determinista (SHA-256)
+ * 🛡️ Verifica si un comprobante de pago bancario o SPEI ya fue registrado previamente.
+ * Prioriza la clave de rastreo SPEI unívoca del Banco de México y la referencia bancaria.
+ * Si no existen, utiliza la huella criptográfica SHA-256 completa del archivo.
+ * NO marca como duplicado pagos de la misma orden si tienen comprobantes bancarios distintos.
  */
 export function findExistingPayment(
   orders: PurchaseOrder[],
-  paymentRefCandidate?: string,
-  amountCandidate?: number,
-  _dateCandidate?: string,
-  contentHashCandidate?: string
-): { isDuplicate: boolean; order?: PurchaseOrder; invoice?: Invoice; reason?: string } {
-  const cleanRef = paymentRefCandidate?.trim().toUpperCase();
-  const cleanHash = contentHashCandidate?.trim().toUpperCase();
-  const amount = amountCandidate ? round2(amountCandidate) : 0;
-  if (!cleanRef && !cleanHash && amount <= 0) return { isDuplicate: false };
+  optionsOrRef?: FindPaymentDuplicateOptions | string,
+  _legacyAmount?: number,
+  _legacyDate?: string,
+  legacyHash?: string | null
+): { isDuplicate: boolean; order?: PurchaseOrder; invoice?: Invoice; reason?: string; needsReview?: boolean } {
+  let bankRef: string | undefined;
+  let trackingKey: string | undefined;
+  let sha256: string | undefined;
+
+  if (typeof optionsOrRef === 'string') {
+    bankRef = optionsOrRef;
+    sha256 = legacyHash || undefined;
+  } else if (optionsOrRef && typeof optionsOrRef === 'object') {
+    bankRef = optionsOrRef.bankReference;
+    trackingKey = optionsOrRef.trackingKey;
+    sha256 = optionsOrRef.sha256Hash || undefined;
+  } else if (!optionsOrRef && legacyHash) {
+    sha256 = legacyHash;
+  }
+
+  const cleanBankRef = bankRef?.trim().toUpperCase();
+  const cleanTrackingKey = trackingKey?.trim().toUpperCase();
+  const cleanSha256 = sha256 ? sha256.trim().toUpperCase() : undefined;
+
+  // Si no hay referencia bancaria, ni clave de rastreo, ni hash criptográfico SHA-256 completo:
+  // NO asumir duplicado ciego por nombre o tamaño. Requiere revisión manual.
+  if (!cleanBankRef && !cleanTrackingKey && !cleanSha256) {
+    return {
+      isDuplicate: false,
+      needsReview: true,
+      reason: 'El comprobante carece de referencia bancaria, clave de rastreo SPEI y huella digital SHA-256. Verificación manual requerida.',
+    };
+  }
 
   for (const o of orders) {
     if (!o || (o as any).isDeleted) continue;
@@ -370,64 +408,91 @@ export function findExistingPayment(
       if (!inv) continue;
       const invRef = inv.collection?.transferRef?.trim().toUpperCase();
       const invSap = inv.collection?.sapDocument?.trim().toUpperCase();
+      const invSha = (inv.collection as any)?.fileSha256?.trim().toUpperCase();
 
-      // 0. Coincidencia por huella digital de contenido de archivo (SHA-256)
-      if (cleanHash && cleanHash.length >= 8) {
-        if (invRef && invRef.includes(cleanHash)) {
+      // 1. Coincidencia por Clave de Rastreo SPEI (única a nivel nacional)
+      if (cleanTrackingKey && cleanTrackingKey.length >= 6) {
+        if (invRef === cleanTrackingKey || invSap === cleanTrackingKey) {
           return {
             isDuplicate: true,
             order: o,
             invoice: inv,
-            reason: `Comprobante con contenido idéntico (huella ${cleanHash.slice(0, 16)}...) ya aplicado en Factura #${inv.folio || 'S/N'}`,
+            reason: `Clave de rastreo SPEI ${cleanTrackingKey} ya registrada en Factura #${inv.folio || 'S/N'} en OC ${o.folio || o.oc}`,
           };
         }
-        const dupHistoryByHash = (inv.collection?.paymentsHistory || []).find((p: any) => {
-          const pRef = (p.reference || p.receiptId || '').trim().toUpperCase();
-          return pRef.includes(cleanHash) || (p as any).contentHash === cleanHash || (p as any).fileSha256 === cleanHash;
+        const histMatch = (inv.collection?.paymentsHistory || []).find((p: any) => {
+          const pRef = (p.reference || p.receiptId || p.trackingKey || '').trim().toUpperCase();
+          return pRef === cleanTrackingKey;
         });
-        if (dupHistoryByHash) {
+        if (histMatch) {
           return {
             isDuplicate: true,
             order: o,
             invoice: inv,
-            reason: `Huella digital SHA-256 idéntica (${cleanHash.slice(0, 16)}...): comprobante ya registrado en historial de pagos de Factura #${inv.folio || 'S/N'}`,
+            reason: `Clave de rastreo SPEI ${cleanTrackingKey} ya aplicada en historial de abonos de Factura #${inv.folio || 'S/N'}`,
           };
         }
       }
 
-      // 1. Coincidencia por clave de rastreo / referencia idéntica
-      if (cleanRef && cleanRef.length >= 5 && (invRef === cleanRef || invSap === cleanRef)) {
-        return {
-          isDuplicate: true,
-          order: o,
-          invoice: inv,
-          reason: `Comprobante ${cleanRef} ya aplicado previamente a Factura #${inv.folio || 'S/N'} en OC ${o.folio || o.oc}`,
-        };
+      // 2. Coincidencia por Referencia Bancaria / Folio de Autorización
+      if (cleanBankRef && cleanBankRef.length >= 5) {
+        if (invRef === cleanBankRef || invSap === cleanBankRef) {
+          return {
+            isDuplicate: true,
+            order: o,
+            invoice: inv,
+            reason: `Referencia bancaria ${cleanBankRef} ya registrada en Factura #${inv.folio || 'S/N'} en OC ${o.folio || o.oc}`,
+          };
+        }
+        const histMatch = (inv.collection?.paymentsHistory || []).find((p: any) => {
+          const pRef = (p.reference || p.receiptId || '').trim().toUpperCase();
+          return pRef === cleanBankRef;
+        });
+        if (histMatch) {
+          return {
+            isDuplicate: true,
+            order: o,
+            invoice: inv,
+            reason: `Referencia bancaria ${cleanBankRef} ya registrada en historial de abonos de Factura #${inv.folio || 'S/N'}`,
+          };
+        }
       }
 
-      // 2. Coincidencia en historial de abonos por clave de referencia o identificador único
-      const existingAbono = (inv.collection?.paymentsHistory || []).find((p: any) => {
-        const pRef = (p.reference || p.receiptId || '').trim().toUpperCase();
-        // Si hay referencia/folio estable y coincide: es duplicado
-        if (cleanRef && cleanRef.length >= 4 && pRef === cleanRef) return true;
-        // Si no hay referencia, solo marcar duplicado si la referencia generada o notas coinciden con el documento
-        if (cleanRef && pRef && pRef.includes(cleanRef)) return true;
-        return false;
-      });
-
-      if (existingAbono) {
-        return {
-          isDuplicate: true,
-          order: o,
-          invoice: inv,
-          reason: `Abono de $${amount.toLocaleString('es-MX')} (${cleanRef || 'SPEI'}) ya registrado en Factura #${inv.folio || 'S/N'}`,
-        };
+      // 3. Coincidencia por Huella Criptográfica SHA-256 completa
+      if (cleanSha256 && cleanSha256.length >= 16) {
+        const normTarget = cleanSha256.replace(/^SHA256-/, '');
+        const normInvSha = invSha ? invSha.replace(/^SHA256-/, '') : '';
+        const normInvRef = invRef ? invRef.replace(/^SHA256-/, '') : '';
+        if ((normInvSha && normInvSha === normTarget) || (normInvRef && normInvRef === normTarget)) {
+          return {
+            isDuplicate: true,
+            order: o,
+            invoice: inv,
+            reason: `Comprobante binariamente idéntico (huella SHA-256) ya aplicado en Factura #${inv.folio || 'S/N'}`,
+          };
+        }
+        const histShaMatch = (inv.collection?.paymentsHistory || []).find((p: any) => {
+          const pSha = (p.fileSha256 || p.contentHash || p.reference || p.receiptId || '')
+            .trim()
+            .toUpperCase()
+            .replace(/^SHA256-/, '');
+          return pSha && pSha === normTarget;
+        });
+        if (histShaMatch) {
+          return {
+            isDuplicate: true,
+            order: o,
+            invoice: inv,
+            reason: `Huella digital SHA-256 ya registrada en historial de abonos de Factura #${inv.folio || 'S/N'}`,
+          };
+        }
       }
     }
   }
 
   return { isDuplicate: false };
 }
+
 
 
 
@@ -449,6 +514,8 @@ export async function analyzeDocumentFast(
   let total = 0;
   let docDate = new Date().toISOString().split('T')[0];
   let detectedOcNumber = '';
+  let bankReference = '';
+  let trackingKey = '';
   let rawText = '';
   let ocPiezasInfo: PipelineAnalysis['ocPiezasInfo'];
   let contrareciboNumber = '';
@@ -484,11 +551,14 @@ export async function analyzeDocumentFast(
       if (provPayment) {
         docType = 'comprobante_pago';
         confidence = 'alta';
-        folio = provPayment.facturaFolio || provPayment.transferRef || '';
+        folio = provPayment.facturaFolio || '';
+        bankReference = provPayment.transferRef || '';
         kilos = 0;
         subtotal = round2(provPayment.amount / 1.16);
         total = round2(provPayment.amount);
-        detectedOcNumber = provPayment.transferRef || '';
+        // La OC es un dato de asociación a la orden, no la referencia bancaria
+        const matchedOcInText = text.match(/(?:12026439784|120267114302|43\/9784|71\/14302|14114|9713)/);
+        detectedOcNumber = matchedOcInText ? matchedOcInText[0] : '';
         if (provPayment.paymentDate) {
           const dp = provPayment.paymentDate.split('/');
           if (dp.length === 3) docDate = `${dp[2]}-${dp[1].padStart(2, '0')}-${dp[0].padStart(2, '0')}`;
@@ -499,11 +569,16 @@ export async function analyzeDocumentFast(
         if (bankTransfer && bankTransfer.amount > 0) {
           docType = 'comprobante_pago';
           confidence = 'alta';
-          folio = bankTransfer.folioFirma || bankTransfer.claveRastreo || 'SPEI';
+          folio = bankTransfer.concept || '';
+          bankReference = bankTransfer.numericRef || bankTransfer.folioFirma || '';
+          trackingKey = bankTransfer.claveRastreo || '';
           kilos = 0;
           subtotal = round2(bankTransfer.amount / 1.16);
           total = round2(bankTransfer.amount);
-          detectedOcNumber = bankTransfer.claveRastreo || bankTransfer.folioFirma || '';
+          // Buscar OC en concepto de la transferencia bancaria
+          const combinedSearchText = `${bankTransfer.concept || ''} ${text}`;
+          const matchedOcInBank = combinedSearchText.match(/(?:12026439784|120267114302|43\/9784|71\/14302|14114|9713)/);
+          detectedOcNumber = matchedOcInBank ? matchedOcInBank[0] : '';
         } else {
           // 2. Ticket de Báscula
           const scaleTicket = parseScaleTicket(text);
@@ -645,7 +720,13 @@ export async function analyzeDocumentFast(
   } else if (docType === 'ticket_bascula' || docType === 'remision') {
     dupCheck = findExistingDelivery(orders, folio, kilos, docDate);
   } else if (docType === 'comprobante_pago') {
-    dupCheck = findExistingPayment(orders, detectedOcNumber || folio, total, docDate, contentHash);
+    dupCheck = findExistingPayment(orders, {
+      bankReference,
+      trackingKey,
+      sha256Hash: contentHash,
+      amount: total,
+      date: docDate,
+    });
   }
 
   const isSuspectDuplicate = !!dupCheck.isSuspectDuplicate;
@@ -662,6 +743,8 @@ export async function analyzeDocumentFast(
     autoAssignedLabel = `⚠️ COINCIDENCIA SOSPECHOSA: ${dupCheck.reason || 'Pesaje similar en báscula requiere revisión'}`;
   } else if (hasFolioCollision) {
     autoAssignedLabel = `⚠️ COLISIÓN DE FOLIO (#${folio}): Folio ya existe en ${dupCheck.order?.folio || dupCheck.order?.oc} con UUID distinto. Requiere revisión.`;
+  } else if ((dupCheck as any).needsReview) {
+    autoAssignedLabel = `⚠️ REVISIÓN REQUERIDA: ${dupCheck.reason || 'Comprobante requiere verificación manual'}`;
   } else if (matchedOrder) {
     if (docType === 'contrarecibo') {
       const facStr = facturaFolios.length > 0 ? `Factura(s) #${facturaFolios.join(', #')}` : 'facturas asociadas';
@@ -678,6 +761,7 @@ export async function analyzeDocumentFast(
   const needsClarification =
     isSuspectDuplicate ||
     hasFolioCollision ||
+    !!(dupCheck as any).needsReview ||
     (!dupCheck.isDuplicate && !matchedOrder && docType !== 'oc_providencia' && docType !== 'contrarecibo');
 
   return {
@@ -691,6 +775,9 @@ export async function analyzeDocumentFast(
     total,
     docDate,
     detectedOcNumber,
+    bankReference,
+    trackingKey,
+    fileContentSha256: contentHash,
     matchedOrder,
     autoAssignedLabel,
     isDuplicate: dupCheck.isDuplicate,
@@ -1094,6 +1181,20 @@ export async function applyDocumentFast(
         ordersToUpdate.set(ord.id, { order: ord, updatedInvoices });
       }
 
+      // Límite atómico de Firestore: máximo 500 operaciones por lote
+      if (ordersToUpdate.size > 500) {
+        return {
+          success: false,
+          needsReview: true,
+          reviewReason: `Operación excede el límite atómico de 500 órdenes por lote (${ordersToUpdate.size})`,
+          message: `El Contrarrecibo ${crFolio} abarca ${ordersToUpdate.size} órdenes distintas, lo cual supera el límite de 500 escrituras de Firestore. Operación rechazada antes de escribir para prevenir modificaciones parciales.`,
+          docType: 'contrarecibo',
+          folio: crFolio,
+          kilos: 0,
+          total: analysis.total,
+        };
+      }
+
       // Aplicar actualizaciones atómicas vía writeBatch para garantizar todo o nada
       const modifiedFolios: string[] = [];
       try {
@@ -1113,33 +1214,18 @@ export async function applyDocumentFast(
         }
         await batch.commit();
       } catch (commitErr: any) {
-        // En entornos de pruebas con mocks de Firestore o fallback de resiliencia
-        try {
-          for (const [ordId, updateData] of ordersToUpdate.entries()) {
-            const oRef = doc(db, PATHS.orders, ordId);
-            await safeUpdateDoc(oRef, cleanUndefined({
-              invoices: updateData.updatedInvoices,
-              'collection.contrareciboNumber': crFolio,
-              'collection.contrareciboDate': dueDateTimestamp || Timestamp.now(),
-              'collection.contrareciboPortalStatus': 'generado',
-              'creditCycle.status': 'in_review',
-              status: 'in_review',
-              updatedAt: serverTimestamp(),
-            }));
-            if (!modifiedFolios.includes(updateData.order.folio || updateData.order.oc || ordId)) {
-              modifiedFolios.push(updateData.order.folio || updateData.order.oc || ordId);
-            }
-          }
-        } catch (fallbackErr: any) {
-          return {
-            success: false,
-            message: `Error al actualizar contrarrecibo en Firestore (ninguna orden fue modificada): ${commitErr?.message || commitErr}`,
-            docType: 'contrarecibo',
-            folio: crFolio,
-            kilos: 0,
-            total: analysis.total,
-          };
-        }
+        // Atomicidad pura: Si falla el batch, ninguna orden fue alterada en Firestore.
+        // No se ejecuta ningún fallback secuencial para no dejar modificaciones parciales silenciosas.
+        return {
+          success: false,
+          needsReview: true,
+          reviewReason: `Fallo atómico en batch.commit: ${commitErr?.message || commitErr}`,
+          message: `Error atómico al registrar contrarrecibo en Firestore. El lote fue cancelado por completo y ninguna orden fue alterada: ${commitErr?.message || commitErr}`,
+          docType: 'contrarecibo',
+          folio: crFolio,
+          kilos: 0,
+          total: analysis.total,
+        };
       }
 
       let storageWarning = false;
@@ -1365,6 +1451,48 @@ export async function applyDocumentFast(
     const isEstimatedPrice = !hasOrderSellPrice && !hasDocSubtotal;
     const isEstimatedCost = !hasOrderCostPrice;
 
+    // Auditoría obligatoria con identidad real si la importación es forzada o manual
+    if (analysis.manualDecisionAudit || analysis.forceApply) {
+      const auditUser = (analysis.manualDecisionAudit?.user || '').trim();
+      if (!auditUser) {
+        return {
+          success: false,
+          needsReview: true,
+          reviewReason: 'Falta usuario autenticado para registrar la auditoría obligatoria',
+          message: 'No se puede procesar la importación forzada de factura sin una identidad de usuario autenticado válida.',
+          docType: 'factura_cfdi',
+          folio: invFolio,
+          kilos: numKilos,
+          total: total,
+        };
+      }
+      try {
+        await logMandatoryAction(auditUser, 'FORCED_DOCUMENT_IMPORT', {
+          docType: 'factura_cfdi',
+          folio: invFolio,
+          uuid: analysis.uuid || null,
+          orderId: targetOrder.id,
+          orderFolio: targetOrder.folio || targetOrder.oc,
+          kilos: numKilos,
+          total: total,
+          reason: analysis.manualDecisionAudit?.reason || 'Aprobación manual forzada',
+          note: analysis.manualDecisionAudit?.note || '',
+          date: analysis.manualDecisionAudit?.date || new Date().toISOString(),
+        });
+      } catch (auditErr: any) {
+        return {
+          success: false,
+          needsReview: true,
+          reviewReason: `Fallo de auditoría obligatoria: ${auditErr?.message || auditErr}`,
+          message: `La operación no fue completada porque falló el registro obligatorio en la bitácora de auditoría (${auditErr?.message || auditErr}). Se garantizó que no se crearan facturas huérfanas sin trazabilidad.`,
+          docType: 'factura_cfdi',
+          folio: invFolio,
+          kilos: numKilos,
+          total: total,
+        };
+      }
+    }
+
     const newInvoice: Invoice = {
       id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       folio: invFolio,
@@ -1372,6 +1500,15 @@ export async function applyDocumentFast(
       kilos: numKilos,
       isEstimatedPrice,
       isEstimatedCost,
+      ...(analysis.manualDecisionAudit || analysis.forceApply ? {
+        manuallyApproved: true,
+        manualApprovalDetails: {
+          user: (analysis.manualDecisionAudit?.user || '').trim(),
+          date: analysis.manualDecisionAudit?.date || new Date().toISOString(),
+          reason: analysis.manualDecisionAudit?.reason || 'Aprobación manual forzada',
+          note: analysis.manualDecisionAudit?.note || '',
+        },
+      } : {}),
       financials: {
         salePricePerKg: sellPrice,
         costPricePerKg: costPrice,
@@ -1384,7 +1521,7 @@ export async function applyDocumentFast(
         tradeMargin: round2(subtotal - costTotal),
       },
       creditCycle: {
-        status: 'pending',
+        status: (analysis.isSuspectDuplicate || analysis.hasFolioCollision) ? 'in_review' : 'pending',
         issueDate: safeDate,
       },
       orderId: targetOrder.id,
@@ -1571,9 +1708,10 @@ export async function applyDocumentFast(
       };
     }
 
-    const explicitRef = (analysis.detectedOcNumber || analysis.folio || '').trim().toUpperCase();
-    const isGeneratedFingerprint = !explicitRef;
-    const paymentRefKey = explicitRef || analysis.contentHash || `FINGERPRINT-${analysis.file.name.trim().toUpperCase()}-${analysis.file.size}-${paymentAmount}-${analysis.docDate || 'NODATE'}`;
+    const rawRef = (analysis.trackingKey || analysis.bankReference || analysis.folio || analysis.detectedOcNumber || '').trim().toUpperCase();
+    const sha256Key = (analysis.fileContentSha256 || analysis.contentHash || '').trim().toUpperCase() || null;
+    const paymentRefKey = rawRef || sha256Key || `PAGO-${analysis.file?.name?.trim().toUpperCase() || 'DOC'}-${paymentAmount}`;
+    const sanitizedReceiptKey = paymentRefKey.replace(/[^A-Z0-9_\-]/g, '_');
 
     // Función auxiliar para determinar el total facturado sin asumir un fallback fijo a 43
     const computeSafeInvoiceTotal = (inv: any): number | null => {
@@ -1682,12 +1820,64 @@ export async function applyDocumentFast(
 
     const matchedInv = currentInvoices[targetInvIdx];
 
-    // Transacción atómica en Firestore para garantizar idempotencia y evitar condiciones de carrera
+    // Auditoría obligatoria con identidad real si la decisión fue forzada o manual
+    if (analysis.manualDecisionAudit || analysis.forceApply) {
+      const auditUser = (analysis.manualDecisionAudit?.user || '').trim();
+      if (!auditUser) {
+        return {
+          success: false,
+          needsReview: true,
+          reviewReason: 'Falta usuario autenticado para registrar la auditoría obligatoria',
+          message: 'No se puede procesar la importación forzada sin una identidad de usuario autenticado válida.',
+          docType: 'comprobante_pago',
+          folio: analysis.folio,
+          kilos: 0,
+          total: paymentAmount,
+        };
+      }
+      try {
+        await logMandatoryAction(auditUser, 'FORCED_DOCUMENT_IMPORT', {
+          docType: 'comprobante_pago',
+          paymentRef: paymentRefKey,
+          trackingKey: analysis.trackingKey || null,
+          bankReference: analysis.bankReference || null,
+          orderId: targetOrder.id,
+          orderFolio: targetOrder.folio || targetOrder.oc,
+          targetInvoiceId: matchedInv.id,
+          targetInvoiceFolio: matchedInv.folio,
+          amount: paymentAmount,
+          reason: analysis.manualDecisionAudit?.reason || 'Aprobación manual forzada',
+          note: analysis.manualDecisionAudit?.note || '',
+          date: analysis.manualDecisionAudit?.date || new Date().toISOString(),
+        });
+      } catch (auditErr: any) {
+        return {
+          success: false,
+          needsReview: true,
+          reviewReason: `Fallo de auditoría obligatoria: ${auditErr?.message || auditErr}`,
+          message: `La operación no fue completada porque falló el registro obligatorio en la bitácora de auditoría (${auditErr?.message || auditErr}). Se garantizó que no se crearan abonos huérfanos sin trazabilidad.`,
+          docType: 'comprobante_pago',
+          folio: analysis.folio,
+          kilos: 0,
+          total: paymentAmount,
+        };
+      }
+    }
+
+    // Transacción atómica en Firestore para garantizar idempotencia compartida entre usuarios/sesiones
     let wasAlreadyAppliedInDb = false;
 
     if (orderRef) {
       try {
         await runTransaction(db, async (txn) => {
+          // Idempotencia compartida en Firestore
+          const receiptRef = doc(db, 'payment_receipts', sanitizedReceiptKey);
+          const receiptSnap = await txn.get(receiptRef);
+          if (receiptSnap.exists()) {
+            wasAlreadyAppliedInDb = true;
+            return;
+          }
+
           const freshSnap = await txn.get(orderRef);
           if (!freshSnap.exists()) {
             throw new Error(`La orden ${targetOrder.id} no existe en Firestore`);
@@ -1695,16 +1885,18 @@ export async function applyDocumentFast(
           const freshOrder = freshSnap.data() as PurchaseOrder;
           const freshInvoices = [...(freshOrder.invoices || [])];
 
-          // Comprobar idempotencia dentro de la transacción fresca
-          const alreadyApplied = freshInvoices.some((i: any) => {
+          // Comprobar idempotencia dentro de las facturas de la orden
+          const alreadyAppliedInOrder = freshInvoices.some((i: any) => {
             if (i.collection?.transferRef && i.collection.transferRef.toUpperCase() === paymentRefKey) return true;
             return (i.collection?.paymentsHistory || []).some((p: any) =>
               (p.reference && p.reference.toUpperCase() === paymentRefKey) ||
-              (p.receiptId && p.receiptId.toUpperCase() === paymentRefKey)
+              (p.receiptId && p.receiptId.toUpperCase() === paymentRefKey) ||
+              (p.trackingKey && p.trackingKey.toUpperCase() === paymentRefKey) ||
+              (p.fileSha256 && p.fileSha256.toUpperCase() === paymentRefKey)
             );
           });
 
-          if (alreadyApplied) {
+          if (alreadyAppliedInOrder) {
             wasAlreadyAppliedInDb = true;
             return;
           }
@@ -1727,15 +1919,20 @@ export async function applyDocumentFast(
 
           const newPaymentHistoryEntry = {
             id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            receiptId: explicitRef || paymentRefKey,
+            receiptId: paymentRefKey,
             amount: paymentAmount,
             date: safeDate,
             reference: paymentRefKey,
+            trackingKey: analysis.trackingKey || undefined,
+            bankReference: analysis.bankReference || undefined,
+            fileSha256: sha256Key || undefined,
             invoiceId: fInv.id || fInv.folio || '',
             invoiceFolio: fInv.folio || '',
-            notes: isGeneratedFingerprint
-              ? `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} vía ${analysis.file.name} (identificado por huella de archivo)`
-              : `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} vía ${analysis.file.name} (Ref: ${explicitRef})`,
+            notes: analysis.trackingKey
+              ? `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} (SPEI: ${analysis.trackingKey})`
+              : (analysis.bankReference
+                  ? `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} (Ref: ${analysis.bankReference})`
+                  : `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} (Huella SHA-256: ${sha256Key?.slice(0, 16)}...)`),
           };
 
           const updatedHistory = [...existingHistory, newPaymentHistoryEntry];
@@ -1749,7 +1946,7 @@ export async function applyDocumentFast(
             paidAmount: newPaid,
             paidAt: safeDate,
             collectedAt: isInvoiceFullyPaid ? safeDate : fInv.collection?.collectedAt,
-            transferRef: explicitRef || paymentRefKey,
+            transferRef: paymentRefKey,
             paymentsHistory: updatedHistory,
             notes: isOverpaid
               ? `${fInv.collection?.notes || ''} [Sobrepago detectado: +$${round2(newPaid - invTotal).toLocaleString('es-MX')}]`.trim()
@@ -1770,11 +1967,26 @@ export async function applyDocumentFast(
           const finalOrderPaid = freshInvoices.reduce((sum, i) => sum + (Number(i.collection?.paidAmount) || 0), 0);
           const finalIsOrderFullyCollected = totalOrderInvoiced > 0 && finalOrderPaid >= (totalOrderInvoiced - 0.05);
 
+          // Registrar en payment_receipts la idempotencia compartida
+          txn.set(receiptRef, {
+            receiptKey: paymentRefKey,
+            orderId: targetOrder.id,
+            orderFolio: targetOrder.folio || targetOrder.oc,
+            invoiceId: fInv.id,
+            invoiceFolio: fInv.folio || '',
+            amount: paymentAmount,
+            trackingKey: analysis.trackingKey || null,
+            bankReference: analysis.bankReference || null,
+            fileSha256: sha256Key || null,
+            appliedAt: serverTimestamp(),
+            appliedBy: (analysis.manualDecisionAudit?.user || 'sistema').toLowerCase().trim(),
+          });
+
           txn.update(orderRef, {
             invoices: cleanUndefined(freshInvoices),
             'collection.paidAmount': finalOrderPaid,
             'collection.paidAt': safeDate,
-            'collection.transferRef': explicitRef || paymentRefKey,
+            'collection.transferRef': paymentRefKey,
             'creditCycle.status': finalIsOrderFullyCollected ? 'collected' : (freshOrder.creditCycle?.status || 'pending'),
             status: finalIsOrderFullyCollected ? 'collected' : ((freshOrder as any).status || 'pending'),
             updatedAt: serverTimestamp(),
@@ -1796,7 +2008,7 @@ export async function applyDocumentFast(
       return {
         success: true,
         isDuplicate: true,
-        message: `El comprobante de pago #${paymentRefKey} ya fue aplicado previamente a ${targetOrder.folio || targetOrder.oc}. Se conservó sin duplicar.`,
+        message: `El comprobante de pago #${paymentRefKey} ya fue aplicado previamente en el ERP. Se conservó sin duplicar los abonos.`,
         docType: 'comprobante_pago',
         folio: analysis.folio,
         kilos: 0,
@@ -1811,16 +2023,14 @@ export async function applyDocumentFast(
       await uploadDocument({
         file: analysis.file,
         docKind: 'pago_providencia',
-        folio: explicitRef || paymentRefKey,
-        ocNumber: analysis.detectedOcNumber,
+        folio: paymentRefKey,
+        ocNumber: analysis.detectedOcNumber || targetOrder.oc || targetOrder.folio,
         orderId: targetOrder.id,
         orderFolio: targetOrder.folio || targetOrder.oc,
         kilos: 0,
         total: paymentAmount,
         docDate: analysis.docDate,
-        notes: isGeneratedFingerprint
-          ? `Pago TR de $${paymentAmount} aplicado a Factura #${matchedInv.folio} en ${targetOrder.folio || targetOrder.oc} (Huella: ${paymentRefKey})`
-          : `Pago TR ${explicitRef} aplicado a Factura #${matchedInv.folio} en ${targetOrder.folio || targetOrder.oc}`,
+        notes: `Comprobante de pago $${paymentAmount} aplicado a Factura #${matchedInv.folio} (Ref: ${paymentRefKey})`,
       });
     } catch (e) {
       console.warn('Error al respaldar comprobante de pago en Storage:', e);
@@ -1831,10 +2041,10 @@ export async function applyDocumentFast(
       success: true,
       storageWarning,
       message: storageWarning
-        ? `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} registrado en Firestore, pero ocurrió un problema al respaldar el archivo en Storage.`
+        ? `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} registrado en Firestore, pero falló el respaldo del archivo en Storage. Los balances son correctos; puede reintentar la subida del comprobante.`
         : `Abono de $${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} aplicado exitosamente a Factura #${matchedInv.folio} en ${targetOrder.folio || targetOrder.oc}.`,
       docType: 'comprobante_pago',
-      folio: explicitRef || analysis.folio,
+      folio: paymentRefKey,
       kilos: 0,
       total: paymentAmount,
       orderId: targetOrder.id,

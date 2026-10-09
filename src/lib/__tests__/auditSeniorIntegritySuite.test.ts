@@ -27,12 +27,19 @@ vi.mock('firebase/firestore', async () => {
     ...actual,
     doc: vi.fn((_db, coll, id) => ({ path: `${coll}/${id}`, id })),
     collection: vi.fn((_db, coll) => ({ path: coll })),
+    writeBatch: vi.fn(() => ({
+      update: vi.fn(),
+      commit: vi.fn().mockResolvedValue(undefined),
+    })),
     serverTimestamp: vi.fn(() => 'MOCK_SERVER_TIMESTAMP'),
     runTransaction: vi.fn(async (_db, callback) => {
       // Simulación de transacción atómica para tests
       const mockTxn = {
-        get: vi.fn(async (docRef) => ({
-          exists: () => true,
+        get: vi.fn(async (docRef: any) => ({
+          exists: () => {
+            if (docRef?.path?.includes('payment_receipts')) return false;
+            return true;
+          },
           data: () => ({
             id: docRef.id,
             invoices: [
@@ -46,6 +53,7 @@ vi.mock('firebase/firestore', async () => {
           }),
         })),
         update: vi.fn(),
+        set: vi.fn(),
       };
       return callback(mockTxn);
     }),

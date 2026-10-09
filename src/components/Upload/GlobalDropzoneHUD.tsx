@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GlobalDropInspectorModal } from './GlobalDropInspectorModal';
 import { useOrdersContext } from '../../context/OrdersContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { sound } from '../../lib/sounds';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { money } from '../../lib/format';
@@ -24,6 +25,7 @@ interface BatchItemState {
 
 export function GlobalDropzoneHUD() {
   const { orders } = useOrdersContext();
+  const { user } = useAuth();
   const toast = useToast();
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -46,18 +48,17 @@ export function GlobalDropzoneHUD() {
   const [auditNote, setAuditNote] = useState<string>('');
   const [showConfirmationSummary, setShowConfirmationSummary] = useState<boolean>(false);
 
-  // Sincronizar selección inicial cuando cambia el documento en revisión
+  // Sincronizar selección inicial cuando cambia el documento en revisión:
+  // NUNCA preseleccionar una orden en dudas o colisiones: se exige decisión deliberada del operador.
   useEffect(() => {
     if (currentIndex >= 0 && currentIndex < batchQueue.length) {
-      const itm = batchQueue[currentIndex];
-      const defaultOrd = itm?.analysis?.duplicateOrder || itm?.analysis?.matchedOrder;
-      setSelectedOrderId(defaultOrd?.id || '');
+      setSelectedOrderId('');
       setSelectedInvoiceId('');
       setForceReplaceCr(false);
       setAuditNote('');
       setShowConfirmationSummary(false);
     }
-  }, [currentIndex, batchQueue]);
+  }, [currentIndex, batchQueue.length]);
 
   // Escuchar Drag & Drop global y eventos de subida
   useEffect(() => {
@@ -308,16 +309,25 @@ export function GlobalDropzoneHUD() {
     const item = batchQueue[currentIndex];
     if (!item || !item.analysis) return;
 
-    // EXIGIR orden explícita: nunca recurrir a una orden arbitraria (orders[0])
+    // EXIGIR orden explícita y deliberada: nunca usar fallback a duplicateOrder ni matchedOrder automático
     const target =
       explicitTargetOrder ||
-      (selectedOrderId ? orders.find((o) => o.id === selectedOrderId) : null) ||
-      item.analysis.matchedOrder ||
-      item.analysis.duplicateOrder;
+      (selectedOrderId ? orders.find((o) => o.id === selectedOrderId) : null);
 
     if (!target) {
-      toast('⚠️ Debe seleccionar explícitamente la Orden de Compra destino.', 'bad');
+      triggerHaptic('warning');
+      toast('⚠️ Debe seleccionar obligatoriamente una Orden de Compra de forma deliberada.', 'bad');
       return;
+    }
+
+    // Si es comprobante de pago con múltiples facturas candidatas, exigir factura específica
+    if (item.analysis.docType === 'comprobante_pago') {
+      const candidateList = item.analysis.candidateInvoices || [];
+      if (candidateList.length > 1 && !selectedInvoiceId && !item.analysis.folio) {
+        triggerHaptic('warning');
+        toast('⚠️ Debe seleccionar obligatoriamente la Factura específica a la que se aplicará el abono.', 'bad');
+        return;
+      }
     }
 
     triggerHaptic('medium');
@@ -342,11 +352,14 @@ export function GlobalDropzoneHUD() {
           ? 'Selección Manual de Factura Destino'
           : 'Asignación Manual de Orden');
 
+      // Identidad verificada del usuario autenticado actual (sin cadenas genéricas)
+      const authenticatedUserIdentity = user?.email || user?.displayName || 'usuario_autenticado';
+
       item.analysis.manualDecisionAudit = {
-        user: 'Operador',
+        user: authenticatedUserIdentity,
         date: new Date().toISOString(),
         reason: reasonDesc,
-        note: auditNote || 'Aprobado tras revisión de datos y advertencias en pantalla.',
+        note: auditNote || 'Aprobado tras decisión manual deliberada en pantalla.',
       };
 
       const result = await applyDocumentFast(item.analysis, target, orders);
@@ -366,7 +379,11 @@ export function GlobalDropzoneHUD() {
       if (result.success) {
         sound.playChaChing();
         triggerHaptic('cash');
-        toast(`✅ Aplicado a ${target.folio || target.oc} con registro de auditoría`, 'ok');
+        if (result.storageWarning) {
+          toast(`⚠️ ${result.message}`, 'info');
+        } else {
+          toast(`✅ Aplicado a ${target.folio || target.oc} con auditoría registrada (${authenticatedUserIdentity})`, 'ok');
+        }
       } else {
         toast(`⚠️ ${result.message}`, 'bad');
       }
@@ -992,35 +1009,93 @@ export function GlobalDropzoneHUD() {
                             ))}
                         </div>
 
-                        {/* Si hay candidatas de factura para pago */}
-                        {currentItem.analysis?.candidateInvoices && currentItem.analysis.candidateInvoices.length > 0 && (
-                          <div style={{ marginBottom: 10 }}>
-                            <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                              Factura Destino para el Abono:
-                            </label>
-                            <select
-                              value={selectedInvoiceId}
-                              onChange={(e) => setSelectedInvoiceId(e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '8px 10px',
-                                borderRadius: 10,
-                                background: 'rgba(15, 23, 42, 0.85)',
-                                border: '1px solid rgba(255, 255, 255, 0.25)',
-                                color: '#fff',
-                                fontSize: 12,
-                                fontWeight: 700,
-                              }}
-                            >
-                              <option value="">-- Seleccionar Factura --</option>
-                              {currentItem.analysis.candidateInvoices.map((ci) => (
-                                <option key={ci.id} value={ci.id}>
-                                  Factura #{ci.folio || ci.id} · Saldo pendiente: ${ci.balance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                        {/* Comparador y Selección de Facturas para Pago (Punto 4 del ERP) */}
+                        {(() => {
+                          const selectedOrder = orders.find((o) => o.id === selectedOrderId);
+                          let invoiceOptions = currentItem.analysis?.candidateInvoices || [];
+                          if (invoiceOptions.length === 0 && selectedOrder && currentItem.analysis?.docType === 'comprobante_pago') {
+                            const invs = selectedOrder.invoices || [];
+                            invoiceOptions = invs.map((inv) => {
+                              const salePrice = inv.financials?.salePricePerKg ?? selectedOrder.customSellPrice ?? 43;
+                              const invTotal = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * salePrice * 1.16);
+                              const paid = Number(inv.collection?.paidAmount) || 0;
+                              const balance = Math.max(0, invTotal - paid);
+                              return {
+                                id: inv.id,
+                                folio: inv.folio || inv.id,
+                                balance,
+                                total: invTotal,
+                                paid,
+                              };
+                            });
+                          }
+
+                          if (invoiceOptions.length === 0 || currentItem.analysis?.docType !== 'comprobante_pago') {
+                            return null;
+                          }
+
+                          const paymentAmount = currentItem.analysis?.total || 0;
+
+                          return (
+                            <div style={{ marginBottom: 12 }}>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                                Comparativa de Facturas para el Abono (${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}):
+                              </label>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {invoiceOptions.map((ci: any) => {
+                                  const pTotal = ci.total ?? (ci.balance + (ci.paid || 0));
+                                  const pPaid = ci.paid ?? Math.max(0, pTotal - ci.balance);
+                                  const pSaldoAntes = ci.balance;
+                                  const pSaldoDespues = Math.max(0, pSaldoAntes - paymentAmount);
+                                  const isSelected = selectedInvoiceId === ci.id;
+                                  const willLiquidate = pSaldoDespues <= 0.05 && pSaldoAntes > 0;
+
+                                  return (
+                                    <div
+                                      key={ci.id}
+                                      onClick={() => setSelectedInvoiceId(ci.id)}
+                                      style={{
+                                        padding: '8px 12px',
+                                        borderRadius: 10,
+                                        background: isSelected ? 'rgba(59, 130, 246, 0.25)' : 'rgba(15, 23, 42, 0.6)',
+                                        border: isSelected ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.15)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <span style={{ fontWeight: 800, fontSize: 12.5, color: isSelected ? '#60a5fa' : '#f1f5f9' }}>
+                                            Factura #{ci.folio || ci.id}
+                                          </span>
+                                          {willLiquidate && (
+                                            <span style={{ fontSize: 10, fontWeight: 800, background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 6px', borderRadius: 4 }}>
+                                              ✓ Se Liquidará al 100%
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                          Total: ${pTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} · Pagado previo: ${pPaid.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                        </div>
+                                      </div>
+                                      <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: 10.5, color: '#cbd5e1' }}>
+                                          Saldo antes: <strong>${pSaldoAntes.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+                                        </div>
+                                        <div style={{ fontSize: 11.5, fontWeight: 800, color: willLiquidate ? '#34d399' : '#38bdf8' }}>
+                                          Saldo después: ${pSaldoDespues.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Si hay colisión de contrarrecibo */}
                         {currentItem.analysis?.hasCrCollision && (
@@ -1126,6 +1201,47 @@ export function GlobalDropzoneHUD() {
                             <strong>⚠️ Advertencia amparada:</strong>{' '}
                             {currentItem.analysis?.suspectReason || (currentItem.analysis?.hasFolioCollision ? 'Colisión de Folio Fiscal SAT' : 'Asignación manual')}
                           </div>
+
+                          {/* Desglose Financiero Específico para Pagos (Punto 4 del ERP) */}
+                          {currentItem.analysis?.docType === 'comprobante_pago' && selectedInvoiceId && (() => {
+                            const selectedOrder = orders.find((o) => o.id === selectedOrderId);
+                            const targetInv = (selectedOrder?.invoices || []).find((i) => i.id === selectedInvoiceId);
+                            if (!targetInv) return null;
+                            const salePrice = targetInv.financials?.salePricePerKg ?? selectedOrder?.customSellPrice ?? 43;
+                            const pTotal = targetInv.financials?.invoiceTotal ?? ((targetInv.kilos || 0) * salePrice * 1.16);
+                            const pPaid = Number(targetInv.collection?.paidAmount) || 0;
+                            const pSaldoAntes = Math.max(0, pTotal - pPaid);
+                            const pAbono = currentItem.analysis?.total || 0;
+                            const pSaldoDespues = Math.max(0, pSaldoAntes - pAbono);
+                            const willLiquidate = pSaldoDespues <= 0.05 && pSaldoAntes > 0;
+
+                            return (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  paddingTop: 8,
+                                  borderTop: '1px dashed rgba(255, 255, 255, 0.2)',
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(2, 1fr)',
+                                  gap: 6,
+                                  fontSize: 11,
+                                }}
+                              >
+                                <div>Factura elegida: <strong style={{ color: '#60a5fa' }}>#{targetInv.folio || targetInv.id}</strong></div>
+                                <div>Total factura: <strong>${pTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
+                                <div>Pagos anteriores: <strong>${pPaid.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
+                                <div>Saldo antes: <strong style={{ color: '#fb923c' }}>${pSaldoAntes.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
+                                <div>Abono a aplicar: <strong style={{ color: '#38bdf8' }}>${pAbono.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
+                                <div>
+                                  Saldo después:{' '}
+                                  <strong style={{ color: willLiquidate ? '#34d399' : '#a78bfa' }}>
+                                    ${pSaldoDespues.toLocaleString('es-MX', { minimumFractionDigits: 2 })}{' '}
+                                    {willLiquidate ? '(✓ Liquidada)' : ''}
+                                  </strong>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Campo de auditoría */}

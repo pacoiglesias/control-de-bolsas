@@ -312,6 +312,13 @@ service cloud.firestore {
       allow write: if isAuthenticatedUser() && (request.auth.uid == uid || isSuperAdmin());
     }
 
+    // Idempotencia compartida y registro inmutable de comprobantes de pago procesados
+    match /payment_receipts/{receiptId} {
+      allow read: if isAuthenticatedUser();
+      allow create: if isAuthenticatedUser();
+      allow update, delete: if false;
+    }
+
     // Todo lo demás queda cerrado.
     match /{document=**} {
       allow read, write: if false;

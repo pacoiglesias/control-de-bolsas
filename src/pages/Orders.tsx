@@ -1133,9 +1133,30 @@ export default function Orders() {
                       })()}
                       {cols.total && (
                         <>
-                          <td className="num mono">{money(summary.invoiceTotal)}</td>
-                          <td className="num mono">{money(summary.paidAmount)}</td>
-                          <td className="num mono" style={{ color: deuda > 0 ? 'var(--bad)' : 'inherit' }}>{money(deuda)}</td>
+                          <td className="num mono" title="Total facturado acumulado c/IVA">
+                            {money(summary.invoiceTotal)}
+                          </td>
+                          <td className="num mono" title="Monto efectivamente cobrado">
+                            <span style={{ color: summary.paidAmount > 0 ? '#10b981' : 'inherit', fontWeight: summary.paidAmount > 0 ? 700 : 400 }}>
+                              {money(summary.paidAmount)}
+                            </span>
+                          </td>
+                          <td className="num mono">
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                color: deuda > 0.05 ? '#ef4444' : '#10b981',
+                                fontWeight: 800,
+                                background: deuda > 0.05 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                border: deuda > 0.05 ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(16, 185, 129, 0.25)',
+                              }}
+                              title={deuda > 0.05 ? `Saldo pendiente por cobrar: ${money(deuda)}` : 'Saldo totalmente liquidado al 100%'}
+                            >
+                              {money(deuda)}
+                            </span>
+                          </td>
                         </>
                       )}
                       {/* Columna Estado + Próxima Acción fusionadas */}

@@ -1,5 +1,36 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.27] - 09 Octubre 2026 (Rediseño Visual y Operativo Diario, Comparador de Facturas y Saldos en Pagos, Centro de Atención Unificado y Formularios Claros)
+
+### 🎯 Centro Operativo Unificado en Dashboard ("Qué Requiere Atención Hoy")
+
+- **Eliminación de Redundancias:** Supresión del widget matutino duplicado para concentrar el 100% de la atención operativa en `PriorityActionQueue`, evitando datos repetidos en pantalla.
+- **Acceso Directo por Tarea:** Enlaces y botones unificados para timbrar entregas de báscula pendientes, gestionar cobranza vencida y resolver aclaraciones documentales en un solo clic.
+
+### 💳 Comparador Interactivo de Facturas y Saldos en HUD de Pagos
+
+- **Previsualización de Impacto Financiero:** Desglose antes de confirmar el abono con Factura elegida, Total con IVA, Pagos Anteriores, Saldo Antes y Saldo Después estimado.
+- **Comparativa Visual de Candidatas:** Cuando existen varias facturas posibles para aplicar el abono, se despliegan tarjetas comparativas con sus folios, totales y saldos, resaltando cuándo el abono liquidará al 100% la factura.
+- **Transparencia en Aclaraciones:** El panel de aclaración muestra el motivo de la duda en lenguaje comprensible y no deja preseleccionada una factura o una orden incorrecta.
+
+### 📊 Listado de Órdenes con Semáforo y Alta Legibilidad
+
+- **Visibilidad Inmediata del Estado Financiero:** Se clarificó la relación entre Facturación acumulada con IVA, Monto Cobrado y Saldo Vivo pendiente de cobro.
+- **Badges de Contraste y Semáforos:** Destacado visual con fondo y borde distintivo para saldos vencidos/pendientes (rojo suave) vs. saldos liquidados al 100% (verde esmeralda).
+- **Tooltips Explicativos:** Información contextual inmediata al pasar el cursor sobre las columnas de totales.
+
+### 📝 Formularios Estructurados y Etiquetas Obligatorias
+
+- **Marcación Explícita de Obligatoriedad:** Incorporación de asterisco rojo (*) visible en campos indispensables (Folio Interno, No. OC Providencia, Kilos Pedidos, Precio Venta y Costo Compra).
+- **Validación Contextual y Resguardo de Captura:** Los formularios conservan lo ingresado ante fallos recuperables para evitar pérdida de tiempo al operador.
+
+### 🧪 Verificación y Suite de Integridad
+
+- **295 Pruebas Unitarias y E2E en Verde:** 40 suites de prueba validadas al 100% en Vitest.
+- **Cero Errores TypeScript:** Compilación estricta y limpia tanto en frontend como en Cloud Functions.
+
+---
+
 ## [v9.10.26] - 09 Octubre 2026 (Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia)
 
 ### 🚫 Erradicación de Asignación por Omisión (`orders[0]`) y Panel de Aclaración

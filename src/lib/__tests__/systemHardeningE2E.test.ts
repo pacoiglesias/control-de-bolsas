@@ -15,8 +15,10 @@ vi.mock('../safeFirestore', () => ({
 }));
 
 const mockLogAction = vi.fn().mockResolvedValue(undefined);
+const mockLogMandatoryAction = vi.fn().mockResolvedValue(undefined);
 vi.mock('../logger', () => ({
   logAction: (...args: any[]) => mockLogAction(...args),
+  logMandatoryAction: (...args: any[]) => mockLogMandatoryAction(...args),
 }));
 
 let mockUploadError = false;
@@ -46,8 +48,11 @@ vi.mock('firebase/firestore', async () => {
     })),
     runTransaction: vi.fn(async (_db, callback) => {
       const mockTxn = {
-        get: vi.fn(async () => ({
-          exists: () => true,
+        get: vi.fn(async (docRef: any) => ({
+          exists: () => {
+            if (docRef?.path?.includes('payment_receipts')) return false;
+            return true;
+          },
           data: () => currentMockOrder || {},
         })),
         update: vi.fn(),
@@ -489,8 +494,8 @@ describe('System Hardening & Resilience Suite (12 Core Scenarios)', () => {
     expect(result.message).toContain('ocurrió un error al respaldar el archivo en Storage');
   });
 
-  // 12. Registro de auditoría en importación manual forzada
-  it('12. Registra auditoría logAction cuando se provee manualDecisionAudit', async () => {
+  // 12. Registro de auditoría en importación manual forzada con logMandatoryAction
+  it('12. Registra auditoría obligatoria cuando se provee manualDecisionAudit', async () => {
     const order = buildBaseOrder();
     const auditFile = new File(['AUDIT-TEST-DATA-999'], 'audited_import.pdf', { type: 'application/pdf' });
 
@@ -509,6 +514,11 @@ describe('System Hardening & Resilience Suite (12 Core Scenarios)', () => {
       detectedOcNumber: '12026439784',
       autoAssignedLabel: '',
       needsClarification: false,
+      manualDecisionAudit: {
+        user: 'supervisor@ruenisco.com',
+        date: '2026-10-09T10:00:00Z',
+        reason: 'Resolución de discrepancia de folio autorizada',
+      },
     };
 
     const auditParams = {
@@ -521,14 +531,165 @@ describe('System Hardening & Resilience Suite (12 Core Scenarios)', () => {
 
     const result = await applyDocumentFast(analysis, order, undefined, auditParams);
     expect(result.success).toBe(true);
-    expect(mockLogAction).toHaveBeenCalledWith(
+    expect(mockLogMandatoryAction).toHaveBeenCalledWith(
       'supervisor@ruenisco.com',
       'FORCED_DOCUMENT_IMPORT',
       expect.objectContaining({
-        metadata: expect.objectContaining({
-          orderId: order.id,
-        }),
+        orderId: order.id,
+        folio: '7999',
       })
     );
   });
+
+  // 13. Dos pagos distintos de la misma orden no se bloquean como duplicados
+  it('13. Dos pagos distintos de la misma orden con referencias bancarias diferentes no se confunden ni se bloquean', () => {
+    const order = buildBaseOrder();
+    order.invoices![0].collection!.paymentsHistory = [
+      {
+        receiptId: 'SPEI-PAGO-01',
+        amount: 25000,
+        reference: 'SPEI-PAGO-01',
+        date: '2026-10-09',
+      } as any,
+    ];
+
+    // Pago 2 con diferente referencia bancaria y monto idéntico
+    const resultDup = findExistingPayment([order], {
+      trackingKey: 'SPEI-PAGO-02',
+      bankReference: 'REF-BANCARIA-02',
+      amount: 25000,
+      date: '2026-10-09',
+    });
+
+    expect(resultDup.isDuplicate).toBe(false);
+  });
+
+  // 14. Idempotencia intersesión: comprobante con la misma referencia bancaria se detecta como duplicado
+  it('14. Comprobante con la misma referencia bancaria se detecta de inmediato como duplicado', () => {
+    const order = buildBaseOrder();
+    order.invoices![0].collection!.paymentsHistory = [
+      {
+        receiptId: 'SPEI-YA-APLICADO-777',
+        amount: 50000,
+        reference: 'SPEI-YA-APLICADO-777',
+        date: '2026-10-09',
+      } as any,
+    ];
+
+    const resultDup = findExistingPayment([order], {
+      trackingKey: 'SPEI-YA-APLICADO-777',
+      amount: 50000,
+      date: '2026-10-09',
+    });
+
+    expect(resultDup.isDuplicate).toBe(true);
+    expect(resultDup.reason).toContain('SPEI-YA-APLICADO-777');
+  });
+
+  // 15. Fallo de auditoría obligatoria no deja la operación forzada sin trazabilidad
+  it('15. Falla de bitácora obligatoria aborta la operación forzada y no crea registros', async () => {
+    mockLogMandatoryAction.mockRejectedValueOnce(new Error('Network audit log failed'));
+    const order = buildBaseOrder();
+    const auditFile = new File(['AUDIT-FAIL-DATA'], 'audited_fail.pdf', { type: 'application/pdf' });
+
+    const analysis: PipelineAnalysis = {
+      file: auditFile,
+      docType: 'factura_cfdi',
+      confidence: 'alta',
+      folio: '7998',
+      matchedOrder: order,
+      isDuplicate: false,
+      kilos: 500,
+      subtotal: 21500,
+      total: 24940,
+      docDate: '2026-10-09',
+      detectedOcNumber: '12026439784',
+      autoAssignedLabel: '',
+      needsClarification: false,
+      forceApply: true,
+      manualDecisionAudit: {
+        user: 'admin@ruenisco.com',
+        date: '2026-10-09T10:00:00Z',
+        reason: 'Forzada',
+      },
+    };
+
+    const result = await applyDocumentFast(analysis, order);
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('falló el registro obligatorio en la bitácora de auditoría');
+  });
+
+  // 16. Rechazo de contrarrecibo si excede el límite de 500 operaciones atómicas
+  it('16. Rechaza contrarrecibo antes de escribir si ampara más de 500 órdenes distintas', async () => {
+    const hugeOrdersList: PurchaseOrder[] = [];
+    const foliosToAmparar: string[] = [];
+
+    for (let i = 0; i < 505; i++) {
+      const o = buildBaseOrder(`ord-bulk-${i}`, `FOLIO-${i}`);
+      o.invoices![0].id = `inv-bulk-${i}`;
+      o.invoices![0].folio = `FAC-${i}`;
+      hugeOrdersList.push(o);
+      foliosToAmparar.push(`FAC-${i}`);
+    }
+
+    const analysis: PipelineAnalysis = {
+      file: mockFile,
+      docType: 'contrarecibo',
+      confidence: 'alta',
+      folio: 'CR-OVERSIZED-500',
+      contrareciboNumber: 'CR-OVERSIZED-500',
+      facturaFolios: foliosToAmparar,
+      matchedOrder: hugeOrdersList[0],
+      isDuplicate: false,
+      kilos: 0,
+      subtotal: 5000000,
+      total: 5000000,
+      docDate: '2026-10-09',
+      detectedOcNumber: '',
+      autoAssignedLabel: '',
+      needsClarification: false,
+    };
+
+    const result = await applyDocumentFast(analysis, hugeOrdersList[0], hugeOrdersList);
+    expect(result.success).toBe(false);
+    expect(result.reviewReason).toContain('límite atómico de 500 órdenes');
+    expect(mockBatchCommit).not.toHaveBeenCalled();
+  });
+
+  // 17. Atomicidad estricta en batch.commit: si falla, no se ejecuta ningún fallback secuencial
+  it('17. Si writeBatch.commit falla, retorna error atómico y no realiza escrituras parciales', async () => {
+    mockBatchCommit.mockRejectedValueOnce(new Error('Simulated writeBatch.commit atomic failure'));
+    const { safeUpdateDoc } = await import('../safeFirestore');
+    vi.mocked(safeUpdateDoc).mockClear();
+
+    const order1 = buildBaseOrder('ord-1', '43/9784');
+    const order2 = buildBaseOrder('ord-2', '71/14302');
+    order2.invoices![0].id = 'inv-202';
+    order2.invoices![0].folio = '6354';
+
+    const analysis: PipelineAnalysis = {
+      file: mockFile,
+      docType: 'contrarecibo',
+      confidence: 'alta',
+      folio: 'CR-ATOMIC-FAIL',
+      contrareciboNumber: 'CR-ATOMIC-FAIL',
+      facturaFolios: ['6353', '6354'],
+      matchedOrder: order1,
+      isDuplicate: false,
+      kilos: 0,
+      subtotal: 100000,
+      total: 100000,
+      docDate: '2026-10-09',
+      detectedOcNumber: '',
+      autoAssignedLabel: '',
+      needsClarification: false,
+    };
+
+    const result = await applyDocumentFast(analysis, order1, [order1, order2]);
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('El lote fue cancelado por completo y ninguna orden fue alterada');
+    // Verificar que NO hubo llamadas al fallback secuencial safeUpdateDoc
+    expect(safeUpdateDoc).not.toHaveBeenCalled();
+  });
 });
+

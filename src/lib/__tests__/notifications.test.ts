@@ -1,4 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../../lib/firebase', () => ({
+  db: {},
+  PATHS: { notifications: 'notifications' },
+}));
+
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(),
+  doc: vi.fn(),
+  getDocs: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  setDoc: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  addDoc: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  updateDoc: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  writeBatch: vi.fn().mockReturnValue({
+    update: vi.fn(),
+    commit: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  }),
+  query: vi.fn(),
+  where: vi.fn(),
+  orderBy: vi.fn(),
+  limit: vi.fn(),
+  serverTimestamp: vi.fn(),
+}));
+
 import {
   getNotifications,
   markAsRead,

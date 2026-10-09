@@ -50,6 +50,28 @@ export async function logAction(userEmail: string | undefined | null, action: st
 }
 
 /**
+ * Registra una acción de auditoría obligatoria. Si el usuario no está autenticado
+ * o la escritura a la bitácora falla, arroja un error para abortar la operación sin dejarla sin trazabilidad.
+ */
+export async function logMandatoryAction(userEmail: string | undefined | null, action: string, details: any): Promise<void> {
+  if (!userEmail || !userEmail.trim()) {
+    throw new Error('No se puede completar la operación de auditoría obligatoria: falta identidad de usuario autenticado.');
+  }
+  const normalizedEmail = userEmail.toLowerCase().trim();
+  try {
+    await safeAddDoc(collection(db, 'system_logs'), {
+      user: normalizedEmail,
+      action,
+      details,
+      timestamp: serverTimestamp(),
+    });
+  } catch (err: any) {
+    console.error('Error crítico al escribir bitácora obligatoria:', err);
+    throw new Error(`Fallo crítico de auditoría obligatoria: ${err?.message || err}. Operación abortada.`);
+  }
+}
+
+/**
  * Auditoría de Borrados (Soft Deletes / Papelera).
  * Registra el objeto completo en la bitácora y lo marca como eliminado (isDeleted).
  */

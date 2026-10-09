@@ -194,7 +194,7 @@ export default function TabResumen() {
               gap: 10,
             }}
           >
-            <Field label="Folio Interno">
+            <Field label={<>Folio Interno <span style={{ color: '#ef4444' }}>*</span></>}>
               <input
                 className="input boxed mono"
                 style={{ padding: '6px 10px', fontSize: 13 }}
@@ -204,7 +204,7 @@ export default function TabResumen() {
               />
             </Field>
 
-            <Field label="No. OC Providencia">
+            <Field label={<>No. OC Providencia <span style={{ color: '#ef4444' }}>*</span></>}>
               <input
                 className="input boxed mono"
                 style={{ padding: '6px 10px', fontSize: 13 }}
@@ -238,7 +238,7 @@ export default function TabResumen() {
               />
             </Field>
 
-            <Field label="Kilos Pedidos (Total)">
+            <Field label={<>Kilos Pedidos (Total) <span style={{ color: '#ef4444' }}>*</span></>}>
               <input
                 className="input boxed mono"
                 style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700 }}
@@ -278,7 +278,7 @@ export default function TabResumen() {
               alignItems: 'flex-start',
             }}
           >
-            <Field label="Precio Venta $/kg">
+            <Field label={<>Precio Venta $/kg <span style={{ color: '#ef4444' }}>*</span></>}>
               <input
                 className="input boxed mono"
                 style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}
@@ -291,7 +291,7 @@ export default function TabResumen() {
               />
             </Field>
 
-            <Field label={`Costo Compra (${provName})`}>
+            <Field label={<>{`Costo Compra (${provName})`} <span style={{ color: '#ef4444' }}>*</span></>}>
               <input
                 className="input boxed mono"
                 style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700 }}

@@ -1,7 +1,6 @@
 import type { NavigateFunction } from 'react-router-dom';
 import { PriorityActionQueue } from '../PriorityActionQueue';
 import { ExecutivePriorityAlerts } from '../ExecutivePriorityAlerts';
-import { MorningBriefingWidget } from '../MorningBriefingWidget';
 import { CashFlowSimulatorWidget } from '../CashFlowSimulatorWidget';
 import { ExecutiveFinancialCard } from '../ExecutiveFinancialCard';
 import { ActiveOrdersMobileCards } from '../ActiveOrdersMobileCards';
@@ -34,11 +33,11 @@ export function DashboardExecutiveView({
   onOpenQuickInvoice,
   onOpenQuickCollection,
   onOpenQuickDelivery,
-  onOpenUniversalUpload,
+  onOpenUniversalUpload: _onOpenUniversalUpload,
 }: DashboardExecutiveViewProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 0. Lista de Trabajo Priorizada (Atención Inmediata del Día) */}
+      {/* 0. Centro Operativo Unificado: Qué Requiere Atención Hoy */}
       <PriorityActionQueue
         orders={seguimientoOrders}
         config={config}
@@ -47,15 +46,7 @@ export function DashboardExecutiveView({
         onOpenQuickDelivery={onOpenQuickDelivery}
       />
 
-      {/* 0.5 Asistente Matutino de Tareas Clave */}
-      <MorningBriefingWidget
-        orders={seguimientoOrders}
-        config={config}
-        onOpenQuickCollection={onOpenQuickCollection}
-        onOpenUniversalUpload={onOpenUniversalUpload}
-      />
-
-      {/* 1. Radar Ejecutivo de Atención Prioritaria (Nava 1500kg, Evelia Esperando OC, Cobranza) */}
+      {/* 1. Radar Ejecutivo de OCs Oficiales (TH Nava 8,000 kg & GT Evelia 5,100 kg) */}
       <ExecutivePriorityAlerts
         orders={seguimientoOrders}
         config={config}

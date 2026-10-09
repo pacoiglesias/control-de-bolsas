@@ -1,4 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../../lib/firebase', () => ({
+  db: {},
+  PATHS: { history: 'history' },
+}));
+
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(),
+  doc: vi.fn(),
+  getDocs: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  setDoc: vi.fn().mockRejectedValue(new Error('Entorno de pruebas mock offline')),
+  serverTimestamp: vi.fn(),
+}));
+
 import {
   getDefaultSuggestions,
   saveLocalHistory,
