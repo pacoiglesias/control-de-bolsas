@@ -1,6 +1,6 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
-## [v9.10.25] - 09 Octubre 2026 (Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia)
+## [v9.10.26] - 09 Octubre 2026 (Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia)
 
 ### 🚫 Erradicación de Asignación por Omisión (`orders[0]`) y Panel de Aclaración
 

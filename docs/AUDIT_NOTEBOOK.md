@@ -1,3 +1,19 @@
+### Iteración 131: Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos y Suite E2E (v9.10.26)
+[2026-10-09]
+Archivos: `package.json`, `functions/package.json`, `src/lib/autoDocumentPipeline.ts`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/lib/finance.ts`, `src/pages/Dashboard.tsx`, `src/lib/__tests__/systemHardeningE2E.test.ts`, `src/lib/latestRelease.ts`, `docs/CHANGELOG.md`
+Problema:
+1. Asignación forzada usaba arbitrariamente `orders[0]` cuando no se identificaba una orden coincidente.
+2. Contrarrecibos sobreescribían a ciegas contrarrecibos existentes sin detectar colisión ni permitir reemplazo forzado controlado.
+3. Precios unitarios recurrían a fallbacks duros de $43 y $38, confundiendo $0.00 legítimo con valor ausente.
+4. Falta de bloqueo concurrente y huella binaria determinista contra archivos duplicados con distinto nombre.
+Solución:
+1. Erradicación total de `orders[0]` y selector obligatorio con datos distintivos de la orden.
+2. Panel unificado de aclaración y confirmación en `GlobalDropzoneHUD` con resumen de impacto y auditoría `logAction(FORCED_DOCUMENT_IMPORT)`.
+3. Contrarrecibos con detección de colisión (`hasCrCollision`) y actualización atómica multiorden con `writeBatch(db)`.
+4. Soporte estricto de precios dinámicos, retención a revisión (`needsReview`) ante precio faltante y respeto a $0.00.
+5. Deduplicación por hash SHA-256 binario (`computeFileContentFingerprint`) y candado en memoria (`inFlightOperations`).
+6. Suite E2E con 12 pruebas automatizadas y 290 pruebas totales en verde.
+
 ### Iteración 130: Cierre Integral de Riesgos de Integridad, Firestore Rules, Contrarecibos Multiorden y Pagos Transaccionales (v9.10.25)
 [2026-10-09]
 Archivos: `firestore.rules`, `src/lib/autoDocumentPipeline.ts`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/hooks/useInvoiceParser.ts`, `src/lib/__tests__/auditSeniorIntegritySuite.test.ts`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `docs/AUDIT_NOTEBOOK.md`

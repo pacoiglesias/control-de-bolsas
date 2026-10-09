@@ -7,10 +7,10 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.25: Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia',
+  version: 'v9.10.26: Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos, Precios Dinámicos y Suite E2E de Resiliencia',
   date: '09 de Octubre de 2026',
-  time: '08:45 AM',
-  summary: 'v9.10.25: Refuerzo integral de confiabilidad, seguridad y operatividad del ERP: Erradicación definitiva de asignaciones arbitrarias a órdenes por omisión (eliminación de orders[0]); panel unificado de aclaración y confirmación en GlobalDropzoneHUD con selección obligatoria de orden destino, resumen previo y auditoría formal (logAction); contrarrecibos multiorden con validación previa de todos los folios, prevención de colisiones (hasCrCollision), escrituras atómicas (writeBatch) y reporte coordinado de Storage (storageWarning); cálculos financieros sin fallbacks fijos a $43 o $38, distinguiendo $0.00 legítimo de precio ausente (needsReview); deduplicación determinista por contenido binario (SHA-256), candado de concurrencia en memoria (inFlightOperations); y suite de 290 pruebas automatizadas en verde.',
+  time: '09:15 AM',
+  summary: 'v9.10.26: Refuerzo integral de confiabilidad, seguridad y operatividad del ERP: Erradicación definitiva de asignaciones arbitrarias a órdenes por omisión (eliminación de orders[0]); panel unificado de aclaración y confirmación en GlobalDropzoneHUD con selección obligatoria de orden destino, resumen previo y auditoría formal (logAction); contrarrecibos multiorden con validación previa de todos los folios, prevención de colisiones (hasCrCollision), escrituras atómicas (writeBatch) y reporte coordinado de Storage (storageWarning); cálculos financieros sin fallbacks fijos a $43 o $38, distinguiendo $0.00 legítimo de precio ausente (needsReview); deduplicación determinista por contenido binario (SHA-256), candado de concurrencia en memoria (inFlightOperations); y suite de 290 pruebas automatizadas en verde.',
   highlights: [
     '🚫 Erradicación de Asignación por Omisión (orders[0]): Ningún documento se asigna a ciegas; si no hay orden coincidente o se fuerza la importación, el operador debe seleccionar obligatoriamente la orden destino con datos distintivos visibles.',
     '📋 Panel de Aclaración y Confirmación con Auditoría: Interfaz en GlobalDropzoneHUD que despliega motivos claros, resumen previo con impacto contable, captura de notas y registro inmutable en auditoría (FORCED_DOCUMENT_IMPORT). Sin avance automático ciego en errores.',
