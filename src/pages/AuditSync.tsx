@@ -105,8 +105,8 @@ export default function AuditSync() {
 
   // Pestaña Ajustador Masivo
   const [batchTarget] = useState<'all' | 'pending' | 'providencia'>('pending');
-  const [batchSalePrice, setBatchSalePrice] = useState<number>(config.salePricePerKg || 43);
-  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg || 38);
+  const [batchSalePrice, setBatchSalePrice] = useState<number>(config.salePricePerKg ?? 43);
+  const [batchCostPrice, setBatchCostPrice] = useState<number>(config.costPricePerKg ?? 38);
 
   // Pestaña Archivo Excel Tradicional
   const [file, setFile] = useState<File | null>(null);
@@ -129,8 +129,8 @@ export default function AuditSync() {
 
     activeOrders.forEach((o) => {
       const invoices = o.invoices || [];
-      const defaultSale = config.salePricePerKg || 43;
-      const pVenta = o.customSellPrice || defaultSale;
+      const defaultSale = config.salePricePerKg ?? 43;
+      const pVenta = o.customSellPrice ?? defaultSale;
 
       if (invoices.length === 0) {
         const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
@@ -317,13 +317,13 @@ export default function AuditSync() {
       rawOrder: PurchaseOrder;
     }[] = [];
 
-    const defaultSale = config.salePricePerKg || 43;
-    const defaultCost = config.costPricePerKg || 38;
+    const defaultSale = config.salePricePerKg ?? 43;
+    const defaultCost = config.costPricePerKg ?? 38;
     const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
-      const pVenta = o.customSellPrice || defaultSale;
-      const pCosto = o.customCostPrice || defaultCost;
+      const pVenta = o.customSellPrice ?? defaultSale;
+      const pCosto = o.customCostPrice ?? defaultCost;
       const invoices = o.invoices || [];
 
       if (invoices.length === 0) {
@@ -509,8 +509,8 @@ export default function AuditSync() {
         }
       } else if (field === 'kilos') {
         const numKilos = Math.max(0, Number(value) || 0);
-        const pVenta = order.customSellPrice || config.salePricePerKg || 43;
-        const pCosto = order.customCostPrice || config.costPricePerKg || 38;
+        const pVenta = order.customSellPrice ?? config.salePricePerKg ?? 43;
+        const pCosto = order.customCostPrice ?? config.costPricePerKg ?? 38;
 
         if (invoices.length > 0) {
           const updatedInvoices = invoices.map((inv) => {

@@ -211,7 +211,11 @@ export async function extractTextFromImage(file: File): Promise<string> {
     return bestText;
   } catch (err) {
     if (worker) {
-      try { await worker.terminate(); } catch {}
+      try {
+        await worker.terminate();
+      } catch (termErr) {
+        console.warn('No se pudo terminar worker en catch:', termErr);
+      }
     }
     console.warn('Fallback OCR without language model', err);
     return '';

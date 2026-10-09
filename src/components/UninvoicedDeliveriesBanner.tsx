@@ -12,8 +12,8 @@ import { DEFAULT_CONFIG } from '../lib/types';
  */
 export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[] }) {
   const { config } = useConfig();
-  const salePrice = config?.salePricePerKg || DEFAULT_CONFIG.salePricePerKg || 43;
-  const ivaRate = config?.ivaRate || DEFAULT_CONFIG.ivaRate || 0.16;
+  const salePrice = config?.salePricePerKg ?? DEFAULT_CONFIG.salePricePerKg ?? 43;
+  const ivaRate = config?.ivaRate ?? DEFAULT_CONFIG.ivaRate ?? 0.16;
 
   const patioList = useMemo(() => {
     const list: {

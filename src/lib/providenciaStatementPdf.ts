@@ -253,7 +253,8 @@ export function buildProvidenciaStatementDataFromOrders(orders: PurchaseOrder[],
       const kg = Number(inv.kilos) || 0;
       totalKilos += kg;
 
-      const subtotal = inv.financials?.saleTotal ?? round2(kg * (inv.financials?.salePricePerKg || config?.salePricePerKg || 43));
+      const unitSale = inv.financials?.salePricePerKg ?? o.customSellPrice ?? config?.salePricePerKg ?? 43;
+      const subtotal = inv.financials?.saleTotal ?? round2(kg * unitSale);
       const total = inv.financials?.invoiceTotal ?? round2(subtotal * 1.16);
       const iva = round2(total - subtotal);
       const paid = Number(inv.collection?.paidAmount) || 0;

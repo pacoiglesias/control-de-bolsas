@@ -7,16 +7,16 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.27: Rediseño Visual y Operativo Diario, Comparador de Facturas y Saldos en Pagos, Centro de Atención Unificado y Formularios Claros',
+  version: 'v9.10.28: Blindaje Criptográfico de Pagos, Reglas Firestore de Esquema, Preservación de Cero ($0.00) y Cero Warnings de Linter',
   date: '09 de Octubre de 2026',
-  time: '10:20 AM',
-  summary: 'v9.10.27: Traducción total del endurecimiento técnico a mejoras visuales y operativas de interfaz diaria: Centro de Atención Requerida Hoy unificado en el Dashboard sin widgets repetidos, con acceso directo a facturar entrega, cobrar vencidos o aclarar documentos; comparador visual de facturas en el HUD de pagos con desglose interactivo de total, pagos anteriores, saldo antes y saldo después de cada abono; semáforos de alta legibilidad en el listado de órdenes (Folio, Cliente, Kilos, Facturación c/IVA y Saldo Vivo); formularios ordenados por tarea con campos obligatorios marcados con asterisco (*); y 295 pruebas unitarias 100% en verde.',
+  time: '11:35 AM',
+  summary: 'v9.10.28: Endurecimiento integral de seguridad de pagos, esquema de base de datos y consistencia financiera: Erradicación de referencias bancarias débiles (folios o nombres de archivo) con obligatoriedad de clave de rastreo SPEI o huella SHA-256 binaria; identificadores canónicos sin colisión por hashing determinista; reglas de seguridad Firestore reforzadas en /payment_receipts con validación estricta de esquema y roles; preservación de precios y costos legítimos a $0.00 mediante coalescencia nula (??); eliminación del 100% de errores y advertencias de linter; y 304 pruebas automatizadas en verde.',
   highlights: [
-    '🎯 Centro Operativo "Atención Requerida Hoy": Unificación del panel principal del Dashboard, eliminando redundancias para priorizar órdenes con alertas, facturas por timbrar, cobranza vencida y pagos por conciliar con botones directos de acción.',
-    '💳 Comparador y Desglose Financiero de Facturas y Saldos: Visualización instantánea del impacto de un abono (Total Factura, Pagos Anteriores, Saldo Antes y Saldo Después con aviso de liquidación 100%) antes de confirmar en el HUD de pagos.',
-    '📊 Tabla de Órdenes con Semáforo y Lectura Clara: Distinción visual entre facturación c/IVA, cobrado efectivo y saldo pendiente con badges accesibles de alto contraste, reduciendo la necesidad de abrir múltiples pantallas.',
-    '📝 Formularios Estructurados por Tareas: Marcación explícita de campos obligatorios (*) en datos de orden, precios de venta y costos de maquila, conservando la información ante errores recuperables.',
-    '🛡️ Transacciones Atómicas e Idempotencia con Trazabilidad: Deduplicación binaria SHA-256, atomicidad con writeBatch en contrarrecibos multiorden y registro obligatorio en auditoría.',
-    '🧪 295 Pruebas Unitarias y E2E 100% en Verde: Aislamiento determinista en 40 suites sin peticiones gRPC externas.',
+    '🔒 Blindaje de Identidad de Pagos Bancarios: Rechazo automático de referencias débiles (nombre de archivo, OC o folio de orden) sin clave SPEI, referencia bancaria o huella criptográfica SHA-256, enviando a revisión manual obligatoria con motivo detallado.',
+    '🔑 Identificadores Libres de Colisión: Generación determinista de claves de almacenamiento con hash hexadecimal (BANK_..._hash o SHA256_...) para evitar sobrescrituras de documentos con caracteres especiales o nombres normalizados idénticos.',
+    '🛡️ Reglas de Seguridad Firestore de Esquema (/payment_receipts): Validación en base de datos que exige rol de gerencia o administración, correspondencia exacta entre receiptKey y docId, monto positivo, trazabilidad de appliedBy y appliedAt.',
+    '💵 Preservación de Precios y Costos a Cero ($0.00): Reemplazo universal de operadores || por coalescencia nula (??) en reportes de utilidad, prefacturas, calculadora flotante, banners de báscula y sincronización con Excel, respetando fletes bonificados y muestras sin forzar $43/$38.',
+    '🧹 Linter y TypeScript al 100% Limpio: Eliminación total de advertencias y errores (no-useless-escape, no-empty, imports huérfanos y chequeo estricto de tipos con tsc).',
+    '🧪 Suite Integral de 304 Pruebas Automatizadas en Verde (41 archivos de prueba): Cobertura completa de modelos financieros, pipeline de documentos, transacciones de pagos y reglas de acceso.',
   ],
 };

@@ -1,5 +1,26 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.28] - 09 Octubre 2026 (Blindaje Criptográfico de Pagos Bancarios, Reglas Firestore de Esquema, Preservación de Cero y Cero Warnings)
+
+### 🔒 Blindaje Criptográfico y Eliminación de Referencias Débiles en Pagos
+- **Rechazo de Referencias Débiles:** Se erradicó el auto-aplicar comprobantes de pago basados exclusivamente en el folio de la orden, número de OC o nombre de archivo (`pago.pdf` + monto).
+- **Identidad Obligatoria:** Exige clave de rastreo SPEI oficial, referencia bancaria autorizada o huella criptográfica SHA-256 binaria del comprobante; en su defecto, envía a revisión manual obligatoria con motivo explícito.
+- **Identificadores Libres de Colisión:** Generación canónica de claves de almacenamiento mediante hashing determinista DJB2 (`BANK_${cleanRef}_${hexHash}` o `SHA256_${sha256Key}`).
+
+### 🛡️ Reglas de Seguridad de Firestore Hardened (`/payment_receipts`)
+- **Validación Estricta de Esquema:** Reglas de base de datos que requieren rol de gerencia o administración (`isManagerOrAdmin`), correspondencia obligatoria de `receiptKey == receiptId`, `orderId` válido, monto mayor a cero, referencia bancaria o huella SHA-256 no vacía, y sellos de auditoría `appliedAt` y `appliedBy`.
+- **Prevención de Bloqueo Arbitrario de IDs:** Se impide registrar comprobantes con claves desalineadas del documento para neutralizar ataques de secuestro de identificadores.
+
+### 💵 Preservación Universal de Precio Cero ($0.00)
+- **Coalescencia Nula (`??`):** Reemplazo sistemático de operadores `|| 43` y `|| 38` en todos los generadores de reportes, cálculo de utilidad neta, banners de entregas sin facturar, calculadora flotante de kilos, generador de prefacturas y sincronizador de Excel.
+- **Distinción de Muestras y Fletes Bonificados:** Los precios y costos legítimos a $0.00 MXN se respetan fielmente sin forzar precios estándar no aplicables.
+
+### 🧹 Calidad de Código y Pruebas Automatizadas
+- **Cero Warnings y Cero Errores de Linter:** Se corrigieron escapes innecesarios en expresiones regulares y manejo seguro en terminación de workers OCR (`npm run lint` 100% limpio).
+- **Suite Integral de 304 Pruebas en Verde (41 archivos de prueba):** Pruebas unitarias, modelos financieros, pipeline de documentos y validaciones de seguridad de base de datos pasando con éxito.
+
+---
+
 ## [v9.10.27] - 09 Octubre 2026 (Rediseño Visual y Operativo Diario, Comparador de Facturas y Saldos en Pagos, Centro de Atención Unificado y Formularios Claros)
 
 ### 🎯 Centro Operativo Unificado en Dashboard ("Qué Requiere Atención Hoy")

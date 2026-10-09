@@ -312,11 +312,27 @@ service cloud.firestore {
       allow write: if isAuthenticatedUser() && (request.auth.uid == uid || isSuperAdmin());
     }
 
-    // Idempotencia compartida y registro inmutable de comprobantes de pago procesados
+    // Idempotencia compartida y registro inmutable de comprobantes de pago procesados.
+    // Solo accesible por gerencia/administración para evitar exposición de datos bancarios.
+    // Validación estricta de esquema para impedir que un usuario cree identificadores arbitrarios que bloqueen pagos legítimos.
     match /payment_receipts/{receiptId} {
-      allow read: if isAuthenticatedUser();
-      allow create: if isAuthenticatedUser();
-      allow update, delete: if false;
+      allow read: if isManagerOrAdmin();
+      allow create: if isManagerOrAdmin()
+        && request.resource.data.receiptKey == receiptId
+        && request.resource.data.orderId is string
+        && request.resource.data.orderId.size() > 0
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && (
+          (request.resource.data.trackingKey is string && request.resource.data.trackingKey.size() > 0)
+          || (request.resource.data.bankReference is string && request.resource.data.bankReference.size() > 0)
+          || (request.resource.data.fileSha256 is string && request.resource.data.fileSha256.size() >= 32)
+        )
+        && request.resource.data.appliedAt != null
+        && request.resource.data.appliedBy is string
+        && request.resource.data.appliedBy.size() > 0;
+      allow update: if false;
+      allow delete: if isSuperAdmin();
     }
 
     // Todo lo demás queda cerrado.

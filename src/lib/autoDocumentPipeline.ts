@@ -133,6 +133,8 @@ export interface PipelineApplyResult {
   reviewReason?: string;
   multipleInvoicesCandidate?: boolean;
   candidateInvoices?: Array<{ id: string; folio?: string; balance: number }>;
+  targetInvoiceId?: string;
+  targetInvoiceFolio?: string;
   storageWarning?: boolean;
 }
 
@@ -1708,11 +1710,6 @@ export async function applyDocumentFast(
       };
     }
 
-    const rawRef = (analysis.trackingKey || analysis.bankReference || analysis.folio || analysis.detectedOcNumber || '').trim().toUpperCase();
-    const sha256Key = (analysis.fileContentSha256 || analysis.contentHash || '').trim().toUpperCase() || null;
-    const paymentRefKey = rawRef || sha256Key || `PAGO-${analysis.file?.name?.trim().toUpperCase() || 'DOC'}-${paymentAmount}`;
-    const sanitizedReceiptKey = paymentRefKey.replace(/[^A-Z0-9_\-]/g, '_');
-
     // Función auxiliar para determinar el total facturado sin asumir un fallback fijo a 43
     const computeSafeInvoiceTotal = (inv: any): number | null => {
       if (inv.financials?.invoiceTotal !== undefined && inv.financials?.invoiceTotal !== null) {
@@ -1819,6 +1816,56 @@ export async function applyDocumentFast(
     }
 
     const matchedInv = currentInvoices[targetInvIdx];
+
+    // Identidad bancaria fuerte (clave de rastreo SPEI o autorización/referencia bancaria)
+    const strongBankRef = (analysis.trackingKey || analysis.bankReference || '').trim().toUpperCase();
+    let sha256Key = (analysis.fileContentSha256 || analysis.contentHash || '').trim().toUpperCase() || null;
+    if (!sha256Key && analysis.file) {
+      try {
+        sha256Key = (await computeFileContentFingerprint(analysis.file)) || null;
+      } catch {
+        // Ignorar error al leer huella si el archivo no es procesable
+      }
+    }
+
+    // Regla de integridad financiera:
+    // Nunca permitir que una referencia débil (folio de orden, OC, nombre de archivo o nombre + importe)
+    // se trate como identidad confiable del pago. Si no existe referencia bancaria o huella segura,
+    // NO aplicar automáticamente y solicitar revisión manual.
+    if (!strongBankRef && !sha256Key) {
+      return {
+        success: false,
+        needsReview: true,
+        reviewReason: 'Comprobante de pago sin clave de rastreo SPEI, referencia bancaria ni huella digital SHA-256 segura',
+        message: 'El comprobante carece de identidad bancaria o huella digital segura. Para evitar pagos mal asociados o duplicados, se requiere revisión manual obligatoria.',
+        docType: 'comprobante_pago',
+        folio: analysis.folio,
+        kilos: 0,
+        total: paymentAmount,
+        orderId: targetOrder.id,
+        orderFolio: targetOrder.folio || targetOrder.oc,
+        targetInvoiceId: matchedInv.id,
+        targetInvoiceFolio: matchedInv.folio,
+      };
+    }
+
+    // Clave canónica de referencia para el pago
+    const paymentRefKey = strongBankRef || (sha256Key ? `SHA256-${sha256Key}` : '');
+
+    // Generar clave de almacenamiento en payment_receipts que no colisione tras normalizar caracteres.
+    // Usamos la huella SHA-256 (si existe) o un prefijo limpio con hash determinista de los caracteres originales.
+    const sanitizedReceiptKey = sha256Key
+      ? `SHA256_${sha256Key}`
+      : (() => {
+          let hash = 5381;
+          for (let i = 0; i < strongBankRef.length; i++) {
+            hash = ((hash << 5) + hash) + strongBankRef.charCodeAt(i);
+            hash |= 0;
+          }
+          const cleanRef = strongBankRef.replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').slice(0, 36);
+          const hexHash = (hash >>> 0).toString(16).padStart(8, '0');
+          return `BANK_${cleanRef}_${hexHash}`;
+        })();
 
     // Auditoría obligatoria con identidad real si la decisión fue forzada o manual
     if (analysis.manualDecisionAudit || analysis.forceApply) {
@@ -1969,7 +2016,8 @@ export async function applyDocumentFast(
 
           // Registrar en payment_receipts la idempotencia compartida
           txn.set(receiptRef, {
-            receiptKey: paymentRefKey,
+            receiptKey: sanitizedReceiptKey,
+            canonicalRef: paymentRefKey,
             orderId: targetOrder.id,
             orderFolio: targetOrder.folio || targetOrder.oc,
             invoiceId: fInv.id,

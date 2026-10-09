@@ -239,15 +239,15 @@ export function buildNetProfitData(
       const kg = Number(inv.kilos) || 0;
       totalKilosFacturados += kg;
 
-      const effectiveSalePrice = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config?.salePricePerKg || 43);
+      const effectiveSalePrice = inv.financials?.salePricePerKg ?? (o.customSellPrice !== undefined && o.customSellPrice !== null ? Number(o.customSellPrice) : (config?.salePricePerKg ?? 43));
       const invSubtotal = (inv.financials as any)?.subtotal ?? inv.financials?.saleTotal ?? round2(kg * effectiveSalePrice);
       subtotalFacturado += invSubtotal;
 
-      const effectiveCostPrice = inv.financials?.costPricePerKg ?? (Number(o.customCostPrice) || config?.costPricePerKg || 38);
+      const effectiveCostPrice = inv.financials?.costPricePerKg ?? (o.customCostPrice !== undefined && o.customCostPrice !== null ? Number(o.customCostPrice) : (config?.costPricePerKg ?? 38));
       const invCost = inv.financials?.costTotal ?? round2(kg * effectiveCostPrice);
       costoAndresTotal += invCost;
 
-      const effectiveCommRate = inv.financials?.commissionRate ?? (Number(o.customCommissionRate) ? Number(o.customCommissionRate) / 100 : (config?.commissionRate || 0.08));
+      const effectiveCommRate = inv.financials?.commissionRate ?? (o.customCommissionRate !== undefined && o.customCommissionRate !== null ? (Number(o.customCommissionRate) > 1 ? Number(o.customCommissionRate) / 100 : Number(o.customCommissionRate)) : (config?.commissionRate ?? 0.08));
       const invComm = inv.financials?.commission ?? round2(invSubtotal * effectiveCommRate);
       comisionContableTotal += invComm;
 

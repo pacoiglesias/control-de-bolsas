@@ -16,13 +16,13 @@ export function FloatingKiloCalculator() {
 
   const [open, setOpen] = useState(false);
   const [kilosInput, setKilosInput] = useState<string>('1000');
-  const [sellPrice, setSellPrice] = useState<number>(config?.salePricePerKg || 43);
-  const [costPrice, setCostPrice] = useState<number>(config?.costPricePerKg || 38);
+  const [sellPrice, setSellPrice] = useState<number>(config?.salePricePerKg ?? 43);
+  const [costPrice, setCostPrice] = useState<number>(config?.costPricePerKg ?? 38);
 
   // Sincronizar con la configuración guardada en Firestore
   useEffect(() => {
-    if (config?.salePricePerKg) setSellPrice(config.salePricePerKg);
-    if (config?.costPricePerKg) setCostPrice(config.costPricePerKg);
+    if (config?.salePricePerKg !== undefined && config?.salePricePerKg !== null) setSellPrice(config.salePricePerKg);
+    if (config?.costPricePerKg !== undefined && config?.costPricePerKg !== null) setCostPrice(config.costPricePerKg);
   }, [config?.salePricePerKg, config?.costPricePerKg]);
 
   useEffect(() => {

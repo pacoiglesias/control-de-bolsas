@@ -88,7 +88,7 @@ export async function exportToExcel() {
       if (!del) return;
       const delDate = toDate(del.date);
       const k = Number(del.kilos) || 0;
-      const unitCost = Number(o.customCostPrice || 38.00);
+      const unitCost = o.customCostPrice !== undefined && o.customCostPrice !== null ? Number(o.customCostPrice) : 38.00;
       const costo = round2(k * unitCost);
 
       maquilaRows.push({

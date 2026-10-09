@@ -96,8 +96,8 @@ export function useAuditoriaCartera(activeOrders: PurchaseOrder[], config: Finan
 
     activeOrders.forEach((o) => {
       const invoices = o.invoices || [];
-      const defaultSale = config.salePricePerKg || 43;
-      const pVenta = o.customSellPrice || defaultSale;
+      const defaultSale = config.salePricePerKg ?? 43;
+      const pVenta = o.customSellPrice ?? defaultSale;
 
       if (invoices.length === 0) {
         const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
@@ -201,16 +201,16 @@ export function useAuditSyncGrid(activeOrders: PurchaseOrder[], config: Financia
   const allRows = useMemo(() => {
     const rows: AuditGridRow[] = [];
 
-    const defaultSale = config.salePricePerKg || 43;
-    const defaultCost = config.costPricePerKg || 38;
+    const defaultSale = config.salePricePerKg ?? 43;
+    const defaultCost = config.costPricePerKg ?? 38;
     // FIX (auditoría v8.9.5): mismo motivo que arriba -- antes 0.08 estaba
     // escrito a mano dos veces en este mismo bloque.
     const comisionRate = config.commissionRate ?? 0.08;
     const seenUniqueKeys = new Set<string>();
 
     activeOrders.forEach((o) => {
-      const pVenta = o.customSellPrice || defaultSale;
-      const pCosto = o.customCostPrice || defaultCost;
+      const pVenta = o.customSellPrice ?? defaultSale;
+      const pCosto = o.customCostPrice ?? defaultCost;
       const invoices = o.invoices || [];
 
       if (invoices.length === 0) {
