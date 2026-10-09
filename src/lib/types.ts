@@ -118,6 +118,9 @@ export interface OrderFinancials {
    *  computeFinancials() en finance.core.ts y lo leen tanto el resumen del
    *  frontend como la agregacion de stats.ts, pero faltaba declararlo aqui. */
   tradeMargin?: number;
+  /** Banderas de auditoría fiscal: si el precio o costo fue derivado por fallback/estimación */
+  isEstimatedPrice?: boolean;
+  isEstimatedCost?: boolean;
 }
 
 export interface CreditCycle {
@@ -152,6 +155,15 @@ export interface CollectionInfo {
   /** Indica si la comisión de contabilidad (el 8%) ya fue liquidada/reconciliada. */
   accountantLiquidated?: boolean;
   accountantLiquidatedAt?: Timestamp | null;
+
+  /** Historial idempotente de abonos y comprobantes bancarios procesados */
+  paymentsHistory?: Array<{
+    receiptId?: string;
+    amount?: number;
+    date?: string | Timestamp | null;
+    reference?: string;
+    notes?: string;
+  }>;
 }
 
 export interface Delivery {
@@ -199,6 +211,8 @@ export interface Invoice {
   creditCycle: CreditCycle;
   collection?: CollectionInfo;
   items?: PurchaseOrderItem[];
+  isEstimatedPrice?: boolean;
+  isEstimatedCost?: boolean;
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
 }

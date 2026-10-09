@@ -10,7 +10,6 @@ import { ProductsProvider } from './context/ProductsContext';
 import { ExpensesProvider } from './context/ExpensesContext';
 import { InvoicesProvider } from './context/InvoicesContext';
 import { PrivacyProvider } from './context/PrivacyContext';
-import { CommandPalette } from './components/CommandPalette';
 import { GlobalSearchHost } from './components/Navigation/GlobalSearchModal';
 import { FloatingKiloCalculator } from './components/FloatingKiloCalculator';
 import { ConfirmDialogHost } from './lib/confirmDialog';
@@ -85,7 +84,6 @@ function AppProviders({ children }: { children: React.ReactNode }) {
               <ExpensesProvider>
                 <ToastProvider>
                   <UndoProvider>
-                    <CommandPalette />
                     <GlobalSearchHost />
                     <GlobalFastFlowsHost />
                     <FloatingKiloCalculator />

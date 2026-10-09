@@ -186,6 +186,7 @@ export function findExistingInvoice(
 
 /**
  * 🛡️ Verifica si una remisión o ticket de báscula ya existe en alguna orden activa
+ * Soporta entregas con folio, entregas sin folio y detección estricta por límites de palabra.
  */
 export function findExistingDelivery(
   orders: PurchaseOrder[],
@@ -201,21 +202,25 @@ export function findExistingDelivery(
     const matchDeliv = (o.deliveries || []).find((d) => {
       if (!d) return false;
       const dFolio = d.docFolio?.trim().toUpperCase();
+
       // 1. Coincidencia por folio exacto de remisión/ticket
       if (cleanFolio && dFolio && dFolio === cleanFolio) return true;
 
-      // 2. Coincidencia por folio contenido en notas
-      if (cleanFolio && cleanFolio.length >= 4 && d.notes?.toUpperCase().includes(cleanFolio)) {
-        return true;
+      // 2. Coincidencia por folio en notas usando límites de palabra para evitar falsos positivos
+      if (cleanFolio && cleanFolio.length >= 4 && d.notes) {
+        const wordRegex = new RegExp(`\\b${cleanFolio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (wordRegex.test(d.notes)) return true;
       }
 
-      // 3. Coincidencia por kilos exactos y fecha idéntica en la misma orden
-      if (kilos > 0 && Math.abs((d.kilos || 0) - kilos) < 0.5) {
-        if (dateCandidate && d.date) {
-          const dDateStr = typeof d.date.toDate === 'function'
-            ? d.date.toDate().toISOString().split('T')[0]
-            : (d.date instanceof Date ? d.date.toISOString().split('T')[0] : String(d.date).split('T')[0]);
-          if (dDateStr === dateCandidate && cleanFolio && cleanFolio === dFolio) {
+      // 3. Coincidencia de entrega SIN FOLIO o por mismo pesaje exacto y misma fecha
+      if (kilos > 0 && dateCandidate && d.date) {
+        const dDateStr = typeof d.date.toDate === 'function'
+          ? d.date.toDate().toISOString().split('T')[0]
+          : (d.date instanceof Date ? d.date.toISOString().split('T')[0] : String(d.date).split('T')[0]);
+
+        if (dDateStr === dateCandidate && Math.abs((d.kilos || 0) - kilos) < 0.05) {
+          // Si ambos carecen de folio, o uno no tiene folio y el pesaje es idéntico al gramo
+          if (!cleanFolio || !dFolio || cleanFolio === dFolio) {
             return true;
           }
         }
@@ -237,6 +242,65 @@ export function findExistingDelivery(
 
   return { isDuplicate: false };
 }
+
+/**
+ * 🛡️ Verifica si un comprobante de pago bancario o SPEI ya fue registrado previamente
+ */
+export function findExistingPayment(
+  orders: PurchaseOrder[],
+  paymentRefCandidate?: string,
+  amountCandidate?: number,
+  dateCandidate?: string
+): { isDuplicate: boolean; order?: PurchaseOrder; invoice?: Invoice; reason?: string } {
+  const cleanRef = paymentRefCandidate?.trim().toUpperCase();
+  const amount = amountCandidate ? round2(amountCandidate) : 0;
+  if (!cleanRef && amount <= 0) return { isDuplicate: false };
+
+  for (const o of orders) {
+    if (!o || (o as any).isDeleted) continue;
+    for (const inv of o.invoices || []) {
+      if (!inv) continue;
+      const invRef = inv.collection?.transferRef?.trim().toUpperCase();
+      const invSap = inv.collection?.sapDocument?.trim().toUpperCase();
+
+      // 1. Coincidencia por clave de rastreo / referencia idéntica
+      if (cleanRef && cleanRef.length >= 5 && (invRef === cleanRef || invSap === cleanRef)) {
+        return {
+          isDuplicate: true,
+          order: o,
+          invoice: inv,
+          reason: `Comprobante ${cleanRef} ya aplicado previamente a Factura #${inv.folio || 'S/N'} en OC ${o.folio || o.oc}`,
+        };
+      }
+
+      // 2. Coincidencia en historial de abonos
+      const existingAbono = (inv.collection?.paymentsHistory || []).find((p: any) => {
+        if (cleanRef && p.reference?.trim().toUpperCase() === cleanRef) return true;
+        if (amount > 0 && Math.abs((p.amount || 0) - amount) < 0.1) {
+          if (dateCandidate && p.date) {
+            const pDateStr = typeof p.date.toDate === 'function'
+              ? p.date.toDate().toISOString().split('T')[0]
+              : (p.date instanceof Date ? p.date.toISOString().split('T')[0] : String(p.date).split('T')[0]);
+            if (pDateStr === dateCandidate) return true;
+          }
+        }
+        return false;
+      });
+
+      if (existingAbono) {
+        return {
+          isDuplicate: true,
+          order: o,
+          invoice: inv,
+          reason: `Abono de $${amount.toLocaleString('es-MX')} (${cleanRef || 'SPEI'}) ya registrado en Factura #${inv.folio || 'S/N'}`,
+        };
+      }
+    }
+  }
+
+  return { isDuplicate: false };
+}
+
 
 
 /**
@@ -443,6 +507,12 @@ export async function analyzeDocumentFast(
     dupCheck = findExistingInvoice(orders, folio, uuid);
   } else if (docType === 'ticket_bascula' || docType === 'remision') {
     dupCheck = findExistingDelivery(orders, folio, kilos, docDate);
+  } else if (docType === 'comprobante_pago') {
+    dupCheck = findExistingPayment(orders, detectedOcNumber || folio, total, docDate);
+  }
+
+  if (dupCheck.isDuplicate && !matchedOrder && dupCheck.order) {
+    matchedOrder = dupCheck.order;
   }
 
   let autoAssignedLabel: string | null = null;
@@ -461,7 +531,7 @@ export async function analyzeDocumentFast(
     }
   }
 
-  const needsClarification = !matchedOrder && docType !== 'oc_providencia' && docType !== 'contrarecibo';
+  const needsClarification = !dupCheck.isDuplicate && !matchedOrder && docType !== 'oc_providencia' && docType !== 'contrarecibo';
 
   return {
     file,
@@ -494,20 +564,36 @@ export async function applyDocumentFast(
   analysis: PipelineAnalysis,
   targetOrderOverride?: PurchaseOrder | null
 ): Promise<PipelineApplyResult> {
-  const targetOrder = targetOrderOverride || analysis.matchedOrder;
+  const targetOrder = targetOrderOverride || analysis.matchedOrder || analysis.duplicateOrder;
 
-  // 1. Manejo de duplicados de factura
-  if (analysis.docType === 'factura_cfdi' && analysis.isDuplicate) {
+  // 1. Manejo universal de duplicados (evaluado de forma prioritaria antes de descartar por falta de orden)
+  if (analysis.isDuplicate) {
+    const ordTarget = analysis.duplicateOrder || targetOrder;
+    const docKindLabel =
+      analysis.docType === 'ticket_bascula'
+        ? 'Ticket de Báscula'
+        : analysis.docType === 'remision'
+        ? 'Remisión'
+        : analysis.docType === 'comprobante_pago'
+        ? 'Comprobante de Pago'
+        : analysis.docType === 'contrarecibo'
+        ? 'Contrarecibo'
+        : 'Factura';
+
+    const identificador = analysis.folio ? `#${analysis.folio}` : (analysis.detectedOcNumber ? `#${analysis.detectedOcNumber}` : 'S/F');
+    const valorDetalle = analysis.kilos > 0 ? `${analysis.kilos.toLocaleString('es-MX')} kg` : (analysis.total > 0 ? `$${analysis.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '');
+
     return {
       success: true,
       isDuplicate: true,
-      message: `La Factura #${analysis.folio} ya está registrada en ${analysis.duplicateOrder?.folio || analysis.duplicateOrder?.oc}. Se conservó sin duplicar.`,
+      message: `${docKindLabel} ${identificador}${valorDetalle ? ` (${valorDetalle})` : ''} ya está registrado previamente${ordTarget ? ` en ${ordTarget.folio || ordTarget.oc}` : ''}. Se conservó sin duplicar.`,
       docType: analysis.docType,
-      folio: analysis.folio,
+      folio: analysis.folio || '',
       kilos: analysis.kilos,
       total: analysis.total,
-      orderId: analysis.duplicateOrder?.id,
-      orderFolio: analysis.duplicateOrder?.folio || analysis.duplicateOrder?.oc,
+      orderId: ordTarget?.id,
+      orderFolio: ordTarget?.folio || ordTarget?.oc,
+      orderClient: ordTarget?.client,
     };
   }
 
@@ -585,7 +671,7 @@ export async function applyDocumentFast(
     };
   }
 
-  const orderRef = doc(db, PATHS.orders, targetOrder.id);
+  const orderRef = targetOrder.id ? doc(db, PATHS.orders, targetOrder.id) : null;
   const safeDate = toSafeTimestamp(analysis.docDate);
 
   // 3.5 APLICACIÓN DE CONTRARECIBO OFICIAL
@@ -602,10 +688,22 @@ export async function applyDocumentFast(
       if (!ord || (ord as any).isDeleted) continue;
       let orderModified = false;
       const updatedInvoices = (ord.invoices || []).map((inv: any) => {
-        const matchesFolio = facFolios.some((f) => f === inv.folio || f === inv.id || inv.folio?.includes(f));
-        const matchesSingle = targetOrdersToUpdate.length === 1 && facFolios.length <= 1 && !inv.collection?.contrareciboNumber;
+        // Coincidencia estricta:
+        // A) Si el contrarecibo enumera folios de facturas, debe coincidir inequívocamente con el folio
+        const matchesFolio = facFolios.length > 0 && facFolios.some((f) => {
+          const cleanF = f.trim().toUpperCase();
+          const invF = (inv.folio || inv.id || '').trim().toUpperCase();
+          return invF === cleanF || invF.endsWith(cleanF) || cleanF.endsWith(invF);
+        });
 
-        if (matchesFolio || matchesSingle) {
+        // B) Si el contrarecibo NO enumera folios, SOLO vincular si hay exactamente 1 factura pendiente y coincide el importe
+        const pendingInvoices = (ord.invoices || []).filter((i: any) => !i.collection?.contrareciboNumber);
+        const matchesSingleByAmount = facFolios.length === 0 &&
+          pendingInvoices.length === 1 &&
+          !inv.collection?.contrareciboNumber &&
+          (analysis.total > 0 ? Math.abs((inv.financials?.invoiceTotal || 0) - analysis.total) < 1.0 : true);
+
+        if (matchesFolio || matchesSingleByAmount) {
           orderModified = true;
           appliedCount++;
           return {
@@ -625,7 +723,7 @@ export async function applyDocumentFast(
         return inv;
       });
 
-      if (orderModified) {
+      if (orderModified && ord.id) {
         const ordRef = doc(db, PATHS.orders, ord.id);
         await safeUpdateDoc(ordRef, {
           invoices: cleanUndefined(updatedInvoices),
@@ -658,6 +756,19 @@ export async function applyDocumentFast(
     const facSummary = facFolios.length > 0 ? `Factura(s) #${facFolios.join(', #')}` : 'facturas asociadas';
 
     if (appliedCount === 0) {
+      if (facFolios.length === 0) {
+        return {
+          success: false,
+          message: `No se pudieron identificar las facturas amparadas por el Contrarecibo ${crFolio} o existe ambigüedad entre las facturas del expediente. Vincúlalo manualmente.`,
+          docType: 'contrarecibo',
+          folio: crFolio,
+          kilos: 0,
+          total: analysis.total,
+          orderId: targetOrder?.id,
+          orderFolio: targetOrder?.folio || targetOrder?.oc,
+          orderClient: targetOrder?.client,
+        };
+      }
       return {
         success: true,
         isDuplicate: true,
@@ -689,19 +800,32 @@ export async function applyDocumentFast(
   if (analysis.docType === 'factura_cfdi') {
     const invFolio = analysis.folio?.trim() || 'S/F';
     const numKilos = Number(analysis.kilos) || 0;
-    const sellPrice = targetOrder.customSellPrice || targetOrder.financials?.salePricePerKg || 43;
+
+    // Prevalencia estricta de precios: 1) Orden, 2) Importe real del documento, 3) Estimación marcada
+    const hasOrderSellPrice = !!(targetOrder.customSellPrice || targetOrder.financials?.salePricePerKg);
+    const hasOrderCostPrice = !!(targetOrder.customCostPrice || targetOrder.financials?.costPricePerKg);
+    const hasDocSubtotal = analysis.subtotal > 0;
+
+    const sellPrice = targetOrder.customSellPrice || targetOrder.financials?.salePricePerKg ||
+      (hasDocSubtotal && numKilos > 0 ? round2(analysis.subtotal / numKilos) : 43);
     const costPrice = targetOrder.customCostPrice || targetOrder.financials?.costPricePerKg || 38;
     const commRate = targetOrder.financials?.commissionRate ?? 0.08;
-    const subtotal = analysis.subtotal || round2(numKilos * sellPrice);
-    const total = analysis.total || round2(subtotal * 1.16);
+
+    const subtotal = analysis.subtotal > 0 ? analysis.subtotal : round2(numKilos * sellPrice);
+    const total = analysis.total > 0 ? analysis.total : round2(subtotal * 1.16);
     const costTotal = round2(numKilos * costPrice);
     const commission = round2(subtotal * commRate);
+
+    const isEstimatedPrice = !hasOrderSellPrice && !hasDocSubtotal;
+    const isEstimatedCost = !hasOrderCostPrice;
 
     const newInvoice: Invoice = {
       id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       folio: invFolio,
       ...(analysis.uuid?.trim() ? { uuid: analysis.uuid.trim() } : {}),
       kilos: numKilos,
+      isEstimatedPrice,
+      isEstimatedCost,
       financials: {
         salePricePerKg: sellPrice,
         costPricePerKg: costPrice,
@@ -739,11 +863,13 @@ export async function applyDocumentFast(
       });
     }
 
-    await safeUpdateDoc(orderRef, {
-      invoices: cleanUndefined([...existingInvoices, newInvoice]),
-      deliveries: cleanUndefined(updatedDeliveries),
-      updatedAt: serverTimestamp(),
-    });
+    if (orderRef) {
+      await safeUpdateDoc(orderRef, {
+        invoices: cleanUndefined([...existingInvoices, newInvoice]),
+        deliveries: cleanUndefined(updatedDeliveries),
+        updatedAt: serverTimestamp(),
+      });
+    }
 
     // Subir a Storage
     try {
@@ -817,10 +943,12 @@ export async function applyDocumentFast(
       ...(cleanDocFolio ? { docFolio: cleanDocFolio } : {}),
     };
 
-    await safeUpdateDoc(orderRef, {
-      deliveries: cleanUndefined([...existingDeliveries, newDelivery]),
-      updatedAt: serverTimestamp(),
-    });
+    if (orderRef) {
+      await safeUpdateDoc(orderRef, {
+        deliveries: cleanUndefined([...existingDeliveries, newDelivery]),
+        updatedAt: serverTimestamp(),
+      });
+    }
 
     try {
       await uploadDocument({
@@ -851,33 +979,108 @@ export async function applyDocumentFast(
     };
   }
 
-  // 6. APLICACIÓN DE COMPROBANTE DE PAGO TR
+  // 6. APLICACIÓN DE COMPROBANTE DE PAGO TR (IDEMPOTENTE Y CON HISTORIAL DE ABONOS)
   if (analysis.docType === 'comprobante_pago') {
+    const paymentAmount = round2(analysis.total);
+    const paymentRefKey = (analysis.detectedOcNumber || analysis.folio || `PAGO-${analysis.docDate}`).trim().toUpperCase();
+
     const updatedInvoices = [...(targetOrder.invoices || [])];
-    const invIdx = updatedInvoices.findIndex(
-      (i: any) =>
-        (analysis.folio && i.folio === analysis.folio) ||
-        (analysis.detectedOcNumber && i.collection?.transferRef === analysis.detectedOcNumber) ||
-        (analysis.total > 0 && Math.abs((i.financials?.invoiceTotal || 0) - analysis.total) < 1)
-    );
+
+    // Verificar si el pago ya fue aplicado en alguna factura de esta orden
+    const yaAplicado = updatedInvoices.some((i: any) => {
+      if (i.collection?.transferRef && i.collection.transferRef.toUpperCase() === paymentRefKey) return true;
+      return (i.collection?.paymentsHistory || []).some((p: any) =>
+        (p.reference && p.reference.toUpperCase() === paymentRefKey) ||
+        (Math.abs((p.amount || 0) - paymentAmount) < 0.1 && (p.notes || '').includes(analysis.file.name))
+      );
+    });
+
+    if (yaAplicado) {
+      return {
+        success: true,
+        isDuplicate: true,
+        message: `El comprobante de pago #${paymentRefKey} ($${paymentAmount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}) ya fue aplicado previamente a ${targetOrder.folio || targetOrder.oc}. Se conservó sin duplicar el abono.`,
+        docType: 'comprobante_pago',
+        folio: analysis.folio,
+        kilos: 0,
+        total: paymentAmount,
+        orderId: targetOrder.id,
+        orderFolio: targetOrder.folio || targetOrder.oc,
+        orderClient: targetOrder.client,
+      };
+    }
+
+    // Búsqueda inequívoca de factura destino:
+    // Prioridad 1: Folio de factura exacto
+    let invIdx = -1;
+    if (analysis.folio) {
+      invIdx = updatedInvoices.findIndex((i: any) => i.folio?.trim().toUpperCase() === analysis.folio.trim().toUpperCase());
+    }
+
+    // Prioridad 2: Facturas pendientes no cobradas cuyo saldo pendiente calce con el importe (+/- $0.50)
+    if (invIdx === -1 && paymentAmount > 0) {
+      const candidates = updatedInvoices
+        .map((inv: any, idx: number) => {
+          const invTotal = inv.financials?.invoiceTotal || (inv.kilos * (inv.financials?.salePricePerKg || 43) * 1.16);
+          const currentPaid = Number(inv.collection?.paidAmount) || 0;
+          const balance = invTotal - currentPaid;
+          return { idx, inv, balance };
+        })
+        .filter((c) => c.balance > 0.5 && Math.abs(c.balance - paymentAmount) < 0.5);
+
+      if (candidates.length === 1) {
+        invIdx = candidates[0].idx;
+      } else if (candidates.length > 1) {
+        // Ambigüedad: dos facturas tienen el mismo saldo pendiente. No aplicar a ciegas a la primera.
+        return {
+          success: false,
+          message: `El comprobante de pago de $${paymentAmount.toLocaleString('es-MX')} coincide con múltiples facturas pendientes con el mismo saldo exacto (${candidates.map(c => '#' + c.inv.folio).join(', ')}). Asigna el abono de forma manual para evitar errores contables.`,
+          docType: 'comprobante_pago',
+          folio: analysis.folio,
+          kilos: 0,
+          total: paymentAmount,
+          orderId: targetOrder.id,
+          orderFolio: targetOrder.folio || targetOrder.oc,
+        };
+      }
+    }
+
+    // Prioridad 3: Si sigue sin encontrar y hay exactamente 1 factura en la orden con saldo pendiente
+    if (invIdx === -1) {
+      const unpaid = updatedInvoices
+        .map((inv: any, idx: number) => ({ idx, inv, paid: Number(inv.collection?.paidAmount) || 0, tot: inv.financials?.invoiceTotal || 0 }))
+        .filter((u) => u.tot - u.paid > 0.5);
+      if (unpaid.length === 1) {
+        invIdx = unpaid[0].idx;
+      }
+    }
 
     if (invIdx !== -1 && updatedInvoices[invIdx]) {
       const inv = updatedInvoices[invIdx];
       const prevPaid = Number(inv.collection?.paidAmount) || 0;
-      const newPaid = prevPaid + analysis.total;
-      const invTotal = inv.financials?.invoiceTotal || (inv.kilos * 43 * 1.16);
-      const isInvoiceFullyPaid = newPaid >= (invTotal - 1.0);
+      const newPaid = round2(prevPaid + paymentAmount);
+      const invTotal = inv.financials?.invoiceTotal || (inv.kilos * (inv.financials?.salePricePerKg || 43) * 1.16);
+      const isInvoiceFullyPaid = newPaid >= (invTotal - 0.5);
+
+      const newPaymentHistoryEntry = {
+        id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        amount: paymentAmount,
+        date: safeDate,
+        reference: paymentRefKey,
+        notes: `Abono de $${paymentAmount} vía ${analysis.file.name}`,
+      };
 
       inv.collection = {
         ...(inv.collection || {}),
         paidAmount: newPaid,
         paidAt: safeDate,
         collectedAt: isInvoiceFullyPaid ? safeDate : inv.collection?.collectedAt,
-        transferRef: analysis.detectedOcNumber || analysis.folio,
+        transferRef: paymentRefKey,
+        paymentsHistory: [...(inv.collection?.paymentsHistory || []), newPaymentHistoryEntry],
       };
       inv.creditCycle = {
         ...(inv.creditCycle || {}),
-        status: isInvoiceFullyPaid ? 'collected' : (inv.creditCycle?.status || 'pending'),
+        status: isInvoiceFullyPaid ? 'collected' : 'in_review',
       };
     }
 
@@ -885,15 +1088,17 @@ export async function applyDocumentFast(
     const totalOrderPaid = updatedInvoices.reduce((sum, i) => sum + (Number(i.collection?.paidAmount) || 0), 0);
     const isOrderFullyCollected = totalOrderInvoiced > 0 && totalOrderPaid >= (totalOrderInvoiced - 1.0);
 
-    await safeUpdateDoc(orderRef, {
-      invoices: cleanUndefined(updatedInvoices),
-      'collection.paidAmount': totalOrderPaid,
-      'collection.paidAt': safeDate,
-      'collection.transferRef': analysis.detectedOcNumber || analysis.folio,
-      'creditCycle.status': isOrderFullyCollected ? 'collected' : (targetOrder.creditCycle?.status || 'pending'),
-      status: isOrderFullyCollected ? 'collected' : ((targetOrder as any).status || 'pending'),
-      updatedAt: serverTimestamp(),
-    });
+    if (orderRef) {
+      await safeUpdateDoc(orderRef, {
+        invoices: cleanUndefined(updatedInvoices),
+        'collection.paidAmount': totalOrderPaid,
+        'collection.paidAt': safeDate,
+        'collection.transferRef': analysis.detectedOcNumber || analysis.folio,
+        'creditCycle.status': isOrderFullyCollected ? 'collected' : (targetOrder.creditCycle?.status || 'pending'),
+        status: isOrderFullyCollected ? 'collected' : ((targetOrder as any).status || 'pending'),
+        updatedAt: serverTimestamp(),
+      });
+    }
 
     try {
       await uploadDocument({

@@ -35,15 +35,26 @@ export function useInvoiceActions() {
           const folioStr = updatedInvoice.folio?.trim() || '';
           const finalFolio = crNum && !folioStr ? 'S/N' : folioStr;
 
+          const existingSaleTotal = updatedInvoice.financials?.saleTotal;
+          const existingInvoiceTotal = updatedInvoice.financials?.invoiceTotal;
+
+          const baseFinancials = computeFinancials(updatedInvoice.kilos, {
+            ...dynamicConfig,
+            salePricePerKg: updatedInvoice.financials?.salePricePerKg || dynamicConfig.salePricePerKg,
+            costPricePerKg: updatedInvoice.financials?.costPricePerKg || dynamicConfig.costPricePerKg,
+            commissionRate: updatedInvoice.financials?.commissionRate || dynamicConfig.commissionRate,
+          });
+
+          const finalFinancials = {
+            ...baseFinancials,
+            ...(existingSaleTotal && existingSaleTotal > 0 ? { saleTotal: existingSaleTotal } : {}),
+            ...(existingInvoiceTotal && existingInvoiceTotal > 0 ? { invoiceTotal: existingInvoiceTotal } : {}),
+          };
+
           const finalInv: Invoice = {
             ...updatedInvoice,
             folio: finalFolio,
-            financials: computeFinancials(updatedInvoice.kilos, {
-              ...dynamicConfig,
-              salePricePerKg: updatedInvoice.financials?.salePricePerKg || dynamicConfig.salePricePerKg,
-              costPricePerKg: updatedInvoice.financials?.costPricePerKg || dynamicConfig.costPricePerKg,
-              commissionRate: updatedInvoice.financials?.commissionRate || dynamicConfig.commissionRate,
-            }),
+            financials: finalFinancials,
             collection: updatedInvoice.collection
               ? {
                   ...updatedInvoice.collection,

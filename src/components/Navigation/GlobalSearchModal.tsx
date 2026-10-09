@@ -23,7 +23,7 @@ interface SearchResultItem {
 
 export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { orders } = useOrdersContext();
+  const { orders, loading } = useOrdersContext();
   const { products } = useProducts();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -310,16 +310,37 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       normalizarTexto(cmd.title).includes(q) || normalizarTexto(cmd.subtitle).includes(q)
     );
 
-    return [
-      ...invoiceResults.slice(0, 4),
-      ...crResults.slice(0, 4),
-      ...deliveryResults.slice(0, 4),
-      ...uuidResults.slice(0, 2),
-      ...bankResults.slice(0, 2),
-      ...orderResults.slice(0, 4),
+    const allMatches = [
+      ...invoiceResults,
+      ...crResults,
+      ...deliveryResults,
+      ...uuidResults,
+      ...bankResults,
+      ...orderResults,
       ...productResults,
       ...matchedCommands,
     ];
+
+    // 🎯 Ordenar por relevancia: coincidencias exactas o de prefijo primero
+    const scoredMatches = allMatches.map((item) => {
+      const normTitle = normalizarTexto(item.title);
+      const normSub = normalizarTexto(item.subtitle);
+      let score = 0;
+
+      if (normTitle.startsWith(q) || normTitle.includes(` ${q}`) || normTitle.includes(`-${q}`) || normTitle.includes(`#${q}`)) {
+        score += 50;
+      }
+      if (item.category === 'Facturas' && normTitle.includes(`f-${q}`)) score += 40;
+      if (item.category === 'Contrarecibos' && normTitle.includes(`cr ${q}`)) score += 40;
+      if (item.category === 'Órdenes & OCs' && normTitle.includes(`oc ${q}`)) score += 40;
+      if (normSub.startsWith(q) || normSub.includes(` ${q}`)) score += 10;
+
+      return { item, score };
+    });
+
+    scoredMatches.sort((a, b) => b.score - a.score);
+
+    return scoredMatches.slice(0, 16).map((s) => s.item);
   }, [query, orders, products, navigate, onClose]);
 
   // Keyboard navigation
@@ -432,8 +453,35 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             gap: 4,
           }}
         >
-          {results.length === 0 ? (
-            <div style={{ padding: '30px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
+          {loading ? (
+            <div
+              style={{
+                padding: '32px 20px',
+                textAlign: 'center',
+                color: '#60a5fa',
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 14,
+                  height: 14,
+                  border: '2px solid #60a5fa',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
+              <span>Cargando expedientes, facturas y báscula en memoria...</span>
+            </div>
+          ) : results.length === 0 ? (
+            <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: 14 }}>
               No se encontraron coincidencias para &ldquo;{query}&rdquo;
             </div>
           ) : (
@@ -507,7 +555,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
           }}
         >
           <span>Navega con <b>↑ ↓</b> y selecciona con <b>ENTER</b></span>
-          <span>Control Bolsas ERP · v9.10.23 Enterprise</span>
+          <span>Control Bolsas ERP · v9.10.24 Enterprise</span>
         </div>
       </div>
     </div>
@@ -551,4 +599,3 @@ export const GlobalSearchHost: React.FC = () => {
 
   return <GlobalSearchModal isOpen={isOpen} onClose={() => setIsOpen(false)} />;
 };
-
