@@ -1,5 +1,32 @@
 # Historial de Versiones (Changelog) - Control Bolsas
 
+## [v9.10.25] - 09 Octubre 2026 (Cierre Integral de Riesgos: Firestore Rules, Detección Documental E2E, Contrarecibos Multiorden y Pagos Transaccionales)
+
+### 🔒 Separación de Permisos y Reglas Firestore
+- **Desglose de Operaciones en `firestore.rules`:** Separación de `read`, `create, update` (manager o admin) y `delete` (exclusivo para superadmin) en colecciones `storedDocuments`, `invoices`, `ledger`, `products` y `price_lists`, cerrando la vulnerabilidad del operador `OR` de Firestore.
+- **Validación de Matriz de Permisos:** Pruebas unitarias formales para roles `unauthenticated`, `viewer`, `manager` y `superadmin`.
+
+### ⚠️ Detección Documental de Extremo a Extremo
+- **Propagación Integral de Incertidumbres:** Preservación de `isSuspectDuplicate`, `hasFolioCollision`, `suspectReason` y `needsReview` desde el motor de detección hasta el HUD interactivo (`GlobalDropzoneHUD`).
+- **Coincidencias Sospechosas en Báscula:** Suspensión de la auto-aplicación silenciosa; solicitud de confirmación del operador con detalle de orden relacionada, kilos, fecha y motivo.
+- **Colisiones de Folio SAT:** Comparación estricta de UUID SAT normalizado; si el UUID difiere, se ofrece importación para revisión contable sin sobreescribir la factura existente.
+
+### 📑 Contrarecibos: Coincidencia Exacta y Multi-Orden Atómica
+- **Eliminación Total de Sufijos:** Retiro de comparaciones con `endsWith` o subcadenas; normalización estricta mediante `normalizeInvoiceFolio`.
+- **Validación Previa Multi-Orden:** Comprobación 1 a 1 de todas las facturas amparadas; ante cualquier folio no encontrado o ambiguo, se aborta sin tocar ninguna orden para evitar escrituras parciales.
+- **Orden de Persistencia:** Subida a Firebase Storage únicamente después de que todas las mutaciones en Firestore hayan finalizado exitosamente.
+
+### 🏦 Pagos Bancarios: Idempotencia, Historial y Tolerancia SAT
+- **Transacciones Atómicas:** Ejecución mediante `runTransaction` para consultar el estado fresco de la orden antes de aplicar y evitar condiciones de carrera.
+- **Huella Reproducible:** Generación de huella `FINGERPRINT` si el comprobante carece de referencia bancaria o folio, evitando el uso de fechas como clave idempotente.
+- **Preservación de Saldo Histórico:** Cálculo de `historicalBase` para que facturas históricas con pagos acumulados sin historial desglosado sumen el nuevo abono sin destruirse ni duplicarse.
+- **Tolerancia Contable SAT:** Conciliación estricta a $\le \$0.05$ MXN para considerar una factura como cobrada, con detección de sobrepago.
+
+### 💵 Precios Variables y Cero Válido ($0.00)
+- **Eliminación de Fallbacks `||`:** Reemplazo por comprobaciones estrictas `!== undefined && !== null` para respetar precios de muestra o reposición a `$0.00 / kg` y partidas timbradas del CFDI.
+
+---
+
 ## [v9.10.2] - 01 Octubre 2026 (Flujo Integral de OC de Punta a Punta, Precios Fluctuantes $37/$38/$43, Contingencias Operativas y Respaldo Dual)
 
 ### 📈 Detección y Gestión de Precios Fluctuantes en OC

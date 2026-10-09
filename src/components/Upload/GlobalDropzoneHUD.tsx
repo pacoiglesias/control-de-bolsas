@@ -332,6 +332,83 @@ export function GlobalDropzoneHUD() {
     }
   };
 
+  const handleForceApplyCurrent = async () => {
+    if (currentIndex < 0 || currentIndex >= batchQueue.length) return;
+    const item = batchQueue[currentIndex];
+    if (!item || !item.analysis) return;
+
+    triggerHaptic('medium');
+    setBatchQueue((prev) => {
+      const copy = [...prev];
+      if (copy[currentIndex]) copy[currentIndex] = { ...copy[currentIndex], status: 'applying' };
+      return copy;
+    });
+
+    try {
+      item.analysis.forceApply = true;
+      const target = item.analysis.duplicateOrder || item.analysis.matchedOrder || orders[0];
+      const result = await applyDocumentFast(item.analysis, target, orders);
+      setBatchQueue((prev) => {
+        const copy = [...prev];
+        if (copy[currentIndex]) {
+          copy[currentIndex] = {
+            ...copy[currentIndex],
+            status: result.success ? 'success' : 'error',
+            result,
+            errorMessage: result.success ? undefined : result.message,
+          };
+        }
+        return copy;
+      });
+
+      if (result.success) {
+        sound.playChaChing();
+        triggerHaptic('cash');
+        toast('✅ Aplicado con confirmación de operador', 'ok');
+      }
+
+      setTimeout(() => {
+        setCurrentIndex(currentIndex + 1);
+      }, 550);
+    } catch (err: any) {
+      toast(`Error al aplicar: ${err.message}`, 'bad');
+      setTimeout(() => {
+        setCurrentIndex(currentIndex + 1);
+      }, 800);
+    }
+  };
+
+  const handleDiscardCurrent = (reasonText: string) => {
+    if (currentIndex < 0 || currentIndex >= batchQueue.length) return;
+    const item = batchQueue[currentIndex];
+    if (!item) return;
+
+    triggerHaptic('light');
+    setBatchQueue((prev) => {
+      const copy = [...prev];
+      if (copy[currentIndex]) {
+        copy[currentIndex] = {
+          ...copy[currentIndex],
+          status: 'duplicate',
+          result: {
+            success: true,
+            isDuplicate: true,
+            message: reasonText,
+            docType: item.analysis?.docType || 'desconocido',
+            folio: item.analysis?.folio || '',
+            kilos: item.analysis?.kilos || 0,
+            total: item.analysis?.total || 0,
+          },
+        };
+      }
+      return copy;
+    });
+
+    setTimeout(() => {
+      setCurrentIndex(currentIndex + 1);
+    }, 450);
+  };
+
   const handleOpenManualInspector = () => {
     if (currentIndex >= 0 && currentIndex < batchQueue.length) {
       const file = batchQueue[currentIndex]?.file;
@@ -695,8 +772,127 @@ export function GlobalDropzoneHUD() {
                   ) : null}
                 </div>
 
-                {/* TARJETA DE PREGUNTA INTERACTIVA SI HAY DUDA DE OC */}
-                {currentItem.status === 'needs_clarification' && (
+                {/* TARJETA DE PREGUNTA INTERACTIVA SEGÚN TIPO DE INCERTIDUMBRE */}
+                {currentItem.status === 'needs_clarification' && currentItem.analysis?.isSuspectDuplicate && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      background: 'rgba(234, 88, 12, 0.15)',
+                      border: '1.5px solid rgba(234, 88, 12, 0.55)',
+                      marginTop: 4,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 18 }}>⚠️</span>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#fb923c' }}>
+                        Pesaje sospechoso en báscula ({currentItem.analysis.kilos.toLocaleString('es-MX')} kg)
+                      </div>
+                    </div>
+                    <div style={{ margin: '0 0 10px 0', fontSize: 12, color: 'rgba(255, 255, 255, 0.9)', lineHeight: 1.4 }}>
+                      <div><strong>Orden relacionada:</strong> {currentItem.analysis.duplicateOrder?.folio || currentItem.analysis.duplicateOrder?.oc || 'Expediente'}</div>
+                      <div><strong>Fecha del documento:</strong> {currentItem.analysis.docDate}</div>
+                      <div><strong>Motivo:</strong> {currentItem.analysis.suspectReason || 'Mismo pesaje registrado en fecha coincidente'}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <button
+                        onClick={handleForceApplyCurrent}
+                        style={{
+                          flex: '1 1 140px',
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '1px solid #ea580c',
+                          background: 'rgba(234, 88, 12, 0.35)',
+                          color: '#fff',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✓ Registrar como nueva entrega física
+                      </button>
+                      <button
+                        onClick={() => handleDiscardCurrent('Omitido por el operador como duplicado sospechoso confirmado.')}
+                        style={{
+                          flex: '1 1 120px',
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          color: '#f87171',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✕ Omitir (Es duplicado)
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {currentItem.status === 'needs_clarification' && currentItem.analysis?.hasFolioCollision && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1.5px solid rgba(239, 68, 68, 0.55)',
+                      marginTop: 4,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 18 }}>🚨</span>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171' }}>
+                        Colisión de Folio Fiscal #{currentItem.analysis.folio} (UUID SAT Distinto)
+                      </div>
+                    </div>
+                    <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'rgba(255, 255, 255, 0.9)', lineHeight: 1.4 }}>
+                      El folio ya existe en {currentItem.analysis.duplicateOrder?.folio || currentItem.analysis.duplicateOrder?.oc || 'otra orden'}, pero el archivo actual tiene un UUID fiscal SAT diferente.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <button
+                        onClick={handleForceApplyCurrent}
+                        style={{
+                          flex: '1 1 140px',
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '1px solid #ef4444',
+                          background: 'rgba(239, 68, 68, 0.35)',
+                          color: '#fff',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✓ Importar para revisión contable
+                      </button>
+                      <button
+                        onClick={() => handleDiscardCurrent('Descartado por colisión de folio fiscal.')}
+                        style={{
+                          flex: '1 1 120px',
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          color: '#94a3b8',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✕ Cancelar archivo
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* TARJETA DE PREGUNTA INTERACTIVA SI HAY DUDA DE OC GENÉRICA */}
+                {currentItem.status === 'needs_clarification' && !currentItem.analysis?.isSuspectDuplicate && !currentItem.analysis?.hasFolioCollision && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}

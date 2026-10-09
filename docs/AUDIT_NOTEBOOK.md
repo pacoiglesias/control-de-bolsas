@@ -1,3 +1,39 @@
+### Iteración 130: Cierre Integral de Riesgos de Integridad, Firestore Rules, Contrarecibos Multiorden y Pagos Transaccionales (v9.10.25)
+[2026-10-09]
+Archivos: `firestore.rules`, `src/lib/autoDocumentPipeline.ts`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/hooks/useInvoiceParser.ts`, `src/lib/__tests__/auditSeniorIntegritySuite.test.ts`, `src/lib/latestRelease.ts`, `src/lib/systemChangelog.ts`, `docs/AUDIT_NOTEBOOK.md`
+Problema:
+1. En `firestore.rules`, la regla permisiva `allow write: if isManagerOrAdmin()` anulaba mediante lógica OR la restricción de que solo `isSuperAdmin()` puede borrar (`delete`) documentos en colecciones como `storedDocuments`, `invoices` y `ledger`.
+2. En la ingesta de documentos, las banderas `isSuspectDuplicate` y `hasFolioCollision` no se propagaban hasta la interfaz, provocando bloqueos opacos o riesgo de importación silenciosa.
+3. En contrarecibos, existían comparaciones permisivas por sufijo (`endsWith`), lo que permitía colisiones erróneas entre folios parecidos (ej. `52` con `6352`). Además, en contrarecibos multiorden no se validaba atómicamente la existencia de todas las facturas antes de escribir.
+4. En pagos bancarios, existía el riesgo de utilizar fechas como clave idempotente en comprobantes sin referencia, no se ejecutaba escritura atómica transaccional y al reconstruir `paidAmount` se destruía el saldo previo de facturas históricas sin historial desglosado.
+5. En cálculos de facturas, fallbacks ciegos con `||` reemplazaban precios legítimos de `$0.00` por el default de `$43.00`.
+Solución:
+1. **Separación Estricta de Permisos en Firestore:**
+   - Desglose de operaciones en `read`, `create, update` (manager o admin) y `delete` (exclusivo para superadmin) en `storedDocuments`, `invoices`, `ledger`, `products` y `price_lists`.
+2. **Detección Documental E2E con HUD Interactivo:**
+   - Propagación de `isSuspectDuplicate` y `hasFolioCollision` a `PipelineAnalysis`, `PipelineApplyResult` y `GlobalDropzoneHUD.tsx`.
+   - Tarjetas interactivas con detalle de orden relacionada, kilos, fecha y motivo, ofreciendo confirmar nueva entrega física o descartar como duplicado real.
+   - En colisión de folios con UUID fiscal SAT distinto, se ofrece importación para revisión contable sin sobreescribir la factura original.
+3. **Contrarecibos con Coincidencia Exacta y Multi-Orden Atómica:**
+   - Coincidencia estricta mediante `normalizeInvoiceFolio`, eliminando totalmente `endsWith`.
+   - En contrarecibos multiorden, si un solo folio amparado no se encuentra o es ambiguo, se aborta sin modificar ninguna orden.
+4. **Pagos Atómicos, Historial Preservado y Tolerancia SAT:**
+   - Escritura atómica vía `runTransaction` de Firestore.
+   - Huella reproducible de archivo (`FINGERPRINT`) si el comprobante no tiene referencia bancaria explícita.
+   - Preservación de saldo inicial acumulado en facturas históricas: `historicalBase = Math.max(0, prevPaid - existingHistorySum)`.
+   - Tolerancia contable estricta de centavos SAT ($\le \$0.05$ MXN) para conciliación de estatus liquidado.
+5. **Precios Variables y Cero Válido ($0.00):**
+   - Comparaciones estrictas con `!== undefined && !== null`, respetando precios de muestra o reposición a `$0.00 / kg` y conceptos reales del CFDI SAT.
+6. **Verificación y Cobertura:**
+   - 24 pruebas en la suite de integridad (`auditSeniorIntegritySuite.test.ts` y `autoDocumentPipelineIntegrity.test.ts`).
+   - 278 / 278 pruebas totales del sistema aprobadas (100% de éxito).
+   - Build de producción completo (`tsc`, `vite build`, `functions tsc`) verificado exitosamente.
+Riesgo: 🟢 Cero / Bajo — Integridad financiera y documental blindada sin alterar históricos existentes.
+Estado: ✅ Verificado — 278 tests verdes, build 100% exitoso.
+OKRs afectados: OKR 1 (Confiabilidad Financiera), OKR 2 (Seguridad y Roles), OKR 4 (Cero Fricción), OKR 5 (Integridad Matemática).
+
+---
+
 ### Iteración 129: Refactor Modular de OcClientStatusReport y Separación de Responsabilidades (v9.10.11)
 [2026-10-07]
 Archivos: `src/components/Orders/OcClientStatusReport.tsx`, `src/lib/clientReportTypes.ts`, `src/lib/clientReportWhatsApp.ts`, `src/lib/clientReportPrint.ts`, `src/lib/clientReportExcel.ts`, `src/lib/__tests__/clientReportModules.test.ts`, `docs/AUDIT_NOTEBOOK.md`

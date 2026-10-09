@@ -117,13 +117,13 @@ service cloud.firestore {
     // sin que ningun archivo existente dependa todavia de ella.
     match /invoices/{invoiceId} {
       allow read: if isAuthenticatedUser();
-      allow write: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
       allow delete: if isSuperAdmin();
     }
 
     match /ledger/{ledgerId} {
       allow read: if isAuthenticatedUser();
-      allow write: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
       allow delete: if isSuperAdmin();
     }
 
@@ -133,17 +133,20 @@ service cloud.firestore {
     // guardado de cualquier expediente con partidas terminaba en error.
     match /products/{productId} {
       allow read: if isAuthenticatedUser();
-      allow write: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     match /price_lists/{listId} {
       allow read: if isAuthenticatedUser();
-      allow write: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // Colección de metadatos de documentos originales (documentStorage.ts)
     match /storedDocuments/{docId} {
-      allow read, write: if isManagerOrAdmin();
+      allow read: if isManagerOrAdmin();
+      allow create, update: if isManagerOrAdmin();
       allow delete: if isSuperAdmin();
     }
 

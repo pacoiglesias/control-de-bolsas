@@ -262,8 +262,21 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
 
     // Extraer conceptos desde el XML
     const currentOrder = (allOrders || []).find((o: any) => o.id === orderId);
-    const effectiveSellPrice = currentOrder?.customSellPrice || currentOrder?.financials?.salePricePerKg || config?.salePricePerKg || 43;
-    const effectiveCostPrice = currentOrder?.customCostPrice || currentOrder?.financials?.costPricePerKg || config?.costPricePerKg || 38;
+    const hasOrderSell = currentOrder?.customSellPrice !== undefined && currentOrder?.customSellPrice !== null;
+    const hasOrderCost = currentOrder?.customCostPrice !== undefined && currentOrder?.customCostPrice !== null;
+
+    const effectiveSellPrice = hasOrderSell
+      ? currentOrder.customSellPrice
+      : (currentOrder?.financials?.salePricePerKg !== undefined && currentOrder?.financials?.salePricePerKg !== null
+          ? currentOrder.financials.salePricePerKg
+          : (config?.salePricePerKg ?? 43));
+
+    const effectiveCostPrice = hasOrderCost
+      ? currentOrder.customCostPrice
+      : (currentOrder?.financials?.costPricePerKg !== undefined && currentOrder?.financials?.costPricePerKg !== null
+          ? currentOrder.financials.costPricePerKg
+          : (config?.costPricePerKg ?? 38));
+
     const effectiveCommissionRate = currentOrder?.financials?.commissionRate ?? config?.commissionRate ?? 0.08;
 
     const xmlItems: PurchaseOrderItem[] = (data.conceptos || []).map((c, idx) => ({
@@ -272,8 +285,8 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       description: c.descripcion || 'Bolsa de Polietileno',
       quantity: c.cantidad || 0,
       unit: c.claveUnidad || 'Kilos',
-      unitPrice: c.valorUnitario || effectiveSellPrice,
-      amount: c.importe || ((c.cantidad || 0) * (c.valorUnitario || effectiveSellPrice)),
+      unitPrice: c.valorUnitario !== undefined && c.valorUnitario !== null ? c.valorUnitario : effectiveSellPrice,
+      amount: c.importe !== undefined && c.importe !== null ? c.importe : ((c.cantidad || 0) * (c.valorUnitario !== undefined && c.valorUnitario !== null ? c.valorUnitario : effectiveSellPrice)),
     }));
 
     const totalKilos = xmlItems.reduce((s, it) => s + (it.quantity || 0), 0);
@@ -285,8 +298,8 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     const netCashFlow = Math.round((subtotal - costTotal - commission) * 100) / 100;
     const tradeMargin = Math.round((subtotal - costTotal) * 100) / 100;
 
-    const isEstimatedPrice = !currentOrder?.customSellPrice && !data.subTotal;
-    const isEstimatedCost = !currentOrder?.customCostPrice;
+    const isEstimatedPrice = !hasOrderSell && (!data.subTotal || data.subTotal <= 0);
+    const isEstimatedCost = !hasOrderCost;
 
     // Asegurar que la fecha viene con la zona horaria correcta
     const issue = new Date(data.fecha + 'Z'); 
