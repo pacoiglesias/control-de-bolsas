@@ -48,10 +48,10 @@ export const FacturaForm: React.FC<FacturaFormProps> = ({
     initialData.uuidFiscal || ''
   );
   const [invoiceKilos, setInvoiceKilos] = useState<string>(
-    String(initialData.invoiceKilos || kilosFromReception || 1500)
+    String(initialData.invoiceKilos || kilosFromReception || '')
   );
   const [price, setPrice] = useState<string>(
-    String(initialData.salePricePerKg || salePricePerKg || 43)
+    initialData.salePricePerKg !== undefined ? String(initialData.salePricePerKg) : (salePricePerKg ? String(salePricePerKg) : '')
   );
   const [paymentMethod, setPaymentMethod] = useState(
     initialData.paymentMethod || 'PPD'
@@ -74,7 +74,7 @@ export const FacturaForm: React.FC<FacturaFormProps> = ({
   });
 
   const numKilos = Number(invoiceKilos) || 0;
-  const numPrice = Number(price) || 43;
+  const numPrice = Number(price) || 0;
 
   const fin = computeFinancials(numKilos, {
     ...DEFAULT_CONFIG,

@@ -392,24 +392,28 @@ export async function executeAutoCreateOc(
   const orderId = `oc-${ocNumber.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const orderRef = doc(db, PATHS.orders, orderId);
 
+  const orderSellPrice = (docData as any)?.unitPrice ?? (docData as any)?.customSellPrice ?? 0;
   const items: PurchaseOrderItem[] = (docData.items && docData.items.length > 0)
-    ? docData.items.map((it, idx) => ({
-        id: `item-${idx + 1}`,
-        code: it.code || 'S/C',
-        description: it.description || 'Bolsa de Polietileno',
-        quantity: it.quantity,
-        unitPrice: it.unitPrice || 43.0,
-        amount: it.amount || it.quantity * (it.unitPrice || 43.0),
-        unit: 'Kilos',
-      }))
+    ? docData.items.map((it, idx) => {
+        const uPrice = it.unitPrice ?? orderSellPrice;
+        return {
+          id: `item-${idx + 1}`,
+          code: it.code || 'S/C',
+          description: it.description || 'Bolsa de Polietileno',
+          quantity: it.quantity,
+          unitPrice: uPrice,
+          amount: it.amount ?? (it.quantity * uPrice),
+          unit: 'Kilos',
+        };
+      })
     : [
         {
           id: 'item-1',
           code: 'EGBO000017-SC',
           description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color',
           quantity: totalKg,
-          unitPrice: 43.0,
-          amount: totalKg * 43.0,
+          unitPrice: orderSellPrice,
+          amount: totalKg * orderSellPrice,
           unit: 'Kilos',
         },
       ];
@@ -494,15 +498,18 @@ export async function executeAutoAssignInvoice(
     collection: {
       contrareciboNumber: docData.contrarecibo || '',
     },
-    items: docData.items?.map((it, idx) => ({
-      id: `inv-item-${idx + 1}`,
-      code: it.code || '',
-      description: it.description,
-      quantity: it.quantity,
-      unitPrice: it.unitPrice || 43.0,
-      amount: it.amount || it.quantity * (it.unitPrice || 43.0),
-      unit: 'Kilos',
-    })),
+    items: docData.items?.map((it, idx) => {
+      const uPrice = it.unitPrice ?? targetOrder.customSellPrice ?? 0;
+      return {
+        id: `inv-item-${idx + 1}`,
+        code: it.code || '',
+        description: it.description,
+        quantity: it.quantity,
+        unitPrice: uPrice,
+        amount: it.amount ?? (it.quantity * uPrice),
+        unit: 'Kilos',
+      };
+    }),
   };
 
   const newDelivery: Delivery = {

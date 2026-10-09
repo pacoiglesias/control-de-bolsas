@@ -24,7 +24,7 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
   } else if (order.items && order.items.length > 0) {
     if (invoice && invoice.kilos > 0 && Math.abs(invoice.kilos - (order.totalKilograms || 0)) > 0.01 && order.items.length === 1) {
       const it = order.items[0];
-      const p = it.unitPrice ?? order.customSellPrice ?? 43.0;
+      const p = it.unitPrice ?? order.customSellPrice ?? 0;
       items = [{
         ...it,
         quantity: invoice.kilos,
@@ -36,7 +36,7 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
     }
   } else {
     const fallbackKilos = invoice?.kilos || order.totalKilograms || 0;
-    const p = order.customSellPrice ?? 43.0;
+    const p = order.customSellPrice ?? 0;
     items = [
       {
         id: '1',
@@ -51,10 +51,10 @@ export async function generatePrefacturaPdf(order: PurchaseOrder, invoice?: Invo
   }
 
   const totalKilos = items.reduce((sum, it) => sum + Number(it.quantity || 0), 0) || invoice?.kilos || order.totalKilograms || 0;
-  const subtotal = invoice?.financials?.saleTotal ?? items.reduce((sum, it) => sum + Number(it.amount ?? ((it.quantity || 0) * (it.unitPrice ?? order.customSellPrice ?? 43))), 0);
+  const subtotal = invoice?.financials?.saleTotal ?? items.reduce((sum, it) => sum + Number(it.amount ?? ((it.quantity || 0) * (it.unitPrice ?? order.customSellPrice ?? 0))), 0);
   const total = invoice?.financials?.invoiceTotal ?? (subtotal * 1.16);
   const iva = total - subtotal;
-  const unitPrice = totalKilos > 0 ? subtotal / totalKilos : (order.customSellPrice ?? 43.0);
+  const unitPrice = totalKilos > 0 ? subtotal / totalKilos : (order.customSellPrice ?? 0);
 
   const html = `
     <div style="font-family: 'Helvetica Neue', Arial, sans-serif; padding: 24px 32px; color: #1e293b; background: #fff; max-width: 800px; margin: 0 auto; font-size: 12px; line-height: 1.4;">

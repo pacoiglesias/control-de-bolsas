@@ -52,15 +52,15 @@ export const OrdenCompraForm: React.FC<OrdenCompraFormProps> = ({
   const [department, setDepartment] = useState(initialData.department || 'TH');
   const [provider, setProvider] = useState<any>(initialData.provider || 'Andrés Gutiérrez (Maquila y Resina)');
   const [product, setProduct] = useState<any>(initialData.productDescription || 'Bolsa de Polietileno Transparente en Rollo (Cal. 120)');
-  const [kilos, setKilos] = useState<string>(String(initialData.totalKilograms || 1500));
-  const [salePrice, setSalePrice] = useState<string>(String(initialData.salePricePerKg || DEFAULT_CONFIG.salePricePerKg || 43));
-  const [costPrice, setCostPrice] = useState<string>(String(initialData.costPricePerKg || DEFAULT_CONFIG.costPricePerKg || 38));
+  const [kilos, setKilos] = useState<string>(String(initialData.totalKilograms || ''));
+  const [salePrice, setSalePrice] = useState<string>(initialData.salePricePerKg !== undefined ? String(initialData.salePricePerKg) : (DEFAULT_CONFIG.salePricePerKg ? String(DEFAULT_CONFIG.salePricePerKg) : ''));
+  const [costPrice, setCostPrice] = useState<string>(initialData.costPricePerKg !== undefined ? String(initialData.costPricePerKg) : (DEFAULT_CONFIG.costPricePerKg ? String(DEFAULT_CONFIG.costPricePerKg) : ''));
   const [creditDays, setCreditDays] = useState<string>(String(initialData.creditDays || 30));
   const [notes, setNotes] = useState(initialData.notes || '');
 
   const totalKgNum = Number(kilos) || 0;
-  const salePriceNum = Number(salePrice) || 43;
-  const costPriceNum = Number(costPrice) || 38;
+  const salePriceNum = Number(salePrice) || 0;
+  const costPriceNum = Number(costPrice) || 0;
 
   const fin = computeFinancials(totalKgNum, {
     ...DEFAULT_CONFIG,

@@ -65,9 +65,10 @@ export function runContinuousAutoAudit({
   config?: FinancialConfig;
 }): AuditHealthReport {
   const cfg = config || DEFAULT_CONFIG;
-  const saleKg = cfg.salePricePerKg || 43;
-  const costKg = cfg.costPricePerKg || 38;
-  const ivaRate = cfg.ivaRate || 0.16;
+  const saleKg = cfg.salePricePerKg ?? 0;
+  const costKg = cfg.costPricePerKg ?? 0;
+  const globalSaleKg = cfg.salePricePerKg !== undefined && cfg.salePricePerKg !== null ? cfg.salePricePerKg : null;
+  const ivaRate = cfg.ivaRate ?? 0.16;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -81,6 +82,8 @@ export function runContinuousAutoAudit({
     const summary = getOrderSummary(o);
     const totalOrderedKg = Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0) || 0;
     const deliveredKg = summary.kilosDelivered;
+
+    const orderSaleKg = o.customSellPrice ?? globalSaleKg;
 
     // A) Detección de Entrega Parcial Casi Completa (≥95% entregado, faltante <150 kg)
     if (totalOrderedKg > 0 && deliveredKg > 0 && deliveredKg < totalOrderedKg - 0.01) {
@@ -97,7 +100,7 @@ export function runContinuousAutoAudit({
           rootCause: `Diferencia de calibre/pesaje en báscula física de entrega (${fmtKilos(faltante)}).`,
           financialImpact: {
             kilos: faltante,
-            amount: round2(faltante * saleKg * (1 + ivaRate)),
+            amount: orderSaleKg !== null ? round2(faltante * orderSaleKg * (1 + ivaRate)) : 0,
           },
           orderId: o.id,
           recommendation: `Si Andrés ya concluyó entregas, alinea el total de la OC a ${fmtKilos(deliveredKg)} para cerrar el ciclo sin esperar viajes inexistentes.`,
@@ -112,7 +115,7 @@ export function runContinuousAutoAudit({
     const invoicedKg = summary.kilosInvoiced;
     if (deliveredKg > invoicedKg + 0.01) {
       const readyKg = round2(deliveredKg - invoicedKg);
-      const readyAmount = round2(readyKg * saleKg * (1 + ivaRate));
+      const readyAmount = orderSaleKg !== null ? round2(readyKg * orderSaleKg * (1 + ivaRate)) : 0;
       anomalies.push({
         id: `deliveries_ready_to_invoice_${o.id}`,
         category: 'facturacion_sat',
@@ -143,7 +146,8 @@ export function runContinuousAutoAudit({
         ? 'GT'
         : inferDepartment(o);
       const st = inv.creditCycle?.status || 'pending';
-      const invTotal = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * (1 + ivaRate));
+      const effectiveSale = inv.financials?.salePricePerKg ?? orderSaleKg ?? saleKg;
+      const invTotal = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? ((inv.kilos || 0) * effectiveSale * (1 + ivaRate)) : 0);
 
       // A) Cruce de Prefijo Departamental (Regla de Oro: TH- vs GT-)
       if (cr) {
@@ -311,9 +315,10 @@ export function runContinuousAutoAudit({
   // =========================================================================
   // 4.5. DETECCIÓN DE FUGA DE MARGEN BRUTO (Tope de $5.00/kg)
   // =========================================================================
-  const baseMargin = saleKg - costKg;
-  if (baseMargin < 5.0) {
-    anomalies.push({
+  if (saleKg > 0 && costKg > 0) {
+    const baseMargin = saleKg - costKg;
+    if (baseMargin < 5.0) {
+      anomalies.push({
       id: 'margin_leak_alert',
       category: 'integridad_datos',
       severity: 'critical',
@@ -323,6 +328,7 @@ export function runContinuousAutoAudit({
       recommendation: `Revisar y calibrar los precios base a $43.00 venta y $38.00 costo en Configuración.`,
       autoFixAvailable: false,
     });
+  }
   }
 
   // =========================================================================

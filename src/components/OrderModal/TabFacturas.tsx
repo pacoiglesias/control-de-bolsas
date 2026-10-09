@@ -52,7 +52,7 @@ export default function TabFacturas() {
   );
 
   const handleDownloadExcel = (num: 1 | 2) => {
-    const precio = order.customSellPrice || dynamicConfig.salePricePerKg || config.salePricePerKg || 43;
+    const precio = order.customSellPrice ?? dynamicConfig.salePricePerKg ?? config.salePricePerKg ?? 0;
     if (num === 1) {
       downloadPrefacturaExcel({
         clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
@@ -307,7 +307,8 @@ export default function TabFacturas() {
                 const uso = 'G01 - Adquisición de mercancías';
                 const claveProd = '24141500';
                 const claveUnidad = 'KGM';
-                const precio = (dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2);
+                const effectivePrecio = order.customSellPrice ?? dynamicConfig.salePricePerKg ?? config.salePricePerKg ?? 0;
+                const precio = effectivePrecio.toFixed(2);
                 const txt = `RFC: ${rfc}\nNombre: ${razon}\nRégimen: ${regimen}\nUso CFDI: ${uso}\nClave ProdServ: ${claveProd}\nUnidad: ${claveUnidad}\nPrecio Unitario: $${precio}\nObjeto Impuesto: 02 - Sí objeto de impuesto (IVA 16%)\nMétodo de Pago: PPD\nForma de Pago: 99`;
                 navigator.clipboard.writeText(txt);
                 toast('📋 Datos fiscales copiados para el portal del SAT', 'ok');
@@ -333,7 +334,11 @@ export default function TabFacturas() {
           </div>
           <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
             <span style={{ color: 'var(--ink-soft)' }}>Precio Sugerido:</span><br/>
-            <strong style={{ color: 'var(--ok)' }}>${(dynamicConfig.salePricePerKg || config.salePricePerKg || 43).toFixed(2)}</strong> / kg
+            <strong style={{ color: 'var(--ok)' }}>
+              {(order.customSellPrice ?? dynamicConfig.salePricePerKg ?? config.salePricePerKg ?? 0) > 0
+                ? `$${(order.customSellPrice ?? dynamicConfig.salePricePerKg ?? config.salePricePerKg ?? 0).toFixed(2)}`
+                : 'Por definir'}
+            </strong> / kg
           </div>
           <div style={{ background: 'var(--paper)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line-soft)' }}>
             <span style={{ color: 'var(--ink-soft)' }}>Impuesto / Pago:</span><br/>

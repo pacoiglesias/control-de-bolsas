@@ -174,6 +174,7 @@ function Gate() {
             <Route path="audit" element={seccion(<AuditSync />)} />
             <Route path="oc" element={seccion(<OcTracking />)} />
             <Route path="archivo-documentos" element={seccion(<DocumentsArchivePage />)} />
+            <Route path="documentos" element={<Navigate to="/archivo-documentos" replace />} />
             <Route path="mining" element={seccion(<DataMining />)} />
             <Route path="catalogo" element={seccion(<Catalog />)} />
             <Route path="captura-rapida" element={seccion(<FastEntry />)} />

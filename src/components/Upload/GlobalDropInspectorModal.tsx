@@ -481,15 +481,18 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
             notes: `OC importada desde ${file.name}`,
             invoices: [],
             deliveries: [],
-            items: (ocPiezasInfo?.conceptos || []).map((c, idx) => ({
-              id: `item-${idx + 1}`,
-              code: c.codigo || 'S/C',
-              description: c.descripcion || 'Bolsa de Polietileno',
-              quantity: c.cantidad || extractedKilos || 0,
-              unitPrice: c.valorUnitario || 43,
-              amount: c.cantidad * (c.valorUnitario || 43),
-              unit: 'Kilos',
-            })),
+            items: (ocPiezasInfo?.conceptos || []).map((c, idx) => {
+              const uPrice = c.valorUnitario !== undefined && c.valorUnitario !== null ? Number(c.valorUnitario) : (extractedKilos && extractedSubtotal ? Number((extractedSubtotal / extractedKilos).toFixed(2)) : 0);
+              return {
+                id: `item-${idx + 1}`,
+                code: c.codigo || 'S/C',
+                description: c.descripcion || 'Bolsa de Polietileno',
+                quantity: c.cantidad || extractedKilos || 0,
+                unitPrice: uPrice,
+                amount: (c.cantidad || 0) * uPrice,
+                unit: 'Kilos',
+              };
+            }),
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
           };
@@ -596,31 +599,34 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         const safeDate = toSafeTimestamp(extractedDate);
         const invFolio = extractedFolio?.trim() || 'S/F';
         const numKilos = Number(extractedKilos) || 0;
-        const sellPrice = selectedOrder.customSellPrice || 43;
-        const subtotal = extractedSubtotal || round2(numKilos * sellPrice);
-        const total = extractedTotal || round2(numKilos * sellPrice * 1.16);
+        const sellPrice = selectedOrder.customSellPrice ?? 0;
+        const subtotal = extractedSubtotal || (sellPrice > 0 ? round2(numKilos * sellPrice) : 0);
+        const total = extractedTotal || (subtotal > 0 ? round2(subtotal * 1.16) : 0);
 
+        const costPrice = selectedOrder.customCostPrice ?? null;
         const newInvoice: Invoice = {
           id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           folio: invFolio,
           ...(extractedUuid?.trim() ? { uuid: extractedUuid.trim() } : {}),
           kilos: numKilos,
+          orderId: selectedOrder.id,
+          oc: selectedOrder.oc || selectedOrder.folio || '',
           financials: {
             salePricePerKg: sellPrice,
-            costPricePerKg: 38,
+            costPricePerKg: costPrice ?? 0,
             saleTotal: subtotal,
             invoiceTotal: total,
-            costTotal: round2(numKilos * 38),
-            commission: round2(subtotal * 0.08),
-            netCashFlow: round2(total - (numKilos * 38) - (subtotal * 0.08)),
-            tradeMargin: round2(subtotal - (numKilos * 38)),
-          },
+            costTotal: costPrice !== null && numKilos > 0 ? round2(numKilos * costPrice) : 0,
+            commission: subtotal > 0 ? round2(subtotal * 0.08) : 0,
+            netCashFlow: costPrice !== null && subtotal > 0 ? round2(total - (numKilos * costPrice) - (subtotal * 0.08)) : 0,
+            tradeMargin: costPrice !== null && subtotal > 0 ? round2(subtotal - (numKilos * costPrice)) : 0,
+            needsReview: costPrice === null || undefined,
+            reviewReason: costPrice === null ? 'Precio de costo no pactado en la orden' : undefined,
+          } as any,
           creditCycle: {
             status: 'pending',
             issueDate: safeDate,
           },
-          orderId: selectedOrder.id,
-          oc: selectedOrder.oc || selectedOrder.folio || '',
         };
 
         const existingInvoices = selectedOrder.invoices || [];
@@ -729,15 +735,18 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
             updatedAt: Timestamp.now(),
           };
           if (ocPiezasInfo?.conceptos && ocPiezasInfo.conceptos.length > 0) {
-            updates.items = ocPiezasInfo.conceptos.map((c, idx) => ({
-              id: `item-${idx + 1}`,
-              code: c.codigo || 'S/C',
-              description: c.descripcion || 'Bolsa de Polietileno',
-              quantity: c.cantidad || extractedKilos || 0,
-              unitPrice: c.valorUnitario || 43,
-              amount: c.cantidad * (c.valorUnitario || 43),
-              unit: 'Kilos',
-            }));
+            updates.items = ocPiezasInfo.conceptos.map((c, idx) => {
+              const uPrice = c.valorUnitario !== undefined && c.valorUnitario !== null ? Number(c.valorUnitario) : (extractedKilos && extractedSubtotal ? Number((extractedSubtotal / extractedKilos).toFixed(2)) : 0);
+              return {
+                id: `item-${idx + 1}`,
+                code: c.codigo || 'S/C',
+                description: c.descripcion || 'Bolsa de Polietileno',
+                quantity: c.cantidad || extractedKilos || 0,
+                unitPrice: uPrice,
+                amount: (c.cantidad || 0) * uPrice,
+                unit: 'Kilos',
+              };
+            });
           }
           await safeUpdateDoc(orderRef, updates);
           sound.playChaChing();

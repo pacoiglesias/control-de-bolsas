@@ -33,7 +33,7 @@ export function ProactiveBriefingCard({
 }: ProactiveBriefingCardProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const saleKg = config?.salePricePerKg || 43;
+  const saleKg = config?.salePricePerKg || 0;
   const ivaRate = config?.ivaRate || 0.16;
 
   const proactiveActions = useMemo<ActionItem[]>(() => {

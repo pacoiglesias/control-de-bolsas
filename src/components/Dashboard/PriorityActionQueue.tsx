@@ -68,8 +68,9 @@ export const PriorityActionQueue: React.FC<PriorityActionQueueProps> = ({
       const kilosSinFactura = Math.max(0, kilosEntregados - kilosFacturados);
 
       if (kilosSinFactura > 0.5) {
-        const precioKg = order.customSellPrice || config.salePricePerKg || 43;
-        const montoSinFactura = kilosSinFactura * precioKg * (1 + (config.ivaRate || 0.16));
+        const precioKg = order.customSellPrice ?? config.salePricePerKg ?? null;
+        const montoSinFactura = precioKg !== null ? kilosSinFactura * precioKg * (1 + (config.ivaRate || 0.16)) : 0;
+        const whyPriceNote = precioKg === null ? ' (Pendiente definir precio de venta pactado)' : '';
 
         list.push({
           id: `unbilled-${order.id}`,
@@ -84,7 +85,7 @@ export const PriorityActionQueue: React.FC<PriorityActionQueueProps> = ({
           department: order.department,
           kilosAmount: kilosSinFactura,
           financialAmount: montoSinFactura,
-          whyAttention: `Báscula confirmó recepción física de ${kilos(kilosSinFactura)}. Requiere emitir factura CFDI 4.0 para iniciar plazo de crédito comercial.`,
+          whyAttention: `Báscula confirmó recepción física de ${kilos(kilosSinFactura)}.${whyPriceNote} Requiere emitir factura CFDI 4.0 para iniciar plazo de crédito comercial.`,
           recommendedAction: 'Generar prefactura y timbrar factura fiscal amparando las remisiones de báscula.',
           actionButtonText: '🧾 Facturar Entrega',
           targetTab: 'facturas',

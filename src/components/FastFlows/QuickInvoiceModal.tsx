@@ -129,8 +129,8 @@ export function QuickInvoiceModal({
     return list;
   }, [validOrders]);
 
-  const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 43;
-  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 38;
+  const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 0;
+  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 0;
 
   const loadRowsForOrder = (oId: string, ordersList: PurchaseOrder[]) => {
     const order = ordersList.find((o) => o.id === oId);
@@ -139,7 +139,7 @@ export function QuickInvoiceModal({
       return;
     }
 
-    const sellPrice = order.customSellPrice || config?.salePricePerKg || 43;
+    const sellPrice = order.customSellPrice || config?.salePricePerKg || 0;
     const breakdown = computeItemInvoiceBreakdown(order, sellPrice);
 
     if (breakdown.length > 0) {

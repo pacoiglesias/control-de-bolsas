@@ -12,7 +12,7 @@ import { DEFAULT_CONFIG } from '../lib/types';
  */
 export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[] }) {
   const { config } = useConfig();
-  const salePrice = config?.salePricePerKg ?? DEFAULT_CONFIG.salePricePerKg ?? 43;
+  const defaultSalePrice = config?.salePricePerKg ?? DEFAULT_CONFIG.salePricePerKg ?? 0;
   const ivaRate = config?.ivaRate ?? DEFAULT_CONFIG.ivaRate ?? 0.16;
 
   const patioList = useMemo(() => {
@@ -40,7 +40,8 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
 
       if (readyKg > 0.05) {
         const dept = inferDepartment(o) || (o.department?.toUpperCase().includes('TH') ? 'TH' : 'GT');
-        const amount = readyKg * salePrice * (1 + ivaRate);
+        const effectiveSalePrice = Number(o.customSellPrice ?? defaultSalePrice);
+        const amount = readyKg * effectiveSalePrice * (1 + ivaRate);
         list.push({
           order: o,
           id: o.id,
@@ -55,7 +56,7 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
     });
 
     return list;
-  }, [orders, salePrice, ivaRate]);
+  }, [orders, defaultSalePrice, ivaRate]);
 
   if (patioList.length === 0) return null;
 
@@ -151,7 +152,7 @@ export function UninvoicedDeliveriesBanner({ orders }: { orders: PurchaseOrder[]
       {/* Tarjetas de Desglose por Departamento */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
         {patioList.map((item) => {
-          const subtotal = item.patioKg * salePrice;
+          const subtotal = item.patioKg * defaultSalePrice;
           return (
             <div
               key={item.id}

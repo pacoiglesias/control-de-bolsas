@@ -509,20 +509,26 @@ export default function AuditSync() {
         }
       } else if (field === 'kilos') {
         const numKilos = Math.max(0, Number(value) || 0);
-        const pVenta = order.customSellPrice ?? config.salePricePerKg ?? 43;
-        const pCosto = order.customCostPrice ?? config.costPricePerKg ?? 38;
+        const pVenta = order.customSellPrice ?? config.salePricePerKg ?? null;
+        const pCosto = order.customCostPrice ?? config.costPricePerKg ?? null;
+        const faltanPrecios = pVenta === null || pCosto === null;
 
         if (invoices.length > 0) {
           const updatedInvoices = invoices.map((inv) => {
             if (!row.invoiceId || inv.id === row.invoiceId) {
+              const fin = computeFinancials(numKilos, {
+                ...config,
+                salePricePerKg: pVenta ?? 0,
+                costPricePerKg: pCosto ?? 0,
+              });
               return {
                 ...inv,
                 kilos: numKilos,
-                financials: computeFinancials(numKilos, {
-                  ...config,
-                  salePricePerKg: pVenta,
-                  costPricePerKg: pCosto,
-                }),
+                financials: {
+                  ...fin,
+                  needsReview: faltanPrecios || undefined,
+                  reviewReason: faltanPrecios ? 'Precio de venta o costo no pactado en orden o configuración' : undefined,
+                },
               };
             }
             return inv;

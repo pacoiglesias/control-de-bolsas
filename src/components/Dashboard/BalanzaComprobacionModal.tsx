@@ -48,7 +48,8 @@ export function BalanzaComprobacionModal({
         const st = inv.creditCycle?.status;
         if (st !== 'paid' && st !== 'collected') {
           const cr = extractCr(inv, o);
-          const amt = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (config.salePricePerKg || 43) * 1.16);
+          const effectiveSale = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config.salePricePerKg || 0);
+          const amt = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? ((inv.kilos || 0) * effectiveSale * 1.16) : 0);
 
           if (cr) {
             totalCrs += amt;

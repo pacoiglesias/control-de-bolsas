@@ -112,14 +112,17 @@ export function DocumentAutoAssigner({ data, onClear }: DocumentAutoAssignerProp
           costTotal: fin.costTotal,
           netCashFlow: fin.netCashFlow,
         },
-        items: (data.items || targetOrder.items || []).map((it, idx) => ({
-          id: (it as any).id || `item_${idx + 1}`,
-          description: it.description,
-          quantity: it.quantity,
-          unit: (it as any).unit || 'Kilos',
-          unitPrice: it.unitPrice || 43.0,
-          amount: it.amount || ((it.quantity || 0) * (it.unitPrice || 43.0)),
-        })),
+        items: (data.items || targetOrder.items || []).map((it, idx) => {
+          const uPrice = Number(it.unitPrice ?? targetOrder.customSellPrice ?? 0);
+          return {
+            id: (it as any).id || `item_${idx + 1}`,
+            description: it.description,
+            quantity: it.quantity,
+            unit: (it as any).unit || 'Kilos',
+            unitPrice: uPrice,
+            amount: it.amount ?? ((Number(it.quantity) || 0) * uPrice),
+          };
+        }),
       };
 
       // Si ya existía una factura borrador sin folio, actualizarla

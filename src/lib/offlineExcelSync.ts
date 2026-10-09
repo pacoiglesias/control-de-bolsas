@@ -42,8 +42,8 @@ export async function exportOfflineWorkbook(
     const invs = o.invoices || [];
     invs.forEach((inv) => {
       const cr = extractCr(inv, o);
-      const unitSalePrice = inv.financials?.salePricePerKg ?? o.customSellPrice ?? config?.salePricePerKg ?? 43;
-      const invTotal = round2(inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * unitSalePrice * 1.16));
+      const unitSalePrice = inv.financials?.salePricePerKg ?? o.customSellPrice ?? config?.salePricePerKg ?? null;
+      const invTotal = round2(inv.financials?.invoiceTotal ?? (unitSalePrice !== null ? (inv.kilos || 0) * unitSalePrice * 1.16 : 0));
       const issueDate = toDate(inv.creditCycle?.issueDate);
       const dueDate = toDate(inv.creditCycle?.dueDate);
 

@@ -116,17 +116,21 @@ export default function Layout() {
   const navItems = useMemo<NavItem[]>(() => [
     { type: 'link', to: '/', icon: '📊', label: 'Dashboard General', end: true, roles: ['admin', 'manager', 'viewer'] },
     
-    { type: 'group', label: 'OPERACIÓN Y BÁSCULA', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/oc', icon: '🚚', label: 'Seguimiento por OC & Báscula', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/ordenes', icon: '📂', label: 'Expedientes y Facturas', roles: ['admin', 'manager', 'viewer'] },
-    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de Productos', roles: ['admin', 'manager'] },
+    { type: 'group', label: '1. PROVEEDOR & PRODUCCIÓN', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/compras', icon: '🏭', label: 'Compras al Proveedor', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/portal-maquilador', icon: '📱', label: 'Portal del Proveedor', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'FINANZAS & CUENTAS', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/cobranza', icon: '🧾', label: 'Cobranza Providencia', roles: ['admin', 'manager'] },
-    { type: 'link', to: '/compras', icon: '🏭', label: 'Compras & Andrés', roles: ['admin'] },
-    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Efectivo en Caja', roles: ['admin'] },
+    { type: 'group', label: '2. BÁSCULA & CLIENTE', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/oc', icon: '🚚', label: 'Recepción & Báscula', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/ordenes', icon: '📂', label: 'Pedidos & Facturación', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/catalogo', icon: '🏷️', label: 'Catálogo de Bolsas', roles: ['admin', 'manager'] },
 
-    { type: 'group', label: 'CONTROL ERP', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'group', label: '3. COBRANZA & TESORERÍA', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/cobranza', icon: '🧾', label: 'Contrarrecibos & Cobranza', roles: ['admin', 'manager'] },
+    { type: 'link', to: '/caja-chica', icon: '💵', label: 'Caja & Conciliación', roles: ['admin'] },
+
+    { type: 'group', label: '4. CONTROL & ARCHIVO', roles: ['admin', 'manager', 'viewer'] },
+    { type: 'link', to: '/archivo-documentos', icon: '🗂️', label: 'Archivo de Documentos', roles: ['admin', 'manager', 'viewer'] },
     { type: 'link', to: '/audit', icon: '🛡️', label: 'Auditoría & Centinela', roles: ['admin'] },
     { type: 'link', to: '/centro-control', icon: '⚙️', label: 'Configuración ERP', roles: ['admin', 'manager', 'viewer'] },
   ], []);

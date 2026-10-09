@@ -348,7 +348,7 @@ export function MobileBottomBar() {
                     onClick={() => {
                       setShowQuickSheet(false);
                       triggerHaptic('light');
-                      navigate('/documentos');
+                      navigate('/archivo-documentos');
                     }}
                     style={{
                       background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%)',

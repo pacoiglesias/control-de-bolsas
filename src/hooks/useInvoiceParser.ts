@@ -161,8 +161,8 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     const totalMatch = text.match(/TOTAL\s*\$?\s*([\d,]+\.\d{2})/i);
     
     // Extraer conceptos/partidas detalladas de la factura
-    const salePrice = config?.salePricePerKg ?? 43;
-    const costPrice = config?.costPricePerKg ?? 38;
+    const salePrice = config?.salePricePerKg ?? 0;
+    const costPrice = config?.costPricePerKg ?? 0;
     const commRate = config?.commissionRate ?? 0.08;
 
     const items = extractInvoiceItemsFromText(text, salePrice);
@@ -170,8 +170,8 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
     const finalKilos = kilos > 0 ? kilos : calculatedKilos;
 
     const calculatedSubtotal = items.reduce((s, it) => s + (it.amount || 0), 0);
-    const subtotal = subtotalMatch ? Number(subtotalMatch[1].replace(/,/g, '')) : (calculatedSubtotal > 0 ? calculatedSubtotal : (finalKilos * salePrice));
-    const total = totalMatch ? Number(totalMatch[1].replace(/,/g, '')) : (subtotal * 1.16);
+    const subtotal = subtotalMatch ? Number(subtotalMatch[1].replace(/,/g, '')) : (calculatedSubtotal > 0 ? calculatedSubtotal : (salePrice > 0 ? finalKilos * salePrice : 0));
+    const total = totalMatch ? Number(totalMatch[1].replace(/,/g, '')) : (subtotal > 0 ? subtotal * 1.16 : 0);
 
     const newInvoice: Invoice = {
       id: Date.now().toString(),
@@ -269,13 +269,13 @@ export function useInvoiceParser({ invoices, setInvoices, config, allOrders = []
       ? currentOrder.customSellPrice
       : (currentOrder?.financials?.salePricePerKg !== undefined && currentOrder?.financials?.salePricePerKg !== null
           ? currentOrder.financials.salePricePerKg
-          : (config?.salePricePerKg ?? 43));
+          : (config?.salePricePerKg ?? 0));
 
     const effectiveCostPrice = hasOrderCost
       ? currentOrder.customCostPrice
       : (currentOrder?.financials?.costPricePerKg !== undefined && currentOrder?.financials?.costPricePerKg !== null
           ? currentOrder.financials.costPricePerKg
-          : (config?.costPricePerKg ?? 38));
+          : (config?.costPricePerKg ?? 0));
 
     const effectiveCommissionRate = currentOrder?.financials?.commissionRate ?? config?.commissionRate ?? 0.08;
 

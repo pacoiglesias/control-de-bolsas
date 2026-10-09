@@ -63,8 +63,9 @@ export function CorteMensualModal({
     orders.forEach((o) => {
       (o.invoices || []).forEach((inv) => {
         const dIssue = toDate(inv.creditCycle?.issueDate);
+        const effectiveSale = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config.salePricePerKg || 0);
         if (dIssue && dIssue >= startOfMonth && dIssue <= endOfMonth) {
-          const invTot = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (config.salePricePerKg || 43) * 1.16);
+          const invTot = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? ((inv.kilos || 0) * effectiveSale * 1.16) : 0);
           kilosEmitidosMes += inv.kilos || 0;
           facturacionEmitidaMes += invTot;
         }
@@ -73,7 +74,7 @@ export function CorteMensualModal({
         const st = inv.creditCycle?.status;
         if ((st === 'paid' || st === 'collected') && dPaid && dPaid >= startOfMonth && dPaid <= endOfMonth) {
           const k = inv.kilos || 0;
-          const montoTotal = inv.financials?.invoiceTotal ?? (k * (config.salePricePerKg || 43) * 1.16);
+          const montoTotal = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? (k * effectiveSale * 1.16) : 0);
           const subtotal = round2(montoTotal / 1.16);
           const iva = round2(montoTotal - subtotal);
           facturasCobradas.push({
@@ -117,7 +118,7 @@ export function CorteMensualModal({
     const totalPagadoAndres = pagosAndres.reduce((a, e) => a + e.amount, 0);
     const totalEgresosOperativos = egresosOperativos.reduce((a, e) => a + e.amount, 0);
     const totalKilosCobrados = facturasCobradas.reduce((a, f) => a + f.kilos, 0);
-    const costoAndresDeKilosCobrados = round2(totalKilosCobrados * (config.costPricePerKg || 38));
+    const costoAndresDeKilosCobrados = round2(totalKilosCobrados * (config.costPricePerKg || 0));
     const gananciaNetaPeriodo = round2(totalCobrado - costoAndresDeKilosCobrados - totalEgresosOperativos);
 
     return {

@@ -94,12 +94,15 @@ export function useOrderDeliveries(
       const orderItems = f.items || [];
       let invoiceItems: any[] = [];
 
+      const defaultSellPrice = Number(f.customSellPrice ?? 0);
+      const defaultCostPrice = Number(f.customCostPrice ?? 0);
+
       if (dItems.length > 0) {
         invoiceItems = dItems
           .filter((di: any) => Number(di.quantity) > 0)
           .map((di: any) => {
             const matched = orderItems.find((oi: any) => oi.id === di.itemId || oi.code === di.itemId);
-            const unitPrice = Number(matched?.unitPrice || f.customSellPrice || 43);
+            const unitPrice = Number(matched?.unitPrice ?? defaultSellPrice);
             const qty = Number(di.quantity);
             return {
               id: matched?.id || crypto.randomUUID(),
@@ -113,7 +116,7 @@ export function useOrderDeliveries(
           });
       } else if (orderItems.length === 1 && kilos > 0) {
         const matched = orderItems[0];
-        const unitPrice = Number(matched.unitPrice || f.customSellPrice || 43);
+        const unitPrice = Number(matched.unitPrice ?? defaultSellPrice);
         invoiceItems = [{
           id: matched.id || crypto.randomUUID(),
           code: matched.code || '24141500',
@@ -127,7 +130,7 @@ export function useOrderDeliveries(
         // Si la entrega no trajo desglose partida por partida pero la OC tiene varios artículos,
         // incluir las partidas proporcionales o completas
         invoiceItems = orderItems.map((matched: any) => {
-          const unitPrice = Number(matched.unitPrice || f.customSellPrice || 43);
+          const unitPrice = Number(matched.unitPrice ?? defaultSellPrice);
           const qty = Number(matched.quantity || 0);
           return {
             id: matched.id || crypto.randomUUID(),
@@ -141,7 +144,7 @@ export function useOrderDeliveries(
         });
       }
 
-      const invSubtotal = invoiceItems.reduce((acc, it) => acc + (it.amount || 0), 0) || (kilos * (Number(f.customSellPrice) || 43));
+      const invSubtotal = invoiceItems.reduce((acc, it) => acc + (it.amount || 0), 0) || (kilos * defaultSellPrice);
       const invTotal = invSubtotal * 1.16;
 
       // Draft a new invoice with complete items and financials
@@ -151,14 +154,14 @@ export function useOrderDeliveries(
         kilos,
         items: invoiceItems.length > 0 ? invoiceItems : undefined,
         financials: {
-          salePricePerKg: Number(f.customSellPrice) || 43,
-          costPricePerKg: Number(f.customCostPrice) || 38,
+          salePricePerKg: defaultSellPrice,
+          costPricePerKg: defaultCostPrice,
           commissionRate: 0.08,
           saleTotal: invSubtotal,
-          costTotal: kilos * (Number(f.customCostPrice) || 38),
+          costTotal: kilos * defaultCostPrice,
           commission: invSubtotal * 0.08,
           invoiceTotal: invTotal,
-          netCashFlow: invSubtotal - (kilos * (Number(f.customCostPrice) || 38)) - (invSubtotal * 0.08),
+          netCashFlow: invSubtotal - (kilos * defaultCostPrice) - (invSubtotal * 0.08),
         },
         creditCycle: {
           status: 'pending',

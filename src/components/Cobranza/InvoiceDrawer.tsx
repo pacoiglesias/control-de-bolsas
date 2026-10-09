@@ -303,7 +303,7 @@ export function InvoiceDrawer({ invoice, order, dynamicConfig, onClose }: Invoic
                   const ratio = totalOcKilos > 0 ? ((localInvoice.kilos || totalOcKilos) / totalOcKilos) : 1;
                   const newItems = order.items!.map(it => {
                     const q = round2((Number(it.quantity) || 0) * ratio);
-                    const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                    const p = it.unitPrice ?? order.customSellPrice ?? dynamicConfig.salePricePerKg ?? 0;
                     return {
                       ...it,
                       quantity: q,

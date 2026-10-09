@@ -32,9 +32,9 @@ export const ConfirmacionStep: React.FC<ConfirmacionStepProps> = ({
   const rec = data?.recepcionData || {};
   const fact = data?.facturaData || {};
 
-  const orderKilos = Number(rec?.receivedKilos || oc?.totalKilograms || 1500);
-  const salePrice = Number(fact?.salePricePerKg || oc?.salePricePerKg || 43);
-  const costPrice = Number(oc?.costPricePerKg || 38);
+  const orderKilos = Number(rec?.receivedKilos || oc?.totalKilograms || 0);
+  const salePrice = Number(fact?.salePricePerKg ?? oc?.customSellPrice ?? oc?.salePricePerKg ?? 0);
+  const costPrice = Number(oc?.customCostPrice ?? oc?.costPricePerKg ?? 0);
 
   const fin = computeFinancials(orderKilos, {
     ...DEFAULT_CONFIG,

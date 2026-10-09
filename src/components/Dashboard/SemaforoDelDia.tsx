@@ -31,7 +31,7 @@ export function SemaforoDelDia({
     let porRecibirContadorMonto = 0;
     let porRecibirContadorCount = 0;
 
-    const salePrice = config?.salePricePerKg || 43;
+    const salePrice = config?.salePricePerKg || 0;
     const ivaRate = config?.ivaRate || 0.16;
 
     (orders || []).forEach((o) => {

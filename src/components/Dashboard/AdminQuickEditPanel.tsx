@@ -39,8 +39,8 @@ function computeCoherence(
   const chips: CoherenceResult['chips'] = [];
   const warnings: string[] = [];
 
-  const sale = fieldId === 'salePricePerKg' ? draftNum : (config.salePricePerKg || 43);
-  const cost = fieldId === 'costPricePerKg' ? draftNum : (config.costPricePerKg || 38);
+  const sale = fieldId === 'salePricePerKg' ? draftNum : (config.salePricePerKg || 0);
+  const cost = fieldId === 'costPricePerKg' ? draftNum : (config.costPricePerKg || 0);
   const commRate = fieldId === 'commissionRate' ? draftNum / 100 : (config.commissionRate || 0.02);
   const iva = fieldId === 'ivaRate' ? draftNum / 100 : (config.ivaRate ?? 0.16);
 

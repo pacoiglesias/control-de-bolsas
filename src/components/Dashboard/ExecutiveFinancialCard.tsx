@@ -47,12 +47,12 @@ export function ExecutiveFinancialCard({ orders, config, saldoCaja = 0 }: Execut
         totalKilosFacturados += kg;
         
         // Precio de venta histórico congelado de la factura o de la orden
-        const effectiveSalePrice = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config?.salePricePerKg || 43);
+        const effectiveSalePrice = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config?.salePricePerKg || 0);
         const invSubtotal = (inv.financials as any)?.subtotal ?? inv.financials?.saleTotal ?? round2(kg * effectiveSalePrice);
         subtotalFacturado += invSubtotal;
 
         // Costo de compra histórico congelado a Andrés de la factura o de la orden
-        const effectiveCostPrice = inv.financials?.costPricePerKg ?? (Number(o.customCostPrice) || config?.costPricePerKg || 38);
+        const effectiveCostPrice = inv.financials?.costPricePerKg ?? (Number(o.customCostPrice) || config?.costPricePerKg || 0);
         const invCost = inv.financials?.costTotal ?? round2(kg * effectiveCostPrice);
         costoAndresTotal += invCost;
 

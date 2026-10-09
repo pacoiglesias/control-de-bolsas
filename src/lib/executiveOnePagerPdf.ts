@@ -15,7 +15,7 @@ export interface ExecutiveOnePagerData {
 export function generateExecutiveOnePagerPdf({
   orders,
   expenses: _expenses,
-  config,
+  config: _config,
   settings,
   saldoCaja,
   saldoAndres = 0,
@@ -32,7 +32,6 @@ export function generateExecutiveOnePagerPdf({
   let y = margin;
 
   const provName = settings?.providerName || 'Andrés';
-  const saleKg = config?.salePricePerKg || 43;
 
   // 1. Cabecera Ejecutiva (Navy Obsidian)
   doc.setFillColor(15, 23, 42); // Slate 900
@@ -99,7 +98,7 @@ export function generateExecutiveOnePagerPdf({
     (o.invoices || []).forEach((inv) => {
       const cr = extractCr(inv, o);
       const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected';
-      const totalInv = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * saleKg * 1.16);
+      const totalInv = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (_config?.salePricePerKg ?? 0) * 1.16);
       if (!cr && !isPaid && totalInv > 0) {
         let dias = 0;
         const issueD = inv.creditCycle?.issueDate ? new Date((inv.creditCycle.issueDate as any).toDate?.() || inv.creditCycle.issueDate) : null;

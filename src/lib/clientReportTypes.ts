@@ -32,10 +32,11 @@ export function computeClientReportMetrics(order: PurchaseOrder): ClientReportMe
 
   const fulfillPct = pct(deliveredKg, totalKg);
 
-  const salePrice = order.financials?.salePricePerKg ?? 43;
-  const deliveredAmount = deliveredKg * salePrice;
+  const salePrice = order.financials?.salePricePerKg ?? order.customSellPrice ?? null;
+  const effectivePrice = salePrice ?? 0;
+  const deliveredAmount = deliveredKg * effectivePrice;
   const deliveredAmountIva = deliveredAmount * 1.16;
-  const pendingAmount = remainingKg * salePrice * 1.16;
+  const pendingAmount = remainingKg * effectivePrice * 1.16;
 
   const nextDate = order.estimatedDeliveryDate;
   const items = order.items || [];
@@ -47,7 +48,7 @@ export function computeClientReportMetrics(order: PurchaseOrder): ClientReportMe
     pendingInvoiceKg,
     remainingKg,
     fulfillPct,
-    salePrice,
+    salePrice: effectivePrice,
     deliveredAmountIva,
     pendingAmount,
     nextDate,

@@ -318,13 +318,18 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
           department: dept,
           date: d.fecha || new Date().toISOString().split('T')[0],
           dueDate: d.fechaEntrega || d.fechaVencimiento || undefined,
-          items: (d.conceptos || []).map((c: any) => ({
-            code: c.codigo || c.code || '',
-            description: c.descripcion || c.description || 'Bolsa de Polietileno',
-            quantity: Number(c.cantidad || c.quantity || 0),
-            unitPrice: Number(c.precioUnitario || c.unitPrice || 43.0),
-            amount: Number(c.importe || c.amount || ((c.cantidad || 0) * (c.precioUnitario || 43.0))),
-          })),
+          items: (d.conceptos || []).map((c: any) => {
+            const qty = Number(c.cantidad || c.quantity || 0);
+            const uPrice = Number(c.precioUnitario ?? c.unitPrice ?? (qty > 0 && c.importe ? Number(c.importe) / qty : 0));
+            const amt = Number(c.importe ?? c.amount ?? (qty * uPrice));
+            return {
+              code: c.codigo || c.code || '',
+              description: c.descripcion || c.description || 'Bolsa de Polietileno',
+              quantity: qty,
+              unitPrice: uPrice,
+              amount: amt,
+            };
+          }),
           confidence: 0.95,
         };
       } catch (aiErr: any) {

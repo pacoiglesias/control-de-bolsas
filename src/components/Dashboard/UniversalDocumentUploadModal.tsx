@@ -277,7 +277,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
             code: c.claveProdServ || c.codigo || 'S/C',
             description: c.descripcion || 'Bolsa de Polietileno',
             quantity: Number(c.cantidad) || 0,
-            price: Number(c.valorUnitario) || 43,
+            price: Number(c.valorUnitario) || (c.cantidad && c.importe ? Number(c.importe) / Number(c.cantidad) : 0),
           })),
           processedAt: serverTimestamp(),
           createdAt: serverTimestamp(),
@@ -393,7 +393,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                 code: it.code.toUpperCase().trim(),
                 description: it.description.trim(),
                 unit: it.unit || 'Kilos',
-                defaultPrice: it.unitPrice || 43,
+                defaultPrice: it.unitPrice || 0,
                 lastOrderDate: serverTimestamp(),
               }, { merge: true });
             } catch (err) {
@@ -409,7 +409,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         folio: realFolio,
         oc: realOc,
         kilos: finalKilos || Number(match.totalKilograms) || 0,
-        total: (finalKilos || Number(match.totalKilograms) || 0) * 43 * 1.16,
+        total: (finalKilos || Number(match.totalKilograms) || 0) * (Number(match.customSellPrice) || 0) * 1.16,
         status: 'success',
         message: `✅ Orden de Compra ${realOc} (${realFolio}) sincronizada con ${parsedItems ? parsedItems.length : (match.items?.length || 0)} partidas (${(finalKilos || match.totalKilograms || 0).toLocaleString('es-MX')} kg) — visible en Dashboard como 🏭 En Producción`,
         orderId: match.id,
@@ -417,21 +417,24 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
     }
 
     // 2. Crear el nuevo expediente de OC con status: 'pedido'
-    const items = parsedItems || (ocr.conceptos && ocr.conceptos.length > 0 ? ocr.conceptos.map((c: any, idx: number) => ({
-      id: `item-${idx + 1}`,
-      code: c.codigo || 'S/C',
-      description: c.descripcion || 'Bolsa de Polietileno',
-      quantity: Number(c.cantidad) || finalKilos || 0,
-      unitPrice: Number(c.valorUnitario) || 43,
-      amount: Number(c.importe) || ((finalKilos || 0) * 43),
-      unit: 'Kilos',
-    })) : [{
+    const items = parsedItems || (ocr.conceptos && ocr.conceptos.length > 0 ? ocr.conceptos.map((c: any, idx: number) => {
+      const uPrice = Number(c.valorUnitario) || (c.cantidad && c.importe ? Number(c.importe) / Number(c.cantidad) : 0);
+      return {
+        id: `item-${idx + 1}`,
+        code: c.codigo || 'S/C',
+        description: c.descripcion || 'Bolsa de Polietileno',
+        quantity: Number(c.cantidad) || finalKilos || 0,
+        unitPrice: uPrice,
+        amount: Number(c.importe) || ((Number(c.cantidad) || finalKilos || 0) * uPrice),
+        unit: 'Kilos',
+      };
+    }) : [{
       id: 'item-1',
       code: 'S/C',
       description: ocr.product || 'Bolsa de Polietileno',
       quantity: finalKilos,
-      unitPrice: 43,
-      amount: finalKilos * 43,
+      unitPrice: 0,
+      amount: 0,
       unit: 'Kilos',
     }]);
 
@@ -443,7 +446,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
             code: it.code.toUpperCase().trim(),
             description: it.description.trim(),
             unit: it.unit || 'Kilos',
-            defaultPrice: it.unitPrice || 43,
+            defaultPrice: it.unitPrice || 0,
             lastOrderDate: serverTimestamp(),
           }, { merge: true });
         } catch (err) {
@@ -1202,7 +1205,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
                     code: c.codigo || 'S/C',
                     description: c.descripcion || 'Bolsa de Polietileno',
                     quantity: Number(c.cantidad) || 0,
-                    unitPrice: Number(c.valorUnitario) || 43,
+                    unitPrice: Number(c.valorUnitario) || (c.cantidad && c.importe ? Number(c.importe) / Number(c.cantidad) : 0),
                     amount: Number(c.importe) || 0,
                     unit: 'Kilos',
                   })) : [],

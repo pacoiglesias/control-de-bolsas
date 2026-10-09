@@ -40,8 +40,8 @@ export function SmartAlerts({ orders, deudaAndres }: { orders: PurchaseOrder[]; 
     // factura ya facturada cuyo margen real (financials.tradeMargin /
     // financials.saleTotal, calculado por computeFinancials en finance.ts)
     // esté muy por debajo de ese esperado, o sea negativo (pérdida).
-    const salePrice = config?.salePricePerKg || 43;
-    const costPrice = config?.costPricePerKg || 38;
+    const salePrice = config?.salePricePerKg || 0;
+    const costPrice = config?.costPricePerKg || 0;
     const expectedMarginRate = salePrice > 0 ? (salePrice - costPrice) / salePrice : 0;
     let marginAnomalyCount = 0;
     let worstMarginFolio = '';

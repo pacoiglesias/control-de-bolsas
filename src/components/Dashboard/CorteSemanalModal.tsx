@@ -70,7 +70,8 @@ export function CorteSemanalModal({
         const st = inv.creditCycle?.status;
         if ((st === 'paid' || st === 'collected') && dPaid && dPaid >= startOfWeek && dPaid <= endOfWeek) {
           const k = inv.kilos || 0;
-          const montoTotal = inv.financials?.invoiceTotal ?? (k * (config.salePricePerKg || 43) * 1.16);
+          const effectiveSale = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config.salePricePerKg || 0);
+          const montoTotal = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? (k * effectiveSale * 1.16) : 0);
           const comision = inv.financials?.commission ?? ((montoTotal / 1.16) * (config.commissionRate || 0.08));
           const netoCaja = montoTotal - comision;
 
@@ -105,7 +106,8 @@ export function CorteSemanalModal({
         const dDate = toDate(d.date);
         if (dDate && dDate >= startOfWeek && dDate <= endOfWeek) {
           const k = d.kilos || 0;
-          const costo = k * (config.costPricePerKg || 38);
+          const effectiveCost = Number(o.customCostPrice) || config.costPricePerKg || 0;
+          const costo = k * effectiveCost;
           entregas.push({
             folioOC: o.oc || o.folio || '—',
             client: o.client || 'Providencia',

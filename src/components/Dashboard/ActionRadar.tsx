@@ -38,8 +38,8 @@ export type UrgentAction = {
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
   const toast = useToast();
   const actions = useMemo<UrgentAction[]>(() => {
-    const saleKg = config?.salePricePerKg || 43;
-    const costKg = config?.costPricePerKg || 38;
+    const saleKg = config?.salePricePerKg || 0;
+    const costKg = config?.costPricePerKg || 0;
     const ivaRate = config?.ivaRate || 0.16;
     const list: UrgentAction[] = [];
     const today = new Date();
@@ -172,7 +172,7 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
   }, [orders, purchases, config, nav, onOpenOrder]);
 
   const andresSummary = useMemo(() => {
-    const costKg = config?.costPricePerKg || 38;
+    const costKg = config?.costPricePerKg || 0;
     const activeOcsWithFaltantes: Array<{
       order: PurchaseOrder;
       oc: string;

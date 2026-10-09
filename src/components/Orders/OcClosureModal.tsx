@@ -51,8 +51,8 @@ const OcClosureModalContent: React.FC<OcClosureModalContentProps> = ({ order, on
 
   const fulfillmentRate = contractedKg > 0 ? Number(((deliveredKg / contractedKg) * 100).toFixed(2)) : 100;
 
-  const costPrice = order.customCostPrice || 38.00;
-  const salePrice = order.customSellPrice || 43.00;
+  const costPrice = Number(order.customCostPrice ?? 0);
+  const salePrice = Number(order.customSellPrice ?? 0);
 
   const shortfallCostValue = Number((shortfallKg * costPrice).toFixed(2));
   const shortfallSaleValue = Number((shortfallKg * salePrice).toFixed(2));

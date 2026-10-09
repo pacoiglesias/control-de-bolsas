@@ -28,9 +28,9 @@ export function OrderStepper({ order, activeTab, onSelectTab, onUpdatePrices }: 
   const invoices = summary.invoices;
 
   // Precios actuales de la orden
-  const sellPrice = Number(order.customSellPrice || (order.items && order.items[0]?.unitPrice) || 43);
-  const costPrice = Number(order.customCostPrice || 38);
-  const marginPerKg = Number((sellPrice - costPrice).toFixed(2));
+  const sellPrice = Number(order.customSellPrice ?? (order.items && order.items[0]?.unitPrice) ?? 0);
+  const costPrice = Number(order.customCostPrice ?? 0);
+  const marginPerKg = (sellPrice > 0 || costPrice > 0) ? Number((sellPrice - costPrice).toFixed(2)) : 0;
   const marginPct = sellPrice > 0 ? ((marginPerKg / sellPrice) * 100).toFixed(1) : '0';
 
   const hasDeliveries = kilosEntregados > 0;

@@ -405,7 +405,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                           const ratio = totalOcKilos > 0 ? (localInvoice.kilos / totalOcKilos) : 1;
                           const newItems = order.items!.map(it => {
                             const q = round2((Number(it.quantity) || 0) * ratio);
-                            const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                            const p = it.unitPrice ?? order.customSellPrice ?? dynamicConfig.salePricePerKg ?? 0;
                             return {
                               ...it,
                               quantity: q,
@@ -431,7 +431,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                           description: 'Bolsa de Polietileno',
                           unit: 'KGM',
                           quantity: 0,
-                          unitPrice: dynamicConfig.salePricePerKg || 43,
+                          unitPrice: order.customSellPrice ?? dynamicConfig.salePricePerKg ?? 0,
                           amount: 0,
                         };
                         updateField(['items'], [...localInvoice.items!, newIt]);
@@ -504,7 +504,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                               onChange={e => {
                                 const val = Number(e.target.value);
                                 const next = [...localInvoice.items!];
-                                const p = next[idx].unitPrice || dynamicConfig.salePricePerKg || 43;
+                                const p = next[idx].unitPrice ?? order.customSellPrice ?? dynamicConfig.salePricePerKg ?? 0;
                                 next[idx] = { ...next[idx], quantity: val, amount: round2(val * p) };
                                 const sumKilos = round2(next.reduce((s, x) => s + Number(x.quantity || 0), 0));
                                 updateField(['items'], next);
@@ -536,7 +536,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                           )}
                         </td>
                         <td className="num mono" style={{ fontWeight: 800, color: '#047857' }}>
-                          {money(it.amount || round2((Number(it.quantity) || 0) * (Number(it.unitPrice) || 43)))}
+                          {money(it.amount || round2((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)))}
                         </td>
                         {!readOnly && (
                           <td style={{ textAlign: 'center' }}>
@@ -578,7 +578,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                     const ratio = totalOcKilos > 0 ? (localInvoice.kilos / totalOcKilos) : 1;
                     const newItems = order.items!.map(it => {
                       const q = round2((Number(it.quantity) || 0) * ratio);
-                      const p = it.unitPrice || dynamicConfig.salePricePerKg || 43;
+                      const p = it.unitPrice ?? order.customSellPrice ?? dynamicConfig.salePricePerKg ?? 0;
                       return {
                         ...it,
                         quantity: q,

@@ -140,9 +140,11 @@ export const ExcelDragDropModal: React.FC<ExcelDragDropModalProps> = ({ isOpen, 
 
         const codeSat = String(rowMap['clavesat'] || rowMap['sat'] || '24141500').trim();
         const itemDescription = String(rowMap['descripcionbolsa'] || rowMap['descripcion'] || rowMap['producto'] || 'BOLSA POLIETILENO').trim();
-        const kilosPedidos = Number(rowMap['kilospedidos'] || rowMap['kilos'] || rowMap['cantidad'] || 0);
-        const precioVenta = Number(rowMap['precioventakg'] || rowMap['precioventa'] || rowMap['precio'] || 43.00);
-        const precioCosto = Number(rowMap['preciocostoandreskg'] || rowMap['preciocosto'] || rowMap['costo'] || 38.00);
+        const rawVenta = rowMap['precioventakg'] ?? rowMap['precioventa'] ?? rowMap['precio'];
+        const precioVenta = rawVenta !== undefined && rawVenta !== null && rawVenta !== '' ? Number(rawVenta) : 0;
+        const rawCosto = rowMap['preciocostoandreskg'] ?? rowMap['preciocosto'] ?? rowMap['costo'];
+        const precioCosto = rawCosto !== undefined && rawCosto !== null && rawCosto !== '' ? Number(rawCosto) : 0;
+        const kilosPedidos = Number(rowMap['kilospedidos'] || rowMap['kgpedidos'] || rowMap['pedido'] || rowMap['total'] || 0);
         const kilosEntregados = Number(rowMap['kilosentregadosbascula'] || rowMap['kilosentregados'] || rowMap['entregado'] || 0);
         const folioFactura = String(rowMap['foliofacturacfdi'] || rowMap['foliofactura'] || rowMap['factura'] || '').trim();
         const contrarecibo = String(rowMap['contrarecibocr'] || rowMap['contrarecibo'] || rowMap['cr'] || '').trim().toUpperCase();
@@ -299,7 +301,8 @@ export const ExcelDragDropModal: React.FC<ExcelDragDropModalProps> = ({ isOpen, 
           const orderRef = doc(db, PATHS.orders, existingOrder.id);
           const updatePayload: any = {
             updatedAt: serverTimestamp(),
-            customCostPrice: firstRow.precioCosto || 38.00,
+            customCostPrice: firstRow.precioCosto || existingOrder.customCostPrice || 0,
+            customSellPrice: firstRow.precioVenta || existingOrder.customSellPrice || 0,
           };
 
           if (deliveries.length > 0 && (!existingOrder.deliveries || existingOrder.deliveries.length === 0)) {
@@ -318,8 +321,8 @@ export const ExcelDragDropModal: React.FC<ExcelDragDropModalProps> = ({ isOpen, 
           // Crear nueva orden
           const newDocRef = doc(collection(db, PATHS.orders));
           const financials = computeFinancials(totalKilos, {
-            salePricePerKg: firstRow.precioVenta || 43.00,
-            costPricePerKg: firstRow.precioCosto || 38.00,
+            salePricePerKg: firstRow.precioVenta || 0,
+            costPricePerKg: firstRow.precioCosto || 0,
             commissionRate: 0.08,
             creditDays: 30,
             ivaRate: 0.16,
@@ -333,7 +336,8 @@ export const ExcelDragDropModal: React.FC<ExcelDragDropModalProps> = ({ isOpen, 
             client: firstRow.client,
             department: firstRow.department,
             totalKilograms: totalKilos,
-            customCostPrice: firstRow.precioCosto || 38.00,
+            customCostPrice: firstRow.precioCosto || 0,
+            customSellPrice: firstRow.precioVenta || 0,
             items: items as any,
             deliveries: deliveries as any,
             invoices: invoices as any,

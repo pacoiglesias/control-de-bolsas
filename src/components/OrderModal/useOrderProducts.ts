@@ -28,7 +28,7 @@ export function useOrderProducts(
 
   const addItem = useCallback(() => {
     setForm((f: any) => {
-      const newItem = { id: Date.now().toString(), quantity: 0, unit: 'Kilos', description: '', unitPrice: config.salePricePerKg || 43, amount: 0 };
+      const newItem = { id: Date.now().toString(), quantity: 0, unit: 'Kilos', description: '', unitPrice: f.customSellPrice ?? config.salePricePerKg ?? 0, amount: 0 };
       const nextItems = [...(f.items || []), newItem];
       const sumKg = nextItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
       syncToFirebase(nextItems, sumKg);

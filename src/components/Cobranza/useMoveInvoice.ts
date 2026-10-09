@@ -87,7 +87,8 @@ export function useMoveInvoice({
       } else if (currentCol === 'colCaja') {
          if (!(await confirmDialog('¿Seguro que quieres deshacer la recolección? Se registrará un egreso de reversión en Caja para cuadrar.'))) return;
 
-         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+         const effectiveSale = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config.salePricePerKg || 0);
+         const invTotal = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? (inv.kilos * effectiveSale * (1 + (config.ivaRate || 0.16))) : 0);
          // FIX (v8.9.9, auditoría Staff Engineer): este respaldo ignoraba
          // config.commissionBase (siempre calculaba sobre el subtotal).
          // Usa la misma función única de verdad que ya usan CajaChica.tsx
@@ -111,7 +112,8 @@ export function useMoveInvoice({
       if (currentCol === 'colContador') {
          if (!(await confirmDialog(`¿Confirmas que se recibió el EFECTIVO/TRANSFERENCIA por la factura ${inv.folio || o.folio}? Se registrará el ingreso en Caja.`))) return;
 
-         const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * (config.salePricePerKg || 43) * (1 + (config.ivaRate || 0.16)));
+         const effectiveSale = inv.financials?.salePricePerKg ?? (Number(o.customSellPrice) || config.salePricePerKg || 0);
+         const invTotal = inv.financials?.invoiceTotal ?? (effectiveSale > 0 ? (inv.kilos * effectiveSale * (1 + (config.ivaRate || 0.16))) : 0);
          // FIX (v8.9.9, auditoría Staff Engineer): este respaldo ignoraba
          // config.commissionBase (siempre calculaba sobre el subtotal).
          // Usa la misma función única de verdad que ya usan CajaChica.tsx

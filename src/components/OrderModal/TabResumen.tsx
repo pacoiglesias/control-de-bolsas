@@ -39,9 +39,9 @@ export default function TabResumen() {
   const compraLigada = purchases.find((p) => p.id === order.id);
 
   // Cálculo de margen unitario en tiempo real
-  const sellP = parseFloat(form.customSellPrice || '') || fallbackSale || 43;
-  const costP = parseFloat(form.customCostPrice || '') || fallbackCost || 38;
-  const margenUnitario = Math.max(0, sellP - costP);
+  const sellP = parseFloat(form.customSellPrice || '') || fallbackSale || 0;
+  const costP = parseFloat(form.customCostPrice || '') || fallbackCost || 0;
+  const margenUnitario = (sellP > 0 || costP > 0) ? Math.max(0, sellP - costP) : 0;
 
   return (
     <>
@@ -551,9 +551,9 @@ export default function TabResumen() {
                     <td className="mono" style={{ fontWeight: 800, color: 'var(--accent)' }}>{it.code}</td>
                     <td>{it.description}</td>
                     <td className="num mono" style={{ fontWeight: 700 }}>{kilos(it.quantity)}</td>
-                    <td className="num mono">{money(it.unitPrice || fallbackSale || 43)}</td>
+                    <td className="num mono">{money(it.unitPrice ?? fallbackSale ?? 0)}</td>
                     <td className="num mono" style={{ fontWeight: 800 }}>
-                      {money(it.amount || (it.quantity * (it.unitPrice || fallbackSale || 43)))}
+                      {money(it.amount || (it.quantity * (it.unitPrice ?? fallbackSale ?? 0)))}
                     </td>
                   </tr>
                 ))}

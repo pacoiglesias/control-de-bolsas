@@ -307,7 +307,7 @@ export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynam
   
   const itemsList = rawItems.length > 0 ? rawItems.map((it: any) => {
     const k = Number(deliveredByItem[it.id] ?? it.deliveredQuantity ?? it.quantity ?? 0);
-    const price = Number(it.unitPrice || dynamicConfig.salePricePerKg || 43);
+    const price = Number(it.unitPrice ?? dynamicConfig.salePricePerKg ?? 0);
     const subtotal = round2(k * price);
     return {
       code: it.code || 'Bolsa',
@@ -320,8 +320,8 @@ export function printPreFactura({ folio, items, deliveredByItem, kilosNum, dynam
     code: 'Bolsa',
     desc: 'Bolsa Polietileno',
     kilos: kilosNum,
-    price: dynamicConfig.salePricePerKg || 43,
-    subtotal: round2(kilosNum * (dynamicConfig.salePricePerKg || 43))
+    price: dynamicConfig.salePricePerKg ?? 0,
+    subtotal: round2(kilosNum * (dynamicConfig.salePricePerKg ?? 0))
   }];
 
   const subtotalTotal = round2(itemsList.reduce((sum: number, item: any) => sum + item.subtotal, 0));

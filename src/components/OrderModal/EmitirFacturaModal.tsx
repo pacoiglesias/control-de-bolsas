@@ -53,7 +53,7 @@ export function EmitirFacturaModal({
   const { settings } = useSystemSettings();
   const { saveInvoice } = useInvoiceActions();
 
-  const precio = order.customSellPrice || dynamicConfig.salePricePerKg || config.salePricePerKg || 43;
+  const precio = order.customSellPrice ?? dynamicConfig.salePricePerKg ?? config.salePricePerKg ?? 0;
 
   // --- Estado del formulario ---
   const [step, setStep] = useState<Step>(1);

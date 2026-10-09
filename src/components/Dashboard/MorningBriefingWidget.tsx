@@ -20,7 +20,7 @@ export function MorningBriefingWidget({
   onOpenUniversalUpload?: () => void;
 }) {
   const nav = useNavigate();
-  const saleKg = config?.salePricePerKg || 43;
+  const saleKg = config?.salePricePerKg || 0;
   const ivaRate = config?.ivaRate || 0.16;
 
   // 1. Tarea 1: Contrarecibos Vencidos o por Vencer Hoy

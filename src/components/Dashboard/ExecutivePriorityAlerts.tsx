@@ -181,7 +181,7 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     setNavaCompletedArchived(true);
     toast('Expediente de TH (OC 14114) finiquitado y archivado del tablero.', 'ok');
   };
-  const saleKg = config?.salePricePerKg || 43;
+  const saleKg = config?.salePricePerKg || 0;
   const ivaRate = config?.ivaRate || 0.16;
 
   // 1. Detección Canónica de Nava (Textil Hogar · OC 120267114114)

@@ -26,7 +26,7 @@ export function CashFlowSimulatorWidget({
   config: FinancialConfig;
 }) {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
-  const [simulatedCostKg, setSimulatedCostKg] = useState<number>(config?.costPricePerKg || 38);
+  const [simulatedCostKg, setSimulatedCostKg] = useState<number>(config?.costPricePerKg || 0);
   const commRate = config?.commissionRate || 0.08;
 
   useEffect(() => {

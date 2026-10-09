@@ -304,13 +304,17 @@ export async function shareHtmlAsPdf(htmlString: string, filename: string = 'doc
   } catch (error) {
     console.error('Error sharing PDF:', error);
     // Fallback: print
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write(htmlString);
-      w.document.close();
-      w.focus();
+    if (typeof window !== 'undefined' && window.open) {
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.write(htmlString);
+        w.document.close();
+        w.focus();
+      }
     }
   } finally {
-    document.body.removeChild(container);
+    if (typeof document !== 'undefined' && document.body && container.parentNode) {
+      document.body.removeChild(container);
+    }
   }
 }

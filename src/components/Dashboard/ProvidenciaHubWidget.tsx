@@ -737,7 +737,7 @@ export function ProvidenciaHubWidget() {
       {entregaOrder && (
         <RegistrarEntregaModal
           order={entregaOrder}
-          costPricePerKg={config?.costPricePerKg || 38}
+          costPricePerKg={Number(entregaOrder.customCostPrice) || config?.costPricePerKg || 0}
           onClose={() => setEntregaOrder(null)}
         />
       )}

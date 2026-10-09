@@ -1016,8 +1016,8 @@ export function GlobalDropzoneHUD() {
                           if (invoiceOptions.length === 0 && selectedOrder && currentItem.analysis?.docType === 'comprobante_pago') {
                             const invs = selectedOrder.invoices || [];
                             invoiceOptions = invs.map((inv) => {
-                              const salePrice = inv.financials?.salePricePerKg ?? selectedOrder.customSellPrice ?? 43;
-                              const invTotal = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * salePrice * 1.16);
+                              const salePrice = inv.financials?.salePricePerKg ?? selectedOrder.customSellPrice ?? 0;
+                              const invTotal = inv.financials?.invoiceTotal ?? (salePrice > 0 ? ((inv.kilos || 0) * salePrice * 1.16) : 0);
                               const paid = Number(inv.collection?.paidAmount) || 0;
                               const balance = Math.max(0, invTotal - paid);
                               return {
@@ -1207,8 +1207,8 @@ export function GlobalDropzoneHUD() {
                             const selectedOrder = orders.find((o) => o.id === selectedOrderId);
                             const targetInv = (selectedOrder?.invoices || []).find((i) => i.id === selectedInvoiceId);
                             if (!targetInv) return null;
-                            const salePrice = targetInv.financials?.salePricePerKg ?? selectedOrder?.customSellPrice ?? 43;
-                            const pTotal = targetInv.financials?.invoiceTotal ?? ((targetInv.kilos || 0) * salePrice * 1.16);
+                            const salePrice = targetInv.financials?.salePricePerKg ?? selectedOrder?.customSellPrice ?? 0;
+                            const pTotal = targetInv.financials?.invoiceTotal ?? (salePrice > 0 ? ((targetInv.kilos || 0) * salePrice * 1.16) : 0);
                             const pPaid = Number(targetInv.collection?.paidAmount) || 0;
                             const pSaldoAntes = Math.max(0, pTotal - pPaid);
                             const pAbono = currentItem.analysis?.total || 0;
