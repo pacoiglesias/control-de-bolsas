@@ -1,13 +1,13 @@
 # Cierre v9.10.30 - Registro de Fases
 
-> Ultima actualizacion: 2026-10-09 19:15 CST
-> Rama: main | HEAD: 4998143
+> Ultima actualizacion: 2026-10-09 19:20 CST
+> Rama: main | HEAD: aa0ea3e
 
 ---
 
 ## Estado Actual
 
-Fase activa: FASE 4 COMPLETADA | En transito a FASE 5
+Fase activa: FASE 5 COMPLETADA | CIERRE TOTAL DE RELEASE v9.10.30
 
 ---
 
@@ -92,18 +92,28 @@ Pruebas ejecutadas:
 
 ---
 
-## FASE 5 - Validacion Final y Deploy - PENDIENTE
+## FASE 5 - Validacion Final y Deploy - COMPLETADA
 
 Prerequisito: Fases 1-4 completas y sin bloqueos críticos.
-Acciones de la fase:
-1. Validación final en limpio (`npx tsc --noEmit`, `npx vitest run`, `npm run build`).
-2. Despliegue oficial de Hosting: `firebase deploy --only hosting`.
-3. Verificación de versión y estado en vivo en producción.
+Acciones ejecutadas:
+1. Validación final en limpio:
+   - `npx tsc --noEmit` -> 0 errores.
+   - `npx vitest run` -> 319/319 pruebas aprobadas (45 test files passed, 0 failures).
+   - `npm run build` -> Éxito total (1788 módulos Vite, Service Worker PWA v1.3.0 precache 72 entries, Cloud Functions tsc limpio).
+2. Despliegue oficial de Hosting:
+   - Comando: `npx firebase deploy --only hosting`
+   - Salida: `Deploy complete!`
+   - Sitios actualizados:
+     - `https://control-de-bolsas-89c88.web.app` (Canónico)
+     - `https://control-de-bolsas-69.web.app` (Espejo)
+3. Verificación en vivo:
+   - Documento HTML y assets servidos correctamente en producción.
 
 ---
 
 ## Historial de Commits
 
+aa0ea3e | docs: completar auditoria Fase 4 de permisos, seguridad y offline
 4998143 | docs: completar auditoria Fase 3 de paneles y flujo de negocio
 8f37a94 | fix(finance): historicalDebtAndres del config en useAndresStats y blindar precio PDF
 1c877eb | docs: registro de fases CIERRE_V9_10_30.md
@@ -113,16 +123,11 @@ a0162f2 | docs: CHANGELOG.md v9.10.30
 
 ---
 
-## Fallos / Bloqueos Conocidos
+## Estado Final de la Release v9.10.30
 
-Ninguno activo.
-
----
-
-## Proximo Paso al Retomar (FASE 5)
-
-1. Leer este archivo
-2. Ejecutar validación final pre-deploy: `npm run build`
-3. Ejecutar `firebase deploy --only hosting`
-4. Confirmar despliegue exitoso en `https://control-de-bolsas-89c88.web.app/`
-5. Cerrar registro de release v9.10.30
+🎉 **TODAS LAS 5 FASES COMPLETADAS EXITOSAMENTE Y DESPLEGADAS EN PRODUCCIÓN.**
+- Fase 1: Dependencias y CI limpias sin `--force` ni `--legacy-peer-deps`.
+- Fase 2: Cálculos financieros y precios blindados (fuente única de verdad).
+- Fase 3: Paneles, OCs activas (GT y TH), flujo de maquila y contrarecibos auditados.
+- Fase 4: Permisos de Firestore, autenticación y resiliencia offline/PWA validados.
+- Fase 5: Compilación limpia y despliegue a producción en Firebase Hosting.
