@@ -319,8 +319,20 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
         totalKilos,
         totalDelivered,
         pendingKilos,
-        items: data.items || [],
-        deliveries: data.deliveries || [],
+        items: (data.items || []).map((it: any) => ({
+          id: it.id || '',
+          description: it.description || it.productDescription || '',
+          quantity: Number(it.quantity) || 0,
+          unit: it.unit || 'kg',
+        })),
+        deliveries: (data.deliveries || []).map((d: any) => ({
+          id: d.id,
+          date: d.date,
+          kilos: Number(d.kilos) || 0,
+          docType: d.docType || 'remision',
+          docFolio: d.docFolio || null,
+          notes: d.notes || null,
+        })),
       });
     }
   });
@@ -346,7 +358,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
 // qué expediente. firestore.rules ya no permite crear maquilaDeliveries
 // desde el cliente en absoluto (ver v8.8.9): todo pasa por aquí.
 export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Firestore, data: any) {
-  const { pin, orderId, folio, productDescription, kilos, docType, docFolio, notes } = data || {};
+  const { pin, orderId, folio, productDescription, kilos, docType, docFolio, notes, deliveryId: reqDeliveryId, clientDeliveryId } = data || {};
 
   if (!pin) throw new HttpsError('invalid-argument', 'PIN requerido');
   await validarPinMaquila(db, pin);
@@ -356,31 +368,11 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
     throw new HttpsError('invalid-argument', 'Datos de entrega incompletos o inválidos');
   }
 
-  // FIX (v8.9.9): antes esta función SOLO escribía un registro en
-  // `maquilaDeliveries` (una bitácora/bandeja aparte) y dependía de que un
-  // administrador entrara luego al expediente y presionara "Importar" a
-  // mano para que la entrega contara de verdad en `deliveries[]` del
-  // expediente -- el campo del que se calculan los kilos pendientes
-  // (`pendingKilos`, usado por `getActiveMaquilaOrders` para decidir qué
-  // le sigue apareciendo como pendiente a Andrés). Ese paso manual además
-  // estaba roto: intentaba emparejar la entrega con un producto de la OC
-  // usando `d.productCode`, un campo que esta misma función nunca guardó
-  // -- así que la búsqueda casi nunca encontraba el producto correcto.
-  // Resultado real: confirmar kilos en el Portal Maquilador casi nunca
-  // reducía los kilos pendientes del expediente, así que un expediente ya
-  // entregado por completo (con contrarecibo del lado del cliente, solo a
-  // la espera de que paguen) seguía apareciendo como "activo"/pendiente en
-  // la lista de Andrés indefinidamente.
-  //
-  // Ahora la entrega se escribe DIRECTO en `purchaseOrders/{orderId}.
-  // deliveries[]` dentro de una transacción (misma colección y mismo
-  // campo que usa el resto del sistema -- TabEntregas, finance.ts,
-  // stats.ts), así que "pendingKilos" se actualiza de inmediato y de
-  // forma correcta la primera vez, sin depender de que nadie recuerde
-  // hacer una importación manual aparte.
   const now = FieldValue.serverTimestamp();
-  const deliveryId = randomUUID();
+  const deliveryId = (reqDeliveryId || clientDeliveryId || randomUUID()).toString();
   const orderRef = db.collection(COL_ORDERS).doc(orderId);
+
+  let alreadyProcessed = false;
 
   await db.runTransaction(async (t) => {
     const snap = await t.get(orderRef);
@@ -389,14 +381,17 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
     }
     const orderData = snap.data() || {};
     const items: Array<{ id: string }> = Array.isArray(orderData.items) ? orderData.items : [];
+    const currentDeliveries: any[] = Array.isArray(orderData.deliveries) ? orderData.deliveries : [];
 
-    // Si la OC tiene un solo producto, no hay ambigüedad: se registra el
-    // desglose por ítem (igual que hace TabEntregas), evitando el
-    // desfase items[]/kilos ya documentado en AUDIT_NOTEBOOK (Iteración
-    // 96). Con 2+ productos, Andrés no elige cuál en el Portal (solo ve
-    // kilos totales pendientes por OC), así que se usa el campo `kilos`
-    // -- el respaldo que el propio tipo `Delivery` ya documenta como
-    // válido cuando no hay desglose por ítem.
+    // Idempotencia: si ya existe una entrega con este ID o con el mismo folio de remisión y kilos
+    const existeEntrega = currentDeliveries.some((d: any) =>
+      d.id === deliveryId || (docFolio && d.docFolio === docFolio && Number(d.kilos) === kilosNum)
+    );
+    if (existeEntrega) {
+      alreadyProcessed = true;
+      return;
+    }
+
     const newDelivery: Record<string, unknown> = {
       id: deliveryId,
       date: Timestamp.now(),
@@ -410,12 +405,20 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
       newDelivery.items = [{ itemId: items[0].id, quantity: kilosNum }];
     }
 
-    const currentDeliveries: unknown[] = Array.isArray(orderData.deliveries) ? orderData.deliveries : [];
     t.update(orderRef, {
       deliveries: [...currentDeliveries, newDelivery],
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+
+  if (alreadyProcessed) {
+    return {
+      success: true,
+      alreadyProcessed: true,
+      deliveryId,
+      message: 'Entrega ya procesada previamente.',
+    };
+  }
 
   // Bitácora propia del portal (estado de cuenta/ledger de Andrés, no
   // depende de esto -- computeAndresBalance() ya lee `purchases`/

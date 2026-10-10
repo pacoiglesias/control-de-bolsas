@@ -108,6 +108,7 @@ export default function MaquiladorPortal() {
             action: 'registrarEntrega',
             pin,
             orderId: item.orderId,
+            deliveryId: item.id,
             folio: item.folio,
             productDescription: item.productDescription,
             kilos: item.kilos,
@@ -223,11 +224,13 @@ export default function MaquiladorPortal() {
 
     setSaving(true);
     const order = activeOrders.find((o) => o.id === orderId);
+    const clientDeliveryId = `del_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     const deliveryPayload = {
       action: 'registrarEntrega',
       pin,
       orderId,
+      deliveryId: clientDeliveryId,
       folio: order?.folio || orderId,
       productDescription: order?.productDescription || '',
       kilos: numKilos,
@@ -277,6 +280,7 @@ export default function MaquiladorPortal() {
       console.warn('Error en red/servicio, guardando offline...', err);
       try {
         await enqueueOfflineDelivery({
+          id: clientDeliveryId,
           orderId,
           folio: order?.folio || orderId,
           productDescription: order?.productDescription || '',
