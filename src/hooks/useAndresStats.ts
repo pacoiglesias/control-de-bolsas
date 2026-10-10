@@ -60,10 +60,11 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   const deudaHistorica = (rawHistDeuda > 500000 || Math.abs(rawHistDeuda - 1227839.35) < 10) ? 103411.84 : rawHistDeuda;
 
   const stats = useMemo(() => {
-    // Saldo base oficial limpio con Andrés (+103,411.84 a favor por anticipos)
-    const saldoProveedor = 103411.84;
+    // Saldo base: viene del config (historicalDebtAndres), ya sanitizado en deudaHistorica.
+    // Convención: positivo = saldo a favor de Andrés (anticipos disponibles).
+    const saldoProveedor = deudaHistorica;
 
-    // Libro Mayor (Ledger) iniciando desde el saldo a favor oficial
+    // Libro Mayor (Ledger) iniciando desde el saldo histórico del config
     const ledger: LedgerEntry[] = [
       {
         id: 'init-andres-balance',
@@ -83,7 +84,7 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
       saldoProveedor,
       ledger
     };
-  }, []);
+  }, [deudaHistorica]);
 
   // Alertas Proactivas
   const hoy = Date.now();

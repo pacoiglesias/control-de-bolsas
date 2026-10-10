@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import { fmtDateFull, money } from './format';
 import { extractCr, getOrderSummary, inferDepartment } from './finance';
 import type { PurchaseOrder, Expense, FinancialConfig } from './types';
+import { DEFAULT_CONFIG } from './types';
 
 export interface ExecutiveOnePagerData {
   orders: PurchaseOrder[];
@@ -98,7 +99,7 @@ export function generateExecutiveOnePagerPdf({
     (o.invoices || []).forEach((inv) => {
       const cr = extractCr(inv, o);
       const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected';
-      const totalInv = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (_config?.salePricePerKg ?? 0) * 1.16);
+      const totalInv = inv.financials?.invoiceTotal ?? ((inv.kilos || 0) * (_config?.salePricePerKg ?? DEFAULT_CONFIG.salePricePerKg) * 1.16);
       if (!cr && !isPaid && totalInv > 0) {
         let dias = 0;
         const issueD = inv.creditCycle?.issueDate ? new Date((inv.creditCycle.issueDate as any).toDate?.() || inv.creditCycle.issueDate) : null;
