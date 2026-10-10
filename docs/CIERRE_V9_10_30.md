@@ -1,13 +1,13 @@
 # Cierre v9.10.30 - Registro de Fases
 
-> Ultima actualizacion: 2026-10-09 18:39 CST
-> Rama: main | HEAD: 8f37a94
+> Ultima actualizacion: 2026-10-09 19:15 CST
+> Rama: main | HEAD: 4998143
 
 ---
 
 ## Estado Actual
 
-Fase activa: FASE 3 COMPLETADA | En transito a FASE 4
+Fase activa: FASE 4 COMPLETADA | En transito a FASE 5
 
 ---
 
@@ -66,25 +66,45 @@ Pruebas ejecutadas:
 
 ---
 
-## FASE 4 - Permisos y Offline - PENDIENTE
+## FASE 4 - Permisos y Offline - COMPLETADA
 
-Archivos a revisar:
-- firestore.rules (seguridad, validación de roles y accesos sin auth requeridos por el portal)
-- src/hooks/useAuth.ts / context de autenticación
-- Service worker / IndexedDB offline (`offlineMaquilaDb.ts`) y sincronización tras reconexión
+Objetivo: Auditoría de seguridad de Firestore, autenticación y resiliencia offline:
+1. **Reglas de Seguridad (`firestore.rules`)**:
+   - `isAdmin()` / `isSuperAdmin()`: Verifica custom claims (`role: 'admin'`, `admin: true`) con token `email_verified == true`, existencia en `/admins/{uid}`, o correos de arranque institucionales.
+   - `/system_settings/global`: Lectura pública permitida para branding inicial (Login) sin exponer credenciales.
+   - `/system_settings_private/maquila`: PIN estrictamente aislado, inaccesible a clientes no autorizados; consultado exclusivamente por Cloud Functions mediante Admin SDK.
+   - `/maquilaDeliveries` y `/expenses`: Protegidas contra inyección anónima; las entregas de maquila se procesan vía Cloud Function con verificación de PIN.
+   - Inmutabilidad estricta y trazabilidad en `/payment_receipts` y `/system_logs`.
+2. **Contexto de Autenticación (`AuthContext.tsx`)**:
+   - Bloqueo de cuentas sin verificación (`emailVerified == true`), previniendo errores de `permission-denied` masivos en runtime.
+   - Auto-aprovisionamiento seguro para correos de propietarios autorizados.
+   - Cierre de sesión y log de auditoría en `system_logs`.
+3. **Resiliencia Offline y PWA (`offlineMaquilaDb.ts` / `vite.config.ts`)**:
+   - Cola offline en `IndexedDB` (`ControlBolsasOffline`) con fallback resiliente a `localStorage` y migración automática transparente.
+   - Soporte para reintentos (`retryCount`), estados pendientes y marcas de tiempo.
+   - PWA Service Worker (`workbox` v1.3.0) con precache de 72 assets críticos y estrategias `CacheFirst` para fuentes y `StaleWhileRevalidate` para recursos gráficos.
+
+Pruebas ejecutadas:
+- `firestoreRulesAndReceiptSecurity.test.ts` -> 10/10 pruebas de seguridad y comprobantes aprobadas.
+- `offlineExcelSync.test.ts` + `excelAndMobileResilience.test.ts` -> 9/9 pruebas de sincronización offline aprobadas.
+- Suite completa `npx vitest run` -> 319/319 pruebas aprobadas (45 test files passed, 0 failures).
+- `npx tsc --noEmit` -> 0 errores.
 
 ---
 
 ## FASE 5 - Validacion Final y Deploy - PENDIENTE
 
-Prerequisito: Fases 1-4 completas y sin bloqueos criticos.
-Comando: firebase deploy --only hosting
-NO DESPLEGAR antes de completar fases 3 y 4.
+Prerequisito: Fases 1-4 completas y sin bloqueos críticos.
+Acciones de la fase:
+1. Validación final en limpio (`npx tsc --noEmit`, `npx vitest run`, `npm run build`).
+2. Despliegue oficial de Hosting: `firebase deploy --only hosting`.
+3. Verificación de versión y estado en vivo en producción.
 
 ---
 
 ## Historial de Commits
 
+4998143 | docs: completar auditoria Fase 3 de paneles y flujo de negocio
 8f37a94 | fix(finance): historicalDebtAndres del config en useAndresStats y blindar precio PDF
 1c877eb | docs: registro de fases CIERRE_V9_10_30.md
 9215bfd | fix(deps): ajustar @firebase/rules-unit-testing a ^4.0.1
@@ -99,13 +119,10 @@ Ninguno activo.
 
 ---
 
-## Proximo Paso al Retomar (FASE 4)
+## Proximo Paso al Retomar (FASE 5)
 
 1. Leer este archivo
-2. Iniciar FASE 4: Permisos y Offline
-   a. Auditar firestore.rules para perfiles admin, operador y acceso público/anónimo del Portal Maquilador
-   b. Verificar useAuth.ts y propagación de estado
-   c. Verificar Service Worker y cola offline IndexedDB en MaquiladorPortal
-3. Ejecutar pruebas unitarias de reglas si aplican o tsc/vitest
-4. Documentar hallazgos en este archivo y hacer commit de la Fase 4
-5. NO desplegar hasta completar fase 4 y validar fase 5
+2. Ejecutar validación final pre-deploy: `npm run build`
+3. Ejecutar `firebase deploy --only hosting`
+4. Confirmar despliegue exitoso en `https://control-de-bolsas-89c88.web.app/`
+5. Cerrar registro de release v9.10.30
