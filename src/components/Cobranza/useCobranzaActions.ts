@@ -1,4 +1,4 @@
-import { doc, Timestamp, collection, runTransaction } from 'firebase/firestore';
+import { doc, Timestamp, runTransaction } from 'firebase/firestore';
 import confetti from 'canvas-confetti';
 import { db, PATHS } from '../../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
@@ -366,13 +366,18 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
 
         netCobradoReal = round2(netCobradoReal);
 
-        tx.set(doc(collection(db, PATHS.expenses)), {
+        const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const expenseRef = doc(db, PATHS.expenses, `ingreso_cr_${cleanCr}`);
+        tx.set(expenseRef, {
           date: Timestamp.now(),
           concept: `Cobro ${transferRef} (Contrarecibo ${crNumber})`,
           type: 'ingreso',
           amount: netCobradoReal,
           createdAt: Timestamp.now(),
-        });
+          contrareciboNumber: crNumber,
+          transferRef,
+          source: 'fastCollectContrareciboBlock',
+        }, { merge: true });
       });
 
       sound.playChaChing();
@@ -471,13 +476,18 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           );
         }
 
-        tx.set(doc(collection(db, PATHS.expenses)), {
+        const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const expenseRef = doc(db, PATHS.expenses, `ingreso_cr_${cleanCr}`);
+        tx.set(expenseRef, {
           date: Timestamp.now(),
           concept: `Cobro del Contrarecibo ${crNumber}`,
           type: 'ingreso',
           amount: netCobradoReal,
           createdAt: Timestamp.now(),
-        });
+          contrareciboNumber: crNumber,
+          transferRef: transferRef || '',
+          source: 'collectContrareciboBlock',
+        }, { merge: true });
       });
       toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok', {
         label: '↩️ Deshacer',
@@ -547,13 +557,17 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           tx.update(ref, camposInvoices(invoices));
         });
 
-        tx.set(doc(collection(db, PATHS.expenses)), {
+        const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const expenseRef = doc(db, PATHS.expenses, `reverso_cr_${cleanCr}`);
+        tx.set(expenseRef, {
           date: Timestamp.now(),
           concept: `Reversión de Recolección Contrarecibo ${crNumber}`,
           type: 'egreso',
           amount: round2(totalRevertir),
           createdAt: Timestamp.now(),
-        });
+          contrareciboNumber: crNumber,
+          source: 'revertCollectedContrareciboBlock',
+        }, { merge: true });
       });
 
       logAction(user?.email, 'Reversión de Recolección', { contrarecibo: crNumber, monto: totalRevertir });

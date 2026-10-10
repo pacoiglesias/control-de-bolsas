@@ -146,20 +146,18 @@ export default function Cobranza() {
         return { o, inv, d: daysLate(toDate(inv.creditCycle?.dueDate)), saldo: saldo(inv), hasCr: cr.length > 0, cr };
       });
 
-    const isPaidOrCollected = (st?: string) => st === 'paid' || st === 'collected';
-    const PAID_CRS_SET = new Set(['TH-836', 'TH-804', 'TH-768', 'TH-739', 'GT-624', 'TH-680', 'GT-597']);
+    const isCollected = (inv: any) =>
+      inv.creditCycle?.status === 'collected' || Boolean(inv.collection?.collectedAt);
+    const isPaid = (inv: any) =>
+      !isCollected(inv) && (inv.creditCycle?.status === 'paid' || Boolean(inv.collection?.paidAt));
+    const isPaidOrCollected = (inv: any) => isCollected(inv) || isPaid(inv);
 
-    const paid = conCr(allInvoices.filter((x) => x.inv.creditCycle?.status === 'paid'));
-    const collected = conCr(allInvoices.filter((x) => {
-      const cr = extractCr(x.inv, x.o).toUpperCase();
-      return x.inv.creditCycle?.status === 'collected' || PAID_CRS_SET.has(cr);
-    }));
+    const paid = conCr(allInvoices.filter((x) => isPaid(x.inv)));
+    const collected = conCr(allInvoices.filter((x) => isCollected(x.inv)));
 
     const open = allInvoices.filter((x) => {
-      const cr = extractCr(x.inv, x.o).toUpperCase();
-      if (PAID_CRS_SET.has(cr)) return false;
+      if (isPaidOrCollected(x.inv)) return false;
       const st = x.inv.creditCycle?.status;
-      if (isPaidOrCollected(st)) return false;
       // Facturas activas o en revisión (facturado, pending, overdue, manual_review, pedido, revision)
       return st === 'pending' || st === 'overdue' || st === 'facturado' || st === 'manual_review' || st === 'pedido' || st === 'revision' || !st;
     });
@@ -288,12 +286,12 @@ export default function Cobranza() {
       totalPorBucket,
       crCounts,
       meDeben: open.reduce((a, x) => a + saldo(x.inv), 0),
-      vencido: open.filter((x) => x.inv.creditCycle.status === 'overdue').reduce((a, x) => a + saldo(x.inv), 0),
+      vencido: open.filter((x) => x.inv.creditCycle?.status === 'overdue' || (x.inv.creditCycle?.dueDate && (daysLate(toDate(x.inv.creditCycle?.dueDate)) ?? 0) > 0)).reduce((a, x) => a + saldo(x.inv), 0),
       cobrado: allInvoices
-        .filter((x) => x.inv.creditCycle.status === 'paid' || x.inv.creditCycle.status === 'collected')
+        .filter((x) => isPaidOrCollected(x.inv))
         .reduce((a, x) => a + (x.inv.collection?.paidAmount ?? x.inv.financials?.invoiceTotal ?? x.inv.financials?.saleTotal ?? 0), 0),
       comisiones: allInvoices
-        .filter((x) => x.inv.creditCycle.status === 'paid' || x.inv.creditCycle.status === 'collected')
+        .filter((x) => isPaidOrCollected(x.inv))
         .reduce((a, x) => a + (x.inv.financials?.commission ?? (x.inv.kilos * config.salePricePerKg * config.commissionRate)), 0),
       proyeccion7d: open
         .filter((x) => {

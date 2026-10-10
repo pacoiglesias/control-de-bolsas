@@ -6,7 +6,7 @@ import { generateCollectionNotice, openWhatsAppMessage } from '../../lib/whatsap
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { useNavigate } from 'react-router-dom';
-import { OFFICIAL_VALID_CRS, OFFICIAL_PAID_CRS_LIST } from '../../lib/constants';
+import { OFFICIAL_VALID_CRS } from '../../lib/constants';
 
 export function MorningBriefingWidget({
   orders,
@@ -36,7 +36,7 @@ export function MorningBriefingWidget({
         const cr = extractCr(inv, o);
         if (!cr || !(OFFICIAL_VALID_CRS as readonly string[]).includes(cr)) return;
 
-        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected' || (OFFICIAL_PAID_CRS_LIST as readonly string[]).includes(cr);
+        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected' || Boolean(inv.collection?.paidAt) || Boolean(inv.collection?.collectedAt);
         if (isPaid) return;
 
         const due = toDate(inv.creditCycle?.dueDate || inv.collection?.contrareciboDate);
@@ -74,7 +74,7 @@ export function MorningBriefingWidget({
       (o.invoices || []).forEach((inv) => {
         if (!inv) return;
         const cr = extractCr(inv, o);
-        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected' || (OFFICIAL_PAID_CRS_LIST as readonly string[]).includes(cr);
+        const isPaid = inv.creditCycle?.status === 'paid' || inv.creditCycle?.status === 'collected' || Boolean(inv.collection?.paidAt) || Boolean(inv.collection?.collectedAt);
         if (isPaid) return;
 
         if (!cr || !(OFFICIAL_VALID_CRS as readonly string[]).includes(cr)) {

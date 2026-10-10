@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { doc, Timestamp, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, Timestamp, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
 import { computeCommissionFromInvoiceTotal, extractCr } from '../../lib/finance';
@@ -28,8 +28,22 @@ export function useMoveInvoice({
   // por si el movimiento fue accidental y la regresan a Por Cobrar poco
   // despues -- evita tener que volver a escribirlo desde cero.
   const crRecordados = useRef<Record<string, string>>({});
+  const movingInvoices = useRef<Set<string>>(new Set());
 
   async function moveInvoice(orderId: string, invoiceId: string, targetCol: string) {
+    if (movingInvoices.current.has(invoiceId)) {
+      return;
+    }
+    movingInvoices.current.add(invoiceId);
+
+    try {
+      await doMoveInvoice(orderId, invoiceId, targetCol);
+    } finally {
+      movingInvoices.current.delete(invoiceId);
+    }
+  }
+
+  async function doMoveInvoice(orderId: string, invoiceId: string, targetCol: string) {
     const o = orders.find(x => x.id === orderId);
     if (!o) return;
     const inv = o.invoices?.find(i => i.id === invoiceId);
@@ -96,13 +110,19 @@ export function useMoveInvoice({
          const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(invTotal, config as any);
          const net = invTotal - comision;
 
+         const safeOrderId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
+         const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
          expenseData = {
-           id: doc(collection(db, PATHS.expenses)).id,
+           id: `reverso_cobro_${safeOrderId}_${safeInvoiceId}`,
            date: Timestamp.now(),
            concept: `[REVERSO] Corrección de factura ${inv.folio || o.folio}`,
            amount: net,
            type: 'egreso',
            createdAt: Timestamp.now(),
+           orderId,
+           invoiceId,
+           source: 'useMoveInvoice',
          };
          newCreditStatus = 'paid';
       } else {
@@ -121,13 +141,19 @@ export function useMoveInvoice({
          const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(invTotal, config as any);
          const net = invTotal - comision;
 
+         const safeOrderId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
+         const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
          expenseData = {
-           id: doc(collection(db, PATHS.expenses)).id,
+           id: `ingreso_cobro_${safeOrderId}_${safeInvoiceId}`,
            date: Timestamp.now(),
            concept: `Cobro Fac. ${inv.folio || o.folio}`,
            amount: net,
            type: 'ingreso',
            createdAt: Timestamp.now(),
+           orderId,
+           invoiceId,
+           source: 'useMoveInvoice',
          };
          newCreditStatus = 'collected';
       } else {
@@ -142,6 +168,19 @@ export function useMoveInvoice({
         if (!snap.exists()) throw new Error('Expediente no existe');
 
         const actuales = snap.data().invoices ?? [];
+        const invEnDb = actuales.find((i: any) => i.id === invoiceId);
+        if (!invEnDb) throw new Error('La factura no está en el expediente');
+
+        const dbStatus = (invEnDb.creditCycle?.status || '').toLowerCase();
+        // Idempotencia: si ya está en el estado meta en Firestore, no duplicar operaciones
+        if (
+          (targetCol === 'colCaja' && dbStatus === 'collected') ||
+          (targetCol === 'colContador' && dbStatus === 'paid' && currentCol === 'colPorCobrar') ||
+          (targetCol === 'colPorCobrar' && dbStatus === 'pending' && currentCol === 'colRevision') ||
+          (targetCol === 'colRevision' && dbStatus === 'revision' && currentCol === 'colPorCobrar')
+        ) {
+          return;
+        }
 
         const nuevas = aplicarPorId(actuales, invoiceId, (x) => {
           const collectionUpdate = { ...x.collection };
@@ -203,7 +242,7 @@ export function useMoveInvoice({
         }
 
         if (expenseData) {
-          tx.set(doc(db, PATHS.expenses, expenseData.id), expenseData);
+          tx.set(doc(db, PATHS.expenses, expenseData.id), expenseData, { merge: true });
         }
       });
       toast('Factura movida con éxito', 'ok');

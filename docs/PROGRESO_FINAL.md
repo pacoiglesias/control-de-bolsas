@@ -2,52 +2,61 @@
 
 ## 1. Estado de Fases
 
-- **Fase Actual:** **FASE 2 COMPLETADA**
-- **Siguiente Fase:** **FASE 3: Estados y flujo de cobranza**
+- **Fase Actual:** **FASE 3 COMPLETADA**
+- **Siguiente Fase:** **FASE 4: Portal del proveedor y funcionamiento sin conexión**
 - **Rama:** `main`
-- **Commit Previo:** `68241d6`
-- **Cambios Realizados en Fase 2:**
-  - `src/components/Cobranza/SincronizadorOficialModal.tsx`: Eliminada purga masiva automática y convertida en vista previa de diferencias granular con selección explícita por checkbox y protección ante soft-delete.
-  - `src/hooks/useAndresStats.ts`: Eliminado `safeSetDoc` automático para evitar sobreescrituras al abrir la pantalla; preservado el signo y montos válidos en `historicalDebtAndres`.
-  - `src/hooks/useDashboardStatsV2.ts`: Eliminada sustitución arbitraria a `103411.84` ante montos superiores a 500k.
-  - `functions/src/handlers/maquilaPortal.ts`: Respetado el signo negativo (deuda con Andrés) y montos legítimos en la Cloud Function.
-  - `src/lib/__tests__/phase2DataSecurityAndRules.test.ts`: Nueva suite unitaria para verificar las reglas y protecciones implementadas.
+- **Commit Previo de Partida:** `5bf2cc0` (Fase 2)
+- **Cambios Realizados en Fase 3 (Estados y Flujo de Cobranza):**
+  - `src/components/Cobranza/index.tsx`:
+    - Eliminado el conjunto codificado `PAID_CRS_SET` (`new Set(['TH-836', 'TH-804', 'TH-768', ...])`).
+    - Unificada la máquina de estados: `isCollected` (`status === 'collected'` o `collectedAt`), `isPaid` (`status === 'paid'` o `paidAt`), e `isPaidOrCollected`.
+    - Unificados los cálculos de los KPIs de cabecera (`cobrado`, `comisiones`, `meDeben`, `vencido`) para coincidir exactamente con las columnas del tablero Kanban y el listado de facturas.
+  - `src/components/Dashboard/MorningBriefingWidget.tsx`:
+    - Eliminada la dependencia en `OFFICIAL_PAID_CRS_LIST` en el cálculo de `isPaid`. El estado de cobro procede exclusivamente de los datos persistidos en el documento.
+  - `src/components/Cobranza/useMoveInvoice.ts`:
+    - Incorporada protección contra dobles clics con bloqueo concurrente en memoria (`movingInvoices`).
+    - Verificación del estado previo persistido en Firestore dentro de la transacción (`runTransaction`) para evitar movimientos redundantes.
+    - Generación de identificadores deterministas en `PATHS.expenses` (`ingreso_cobro_${orderId}_${invoiceId}` y `reverso_cobro_${orderId}_${invoiceId}`) con `merge: true` para garantizar idempotencia y evitar ingresos duplicados en Caja Chica.
+  - `src/components/Cobranza/useCobranzaActions.ts`:
+    - En `fastCollectContrareciboBlock`, `collectContrareciboBlock` y `revertCollectedContrareciboBlock`, uso de IDs deterministas en `PATHS.expenses` (`ingreso_cr_${cleanCr}` y `reverso_cr_${cleanCr}`) con metadata completa (`contrareciboNumber`, `transferRef`, `source`).
+  - `src/lib/__tests__/phase3CobranzaFlow.test.ts`:
+    - Nueva suite unitaria con 7 pruebas que valida: clasificación canónica por columnas, ausencia de listas estáticas, consistencia numérica de KPIs e idempotencia de claves de gasto.
 
 ---
 
-## 2. Verificaciones Ejecutadas en Fase 2
+## 2. Verificaciones Ejecutadas en Fase 3
 
 1. **TypeScript Typecheck:**
    - Comando: `npx tsc --noEmit`
    - Resultado: **0 errores**.
-2. **Pruebas Unitarias de Fase 2:**
-   - Comando: `npx vitest run src/lib/__tests__/phase2DataSecurityAndRules.test.ts`
-   - Resultado: **3/3 pruebas pasadas**.
-3. **Pruebas Unitarias de Conciliación Matemática:**
-   - Comando: `npx vitest run src/lib/__tests__/datasetReconciliation.test.ts`
+2. **Pruebas Unitarias de Fase 3:**
+   - Comando: `npx vitest run src/lib/__tests__/phase3CobranzaFlow.test.ts`
    - Resultado: **7/7 pruebas pasadas**.
-4. **Suite Completa de Pruebas:**
+3. **Pruebas Unitarias de Conciliación Matemática y Fase 2:**
+   - Comando: `npx vitest run src/lib/__tests__/datasetReconciliation.test.ts src/lib/__tests__/phase2DataSecurityAndRules.test.ts`
+   - Resultado: **10/10 pruebas pasadas**.
+4. **Suite Completa del Repositorio:**
    - Comando: `npx vitest run`
-   - Resultado: **322/322 pruebas pasadas** (46 archivos pasados, 0 fallos).
+   - Resultado: **329/329 pruebas pasadas** (47 suites pasadas, 1 skipped, 0 fallos).
+5. **Compilación de Producción:**
+   - Comando: `npm run build`
+   - Resultado: **Exitoso (código 0)** tanto en Vite frontend como en Cloud Functions.
 
 ---
 
-## 3. Criterios de Aceptación para Fase 3 (Estados y Flujo de Cobranza)
+## 3. Criterios de Aceptación para Fase 4 (Portal del Proveedor y Funcionamiento Sin Conexión)
 
-1. **Modelo de Estados Unificado:**
-   - Ciclo formal: `revision` (en revisión sin contrarrecibo) -> `pending` (por cobrar con contrarrecibo) -> `paid` (con el contador) -> `collected` (liquidado en caja).
-   - Eliminar cualquier lista estática de folios codificados que marque facturas como pagadas; el estado debe proceder del campo persistido en Firestore.
-2. **Consistencia y Fuente de Verdad:**
-   - Todas las vistas, contadores de badges, columnas del Kanban, filtros y reportes deben consumir la misma fuente autoritativa de estados.
-   - Idempotencia en movimientos de cobranza para evitar que dobles clics o concurrencia generen movimientos duplicados en Caja Chica.
-3. **Trazabilidad:**
-   - Registrar auditoría con usuario, sello de tiempo, estado previo y nuevo estado en cada transición.
+1. **Portal del Proveedor (Maquilador / Andrés):**
+   - Auditar `src/pages/MaquiladorPortal/` y Cloud Functions (`getActiveMaquilaOrders`, `reportMaquilaProduction`).
+   - Sincronización bidireccional de producción, entregas y saldos sin riesgo de sobreescritura accidental.
+2. **Funcionamiento Sin Conexión (Offline / IndexedDB):**
+   - Asegurar que la persistencia offline no genere escrituras corruptas ni intente reintentar transacciones no idempotentes al recuperar conexión.
+   - Diagnosticar service worker y caché PWA.
 
 ---
 
 ## 4. Instrucciones para Retomar
 
-1. Comprobar que el commit de partida de Fase 3 sea el de cierre de Fase 2.
-2. Iniciar **FASE 3** auditando `src/components/Cobranza/useMoveInvoice.ts`, `src/components/Cobranza/TableroKanban.tsx` y `src/hooks/useOrders.ts`.
-3. Validar consistencia de estados y ejecutar pruebas de cobranza y ciclo de crédito.
-4. Generar commit de Fase 3 y actualizar este documento.
+1. Mantenerse en rama `main`.
+2. Commit de Fase 3 listo para registrarse.
+3. No comenzar la Fase 4 hasta contar con la confirmación expresa del usuario.
