@@ -84,6 +84,7 @@ export function DashboardHeaderToolbar({
   onOpenCierreDiario?: () => void;
 }) {
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [showOpsMenu, setShowOpsMenu] = useState(false);
 
   return (
     <div style={{ marginBottom: 20 }}>
@@ -150,37 +151,6 @@ export function DashboardHeaderToolbar({
             <span>Nuevo Expediente</span>
           </button>
 
-          {/* BOTÓN FRONT-ROW: AUTO-SANAR & REPARAR DATOS */}
-          {onAutoHeal && (
-            <button
-              type="button"
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 13,
-                padding: '9px 16px',
-                borderRadius: 12,
-                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                cursor: isHealing ? 'wait' : 'pointer',
-              }}
-              onClick={() => {
-                triggerHaptic('medium');
-                onAutoHeal();
-              }}
-              disabled={isHealing}
-              title="Auto-Sanar y Purgar: repara duplicados, sincroniza contrarecibos y sana Firestore"
-            >
-              <span style={{ fontSize: 15 }}>{isHealing ? '⏳' : '🛡️'}</span>
-              <span>{isHealing ? 'Reparando...' : 'Reparar Datos'}</span>
-            </button>
-          )}
-
           {/* SEMÁFORO CENTINELA EN VIVO (HEALTH PILL) */}
           <CentinelaLivePill
             orders={globalOrders}
@@ -190,45 +160,21 @@ export function DashboardHeaderToolbar({
             onClick={() => nav('/auditoria')}
           />
 
-          {/* BOTÓN FRONT-ROW: CUADRE EJECUTIVO DIRECTO */}
-          {onOpenCuadreEjecutivo && (
+          {/* DROPDOWN OPERACIONES & CUADRE (Consolidación UX v9.10) */}
+          <div className="dropdown-container" style={{ position: 'relative' }}>
             <button
               type="button"
               className="btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowOpsMenu((prev) => !prev);
+                setShowReportsMenu(false);
+                setShowExportMenu(false);
+              }}
               style={{
-                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(180, 83, 9, 0.15) 100%)',
-                border: '1px solid rgba(245, 158, 11, 0.55)',
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(180, 83, 9, 0.12) 100%)',
+                border: '1px solid rgba(245, 158, 11, 0.45)',
                 color: '#fbbf24',
-                fontWeight: 900,
-                fontSize: 13,
-                padding: '9px 16px',
-                borderRadius: 12,
-                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                triggerHaptic('medium');
-                onOpenCuadreEjecutivo();
-              }}
-              title="Consola de Cuadre Ejecutivo Directo (Ctrl+E): Ajusta caja, cuenta Andrés y cartera al instante"
-            >
-              <span style={{ fontSize: 15 }}>⚡</span>
-              <span>Cuadre Rápido</span>
-            </button>
-          )}
-
-          {/* BOTÓN FRONT-ROW: PANTALLA DE DIFERENCIAS (4-WAY MATCHING) */}
-          {onOpenDiferencias && (
-            <button
-              type="button"
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(37, 99, 235, 0.12) 100%)',
-                border: '1px solid rgba(59, 130, 246, 0.45)',
-                color: '#60a5fa',
                 fontWeight: 800,
                 fontSize: 13,
                 padding: '9px 14px',
@@ -237,75 +183,102 @@ export function DashboardHeaderToolbar({
                 alignItems: 'center',
                 gap: 6,
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
               }}
-              onClick={() => {
-                triggerHaptic('light');
-                onOpenDiferencias();
-              }}
-              title="Pantalla de Diferencias: Comparativa cruzada Pedido vs Báscula vs Factura vs Cobro"
+              title="Operaciones rápidas, cuadre ejecutivo, diferencias y mantenimiento"
             >
-              <span style={{ fontSize: 15 }}>⚖️</span>
-              <span>Diferencias 4-Way</span>
+              <span>⚡</span>
+              <span>Operaciones & Cuadre</span>
+              <span style={{ fontSize: 10, opacity: 0.6 }}>{showOpsMenu ? '▲' : '▼'}</span>
             </button>
-          )}
 
-          {/* BOTÓN FRONT-ROW: CIERRE DIARIO */}
-          {onOpenCierreDiario && (
-            <button
-              type="button"
-              className="btn"
-              style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.12) 100%)',
-                border: '1px solid rgba(16, 185, 129, 0.45)',
-                color: '#34d399',
-                fontWeight: 800,
-                fontSize: 13,
-                padding: '9px 14px',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                triggerHaptic('light');
-                onOpenCierreDiario();
-              }}
-              title="Cierre Diario: Resumen de entregas, facturas, cobros y checklist operativo"
-            >
-              <span style={{ fontSize: 15 }}>🏁</span>
-              <span>Cierre Diario</span>
-            </button>
-          )}
-
-          {/* BOTÓN FRONT-ROW: ACTUALIZAR DATOS */}
-          <button
-            type="button"
-            className="btn"
-            style={{
-              background: 'var(--paper-raised)',
-              border: '1px solid var(--line)',
-              color: 'var(--ink)',
-              fontWeight: 800,
-              fontSize: 13,
-              padding: '9px 14px',
-              borderRadius: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-            onClick={() => {
-              triggerHaptic('light');
-              toast('🔄 Sincronizando datos del ERP en vivo...', 'info');
-              window.location.reload();
-            }}
-            title="Recargar y sincronizar datos en tiempo real"
-          >
-            <span>🔄</span>
-            <span>Actualizar</span>
-          </button>
+            {showOpsMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '110%',
+                  right: 0,
+                  zIndex: 100,
+                  background: 'var(--paper-raised)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 14,
+                  padding: 6,
+                  minWidth: 260,
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                {onOpenCuadreEjecutivo && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#fbbf24', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => {
+                      setShowOpsMenu(false);
+                      triggerHaptic('medium');
+                      onOpenCuadreEjecutivo();
+                    }}
+                  >
+                    ⚡ Cuadre Rápido (Ctrl+E)
+                  </button>
+                )}
+                {onOpenDiferencias && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#60a5fa', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => {
+                      setShowOpsMenu(false);
+                      triggerHaptic('light');
+                      onOpenDiferencias();
+                    }}
+                  >
+                    ⚖️ Diferencias 4-Way
+                  </button>
+                )}
+                {onOpenCierreDiario && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#34d399', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => {
+                      setShowOpsMenu(false);
+                      triggerHaptic('light');
+                      onOpenCierreDiario();
+                    }}
+                  >
+                    🏁 Cierre Diario
+                  </button>
+                )}
+                <div style={{ height: 1, background: 'var(--line-soft)', margin: '2px 0' }} />
+                {onAutoHeal && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#059669', padding: '8px 12px', borderRadius: 8 }}
+                    disabled={isHealing}
+                    onClick={() => {
+                      setShowOpsMenu(false);
+                      triggerHaptic('medium');
+                      onAutoHeal();
+                    }}
+                  >
+                    {isHealing ? '⏳ Reparando...' : '🛡️ Reparar Datos / Auto-Sanar'}
+                  </button>
+                )}
+                {onOpenQuickEdit && (
+                  <button
+                    className="btn"
+                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#f59e0b', padding: '8px 12px', borderRadius: 8 }}
+                    onClick={() => {
+                      setShowOpsMenu(false);
+                      onOpenQuickEdit();
+                    }}
+                  >
+                    ⚙️ Parámetros & Precios ERP
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* DROPDOWN 1: REPORTES & BALANZA */}
           <div className="dropdown-container" style={{ position: 'relative' }}>
@@ -315,6 +288,7 @@ export function DashboardHeaderToolbar({
               onClick={(e) => {
                 e.stopPropagation();
                 setShowReportsMenu((prev) => !prev);
+                setShowOpsMenu(false);
                 setShowExportMenu(false);
               }}
               style={{
@@ -408,25 +382,6 @@ export function DashboardHeaderToolbar({
                 >
                   ⚡ Sincronizar Contrarecibos
                 </button>
-                {onAutoHeal && (
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#059669', padding: '8px 12px', borderRadius: 8 }}
-                    disabled={isHealing}
-                    onClick={() => { setShowReportsMenu(false); onAutoHeal(); }}
-                  >
-                    {isHealing ? '⏳ Auto-Sanando...' : '✨ Auto-Sanar Base de Datos'}
-                  </button>
-                )}
-                {onOpenQuickEdit && (
-                  <button
-                    className="btn"
-                    style={{ justifyContent: 'flex-start', border: 'none', background: 'transparent', width: '100%', fontSize: 12.5, fontWeight: 700, color: '#f59e0b', padding: '8px 12px', borderRadius: 8 }}
-                    onClick={() => { setShowReportsMenu(false); onOpenQuickEdit(); }}
-                  >
-                    ⚡ Parámetros & Precios ERP
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -439,6 +394,7 @@ export function DashboardHeaderToolbar({
               onClick={(e) => {
                 e.stopPropagation();
                 setShowExportMenu((prev) => !prev);
+                setShowOpsMenu(false);
                 setShowReportsMenu(false);
               }}
               style={{
