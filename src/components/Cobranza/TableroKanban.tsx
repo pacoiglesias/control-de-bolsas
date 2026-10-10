@@ -149,6 +149,15 @@ export default function TableroKanban() {
         key={inv.id}
         draggable
         onDragStart={(e) => onDragStart(e as unknown as React.DragEvent<HTMLDivElement>, o.id, inv.id)}
+        tabIndex={0}
+        role="article"
+        aria-label={`Factura ${inv.folio || o.folio || 'sin folio'}, importe ${money(amt)}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setDrawerTarget({ o: x.o, inv: x.inv });
+          }
+        }}
         style={{
           background: 'var(--paper-raised, #fff)',
           border: x._posibleDuplicado
@@ -526,6 +535,64 @@ export default function TableroKanban() {
           >
             🗑️
           </button>
+        </div>
+
+        {/* Acción Visible 'Mover a...' accesible con toque en móvil y teclado */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: '1px dashed var(--line-soft)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <label
+            htmlFor={`mover-a-${o.id}-${inv.id}`}
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: 'var(--ink-soft)',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <span>🎯</span> Mover a:
+          </label>
+          <select
+            id={`mover-a-${o.id}-${inv.id}`}
+            aria-label={`Mover factura ${inv.folio || o.folio || ''} a otra columna`}
+            defaultValue=""
+            onChange={(e) => {
+              const target = e.target.value;
+              if (target) {
+                moveInvoice(o.id, inv.id, target as any);
+                e.target.value = ''; // restablecer tras mover
+              }
+            }}
+            style={{
+              flex: 1,
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '3px 6px',
+              borderRadius: 6,
+              border: '1px solid var(--line)',
+              background: 'var(--paper-sunk)',
+              color: 'var(--ink)',
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            <option value="" disabled>Seleccionar columna...</option>
+            <option value="colRevision">1. En Revisión (Sin CR)</option>
+            <option value="colPorCobrar">2. Por Cobrar (Con CR)</option>
+            <option value="colContador">3. Con el Contador (Cobrado)</option>
+            <option value="colCaja">4. Liquidado en Caja</option>
+          </select>
         </div>
       </motion.div>
     );

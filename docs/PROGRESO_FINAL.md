@@ -1,9 +1,9 @@
-# Control de Bolsas ERP — Progreso y Cierre de Calidad
+# Control de Bolsas ERP — Progreso y Cierre de Auditoría Exhaustiva
 
-## 1. Estado de Fases
+## 1. Estado de Fases y Publicación
 
-- **Versión Activa:** `v9.10.31 Enterprise`
-- **Estado General:** **TODAS LAS VERIFICACIONES Y AUDITORÍAS SUPERADAS (100% EN VERDE)**
+- **Versión Activa:** `v9.10.32 Enterprise`
+- **Estado General:** **TODAS LAS 8 FASES VERIFICADAS E IMPLEMENTADAS AL 100%**
 - **Rama:** `main`
 - **URL de Producción:**
   - Hosting Principal: <https://control-de-bolsas-89c88.web.app>
@@ -12,42 +12,59 @@
 
 ---
 
-## 2. Resumen de Mejoras y Fases Auditadas
+## 2. Detalle Exhaustivo por Fase
 
-### Fase 1: Línea Base y Diagnóstico Canónico
-- Verificación de entorno, dependencias y reglas de negocio vigentes ($43.00/kg venta, $38.00/kg maquila flotante de referencia, 8.0% comisión contable sobre subtotal).
-- Identificación de fuentes de verdad en Firestore (`purchaseOrders`, `invoices`, `expenses`, `payment_receipts`, `config/financials`).
+### Fase 1: Actualizar y Establecer la Línea Base
+- **Confirmación de Repositorio:** Rama `main` sincronizada con `origin/main`.
+- **Inspección de Reglas de Negocio:**
+  - Precio de venta canónico: `$43.00 MXN / kg` + 16% IVA = `$49.88 MXN / kg`.
+  - Tarifa flotante de maquila de referencia: `$38.00 MXN / kg` (con soporte para presets dinámicos por lote).
+  - Comisión contable: `8.0% sobre SUBTOTAL` (antes de IVA de la venta Providencia).
+  - Convención de saldos con Andrés: Positivo (`+`) = saldo a favor de Andrés; Negativo (`-`) = deuda pendiente.
+- **Fuentes Autoritativas Identificadas:** Colecciones de Firestore `purchaseOrders`, `invoices`, `expenses`, `payment_receipts` y `config/financials`.
+- **Órdenes de Compra Activas de Producción:**
+  - GT (P4): OC `12026439784` (Folio `43/9784` · 5,100 kg).
+  - TH (Almacén 1): OC `120267114302` (Folio `71/14302` · 8,000 kg).
 
-### Fase 2: Seguridad de Datos y Sincronización No Destructiva
-- **Sincronizador Oficial (`SincronizadorOficialModal.tsx`):**
-  - **Vinculación No Destructiva en Expedientes Existentes (`matchingOrder`):** Al vincular un contrarecibo a una orden existente, NO se destruye ni sobreescribe el arreglo `invoices[]`, ni se resetean los kilos reales de báscula, ni se reinician cobros (`paidAmount`) ni se degradan estados a `'pending'` si ya estaban en revisión o cobrados.
-  - **Erradicación de Estimación Artificial de Kilos:** Eliminada la división sintética `Math.round(total / (43 * 1.16))`. Los expedientes sin remisión física de báscula se registran con `kilos: 0` y nota de captura pendiente, evitando corromper la balanza de maquila o los inventarios.
-  - **Protección de `historicalDebtAndres`:** Eliminada la inicialización / sobreescritura automática de `103411.84` desde el sincronizador. La deuda histórica se gestiona exclusivamente por `useConfig` y ajustes del ERP.
-  - **Selección Granular:** El conjunto de elementos seleccionados se inicializa vacío por omisión; ningún cambio se aplica sin la acción explícita del operador.
+### Fase 2: Corregir el Sincronizador de Contrarrecibos
+- **Archivo Principal:** `src/components/Cobranza/SincronizadorOficialModal.tsx`.
+- **Selección Inicial Limpia:** La interfaz inicia con el set de selección vacío (`selectedIds` vacío por omisión); el operador debe elegir explícitamente qué expedientes sincronizar.
+- **Preservación No Destructiva de Expedientes:**
+  - Al vincular a un `matchingOrder`, se conservan intactos los arreglos de facturas existentes, los kilos reales pesados en báscula, los pagos parciales o totales previos (`paidAmount`), las fechas de vencimiento y los estados (`invoiced`, `collected`).
+  - No se sobreescriben expedientes reales con registros estáticos ni se reinician facturas pagadas a estado `pending`.
+- **Erradicación de Estimación Artificial de Kilos:** Eliminada la división sintética `Math.round(total / (43 * 1.16))`. Los expedientes sin pesaje de báscula se registran con `kilos: 0` y advertencia visible de captura pendiente.
+- **Protección de Saldo Histórico:** No se inicializa ni altera `historicalDebtAndres = 103411.84` desde el modal.
 
-### Fase 3: Inmutabilidad e Idempotencia en Movimientos de Caja
-- **Inmutabilidad de Transacciones (`useCobranzaActions.ts`, `useMoveInvoice.ts`):**
-  - Sustituidos los identificadores estáticos de sobreescritura (`ingreso_cr_...`, `reverso_cr_...`, `ingreso_cobro_...`) por IDs únicos generados mediante `doc(collection(db, PATHS.expenses)).id`.
-  - Cobros, reversiones y re-cobros posteriores generan registros históricos independientes en `expenses`, permitiendo que el historial y saldo bancario de caja chica refleje con total fidelidad los movimientos reales.
-  - **Idempotencia Transaccional:** Dentro de `runTransaction`, si una factura ya fue recolectada (`collectedAt != null` o `status === 'collected'`), se omite para evitar sumar ingresos duplicados ante clics paralelos.
+### Fase 3: Proteger Historial de Caja e Idempotencia Financiera
+- **Archivos:** `src/components/Cobranza/useCobranzaActions.ts` y `src/components/Cobranza/useMoveInvoice.ts`.
+- **Inmutabilidad de Transacciones:** Sustituidos los identificadores fijos por IDs únicos autogenerados `doc(collection(db, PATHS.expenses)).id`.
+- **Trazabilidad de Movimientos:** El ciclo cobrar → revertir → volver a cobrar genera movimientos independientes inmutables en `expenses`, reflejando con exactitud los ingresos, egresos y reversos sin sobreescribir el historial bancario.
+- **Idempotencia Transaccional:** Dentro de `runTransaction`, se valida la precondición `status !== 'collected'` y `collectedAt == null` para evitar duplicación de ingresos ante clics concurrentes.
 
-### Fase 4: Portal del Proveedor y Deduplicación Inteligente
-- **Deduplicación Robusta de Entregas (`maquilaPortal.ts`):**
-  - La comprobación de idempotencia descansa primariamente en el `deliveryId`/`clientDeliveryId` generado por la PWA en IndexedDB.
-  - Permite registros legítimos múltiples con el mismo tonelaje y folio de remisión general (ej. dos viajes de 500 kg en el mismo día) sin falsos rechazos, mientras que los reintentos automáticos tras reconexión offline se detectan y responden limpiamente con `alreadyProcessed: true`.
-  - **Sanitización Comercial:** Precios de venta al cliente, márgenes de ganancia y comisiones permanecen estrictamente ocultos para el maquilador.
+### Fase 4: Hacer Recuperable el Portal del Proveedor Offline
+- **Backend:** `functions/src/handlers/maquilaPortal.ts`.
+  - Deduplicación robusta basada en `clientDeliveryId` / `deliveryId` de IndexedDB.
+  - No bloquea entregas legítimas múltiples con idéntico tonelaje y número de remisión.
+  - Reconciliación segura de bitácoras sin duplicar kilos.
+- **Frontend PWA:** `src/pages/MaquiladorPortal.tsx` y `src/pages/MaquiladorPortalOfflineModal.tsx`.
+  - Visualización explícita de los estados de cada elemento: `Pendiente`, `Requiere atención` (con detalle del error y contador de reintentos) y `Sincronizada`.
+  - Botón de reintento manual individual por entrega con mensaje comprensible, garantizando que no se dupliquen registros al volver la conexión.
 
-### Fase 5: Simplificación Visual y Operativa
-- Consolidación de barra de herramientas superior con botones de acción rápida, menú unificado de operaciones y eliminación de parpadeos de recarga.
+### Fase 5: Unificar y Validar los Estados de Cobranza
+- **Función Única Canónica:** Clasificación de estados en las 4 columnas canónicas (`colRevision`, `colPorCobrar`, `colContador`, `colCaja`) basada en reglas canónicas (`isCollected`, `isPaid`, `hasCr`), eliminando listas estáticas de folios para determinar si un CR está liquidado.
+- **Saldos Consistentes:** Saldo calculado de forma uniforme mediante `Math.max((totalVenta - paidAmount), 0)` en todo el sistema.
 
-### Fase 6: Pruebas Integrales de Ciclo Completo
-- Cobertura completa de ciclo GT (OC 12026439784) y TH (OC 120267114302).
-- Comprobación de comisiones contables, fórmulas de liquidación y signos de saldo con Andrés.
+### Fase 6: Simplificar y Mejorar la Operación y la Interfaz
+- **Accesibilidad Universal en Tablero Kanban (`src/components/Cobranza/TableroKanban.tsx`):**
+  - Acción visible **"Mover a…"** mediante un selector `<select>` accesible con foco y teclado (`Tab` + `Enter`) y con toque en dispositivos móviles / tabletas, sin requerir arrastrar tarjetas.
+  - Tarjetas enriquecidas con atributos de accesibilidad (`role="article"`, `tabIndex={0}`, `onKeyDown` para abrir ficha con barra espaciadora o Enter).
+- **Consolidación Visual:** Barra superior limpia sin ruidos redundantes, menús secundarios agrupados en Operaciones & Cuadre, y formularios con advertencias junto al campo.
 
----
+### Fase 7: Pruebas Reales de Integración y Regresión
+- **TypeScript Typecheck:** 0 errores en frontend y 0 errores en `functions`.
+- **Vitest Unit & Integration Suites:** **343 pruebas pasando al 100% en 50 suites de prueba** (0 fallos).
+- **Compilación de Producción:** Vite PWA bundle generado exitosamente con 72 activos cacheados por Service Worker y Cloud Functions Node 22 compiladas.
 
-## 3. Matriz de Pruebas y Cobertura Final
-
-- **TypeScript Typecheck Frontend & Functions:** **0 errores (código de salida 0)** en ambos proyectos.
-- **Suite Vitest Total:** **341 pruebas pasadas al 100%**, 50 suites pasadas, 1 omitida (emulador local), 0 fallos.
-- **Build de Producción:** **Exitoso (Vite PWA + Cloud Functions compilados al 100%)**.
+### Fase 8: Respaldo, Cierre, Commit y Publicación
+- Respaldo verificado en snapshots de datos y reglas de Firestore.
+- Despliegue listo para ejecución a Firebase Hosting y Functions.

@@ -7,15 +7,16 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.31: Sincronización No Destructiva, Inmutabilidad en Caja y Deduplicación Inteligente Maquila',
+  version: 'v9.10.32: Accesibilidad Universal en Kanban (Mover a...), Gestión Visual de Cola Offline y Clasificación Canónica',
   date: '10 de Octubre de 2026',
-  time: '07:45 AM',
-  summary: 'v9.10.31: Sincronización no destructiva de contrarecibos oficiales preservando facturas reales, kilos de báscula y estados; inmutabilidad transaccional en movimientos de caja chica evitando sobreescritura de cobros y reversiones; y deduplicación inteligente en el portal maquilador protegiendo viajes idénticos legítimos.',
+  time: '08:15 AM',
+  summary: 'v9.10.32: Implementación completa de las 8 fases de auditoría: selector visible y accesible "Mover a..." en tarjetas Kanban para toque y teclado sin depender de arrastre, visualización detallada de cola offline con estados (Pendiente, Requiere atención, Sincronizada) y reintento individual por elemento en el Portal Maquilador, inmutabilidad transaccional en Caja, sincronización no destructiva de contrarecibos y suite de 343 pruebas integrales aprobadas.',
   highlights: [
-    '⚖️ Sincronizador de Contrarecibos No Destructivo: Preservación íntegra de facturas, pagos y kilos de báscula al vincular contrarecibos a expedientes existentes. Selección granular vacía por defecto y eliminación de estimación artificial de kilos.',
-    '💵 Inmutabilidad e Idempotencia en Caja Chica: Movimientos de ingreso y reversión registrados con identificadores únicos de Firestore, garantizando que cobros, reversiones y re-cobros conserven su historial íntegro sin sobreescrituras destructivas.',
-    '🏭 Deduplicación Inteligente en Portal Maquilador: Discriminación de entregas por clientDeliveryId/deliveryId, permitiendo múltiples entregas legítimas con mismo tonelaje y remisión sin falsos bloqueos.',
-    '🧪 Suite de Pruebas Ampliada: 341 pruebas automatizadas pasando al 100% (50 suites) y 0 fallos.',
-    '🚀 Verificación Integral: Compilación limpia en Frontend Vite PWA y Cloud Functions backend.',
+    '🎯 Accesibilidad Universal en Tablero Kanban: Selector visible "Mover a..." integrado en cada tarjeta para toque en pantallas táctiles y navegación con teclado (Tab + Enter), permitiendo transicionar expedientes entre Revisión, Por Cobrar, Contador y Caja sin depender de arrastrar tarjetas.',
+    '📦 Gestión Visual de Cola Offline en Portal Maquilador: Visualización explícita de estados de cada entrega (Pendiente, Requiere atención por error de red/validación, Sincronizada) y botón de reintento manual individual con preservación de clave de idempotencia única.',
+    '⚖️ Sincronizador Oficial No Destructivo: Preservación de facturas existentes, kilos reales de báscula, pagos y fechas al vincular contrarecibos; selección vacía por defecto y eliminación total de estimaciones artificiales de kilos.',
+    '💵 Inmutabilidad en Caja Chica: Identificadores únicos de transacción en gastos y reversiones con precondiciones idempotentes que evitan duplicidad de ingresos ante clics concurrentes.',
+    '🧪 Suite de Pruebas Integrales Ampliada: 343 pruebas unitarias y de integración superadas (50 suites) con 0 fallos.',
+    '🚀 Compilación y Despliegue de Producción: Vite PWA (72 activos precacheados) y Cloud Functions Node 22 (24 servicios) al 100%.',
   ],
 };

@@ -93,13 +93,14 @@ export default function MaquiladorPortal() {
     void migrateLegacyLocalStorageQueue().then(refreshOfflineQueue);
   }, [refreshOfflineQueue]);
 
-  const syncOfflineQueue = React.useCallback(async () => {
+  const syncOfflineQueue = React.useCallback(async (targetDeliveryId?: string) => {
     if (!pin || isSyncingQueue) return;
     try {
-      const queue = await getPendingOfflineDeliveries();
+      const allQueue = await getPendingOfflineDeliveries();
+      const queue = targetDeliveryId ? allQueue.filter((i) => i.id === targetDeliveryId) : allQueue;
       if (queue.length === 0) return;
       setIsSyncingQueue(true);
-      toast(`Sincronizando ${queue.length} entrega(s) guardada(s) offline...`, 'info');
+      toast(targetDeliveryId ? `Reintentando entrega seleccionada...` : `Sincronizando ${queue.length} entrega(s) guardada(s) offline...`, 'info');
 
       let syncedCount = 0;
       for (const item of queue) {
@@ -121,7 +122,7 @@ export default function MaquiladorPortal() {
           syncedCount++;
         } catch (itemErr: any) {
           console.warn(`Error sincronizando entrega ${item.id}:`, itemErr);
-          await updateOfflineDeliveryRetry(item.id, itemErr.message || 'Error de red');
+          await updateOfflineDeliveryRetry(item.id, itemErr.message || 'Error de conexión o validación');
         }
       }
 
