@@ -1,7 +1,5 @@
-import { useMemo, useEffect } from 'react';
-import { Timestamp, doc } from 'firebase/firestore';
-import { safeSetDoc } from '../lib/safeFirestore';
-import { db, PATHS } from '../lib/firebase';
+import { useMemo } from 'react';
+import { Timestamp } from 'firebase/firestore';
 import { usePurchases } from './usePurchases';
 import { useExpenses } from './useExpenses';
 import { useOrders } from './useOrders';
@@ -25,12 +23,6 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   const { expenses, loading: loadingE, error: errorE } = useExpenses();
   const { orders } = useOrders();
   const { config } = useConfig();
-
-  useEffect(() => {
-    if (typeof config?.historicalDebtAndres === 'number' && (config.historicalDebtAndres > 500000 || Math.abs(config.historicalDebtAndres - 1227839.35) < 10)) {
-      safeSetDoc(doc(db, PATHS.config, 'financials'), { historicalDebtAndres: 103411.84 }, { merge: true }).catch(() => {});
-    }
-  }, [config?.historicalDebtAndres]);
 
   const loading = loadingP || loadingE;
   const error = errorP || errorE;
@@ -56,12 +48,16 @@ export function useAndresStats(selectedProvider: string = 'Andres') {
   [expenses, selectedProvider, CUT_TIMESTAMP]);
 
   const currentCostPerKg = config?.costPricePerKg ?? DEFAULT_CONFIG.costPricePerKg;
-  const rawHistDeuda = config?.historicalDebtAndres ?? 103411.84;
-  const deudaHistorica = (rawHistDeuda > 500000 || Math.abs(rawHistDeuda - 1227839.35) < 10) ? 103411.84 : rawHistDeuda;
+  
+  // Saldo histórico canónico del config: preserva montos válidos y signo exacto (+ a favor de Andrés/anticipos, - deuda de empresa).
+  // Nunca sobreescribe Firestore automáticamente al abrir la pantalla.
+  const deudaHistorica = typeof config?.historicalDebtAndres === 'number' 
+    ? config.historicalDebtAndres 
+    : (DEFAULT_CONFIG.historicalDebtAndres ?? 103411.84);
 
   const stats = useMemo(() => {
-    // Saldo base: viene del config (historicalDebtAndres), ya sanitizado en deudaHistorica.
-    // Convención: positivo = saldo a favor de Andrés (anticipos disponibles).
+    // Saldo base: viene del config (historicalDebtAndres).
+    // Convención: positivo = saldo a favor de Andrés (anticipos disponibles), negativo = deuda de empresa.
     const saldoProveedor = deudaHistorica;
 
     // Libro Mayor (Ledger) iniciando desde el saldo histórico del config

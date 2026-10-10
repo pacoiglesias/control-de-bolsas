@@ -2,78 +2,52 @@
 
 ## 1. Estado de Fases
 
-- **Fase Actual:** **FASE 1 COMPLETADA**
-- **Siguiente Fase:** **FASE 2: Seguridad de datos y reglas financieras**
+- **Fase Actual:** **FASE 2 COMPLETADA**
+- **Siguiente Fase:** **FASE 3: Estados y flujo de cobranza**
 - **Rama:** `main`
-- **Commit Inicial de Partida:** `65c69d8`
-- **Cambios Locales Iniciales:** Ninguno (`working tree clean`).
+- **Commit Previo:** `68241d6`
+- **Cambios Realizados en Fase 2:**
+  - `src/components/Cobranza/SincronizadorOficialModal.tsx`: Eliminada purga masiva automática y convertida en vista previa de diferencias granular con selección explícita por checkbox y protección ante soft-delete.
+  - `src/hooks/useAndresStats.ts`: Eliminado `safeSetDoc` automático para evitar sobreescrituras al abrir la pantalla; preservado el signo y montos válidos en `historicalDebtAndres`.
+  - `src/hooks/useDashboardStatsV2.ts`: Eliminada sustitución arbitraria a `103411.84` ante montos superiores a 500k.
+  - `functions/src/handlers/maquilaPortal.ts`: Respetado el signo negativo (deuda con Andrés) y montos legítimos en la Cloud Function.
+  - `src/lib/__tests__/phase2DataSecurityAndRules.test.ts`: Nueva suite unitaria para verificar las reglas y protecciones implementadas.
 
 ---
 
-## 2. Diagnóstico de la Línea Base (Fase 1)
+## 2. Verificaciones Ejecutadas en Fase 2
 
-### Arquitectura y Fuentes de Verdad
-- **Frontend:** React 18 + Vite + TypeScript (SPA/PWA) en `src/`.
-- **Backend Serverless:** Firebase Cloud Functions v2 (Node.js 22, Express/HTTPS onCall) en `functions/src/`.
-- **Base de Datos:** Cloud Firestore (`control-de-bolsas-89c88`).
-  - Colección canónica de expedientes: `purchaseOrders`.
-  - Colección espejo de facturas: `invoices`.
-  - Gastos y pagos de caja: `expenses`.
-  - Entregas de maquila: `purchases` / `maquilaDeliveries`.
-  - Configuración financiera: `config/financials`.
-- **Portal del Maquilador:** `src/pages/MaquiladorPortal.tsx` conectado a Cloud Function `getActiveMaquilaOrders` autenticada por PIN y cola offline local en IndexedDB (`offlineMaquilaDb.ts`).
-
-### Riesgos Críticos Detectados para Fase 2 en Adelante
-
-1. **Purga y Recreación Masiva en Sincronizador de Contrarrecibos:**
-   - En `src/components/Cobranza/SincronizadorOficialModal.tsx`, la opción `purgeOldOrders` inicia en `true` por defecto. Si se ejecuta, archiva (`isDeleted: true`) expedientes no presentes en un array estático codificado.
-   - Sincroniza y recrea documentos sin una vista previa granular que muestre por separado cada expediente afectado (OC, folio, CR, importes) y sin confirmación selectiva por expediente.
-   - No respeta marcas de eliminación manual previa.
-
-2. **Sobreescritura Automática y Manipulación de Saldos de Andrés (`historicalDebtAndres`):**
-   - En `src/hooks/useAndresStats.ts` (líneas 29-33): Un `useEffect` detecta si `historicalDebtAndres > 500000` y ejecuta un `safeSetDoc` silencioso sobreescribiendo Firestore con `103411.84`.
-   - En `src/hooks/useDashboardStatsV2.ts` (línea 229): Si el saldo configurado supera 500,000, silenciosamente se fuerza a `103411.84` en la visualización.
-   - En `functions/src/handlers/maquilaPortal.ts` (línea 201): La Cloud Function descarta saldos negativos o superiores a 500,000 y sustituye por `103411.84`, invirtiendo el signo si la empresa tiene deuda pendiente con Andrés.
-
-3. **Precios y Fallbacks:**
-   - Hay componentes con fallbacks estáticos que ocultan inconsistencias en vez de advertir la falta de captura de precio o costo real del lote.
+1. **TypeScript Typecheck:**
+   - Comando: `npx tsc --noEmit`
+   - Resultado: **0 errores**.
+2. **Pruebas Unitarias de Fase 2:**
+   - Comando: `npx vitest run src/lib/__tests__/phase2DataSecurityAndRules.test.ts`
+   - Resultado: **3/3 pruebas pasadas**.
+3. **Pruebas Unitarias de Conciliación Matemática:**
+   - Comando: `npx vitest run src/lib/__tests__/datasetReconciliation.test.ts`
+   - Resultado: **7/7 pruebas pasadas**.
+4. **Suite Completa de Pruebas:**
+   - Comando: `npx vitest run`
+   - Resultado: **322/322 pruebas pasadas** (46 archivos pasados, 0 fallos).
 
 ---
 
-## 3. Verificaciones Ejecutadas en Fase 1
+## 3. Criterios de Aceptación para Fase 3 (Estados y Flujo de Cobranza)
 
-- `git status` -> `clean` (sin cambios no guardados).
-- `git log -n 5 --oneline` -> HEAD en `65c69d8`.
-- Inspección estructural de CI/CD en `.github/workflows/ci.yml` y `deploy.yml`.
-- Inspección de `AGENTS.md` y reglas operativas de Providencia.
-- Localización de riesgos en `SincronizadorOficialModal.tsx`, `useAndresStats.ts`, `useDashboardStatsV2.ts` y `functions/src/handlers/maquilaPortal.ts`.
-
----
-
-## 4. Criterios de Aceptación para Fase 2
-
-1. **Sincronizador de Contrarrecibos:**
-   - Desactivar completamente cualquier purga automática o por defecto basada en listas estáticas.
-   - El sincronizador debe funcionar en modo vista previa obligatoria con tabla detallada de diferencias (OC, folio, CR actual vs propuesto, importes).
-   - Permitir al operador aceptar o rechazar cambios por expediente.
-   - Respetar documentos marcados con eliminación deliberada (`isDeletedManually: true`).
-2. **Saldo Histórico de Andrés:**
-   - Eliminar el `safeSetDoc` automático en `useAndresStats.ts`. Consultar o abrir pantallas no debe modificar Firestore jamás.
-   - Eliminar el aplastamiento de valores en `useDashboardStatsV2.ts` y `functions/src/handlers/maquilaPortal.ts`.
-   - Respetar los valores negativos (deuda pendiente de la empresa) y montos altos válidos.
-   - Mostrar advertencia visible en auditoría/UI ante valores inusuales en lugar de sobreescribir silenciosamente.
-3. **Precios y Cálculos:**
-   - Conservar precios de venta y costos de lote reales por entrega y factura.
-   - Si falta un precio en un cálculo, mostrar alerta para captura en vez de inventar o fijar valores predeterminados.
+1. **Modelo de Estados Unificado:**
+   - Ciclo formal: `revision` (en revisión sin contrarrecibo) -> `pending` (por cobrar con contrarrecibo) -> `paid` (con el contador) -> `collected` (liquidado en caja).
+   - Eliminar cualquier lista estática de folios codificados que marque facturas como pagadas; el estado debe proceder del campo persistido en Firestore.
+2. **Consistencia y Fuente de Verdad:**
+   - Todas las vistas, contadores de badges, columnas del Kanban, filtros y reportes deben consumir la misma fuente autoritativa de estados.
+   - Idempotencia en movimientos de cobranza para evitar que dobles clics o concurrencia generen movimientos duplicados en Caja Chica.
+3. **Trazabilidad:**
+   - Registrar auditoría con usuario, sello de tiempo, estado previo y nuevo estado en cada transición.
 
 ---
 
-## 5. Instrucciones para Retomar
+## 4. Instrucciones para Retomar
 
-1. Comprobar que el commit de partida de Fase 2 sea el de cierre de Fase 1.
-2. Iniciar **FASE 2** abordando primero los 3 módulos críticos identificados:
-   - `src/components/Cobranza/SincronizadorOficialModal.tsx`
-   - `src/hooks/useAndresStats.ts`
-   - `src/hooks/useDashboardStatsV2.ts` y `functions/src/handlers/maquilaPortal.ts`
-3. Ejecutar pruebas unitarias de finanzas y auditoría (`npx vitest run`).
-4. Generar commit de Fase 2 y actualizar este documento.
+1. Comprobar que el commit de partida de Fase 3 sea el de cierre de Fase 2.
+2. Iniciar **FASE 3** auditando `src/components/Cobranza/useMoveInvoice.ts`, `src/components/Cobranza/TableroKanban.tsx` y `src/hooks/useOrders.ts`.
+3. Validar consistencia de estados y ejecutar pruebas de cobranza y ciclo de crédito.
+4. Generar commit de Fase 3 y actualizar este documento.

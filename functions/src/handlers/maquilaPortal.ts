@@ -198,7 +198,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     // el Dashboard y esta misma pantalla, para el mismo dato). Ahora las
     // tres llaman a computeAndresBalance(), la fuente única de verdad.
     const rawHist = configSnap.data()?.historicalDebtAndres;
-    const historicalDebtAndres = (typeof rawHist === 'number' && rawHist > 0 && rawHist < 500000) ? rawHist : 103411.84;
+    const historicalDebtAndres = typeof rawHist === 'number' ? rawHist : 103411.84;
 
     const andresBalance = computeAndresBalance(
       provPurchases as any[],

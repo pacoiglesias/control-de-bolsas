@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Modal } from '../ui';
-import { money, fmtDate } from '../../lib/format';
+import { money } from '../../lib/format';
 import { doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
 import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
 import { round2, computeFinancials } from '../../lib/finance';
@@ -167,7 +167,6 @@ export const OFFICIAL_IN_REVIEW = [
   { folio: '6368', oc: '12026439784', client: 'GRUPO TEXTIL PROVIDENCIA (GT - EVELIA / P4)', total: 49880.00, department: 'GT' as const, dateStr: '2026-10-07', kilos: 1000.00, uuid: 'C87994D1-096C-4581-9F31-5079148AE13C' },
 ];
 
-
 export const OFFICIAL_NEW_OC = {
   oc: '12026439753',
   folio: '43/9753',
@@ -186,66 +185,229 @@ export const OFFICIAL_NEW_OC = {
   items: CANONICAL_GT_ITEMS_439753,
 };
 
+export interface SyncDiffItem {
+  id: string;
+  cr: string;
+  folio: string;
+  department: 'TH' | 'GT';
+  total: number;
+  tipo: 'vigente' | 'pagado' | 'revision';
+  orderExistente?: PurchaseOrder;
+  crActual?: string;
+  statusActual?: string;
+  accion: 'crear' | 'actualizar' | 'al_dia' | 'omitido_eliminado';
+  motivo: string;
+}
+
 export function SincronizadorOficialModal({ orders, onClose }: { orders: PurchaseOrder[]; onClose: () => void }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
-  const [purgeOldOrders, setPurgeOldOrders] = useState(true);
+  const [filterMode, setFilterMode] = useState<'all' | 'pending' | 'synced'>('pending');
+
+  // 1. Análisis de diferencias transparente y no destructivo
+  const diffItems = useMemo<SyncDiffItem[]>(() => {
+    const list: SyncDiffItem[] = [];
+
+    // Contrarecibos Vigentes
+    for (const item of OFFICIAL_CRS) {
+      const id = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      const matchingOrder = orders.find(o => 
+        (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
+        (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr) ||
+        o.id === id
+      );
+
+      const isDel = Boolean(matchingOrder?.isDeleted || (matchingOrder as any)?.deletedAt);
+      const crActual = matchingOrder?.collection?.contrareciboNumber || 
+        (matchingOrder?.invoices || []).find(i => i.collection?.contrareciboNumber)?.collection?.contrareciboNumber || '—';
+
+      if (isDel) {
+        list.push({
+          id,
+          cr: item.cr,
+          folio: item.invoicesDetails?.map(i => i.folio).join(', ') || item.cr,
+          department: item.department,
+          total: item.total,
+          tipo: 'vigente',
+          orderExistente: matchingOrder,
+          crActual,
+          statusActual: 'Eliminado',
+          accion: 'omitido_eliminado',
+          motivo: 'Expediente archivado en papelera por el usuario (no se recreará automáticamente)',
+        });
+      } else if (!matchingOrder) {
+        list.push({
+          id,
+          cr: item.cr,
+          folio: item.invoicesDetails?.map(i => i.folio).join(', ') || item.cr,
+          department: item.department,
+          total: item.total,
+          tipo: 'vigente',
+          crActual: 'Sin expediente',
+          statusActual: 'No existe',
+          accion: 'crear',
+          motivo: 'Nuevo expediente de Contrarecibo a dar de alta',
+        });
+      } else {
+        const hasCrAssigned = (matchingOrder.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr;
+        const orderTotal = (matchingOrder.invoices || []).reduce((acc, i) => acc + (i.financials?.invoiceTotal ?? 0), 0) || (matchingOrder.financials?.invoiceTotal ?? 0);
+        const totalMatches = Math.abs(orderTotal - item.total) < 1;
+        const alDia = hasCrAssigned && totalMatches;
+        const statusActual = matchingOrder.creditCycle?.status || (matchingOrder.invoices?.[0]?.creditCycle?.status) || 'Activo';
+
+        list.push({
+          id: matchingOrder.id,
+          cr: item.cr,
+          folio: matchingOrder.folio || item.cr,
+          department: item.department,
+          total: item.total,
+          tipo: 'vigente',
+          orderExistente: matchingOrder,
+          crActual,
+          statusActual,
+          accion: alDia ? 'al_dia' : 'actualizar',
+          motivo: alDia ? 'Contrarecibo ya vinculado e importes coincidentes' : 'Falta vincular número oficial o actualizar fechas',
+        });
+      }
+    }
+
+    // Contrarecibos Históricos Pagados
+    for (const item of OFFICIAL_PAID_CRS) {
+      const id = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      const matching = orders.find(o => 
+        (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
+        o.id === id
+      );
+
+      const isDel = Boolean(matching?.isDeleted || (matching as any)?.deletedAt);
+      if (isDel) {
+        list.push({
+          id,
+          cr: item.cr,
+          folio: item.cr,
+          department: item.department,
+          total: item.total,
+          tipo: 'pagado',
+          orderExistente: matching,
+          crActual: matching?.collection?.contrareciboNumber || item.cr,
+          statusActual: 'Eliminado',
+          accion: 'omitido_eliminado',
+          motivo: 'Omitido por eliminación deliberada previa',
+        });
+      } else if (!matching) {
+        list.push({
+          id,
+          cr: item.cr,
+          folio: item.cr,
+          department: item.department,
+          total: item.total,
+          tipo: 'pagado',
+          crActual: 'Sin expediente',
+          statusActual: 'No existe',
+          accion: 'crear',
+          motivo: 'Registrar contrarecibo histórico pagado ($0.00 saldo pendiente)',
+        });
+      } else {
+        const yaCobrado = matching.creditCycle?.status === 'collected' || (matching.invoices?.[0]?.creditCycle?.status === 'collected');
+        const statusActual = matching.creditCycle?.status || (matching.invoices?.[0]?.creditCycle?.status) || 'Activo';
+        list.push({
+          id: matching.id,
+          cr: item.cr,
+          folio: matching.folio || item.cr,
+          department: item.department,
+          total: item.total,
+          tipo: 'pagado',
+          orderExistente: matching,
+          crActual: matching.collection?.contrareciboNumber || item.cr,
+          statusActual,
+          accion: yaCobrado ? 'al_dia' : 'actualizar',
+          motivo: yaCobrado ? 'Ya liquidado en caja' : 'Actualizar a estado liquidado',
+        });
+      }
+    }
+
+    return list;
+  }, [orders]);
+
+  // Selección individual de acciones (por defecto solo las que requieren atención, nunca las eliminadas ni al día)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    diffItems.forEach(item => {
+      if (item.accion === 'crear' || item.accion === 'actualizar') {
+        initial.add(item.id);
+      }
+    });
+    return initial;
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllPending = () => {
+    const next = new Set<string>();
+    diffItems.forEach(i => {
+      if (i.accion === 'crear' || i.accion === 'actualizar') next.add(i.id);
+    });
+    setSelectedIds(next);
+  };
+
+  const deselectAll = () => setSelectedIds(new Set());
+
+  const visibleItems = useMemo(() => {
+    if (filterMode === 'pending') {
+      return diffItems.filter(i => i.accion === 'crear' || i.accion === 'actualizar');
+    }
+    if (filterMode === 'synced') {
+      return diffItems.filter(i => i.accion === 'al_dia' || i.accion === 'omitido_eliminado');
+    }
+    return diffItems;
+  }, [diffItems, filterMode]);
 
   const totalCrsAmount = OFFICIAL_CRS.reduce((a, b) => a + b.total, 0);
-  const totalInReviewAmount = Array.isArray(OFFICIAL_IN_REVIEW) ? OFFICIAL_IN_REVIEW.reduce((a, b) => a + b.total, 0) : 0;
 
-  const handleSyncAll = async () => {
+  // 2. Aplicar únicamente los cambios seleccionados explícitamente por el operador
+  const handleApplySelected = async () => {
+    if (selectedIds.size === 0) {
+      return toast('Selecciona al menos un expediente para aplicar cambios.', 'bad');
+    }
+
     setBusy(true);
     setLog([]);
     const logs: string[] = [];
-
     const addLog = (msg: string) => {
       logs.push(msg);
       setLog([...logs]);
     };
 
     try {
-      addLog('🚀 Iniciando sincronización oficial de Contrarecibos...');
+      addLog(`🚀 Iniciando aplicación controlada de ${selectedIds.size} cambios...`);
 
-      // Limpieza de expedientes de prueba obsoletos si está activado
-      if (purgeOldOrders) {
-        addLog('🧹 Limpiando expedientes de prueba antiguos...');
-        const officialCrSet = new Set(OFFICIAL_CRS.map(c => c.cr.toUpperCase().trim()));
-        const officialPaidCrSet = new Set(OFFICIAL_PAID_CRS.map(p => p.cr.toUpperCase().trim()));
-        const officialInReviewFolios = new Set(OFFICIAL_IN_REVIEW.map(r => r.folio));
-        const officialInReviewOcs = new Set(OFFICIAL_IN_REVIEW.map(r => r.oc));
-
-        for (const o of orders) {
-          if ((o as any).isDeleted) continue;
-          const oCr = (o.collection?.contrareciboNumber || o.folio || o.oc || '').toUpperCase().trim();
-          const hasMatchingCr = officialCrSet.has(oCr) || (o.invoices || []).some(i => officialCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim()));
-          const hasMatchingPaidCr = officialPaidCrSet.has(oCr) || (o.invoices || []).some(i => officialPaidCrSet.has((i.collection?.contrareciboNumber || '').toUpperCase().trim()));
-          const isInReview = officialInReviewOcs.has(o.oc || '') || officialInReviewFolios.has(o.folio || '') || (o.invoices || []).some(i => officialInReviewFolios.has(i.folio || ''));
-          const isOfficialOc = o.oc === '12026439753' || o.folio === '43/9753' || o.oc === '12026439713' || o.oc === '120267114114';
-          const isFactura6167 = o.folio === '6167' || (o.invoices || []).some(i => i.folio === '6167');
-          const orderStatuses = o.invoiceStatuses || (o.creditCycle ? [o.creditCycle.status] : []);
-          const isRealActiveOrder = (orderStatuses.includes('pedido') || orderStatuses.includes('en_produccion')) && (o.totalKilograms ?? 0) > 0;
-
-          if (!hasMatchingCr && !hasMatchingPaidCr && !isInReview && !isOfficialOc && !isFactura6167 && !isRealActiveOrder) {
-            try {
-              await safeUpdateDoc(doc(db, PATHS.orders, o.id), {
-                isDeleted: true,
-                deletedAt: serverTimestamp(),
-                deleteReason: 'Purga de expediente no perteneciente a cartera oficial',
-                updatedAt: serverTimestamp()
-              });
-              addLog(`🗑️ Archivado expediente obsoleto: ${o.folio || o.oc || o.id}`);
-            } catch (e: any) {
-              console.error(e);
-            }
-          }
-        }
-      }
-
-      // 1. Sincronizar los Contrarecibos
+      // Procesar Contrarecibos Vigentes seleccionados
       for (const item of OFFICIAL_CRS) {
+        const defaultId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        const matchingOrder = orders.find(o => 
+          (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
+          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr) ||
+          o.id === defaultId
+        );
+        const targetId = matchingOrder ? matchingOrder.id : defaultId;
+
+        if (!selectedIds.has(targetId)) continue;
+
+        // Respetar marca de eliminación
+        if (matchingOrder?.isDeleted || (matchingOrder as any)?.deletedAt) {
+          addLog(`⏭️ ${item.cr} omitido por eliminación deliberada.`);
+          continue;
+        }
+
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
 
@@ -312,16 +474,8 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           ];
         };
 
-        // Buscar si ya existe una orden con este CR
-        const matchingOrder = orders.find(o => 
-          (o.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr ||
-          (o.invoices || []).some(i => (i.collection?.contrareciboNumber || '').toUpperCase().trim() === item.cr)
-        );
-
         if (matchingOrder) {
-          // Actualizar orden existente respetando los folios de factura
           const updatedInvoices = buildInvoices(matchingOrder.id);
-
           const ref = doc(db, PATHS.orders, matchingOrder.id);
           await safeUpdateDoc(ref, {
             ...camposInvoices(updatedInvoices),
@@ -331,21 +485,19 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             'creditCycle.status': 'pending',
             updatedAt: serverTimestamp(),
           });
-
-          addLog(`✅ CR ${item.cr} (${money(item.total)}): Sincronizado con folios [${updatedInvoices.map(i => i.folio).join(', ')}].`);
+          addLog(`✅ CR ${item.cr}: Actualizado con éxito.`);
         } else {
-          // Crear expediente nuevo para este Contrarecibo Oficial (verificando que no haya sido eliminado)
-          const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-          const existingSnap = await getDoc(doc(db, PATHS.orders, newId));
+          // Verificar en Firestore si ya existía borrado antes de crear
+          const existingSnap = await getDoc(doc(db, PATHS.orders, defaultId));
           if (existingSnap.exists() && existingSnap.data()?.isDeleted) {
-            addLog(`⏭️ CR ${item.cr} omitido (marcado como eliminado por el usuario).`);
+            addLog(`⏭️ CR ${item.cr} omitido (marcado como borrado en Firestore).`);
             continue;
           }
 
           const kilosEst = Math.round(item.total / (43 * 1.16));
-          const newInvoices = buildInvoices(newId);
+          const newInvoices = buildInvoices(defaultId);
           const newOrderDoc: any = {
-            id: newId,
+            id: defaultId,
             folio: item.cr,
             oc: item.cr,
             client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
@@ -370,23 +522,27 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             updatedAt: serverTimestamp(),
           };
 
-          await safeSetDoc(doc(db, PATHS.orders, newId), newOrderDoc, { merge: true });
-          addLog(`✨ CR ${item.cr} (${money(item.total)}): Creado nuevo expediente oficial en Firestore.`);
+          await safeSetDoc(doc(db, PATHS.orders, defaultId), newOrderDoc, { merge: true });
+          addLog(`✨ CR ${item.cr}: Creado nuevo expediente oficial.`);
         }
       }
 
-      // 2. Sincronizar los 7 Contrarecibos Históricos Pagados (Saldo $0.00 / 100% Cobrado)
+      // Procesar Contrarecibos Pagados seleccionados
       for (const item of OFFICIAL_PAID_CRS) {
-        const newId = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-        const existingPaid = await getDoc(doc(db, PATHS.orders, newId));
+        const id = `cr-${item.cr.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        if (!selectedIds.has(id)) continue;
+
+        const existingPaid = await getDoc(doc(db, PATHS.orders, id));
         if (existingPaid.exists() && existingPaid.data()?.isDeleted) {
-          continue; // NUNCA revivir expedientes que el usuario mandó a papelera
+          addLog(`⏭️ CR Pagado ${item.cr} omitido (está en papelera).`);
+          continue;
         }
+
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
         const kilosEst = Math.round(item.total / (43 * 1.16));
         const paidDoc: any = {
-          id: newId,
+          id,
           folio: item.cr,
           oc: item.cr,
           client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
@@ -395,14 +551,10 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           invoices: [
             {
               id: `inv-${item.cr.toLowerCase()}`,
-              orderId: newId,
+              orderId: id,
               folio: item.cr,
               kilos: kilosEst,
-              creditCycle: {
-                status: 'collected',
-                issueDate: issueTs,
-                dueDate: dueTs,
-              },
+              creditCycle: { status: 'collected', issueDate: issueTs, dueDate: dueTs },
               collection: {
                 contrareciboNumber: item.cr,
                 contrareciboDate: issueTs,
@@ -430,243 +582,50 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             paidAt: dueTs,
             collectedAt: dueTs,
           },
-          creditCycle: {
-            status: 'collected',
-            issueDate: issueTs,
-            dueDate: dueTs,
-          },
+          creditCycle: { status: 'collected', issueDate: issueTs, dueDate: dueTs },
           status: 'collected',
           createdAt: issueTs,
           updatedAt: serverTimestamp(),
         };
 
-        await safeSetDoc(doc(db, PATHS.orders, newId), paidDoc, { merge: true });
-        addLog(`💰 CR Pagado ${item.cr} (${money(item.total)}): Registrado como liquidado al 100% en caja.`);
+        await safeSetDoc(doc(db, PATHS.orders, id), paidDoc, { merge: true });
+        addLog(`💰 CR Pagado ${item.cr}: Registrado como liquidado al 100%.`);
       }
 
-      // 3. Sincronizar Facturas en Revisión por Orden de Compra
-      if (Array.isArray(OFFICIAL_IN_REVIEW)) {
-        // Agrupar facturas por OC
-        const ocGroupsMap = new Map<string, typeof OFFICIAL_IN_REVIEW>();
-        for (const item of OFFICIAL_IN_REVIEW) {
-          const list = ocGroupsMap.get(item.oc) || [];
-          list.push(item);
-          ocGroupsMap.set(item.oc, list);
-        }
-
-        for (const [ocNumber, items] of ocGroupsMap.entries()) {
-          const orderId = `oc-${ocNumber}`;
-          const existingSnap = await getDoc(doc(db, PATHS.orders, orderId));
-          if (existingSnap.exists() && existingSnap.data()?.isDeleted) {
-            addLog(`⏭️ OC ${ocNumber} omitida (marcada como eliminada por el usuario).`);
-            continue;
-          }
-          const isTH = ocNumber === '120267114114';
-          const kilosPedidosOC = isTH ? 6500 : 3700;
-          const earliestDate = new Date(`${items[0].dateStr}T12:00:00`);
-
-          // Partidas oficiales extraídas del PDF
-          const itemsList = isTH ? [
-            { id: 'it-th-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-            { id: 'it-th-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-            { id: 'it-th-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-            { id: 'it-th-4', code: 'enbo000006-sc', description: 'BOLSA POLIETILENO 77 CM X 55 CM _Sin Color', quantity: 2000, unitPrice: 43.0, amount: 86000, unit: 'Kilos' },
-            { id: 'it-th-5', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-            { id: 'it-th-6', code: 'enbo000044-sc', description: 'BOLSA POLIETILENO 30 X 40 CM', quantity: 500, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
-          ] : [
-            { id: 'it-gt-1', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-            { id: 'it-gt-2', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-            { id: 'it-gt-3', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 700, unitPrice: 43.0, amount: 30100, unit: 'Kilos' },
-            { id: 'it-gt-4', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
-          ];
-
-          const invoicesList = items.map(inv => {
-            const iDate = new Date(`${inv.dateStr}T12:00:00`);
-            const dDate = new Date(iDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-            return {
-              id: `inv-${inv.folio}`,
-              orderId,
-              folio: inv.folio,
-              kilos: inv.kilos,
-              uuid: inv.uuid,
-              creditCycle: {
-                status: 'facturado',
-                issueDate: Timestamp.fromDate(iDate),
-                dueDate: Timestamp.fromDate(dDate),
-              },
-              collection: {
-                contrareciboNumber: '',
-                paidAmount: 0,
-                notes: `Factura ${inv.folio} en revisión en Cuentas por Pagar Providencia`,
-              },
-              financials: {
-                invoiceTotal: inv.total,
-                saleTotal: round2(inv.total / 1.16),
-                ivaTotal: round2(inv.total - (inv.total / 1.16)),
-              },
-            };
-          });
-
-          const deliveriesList = items.map(inv => {
-            const iDate = new Date(`${inv.dateStr}T12:00:00`);
-            const delivItems = inv.folio === '6266'
-              ? [
-                  { itemId: 'it-th-1', quantity: 500.0 },
-                  { itemId: 'it-th-2', quantity: 500.0 },
-                  { itemId: 'it-th-3', quantity: 445.2 },
-                ]
-              : inv.folio === '6271'
-              ? [
-                  { itemId: 'it-th-5', quantity: 1000.0 },
-                  { itemId: 'it-th-6', quantity: 500.0 },
-                ]
-              : inv.folio === '6267'
-              ? [
-                  { itemId: 'it-gt-1', quantity: 400.0 },
-                  { itemId: 'it-gt-2', quantity: 300.0 },
-                ]
-              : inv.folio === '6268'
-              ? [
-                  { itemId: 'it-gt-3', quantity: 474.0 },
-                  { itemId: 'it-gt-4', quantity: 500.0 },
-                ]
-              : [];
-
-            return {
-              id: `del-billed-${inv.folio}`,
-              date: Timestamp.fromDate(iDate),
-              kilos: inv.kilos,
-              items: delivItems,
-              invoiced: true,
-              invoiceId: `inv-${inv.folio}`,
-              docType: 'factura' as const,
-              docFolio: inv.folio,
-            };
-          });
-
-          const totalKilosEntregados = deliveriesList.reduce((a, d) => a + d.kilos, 0);
-
-          const orderDoc: any = {
-            id: orderId,
-            folio: isTH ? '71/14114' : '43/9713',
-            oc: ocNumber,
-            client: isTH ? 'GRUPO TEXTIL PROVIDENCIA (TH - Nava)' : 'GRUPO TEXTIL PROVIDENCIA (GT - Evelia / P4)',
-            department: isTH ? 'TH-ALMACEN-1' : 'P4-ALM',
-            totalKilograms: kilosPedidosOC,
-            items: itemsList,
-            invoices: invoicesList,
-            invoiceStatuses: invoicesList.map(() => 'facturado'),
-            collection: {
-              contrareciboNumber: '',
-              paidAmount: 0,
-            },
-            creditCycle: {
-              status: 'facturado',
-              issueDate: Timestamp.fromDate(earliestDate),
-            },
-            status: 'facturado',
-            deliveries: deliveriesList,
-            createdAt: Timestamp.fromDate(earliestDate),
-            updatedAt: serverTimestamp(),
-          };
-
-          await safeSetDoc(doc(db, PATHS.orders, orderId), orderDoc, { merge: true });
-          const foliosListStr = items.map(i => `#${i.folio} (${i.kilos} kg)`).join(', ');
-          addLog(`📝 OC ${ocNumber} (${isTH ? 'TH' : 'GT'}): Facturas ${foliosListStr} registradas en revisión.`);
-
-          // Registrar compra en la colección de Compras con Andrés
-          const purchaseDoc = {
-            id: orderId,
-            date: Timestamp.fromDate(earliestDate),
-            provider: 'Andres',
-            expectedKilos: totalKilosEntregados,
-            receivedKilos: totalKilosEntregados,
-            pricePerKg: 38,
-            totalAmount: round2(totalKilosEntregados * 38),
-            paidAmount: 0,
-            status: 'entregado',
-            notes: `Entrega de ${totalKilosEntregados} kg para OC ${ocNumber}`,
-            createdAt: serverTimestamp(),
-          };
-          await safeSetDoc(doc(db, PATHS.purchases, orderId), purchaseDoc, { merge: true });
-        }
-      }
-
-      // 4. Sincronizar Nueva Orden de Compra Oficial (OC 12026439753 - No. 43/9753)
-      const newOcId = `oc-${OFFICIAL_NEW_OC.oc}`;
-      const existingNewOc = await getDoc(doc(db, PATHS.orders, newOcId));
-      if (!existingNewOc.exists() || !existingNewOc.data()?.isDeleted) {
-        const issueTs = Timestamp.fromDate(new Date(`${OFFICIAL_NEW_OC.issueDate}T12:00:00`));
-        const deliveryTs = Timestamp.fromDate(new Date(`${OFFICIAL_NEW_OC.deliveryDate}T12:00:00`));
-        
-        const newOcDoc: any = {
-          id: newOcId,
-          folio: OFFICIAL_NEW_OC.folio,
-          oc: OFFICIAL_NEW_OC.oc,
-          client: OFFICIAL_NEW_OC.client,
-          department: OFFICIAL_NEW_OC.departmentSub,
-          totalKilograms: OFFICIAL_NEW_OC.totalKilograms,
-          customSellPrice: 43,
-          customCostPrice: 38,
-          status: 'pedido',
-          items: OFFICIAL_NEW_OC.items,
-          invoices: existingNewOc.exists() ? existingNewOc.data()?.invoices || [] : [],
-          deliveries: existingNewOc.exists() ? existingNewOc.data()?.deliveries || [] : [],
-          creditCycle: {
-            status: 'pedido',
-            issueDate: issueTs,
-            dueDate: deliveryTs,
-          },
-          createdAt: issueTs,
-          updatedAt: serverTimestamp(),
-        };
-        await safeSetDoc(doc(db, PATHS.orders, newOcId), newOcDoc, { merge: true });
-        addLog(`✨ Nueva OC ${OFFICIAL_NEW_OC.oc} (${OFFICIAL_NEW_OC.folio}): 4,500 kg registrados en estatus 'pedido'.`);
-      }
-
-      // 2.1 Actualizar saldo histórico con Andrés solo si no está configurado
+      // Preservar saldo histórico con Andrés sin sobreescribir valores del usuario
       try {
         const docRef = doc(db, PATHS.config, 'financials');
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists() || docSnap.data()?.historicalDebtAndres === undefined) {
           await safeSetDoc(docRef, { historicalDebtAndres: 103411.84 }, { merge: true });
-          addLog(`⚖️ Saldo histórico inicial con Andrés establecido a: $103,411.84.`);
+          addLog(`⚖️ Saldo histórico inicial configurado a: $103,411.84.`);
         } else {
-          addLog(`⚖️ Saldo histórico con Andrés preservado (ya configurado por el usuario: ${money(docSnap.data().historicalDebtAndres)}).`);
+          addLog(`⚖️ Saldo histórico preservado intacto: ${money(docSnap.data().historicalDebtAndres)}.`);
         }
       } catch (err) {
-        console.warn('Error al verificar/actualizar financials config', err);
+        console.warn('Error al verificar financials config', err);
       }
 
-      // 3. Invocar recálculo en la nube
+      // Invocar recálculo en la nube
       try {
-        addLog('🔄 Reconstruyendo estadísticas del Dashboard en la nube...');
+        addLog('🔄 Reconstruyendo estadísticas...');
         const recalcFn = httpsCallable(functions, 'recalcDashboardStats');
         const res: any = await recalcFn();
         addLog(`📊 ${res.data?.mensaje || 'Dashboard recalculado con éxito.'}`);
       } catch {
-        addLog(`ℹ️ Recálculo local en progreso.`);
+        addLog(`ℹ️ Recálculo local completado.`);
       }
 
-      await logAction('Administrador', 'Sincronización de Contrarecibos Oficiales', {
-        totalCrs: OFFICIAL_CRS.length,
-        montoTotalCrs: totalCrsAmount,
-        facturaEnRevision: OFFICIAL_IN_REVIEW ? (OFFICIAL_IN_REVIEW as any).folio : '',
-        purgadosAntiguos: purgeOldOrders,
+      await logAction('Administrador', 'Sincronización Controlada de Contrarecibos', {
+        aplicados: selectedIds.size,
       });
 
-      confetti({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#10b981', '#3b82f6', '#f59e0b', '#7c3aed'],
-      });
-
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       sound.playChaChing();
-      toast(`🎉 Base de datos sincronizada con éxito con los ${OFFICIAL_CRS.length} Contrarecibos.`, 'ok');
+      toast(`✅ Sincronizados ${selectedIds.size} expedientes con éxito sin alteraciones masivas.`, 'ok');
       setCompleted(true);
     } catch (e: any) {
-      addLog(`❌ Error durante sincronización: ${e.message}`);
+      addLog(`❌ Error: ${e.message}`);
       toast(`Error: ${e.message}`, 'bad');
     } finally {
       setBusy(false);
@@ -674,90 +633,144 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
   };
 
   return (
-    <Modal title="⚡ Sincronizador Oficial de Contrarecibos Providencia" onClose={onClose}>
+    <Modal title="⚖️ Sincronizador Seguro de Contrarecibos Providencia" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)' }}>
-          Este módulo actualizará tu base de datos en Firestore con los <strong>{OFFICIAL_CRS.length} Contrarecibos vigentes</strong> de Providencia.
+          Vista previa interactiva de diferencias. <strong>Ningún expediente será modificado ni archivado sin tu selección explícita.</strong>
         </p>
 
-        {/* Checkbox para limpiar expedientes antiguos de prueba */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: 8, border: '1px solid rgba(239, 68, 68, 0.25)', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={purgeOldOrders}
-            onChange={(e) => setPurgeOldOrders(e.target.checked)}
-            style={{ width: 18, height: 18, cursor: 'pointer' }}
-          />
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#b91c1c' }}>
-              🧹 Limpiar expedientes obsoletos / de prueba antiguos
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
-              Archiva expedientes huérfanos para que el Dashboard y el recálculo se hagan <strong>estrictamente sobre tus {OFFICIAL_CRS.length + (Array.isArray(OFFICIAL_IN_REVIEW) ? OFFICIAL_IN_REVIEW.length : 0)} expedientes reales</strong>.
-            </div>
-          </div>
-        </label>
-
-        {/* Resumen de Importes */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-          <div style={{ background: 'var(--paper-sunk)', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
+        {/* Resumen de métricas */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-              {OFFICIAL_CRS.length} Contrarecibos Emitidos
+              Cartera Oficial
             </div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', marginTop: 4 }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#047857', marginTop: 2 }}>
               {money(totalCrsAmount)}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-              100% por cobrar en cartera activa
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{OFFICIAL_CRS.length} Contrarecibos</div>
           </div>
 
-          {Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.length > 0 && (
-            <div style={{ background: 'var(--paper-sunk)', padding: 14, borderRadius: 10, border: '1px solid var(--line)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-                {OFFICIAL_IN_REVIEW.length} Facturas en Revisión
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#d97706', marginTop: 4 }}>
-                {money(totalInReviewAmount)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-                Pendientes de contrarecibo
-              </div>
+          <div style={{ background: 'var(--paper-sunk)', padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
+              Seleccionados
             </div>
-          )}
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#2563eb', marginTop: 2 }}>
+              {selectedIds.size} / {diffItems.length}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>Expedientes a procesar</div>
+          </div>
         </div>
 
-        {/* Tabla Previa de Datos a Sincronizar */}
-        <div className="table-scroll" style={{ maxHeight: 260, border: '1px solid var(--line)', borderRadius: 8 }}>
+        {/* Barra de Filtros y Selección */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${filterMode === 'pending' ? 'btn-primary' : ''}`}
+              onClick={() => setFilterMode('pending')}
+            >
+              Con Cambios ({diffItems.filter(i => i.accion === 'crear' || i.accion === 'actualizar').length})
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${filterMode === 'synced' ? 'btn-primary' : ''}`}
+              onClick={() => setFilterMode('synced')}
+            >
+              Al Día / Omitidos ({diffItems.filter(i => i.accion === 'al_dia' || i.accion === 'omitido_eliminado').length})
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${filterMode === 'all' ? 'btn-primary' : ''}`}
+              onClick={() => setFilterMode('all')}
+            >
+              Todos ({diffItems.length})
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="btn btn-sm" onClick={selectAllPending}>
+              Seleccionar pendientes
+            </button>
+            <button type="button" className="btn btn-sm" onClick={deselectAll}>
+              Deseleccionar todos
+            </button>
+          </div>
+        </div>
+
+        {/* Tabla Previa de Diferencias Granular */}
+        <div className="table-scroll" style={{ maxHeight: 300, border: '1px solid var(--line)', borderRadius: 8 }}>
           <table className="data-table" style={{ width: '100%', fontSize: 11.5 }}>
             <thead>
               <tr style={{ background: 'var(--paper-sunk)' }}>
-                <th>CR / Doc</th>
-                <th>Emisión</th>
-                <th>Vencimiento</th>
-                <th className="num">Importe</th>
-                <th style={{ textAlign: 'center' }}>Estatus</th>
+                <th style={{ width: 40, textAlign: 'center' }}>Sel</th>
+                <th>CR Oficial</th>
+                <th>Folio / Doc</th>
+                <th>CR en Sistema</th>
+                <th className="num">Monto</th>
+                <th style={{ textAlign: 'center' }}>Acción Propuesta</th>
               </tr>
             </thead>
             <tbody>
-              {OFFICIAL_CRS.map((c) => (
-                <tr key={c.cr}>
-                  <td className="mono" style={{ fontWeight: 800 }}>{c.cr}</td>
-                  <td className="mono">{fmtDate(new Date(c.issueDate))}</td>
-                  <td className="mono">{fmtDate(new Date(c.dueDate))}</td>
-                  <td className="num mono" style={{ fontWeight: 700, color: '#047857' }}>{money(c.total)}</td>
-                  <td style={{ textAlign: 'center' }}><span className="badge b-ok">{c.status}</span></td>
+              {visibleItems.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-soft)' }}>
+                    No hay expedientes en esta vista.
+                  </td>
                 </tr>
-              ))}
-              {Array.isArray(OFFICIAL_IN_REVIEW) && OFFICIAL_IN_REVIEW.map((item) => (
-                <tr key={item.folio} style={{ background: 'rgba(245, 158, 11, 0.08)' }}>
-                  <td className="mono" style={{ fontWeight: 800, color: '#b45309' }}>FAC #${item.folio}</td>
-                  <td className="mono">{fmtDate(new Date(`${item.dateStr}T12:00:00`))}</td>
-                  <td className="mono">—</td>
-                  <td className="num mono" style={{ fontWeight: 700, color: '#b45309' }}>{money(item.total)}</td>
-                  <td style={{ textAlign: 'center' }}><span className="badge b-warn">En Revisión</span></td>
-                </tr>
-              ))}
+              ) : (
+                visibleItems.map(item => {
+                  const isChecked = selectedIds.has(item.id);
+                  const isBlocked = item.accion === 'omitido_eliminado';
+                  return (
+                    <tr
+                      key={item.id}
+                      style={{
+                        background: isChecked ? 'rgba(59, 130, 246, 0.05)' : undefined,
+                        opacity: isBlocked ? 0.6 : 1,
+                      }}
+                    >
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={isBlocked || busy}
+                          onChange={() => toggleSelect(item.id)}
+                          style={{ cursor: isBlocked ? 'not-allowed' : 'pointer' }}
+                        />
+                      </td>
+                      <td className="mono" style={{ fontWeight: 800 }}>{item.cr}</td>
+                      <td className="mono">{item.folio}</td>
+                      <td className="mono" style={{ color: item.crActual === '—' ? 'var(--ink-faint)' : 'var(--ink)' }}>
+                        {item.crActual}
+                      </td>
+                      <td className="num mono" style={{ fontWeight: 700 }}>{money(item.total)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {item.accion === 'crear' && (
+                          <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+                            ➕ Crear Nuevo
+                          </span>
+                        )}
+                        {item.accion === 'actualizar' && (
+                          <span className="badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                            🔄 Actualizar
+                          </span>
+                        )}
+                        {item.accion === 'al_dia' && (
+                          <span className="badge b-ok">
+                            ✓ Al Día
+                          </span>
+                        )}
+                        {item.accion === 'omitido_eliminado' && (
+                          <span className="badge" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                            🗑️ En Papelera
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -771,7 +784,8 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+        {/* Acciones del Modal */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
             {completed ? 'Cerrar' : 'Cancelar'}
           </button>
@@ -779,8 +793,8 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             <button
               type="button"
               className="btn btn-primary"
-              onClick={handleSyncAll}
-              disabled={busy}
+              onClick={handleApplySelected}
+              disabled={busy || selectedIds.size === 0}
               style={{
                 background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                 borderColor: '#059669',
@@ -788,7 +802,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                 fontWeight: 800,
               }}
             >
-              {busy ? '⏳ Sincronizando...' : '⚡ Actualizar Base de Datos en Firestore'}
+              {busy ? '⏳ Aplicando...' : `⚡ Aplicar ${selectedIds.size} Cambios Seleccionados`}
             </button>
           )}
         </div>

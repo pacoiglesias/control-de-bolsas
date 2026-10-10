@@ -225,8 +225,7 @@ export function useDashboardStats(
       if (!p || normalizarTexto(p.provider) !== 'andres') return;
       totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
     });
-    const rawHist = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
-    const deudaHistorica = (rawHist > 500000 || Math.abs(rawHist - 1227839.35) < 10) ? 103411.84 : rawHist;
+    const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
     const deudaAndres = round2(deudaHistorica);
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
