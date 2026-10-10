@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { doc, Timestamp, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, Timestamp, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
 import { computeCommissionFromInvoiceTotal, extractCr } from '../../lib/finance';
@@ -110,11 +110,9 @@ export function useMoveInvoice({
          const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(invTotal, config as any);
          const net = invTotal - comision;
 
-         const safeOrderId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
-         const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
          expenseData = {
-           id: `reverso_cobro_${safeOrderId}_${safeInvoiceId}`,
+           id: doc(collection(db, PATHS.expenses)).id,
            date: Timestamp.now(),
            concept: `[REVERSO] Corrección de factura ${inv.folio || o.folio}`,
            amount: net,
@@ -141,11 +139,9 @@ export function useMoveInvoice({
          const comision = inv.financials?.commission ?? computeCommissionFromInvoiceTotal(invTotal, config as any);
          const net = invTotal - comision;
 
-         const safeOrderId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
-         const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
          expenseData = {
-           id: `ingreso_cobro_${safeOrderId}_${safeInvoiceId}`,
+           id: doc(collection(db, PATHS.expenses)).id,
            date: Timestamp.now(),
            concept: `Cobro Fac. ${inv.folio || o.folio}`,
            amount: net,
@@ -242,7 +238,7 @@ export function useMoveInvoice({
         }
 
         if (expenseData) {
-          tx.set(doc(db, PATHS.expenses, expenseData.id), expenseData, { merge: true });
+          tx.set(doc(db, PATHS.expenses, expenseData.id), expenseData);
         }
       });
       toast('Factura movida con éxito', 'ok');

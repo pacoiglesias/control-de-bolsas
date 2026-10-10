@@ -383,10 +383,15 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
     const items: Array<{ id: string }> = Array.isArray(orderData.items) ? orderData.items : [];
     const currentDeliveries: any[] = Array.isArray(orderData.deliveries) ? orderData.deliveries : [];
 
-    // Idempotencia: si ya existe una entrega con este ID o con el mismo folio de remisión y kilos
-    const existeEntrega = currentDeliveries.some((d: any) =>
-      d.id === deliveryId || (docFolio && d.docFolio === docFolio && Number(d.kilos) === kilosNum)
-    );
+    // Idempotencia:
+    // 1. Si viene deliveryId / clientDeliveryId desde el cliente, deduplicamos estrictamente por ese ID único.
+    // 2. Solo si no viene un ID de cliente (llamadas directas o legacy), se usa como salvaguarda docFolio + kilos.
+    const hasClientId = Boolean(reqDeliveryId || clientDeliveryId);
+    const existeEntrega = currentDeliveries.some((d: any) => {
+      if (d.id === deliveryId) return true;
+      if (!hasClientId && docFolio && d.docFolio === docFolio && Number(d.kilos) === kilosNum) return true;
+      return false;
+    });
     if (existeEntrega) {
       alreadyProcessed = true;
       return;

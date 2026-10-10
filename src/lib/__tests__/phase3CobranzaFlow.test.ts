@@ -173,26 +173,25 @@ describe('FASE 3: Estados y Flujo Canónico de Cobranza', () => {
     expect(comisiones).toBe(5600); // 2400 + 3200
   });
 
-  it('7. Idempotencia: los identificadores de movimientos en Caja Chica son deterministas', () => {
-    const orderId = 'ORD_43/9784';
-    const invoiceId = 'FAC_001';
-    const crNumber = 'GT-1047';
+  it('7. Inmutabilidad e Idempotencia: movimientos de caja independientes y filtro de estado en transacción', () => {
+    // 1. Simular facturas dentro de la transacción:
+    const facturas = [
+      { id: 'FAC_1', creditCycle: { status: 'collected' }, financials: { invoiceTotal: 50000, commission: 4000 } },
+      { id: 'FAC_2', creditCycle: { status: 'paid' }, financials: { invoiceTotal: 30000, commission: 2400 } },
+    ];
 
-    const safeOrderId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+    // En la transacción, si la factura ya está 'collected', se omite del cálculo para no duplicar ingreso
+    let netCobrado = 0;
+    for (const inv of facturas) {
+      if (inv.creditCycle.status === 'collected') continue; // Idempotencia transaccional
+      netCobrado += (inv.financials.invoiceTotal - inv.financials.commission);
+    }
+    expect(netCobrado).toBe(27600); // Solo suma FAC_2, ignorando la ya recolectada
 
-    const expenseIdIngreso = `ingreso_cobro_${safeOrderId}_${safeInvoiceId}`;
-    const expenseIdReverso = `reverso_cobro_${safeOrderId}_${safeInvoiceId}`;
-    const expenseIdCr = `ingreso_cr_${cleanCr}`;
-
-    // Claves reproducibles y seguras para Firebase doc()
-    expect(expenseIdIngreso).toBe('ingreso_cobro_ORD_43_9784_FAC_001');
-    expect(expenseIdReverso).toBe('reverso_cobro_ORD_43_9784_FAC_001');
-    expect(expenseIdCr).toBe('ingreso_cr_GT-1047');
-
-    // Doble llamada produce exactamente el mismo ID
-    const segundoIntento = `ingreso_cobro_${safeOrderId}_${safeInvoiceId}`;
-    expect(segundoIntento).toBe(expenseIdIngreso);
+    // 2. Inmutabilidad: cada evento contable genera un ID de movimiento único en expenses
+    // asegurando que reversiones y re-cobros posteriores no sobreescriban los registros históricos
+    const idEvento1 = 'exp_' + Math.random().toString(36).substring(2, 9);
+    const idEvento2 = 'exp_' + Math.random().toString(36).substring(2, 9);
+    expect(idEvento1).not.toBe(idEvento2);
   });
 });

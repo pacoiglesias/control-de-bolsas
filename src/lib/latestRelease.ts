@@ -7,14 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.30: Eliminación Integral de Fallbacks Estáticos y Blindaje de Precios Flotantes',
-  date: '09 de Octubre de 2026',
-  time: '04:30 PM',
-  summary: 'v9.10.30: Erradicación total de fallbacks fijos ($43/$38) a través de toda la aplicación, suite ampliada con 319 pruebas pasando, typecheck 100% limpio y build productivo verificado.',
+  version: 'v9.10.31: Sincronización No Destructiva, Inmutabilidad en Caja y Deduplicación Inteligente Maquila',
+  date: '10 de Octubre de 2026',
+  time: '07:45 AM',
+  summary: 'v9.10.31: Sincronización no destructiva de contrarecibos oficiales preservando facturas reales, kilos de báscula y estados; inmutabilidad transaccional en movimientos de caja chica evitando sobreescritura de cobros y reversiones; y deduplicación inteligente en el portal maquilador protegiendo viajes idénticos legítimos.',
   highlights: [
-    '🚫 Erradicación de Fallbacks Fijos: Eliminados precios hardcodeados ($43/$38) en componentes clave, modales y lógica financiera; la aplicación detiene cálculos y marca revisión ante datos faltantes.',
-    '🛡️ Blindaje de Tipos y TypeScript: Corrección completa de referencias nulas y contratos de datos en toda la base de código.',
-    '🧪 Suite de Pruebas Robusta: 319 pruebas unitarias e integrales en verde sin fallos.',
-    '🚀 Compilación y Empaquetado Limpio: Build exitoso para Frontend PWA y Cloud Functions.',
+    '⚖️ Sincronizador de Contrarecibos No Destructivo: Preservación íntegra de facturas, pagos y kilos de báscula al vincular contrarecibos a expedientes existentes. Selección granular vacía por defecto y eliminación de estimación artificial de kilos.',
+    '💵 Inmutabilidad e Idempotencia en Caja Chica: Movimientos de ingreso y reversión registrados con identificadores únicos de Firestore, garantizando que cobros, reversiones y re-cobros conserven su historial íntegro sin sobreescrituras destructivas.',
+    '🏭 Deduplicación Inteligente en Portal Maquilador: Discriminación de entregas por clientDeliveryId/deliveryId, permitiendo múltiples entregas legítimas con mismo tonelaje y remisión sin falsos bloqueos.',
+    '🧪 Suite de Pruebas Ampliada: 341 pruebas automatizadas pasando al 100% (50 suites) y 0 fallos.',
+    '🚀 Verificación Integral: Compilación limpia en Frontend Vite PWA y Cloud Functions backend.',
   ],
 };

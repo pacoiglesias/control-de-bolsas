@@ -3,7 +3,7 @@ import { Modal } from '../ui';
 import { money } from '../../lib/format';
 import { doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
 import { safeSetDoc, safeUpdateDoc } from '../../lib/safeFirestore';
-import { round2, computeFinancials } from '../../lib/finance';
+import { round2 } from '../../lib/finance';
 import { db, PATHS, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { camposInvoices } from '../../lib/invoiceOps';
@@ -331,16 +331,8 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
     return list;
   }, [orders]);
 
-  // Selección individual de acciones (por defecto solo las que requieren atención, nunca las eliminadas ni al día)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    diffItems.forEach(item => {
-      if (item.accion === 'crear' || item.accion === 'actualizar') {
-        initial.add(item.id);
-      }
-    });
-    return initial;
-  });
+  // Selección individual de acciones: por defecto VACÍO (el operador debe seleccionar explícitamente los cambios)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set<string>());
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -412,28 +404,14 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
 
         const buildInvoices = (orderId: string): Invoice[] => {
-          const cfg = {
-            salePricePerKg: 43,
-            costPricePerKg: 38,
-            commissionRate: 0.08,
-            commissionBase: 'subtotal' as const,
-            ivaRate: 0.16,
-            creditDays: 30,
-          };
-
           if (item.invoicesDetails && item.invoicesDetails.length > 0) {
             return item.invoicesDetails.map((inv, idx) => {
-              const kEst = Math.round(inv.amount / (43 * 1.16));
-              const fin = computeFinancials(kEst, cfg);
-              fin.invoiceTotal = inv.amount;
-              fin.saleTotal = round2(inv.amount / 1.16);
-
+              const subtotal = round2(inv.amount / 1.16);
               return {
                 id: `inv-${item.cr.toLowerCase()}-${inv.folio || idx}`,
                 orderId,
                 folio: inv.folio,
-                notes: inv.controlInterno ? `Control Interno: ${inv.controlInterno}` : null,
-                kilos: kEst,
+                kilos: 0,
                 creditCycle: {
                   status: 'pending',
                   issueDate: issueTs,
@@ -444,21 +422,26 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                   contrareciboDate: issueTs,
                   paidAmount: 0,
                 },
-                financials: fin,
+                financials: {
+                  invoiceTotal: inv.amount,
+                  saleTotal: subtotal,
+                  costTotal: 0,
+                  commission: round2(subtotal * 0.08),
+                  netCashFlow: round2(subtotal * 1.08),
+                  salePricePerKg: 43,
+                  costPricePerKg: 38,
+                },
               };
             });
           }
-          const kilosEst = Math.round(item.total / (43 * 1.16));
-          const fin = computeFinancials(kilosEst, cfg);
-          fin.invoiceTotal = item.total;
-          fin.saleTotal = round2(item.total / 1.16);
+          const subtotal = round2(item.total / 1.16);
 
           return [
             {
               id: `inv-${item.cr.toLowerCase()}`,
               orderId,
               folio: item.cr,
-              kilos: kilosEst,
+              kilos: 0,
               creditCycle: {
                 status: 'pending',
                 issueDate: issueTs,
@@ -469,23 +452,50 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                 contrareciboDate: issueTs,
                 paidAmount: 0,
               },
-              financials: fin,
+              financials: {
+                invoiceTotal: item.total,
+                saleTotal: subtotal,
+                costTotal: 0,
+                commission: round2(subtotal * 0.08),
+                netCashFlow: round2(subtotal * 1.08),
+                salePricePerKg: 43,
+                costPricePerKg: 38,
+              },
             },
           ];
         };
 
         if (matchingOrder) {
-          const updatedInvoices = buildInvoices(matchingOrder.id);
+          // NO reconstruir invoices[] ni reiniciar pagos/estados
+          // Conservar facturas existentes y vincular el contrarecibo
+          const existingInvoices = matchingOrder.invoices || [];
+          const updatedInvoices = existingInvoices.map(inv => ({
+            ...inv,
+            collection: {
+              ...inv.collection,
+              contrareciboNumber: item.cr,
+              contrareciboDate: inv.collection?.contrareciboDate || issueTs,
+            },
+          }));
+
+          const currentStatus = matchingOrder.creditCycle?.status || (matchingOrder as any).status || 'pending';
+          const newStatus = (currentStatus === 'collected' || currentStatus === 'in_review') ? currentStatus : 'pending';
+
           const ref = doc(db, PATHS.orders, matchingOrder.id);
-          await safeUpdateDoc(ref, {
-            ...camposInvoices(updatedInvoices),
+          const updatePayload: Record<string, any> = {
             'collection.contrareciboNumber': item.cr,
             'collection.contrareciboDate': issueTs,
-            'creditCycle.dueDate': dueTs,
-            'creditCycle.status': 'pending',
+            'creditCycle.dueDate': matchingOrder.creditCycle?.dueDate || dueTs,
+            'creditCycle.status': newStatus,
             updatedAt: serverTimestamp(),
-          });
-          addLog(`✅ CR ${item.cr}: Actualizado con éxito.`);
+          };
+
+          if (updatedInvoices.length > 0) {
+            Object.assign(updatePayload, camposInvoices(updatedInvoices));
+          }
+
+          await safeUpdateDoc(ref, updatePayload);
+          addLog(`✅ CR ${item.cr}: Vinculado a expediente existente ${matchingOrder.folio || matchingOrder.id} preservando facturas y pagos.`);
         } else {
           // Verificar en Firestore si ya existía borrado antes de crear
           const existingSnap = await getDoc(doc(db, PATHS.orders, defaultId));
@@ -494,7 +504,6 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             continue;
           }
 
-          const kilosEst = Math.round(item.total / (43 * 1.16));
           const newInvoices = buildInvoices(defaultId);
           const newOrderDoc: any = {
             id: defaultId,
@@ -502,7 +511,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
             oc: item.cr,
             client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
             department: item.department,
-            totalKilograms: kilosEst,
+            totalKilograms: 0,
             invoices: newInvoices,
             invoiceStatuses: ['pending'],
             invoiceFolios: newInvoices.map(i => i.folio),
@@ -523,7 +532,7 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           };
 
           await safeSetDoc(doc(db, PATHS.orders, defaultId), newOrderDoc, { merge: true });
-          addLog(`✨ CR ${item.cr}: Creado nuevo expediente oficial.`);
+          addLog(`✨ CR ${item.cr}: Creado nuevo expediente oficial (pendiente captura de kilos de báscula).`);
         }
       }
 
@@ -540,20 +549,20 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
 
         const issueTs = Timestamp.fromDate(new Date(`${item.issueDate}T12:00:00`));
         const dueTs = Timestamp.fromDate(new Date(`${item.dueDate}T12:00:00`));
-        const kilosEst = Math.round(item.total / (43 * 1.16));
+        const subtotal = round2(item.total / 1.16);
         const paidDoc: any = {
           id,
           folio: item.cr,
           oc: item.cr,
           client: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
           department: item.department,
-          totalKilograms: kilosEst,
+          totalKilograms: 0,
           invoices: [
             {
               id: `inv-${item.cr.toLowerCase()}`,
               orderId: id,
               folio: item.cr,
-              kilos: kilosEst,
+              kilos: 0,
               creditCycle: { status: 'collected', issueDate: issueTs, dueDate: dueTs },
               collection: {
                 contrareciboNumber: item.cr,
@@ -564,10 +573,10 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
               },
               financials: {
                 invoiceTotal: item.total,
-                saleTotal: round2(item.total / 1.16),
-                costTotal: round2(kilosEst * 38),
-                commission: round2((item.total / 1.16) * 0.08),
-                netCashFlow: round2((item.total / 1.16) * 1.08 - (kilosEst * 38)),
+                saleTotal: subtotal,
+                costTotal: 0,
+                commission: round2(subtotal * 0.08),
+                netCashFlow: round2(subtotal * 1.08),
                 salePricePerKg: 43,
                 costPricePerKg: 38,
               },
@@ -592,19 +601,8 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         addLog(`💰 CR Pagado ${item.cr}: Registrado como liquidado al 100%.`);
       }
 
-      // Preservar saldo histórico con Andrés sin sobreescribir valores del usuario
-      try {
-        const docRef = doc(db, PATHS.config, 'financials');
-        const docSnap = await getDoc(docRef);
-        if (!docSnap.exists() || docSnap.data()?.historicalDebtAndres === undefined) {
-          await safeSetDoc(docRef, { historicalDebtAndres: 103411.84 }, { merge: true });
-          addLog(`⚖️ Saldo histórico inicial configurado a: $103,411.84.`);
-        } else {
-          addLog(`⚖️ Saldo histórico preservado intacto: ${money(docSnap.data().historicalDebtAndres)}.`);
-        }
-      } catch (err) {
-        console.warn('Error al verificar financials config', err);
-      }
+      // Nota: La configuración financiera y el saldo histórico con Andrés se administran
+      // exclusivamente desde la configuración global (useConfig) para evitar sobreescrituras accidentales.
 
       // Invocar recálculo en la nube
       try {

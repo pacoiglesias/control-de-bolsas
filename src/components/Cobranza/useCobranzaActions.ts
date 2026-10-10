@@ -1,4 +1,4 @@
-import { doc, Timestamp, runTransaction } from 'firebase/firestore';
+import { doc, collection, Timestamp, runTransaction } from 'firebase/firestore';
 import confetti from 'canvas-confetti';
 import { db, PATHS } from '../../lib/firebase';
 import { camposInvoices, aplicarPorId } from '../../lib/invoiceOps';
@@ -331,11 +331,11 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           let currentInvoices: Invoice[] = snap.data().invoices ?? [];
           for (const invoiceId of objetivo[id]) {
             const inv = currentInvoices.find((x) => x.id === invoiceId);
-            if (inv) {
-              const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-              const comision = inv.financials?.commission ?? 0;
-              netCobradoReal += (invTotal - comision);
-            }
+            if (!inv || inv.creditCycle?.status === 'collected') continue;
+            const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+            const comision = inv.financials?.commission ?? 0;
+            netCobradoReal += (invTotal - comision);
+
             const nuevas = aplicarPorId(currentInvoices, invoiceId, (x) => ({
               ...x,
               creditCycle: { ...x.creditCycle, status: 'collected' },
@@ -366,9 +366,9 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
 
         netCobradoReal = round2(netCobradoReal);
 
-        const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const expenseRef = doc(db, PATHS.expenses, `ingreso_cr_${cleanCr}`);
+        const expenseRef = doc(collection(db, PATHS.expenses));
         tx.set(expenseRef, {
+          id: expenseRef.id,
           date: Timestamp.now(),
           concept: `Cobro ${transferRef} (Contrarecibo ${crNumber})`,
           type: 'ingreso',
@@ -377,7 +377,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           contrareciboNumber: crNumber,
           transferRef,
           source: 'fastCollectContrareciboBlock',
-        }, { merge: true });
+        });
       });
 
       sound.playChaChing();
@@ -436,13 +436,13 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           let invoices: Invoice[] = snap.data().invoices ?? [];
           for (const invoiceId of objetivo[id]) {
             const inv = invoices.find((x) => x.id === invoiceId);
-            if (inv) {
-              const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
-              const comision = inv.financials?.commission ?? 0;
-              // Lo que entra a Caja Chica: la factura completa menos el
-              // honorario del contador. Sin restar el costo del material.
-              netCobradoReal += invTotal - comision;
-            }
+            if (!inv || inv.creditCycle?.status === 'collected') continue;
+            const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
+            const comision = inv.financials?.commission ?? 0;
+            // Lo que entra a Caja Chica: la factura completa menos el
+            // honorario del contador. Sin restar el costo del material.
+            netCobradoReal += invTotal - comision;
+
             const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
               ...x,
               creditCycle: { ...x.creditCycle, status: 'collected' },
@@ -476,9 +476,9 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           );
         }
 
-        const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const expenseRef = doc(db, PATHS.expenses, `ingreso_cr_${cleanCr}`);
+        const expenseRef = doc(collection(db, PATHS.expenses));
         tx.set(expenseRef, {
+          id: expenseRef.id,
           date: Timestamp.now(),
           concept: `Cobro del Contrarecibo ${crNumber}`,
           type: 'ingreso',
@@ -487,7 +487,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           contrareciboNumber: crNumber,
           transferRef: transferRef || '',
           source: 'collectContrareciboBlock',
-        }, { merge: true });
+        });
       });
       toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok', {
         label: '↩️ Deshacer',
@@ -533,6 +533,8 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           if (!snap.exists()) return;
           let invoices: Invoice[] = snap.data().invoices ?? [];
           for (const invoiceId of objetivo[id]) {
+            const inv = invoices.find((x) => x.id === invoiceId);
+            if (!inv || inv.creditCycle?.status !== 'collected') continue;
             const nuevas = aplicarPorId(invoices, invoiceId, (x) => ({
               ...x,
               creditCycle: { ...x.creditCycle, status: 'paid' },
@@ -557,9 +559,9 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           tx.update(ref, camposInvoices(invoices));
         });
 
-        const cleanCr = crNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const expenseRef = doc(db, PATHS.expenses, `reverso_cr_${cleanCr}`);
+        const expenseRef = doc(collection(db, PATHS.expenses));
         tx.set(expenseRef, {
+          id: expenseRef.id,
           date: Timestamp.now(),
           concept: `Reversión de Recolección Contrarecibo ${crNumber}`,
           type: 'egreso',
@@ -567,7 +569,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           createdAt: Timestamp.now(),
           contrareciboNumber: crNumber,
           source: 'revertCollectedContrareciboBlock',
-        }, { merge: true });
+        });
       });
 
       logAction(user?.email, 'Reversión de Recolección', { contrarecibo: crNumber, monto: totalRevertir });
