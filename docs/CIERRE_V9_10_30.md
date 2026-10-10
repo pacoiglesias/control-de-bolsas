@@ -14,6 +14,7 @@ Fase activa: FASE 5 COMPLETADA | CIERRE TOTAL DE RELEASE v9.10.30
 ## FASE 1 - Dependencias y CI - COMPLETADA
 
 Commit: 9215bfd
+
 - package.json: @firebase/rules-unit-testing bajado de ^6.0.0 a ^4.0.1
 - npm ci, tsc, vitest: OK | build: OK (1788 modulos, PWA)
 
@@ -24,6 +25,7 @@ Commit: 9215bfd
 Commit: 8f37a94
 
 Hallazgos y correcciones:
+
 1. OK - DEFAULT_CONFIG: salePricePerKg=43.00, costPricePerKg=38.00, commissionRate=0.08 (8%), commissionBase='subtotal'
 2. OK - computeCommissionFromInvoiceTotal: divide invoiceTotal/1.16 para obtener subtotal, luego * 0.08. Correcto.
 3. OK - computeFinancials: commission = saleTotal * commissionRate (base=subtotal). Correcto.
@@ -33,6 +35,7 @@ Hallazgos y correcciones:
 7. OK - FloatingKiloCalculator.tsx: estado inicial ??0 se sincroniza via useEffect con config real; solo transitorio visual.
 
 Convencion historicalDebtAndres confirmada:
+
 - Positivo: saldo a FAVOR de Andres (anticipos que le hemos dado, disponibles para maquila).
 - Negativo: deuda que la empresa tiene CON Andres.
 - Sanitizacion: valores > 500000 o cercanos a 1227839.35 se descartan y se sustituye por 103411.84.
@@ -44,6 +47,7 @@ Tests ejecutados: auditEngine.test.ts + auditEngineMore.test.ts -> 8/8 pasados |
 ## FASE 3 - Paneles y Flujo de Negocio - COMPLETADA
 
 Objetivo: Verificación y auditoría de flujo completo en código y arquitectura:
+
 1. **Dashboard & KPIs**:
    - `useDashboardStatsV2.ts`: `inventarioVivo`, `kilosPendientesFacturar`, `deudaAndres` calculados con fórmulas canónicas sincronizadas.
    - `DashboardBasculaView.tsx`: Mapeo exacto de OCs activas GT (`12026439784` - 5,100 kg) y TH (`120267114302` - 8,000 kg). Pedidos, entregados y faltantes en vivo.
@@ -60,6 +64,7 @@ Objetivo: Verificación y auditoría de flujo completo en código y arquitectura
    - Generación automática de ingresos/egresos en caja al mover facturas a/desde `colCaja`.
 
 Pruebas ejecutadas:
+
 - `npx tsc --noEmit` -> 0 errores.
 - `npx vitest run` -> 319 pruebas unitarias pasadas (45 test files passed, 0 failures).
 - `npm run build` -> Éxito total: Vite (1788 módulos), PWA Service Worker + precache generado, Cloud Functions tsc exitoso.
@@ -69,6 +74,7 @@ Pruebas ejecutadas:
 ## FASE 4 - Permisos y Offline - COMPLETADA
 
 Objetivo: Auditoría de seguridad de Firestore, autenticación y resiliencia offline:
+
 1. **Reglas de Seguridad (`firestore.rules`)**:
    - `isAdmin()` / `isSuperAdmin()`: Verifica custom claims (`role: 'admin'`, `admin: true`) con token `email_verified == true`, existencia en `/admins/{uid}`, o correos de arranque institucionales.
    - `/system_settings/global`: Lectura pública permitida para branding inicial (Login) sin exponer credenciales.
@@ -85,6 +91,7 @@ Objetivo: Auditoría de seguridad de Firestore, autenticación y resiliencia off
    - PWA Service Worker (`workbox` v1.3.0) con precache de 72 assets críticos y estrategias `CacheFirst` para fuentes y `StaleWhileRevalidate` para recursos gráficos.
 
 Pruebas ejecutadas:
+
 - `firestoreRulesAndReceiptSecurity.test.ts` -> 10/10 pruebas de seguridad y comprobantes aprobadas.
 - `offlineExcelSync.test.ts` + `excelAndMobileResilience.test.ts` -> 9/9 pruebas de sincronización offline aprobadas.
 - Suite completa `npx vitest run` -> 319/319 pruebas aprobadas (45 test files passed, 0 failures).
@@ -95,7 +102,9 @@ Pruebas ejecutadas:
 ## FASE 5 - Validacion Final y Deploy - COMPLETADA
 
 Prerequisito: Fases 1-4 completas y sin bloqueos críticos.
+
 Acciones ejecutadas:
+
 1. Validación final en limpio:
    - `npx tsc --noEmit` -> 0 errores.
    - `npx vitest run` -> 319/319 pruebas aprobadas (45 test files passed, 0 failures).
@@ -126,6 +135,7 @@ a0162f2 | docs: CHANGELOG.md v9.10.30
 ## Estado Final de la Release v9.10.30
 
 🎉 **TODAS LAS 5 FASES COMPLETADAS EXITOSAMENTE Y DESPLEGADAS EN PRODUCCIÓN.**
+
 - Fase 1: Dependencias y CI limpias sin `--force` ni `--legacy-peer-deps`.
 - Fase 2: Cálculos financieros y precios blindados (fuente única de verdad).
 - Fase 3: Paneles, OCs activas (GT y TH), flujo de maquila y contrarecibos auditados.
