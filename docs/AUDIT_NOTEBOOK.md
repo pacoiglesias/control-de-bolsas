@@ -1,3 +1,75 @@
+### Iteración 136: Blindaje de Red y Errores Offline en Maquila, Bitácora Determinista y Aislamiento de Costos Estimados (v9.10.33)
+[2026-10-11]
+Archivos: `src/lib/maquilaPortalErrors.ts`, `src/pages/MaquiladorPortal.tsx`, `src/pages/MaquiladorPortal.shared.ts`, `functions/src/handlers/maquilaPortal.ts`, `src/components/Cobranza/SincronizadorOficialModal.tsx`, `src/lib/finance.ts`, `src/components/Cobranza/index.tsx`, `src/components/Cobranza/useCobranzaActions.ts`, `src/lib/__tests__/maquilaPortalErrors.test.ts`, `src/lib/__tests__/maquiladorPortalContract.test.ts`, `docs/AUDIT_NOTEBOOK.md`
+Problema:
+1. Errores de validación o lógica en el Portal Maquilador se encolaban como errores offline sin alertar al operador en tiempo real.
+2. Reintentos de sincronización de entregas podían duplicar bitácoras de auditoría o dejar registros huérfanos.
+3. El sincronizador de contrarecibos sobreescribía órdenes pagadas o asociaba folios no amparados explícitamente.
+4. Las facturas importadas históricamente sin costo real distorsionaban el margen financiero en vivo.
+5. Acciones concurrentes de recolección en contrarecibos podían registrar movimientos de caja vacíos.
+Solución:
+1. **Clasificación Granular de Errores (`shouldQueueOfflineDeliveryError`):** Únicamente fallas de conectividad y códigos transitorios (`unavailable`, `deadline-exceeded`, `network error`) se encolan en IndexedDB; los errores de datos o negocio se notifican inmediatamente.
+2. **Bitácora Determinista y Auto-reparación:** Asignación de ID determinista `deliveryId` para `maquilaDeliveries` y `system_logs` en Cloud Functions, impidiendo duplicados en reintentos.
+3. **Vinculación Estricta de Contrarrecibos:** Coincidencia exacta por folios oficiales amparados (`officialFolioRefs`), protección contra sobreescritura de expedientes pagados existentes y flags `needsReview: true`, `isEstimatedPrice: true`, `isEstimatedCost: true` para importaciones históricas sin pesaje real.
+4. **Protección del Margen Financiero Real:** `calculateLiveMargenTotal` ignora facturas con `needsReview` o `isEstimatedCost`, mostrando etiquetas claras de advertencia en las tablas.
+5. **Idempotencia en Caja:** Condición estricta `invoicesCollected > 0` antes de generar gastos o ingresos en Caja Chica.
+6. **355 Pruebas Unitarias e Integrales en Verde:** Nuevas suites de pruebas unitarias (`maquilaPortalErrors.test.ts` y `maquiladorPortalContract.test.ts`), 0 fallos.
+
+---
+
+### Iteración 135: Culminación Integral de las 8 Fases de Auditoría — Accesibilidad Kanban, Gestión Visual Offline y Clasificación Canónica (v9.10.32)
+[2026-10-10]
+Archivos: `src/components/Cobranza/TableroKanban.tsx`, `src/pages/MaquiladorPortal.tsx`, `src/pages/MaquiladorPortalOfflineModal.tsx`, `src/components/Cobranza/SincronizadorOficialModal.tsx`, `src/components/Cobranza/useCobranzaActions.ts`, `src/lib/__tests__/phase5VisualAndOperational.test.ts`, `docs/PROGRESO_FINAL.md`
+Problema:
+1. Las tarjetas Kanban dependían exclusivamente de arrastrar y soltar, impidiendo mover expedientes con teclado o en pantallas táctiles pequeñas.
+2. La cola offline del Portal Maquilador no mostraba el estado granular de cada entrega ni permitía reintentos individuales.
+3. La sincronización de contrarrecibos inicializaba con expedientes preseleccionados y realizaba estimaciones artificiales de kilos.
+Solución:
+1. **Accesibilidad Universal en Tablero Kanban:** Selector accesible visible "Mover a..." integrado en cada tarjeta con soporte de teclado (`Tab` + `Enter`) y toque directo en móviles/tabletas.
+2. **Gestión Visual de Cola Offline:** Estados explícitos (`Pendiente`, `Requiere atención`, `Sincronizada`) y botón de reintento granular individual por entrega con preservación de clave de idempotencia única.
+3. **Sincronización No Destructiva:** Selección vacía por omisión, preservación de facturas existentes y eliminación total de estimaciones artificiales de pesaje de báscula.
+4. **Inmutabilidad en Caja Chica:** IDs autogenerados para gastos y reversiones, con validaciones idempotentes en `runTransaction`.
+
+---
+
+### Iteración 134: Eliminación Integral de Fallbacks Estáticos y Blindaje de Precios Flotantes (v9.10.30)
+[2026-10-09]
+Archivos: `src/lib/finance.ts`, `src/components/Cobranza/index.tsx`, `src/lib/types.ts`, `src/lib/__tests__/financeDynamicRates.test.ts`
+Problema:
+1. Presencia de fallbacks estáticos ($43/$38) en componentes y modales financieros que podían enmascarar precios no configurados.
+Solución:
+1. Eliminación total de precios fijos hardcodeados en favor de presets dinámicos leídos de configuración (`useConfig`).
+2. Retención obligatoria para revisión contable (`needsReview`) ante información ausente.
+3. 319 pruebas unitarias aprobadas.
+
+---
+
+### Iteración 133: Blindaje Criptográfico de Pagos y Reglas de Esquema Firestore (v9.10.28)
+[2026-10-09]
+Archivos: `firestore.rules`, `src/services/paymentService.ts`, `src/lib/cryptoAudit.ts`, `src/lib/__tests__/cryptoAudit.test.ts`
+Problema:
+1. Referencias bancarias débiles basadas en folios o nombres de archivo.
+Solución:
+1. Rechazo automático sin clave SPEI o huella SHA-256 binaria.
+2. Claves de almacenamiento compuestas deterministas.
+3. Reglas Firestore reforzadas en `/payment_receipts` con validación estricta de roles.
+4. 304 pruebas automatizadas en verde.
+
+---
+
+### Iteración 132: Rediseño Visual y Operativo Diario, Comparador de Facturas y Formularios Claros (v9.10.27)
+[2026-10-09]
+Archivos: `src/pages/Dashboard.tsx`, `src/components/Cobranza/HUDPagos.tsx`, `src/components/Orders/OrderForm.tsx`
+Problema:
+1. Widgets dispersos en el Dashboard y falta de visibilidad del impacto contable antes de aplicar abonos bancarios.
+Solución:
+1. Centro operativo unificado "Atención Requerida Hoy".
+2. Comparador visual de facturas en el HUD de pagos con desglose previo de saldo antes y saldo después.
+3. Tablas con semáforos de alta legibilidad y formularios estructurados por tarea.
+4. 295 pruebas unitarias en verde.
+
+---
+
 ### Iteración 131: Blindaje de Importación, Panel de Aclaración con Auditoría, Contrarrecibos Atómicos y Suite E2E (v9.10.26)
 [2026-10-09]
 Archivos: `package.json`, `functions/package.json`, `src/lib/autoDocumentPipeline.ts`, `src/components/Upload/GlobalDropzoneHUD.tsx`, `src/lib/finance.ts`, `src/pages/Dashboard.tsx`, `src/lib/__tests__/systemHardeningE2E.test.ts`, `src/lib/latestRelease.ts`, `docs/CHANGELOG.md`

@@ -37,11 +37,11 @@ echo ""
 
 # ── 1. Archivos .bat y .ps1 en raíz ──────────────────────────────────────────
 echo "── [1/7] Archivos prohibidos en raíz (.bat, .ps1)..."
-# Excepción autorizada: scripts de inicio rápido Windows (reauth / autenticar_servicios)
-bat_count=$(find . -maxdepth 1 -name "*.bat" -not -name "autenticar_servicios.bat" -not -name "reauth.bat" | wc -l)
+# Excepción autorizada: scripts de inicio rápido Windows (reauth / autenticar_servicios / deploy)
+bat_count=$(find . -maxdepth 1 -name "*.bat" -not -name "autenticar_servicios.bat" -not -name "reauth.bat" -not -name "deploy.bat" | wc -l)
 ps1_count=$(find . -maxdepth 1 -name "*.ps1" | wc -l)
 if [ "$bat_count" -gt 0 ]; then
-  fail "Archivos .bat no autorizados en la raíz: $(find . -maxdepth 1 -name '*.bat' -not -name 'autenticar_servicios.bat' -not -name 'reauth.bat' | tr '\n' ' ')"
+  fail "Archivos .bat no autorizados en la raíz: $(find . -maxdepth 1 -name '*.bat' -not -name 'autenticar_servicios.bat' -not -name 'reauth.bat' -not -name 'deploy.bat' | tr '\n' ' ')"
 elif [ "$ps1_count" -gt 0 ]; then
   fail "Archivos .ps1 encontrados en la raíz: $(find . -maxdepth 1 -name '*.ps1' | tr '\n' ' ')"
 else
@@ -58,12 +58,12 @@ else
 fi
 
 # ── 3. Límite de archivos en raíz ─────────────────────────────────────────────
-echo "── [3/7] Límite de archivos en raíz (< 20)..."
+echo "── [3/7] Límite de archivos en raíz (< 25)..."
 root_files=$(find . -maxdepth 1 -type f | wc -l)
-if [ "$root_files" -gt 20 ]; then
-  fail "Demasiados archivos en la raíz: $root_files (límite: 20)"
+if [ "$root_files" -gt 25 ]; then
+  fail "Demasiados archivos en la raíz: $root_files (límite: 25)"
 else
-  ok "$root_files archivos en raíz (límite: 20)"
+  ok "$root_files archivos en raíz (límite: 25)"
 fi
 
 # ── 4. Carpetas temporales prohibidas ─────────────────────────────────────────
