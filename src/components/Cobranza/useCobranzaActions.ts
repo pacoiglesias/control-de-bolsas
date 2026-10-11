@@ -315,6 +315,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
     }
 
     let netCobradoReal = 0;
+    let invoicesCollected = 0;
 
     try {
       await runTransaction(db, async (tx) => {
@@ -324,6 +325,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
         }));
         const snaps = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
         netCobradoReal = 0;
+        invoicesCollected = 0;
 
         refs.forEach(({ id, ref }, k) => {
           const snap = snaps[k];
@@ -332,6 +334,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           for (const invoiceId of objetivo[id]) {
             const inv = currentInvoices.find((x) => x.id === invoiceId);
             if (!inv || inv.creditCycle?.status === 'collected') continue;
+            invoicesCollected++;
             const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
             const comision = inv.financials?.commission ?? 0;
             netCobradoReal += (invTotal - comision);
@@ -366,8 +369,9 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
 
         netCobradoReal = round2(netCobradoReal);
 
-        const expenseRef = doc(collection(db, PATHS.expenses));
-        tx.set(expenseRef, {
+        if (invoicesCollected > 0) {
+          const expenseRef = doc(collection(db, PATHS.expenses));
+          tx.set(expenseRef, {
           id: expenseRef.id,
           date: Timestamp.now(),
           concept: `Cobro ${transferRef} (Contrarecibo ${crNumber})`,
@@ -377,8 +381,14 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           contrareciboNumber: crNumber,
           transferRef,
           source: 'fastCollectContrareciboBlock',
-        });
+          });
+        }
       });
+
+      if (invoicesCollected === 0) {
+        toast(`El Contrarecibo ${crNumber} ya estaba recogido; no se duplicó el movimiento de caja.`, 'info');
+        return;
+      }
 
       sound.playChaChing();
       confetti({ particleCount: 250, spread: 120, origin: { y: 0.5 } });
@@ -410,6 +420,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
     // leerlo despues de que runTransaction termine, y una variable `let`
     // declarada dentro del callback no existe fuera de el. Esto no compilaba.
     let netCobradoReal = 0;
+    let invoicesCollected = 0;
 
     try {
       // El movimiento de Caja Chica va DENTRO de la misma transaccion que el
@@ -429,6 +440,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
         // y el clic, el ingreso inyectado en Caja Chica quedaba desactualizado
         // y nada lo detectaba despues.
         netCobradoReal = 0;
+        invoicesCollected = 0;
 
         refs.forEach(({ id, ref }, k) => {
           const snap = snaps[k];
@@ -437,6 +449,7 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           for (const invoiceId of objetivo[id]) {
             const inv = invoices.find((x) => x.id === invoiceId);
             if (!inv || inv.creditCycle?.status === 'collected') continue;
+            invoicesCollected++;
             const invTotal = inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0;
             const comision = inv.financials?.commission ?? 0;
             // Lo que entra a Caja Chica: la factura completa menos el
@@ -476,8 +489,9 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           );
         }
 
-        const expenseRef = doc(collection(db, PATHS.expenses));
-        tx.set(expenseRef, {
+        if (invoicesCollected > 0) {
+          const expenseRef = doc(collection(db, PATHS.expenses));
+          tx.set(expenseRef, {
           id: expenseRef.id,
           date: Timestamp.now(),
           concept: `Cobro del Contrarecibo ${crNumber}`,
@@ -487,8 +501,13 @@ export function useCobranzaActions({ orders, data, config, toast, user }: Cobran
           contrareciboNumber: crNumber,
           transferRef: transferRef || '',
           source: 'collectContrareciboBlock',
-        });
+          });
+        }
       });
+      if (invoicesCollected === 0) {
+        toast(`El Contrarecibo ${crNumber} ya estaba recogido; no se duplicó el movimiento de caja.`, 'info');
+        return;
+      }
       toast(`💰 Contrarecibo ${crNumber} recogido ($${netCobradoReal.toLocaleString('es-MX', {minimumFractionDigits:2})} ingresados a CAJA). Se movió a la pestaña "Historial: Recogidos" donde puedes deshacerlo en cualquier momento.`, 'ok', {
         label: '↩️ Deshacer',
         onClick: () => revertCollectedContrareciboBlock(crNumber)

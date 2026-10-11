@@ -7,16 +7,17 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.32: Accesibilidad Universal en Kanban (Mover a...), Gestión Visual de Cola Offline y Clasificación Canónica',
-  date: '10 de Octubre de 2026',
-  time: '08:15 AM',
-  summary: 'v9.10.32: Implementación completa de las 8 fases de auditoría: selector visible y accesible "Mover a..." en tarjetas Kanban para toque y teclado sin depender de arrastre, visualización detallada de cola offline con estados (Pendiente, Requiere atención, Sincronizada) y reintento individual por elemento en el Portal Maquilador, inmutabilidad transaccional en Caja, sincronización no destructiva de contrarecibos y suite de 343 pruebas integrales aprobadas.',
+  version: 'v9.10.33: Blindaje de Red y Errores Offline en Maquila, Identidad Determinista en Bitácora y Protección de Margen Financiero Real',
+  date: '11 de Octubre de 2026',
+  time: '10:15 AM',
+  summary: 'v9.10.33: Endurecimiento de la resiliencia offline en el Portal Maquilador con clasificación granular de errores (shouldQueueOfflineDeliveryError), identificadores deterministas en bitácoras de Cloud Functions, vinculación estricta de contrarrecibos por folio oficial amparado, aislamiento de costos estimados en el cálculo de margen real y suite ampliada a 355 pruebas aprobadas.',
   highlights: [
-    '🎯 Accesibilidad Universal en Tablero Kanban: Selector visible "Mover a..." integrado en cada tarjeta para toque en pantallas táctiles y navegación con teclado (Tab + Enter), permitiendo transicionar expedientes entre Revisión, Por Cobrar, Contador y Caja sin depender de arrastrar tarjetas.',
-    '📦 Gestión Visual de Cola Offline en Portal Maquilador: Visualización explícita de estados de cada entrega (Pendiente, Requiere atención por error de red/validación, Sincronizada) y botón de reintento manual individual con preservación de clave de idempotencia única.',
-    '⚖️ Sincronizador Oficial No Destructivo: Preservación de facturas existentes, kilos reales de báscula, pagos y fechas al vincular contrarecibos; selección vacía por defecto y eliminación total de estimaciones artificiales de kilos.',
-    '💵 Inmutabilidad en Caja Chica: Identificadores únicos de transacción en gastos y reversiones con precondiciones idempotentes que evitan duplicidad de ingresos ante clics concurrentes.',
-    '🧪 Suite de Pruebas Integrales Ampliada: 343 pruebas unitarias y de integración superadas (50 suites) con 0 fallos.',
-    '🚀 Compilación y Despliegue de Producción: Vite PWA (72 activos precacheados) y Cloud Functions Node 22 (24 servicios) al 100%.',
+    '📶 Blindaje de Encolado Offline en Portal Maquilador: Clasificación precisa de errores de red vs validación; solo fallas de conexión o códigos transitorios se encolan en IndexedDB, informando de inmediato errores de datos al usuario.',
+    '📋 Identidad Determinista y Reparación de Bitácoras: IDs deterministas en maquilaDeliveries y system_logs para que reintentos de entregas no generen registros duplicados y reparen auditorías automáticamente.',
+    '🔄 Normalización de Contratos de Órdenes: Compatibilidad transparente entre id y orderId con normalizeActiveMaquilaOrders en pantallas de PIN y entrega.',
+    '📑 Vinculación Estricta de Contrarrecibos: Detección rigurosa por folio oficial amparado, prevención de sobreescritura sobre órdenes pagadas existentes y no afectación de expedientes con CR previo.',
+    '📊 Protección del Margen Financiero Real: Inclusión de banderas needsReview e isEstimatedCost que aíslan importaciones históricas del margen live, mostrando advertencias visibles ("Costo pendiente" / "Por revisar").',
+    '💵 Idempotencia en Movimientos de Caja Chica: Condición estricta de facturas recolectadas efectivas para no emitir movimientos fantasma en caja.',
+    '🧪 Suite de Pruebas Ampliada: 355 pruebas aprobadas en 52 suites con 0 fallos.',
   ],
 };

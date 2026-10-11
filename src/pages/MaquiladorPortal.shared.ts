@@ -33,6 +33,8 @@ export const STORAGE_OFFLINE_QUEUE_KEY = 'maquila_offline_queue_v2';
 /** Orden de maquila activa devuelta por la Cloud Function getActiveMaquilaOrders */
 export interface ActiveMaquilaOrder {
   id: string;
+  /** Kept as an API compatibility alias while older clients submit orderId. */
+  orderId?: string;
   folio: string;
   productDescription: string;
   department?: string;
@@ -41,6 +43,20 @@ export interface ActiveMaquilaOrder {
   deliveredKilos?: number;
   notes?: string;
   status?: string;
+}
+
+/** Normalize legacy callable payloads (`orderId`) to the UI contract (`id`). */
+export function normalizeActiveMaquilaOrders(payload: unknown): ActiveMaquilaOrder[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((value) => {
+    if (!value || typeof value !== 'object') return [];
+    const order = value as Record<string, unknown>;
+    const id = typeof order.id === 'string' && order.id
+      ? order.id
+      : typeof order.orderId === 'string' ? order.orderId : '';
+    if (!id) return [];
+    return [{ ...order, id, orderId: id } as unknown as ActiveMaquilaOrder];
+  });
 }
 
 /** Entrega local guardada en localStorage / historial */

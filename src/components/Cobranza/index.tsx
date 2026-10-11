@@ -197,6 +197,7 @@ export default function Cobranza() {
         netUtilidad: number;
         netCobrado: number;
         margenPct: number;
+        needsFinancialReview: boolean;
         status: string;
         order: PurchaseOrder;
       }
@@ -216,11 +217,13 @@ export default function Cobranza() {
           netUtilidad: 0,
           netCobrado: 0,
           margenPct: 0,
+          needsFinancialReview: false,
           status: inv.creditCycle.status,
           order: o,
         };
       }
       const grp = crGroups[cr];
+      grp.needsFinancialReview ||= Boolean(inv.needsReview || inv.financials?.isEstimatedCost);
       if (inv.folio && !grp.folios.includes(inv.folio)) grp.folios.push(inv.folio);
 
       const invTotal = inv.financials?.invoiceTotal ?? (inv.kilos * config.salePricePerKg * (1 + config.ivaRate));
@@ -234,9 +237,9 @@ export default function Cobranza() {
     });
 
     Object.values(crGroups).forEach((grp) => {
-      grp.netUtilidad = grp.totalVenta - grp.costoAndres - grp.comisionContador;
+      grp.netUtilidad = grp.needsFinancialReview ? 0 : grp.totalVenta - grp.costoAndres - grp.comisionContador;
       grp.netCobrado = round2(grp.totalVenta - grp.comisionContador);
-      grp.margenPct = grp.totalVenta > 0 ? (grp.netUtilidad / grp.totalVenta) * 100 : 0;
+      grp.margenPct = !grp.needsFinancialReview && grp.totalVenta > 0 ? (grp.netUtilidad / grp.totalVenta) * 100 : 0;
     });
 
     const listaCr = Object.values(crGroups).sort((a, b) => b.totalVenta - a.totalVenta);

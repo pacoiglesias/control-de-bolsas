@@ -66,7 +66,7 @@ export default function TabPagadas() {
                       style={{ fontWeight: 700, fontSize: 12, padding: '6px 12px', borderRadius: 6 }}
                       onClick={() => collectContrareciboBlock(crGroup.cr, crGroup.netCobrado)}
                     >
-                      💰 Recoger Efectivo ({money(crGroup.netUtilidad)})
+                      💰 Recoger Efectivo ({money(crGroup.netCobrado)})
                     </button>
                     <button
                       className="btn"
@@ -127,7 +127,7 @@ export default function TabPagadas() {
                           NETO A INGRESAR A CAJA:
                         </td>
                         <td className="num mono" style={{ fontWeight: 800, color: 'var(--ok)', fontSize: 14, border: 'none' }}>
-                          {money(crGroup.netUtilidad)}
+                      {crGroup.needsFinancialReview ? 'Pendiente de validar costos' : money(crGroup.netUtilidad)}
                         </td>
                         <td style={{ border: 'none' }}></td>
                       </tr>

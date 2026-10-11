@@ -7,7 +7,7 @@ import confetti from 'canvas-confetti';
 import { openWhatsAppMessage } from '../lib/whatsappReminder';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { PinScreen } from './MaquiladorPortalPinScreen';
-import { glass, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY, type ActiveMaquilaOrder, type MaquilaDelivery, type LastDeliveredNotice, type MaquilaStatement, type MaquilaLedgerEntry } from './MaquiladorPortal.shared';
+import { glass, STORAGE_PIN_KEY, STORAGE_DELIVERIES_KEY, normalizeActiveMaquilaOrders, type ActiveMaquilaOrder, type MaquilaDelivery, type LastDeliveredNotice, type MaquilaStatement, type MaquilaLedgerEntry } from './MaquiladorPortal.shared';
 import { getStatementHtml, getDeliveryTicketHtml } from './MaquiladorPortalReports';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
@@ -20,6 +20,7 @@ import {
 } from '../lib/offlineMaquilaDb';
 import { PulsingBadge } from '../components/ui/PulsingBadge';
 import { triggerHaptic } from '../lib/hapticEngine';
+import { shouldQueueOfflineDeliveryError } from '../lib/maquilaPortalErrors';
 import { CameraTicketScannerModal, type CameraScanResult } from '../components/Recepcion/CameraTicketScannerModal';
 
 // Subcomponentes Modulares del Portal
@@ -105,7 +106,7 @@ export default function MaquiladorPortal() {
       let syncedCount = 0;
       for (const item of queue) {
         try {
-          await maquilaServiceFn({
+          const response: any = await maquilaServiceFn({
             action: 'registrarEntrega',
             pin,
             orderId: item.orderId,
@@ -118,6 +119,11 @@ export default function MaquiladorPortal() {
             notes: item.notes || null,
             status: item.status,
           });
+          if (!response.data?.success) {
+            const rejection = new Error(response.data?.error || response.data?.message || 'El servidor no confirmó la entrega.');
+            (rejection as Error & { code?: string }).code = 'functions/failed-precondition';
+            throw rejection;
+          }
           await removeOfflineDelivery(item.id);
           syncedCount++;
         } catch (itemErr: any) {
@@ -278,7 +284,11 @@ export default function MaquiladorPortal() {
         toast(`Error: ${res.data.error}`, 'bad');
       }
     } catch (err: any) {
-      console.warn('Error en red/servicio, guardando offline...', err);
+      if (!shouldQueueOfflineDeliveryError(err, isOnline)) {
+        toast(`No se pudo registrar la entrega: ${err?.message || 'revisa los datos e inténtalo de nuevo.'}`, 'bad');
+        return;
+      }
+      console.warn('Error de conexión, guardando offline...', err);
       try {
         await enqueueOfflineDelivery({
           id: clientDeliveryId,
@@ -326,7 +336,7 @@ export default function MaquiladorPortal() {
     try {
       const res: any = await maquilaServiceFn({ pin });
       if (res.data.success) {
-        setActiveOrders(res.data.orders);
+        setActiveOrders(normalizeActiveMaquilaOrders(res.data.orders));
       }
     } catch {
       toast('Error al actualizar órdenes', 'bad');

@@ -311,6 +311,9 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     if (pendingKilos > 0.01) {
       const dept = data.department || (data.client?.toUpperCase().includes('GT') ? 'GT' : 'TH');
       activeOrders.push({
+        // Keep both keys until every portal client has migrated to the typed contract.
+        // The UI uses `id` for selection and `orderId` for delivery payloads.
+        id: doc.id,
         orderId: doc.id,
         folio: data.folio || data.oc || "Sin Folio",
         productDescription: data.productDescription || (data.items && data.items[0]?.description) || "Bolsa de Polietileno",
@@ -416,22 +419,14 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
     });
   });
 
-  if (alreadyProcessed) {
-    return {
-      success: true,
-      alreadyProcessed: true,
-      deliveryId,
-      message: 'Entrega ya procesada previamente.',
-    };
-  }
-
   // Bitácora propia del portal (estado de cuenta/ledger de Andrés, no
   // depende de esto -- computeAndresBalance() ya lee `purchases`/
   // `expenses`, no `maquilaDeliveries`). Se guarda ya como 'assigned' con
   // referencia a la entrega real: ya no necesita revisión manual, pero
   // queda visible/consultable con el mismo patrón que el resto del
   // sistema usa para trazabilidad de origen.
-  const deliveryLogRef = db.collection('maquilaDeliveries').doc();
+  // Deterministic IDs make retries repair missing logs without creating duplicates.
+  const deliveryLogRef = db.collection('maquilaDeliveries').doc(deliveryId);
   await deliveryLogRef.set({
     date: now,
     orderId,
@@ -445,11 +440,11 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
     linkedDeliveryId: deliveryId,
     autoImported: true,
     createdAt: now,
-  });
+  }, { merge: true });
 
   // Bitácora: el portal se accede solo con PIN (sin cuenta/correo por
   // persona), asi que "user" identifica el origen, no a un individuo.
-  await db.collection('system_logs').add({
+  await db.collection('system_logs').doc(`maquila-delivery-${deliveryId}`).set({
     user: 'portal-maquilador',
     action: 'Entrega Registrada (Portal Maquilador)',
     details: {
@@ -461,7 +456,16 @@ export async function procesarRegistroEntregaMaquila(db: FirebaseFirestore.Fires
       docFolio: docFolio || null,
     },
     timestamp: now,
-  });
+  }, { merge: true });
+
+  if (alreadyProcessed) {
+    return {
+      success: true,
+      alreadyProcessed: true,
+      deliveryId,
+      message: 'Entrega ya procesada previamente; bitácora verificada.',
+    };
+  }
 
   // Notificación Web Push PWA (FCM) a operadores/administradores
   try {

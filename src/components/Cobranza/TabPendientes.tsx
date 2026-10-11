@@ -142,11 +142,11 @@ export default function TabPendientes() {
                       </td>
                       <td className="num mono">{grp.totalKilos.toLocaleString('es-MX')} kg</td>
                       <td className="num mono" style={{ fontWeight: 700 }}>{money(grp.totalVenta)}</td>
-                      <td className="num mono" style={{ color: 'var(--ink-soft)' }}>-{money(grp.costoAndres)}</td>
+                      <td className="num mono" style={{ color: 'var(--ink-soft)' }}>{grp.needsFinancialReview ? 'Costo pendiente' : `-${money(grp.costoAndres)}`}</td>
                       <td className="num mono" style={{ color: 'var(--warn)' }}>-{money(grp.comisionContador)}</td>
-                      <td className="num mono" style={{ fontWeight: 800, color: 'var(--ok)' }}>{money(grp.netUtilidad)}</td>
+                      <td className="num mono" style={{ fontWeight: 800, color: grp.needsFinancialReview ? 'var(--warn)' : 'var(--ok)' }}>{grp.needsFinancialReview ? 'Por revisar' : money(grp.netUtilidad)}</td>
                       <td className="num mono" style={{ fontWeight: 700, color: grp.margenPct >= 10 ? 'var(--ok)' : 'var(--warn)' }}>
-                        {grp.margenPct.toFixed(1)}%
+                        {grp.needsFinancialReview ? 'Por revisar' : `${grp.margenPct.toFixed(1)}%`}
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>

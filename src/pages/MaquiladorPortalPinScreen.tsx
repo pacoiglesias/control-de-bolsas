@@ -4,7 +4,7 @@ import { functions } from '../lib/firebase';
 import { useToast } from '../context/ToastContext';
 import { motion } from 'framer-motion';
 import { useSystemSettings } from '../hooks/useSystemSettings';
-import { glass, STORAGE_PIN_KEY } from './MaquiladorPortal.shared';
+import { glass, STORAGE_PIN_KEY, normalizeActiveMaquilaOrders } from './MaquiladorPortal.shared';
 import { triggerHaptic } from '../lib/hapticEngine';
 
 // Extraido de MaquiladorPortal.tsx (~190 lineas de las 1796 originales).
@@ -39,7 +39,7 @@ export function PinScreen({ onSuccess }: { onSuccess: (pin: string, orders: any[
         localStorage.removeItem(STORAGE_PIN_KEY);
       }
       triggerHaptic('success');
-      onSuccess(pinToTry, (res.data as any[]) || []);
+      onSuccess(pinToTry, normalizeActiveMaquilaOrders(res.data));
     } catch (err: any) {
       triggerHaptic('error');
       if (silent) {

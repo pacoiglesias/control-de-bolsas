@@ -213,6 +213,9 @@ export interface Invoice {
   items?: PurchaseOrderItem[];
   isEstimatedPrice?: boolean;
   isEstimatedCost?: boolean;
+  /** Historical import lacking physical kilos or actual unit cost. */
+  needsReview?: boolean;
+  reviewReason?: string;
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
 }

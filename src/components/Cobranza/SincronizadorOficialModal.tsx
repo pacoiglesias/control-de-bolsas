@@ -425,12 +425,15 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
                 financials: {
                   invoiceTotal: inv.amount,
                   saleTotal: subtotal,
-                  costTotal: 0,
                   commission: round2(subtotal * 0.08),
                   netCashFlow: round2(subtotal * 1.08),
-                  salePricePerKg: 43,
-                  costPricePerKg: 38,
+                  salePricePerKg: 0,
+                  costPricePerKg: 0,
+                  isEstimatedPrice: true,
+                  isEstimatedCost: true,
                 },
+                needsReview: true,
+                reviewReason: 'Sincronización histórica: el importe de factura está disponible, pero faltan kilos y costo real para calcular precio unitario y margen.',
               };
             });
           }
@@ -455,12 +458,15 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
               financials: {
                 invoiceTotal: item.total,
                 saleTotal: subtotal,
-                costTotal: 0,
                 commission: round2(subtotal * 0.08),
                 netCashFlow: round2(subtotal * 1.08),
-                salePricePerKg: 43,
-                costPricePerKg: 38,
+                salePricePerKg: 0,
+                costPricePerKg: 0,
+                isEstimatedPrice: true,
+                isEstimatedCost: true,
               },
+              needsReview: true,
+              reviewReason: 'Sincronización histórica: el importe de factura está disponible, pero faltan kilos y costo real para calcular precio unitario y margen.',
             },
           ];
         };
@@ -469,14 +475,34 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
           // NO reconstruir invoices[] ni reiniciar pagos/estados
           // Conservar facturas existentes y vincular el contrarecibo
           const existingInvoices = matchingOrder.invoices || [];
-          const updatedInvoices = existingInvoices.map(inv => ({
+          const officialFolioRefs = new Set((item.invoicesDetails || []).flatMap((detail) =>
+            String(detail.folio || '').split(/[\s,;|/]+/).map((value) => value.replace(/[^a-z0-9]/gi, '').toUpperCase()).filter(Boolean),
+          ));
+          const isCoveredByThisReceipt = (invoice: Invoice) => String(invoice.folio || '')
+            .split(/[\s,;|/]+/)
+            .map((value) => value.replace(/[^a-z0-9]/gi, '').toUpperCase())
+            .some((folio) => folio && officialFolioRefs.has(folio));
+          const matchedInvoices = existingInvoices.filter(isCoveredByThisReceipt);
+          if (matchedInvoices.length === 0) {
+            addLog(`⚠️ CR ${item.cr} no aplicado: no se identificó una factura amparada de forma explícita en ${matchingOrder.folio || matchingOrder.id}.`);
+            continue;
+          }
+          const conflictingInvoice = matchedInvoices.find((invoice) => {
+            const currentCr = invoice.collection?.contrareciboNumber?.trim();
+            return currentCr && currentCr.toUpperCase() !== item.cr.toUpperCase();
+          });
+          if (conflictingInvoice) {
+            addLog(`⚠️ CR ${item.cr} no aplicado: la factura ${conflictingInvoice.folio || conflictingInvoice.id} ya tiene el CR ${conflictingInvoice.collection?.contrareciboNumber}.`);
+            continue;
+          }
+          const updatedInvoices = existingInvoices.map(inv => isCoveredByThisReceipt(inv) ? ({
             ...inv,
             collection: {
               ...inv.collection,
               contrareciboNumber: item.cr,
               contrareciboDate: inv.collection?.contrareciboDate || issueTs,
             },
-          }));
+          }) : inv);
 
           const currentStatus = matchingOrder.creditCycle?.status || (matchingOrder as any).status || 'pending';
           const newStatus = (currentStatus === 'collected' || currentStatus === 'in_review') ? currentStatus : 'pending';
@@ -542,8 +568,12 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
         if (!selectedIds.has(id)) continue;
 
         const existingPaid = await getDoc(doc(db, PATHS.orders, id));
-        if (existingPaid.exists() && existingPaid.data()?.isDeleted) {
+        if (existingPaid.exists() && (existingPaid.data()?.isDeleted || existingPaid.data()?.deletedAt)) {
           addLog(`⏭️ CR Pagado ${item.cr} omitido (está en papelera).`);
+          continue;
+        }
+        if (existingPaid.exists()) {
+          addLog(`⏭️ CR Pagado ${item.cr} omitido: ya existe el expediente ${id}; no se sobrescribieron sus facturas ni pagos.`);
           continue;
         }
 
@@ -574,12 +604,15 @@ export function SincronizadorOficialModal({ orders, onClose }: { orders: Purchas
               financials: {
                 invoiceTotal: item.total,
                 saleTotal: subtotal,
-                costTotal: 0,
                 commission: round2(subtotal * 0.08),
                 netCashFlow: round2(subtotal * 1.08),
-                salePricePerKg: 43,
-                costPricePerKg: 38,
+                salePricePerKg: 0,
+                costPricePerKg: 0,
+                isEstimatedPrice: true,
+                isEstimatedCost: true,
               },
+              needsReview: true,
+              reviewReason: 'Sincronización histórica: el importe de factura está disponible, pero faltan kilos y costo real para calcular precio unitario y margen.',
             }
           ],
           invoiceStatuses: ['collected'],
